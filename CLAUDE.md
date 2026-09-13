@@ -412,6 +412,15 @@ another rule.
   trust changes - a bearer token is the same unforgeable, revocable string the
   cookie holds - and a browser must never ask for one, because reading it in
   script is what HttpOnly exists to prevent.
+- **A limit counts episodes, not requests.** The free tier's daily allowance
+  was spent five times over on one episode, because every tap of it reserved a
+  unit - and tapping the episode that is playing is something the interface
+  invites (PROBLEMS.md §79). A spend carries the episode's cache key, the first
+  one in a window takes the unit and the repeats ride on it. The same rule
+  applies to the pace: a request that provably cannot spend a model call - an
+  Explore replay, or an episode whose script is already cached, which is what
+  makes a voice switch free - is not paced as a generation. And because this
+  server has two reasons to answer 429, every refusal says which one it was.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -600,7 +609,7 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-four named smoke behaviours; anything less means something was skipped, and
+twenty-five named smoke behaviours; anything less means something was skipped, and
 `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:

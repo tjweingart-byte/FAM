@@ -264,11 +264,16 @@ def test_an_episode_that_played_counts_even_though_it_was_cheap(client, enforced
     stopped working as the cache warmed up, which is the worst possible way for
     a spending control to fail. A listener heard an episode and the GPU
     produced it; only the model call was saved.
+
+    Three *different* questions, because the allowance counts episodes and a
+    listener asking the same one again has not had a second episode - see
+    `test_the_same_episode_is_charged_once` in test_rate_limit_production.py.
+    The thing being locked down here is unchanged: cheap to serve is not free.
     """
-    for _ in range(2):
-        assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm"
+    for n in range(2):
+        assert client.get(f"/api/audio?q=question+number+{n}&minutes=1&fmt=pcm"
                           ).status_code == 200
-    assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm"
+    assert client.get("/api/audio?q=a+third+and+different+question&minutes=1&fmt=pcm"
                       ).status_code == 429
 
 
