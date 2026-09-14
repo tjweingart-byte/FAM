@@ -589,13 +589,26 @@ class Settings:
     # a burst throttles correct use. 0 switches it off.
     read_limit_per_window: int = _env_int("READ_LIMIT_PER_WINDOW", 60)
     # --- Public API -------------------------------------------------------
-    # Tier quotas. On by default, because the thing this protects is a GPU and
-    # a metered API key reachable by anyone who has the URL, and a ceiling that
-    # has to be switched on is a ceiling that is off on the machine nobody
-    # checked. `demo.sh` turns it off for a local demo and says so on the way
-    # past - judging the writing must not stop after five episodes.
+    # Tier quotas. **Off by default: the tier system is built, and not yet
+    # switched on.** The whole mechanism stays - tiers, limits, counters,
+    # reservations, refunds, the refusal and the screen it raises - and
+    # `ENFORCE_QUOTAS=1` turns it on in one place on the day the product
+    # decides to. What is deliberately not happening yet is *refusing a
+    # listener*, because nothing sells them a way past a refusal: there is no
+    # payment (ACCOUNTS.md), so an enforced free tier is a wall with no door.
+    #
+    # This was on by default, and the reasoning was sound as far as it went:
+    # the thing it protects is a GPU and a metered API key reachable by anyone
+    # who has the URL, and a ceiling that has to be switched on is a ceiling
+    # that is off on the machine nobody checked. Two things answer that while
+    # it is off. `_rate_limit` still paces every generation per listener, so
+    # the server cannot be spun faster than it could before; and `metering.py`
+    # still records every episode and what it cost, so spend is *visible*
+    # even where it is not *capped*. Visible-and-uncapped is a deliberate
+    # position for a beta with no checkout, not an oversight - and it is the
+    # one thing to revisit before this is open to strangers at scale.
     enforce_quotas: bool = field(
-        default_factory=lambda: os.environ.get("ENFORCE_QUOTAS", "1")
+        default_factory=lambda: os.environ.get("ENFORCE_QUOTAS", "0")
         not in ("0", "false", "False", "")
     )
     # Browser origins allowed to call this server, comma separated. Empty means

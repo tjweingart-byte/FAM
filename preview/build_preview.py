@@ -36,6 +36,7 @@ def load_fixtures() -> dict:
     same topics the app would. Imported rather than duplicated - a fixture that
     drifts from the code is worse than no fixture."""
     sys.path.insert(0, str(ROOT))
+    import entitlements
     import mixes as mixes_mod
     import preferences as prefs_mod
     import topics as topics_mod
@@ -199,6 +200,12 @@ def load_fixtures() -> dict:
         },
         "/api/health": {"ok": True, "demo": True, "engine": "preview"},
         "/api/event": {"ok": True},
+        # The plans sheet the limit screen opens. Built from the real tier
+        # table rather than a copy typed here, for the same reason as the
+        # vocabulary below: a preview that shows tiers the server does not have
+        # is a preview of a different product. `current` is "free" because a
+        # preview has no session to read one from.
+        "/api/plans": {**entitlements.catalogue(), "current": "free"},
         # The intro's two pages. Built from the real vocabulary rather than a
         # list typed out here: a picker offering a facet the ranker does not
         # score is the exact drift this module refuses to introduce.

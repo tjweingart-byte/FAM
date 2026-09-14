@@ -662,6 +662,69 @@ def main() -> int:
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
 
+        def limit_screen_offers_an_upgrade():
+            """Reaching a limit says which limit, and opens a way past it.
+
+            The tier system ships switched off, so no amount of tapping in the
+            preview will produce a refusal - the screen is driven from the
+            server's verdict, and this feeds it the verdict a refused request
+            carries. That is the honest way to check a screen you cannot reach
+            yet: the shape of the data is the contract, and `quotas.Verdict`
+            is where it comes from.
+            """
+            page.evaluate("""() => showLimitReached({
+                allowed: false, resource: "episode", tier: "free", window: "day",
+                used: 5, limit: 5, unlimited: false, remaining: 0,
+                resets_at: (Date.now() / 1000) + 3600,
+                service: "searches",
+                title: "You've reached your daily limit for searches",
+                message: "That is all 5 of your searches for today. You get more at 00:00 UTC. A bigger plan lifts the limit."
+            })""")
+            page.wait_for_timeout(200)
+            assert page.evaluate(
+                """() => document.getElementById("limitOverlay").classList.contains("active")"""
+            ), "reaching a limit showed nothing"
+
+            title = page.text_content("#limitTitle") or ""
+            assert "daily limit for searches" in title, (
+                f"the limit screen does not name what they were doing: {title!r}")
+            body = page.text_content("#limitBody") or ""
+            assert "5" in body and "more at" in body, (
+                f"the limit screen does not say the number or when it comes back: {body!r}")
+            # The server counts windows in UTC and its sentence says so, so the
+            # localised line has to say whose clock it is or the card shows one
+            # fact as two times.
+            when = page.text_content("#limitReset") or ""
+            assert "in your time" in when, (
+                f"the reset line does not say whose clock it is: {when!r}")
+            # A limit with no way past it is a dead end; the whole point of the
+            # screen is the next tap.
+            assert page.evaluate(
+                """() => !!document.querySelector('#limitOverlay .modal-btn.primary')"""
+            ), "the limit screen offers no way to upgrade"
+
+            page.evaluate("openPlansFromLimit()")
+            page.wait_for_timeout(500)
+            assert not page.evaluate(
+                """() => document.getElementById("limitOverlay").classList.contains("active")"""
+            ), "the limit screen stayed up behind the plans"
+            assert page.evaluate(
+                """() => document.getElementById("plansOverlay").classList.contains("active")"""
+            ), "See plans opened nothing"
+
+            rows = page.evaluate("""() => document.querySelectorAll("#plansList .plan-row").length""")
+            assert rows >= 2, f"the plans sheet listed {rows} plan(s)"
+            assert page.evaluate(
+                """() => !!document.querySelector("#plansList .plan-row.current")"""
+            ), "the plans sheet does not say which plan they are on"
+            # Said out loud, not discovered by tapping: there is no checkout.
+            note = page.text_content("#plansList .plan-note") or ""
+            assert "not switched on yet" in note, (
+                f"the plans sheet does not say upgrading is unavailable: {note!r}")
+
+            page.evaluate("closePlans()")
+            page.wait_for_timeout(150)
+
         def loading_screen_covers_every_surface():
             """One screen, not one per tab. Four overlays chosen by id is how
             the home screen ended up with none."""
@@ -694,6 +757,7 @@ def main() -> int:
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)
         check("One tap sends one request", one_tap_is_one_request)
+        check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
         check("Save for Later lists the shelf and its folders",
               save_for_later_lists_the_shelf_and_its_folders)
