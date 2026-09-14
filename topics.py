@@ -112,10 +112,15 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
 }
 
 #: The same eight facets, with a word a listener would recognise on a button.
-#: The intro's interest picker is built from this, so a tag added to TAG_WORDS
-#: without a label here would rank episodes it could never be chosen for -
-#: tests/test_preferences.py fails on the mismatch rather than letting the two
-#: drift.
+#: The intro's interest picker is built from this, so a facet added to
+#: TAG_WORDS without a label here would rank episodes it could never be chosen
+#: for - tests/test_preferences.py fails on the mismatch rather than letting
+#: the two drift.
+#:
+#: **These eight are the whole picker, and that is deliberate.** The ranking
+#: vocabulary below is much larger; the *pickable* one is not, because a
+#: twenty-seven button intro is a worse question than an eight button one and
+#: would buy a signal the listener's behaviour supplies within a day anyway.
 TAG_LABELS: dict[str, str] = {
     "sports": "Sport",
     "business": "Business",
@@ -126,6 +131,109 @@ TAG_LABELS: dict[str, str] = {
     "culture": "Culture",
     "world": "World",
 }
+
+#: The eight facets, as a set, for the checks that care about the difference
+#: between "a tag" and "a tag somebody can choose".
+FACETS: frozenset[str] = frozenset(TAG_LABELS)
+
+#: Every subtag, and the facet it lives under.
+#:
+#: **Why this exists.** Eight tags over a twenty-eight topic bank cannot
+#: express a preference finely enough to rank one. Measured before this was
+#: added: a listener whose entire history was `tech` had exactly four topics
+#: with any positive affinity and three of them scored *identically*
+#: (0.7071), so the grid they were shown was one real recommendation followed
+#: by `topic.id` in alphabetical order. That is not a tuning problem -
+#: no weight or half-life fixes a scoring function whose inputs only take
+#: twenty distinct values - it is a vocabulary problem, and this is the
+#: vocabulary.
+#:
+#: A subtag never replaces its facet, it refines it: a topic carries both, and
+#: `tags_for_text` adds the parent to every subtag it matches. So a listener
+#: who chose "Technology" in the intro still matches every tech episode, and
+#: one who has only ever finished episodes about chips now outranks them
+#: against each other. Nothing that worked on the eight stops working.
+TAG_PARENT: dict[str, str] = {
+    # sport
+    "sports-business": "sports", "sports-performance": "sports",
+    "sports-drama": "sports",
+    # business
+    "founders": "business", "media-business": "business",
+    "strategy": "business", "supply-chain": "business",
+    # money
+    "macro": "money", "housing": "money", "commodities": "money",
+    "consumer-prices": "money",
+    # tech
+    "ai": "tech", "chips": "tech", "platforms": "tech",
+    # science
+    "space": "science", "body-science": "science", "energy": "science",
+    # health
+    "sleep": "health", "mind": "health", "habits": "health",
+    "longevity": "health", "fitness": "health",
+    # culture
+    "film-tv": "culture", "music": "culture", "food": "culture",
+    "internet-culture": "culture",
+    # world
+    "geopolitics": "world", "elections": "world", "cities": "world",
+}
+
+#: Keywords for the subtags. Same dumb set-intersection as the facets above
+#: and the same trade: a wrong tag costs one mediocre recommendation. A miss
+#: here is cheaper still than a miss on a facet, because the facet's own
+#: keywords are unchanged and still catch the episode - a subtag only ever
+#: adds resolution, it never takes the topic out of its facet.
+SUBTAG_WORDS: dict[str, tuple[str, ...]] = {
+    "sports-business": ("nil", "salary", "cap", "transfer", "stadium",
+                        "contract", "sponsorship", "franchise", "wages"),
+    "sports-performance": ("training", "fitness", "conditioning", "technique",
+                           "swing", "endurance", "recovery"),
+    "sports-drama": ("rivalry", "upset", "comeback", "trade", "scandal"),
+    "founders": ("founder", "startup", "ceo", "entrepreneur", "cofounder"),
+    "media-business": ("streaming", "studio", "subscriber", "catalogue",
+                       "broadcast", "licensing"),
+    "strategy": ("pricing", "margin", "moat", "positioning", "competition"),
+    "supply-chain": ("supply", "logistics", "shipping", "factory",
+                     "warehouse", "distribution", "freight"),
+    "macro": ("fed", "inflation", "rates", "recession", "gdp",
+              "unemployment", "monetary"),
+    "housing": ("housing", "mortgage", "rent", "property", "homes"),
+    "commodities": ("oil", "gas", "copper", "wheat", "barrel", "commodity"),
+    "consumer-prices": ("price", "prices", "cost", "checkout", "discount"),
+    "ai": ("ai", "model", "agent", "llm", "training", "inference",
+           "neural", "chatbot"),
+    "chips": ("chip", "chips", "semiconductor", "fab", "foundry",
+              "wafer", "lithography"),
+    "platforms": ("platform", "feed", "algorithm", "app", "social",
+                  "viral", "engagement"),
+    "space": ("space", "rocket", "orbit", "satellite", "launch", "mars",
+              "moon"),
+    "body-science": ("brain", "genome", "cell", "biology", "neuroscience",
+                     "metabolism", "immune"),
+    "energy": ("grid", "solar", "wind", "nuclear", "battery", "renewable",
+               "electricity"),
+    "sleep": ("sleep", "insomnia", "circadian", "nap", "rest"),
+    "mind": ("anxiety", "stress", "mindset", "motivation", "focus",
+             "therapy", "mental", "worry"),
+    "habits": ("habit", "habits", "routine", "discipline", "willpower",
+               "morning"),
+    "longevity": ("longevity", "ageing", "aging", "lifespan", "supplement"),
+    "fitness": ("exercise", "workout", "strength", "cardio", "athlete"),
+    "film-tv": ("film", "movie", "hollywood", "series", "actor", "director",
+                "box"),
+    "music": ("song", "album", "artist", "band", "chart", "tour"),
+    "food": ("restaurant", "chef", "menu", "kitchen", "dining", "cuisine"),
+    "internet-culture": ("meme", "creator", "influencer", "trend",
+                         "attention", "scroll"),
+    "geopolitics": ("sanctions", "treaty", "strait", "border", "alliance",
+                    "diplomacy", "tariff"),
+    "elections": ("election", "ballot", "vote", "voter", "poll", "campaign"),
+    "cities": ("city", "transit", "infrastructure", "urban", "housing"),
+}
+
+# One vocabulary from here down: facets and subtags in a single table, so
+# every lookup is one dict and a tag is a tag. TAG_PARENT is what says which
+# of them a listener could have chosen in the intro.
+TAG_WORDS = {**TAG_WORDS, **SUBTAG_WORDS}
 
 #: What one declared interest is worth next to real behaviour, in `taste`.
 #: Equal to a play and well under a completion (EVENT_WEIGHT), and it does not
@@ -139,103 +247,138 @@ _WORD = re.compile(r"[a-z0-9]+")
 
 
 def tags_for_text(text: str) -> tuple[str, ...]:
-    """Best-effort facets for a free-text search, so history can be ranked."""
+    """Best-effort facets and subtags for a free search, so history can rank.
+
+    A matched subtag brings its facet with it. That is what keeps this change
+    additive: "how are chips actually made" now carries `chips`, but it still
+    carries `tech`, so it counts for a listener who only ever said Technology
+    exactly as much as it did before subtags existed. The reverse is not true
+    and should not be - matching the facet says nothing about which part of it
+    was meant.
+
+    Returned sorted for a stable order. These tuples are written into the
+    event log and compared in tests, and dict iteration order is a poor thing
+    to have quietly load-bearing underneath either.
+    """
     words = set(_WORD.findall(text.lower()))
-    found = tuple(tag for tag, keys in TAG_WORDS.items() if words & set(keys))
-    return found
+    found = {tag for tag, keys in TAG_WORDS.items() if words & set(keys)}
+    found |= {TAG_PARENT[tag] for tag in found if tag in TAG_PARENT}
+    return tuple(sorted(found))
+
+
+def facet_of(tag: str) -> str:
+    """The pickable facet a tag belongs to; a facet is its own facet."""
+    return TAG_PARENT.get(tag, tag)
+
+
+def facets_only(tags: Iterable[str]) -> list[str]:
+    """Fold a mix of facets and subtags up to facets, keeping first-seen order.
+
+    Anything a *listener* reads - the recap's subjects, a mix's icon - has to
+    speak in the eight words they were actually offered. `sleep` is a better
+    ranking signal than `health` and a worse sentence: nobody chose it, and
+    TAG_LABELS has no word for it on purpose. So the resolution stays inside
+    the ranker and the vocabulary that reaches a screen is unchanged.
+    """
+    out: list[str] = []
+    for tag in tags:
+        facet = facet_of(tag)
+        if facet in TAG_LABELS and facet not in out:
+            out.append(facet)
+    return out
 
 
 TOPIC_BANK: tuple[Topic, ...] = (
     Topic("nil-arms-race", "The New College Football Arms Race",
           "NIL money, facilities, and the new power brokers.",
-          "how NIL money changed college football recruiting", ("sports", "money"), "sports"),
+          "how NIL money changed college football recruiting", ("sports", "money", "sports-business"), "sports"),
     Topic("operator-ceos", "Why Founders Are Taking Back Control",
           "Leadership, product, and the rise of operator CEOs.",
-          "why boards are keeping founders as CEO", ("business",), "business"),
+          "why boards are keeping founders as CEO", ("business", "founders"), "business"),
     Topic("ai-agents", "Why Everyone Is Talking About AI Agents",
           "What they are, how they work, why now.",
-          "what AI agents are and why they matter now", ("tech",), "tech"),
+          "what AI agents are and why they matter now", ("tech", "ai"), "tech"),
     Topic("hollywood-comebacks", "Inside the Best Hollywood Comebacks",
           "The stories, the risks, the second acts.",
-          "how Hollywood comeback stories actually happen", ("culture",), "camera"),
+          "how Hollywood comeback stories actually happen", ("culture", "film-tv"), "camera"),
     Topic("golf-evolution", "The Quiet Evolution of Golf",
           "New players. New formats. Same obsession.",
-          "how professional golf formats are changing", ("sports",), "golf"),
+          "how professional golf formats are changing", ("sports", "sports-performance"), "golf"),
     Topic("habits-research", "The Habits That Actually Change Your Life",
           "What the research says, and what people ignore.",
-          "what habit research actually shows about lasting change", ("health",), "leaf"),
+          "what habit research actually shows about lasting change", ("health", "habits"), "leaf"),
     Topic("fed-next-move", "The Fed's Next Move, Explained",
           "Rates, inflation data, and what markets expect.",
           "what the Federal Reserve is likely to do about interest rates",
-          ("money",), "business"),
+          ("money", "macro"), "business"),
     Topic("space-race", "Inside the New Space Race",
           "Reusable rockets, private missions, who's winning.",
           "how reusable rockets changed the economics of spaceflight",
-          ("science", "business"), "rocket"),
+          ("science", "business", "space"), "rocket"),
     Topic("song-breaks-internet", "How One Song Breaks the Internet",
           "Playlists, algorithms, and the new path to a hit.",
           "how a song becomes a hit through playlists and short video",
-          ("culture", "tech"), "music"),
+          ("culture", "tech", "music", "platforms"), "music"),
     Topic("restaurant-scene", "The Restaurants Everyone's Talking About",
           "Openings, closings, and where the lines form.",
-          "why some restaurants become impossible to book", ("culture",), "food"),
+          "why some restaurants become impossible to book", ("culture", "food"), "food"),
     Topic("the-trade", "The Trade That Changed Everything",
           "Front offices, cap space, and deals nobody saw.",
-          "how a single trade reshapes a sports franchise", ("sports",), "sports"),
+          "how a single trade reshapes a sports franchise", ("sports", "sports-drama"), "sports"),
     Topic("sleep-science", "What We Actually Know About Sleep",
           "The research, the myths, what isn't settled.",
-          "what sleep research actually establishes", ("health", "science"), "leaf"),
+          "what sleep research actually establishes", ("health", "science", "sleep", "body-science"), "leaf"),
     Topic("chip-supply", "Who Actually Makes the World's Chips",
           "Fabs, bottlenecks, and why it is so concentrated.",
           "why semiconductor manufacturing is concentrated in so few places",
-          ("tech", "world"), "tech"),
+          ("tech", "world", "chips", "geopolitics"), "tech"),
     Topic("hormuz", "The Two-Mile Lane That Moves the Oil Price",
           "Chokepoints, insurance, and why geography decides.",
-          "why the Strait of Hormuz moves the oil price", ("world", "money"), "business"),
+          "why the Strait of Hormuz moves the oil price", ("world", "money", "geopolitics", "commodities"), "business"),
     Topic("morning-mindset", "What to Do With the First Ten Minutes",
           "Why waking up feels the way it does.",
-          "a good mindset for when I wake up in the morning", ("health",), "leaf"),
+          "a good mindset for when I wake up in the morning", ("health", "habits", "mind"), "leaf"),
     Topic("founder-motivation", "Where Motivation Actually Comes From",
           "Progress, evidence, and the founder's problem.",
-          "finding the motivation for my startup", ("health", "business"), "leaf"),
+          "finding the motivation for my startup", ("health", "business", "mind", "founders"), "leaf"),
     Topic("housing-market", "Why Houses Cost What They Cost",
           "Supply, rates, and the arguments that repeat.",
-          "what actually drives house prices", ("money",), "business"),
+          "what actually drives house prices", ("money", "housing"), "business"),
     Topic("longevity-claims", "Sorting the Longevity Claims",
           "What holds up, what is marketing.",
-          "which longevity interventions have real evidence", ("health", "science"), "leaf"),
+          "which longevity interventions have real evidence", ("health", "science", "longevity", "body-science"), "leaf"),
     Topic("streaming-economics", "Why Streaming Keeps Getting Worse",
           "Licensing, churn, and the maths underneath.",
           "why streaming services keep raising prices and losing shows",
-          ("culture", "business"), "camera"),
+          ("culture", "business", "film-tv", "media-business"), "camera"),
     Topic("election-mechanics", "How a Close Election Is Actually Called",
           "Counting, models, and why it takes days.",
-          "how news organisations decide to call an election", ("world",), "business"),
+          "how news organisations decide to call an election", ("world", "elections"), "business"),
     Topic("energy-grid", "What the Grid Does When the Wind Drops",
           "Storage, baseload, and the balancing act.",
           "how electricity grids handle intermittent renewable power",
-          ("science", "money"), "rocket"),
+          ("science", "money", "energy", "commodities"), "rocket"),
     Topic("attention-economy", "The Fight for Fifteen Seconds",
           "How short video rewired everything downstream.",
-          "how short-form video changed the media business", ("tech", "culture"), "music"),
+          "how short-form video changed the media business", ("tech", "culture", "platforms", "internet-culture"), "music"),
     Topic("transfer-window", "How a Transfer Window Actually Works",
           "Agents, deadlines, and the money underneath.",
-          "how football transfer deals actually get done", ("sports", "money"), "sports"),
+          "how football transfer deals actually get done", ("sports", "money", "sports-business"), "sports"),
     Topic("stadium-money", "Who Really Pays for a Stadium",
           "Public money, private returns, and the argument.",
-          "who actually pays for new sports stadiums", ("sports", "money"), "business"),
+          "who actually pays for new sports stadiums", ("sports", "money", "world", "sports-business", "cities"), "business"),
     Topic("anxiety-loop", "Why Worry Feels Productive",
           "The loop, and what actually interrupts it.",
-          "why worrying feels useful when it is not", ("health",), "leaf"),
+          "why worrying feels useful when it is not", ("health", "mind"), "leaf"),
     Topic("pricing-psychology", "Why Everything Ends in Ninety-Nine",
           "What the pricing research does and does not show.",
-          "what the evidence says about psychological pricing", ("business", "money"), "business"),
+          "what the evidence says about psychological pricing", ("business", "money", "strategy", "consumer-prices"), "business"),
     Topic("food-supply", "How Food Gets to a City",
           "Logistics, margins, and the fragile bits.",
-          "how a city's food supply chain actually works", ("world", "business"), "food"),
+          "how a city's food supply chain actually works", ("world", "business", "supply-chain", "cities"), "food"),
     Topic("training-load", "How Athletes Are Actually Trained Now",
           "Load, recovery, and the data behind it.",
-          "how modern athletic training load is managed", ("sports", "health"), "sports"),
+          "how modern athletic training load is managed", ("sports", "health", "sports-performance", "fitness"), "sports"),
 )
 
 BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
@@ -285,7 +428,41 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-08.1"
+ALGO_VERSION = "2026-09-14.1"
+
+#: **Fatigue**: how a tile that keeps being shown and never played stops being
+#: offered quite so hard. This is the one thing impressions are allowed to do
+#: to the ranking, and the boundary is exact and load-bearing:
+#:
+#: * An impression must never become **taste**. "We showed you tech" is not
+#:   "you like tech"; giving IMPRESSION a row in EVENT_WEIGHT would let the
+#:   feed teach itself its own preferences and call the echo a signal. It has
+#:   no weight there, and it must not acquire one.
+#: * An impression may become **fatigue**. Shown on six separate occasions and
+#:   never once played is real evidence about *that tile*, and it is the only
+#:   negative the log holds for a topic nobody ever taps - a skip needs a play
+#:   first, so without this a tile can be ignored forever and never learn it.
+#:
+#: The difference that makes it safe: fatigue is per-topic, never per-tag, and
+#: it can only push a tile *down*. It cannot reinforce itself, because nothing
+#: it does raises anything. The bubble the EVENT_WEIGHT note guards against
+#: needs a positive feedback loop, and this is strictly negative.
+#:
+#: Applied to the personalised rankings only. `rank_trending` is deliberately
+#: identical for everyone - that is what makes it the cheapest section to
+#: serve - and per-listener damping would quietly end that.
+FATIGUE_WEIGHT = 0.35
+#: Impressions inside one bucket count once. A feed load writes ~18 rows and a
+#: listener who opens myFAM four times before breakfast has not rejected
+#: anything four times; without this, refreshing the page would look like
+#: disinterest and the ranking would punish the most engaged listeners hardest.
+FATIGUE_BUCKET = 3600.0
+#: Occasions before fatigue starts counting. A rail scrolls, so being *sent* a
+#: tile twice is not evidence it was ever looked at.
+FATIGUE_GRACE = 2
+#: Fatigue never reaches zero. A tile buried early by a burst of impressions
+#: must still be able to come back when the listener's taste moves toward it.
+FATIGUE_FLOOR = 0.15
 
 #: How long an impression is kept. Behavioural events are low-volume and worth
 #: keeping indefinitely; impressions arrive ~18 at a time on every feed load,
@@ -460,6 +637,34 @@ class EventStore:
             for r in rows
         ]
 
+    def impression_occasions(self, user_id: str) -> dict[str, int]:
+        """How many separate occasions each tile was put in front of them.
+
+        Distinct `FATIGUE_BUCKET` buckets rather than rows, because one feed
+        load writes a row per tile and a refresh writes them all again. The
+        question worth answering is "how many times did this come up and get
+        passed over", and that is a count of occasions, not of renders.
+
+        Unlike `impressions_for`, this one *is* read by the ranking - see the
+        FATIGUE_WEIGHT note for exactly how far that is allowed to go.
+        """
+        if not user_id:
+            return {}
+        try:
+            rows = self._conn().execute(
+                "SELECT topic_id, COUNT(DISTINCT CAST(at / ? AS INTEGER))"
+                " FROM events WHERE user_id = ? AND kind = ? AND topic_id != ''"
+                " GROUP BY topic_id",
+                (FATIGUE_BUCKET, user_id, IMPRESSION),
+            ).fetchall()
+        except Exception:
+            # Same rule as every other read here: a feed with no fatigue
+            # applied is the feed that shipped before this existed, which is
+            # a far better outcome than no feed at all.
+            log.exception("could not read impression occasions")
+            return {}
+        return {r[0]: int(r[1]) for r in rows}
+
     def for_user(self, user_id: str, limit: int = 400) -> list[Event]:
         """The behavioural log for one listener. **Impressions are excluded.**
 
@@ -602,6 +807,25 @@ def taste(events: Iterable[Event], now: Optional[float] = None,
     return {k: v / peak for k, v in scores.items()} if peak else {}
 
 
+def fatigue(occasions: dict[str, int], played: Iterable[str] = ()) -> dict[str, float]:
+    """Per-topic multiplier in (FATIGUE_FLOOR, 1.0]. 1.0 means "no evidence".
+
+    A topic they actually played is dropped rather than damped: it is excluded
+    from every ranking anyway, and the impressions that led up to the play are
+    the opposite of disinterest.
+    """
+    played = set(played)
+    out: dict[str, float] = {}
+    for topic_id, seen in occasions.items():
+        if topic_id in played:
+            continue
+        ignored = seen - FATIGUE_GRACE
+        if ignored <= 0:
+            continue
+        out[topic_id] = max(FATIGUE_FLOOR, 1.0 / (1.0 + FATIGUE_WEIGHT * ignored))
+    return out
+
+
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     if not topic.tags:
         return 0.0
@@ -633,17 +857,25 @@ def rank_trending(
     return (ranked + filler)[:SECTION_SIZE]
 
 
-def rank_from_history(profile: dict[str, float], exclude: set[str]) -> list[Topic]:
-    """Closest match to what they already play. Exploitation."""
+def rank_from_history(profile: dict[str, float], exclude: set[str],
+                      damp: Optional[dict[str, float]] = None) -> list[Topic]:
+    """Closest match to what they already play. Exploitation.
+
+    `damp` is the fatigue multiplier: a tile offered here again and again and
+    never taken loses ground to one that has not been asked yet.
+    """
+    damp = damp or {}
     scored = [
-        (_affinity(t, profile), t) for t in TOPIC_BANK if t.id not in exclude
+        (_affinity(t, profile) * damp.get(t.id, 1.0), t)
+        for t in TOPIC_BANK if t.id not in exclude
     ]
     scored = [(s, t) for s, t in scored if s > 0]
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:SECTION_SIZE]]
 
 
-def rank_might_like(profile: dict[str, float], exclude: set[str]) -> list[Topic]:
+def rank_might_like(profile: dict[str, float], exclude: set[str],
+                    damp: Optional[dict[str, float]] = None) -> list[Topic]:
     """Adjacent, not identical. Exploration.
 
     Serves two surfaces from one ranking: the Explore New rail on myFAM and
@@ -661,11 +893,19 @@ def rank_might_like(profile: dict[str, float], exclude: set[str]) -> list[Topic]
     it is muted, and they are exactly who this section exists for; the earlier
     version returned nothing for them, which the tests caught.
     """
+    damp = damp or {}
     if not profile:
         return [t for t in TOPIC_BANK if t.id not in exclude][:SECTION_SIZE]
 
+    # The strongest tag's whole *family* is muted, not just the tag. With two
+    # levels, muting `sports-performance` on its own leaves `sports` at full
+    # strength and the section quietly becomes history with a new heading -
+    # the exact bubble this exists to break. Muting the facet alone has the
+    # mirror problem, so it is both, together.
     top_tag = max(profile, key=lambda k: profile[k])
-    muted = {k: v for k, v in profile.items() if k != top_tag}
+    top_facet = facet_of(top_tag)
+    top_family = {k for k in profile if facet_of(k) == top_facet}
+    muted = {k: v for k, v in profile.items() if k not in top_family}
     picks: list[Topic] = []
     taken = set(exclude)
 
@@ -689,7 +929,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str]) -> list[Topic]
             continue
         if any(tag not in profile for tag in topic.tags):
             score *= 1.4
-        tier.append((score, topic))
+        tier.append((score * damp.get(topic.id, 1.0), topic))
     add(tier)
 
     # 2. Bridges out of the tag they already have: keep the familiar tag, but
@@ -698,7 +938,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str]) -> list[Topic]
         add([
             (float(sum(1 for tag in t.tags if tag not in profile)), t)
             for t in TOPIC_BANK
-            if t.id not in taken and top_tag in t.tags
+            if t.id not in taken and top_family & set(t.tags)
             and any(tag not in profile for tag in t.tags)
         ])
 
@@ -714,7 +954,8 @@ def rank_might_like(profile: dict[str, float], exclude: set[str]) -> list[Topic]
 
 
 def rank_followers(
-    store: EventStore, user_id: str, mine: set[str], exclude: set[str]
+    store: EventStore, user_id: str, mine: set[str], exclude: set[str],
+    damp: Optional[dict[str, float]] = None
 ) -> list[Topic]:
     """Co-listener overlap: people who played what you played also played this.
 
@@ -730,13 +971,14 @@ def rank_followers(
     neighbours.discard(user_id)
     if not neighbours:
         return []
+    damp = damp or {}
     scored = []
     for topic in TOPIC_BANK:
         if topic.id in exclude:
             continue
         overlap = len(by_topic.get(topic.id, set()) & neighbours)
         if overlap:
-            scored.append((overlap, topic))
+            scored.append((overlap * damp.get(topic.id, 1.0), topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:SECTION_SIZE]]
 
@@ -755,6 +997,9 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
     mine = _played_ids(events)
+    # One read for the whole page. Every personalised section damps the same
+    # way, so computing this per section would be the same answer four times.
+    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     used: set[str] = set()
     picked: dict[str, list[Topic]] = {}
 
@@ -769,12 +1014,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         # just stops offering back the one they finished this morning.
         seen = used | mine
         if key == "from_history":
-            picks = rank_from_history(profile, seen)
+            picks = rank_from_history(profile, seen, damp)
         elif key == "followers":
-            picks = rank_followers(store, user_id, mine, seen)
+            picks = rank_followers(store, user_id, mine, seen, damp)
         elif key == "might_like":
-            picks = rank_might_like(profile, seen)
+            picks = rank_might_like(profile, seen, damp)
         else:
+            # Not damped, deliberately: trending is the same list for
+            # everyone, which is what makes it the cheapest section to serve.
             picks = rank_trending(store, now, seen)
         picked[key] = picks
         used |= {t.id for t in picks}
@@ -812,7 +1059,7 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
         "open_threads": len(store.open_threads(user_id)),
         # Only tags they are actually positive about; a skip pushes a tag
         # negative and it has no business on a list of what someone likes.
-        "subjects": [tag for tag, weight in top if weight > 0][:5],
+        "subjects": facets_only(tag for tag, weight in top if weight > 0)[:5],
         "since": min((e.at for e in events), default=0.0),
     }
 
@@ -893,6 +1140,7 @@ def rank_next_up(
         JUST_HEARD_WEIGHT,
     )
     mine = _played_ids(events)
+    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     exclude = set(mine) | ({after_id} if after_id else set())
 
     picks: list[Topic] = []
@@ -906,9 +1154,9 @@ def rank_next_up(
                 picks.append(topic)
                 taken.add(topic.id)
 
-    add(rank_from_history(profile, taken))
+    add(rank_from_history(profile, taken, damp))
     if len(picks) < size:
-        add(rank_followers(store, user_id, mine, taken))
+        add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:
         add(rank_trending(store, now, taken))
     # A listener who has played most of the bank would otherwise get a short
@@ -946,8 +1194,10 @@ def weekly_recap(store: EventStore, user_id: str, now: Optional[float] = None) -
     events = [e for e in store.for_user(user_id, limit=1000)
               if e.at >= now - RECAP_WINDOW]
     profile = taste(events, now)
-    subjects = [tag for tag, weight in
-                sorted(profile.items(), key=lambda kv: -kv[1]) if weight > 0][:3]
+    subjects = facets_only(
+        tag for tag, weight in sorted(profile.items(), key=lambda kv: -kv[1])
+        if weight > 0
+    )[:3]
     played = sum(1 for e in events if e.kind in ("play", "complete"))
     finished = sum(1 for e in events if e.kind == "complete")
     recap = {
@@ -998,7 +1248,9 @@ def build_explore_new(store: EventStore, user_id: str, now: Optional[float] = No
     """
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
-    picks = rank_might_like(profile, _played_ids(events))
+    mine = _played_ids(events)
+    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    picks = rank_might_like(profile, mine, damp)
     return {
         "topics": [t.as_dict() for t in picks],
         "personalised": bool(profile),

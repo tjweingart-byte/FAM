@@ -238,10 +238,28 @@ another rule.
    feature is deleted** - not switched off - along with `tools/gap_probe.py`,
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
-4. **myFAM is built; the taste model is deliberately crude.** `topics.py` ranks
-   a *shared* bank of ~28 topics **four** ways (history / exploration /
-   co-listener / trending) from an append-only event log. Tags come from
-   keyword matching, not a classifier. `rank_might_like` (adjacent to your
+4. **myFAM is built; the taste model is crude, and less crude than it was.**
+   `topics.py` ranks a *shared* bank of ~28 topics **four** ways (history /
+   exploration / co-listener / trending) from an append-only event log. Tags
+   still come from keyword matching, not a classifier - but there are now
+   **two levels** of them (PROBLEMS.md §80), and that was the binding
+   constraint rather than the scoring. Eight tags over twenty-eight topics
+   gave the bank twenty distinct signatures, so a listener with one facet of
+   history got three *identically* scored candidates and a grid ordered by
+   `topic.id`. Twenty-nine subtags under the same eight facets take the bank
+   to 27 distinct signatures. **The eight facets are unchanged and are still
+   the only pickable vocabulary** - the intro picker is built from
+   `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
+   A subtag always carries its facet, so nothing that matched before matches
+   less. Anything a listener *reads* goes through `facets_only`.
+   **Impressions now feed the ranking, in exactly one direction.** A tile
+   shown on several separate occasions and never played is damped
+   (`FATIGUE_WEIGHT`). The existing rule stands and is enforced: an impression
+   must never become *taste* - that is a feedback loop where the feed teaches
+   itself its own preferences. Fatigue is per-topic, never per-tag, and can
+   only push a tile down, which is what makes it safe. Trending is exempt: it
+   is the same list for everyone, which is what makes it cheapest to serve.
+   `rank_might_like` (adjacent to your
    taste) is **back on myFAM as the Explore New rail**, and serves the Explore
    New screen behind it from the same ranking - one ranking, two views, so the
    rail and the surface it opens cannot disagree. It sits second, between
@@ -412,6 +430,15 @@ another rule.
   trust changes - a bearer token is the same unforgeable, revocable string the
   cookie holds - and a browser must never ask for one, because reading it in
   script is what HttpOnly exists to prevent.
+- **A limit counts episodes, not requests.** The free tier's daily allowance
+  was spent five times over on one episode, because every tap of it reserved a
+  unit - and tapping the episode that is playing is something the interface
+  invites (PROBLEMS.md §79). A spend carries the episode's cache key, the first
+  one in a window takes the unit and the repeats ride on it. The same rule
+  applies to the pace: a request that provably cannot spend a model call - an
+  Explore replay, or an episode whose script is already cached, which is what
+  makes a voice switch free - is not paced as a generation. And because this
+  server has two reasons to answer 429, every refusal says which one it was.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -604,7 +631,7 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-four named smoke behaviours; anything less means something was skipped, and
+twenty-five named smoke behaviours; anything less means something was skipped, and
 `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:

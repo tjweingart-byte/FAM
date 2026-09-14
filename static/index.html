@@ -2207,7 +2207,28 @@
     toast(message || "Could not generate that briefing");
   }
 
+  // What identifies one episode request. Voice is in it because switching
+  // voice re-requests the same script deliberately; the length and the parent
+  // topic are in it because both change what gets written.
+  function episodeSignature(key){
+    var t = TOPICS[key];
+    if(!t) return "";
+    return (t.prompt || t.title) + "|" + (t.exploreMinutes || selectedLengthMinutes)
+         + "|" + selectedVoice + "|" + (t.parentTopic || "");
+  }
+  // The request that has been sent and has produced no audio yet.
+  var awaitingFirstAudio = "";
+
   function generate(key, albumContext){
+    // One tap is one request. The player's own topic row invites a re-tap -
+    // it says "tap to generate new episode" - and a listener watching the
+    // honest wait taps it again, which used to send a second identical
+    // request for an episode already on its way. Once audio is playing a
+    // re-tap goes through as before: it is a replay, so it costs neither a
+    // model call nor a second episode of the allowance (PROBLEMS.md 70).
+    var signature = episodeSignature(key);
+    if(signature && signature === awaitingFirstAudio) return;
+
     // One loading screen, whatever started the wait. This used to take a screen
     // name and look up an overlay by id; the home screen's id did not exist, so
     // a search - the commonest action in the app - showed nothing while it
@@ -2222,6 +2243,7 @@
     // Never spin forever if the server is unreachable or wedged.
     genTimeout = setTimeout(function(){
       FamAudio.stop();
+      awaitingFirstAudio = "";   // giving up must leave the episode askable again
       onGenerationFailed("That is taking longer than expected. Is the server running?");
     }, 45000);
 
@@ -2621,8 +2643,10 @@
     var episodeTopicId = bankTopicId || "";
     var reportedOutcome = false;
     setEchoed(false);
+    awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
     FamAudio.play(title, minutes, {
       onFirstAudio: function(){
+        awaitingFirstAudio = "";
         startProgress(totalSeconds);
         applyPlaybackSpeed();   // honour the speed already chosen in the pill
         onGenerationStarted();
@@ -2634,6 +2658,7 @@
         setTimeout(fetchEpisodeThread, 6000);
       },
       onEnd: function(){
+        awaitingFirstAudio = "";
         refreshProgressNow();
         stopProgress();
         setPlayState(false);
@@ -2654,6 +2679,7 @@
         if(opts.nextUp !== false) maybeOfferNextUp(title, episodeTopicId);
       },
       onError: function(err){
+        awaitingFirstAudio = "";
         stopProgress();
         setPlayState(false);
         onGenerationFailed(err && err.message);
@@ -2676,6 +2702,7 @@
   var famAbandonReporter = null;
   function stopSpeech(){
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
+    awaitingFirstAudio = "";
     stopProgress(); FamAudio.stop();
   }
   function pauseSpeech(){ FamAudio.pause(); }

@@ -67,6 +67,7 @@ LIVE_SHIM = r"""
   var ALGO = __ALGO__;
   var TAG_WORDS = __TAG_WORDS__;   // topics.TAG_WORDS, verbatim
   var TAG_LABELS = __TAG_LABELS__; // topics.TAG_LABELS, verbatim
+  var TAG_PARENT = __TAG_PARENT__; // topics.TAG_PARENT, verbatim
   var LANGUAGES = __LANGUAGES__;   // preferences.LANGUAGES, verbatim
   var MAX_INTERESTS = __MAX_INTERESTS__;
   var INTEREST_WEIGHT = __INTEREST_WEIGHT__;
@@ -254,11 +255,27 @@ LIVE_SHIM = r"""
   // someone typed is categorised the same way a bank tile is.
   function tagsForText(text) {
     var low = " " + String(text).toLowerCase().replace(/[^\w\s]/g, " ") + " ";
-    var out = [];
+    var seen = {};
     Object.keys(TAG_WORDS).forEach(function (tag) {
       for (var i = 0; i < TAG_WORDS[tag].length; i++) {
-        if (low.indexOf(" " + TAG_WORDS[tag][i]) !== -1) { out.push(tag); return; }
+        if (low.indexOf(" " + TAG_WORDS[tag][i]) !== -1) {
+          seen[tag] = 1;
+          // A matched subtag brings its facet, exactly as the server does.
+          if (TAG_PARENT[tag]) seen[TAG_PARENT[tag]] = 1;
+          return;
+        }
       }
+    });
+    return Object.keys(seen).sort();
+  }
+
+  // topics.facets_only: anything a listener reads speaks in the eight words
+  // they were offered, never in a subtag nobody chose.
+  function facetsOnly(tags) {
+    var out = [];
+    (tags || []).forEach(function (tag) {
+      var f = TAG_PARENT[tag] || tag;
+      if (TAG_LABELS[f] && out.indexOf(f) === -1) out.push(f);
     });
     return out;
   }
@@ -437,11 +454,13 @@ LIVE_SHIM = r"""
       if (!tags.length) tags = tagsForText(e.text || "");
       tags.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; });
     });
-    return Object.keys(counts)
+    // Facets, for the same reason as the recap: these are printed on the
+    // profile as the subjects someone listens to.
+    return facetsOnly(Object.keys(counts)
       .sort(function (a, b) {
         return (counts[b] - counts[a]) || ((t[b] || 0) - (t[a] || 0)) || a.localeCompare(b);
       })
-      .slice(0, n || 4);
+    ).slice(0, n || 4);
   }
 
   // Go Deeper: the follow-up each recently heard episode left behind.
@@ -503,8 +522,13 @@ LIVE_SHIM = r"""
       var tags = e.tags ? String(e.tags).split(",").filter(Boolean) : tagsForText(e.text || "");
       tags.forEach(function (g) { counts[g] = (counts[g] || 0) + w; });
     });
-    var subjects = Object.keys(counts).filter(function (g) { return counts[g] > 0; })
-      .sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 3);
+    // Folded to facets before slicing, like topics.weekly_recap: a recap that
+    // said "your week in sleep, mind and habits" would be naming tags nobody
+    // was ever shown, and TAG_LABELS has no word for them.
+    var subjects = facetsOnly(
+      Object.keys(counts).filter(function (g) { return counts[g] > 0; })
+        .sort(function (a, b) { return counts[b] - counts[a]; })
+    ).slice(0, 3);
     var played = week.filter(function (e) { return e.kind === "play" || e.kind === "complete"; }).length;
     var finished = week.filter(function (e) { return e.kind === "complete"; }).length;
     var searched = week.filter(function (e) { return e.kind === "search"; }).length;
@@ -1603,6 +1627,11 @@ def build() -> pathlib.Path:
             # here it would drift, and a picker offering a facet the ranker
             # does not score is the drift that matters.
             .replace("__TAG_LABELS__", json.dumps(topics.TAG_LABELS))
+            # Subtag -> facet. The preview reimplements tags_for_text in JS,
+            # so without this it would match subtags and never fold them up,
+            # and the preview would rank differently from the server it is
+            # supposed to be showing.
+            .replace("__TAG_PARENT__", json.dumps(topics.TAG_PARENT))
             .replace("__LANGUAGES__", json.dumps([dict(l) for l in prefs_mod.LANGUAGES]))
             .replace("__MAX_INTERESTS__", json.dumps(prefs_mod.MAX_INTERESTS))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))

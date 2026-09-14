@@ -19,6 +19,26 @@ Two resources, from `entitlements.RESOURCES`:
   Counted separately and far more loosely, because it costs GPU seconds and
   nothing else.
 
+## One episode is charged once, however many times it is asked for
+
+"A cache hit still counts" is about *somebody else's* cache hit, and reading it
+as "every request counts" is what took production down: five taps on one
+question spent a free listener's whole day, and every tap after that answered
+`429` (PROBLEMS.md 70). Tapping the episode that is playing is something the
+interface invites - the player's own row says "tap to generate new episode" -
+and switching voice deliberately re-requests the same script.
+
+So a spend carries an `episode_key`, and the **first** reservation for that key
+in a window takes a unit while the repeats ride on it. The key is the episode's
+cache key: the same question, length, context and research setting. Scoped to
+the window on purpose - tomorrow's replay is tomorrow's episode, against
+tomorrow's allowance - and per listener, so nothing here makes an episode
+cheaper for the next person to ask for it.
+
+A repeat is granted `charged=False`, and a refund only gives back what was
+actually taken. Without that, a replay that failed would refund a unit nobody
+ever spent, which is a way to earn allowance by failing.
+
 ## Windows are calendar windows, in UTC
 
 A day is a UTC calendar day and a week is a UTC ISO week, not a rolling 24
@@ -139,6 +159,14 @@ class Verdict:
     limit: int
     resets_at: float
     message: str = ""
+    #: Whether this verdict actually took a unit. False for a repeat of an
+    #: episode already charged in this window, and for a request on a server
+    #: with enforcement off - so a refund gives back only what was taken.
+    charged: bool = True
+    #: The episode this spend was for, when one was named. Kept so a refund
+    #: can forget it: an episode that failed must not be remembered as paid,
+    #: or the retry that succeeds would be free.
+    episode_key: str = ""
 
     @property
     def unlimited(self) -> bool:
@@ -162,6 +190,7 @@ class Verdict:
             "remaining": self.remaining,
             "resets_at": self.resets_at,
             "message": self.message,
+            "charged": self.charged,
         }
 
 
@@ -211,6 +240,22 @@ class QuotaStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS counters_updated"
                          " ON counters(updated)")
+            # Which episodes this listener has already been charged for in
+            # this window. One row per (listener, resource, window, episode),
+            # so a repeat is recognised by its presence and nothing has to be
+            # counted twice to find out.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS charges (
+                       user_id     TEXT NOT NULL,
+                       resource    TEXT NOT NULL,
+                       window_key  TEXT NOT NULL,
+                       episode_key TEXT NOT NULL,
+                       updated     REAL NOT NULL,
+                       PRIMARY KEY (user_id, resource, window_key, episode_key)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS charges_updated"
+                         " ON charges(updated)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -263,13 +308,21 @@ class QuotaStore:
     # --- spending ---------------------------------------------------------
 
     def reserve(self, user_id: str, tier_name: str, resource: str,
-                at: float = 0.0) -> Verdict:
+                at: float = 0.0, episode_key: str = "") -> Verdict:
         """Take one from the allowance, or raise `QuotaExceeded`.
 
         The increment and the test happen inside one `BEGIN IMMEDIATE`, so two
         requests arriving together cannot both see the same count and both
         pass. Under the previous check-then-generate shape that race spent a
         GPU second and a Claude call that the tier had not bought.
+
+        `episode_key` names *which* episode is being asked for. The first
+        reservation for a key in a window takes a unit and every repeat rides
+        on it, because a listener tapping the same episode again has not had a
+        second episode - they have had the same one twice, which is what the
+        interface invites them to do. Omitted, every reservation is a fresh
+        spend: that is the right answer for an episode that has no shared
+        identity, such as one built on somebody's own attachment.
         """
         now = at or time.time()
         tier_name = entitlements.normalise(tier_name)
@@ -278,23 +331,40 @@ class QuotaStore:
         if not settings_enforcing():
             window = limit.window if limit else "day"
             return Verdict(True, resource, tier_name, window, 0,
-                           entitlements.UNLIMITED, window_end(window, now))
+                           entitlements.UNLIMITED, window_end(window, now),
+                           charged=False)
+
+        window = limit.window if limit is None else limit.window
+        if episode_key and self._already_charged(user_id, resource, window,
+                                                 episode_key, now):
+            # Free, and deliberately so. `used` is reported as it stands, so
+            # the interface still shows the right number - nothing was spent,
+            # so nothing changed.
+            used = self.used(user_id, resource, window, now)
+            return Verdict(True, resource, tier_name, window, used,
+                           entitlements.UNLIMITED if limit is None or limit.unlimited
+                           else limit.count,
+                           window_end(window, now), charged=False,
+                           episode_key=episode_key)
 
         if limit is None or limit.unlimited:
             # Still counted. An unlimited tier is not an unmeasured one, and
             # the report that says what a listener costs is only as good as
             # the rows underneath it.
-            window = limit.window if limit else "day"
-            count = self._bump(user_id, resource, window, 1, now)
+            count = self._bump(user_id, resource, window, 1, now,
+                               charge=episode_key)
             return Verdict(True, resource, tier_name, window, count,
-                           entitlements.UNLIMITED, window_end(window, now))
+                           entitlements.UNLIMITED, window_end(window, now),
+                           episode_key=episode_key)
 
-        count = self._bump(user_id, resource, limit.window, 1, now)
+        count = self._bump(user_id, resource, limit.window, 1, now,
+                           charge=episode_key)
         if count > limit.count:
             # Put it back: they did not get an episode, so they should not
             # have been charged for one. Refunding rather than never taking it
             # is what makes the check atomic.
-            self._bump(user_id, resource, limit.window, -1, now)
+            self._bump(user_id, resource, limit.window, -1, now,
+                       uncharge=episode_key)
             verdict = Verdict(
                 False, resource, tier_name, limit.window, limit.count,
                 limit.count, window_end(limit.window, now),
@@ -302,27 +372,69 @@ class QuotaStore:
             )
             raise QuotaExceeded(verdict)
         return Verdict(True, resource, tier_name, limit.window, count,
-                       limit.count, window_end(limit.window, now))
+                       limit.count, window_end(limit.window, now),
+                       episode_key=episode_key)
 
     def refund(self, user_id: str, resource: str, window: str,
-               at: float = 0.0) -> None:
+               at: float = 0.0, episode_key: str = "") -> None:
         """Give one back, for an episode that was reserved and never produced.
 
         Never fails the request it is unwinding: a failed refund costs one
         episode of allowance, and an exception raised here would replace a
         listener's failed episode with a second, different failure.
+
+        The episode is forgotten as well as refunded. An episode that failed
+        must not be remembered as paid for, or the retry that finally works
+        would be free - and a listener could earn allowance by failing.
         """
         try:
-            self._bump(user_id, resource, window, -1, at or time.time())
+            self._bump(user_id, resource, window, -1, at or time.time(),
+                       uncharge=episode_key)
         except Exception:
             log.exception("could not refund a quota reservation for %r", user_id)
 
+    def _already_charged(self, user_id: str, resource: str, window: str,
+                         episode_key: str, now: float) -> bool:
+        """Has this listener already paid for this episode in this window?"""
+        try:
+            row = self._conn().execute(
+                "SELECT 1 FROM charges WHERE user_id = ? AND resource = ?"
+                " AND window_key = ? AND episode_key = ?",
+                (user_id, resource, window_key(window, now), episode_key),
+            ).fetchone()
+        except Exception:
+            # Charging twice is the wrong answer, but it is the *safe* wrong
+            # answer: the alternative on an unreadable table is a free pass.
+            log.exception("could not read the charge record; charging")
+            return False
+        return row is not None
+
     def _bump(self, user_id: str, resource: str, window: str, delta: int,
-              now: float) -> int:
+              now: float, charge: str = "", uncharge: str = "") -> int:
+        """Move a counter, and record or forget the episode it was for.
+
+        The charge row is written in the *same* transaction as the increment,
+        so the two can never disagree: a counter bumped without its charge
+        recorded would charge the same episode again on the next tap, which is
+        the fault this exists to fix.
+        """
         key = window_key(window, now)
         conn = self._conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
+            if charge:
+                conn.execute(
+                    "INSERT INTO charges (user_id, resource, window_key,"
+                    " episode_key, updated) VALUES (?, ?, ?, ?, ?)"
+                    " ON CONFLICT DO NOTHING",
+                    (user_id, resource, key, charge, now),
+                )
+            if uncharge:
+                conn.execute(
+                    "DELETE FROM charges WHERE user_id = ? AND resource = ?"
+                    " AND window_key = ? AND episode_key = ?",
+                    (user_id, resource, key, uncharge),
+                )
             conn.execute(
                 "INSERT INTO counters (user_id, resource, window_key, count, updated)"
                 " VALUES (?, ?, ?, 0, ?)"
@@ -360,8 +472,9 @@ class QuotaStore:
         Deleting these is safe in a way that deleting their *cost* rows is not:
         a counter is a promise about the future, not a record of money spent.
         """
-        cur = self._conn().execute(
-            "DELETE FROM counters WHERE user_id = ?", (user_id,))
+        conn = self._conn()
+        cur = conn.execute("DELETE FROM counters WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM charges WHERE user_id = ?", (user_id,))
         return cur.rowcount or 0
 
     def _maybe_prune(self, now: float) -> None:
@@ -370,6 +483,8 @@ class QuotaStore:
         self._pruned_at = now
         try:
             self._conn().execute("DELETE FROM counters WHERE updated < ?",
+                                 (now - KEEP_SECONDS,))
+            self._conn().execute("DELETE FROM charges WHERE updated < ?",
                                  (now - KEEP_SECONDS,))
         except Exception:
             log.exception("could not prune quota counters; continuing")

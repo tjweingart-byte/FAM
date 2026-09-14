@@ -30,7 +30,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
-from cache import MemoryScriptCache, SqliteScriptCache, build_cache, research_words
+from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
+                   is_shareable, research_words)
 import embeddings
 from demo_script import DemoGenerator
 import credentials
@@ -240,10 +241,16 @@ WAV_HEADER_BYTES = 44
 # `config.Settings.__post_init__`.
 PREROLL_SECONDS = settings.preroll_seconds
 
-_last_request: dict[str, float] = defaultdict(float)
+#: Generation allowance per listener: [tokens, when they were last topped up].
+#: A bucket rather than a gate - see `_rate_limit`.
+_gen_tokens: dict[str, list[float]] = {}
 #: Recent cheap-read timestamps per client, for the burst-tolerant limiter.
 _read_hits: dict[str, deque] = defaultdict(deque)
 READ_WINDOW_SECONDS = 10.0
+#: Forget a client the limiter has not heard from in this long. These are
+#: process-lifetime dictionaries on a server that stays up for weeks, and one
+#: entry per client was a slow leak with nothing to stop it.
+LIMITER_IDLE_SECONDS = 900.0
 
 
 def _ms(value: float | None) -> str:
@@ -450,25 +457,64 @@ def _limit_key(request: Request) -> str:
     return "ip:" + (request.client.host if request.client else "anonymous")
 
 
-def _rate_limit(request: Request) -> None:
-    """One generation per client per RATE_LIMIT_SECONDS.
+def _prune(store: dict, now: float, stamp_of) -> None:
+    """Forget clients that have gone away, so these dicts stay bounded."""
+    if len(store) < 512:
+        return
+    for key in [k for k, v in store.items() if now - stamp_of(v) > LIMITER_IDLE_SECONDS]:
+        del store[key]
 
-    Each request holds a Claude stream and a TTS subprocess open for the whole
+
+def _too_fast(seconds: float) -> HTTPException:
+    """The pacing refusal, said in a way a client can act on.
+
+    `Retry-After` because without it a client's only strategy is to try again
+    immediately, which turns a throttle into the storm it exists to prevent.
+    `X-FAM-Refused-By` because this server has two different reasons to answer
+    429 - the pace and the allowance - and in an access log they are the same
+    three digits (PROBLEMS.md 70).
+    """
+    wait = max(1, int(seconds + 0.999))
+    return HTTPException(
+        status_code=429,
+        detail="Slow down a moment, then try again.",
+        headers={"Retry-After": str(wait), "X-FAM-Refused-By": "pace"},
+    )
+
+
+def _rate_limit(request: Request) -> None:
+    """Pace the requests that can actually spend a model call.
+
+    Each one holds a Claude stream and a TTS subprocess open for the whole
     episode, so an unthrottled endpoint is trivially expensive to abuse.
 
-    This belongs on the endpoints that generate, and nowhere else. It was on
-    all eighteen, including the cheap cache and JSON reads - and opening a tab
-    fires several of those at once, so ordinary navigation answered itself with
+    It is a small **bucket**, not a gate: `RATE_LIMIT_BURST` starts may be spent
+    at once and refill one per `RATE_LIMIT_SECONDS`, so the sustained rate is
+    exactly what it always was while a listener who taps twice - a voice
+    switch, a second tap on an episode still loading - is not answered with
     "Slow down a moment, then try again." A limiter that fires on correct use
     is not protecting anything; it is the failure.
+
+    This belongs on the endpoints that generate, and nowhere else. It was once
+    on all eighteen, including the cheap cache and JSON reads that a tab fires
+    on open, and `/api/audio` now asks the cache before applying it at all.
     """
     if settings.rate_limit_seconds <= 0:
         return
-    client = _limit_key(request)
     now = time.monotonic()
-    if now - _last_request[client] < settings.rate_limit_seconds:
-        raise HTTPException(status_code=429, detail="Slow down a moment, then try again.")
-    _last_request[client] = now
+    capacity = max(1, settings.rate_limit_burst)
+    client = _limit_key(request)
+    bucket = _gen_tokens.get(client)
+    if bucket is None:
+        _prune(_gen_tokens, now, lambda v: v[1])
+        _gen_tokens[client] = [capacity - 1.0, now]
+        return
+    refilled = (now - bucket[1]) / settings.rate_limit_seconds
+    tokens = min(float(capacity), bucket[0] + refilled)
+    if tokens < 1.0:
+        log.info("pace refused %s", client)
+        raise _too_fast((1.0 - tokens) * settings.rate_limit_seconds)
+    bucket[0], bucket[1] = tokens - 1.0, now
 
 
 def _read_limit(request: Request) -> None:
@@ -491,7 +537,9 @@ def _read_limit(request: Request) -> None:
     while hits and hits[0] < cutoff:
         hits.popleft()
     if len(hits) >= settings.read_limit_per_window:
-        raise HTTPException(status_code=429, detail="Slow down a moment, then try again.")
+        raise _too_fast(hits[0] + READ_WINDOW_SECONDS - now)
+    if not hits:
+        _prune(_read_hits, now, lambda v: v[-1] if v else 0.0)
     hits.append(now)
 
 
@@ -537,7 +585,7 @@ def _tier(request: Request) -> str:
     return entitlements.normalise(listener.tier if listener else "free")
 
 
-def _reserve(request: Request, resource: str):
+def _reserve(request: Request, resource: str, episode_key: str = ""):
     """Take one from this listener's allowance, or refuse with the reason.
 
     Returns the granted verdict, which the caller keeps so it can refund. A
@@ -554,19 +602,32 @@ def _reserve(request: Request, resource: str):
         # why - and not a free pass either: `_rate_limit` still applies.
         return None
     try:
-        return QUOTAS.reserve(user, _tier(request), resource)
+        return QUOTAS.reserve(user, _tier(request), resource,
+                              episode_key=episode_key)
     except quotas.QuotaExceeded as exc:
+        # Named in the log, because in an access log a quota refusal and a
+        # pacing refusal are both "429" and nothing distinguishes them - which
+        # is how a day was spent looking at the rate limiter for a refusal the
+        # allowance was making (PROBLEMS.md 70).
+        log.info("quota refused %s for %s: %s", resource, user, exc.verdict.message)
         raise HTTPException(status_code=429, detail=exc.verdict.message,
-                            headers={"X-FAM-Quota": json.dumps(exc.verdict.as_dict())}
+                            headers={"X-FAM-Quota": json.dumps(exc.verdict.as_dict()),
+                                     "X-FAM-Refused-By": "quota"}
                             ) from exc
 
 
 def _refund(verdict, user: str) -> None:
     """Give the allowance back unconditionally. For the paths where nothing
     could have been spent - the server has no voice, the request never
-    started - so there is nothing to weigh."""
-    if verdict is not None and user:
-        QUOTAS.refund(user, verdict.resource, verdict.window)
+    started - so there is nothing to weigh.
+
+    A verdict that took nothing gives nothing back. A repeat of an episode
+    already charged for rides on the first reservation, and refunding it would
+    hand back a unit that was never taken - allowance earned by failing.
+    """
+    if verdict is not None and user and getattr(verdict, "charged", True):
+        QUOTAS.refund(user, verdict.resource, verdict.window,
+                      episode_key=getattr(verdict, "episode_key", ""))
 
 
 def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
@@ -589,14 +650,19 @@ def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
       expensive thing on the invoice - the same reasoning `_record_usage`
       already applies to the ledger.
 
-    An episode that arrives empty is therefore not refunded, and that is a bug
-    to fix rather than a quota to soften.
+    An episode that arrives empty spent nothing either, and it is refunded for
+    the same reason - it used to be the one failure that was charged for, and
+    on a server whose voice had gone away that was five silent 502s and then a
+    429 for the rest of the day, to a listener who had heard nothing at all.
+    Fixing the empty episode is still the real answer; charging for it was a
+    second fault sitting on top of the first.
     """
-    if verdict is None or not user:
+    if verdict is None or not user or not getattr(verdict, "charged", True):
         return
     if usage.model_calls or usage.exa_searches:
         return
-    QUOTAS.refund(user, verdict.resource, verdict.window)
+    QUOTAS.refund(user, verdict.resource, verdict.window,
+                  episode_key=getattr(verdict, "episode_key", ""))
 
 
 def erase_listener(user_id: str) -> dict:
@@ -642,6 +708,49 @@ def erase_listener(user_id: str) -> dict:
     removed["sessions"] = credentials_gone["sessions"]
     removed["account"] = 1 if credentials_gone["account"] else 0
     return removed
+
+
+def _episode_key(plan) -> str:
+    """Which episode this is, for anything that has to count episodes.
+
+    The cache key: the same question, length, context and research setting are
+    the same episode, whoever asks and in whatever voice - voice is deliberately
+    not in it, which is what makes switching voice free.
+
+    "" means "this episode has no shared identity, count it every time":
+    an episode built on somebody's own attachment is never cached and never
+    shared, and with `CACHE_SEMANTIC_KEY` on the key itself needs a model call,
+    which is the one cost this product refuses to put in front of the first word.
+    """
+    if plan.attachments or settings.cache_semantic_key:
+        return ""
+    if not is_shareable(plan.query):
+        return ""
+    try:
+        return cache_key(plan.query, plan.minutes, None, plan.context, plan.search)
+    except Exception:
+        log.exception("could not derive an episode key; counting this as a new one")
+        return ""
+
+
+def _already_written(plan) -> bool:
+    """Is this episode's script already in the shared cache?
+
+    A request that finds one spends no model call - `pipeline` replays the
+    stored sentences - so it is as cheap as an Explore replay and must not be
+    paced as a generation. Cheap on purpose: one local SQLite read, the same
+    lookup the pipeline is about to do anyway.
+    """
+    key = _episode_key(plan)
+    if not key or SCRIPT_CACHE is None:
+        return False
+    try:
+        return SCRIPT_CACHE.get(key) is not None
+    except Exception:
+        # A limiter must never be the thing that takes the app down, and
+        # "assume it will generate" is the conservative answer.
+        log.exception("cache probe failed; pacing this request as a generation")
+        return False
 
 
 def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None = None,
@@ -2340,22 +2449,36 @@ async def audio(
     `fmt=pcm` sends bare samples for the Web Audio player, which schedules
     chunks itself and therefore starts sooner and seeks better.
     """
-    # The pace exists to bound model spend. A replay-only request - Explore,
-    # and any card played from it - provably cannot spend one, so pacing it
-    # only stops someone swiping a feed at a normal speed, which is exactly
-    # what the feed is for.
-    (_read_limit if cached_only else _rate_limit)(request)
+    # Every request answers to the cheap ceiling. The pace on top of it is for
+    # requests that can actually spend a model call.
+    _read_limit(request)
     user = _listener(request)
     minutes = min(minutes, entitlements.max_minutes(_tier(request),
                                                     settings.max_minutes))
     plan = _validated_plan(q, minutes, context, search, cached_only,
                            _attachments_for(user, attach))
 
+    # A replay-only request - Explore, and any card played from it - provably
+    # cannot spend a model call, so pacing it only stops someone swiping a feed
+    # at a normal speed, which is exactly what the feed is for. Neither can a
+    # request whose script is already written: the pipeline replays the stored
+    # sentences. That second case is the ordinary one the old code got wrong -
+    # tapping the episode you are listening to, or switching voice, which
+    # reuses the script *by design* (PROBLEMS.md 70).
+    if not (cached_only or _already_written(plan)):
+        _rate_limit(request)
+
     # After validation, so a malformed request never costs an allowance, and
     # before anything expensive starts. An Explore replay counts against a
     # different, looser allowance because it provably cannot write a script -
     # the pipeline refuses - so it costs GPU seconds and nothing else.
-    reserved = _reserve(request, "explore" if cached_only else "episode")
+    #
+    # `episode_key` is *which* episode, so the allowance counts episodes and
+    # not requests. Five taps on one question used to spend a free listener's
+    # whole day and then answer 429 to everything - for one episode, which they
+    # had already paid for on the first tap.
+    reserved = _reserve(request, "explore" if cached_only else "episode",
+                        episode_key=_episode_key(plan))
 
     try:
         pipeline = _make_pipeline(voice or None)
@@ -2430,6 +2553,11 @@ async def audio(
     # episode. A script that came back empty must not be served as one.
     if stats.sentences == 0 or sum(len(c) for c in primed) <= WAV_HEADER_BYTES:
         log.error("generation produced no audio for %r", plan.query)
+        # The listener heard nothing, so they are not charged for an episode.
+        # This was the one failure path with no refund on it at all, which on a
+        # server whose voice had gone away cost a free listener their whole day
+        # in silent 502s and then answered 429 until midnight UTC.
+        _refund_if_unspent(reserved, user, stats.usage)
         raise HTTPException(
             status_code=502,
             detail="The episode came back with no speech in it. Check the server "

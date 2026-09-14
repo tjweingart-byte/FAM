@@ -578,6 +578,12 @@ class Settings:
     port: int = _env_int("PORT", 8000)
     # Simple abuse guard: seconds between generations from one client.
     rate_limit_seconds: float = _env_float("RATE_LIMIT_SECONDS", 3.0)
+    # How many of those seconds may be spent at once. A hard gate refused the
+    # second of two taps a listener genuinely makes - switching voice, or
+    # tapping the episode again while it was still loading - so the pace is a
+    # small bucket instead. The sustained rate is unchanged; only a burst is
+    # forgiven. 1 restores the old one-at-a-time gate.
+    rate_limit_burst: int = _env_int("RATE_LIMIT_BURST", 3)
     # The cheap endpoints - JSON reads and cache lookups - need a ceiling, not
     # a pace. Opening a tab fires several at once, so anything that throttles
     # a burst throttles correct use. 0 switches it off.
