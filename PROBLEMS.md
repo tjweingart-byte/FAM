@@ -4340,3 +4340,95 @@ which fails against the interface as it was: three taps on an episode still
 loading sent three requests. Once audio is playing a re-tap goes through, since
 by then it is a replay - the check asserts that boundary too, so the guard
 cannot quietly become "one episode, ever".
+
+## 80. The recommender was ranking twenty-eight topics with twenty answers
+
+**Asked:** what algorithm picks the four tiles after an episode, and how
+could it be better.
+
+`rank_next_up` is not a second recommender - by design it reuses the feed's
+rankings, so the popup and the shelves cannot disagree. It builds a taste
+profile (`taste`: recency-weighted tag affinity, 14-day half-life, a skip
+genuinely negative), seeds it with the tags of the episode that just ended,
+excludes everything already played, and fills four slots in cascade order:
+closest-to-taste, then co-listener overlap, then the crowd.
+
+**The finding, which was not where it was expected to be.** The scoring
+function was fine. The *vocabulary underneath it* was the ceiling: eight tags
+over twenty-eight topics, twelve of them carrying a single tag, and only
+**twenty distinct tag signatures in the whole bank**. Measured before changing
+anything - a listener whose entire history was `tech` had exactly four topics
+with any positive affinity and **three of them scored identically** (0.7071),
+so `scored.sort(key=lambda p: (-p[0], p[1].id))` decided the grid on
+`topic.id`. Alphabetical order wearing a recommender's hat:
+`attention-economy` beat `chip-supply` because *a* sorts before *c*.
+
+No weight, half-life or tie-break fixes that. A scoring function cannot
+express a preference it has no vocabulary for, and tuning `EVENT_WEIGHT`
+would have been adjusting the precision of a score whose inputs took twenty
+values.
+
+**What was done.**
+
+*A second level of tags, not a bigger flat list.* Twenty-nine subtags under
+the same eight facets (`TAG_PARENT`, `SUBTAG_WORDS`). The bank went from 20
+distinct signatures to **27 of a possible 28**. The facets are untouched and
+still the only pickable vocabulary, because the intro's interest picker is
+built from `TAG_LABELS` and a twenty-seven button intro is a worse question
+than an eight button one - the resolution is for the ranker, not the listener.
+A subtag never replaces its facet, it refines it: `tags_for_text` adds the
+parent to every subtag it matches and every bank topic carries both, so a
+listener who ticked "Technology" and nothing else matches exactly what they
+matched before. The change is additive by construction, and a test asserts it.
+
+*Impressions, which were being written and never read.* `record_impressions`
+has always logged every tile shown, with its section and `ALGO_VERSION`, and
+`impressions_for` had no caller outside tests. So "shown six times, never
+tapped" was indistinguishable from "never shown" - and a tile nobody ever taps
+has no other negative signal, because a skip needs a play first.
+
+The existing note on `IMPRESSION` says it deliberately has no `EVENT_WEIGHT`
+entry, and that is still right and still enforced: an impression must never
+become **taste**, or the feed teaches itself its own preferences and calls the
+echo a signal. Fatigue is a different thing and the boundary is exact - it is
+**per-topic, never per-tag, and strictly negative**. It can only push a tile
+down, so it has no positive feedback loop to close. `FATIGUE_WEIGHT` carries
+the whole argument beside the constant.
+
+Two details that decide whether it helps or hurts:
+
+* **Occasions, not rows.** A feed load writes ~18 impressions; someone opening
+  myFAM four times before breakfast has not rejected anything four times.
+  `impression_occasions` counts distinct `FATIGUE_BUCKET` (1h) buckets, so
+  refreshing cannot look like disinterest. Without this the ranking would
+  have punished the most engaged listeners hardest.
+* **It never reaches zero** (`FATIGUE_FLOOR`), and a played topic is dropped
+  rather than damped - the impressions before a play are the opposite of
+  disinterest.
+
+`rank_trending` is deliberately **not** damped: it is the same list for
+everyone, which is what makes it the cheapest section to serve.
+
+**One real bug the tests caught, and it was in the change.** `rank_might_like`
+breaks the filter bubble by muting the listener's strongest tag. With two
+levels, muting `sports-performance` leaves `sports` at full strength and the
+section quietly becomes history with a new heading. It now mutes the whole
+**family** - the facet and every subtag under it. `test_might_like_suppresses_
+their_strongest_tag` failed on exactly this and is the reason it was found.
+
+**What this did not fix, deliberately.** A listener who ticked "Technology" in
+the intro and has listened to nothing still gets tied scores. That tie is
+honest: with no behaviour there is genuinely no basis to rank three tech
+episodes against each other, and the answer is one episode of history, not
+more vocabulary.
+
+**Still open, and now cheap** - each was considered and left out rather than
+missed. **IDF in `_affinity`**: a match on `money` (8 topics) scores like a
+match on `world` (4), and there is no correction; one line, worth more now
+that document frequency actually varies. **Position-aware skip**: `−1.5`
+whether they left at ten seconds or ninety percent, which are opposite pieces
+of evidence - `Event` has no progress field, so this is a schema, API and
+client change, and under the iOS rule it is an API before it is a screen.
+**A diversity cap** on the grid of four: deliberately *not* done yet, because
+consuming impressions is the instrument that says whether same-tag grids
+actually underperform, and shipping the fix before the measurement is guessing.

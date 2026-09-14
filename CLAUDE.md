@@ -238,10 +238,28 @@ another rule.
    feature is deleted** - not switched off - along with `tools/gap_probe.py`,
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
-4. **myFAM is built; the taste model is deliberately crude.** `topics.py` ranks
-   a *shared* bank of ~28 topics **four** ways (history / exploration /
-   co-listener / trending) from an append-only event log. Tags come from
-   keyword matching, not a classifier. `rank_might_like` (adjacent to your
+4. **myFAM is built; the taste model is crude, and less crude than it was.**
+   `topics.py` ranks a *shared* bank of ~28 topics **four** ways (history /
+   exploration / co-listener / trending) from an append-only event log. Tags
+   still come from keyword matching, not a classifier - but there are now
+   **two levels** of them (PROBLEMS.md §80), and that was the binding
+   constraint rather than the scoring. Eight tags over twenty-eight topics
+   gave the bank twenty distinct signatures, so a listener with one facet of
+   history got three *identically* scored candidates and a grid ordered by
+   `topic.id`. Twenty-nine subtags under the same eight facets take the bank
+   to 27 distinct signatures. **The eight facets are unchanged and are still
+   the only pickable vocabulary** - the intro picker is built from
+   `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
+   A subtag always carries its facet, so nothing that matched before matches
+   less. Anything a listener *reads* goes through `facets_only`.
+   **Impressions now feed the ranking, in exactly one direction.** A tile
+   shown on several separate occasions and never played is damped
+   (`FATIGUE_WEIGHT`). The existing rule stands and is enforced: an impression
+   must never become *taste* - that is a feedback loop where the feed teaches
+   itself its own preferences. Fatigue is per-topic, never per-tag, and can
+   only push a tile down, which is what makes it safe. Trending is exempt: it
+   is the same list for everyone, which is what makes it cheapest to serve.
+   `rank_might_like` (adjacent to your
    taste) is **back on myFAM as the Explore New rail**, and serves the Explore
    New screen behind it from the same ranking - one ranking, two views, so the
    rail and the surface it opens cannot disagree. It sits second, between

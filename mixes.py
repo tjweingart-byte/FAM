@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 from paths import data_path
-from topics import BANK_BY_ID, tags_for_text
+from topics import BANK_BY_ID, facets_only, tags_for_text
 
 log = logging.getLogger(__name__)
 
@@ -79,9 +79,12 @@ def custom_item(query: str, title: str = "") -> MixItem:
         raise MixError("Type what you want to hear about.")
     ident = "q:" + hashlib.sha1(query.lower().encode("utf-8")).hexdigest()[:10]
     title = " ".join(str(title).split())[:MAX_NAME] or query[:1].upper() + query[1:]
-    tags = tags_for_text(query)
+    # The facet, not the first tag: `tags_for_text` returns subtags too, and
+    # the icon vocabulary is drawn per facet. Taking tags[0] would ask it for
+    # a picture of "ai" and quietly get the fallback leaf.
+    facets = facets_only(tags_for_text(query))
     return MixItem(ident, title, query, True, "Added by you", _ICON_FOR_TAG.get(
-        tags[0] if tags else "", "leaf"))
+        facets[0] if facets else "", "leaf"))
 
 
 #: A typed topic still deserves a picture. Reuses the bank's icon vocabulary.
