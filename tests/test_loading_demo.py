@@ -56,7 +56,8 @@ def test_the_honest_wait_is_shown_not_replaced(page):
     it. A demo that dropped the line would be showing a nicer version of the
     thing PROBLEMS.md 55 deleted."""
     assert "Writing your episode" in page
-    assert "checking sources underneath" in page
+    assert "Working out what you're asking" in page
+    assert "Reading today's sources" in page
     assert ".gen-text{" in page
 
 

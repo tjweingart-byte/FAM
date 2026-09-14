@@ -195,6 +195,11 @@ RESEARCH_BACKENDS = ("claude", "exa")
 #: literal, for the same reason as DEFAULT_PIPELINE.
 DEFAULT_RESEARCH_BACKEND = "exa"
 
+#: How much of an episode prefetch pays for in advance. See `prefetch_level`.
+#: Named here rather than repeated as literals so "the levels" is one fact in
+#: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.
+PREFETCH_LEVELS = ("brief", "script")
+
 #: Backends slow enough that the from-knowledge cover earns its second call.
 #:
 #: `answer_first` exists for exactly one reason: Claude's server-side search
@@ -381,6 +386,105 @@ class Settings:
     exa_num_results: int = _env_int("EXA_NUM_RESULTS", 8)
     exa_packet_sources: int = _env_int("EXA_PACKET_SOURCES", 3)
     exa_highlights_per_source: int = _env_int("EXA_HIGHLIGHTS_PER_SOURCE", 2)
+    # Whether the evidence packet carries a publication date and a publisher
+    # beside each source.
+    #
+    # **On, and this is the cheapest quality fix in the codebase.** The packet
+    # used to be title plus highlights, so an episode was asked whether
+    # something happened last night or two days ago from evidence with no dates
+    # in it. Exa was already returning both fields and `build_packet` was
+    # discarding them. Set to 0 only to reproduce the hand-measured 2026-09-05
+    # benchmark, whose numbers were taken on the undated shape.
+    exa_dated_packet: bool = field(
+        default_factory=lambda: os.environ.get("EXA_DATED_PACKET", "1")
+        not in ("0", "false", "False", ""))
+    # Whether a packet missing what the brief asked for buys one more search.
+    #
+    # One, never more, and never a model call to rephrase - the second search
+    # drops the recency window and searches the resolved subject. A retry costs
+    # about half a second and a fifth of a cent, and only on episodes that were
+    # going to be thin; an unbounded loop would put an unbounded wait in front
+    # of the first word.
+    research_retry: bool = field(
+        default_factory=lambda: os.environ.get("RESEARCH_RETRY", "1")
+        not in ("0", "false", "False", ""))
+
+    # --- Episode intelligence --------------------------------------------
+    # The layer between the typed question and the search - see
+    # `episode_intelligence.py` for what it is and why it sits there.
+    #
+    # **On.** It costs one model call in front of the first word on the search
+    # path, which breaks CLAUDE.md's one-sentence spec, and that was a
+    # deliberate decision: the writing is the product, and a fast episode about
+    # the wrong thing is worth less than a slower one about the right thing.
+    # The browse surfaces pay none of it - there the brief is built before the
+    # tap. Set to 0 to get the old behaviour exactly: the raw query goes to
+    # Exa, no structure, no why-now, no temporal cautions.
+    episode_intelligence: bool = field(
+        default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
+        not in ("0", "false", "False", ""))
+    # Understanding a request is a small, well-specified extraction, not the
+    # writing. It runs on the same model as the script by default so a
+    # deployment has one model to reason about, and at low effort because the
+    # time here is time the listener waits.
+    ei_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EI_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    ei_effort: str = field(
+        default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
+    ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 1200)
+    # Past this, the brief is not worth the wait and the raw query is searched
+    # instead. A ceiling rather than a target: EI must degrade to the old
+    # behaviour rather than become a new way for an episode to hang.
+    ei_timeout_seconds: float = _env_float("EI_TIMEOUT_SECONDS", 8.0)
+    # The window applied to a question about a moment when the brief names no
+    # other. Two weeks is wide enough to catch a story that broke over a
+    # weekend and narrow enough to keep an old well-ranked explainer out of the
+    # evidence for "what happened last night".
+    ei_default_recency_days: int = _env_int("EI_DEFAULT_RECENCY_DAYS", 14)
+
+    # --- Prefetch ---------------------------------------------------------
+    # Writing the episode before anybody asks for it - see `prefetch.py`.
+    #
+    # **Off, and the reasoning is the tier system's** (PROBLEMS.md §81): the
+    # mechanism is worth having ready and the policy is worth deciding with
+    # numbers rather than with a guess. CLAUDE.md's open question is "how much
+    # to prefetch?", every speculative script costs money, and the hit rate
+    # that answers it does not exist yet. Switching this on starts producing
+    # it; `/api/health` reports which state a deploy is in, because a
+    # prefetcher that is off looks exactly like one that is on and missing.
+    prefetch: bool = field(
+        default_factory=lambda: os.environ.get("PREFETCH", "0")
+        not in ("0", "false", "False", ""))
+    # brief | script - how much is paid in advance.
+    #
+    # `brief` runs contextual relevance only and keeps the result: one small
+    # model call, and it removes the seconds episode intelligence costs. The
+    # tap still pays retrieval and writing. `script` writes the whole episode,
+    # so the tap pays nothing at all and a wrong guess costs a full episode.
+    # Starting at `brief` buys most of the felt improvement for a fraction of
+    # the waste, which is the right place to start with no hit rate in hand.
+    prefetch_level: str = field(
+        default_factory=lambda: os.environ.get("PREFETCH_LEVEL", "brief").strip().lower())
+    # How many candidates one cycle may warm. Sources are interleaved, so this
+    # is shared across them rather than being per source.
+    prefetch_per_cycle: int = _env_int("PREFETCH_PER_CYCLE", 6)
+    # A hard daily ceiling, in two currencies because they fail differently:
+    # the count stops a runaway loop, the dollars stop a *correct* loop being
+    # expensive - a 10-minute researched episode costs several times a
+    # 1-minute one, so counting episodes alone does not bound the bill.
+    prefetch_daily_episodes: int = _env_int("PREFETCH_DAILY_EPISODES", 50)
+    prefetch_daily_dollars: float = _env_float("PREFETCH_DAILY_DOLLARS", 2.0)
+    # How long the server must have gone without generating for a real
+    # listener before it will spend on a guess. A speculative episode that
+    # delays a real one has inverted the entire point of prefetching.
+    prefetch_quiet_seconds: float = _env_float("PREFETCH_QUIET_SECONDS", 20.0)
+    # How long a warmed brief stays usable. A brief is a claim about *now* - a
+    # why-now hypothesis and a recency window built this morning are wrong by
+    # this evening - and a stale brief is worse than none, because it would
+    # make the episode confidently about the wrong day.
+    prefetch_brief_ttl_seconds: float = _env_float(
+        "PREFETCH_BRIEF_TTL_SECONDS", 3600.0)
     # legacy | phase6 - see STREAMING_PIPELINES above.
     #
     # **phase6 is production.** It defaulted to `legacy` until the Phase 6 path
@@ -694,6 +798,13 @@ class Settings:
             raise ValueError(
                 f"RESEARCH_BACKEND={self.research_backend!r} is not a research "
                 f"backend. Use one of: {', '.join(RESEARCH_BACKENDS)}."
+            )
+        if self.prefetch_level not in PREFETCH_LEVELS:
+            raise ValueError(
+                f"PREFETCH_LEVEL={self.prefetch_level!r} is not a warm level. "
+                f"Use one of: {', '.join(PREFETCH_LEVELS)}. Refusing rather "
+                "than picking one - an unrecognised level that quietly meant "
+                "`script` would spend a full episode per guess."
             )
         for name in ("exa_num_results", "exa_packet_sources",
                      "exa_highlights_per_source"):

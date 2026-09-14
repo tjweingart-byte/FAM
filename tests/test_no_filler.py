@@ -170,10 +170,25 @@ def test_the_interface_is_served_the_same_word_list_the_server_decides_with():
 
 
 def test_the_wait_says_what_it_is_waiting_for():
+    """And says which part of it is being spent.
+
+    The line used to read "Answering now - checking sources underneath", which
+    was true while the from-knowledge cover spoke over the research. It is not
+    true now: the cover is off on the Exa backend, and episode intelligence
+    deliberately put seconds back in front of the first word. A line claiming
+    audio had started would be a new lie in the place PROBLEMS.md 55 removed
+    the old one from, so the three stages are named in the order they happen.
+    """
     index = (ROOT / "static" / "index.html").read_text()
-    assert "checking sources underneath" in index, "no honest state for a researched episode"
-    assert "Writing your episode" in index, "no honest state for an instant one"
+    assert "Working out what you're asking" in index, (
+        "the seconds episode intelligence costs are unexplained")
+    assert "Reading today's sources" in index, "no honest state for retrieval"
+    assert "Writing your episode" in index, "no honest state for writing"
     assert "startHonestWait" in index
+    # The quoted form, so that the comment explaining why the old line went
+    # does not itself trip this.
+    assert '"Answering now' not in index, (
+        "the overlay claims audio has started before it has")
 
 
 # --- the widened heuristic --------------------------------------------------

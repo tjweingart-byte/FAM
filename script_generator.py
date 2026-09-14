@@ -22,7 +22,10 @@ from dataclasses import dataclass
 from typing import AsyncIterator
 
 import credentials
+import episode_intelligence
+import live_facts
 import metering
+import prefetch
 from anthropic_client import build_async_client
 from cache import research_reason
 from config import settings
@@ -322,6 +325,22 @@ class EpisodePlan:
     #: `cached_only` into `evidence` and `attachments` into `cached_only`.
     #: The constructor is keyword-based now, and this stays last anyway.
     evidence: str = ""
+    #: What FAM EI worked out before anything was retrieved - intent, subject,
+    #: why-now, story shape, depth, temporal cautions. `None` when EI did not
+    #: run (a cover half, an unresearched episode, EPISODE_INTELLIGENCE=0), and
+    #: `build_prompt` then writes exactly the prompt it wrote before EI
+    #: existed. See `episode_intelligence.Brief`.
+    brief: object = None
+    #: A live state with a timestamp, when the question turned on one and a
+    #: source could answer it - a score, a price. Outranks `evidence`, because
+    #: an index reports articles about the world and this reports the world.
+    #: See `live_facts.LiveFacts`.
+    live: object = None
+    #: What the brief asked the evidence to establish and the packet does not
+    #: appear to contain. Named to the writer rather than silently absent: the
+    #: alternative is a gap filled from month-old memory and delivered in the
+    #: same confident voice as the researched half.
+    thin_on: tuple = ()
 
     @property
     def images(self) -> list:
@@ -480,23 +499,84 @@ and do not claim anything about a document beyond what is in it.
 
     evidence = ""
     if plan.evidence:
+        thin = ""
+        if plan.thin_on:
+            thin = (
+                "\nThese sources look thin on: "
+                + "; ".join(plan.thin_on)
+                + ". Say plainly that that part is not yet reported rather than "
+                "answering it from memory in the same confident voice as the "
+                "rest - a listener cannot tell the two apart, which is what "
+                "makes it the worst thing you can do here.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
 actually say. Do not claim anything they do not support, and do not pretend to
 have looked anything else up.
 
+Each one carries when it was published and who published it. **Use both.** The
+publication date is how you know whether something happened last night or last
+week - work it out from the date given, never from how recent the writing
+sounds. Where sources disagree, the better-sourced and more recent one wins,
+and say so in passing rather than presenting both.
+
 Where they contradict what you recall, they win and you say so plainly and in
 passing - "that figure has since moved to X" - and carry on. Where they are
 thin or silent on part of the question, answer that part from what you know and
 do not stretch a source to cover it.
 
-Never read a source's title, number or URL aloud. This is someone listening,
-not reading a citation list.
-
+Never read a source's title, number, date or URL aloud. This is someone
+listening, not reading a citation list - the dates are for your reasoning, not
+for the script.
+{thin}
 <evidence>
 {plan.evidence}
 </evidence>
+"""
+
+    # A live state outranks everything, so it goes in front of the evidence it
+    # outranks - the instructions that follow refer to it as already read.
+    live = ""
+    if plan.live is not None:
+        try:
+            live = plan.live.as_prompt_block()
+        except Exception:  # noqa: BLE001 - a bad fact source must not stop an episode
+            log.warning("a live-facts block could not be rendered; continuing "
+                        "without it", exc_info=True)
+            live = ""
+
+    # What EI worked out, and the temporal discipline that depends on it.
+    brief_block = ""
+    if plan.brief is not None:
+        try:
+            brief_block = episode_intelligence.build_brief_block(
+                plan.brief, plan.minutes)
+        except Exception:  # noqa: BLE001
+            log.warning("a brief could not be rendered; writing without it",
+                        exc_info=True)
+            brief_block = ""
+
+    # Stated whenever there is dated material to reason about. This is the
+    # rule the blueprint's temporal table is made of, and it is worth stating
+    # even though the model could in principle infer it: the failures it
+    # prevents - a Wednesday game called "last night", a Sunday final whose
+    # winner is named on Friday - are not failures of reasoning but of nobody
+    # having said that the tense has to be derived rather than chosen.
+    temporal = ""
+    if plan.evidence or plan.live is not None:
+        temporal = """
+Time, and this is where these go wrong most often:
+
+- Work out **when** each thing happened from the dates you were given, then say
+  it in the words a person would use. "Last night" only if it was last night.
+  Two days ago is "two days ago", not "last night".
+- If something has not happened yet, it has no result. Do not name a winner,
+  a score, a figure or an outcome for anything still to come, however
+  confidently you could guess it. Talk about it in the future tense.
+- If the sources do not establish how something ended, say that it is not yet
+  reported and carry on. That is a true sentence and it takes two seconds; an
+  invented result is the one failure a listener never forgives.
+- An undated source cannot date anything. Do not use it to decide when.
 """
 
     # The other half of a researched episode, and the one that was missing.
@@ -547,7 +627,7 @@ straight into the narrower thing they asked for and stay on it.
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{evidence}{research_now}{follow_up}{ROLE_BRIEFS.get(plan.role, "")}
+{attached}{live}{evidence}{research_now}{temporal}{brief_block}{follow_up}{ROLE_BRIEFS.get(plan.role, "")}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 
@@ -670,7 +750,9 @@ class ScriptGenerator:
         if settings.research_backend == "claude":
             return plan
 
-        packet = await research_mod.retrieve(plan.query)
+        packet = await research_mod.retrieve(
+            (getattr(plan.brief, "retrieval", "") or plan.query),
+            brief=plan.brief)
         if notes is not None:
             notes.research = packet.as_dict()
             # Exa's own reported cost where it gave one, its published rate
@@ -682,7 +764,71 @@ class ScriptGenerator:
             # searches after all rather than being handed an empty packet and
             # told it is research.
             return plan
-        return dataclasses.replace(plan, evidence=packet.context)
+        return dataclasses.replace(plan, evidence=packet.context,
+                                   thin_on=tuple(packet.missing))
+
+    async def understand(self, plan: EpisodePlan,
+                         notes: ScriptNotes | None = None) -> EpisodePlan:
+        """Work out what this request is, before anything is retrieved.
+
+        Skipped in three cases, each for its own reason:
+
+        * **A plan that already has a brief.** Prefetch built it before the tap
+          - which is the whole point of prefetch, and re-deriving it here would
+          throw away the latency that buying it early was for.
+        * **The cover half of an answer-first episode** (`role == "opening"`).
+          It is defined as the part that starts immediately from what the model
+          already knows; a model call in front of it is precisely the wait it
+          exists to cover.
+        * **An unresearched episode.** EI's largest single product is the
+          retrieval query, and an episode that retrieves nothing cannot spend
+          it. The framing would still be worth something, and it is not worth a
+          second of silence to get.
+        """
+        if plan.brief is not None or plan.role == "opening" or not plan.search:
+            return plan
+        if not settings.episode_intelligence:
+            return plan
+
+        # Built before the tap, if a browse surface predicted this one. The
+        # whole point of prefetching contextual relevance: the seconds it costs
+        # on search are the seconds a warmed brief removes here, and a miss
+        # costs one dictionary lookup.
+        warmed = prefetch.warm_brief(plan.query, plan.minutes, plan.context)
+        if warmed is not None:
+            log.info("using a brief warmed before the tap for %r", plan.query)
+            return dataclasses.replace(plan, brief=warmed)
+
+        brief = await episode_intelligence.understand(
+            plan.query, plan.minutes, plan.context, notes)
+        return dataclasses.replace(plan, brief=brief)
+
+    async def live_lookup(self, plan: EpisodePlan) -> EpisodePlan:
+        """Ask for a live state when the brief says the answer turns on one.
+
+        Runs alongside retrieval rather than instead of it: a score settles what
+        happened, and the packet is still what explains it.
+        """
+        if plan.brief is None or plan.live is not None:
+            return plan
+        facts = await live_facts.lookup(plan.brief)
+        return plan if facts is None else dataclasses.replace(plan, live=facts)
+
+    async def prepare(self, plan: EpisodePlan,
+                      notes: ScriptNotes | None = None) -> EpisodePlan:
+        """Everything that happens before a word is written.
+
+        Understand, then look up, then retrieve - in that order, because each
+        step feeds the next: the brief decides what is searched and how fresh it
+        must be, and the live lookup only knows which domain to ask once the
+        brief has named one.
+
+        Its own method so a caller can see, time and skip the whole of the
+        pre-writing phase, the same reason `research` was split out.
+        """
+        plan = await self.understand(plan, notes)
+        plan = await self.live_lookup(plan)
+        return await self.research(plan, notes)
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None
@@ -699,7 +845,7 @@ class ScriptGenerator:
         task is the half `_answer_first` runs underneath the cover, which is
         the only reason a retrieval before the first token is affordable.
         """
-        plan = await self.research(plan, notes)
+        plan = await self.prepare(plan, notes)
         buffer = ""
         emitted_words = 0
 
