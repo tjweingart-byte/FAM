@@ -91,9 +91,23 @@ def test_an_unknown_language_is_refused(store):
 
 
 def test_every_interest_on_offer_is_a_tag_the_ranker_scores():
-    """The picker and the ranking share one vocabulary or the picker is a lie."""
-    assert set(P.INTERESTS) == set(T.TAG_WORDS), (
-        "an interest that is not a TAG_WORDS facet can never rank anything")
+    """The picker and the ranking share one vocabulary or the picker is a lie.
+
+    Not equality any more: the ranking vocabulary is deliberately wider than
+    the pickable one (TAG_PARENT), so this asserts the three things that
+    actually have to hold rather than that the two sets are the same size.
+    """
+    assert set(P.INTERESTS) <= set(T.TAG_WORDS), (
+        "an interest that is not a TAG_WORDS tag can never rank anything")
+    assert set(P.INTERESTS) == set(T.TAG_LABELS), (
+        "the picker is built from TAG_LABELS; a facet missing a label is "
+        "unpickable and one with no facet is unrankable")
+    assert set(T.TAG_PARENT.values()) <= set(T.TAG_LABELS), (
+        "a subtag whose parent is not a real facet can never be chosen for")
+    assert set(T.TAG_PARENT) <= set(T.TAG_WORDS), (
+        "a subtag with no keywords can never be matched from a free search")
+    assert not (set(T.TAG_PARENT) & set(T.TAG_LABELS)), (
+        "a tag cannot be both a facet and a subtag of another")
 
 
 # --- the recap week -------------------------------------------------------
