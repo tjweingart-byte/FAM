@@ -4432,3 +4432,112 @@ client change, and under the iOS rule it is an API before it is a screen.
 **A diversity cap** on the grid of four: deliberately *not* done yet, because
 consuming impressions is the instrument that says whether same-tag grids
 actually underperform, and shipping the fix before the measurement is guessing.
+
+## 81. The tier system is switched off, and the refusal it will make is built
+
+Two changes, one temporary and one for the day the temporary one is undone.
+
+### Switched off, not removed
+
+`ENFORCE_QUOTAS` now defaults to **0**. Nothing else moved: the tiers, the
+limits, the counters, the reservation, the refund, the episode key and the
+refusal all still exist and are still tested, and `ENFORCE_QUOTAS=1` turns the
+whole of it back on in one place.
+
+The reason is not that the limits are wrong. It is that **nothing sells a
+listener a way past one.** There is no checkout (`ACCOUNTS.md`: no payment, and
+`set_plan` moves an account between tiers but nothing calls it), so an enforced
+free tier is a wall with no door - five episodes and then nothing until
+midnight UTC, with no action available that changes the answer. §79 found that
+shape in production the hard way: the refusal was correct, and correct was
+still the worst possible experience because there was nowhere to go from it.
+
+What that costs, stated rather than discovered later: per-listener spend is
+**visible and not capped**. `metering.py` still records every episode and what
+it cost, and `python tools/usage_report.py` still prints the median and the
+p99, so the exposure is measurable at any moment - it is simply not bounded.
+`_rate_limit` still paces every generation per listener, so nothing can be spun
+faster than before. This is a deliberate position for a beta with no checkout
+and the thing to revisit before the URL is handed to strangers at scale.
+
+The old default had a good argument behind it - "a ceiling that has to be
+switched on is a ceiling that is off on the machine nobody checked" - and it is
+answered by making the state visible rather than by leaving it on: `/api/health`
+now reports `tiers.enforced` and whether that came from the environment or the
+code default. An unenforced tier system looks *exactly* like an enforced one
+from outside until somebody reaches a limit, which is the §52 shape, so the
+server says which it is instead of being inferred from.
+
+### A refusal has to name the thing they pressed
+
+The old sentence was *"That is all 5 of your episodes for today."* A resource is
+an accounting word. `episode` is what the ledger counts and what the GPU makes;
+it is not what anybody thinks they did. Somebody who typed a question into the
+search box and was refused reads "episodes" and goes looking for the episodes
+they apparently spent.
+
+So `entitlements.service_label` maps the surface `app._surface` already derives
+- search, myfam, godeeper, explore - onto the word a listener would use, the
+verdict carries it, and both the headline and the sentence are composed
+**server-side**:
+
+    You've reached your daily limit for searches
+    That is all 5 of your searches for today. You get more at 00:00 UTC.
+    A bigger plan lifts the limit.
+
+Server-side because there are two interfaces now (CLAUDE.md's iOS section), and
+a sentence written twice is a sentence that will disagree with itself. The
+adjective comes from the window, so a Plus listener is told "weekly".
+
+### The numbers travel where they cannot be lost
+
+The verdict was already in `X-FAM-Quota`. It is now in the response **body**
+too, because a header is the one part of a response a client routinely cannot
+reach: `fetch` hides it cross-origin without `expose_headers`, and every
+wrapper that turns a failed response into an exception keeps the body and drops
+the rest - which is exactly what `fam-audio.js` did, so the interface could say
+"no" and nothing else.
+
+### The screen
+
+A refusal raises a modal rather than a toast, because a toast vanishes, cannot
+be acted on, and does not say when the allowance comes back. It shows the
+server's headline and sentence, a meter for how much is gone (drawn only where
+both numbers are real - an unlimited tier has no proportion to show), the reset
+**in the reader's own clock**, and two buttons: *Not now*, and *See plans*.
+
+The reset line says "in your time" out loud. Windows are counted in UTC on
+purpose and the server's sentence says so; without the label the card shows one
+fact as two different times and reads as a contradiction.
+
+*See plans* opens a sheet built from `/api/plans` - the real tier table, the
+real limits, the current plan marked. It ends in a line saying that **upgrading
+is not switched on yet, there is no checkout behind these plans, and nothing on
+this server charges anybody.** That is the seam where checkout goes, named as
+one. A plan list that looks buyable and is not would be the "quietly worse than
+intended" failure with money attached, and the listener would find out after
+tapping.
+
+Explore raises the same screen rather than dealing the next card: its allowance
+is separate and looser, and swiping on would spend the rest of the feed
+discovering the same refusal one card at a time.
+
+### Coverage
+
+`tests/test_tiers_off_and_the_limit_screen.py` - fifteen tests over both
+halves. Enforcement is off by the *default* (read from a freshly reloaded
+`config` with the environment cleared) and `.env.example` agrees (§54); six
+episodes against a five-episode tier are all served; the tiers, limits and
+counters all still answer; health says whether limits are live; and one
+environment variable switches the whole thing on. Then: each surface is named
+in its own words, Explore is named as Explore, a weekly limit says weekly, a
+granted verdict has no headline, the noun is never blank, and the verdict
+reaches the body with every field the screen draws itself from. A pacing 429
+carries no verdict, so the two refusals stay distinguishable and the limit
+screen cannot be raised by the wrong one.
+
+The smoke behaviour **"A limit leads to the plans"** drives the screen in a
+real browser from the verdict a refused request carries - the honest way to
+check a screen that cannot be reached while the system is switched off - and
+asserts it names the service, says the number and the reset, opens the plans,
+marks the current one, and says out loud that upgrading is unavailable.

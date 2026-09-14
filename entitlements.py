@@ -79,6 +79,41 @@ WINDOWS: tuple[str, ...] = ("day", "week")
 #: they did not.
 RESOURCES: tuple[str, ...] = ("episode", "explore")
 
+#: What the listener was *doing* when they spent, in their own words.
+#:
+#: A resource is an accounting word. `episode` is what the ledger counts and
+#: what the GPU makes; it is not what anybody thinks they pressed. Someone who
+#: typed a question into the search box and was refused needs to read "your
+#: daily limit for searches", because that is the thing they did - being told
+#: they are out of "episodes" makes them go looking for the episodes they
+#: apparently spent.
+#:
+#: Keyed on the surface `app._surface` derives from the request the interface
+#: already sends, so nothing new has to be passed from the client and the
+#: native app gets the same sentence without writing it a second time.
+SERVICE_LABELS: dict[str, str] = {
+    "search": "searches",
+    "myfam": "episodes",
+    "godeeper": "follow-ups",
+    "explore": "Explore episodes",
+    "script": "scripts",
+}
+
+#: When the surface is unknown, fall back to the resource. Never empty: a
+#: refusal with a blank noun in it reads as a bug, which is what it would be.
+RESOURCE_LABELS: dict[str, str] = {
+    "episode": "episodes",
+    "explore": "Explore episodes",
+}
+
+
+def service_label(resource: str, surface: str = "") -> str:
+    """The noun a refusal uses. See SERVICE_LABELS."""
+    return (SERVICE_LABELS.get(surface)
+            or RESOURCE_LABELS.get(resource)
+            or "episodes")
+
+
 #: A limit of this value is "no ceiling". Not `0`, which is a real and useful
 #: value meaning "none at all" - a distinction worth having before the first
 #: feature needs to be switched off for a tier entirely.

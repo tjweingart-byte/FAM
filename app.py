@@ -585,7 +585,8 @@ def _tier(request: Request) -> str:
     return entitlements.normalise(listener.tier if listener else "free")
 
 
-def _reserve(request: Request, resource: str, episode_key: str = ""):
+def _reserve(request: Request, resource: str, episode_key: str = "",
+             surface: str = ""):
     """Take one from this listener's allowance, or refuse with the reason.
 
     Returns the granted verdict, which the caller keeps so it can refund. A
@@ -603,7 +604,11 @@ def _reserve(request: Request, resource: str, episode_key: str = ""):
         return None
     try:
         return QUOTAS.reserve(user, _tier(request), resource,
-                              episode_key=episode_key)
+                              episode_key=episode_key,
+                              # What they were doing, in their words. The
+                              # refusal is about searches, not about the word
+                              # the ledger uses for them.
+                              service=entitlements.service_label(resource, surface))
     except quotas.QuotaExceeded as exc:
         # Named in the log, because in an access log a quota refusal and a
         # pacing refusal are both "429" and nothing distinguishes them - which
@@ -855,6 +860,14 @@ async def health() -> dict:
                                else "config.py default"),
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
+        # Built, and switched on or not. A tier system that is not enforcing
+        # looks exactly like one that is until somebody reaches a limit, and
+        # "are limits live on this deploy?" is the question a beta asks most.
+        "tiers": {
+            "enforced": settings.enforce_quotas,
+            "source": "env" if os.environ.get("ENFORCE_QUOTAS", "").strip() else "default",
+            "tiers": list(entitlements.TIERS),
+        },
         # Every database, its resolved path, and a real read against each.
         "databases": _database_report(),
         "voice_store": VOICE_STORE["dir"],
@@ -1691,7 +1704,7 @@ async def script(req: ScriptRequest, request: Request) -> dict:
     # allowance's point of view this *is* an episode, minus the audio.
     # Kept only so the shape matches /api/audio: there is no failure path here
     # between the reservation and the response, so nothing is ever refunded.
-    _reserve(request, "episode")
+    _reserve(request, "episode", surface="script")
     plan = _validated_plan(req.query, req.minutes, "", req.search)
     generator = DemoGenerator() if DEMO_MODE else ScriptGenerator()
     notes = ScriptNotes()
@@ -2478,7 +2491,8 @@ async def audio(
     # whole day and then answer 429 to everything - for one episode, which they
     # had already paid for on the first tap.
     reserved = _reserve(request, "explore" if cached_only else "episode",
-                        episode_key=_episode_key(plan))
+                        episode_key=_episode_key(plan),
+                        surface=_surface(cached_only, topic_id, context))
 
     try:
         pipeline = _make_pipeline(voice or None)
@@ -2701,8 +2715,22 @@ async def http_error(_: Request, exc: HTTPException):
     # whole verdict in `X-FAM-Quota` - what the limit was, what is left, when
     # it resets - and a handler that kept only the sentence would leave the
     # interface able to say "no" and nothing else.
-    return JSONResponse({"error": exc.detail}, status_code=exc.status_code,
-                        headers=getattr(exc, "headers", None))
+    headers = getattr(exc, "headers", None) or {}
+    body = {"error": exc.detail}
+    # The same verdict in the body as well as the header, because a header is
+    # the one part of a response a client routinely cannot reach: `fetch`
+    # hides it cross-origin without `expose_headers`, and every wrapper that
+    # turns a failed response into an exception keeps the body and drops the
+    # rest. The limit screen needs the numbers, so they travel where they
+    # cannot be lost.
+    if headers.get("X-FAM-Quota"):
+        try:
+            body["quota"] = json.loads(headers["X-FAM-Quota"])
+        except Exception:  # noqa: BLE001 - a malformed header must not mask the error
+            log.exception("could not attach the quota verdict to a refusal")
+    if headers.get("X-FAM-Refused-By"):
+        body["refused_by"] = headers["X-FAM-Refused-By"]
+    return JSONResponse(body, status_code=exc.status_code, headers=headers or None)
 
 
 # Also resolved from the project root, and for the same reason as the
