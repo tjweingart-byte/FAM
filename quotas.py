@@ -159,6 +159,10 @@ class Verdict:
     limit: int
     resets_at: float
     message: str = ""
+    #: What the listener was doing, in their own words - "searches", not
+    #: "episodes". `entitlements.service_label` owns the vocabulary; this
+    #: carries it out to every client so the sentence is written once.
+    service: str = ""
     #: Whether this verdict actually took a unit. False for a repeat of an
     #: episode already charged in this window, and for a request on a server
     #: with enforcement off - so a refund gives back only what was taken.
@@ -171,6 +175,25 @@ class Verdict:
     @property
     def unlimited(self) -> bool:
         return self.limit == entitlements.UNLIMITED
+
+    @property
+    def period(self) -> str:
+        """"daily" or "weekly" - the adjective, for a sentence about a limit."""
+        return "weekly" if self.window == "week" else "daily"
+
+    @property
+    def title(self) -> str:
+        """The line a limit screen leads with.
+
+        Composed here rather than in the interface because there are two
+        interfaces - the web app and the iOS client - and a sentence written
+        twice is a sentence that will disagree with itself. Empty when nothing
+        was refused: there is no headline for an allowance that is fine.
+        """
+        if self.allowed:
+            return ""
+        thing = self.service or entitlements.RESOURCE_LABELS.get(self.resource, "episodes")
+        return f"You've reached your {self.period} limit for {thing}"
 
     @property
     def remaining(self) -> int:
@@ -191,20 +214,29 @@ class Verdict:
             "resets_at": self.resets_at,
             "message": self.message,
             "charged": self.charged,
+            "service": self.service,
+            # Sent, not derived: a client that has to build this sentence is a
+            # second place for it to be worded differently.
+            "title": self.title,
         }
 
 
 def _refusal(resource: str, tier_name: str, limit: "entitlements.Limit",
-             used: int, at: float) -> str:
+             used: int, at: float, service: str = "") -> str:
     """The sentence a listener reads when they run out.
 
     Says the number, says when it comes back, and says what would change it -
     in that order, because the first two are facts they can act on and the
     third is a sales pitch. A refusal that leads with the pitch reads as a
     paywall dressed up as an error.
+
+    `service` is what they were doing, in their words - "searches" rather than
+    "episodes" - so the sentence is about the thing they pressed. It falls back
+    to the resource, because a refusal with a blank noun in it is worse than
+    one using the accounting word.
     """
     when = _dt.datetime.fromtimestamp(window_end(limit.window, at), _dt.timezone.utc)
-    thing = "episodes" if resource == "episode" else "Explore episodes"
+    thing = service or entitlements.RESOURCE_LABELS.get(resource, "episodes")
     per = "today" if limit.window == "day" else "this week"
     back = when.strftime("%H:%M UTC on %-d %B") if limit.window == "week" \
         else when.strftime("%H:%M UTC")
@@ -282,7 +314,7 @@ class QuotaStore:
         return int(row[0]) if row else 0
 
     def status(self, user_id: str, tier_name: str, resource: str,
-               at: float = 0.0) -> Verdict:
+               at: float = 0.0, service: str = "") -> Verdict:
         """Where this listener stands, without spending anything.
 
         Never raises and never refuses: a status read that could fail would
@@ -292,23 +324,28 @@ class QuotaStore:
         now = at or time.time()
         tier_name = entitlements.normalise(tier_name)
         limit = entitlements.limit_for(tier_name, resource)
+        service = service or entitlements.service_label(resource)
         if limit is None or limit.unlimited:
             window = limit.window if limit else "day"
             return Verdict(True, resource, tier_name, window,
                            self.used(user_id, resource, window, now),
-                           entitlements.UNLIMITED, window_end(window, now))
+                           entitlements.UNLIMITED, window_end(window, now),
+                           service=service)
         used = self.used(user_id, resource, limit.window, now)
         allowed = used < limit.count
         return Verdict(
             allowed, resource, tier_name, limit.window, used, limit.count,
             window_end(limit.window, now),
-            "" if allowed else _refusal(resource, tier_name, limit, used, now),
+            "" if allowed else _refusal(resource, tier_name, limit, used, now,
+                                        service),
+            service=service,
         )
 
     # --- spending ---------------------------------------------------------
 
     def reserve(self, user_id: str, tier_name: str, resource: str,
-                at: float = 0.0, episode_key: str = "") -> Verdict:
+                at: float = 0.0, episode_key: str = "",
+                service: str = "") -> Verdict:
         """Take one from the allowance, or raise `QuotaExceeded`.
 
         The increment and the test happen inside one `BEGIN IMMEDIATE`, so two
@@ -323,16 +360,21 @@ class QuotaStore:
         interface invites them to do. Omitted, every reservation is a fresh
         spend: that is the right answer for an episode that has no shared
         identity, such as one built on somebody's own attachment.
+
+        `service` is what the listener was doing, in their words. It changes no
+        arithmetic at all - it is carried so that the refusal, when there is
+        one, is about searches rather than about the ledger's word for them.
         """
         now = at or time.time()
         tier_name = entitlements.normalise(tier_name)
         limit = entitlements.limit_for(tier_name, resource)
+        service = service or entitlements.service_label(resource)
 
         if not settings_enforcing():
             window = limit.window if limit else "day"
             return Verdict(True, resource, tier_name, window, 0,
                            entitlements.UNLIMITED, window_end(window, now),
-                           charged=False)
+                           charged=False, service=service)
 
         window = limit.window if limit is None else limit.window
         if episode_key and self._already_charged(user_id, resource, window,
@@ -345,7 +387,7 @@ class QuotaStore:
                            entitlements.UNLIMITED if limit is None or limit.unlimited
                            else limit.count,
                            window_end(window, now), charged=False,
-                           episode_key=episode_key)
+                           episode_key=episode_key, service=service)
 
         if limit is None or limit.unlimited:
             # Still counted. An unlimited tier is not an unmeasured one, and
@@ -355,7 +397,7 @@ class QuotaStore:
                                charge=episode_key)
             return Verdict(True, resource, tier_name, window, count,
                            entitlements.UNLIMITED, window_end(window, now),
-                           episode_key=episode_key)
+                           episode_key=episode_key, service=service)
 
         count = self._bump(user_id, resource, limit.window, 1, now,
                            charge=episode_key)
@@ -368,12 +410,13 @@ class QuotaStore:
             verdict = Verdict(
                 False, resource, tier_name, limit.window, limit.count,
                 limit.count, window_end(limit.window, now),
-                _refusal(resource, tier_name, limit, limit.count, now),
+                _refusal(resource, tier_name, limit, limit.count, now, service),
+                service=service,
             )
             raise QuotaExceeded(verdict)
         return Verdict(True, resource, tier_name, limit.window, count,
                        limit.count, window_end(limit.window, now),
-                       episode_key=episode_key)
+                       episode_key=episode_key, service=service)
 
     def refund(self, user_id: str, resource: str, window: str,
                at: float = 0.0, episode_key: str = "") -> None:

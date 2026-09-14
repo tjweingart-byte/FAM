@@ -186,11 +186,17 @@ def test_a_failure_is_not_remembered_as_paid_for(client, enforced, unpaced, monk
     def no_voice(*_a, **_k):
         raise appmod.TTSUnavailable("no engine here")
 
+    working = appmod._make_pipeline
     monkeypatch.setattr(appmod, "_make_pipeline", no_voice)
     assert audio(client).status_code == 503
     assert used(client) == 0
 
-    monkeypatch.undo()
+    # Put back *only* the voice. `monkeypatch.undo()` would also undo the
+    # `enforced` fixture - the two share one monkeypatch instance - and this
+    # test read as passing for a while only because enforcement used to be the
+    # default. It is not any more (the tier system ships switched off), so
+    # undoing everything here silently measured a server with no limits on.
+    monkeypatch.setattr(appmod, "_make_pipeline", working)
     assert audio(client).status_code == 200
     assert used(client) == 1, "the retry that worked was never charged"
 

@@ -384,6 +384,32 @@ another rule.
   `ACCOUNT_REQUIRED` in `app.py` holds the reasoning beside the code that
   enforces it. Nothing is lost by signing up late: a mix made before the gate
   is still under the same id and appears the moment credentials are attached.
+- **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  `ENFORCE_QUOTAS=0` is the default: every tier, limit, counter, reservation,
+  refund and refusal exists and is tested, and none of them refuses anybody.
+  The reason is not that limits are wrong, it is that **nothing sells a
+  listener a way past one** - there is no checkout, so an enforced free tier
+  is a wall with no door. One setting turns the whole of it on the day that
+  changes, and `/api/health` reports which state a deploy is in, because an
+  unenforced tier system looks exactly like an enforced one until somebody
+  reaches a limit. The exposure this accepts, so it is a known trade: spend
+  per listener is **visible** (`metering.py` records every episode) and not
+  **capped**. Generation is still paced per listener.
+  Note the counters do not run while it is off, so `/api/entitlements` reads
+  0 used - the numbers for setting real limits come from `usage_report.py`,
+  which is where CLAUDE.md always said they should come from.
+- **A refusal names what the listener was doing, not what the ledger calls
+  it.** A resource is an accounting word: somebody told they are out of
+  "episodes" goes looking for the episodes they apparently spent, where "your
+  daily limit for searches" is about the thing they pressed.
+  `entitlements.service_label` maps the surface the request already carries
+  to that word, the verdict carries it, and the whole sentence is composed
+  server-side so the web app and the iOS client cannot word it differently.
+  The verdict travels in the response **body** as well as `X-FAM-Quota`,
+  because a header is the one part of a response a client routinely cannot
+  reach. The refusal raises a screen that says the limit, how much of it is
+  gone, when it comes back **in the reader's own clock**, and opens the plans
+  - a limit with no way past it is a dead end on a phone.
 - **A tier is what you may spend, never what you may reach.** *(ACCOUNTS.md.)*
   Three tiers - `free`, `plus`, `unlimited` - and the free one is a **daily
   ceiling on episodes**, not a smaller product: `entitlements.FEATURES` gates
@@ -631,7 +657,7 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-five named smoke behaviours; anything less means something was skipped, and
+twenty-six named smoke behaviours; anything less means something was skipped, and
 `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:

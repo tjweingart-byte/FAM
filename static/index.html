@@ -834,6 +834,46 @@
     color:var(--text-muted); font-weight:700; font-size:13px; cursor:pointer;
   }
 
+  /* The limit screen. A refusal is not an error, so it does not borrow the
+     error colour: copper is the app's "this is about you and your account"
+     and the mark is an outline rather than a warning triangle. */
+  .limit-mark{ width:34px; height:34px; border-radius:50%; background:var(--bg);
+    border:1px solid var(--border-strong); color:var(--copper); display:flex;
+    align-items:center; justify-content:center; margin-bottom:12px; }
+  .limit-body{ font-size:12.5px; line-height:1.5; color:var(--text-muted); margin-bottom:14px; }
+  /* How much of the allowance is gone, because a number in a sentence is read
+     and a bar is seen. Hidden when the server did not send the figures. */
+  .limit-meter{ height:4px; border-radius:4px; background:var(--border-strong);
+    overflow:hidden; margin-bottom:8px; }
+  .limit-meter span{ display:block; height:100%; width:100%; background:var(--copper); }
+  .limit-meter[hidden]{ display:none; }
+  .limit-reset{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
+    letter-spacing:0.06em; color:var(--text-faint); margin-bottom:16px; }
+  .limit-reset:empty{ display:none; }
+
+  /* Plans. One row per tier, the current one marked, and what each allows in
+     the same words the server uses. */
+  .plan-row{ display:flex; gap:12px; align-items:flex-start; padding:14px 22px;
+    cursor:pointer; }
+  .plan-row:active{ background:var(--surface-2); }
+  .plan-row.current{ cursor:default; }
+  .plan-tick{ flex:none; width:20px; height:20px; border-radius:50%; margin-top:2px;
+    border:1px solid var(--border-strong); display:flex; align-items:center;
+    justify-content:center; color:var(--ink); }
+  .plan-row.current .plan-tick{ background:var(--copper); border-color:var(--copper); }
+  .plan-body{ flex:1; min-width:0; }
+  .plan-name{ font-family:'Fraunces', serif; font-weight:600; font-size:14px; color:var(--text); }
+  .plan-name em{ font-style:normal; font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    letter-spacing:0.1em; text-transform:uppercase; color:var(--copper); margin-left:8px; }
+  .plan-blurb{ font-size:11px; line-height:1.45; color:var(--text-muted); margin-top:4px; }
+  .plan-limits{ font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--text-faint); margin-top:6px; }
+  /* Said out loud rather than discovered by tapping: there is no checkout yet,
+     and a plan list that looks buyable and is not is the "quietly worse than
+     intended" failure with money attached. */
+  .plan-note{ margin:6px 22px 0; padding:12px 13px; border:1px dashed var(--border-strong);
+    border-radius:12px; font-size:10.5px; line-height:1.5; color:var(--text-muted); }
+
   .footnote{ max-width:340px; margin-top:22px; text-align:center; font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--muted); line-height:1.6; }
 
   /* ============ ENTRY: welcome, auth, intro ============
@@ -1708,6 +1748,42 @@
         </div>
       </div>
 
+      <!-- The limit screen. Raised only by a refusal the server actually
+           made, never by the interface guessing it is close - so while the
+           tier system is switched off (ENFORCE_QUOTAS=0) this never appears,
+           and the day it is switched on it appears without another change.
+           Every word in it apart from the button labels comes from the
+           server's verdict, so the app and the iOS client say the same thing. -->
+      <div class="modal-overlay" id="limitOverlay" onclick="if(event.target===this) closeLimit()">
+        <div class="modal-card">
+          <div class="limit-mark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+          </div>
+          <div class="modal-title" id="limitTitle">You've reached your daily limit</div>
+          <div class="limit-body" id="limitBody"></div>
+          <div class="limit-meter" id="limitMeter" hidden><span></span></div>
+          <div class="limit-reset" id="limitReset"></div>
+          <div class="modal-btns">
+            <button class="modal-btn ghost" onclick="closeLimit()">Not now</button>
+            <button class="modal-btn primary" onclick="openPlansFromLimit()">See plans</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- What a bigger plan buys, read from /api/plans so the tiers and the
+           features are the server's, not a second copy that drifts. No prices:
+           a number here and a number in App Store Connect are two places for
+           one fact, and the wrong one is always the one being read. -->
+      <div class="sheet-overlay" id="plansOverlay" onclick="if(event.target===this) closePlans()">
+        <div class="sheet-card">
+          <div class="sheet-scroll">
+            <div class="sheet-group">Your plan</div>
+            <div id="plansList"></div>
+          </div>
+          <div class="sheet-cancel" onclick="closePlans()">Close</div>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="newChatOverlay" onclick="if(event.target===this) closeNewChatModal()">
         <div class="modal-card">
           <div class="modal-title">New message</div>
@@ -2202,9 +2278,129 @@
     if(activeId !== "screen-player"){ navigate("player"); }
   }
 
-  function onGenerationFailed(message){
+  function onGenerationFailed(message, err){
     clearGenOverlay();
+    // An allowance running out is not a failure to generate, and a toast is
+    // the wrong shape for it: it vanishes, it cannot be acted on, and it does
+    // not say when the allowance comes back. Everything else still toasts.
+    if(err && err.refusedBy === "quota" && err.quota){ showLimitReached(err.quota); return; }
     toast(message || "Could not generate that briefing");
+  }
+
+  // ---------------- Reaching a limit ----------------
+  // Raised only by a refusal the server actually made. While the tier system
+  // is switched off nothing refuses, so none of this is ever seen; the day it
+  // is switched on it works without another change. The words are the
+  // server's - `quotas.Verdict.title` and `.message` - so this screen and the
+  // iOS one cannot describe the same limit differently.
+  function showLimitReached(q){
+    q = q || {};
+    document.getElementById("limitTitle").textContent =
+      q.title || "You've reached your limit";
+    document.getElementById("limitBody").textContent =
+      q.message || "You have used everything your plan allows for now.";
+
+    // The bar is drawn only where both numbers are real. An "unlimited" tier
+    // has no proportion to show, and a meter drawn from a missing figure is a
+    // number the listener did not give us pretending to be one they did.
+    var meter = document.getElementById("limitMeter");
+    var known = !q.unlimited && typeof q.limit === "number" && q.limit > 0
+                && typeof q.used === "number";
+    meter.hidden = !known;
+    if(known){
+      var share = Math.max(0, Math.min(1, q.used / q.limit));
+      meter.querySelector("span").style.width = (share * 100) + "%";
+    }
+
+    var reset = document.getElementById("limitReset");
+    // "in your time" is doing real work. The server's sentence says the reset
+    // in UTC - it counts windows in UTC on purpose, and an API answer cannot
+    // know the reader's clock - so without the label the card shows one fact
+    // as two different times and reads as a contradiction.
+    reset.textContent = q.resets_at
+      ? "Resets " + resetWhen(q.resets_at) + " in your time" : "";
+    document.getElementById("limitOverlay").classList.add("active");
+  }
+
+  // In the listener's own clock, not UTC. The server counts windows in UTC on
+  // purpose (quotas.py says why), but "00:00 UTC" is a fact about a server and
+  // "resets at 5pm" is a fact someone can plan around.
+  function resetWhen(epochSeconds){
+    var when = new Date(epochSeconds * 1000);
+    var soon = (when - Date.now()) < 20 * 3600 * 1000;
+    try {
+      return when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+             + (soon ? "" : " on " + when.toLocaleDateString([], { weekday: "long" }));
+    } catch(e){ return when.toISOString(); }
+  }
+
+  function closeLimit(){
+    document.getElementById("limitOverlay").classList.remove("active");
+  }
+  function openPlansFromLimit(){
+    closeLimit();
+    openPlans();
+  }
+
+  // ---------------- Plans ----------------
+  function openPlans(){
+    var list = document.getElementById("plansList");
+    list.innerHTML = '<div class="plan-note">Loading your plan\u2026</div>';
+    document.getElementById("plansOverlay").classList.add("active");
+    fetch("/api/plans")
+      .then(function(r){ return r.json(); })
+      .then(renderPlans)
+      .catch(function(){
+        list.innerHTML = '<div class="plan-note">Could not reach the server, '
+          + 'so there is nothing to show here yet.</div>';
+      });
+  }
+  function closePlans(){
+    document.getElementById("plansOverlay").classList.remove("active");
+  }
+
+  function renderPlans(data){
+    var tiers = (data && data.tiers) || [];
+    var current = (data && data.current) || "free";
+    var html = "";
+    tiers.forEach(function(t){
+      var mine = t.name === current;
+      html += '<div class="plan-row' + (mine ? ' current' : '') + '"'
+           + (mine ? '' : ' onclick="choosePlan(\'' + t.name + '\')"') + '>'
+           + '<div class="plan-tick">'
+           + (mine ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>' : '')
+           + '</div><div class="plan-body">'
+           + '<div class="plan-name">' + escapeHtml(t.label || t.name)
+           + (mine ? '<em>Your plan</em>' : '') + '</div>'
+           + (t.blurb ? '<div class="plan-blurb">' + escapeHtml(t.blurb) + '</div>' : '')
+           + '<div class="plan-limits">' + escapeHtml(planLimits(t)) + '</div>'
+           + '</div></div>';
+    });
+    // The seam where checkout goes, named as one. Nothing sets a paid plan
+    // yet, so a row that looked buyable would be a promise the app cannot
+    // keep - and the listener would find that out after tapping.
+    html += '<div class="plan-note">Upgrading is not switched on yet \u2014 there '
+         + 'is no checkout behind these plans, and nothing on this server '
+         + 'charges anybody. This is where it will go.</div>';
+    document.getElementById("plansList").innerHTML = html;
+  }
+
+  // What a tier allows, in the words the refusal would use.
+  function planLimits(t){
+    var limits = t.limits || [];
+    if(!limits.length) return "No ceiling";
+    return limits.map(function(l){
+      var per = l.window === "week" ? "a week" : "a day";
+      var what = l.resource === "explore" ? "Explore episodes" : "episodes";
+      return (l.unlimited || l.count < 0 ? "Unlimited " + what
+                                         : l.count + " " + what + " " + per);
+    }).join("  \u00b7  ");
+  }
+
+  function choosePlan(name){
+    // Honest, and deliberately not a dead tap: it says what would happen and
+    // what is missing, rather than opening a checkout that is not there.
+    toast("No checkout yet \u2014 " + name + " cannot be bought from here");
   }
 
   // What identifies one episode request. Voice is in it because switching
@@ -2682,7 +2878,7 @@
         awaitingFirstAudio = "";
         stopProgress();
         setPlayState(false);
-        onGenerationFailed(err && err.message);
+        onGenerationFailed(err && err.message, err);
       }
     }, context, selectedVoice, {
       topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
@@ -5265,6 +5461,13 @@
         // drop the dud and deal the next one.
         stopReelProgress();
         setReelPlaying(false);
+        // Unless it was the allowance. Explore has its own, looser one, and
+        // dealing the next card would spend the rest of the feed discovering
+        // the same refusal card by card.
+        if(err && err.refusedBy === "quota" && err.quota){
+          showLimitReached(err.quota);
+          return;
+        }
         reelFailures++;
         if(reelFailures >= 3){
           reelCurrent = null;

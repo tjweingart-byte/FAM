@@ -46,7 +46,10 @@ OUT = HERE / "fam-live.html"
 OUT_ARTIFACT = HERE / "fam-live-artifact.html"
 
 #: Reference data only. Everything stateful is served from the database.
-STATIC_PATHS = ("/api/topics", "/api/voices", "/api/health", "/api/attach")
+STATIC_PATHS = ("/api/topics", "/api/voices", "/api/health", "/api/attach",
+                # The tier table. Reference data: it is the same for every
+                # viewer, and nothing in the database changes it.
+                "/api/plans")
 
 
 LIVE_SHIM = r"""

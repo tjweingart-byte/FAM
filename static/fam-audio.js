@@ -170,7 +170,17 @@ window.FamAudio = (function () {
       if (!res.ok) {
         return res.json().catch(function () {
           return { error: "Request failed (" + res.status + ")" };
-        }).then(function (body) { throw new Error(body.error || "Request failed"); });
+        }).then(function (body) {
+          var err = new Error(body.error || "Request failed");
+          // A refusal is not all the same kind of "no". The server says which
+          // limit said it and, for an allowance, what the limit was and when
+          // it comes back - so the interface can raise the limit screen
+          // instead of flashing a toast the listener cannot act on.
+          err.status = res.status;
+          err.refusedBy = body.refused_by || "";
+          err.quota = body.quota || null;
+          throw err;
+        });
       }
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
 
