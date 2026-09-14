@@ -43,6 +43,8 @@ import quotas
 import saved as saved_mod
 import sharing
 from config import DEFAULT_PIPELINE, describe_key, key_source, settings
+from episode_intelligence import report as ei_report
+from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
@@ -839,6 +841,17 @@ async def health() -> dict:
         # episodes will fail rather than quietly search another way - worth
         # seeing on a tab rather than discovering in a log.
         "research": research_report(),
+        # Whether the layer in front of retrieval is running, and on what. An
+        # EI that has been switched off looks identical from outside to one
+        # that is working - the episodes are merely less relevant - which is
+        # the "quietly worse than intended" shape this project keeps paying
+        # for. `enabled: false` means the raw query is going to Exa.
+        "episode_intelligence": ei_report(),
+        # Which questions this server can answer from a live state rather than
+        # from an article about one. Everything unconfigured is *named* here
+        # rather than silently absent, because a scoreboard question answered
+        # from an index is wrong in a way nobody sees until a listener hears it.
+        "live_facts": live_facts_report(),
         # Which streaming architecture this process is actually running, and
         # whether that was chosen or inherited. A deployment that has been
         # rolled back to `legacy` by hand looks identical to one that has not

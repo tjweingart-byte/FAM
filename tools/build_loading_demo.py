@@ -51,11 +51,16 @@ def build() -> str:
     if "famRise" not in css or "GEN_MIN" in css:
         sys.exit("the extracted CSS does not look like the loading screen")
 
-    # The four states the status line actually takes, in the words the app
-    # uses. Kept in step with startHonestWait() and the two notices.
+    # The states the status line actually takes, in the words the app uses.
+    # Kept in step with startHonestWait() and the two notices - a researched
+    # episode now moves through three of them in order, because episode
+    # intelligence put real seconds back in front of the first word and the
+    # line has to say which of them is being spent.
     states = [
         ("Instant answer", "Writing your episode…"),
-        ("Needs today's facts", "Answering now — checking sources underneath… 6s"),
+        ("Understanding", "Working out what you're asking… 3s"),
+        ("Researching", "Reading today's sources… 5s"),
+        ("Writing", "Writing your episode… 8s"),
         ("No API key", "Playing the built-in sample script…"),
         ("Key rejected", "The server's API key was rejected — no episode can be written."),
     ]

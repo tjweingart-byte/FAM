@@ -381,6 +381,62 @@ class Settings:
     exa_num_results: int = _env_int("EXA_NUM_RESULTS", 8)
     exa_packet_sources: int = _env_int("EXA_PACKET_SOURCES", 3)
     exa_highlights_per_source: int = _env_int("EXA_HIGHLIGHTS_PER_SOURCE", 2)
+    # Whether the evidence packet carries a publication date and a publisher
+    # beside each source.
+    #
+    # **On, and this is the cheapest quality fix in the codebase.** The packet
+    # used to be title plus highlights, so an episode was asked whether
+    # something happened last night or two days ago from evidence with no dates
+    # in it. Exa was already returning both fields and `build_packet` was
+    # discarding them. Set to 0 only to reproduce the hand-measured 2026-09-05
+    # benchmark, whose numbers were taken on the undated shape.
+    exa_dated_packet: bool = field(
+        default_factory=lambda: os.environ.get("EXA_DATED_PACKET", "1")
+        not in ("0", "false", "False", ""))
+    # Whether a packet missing what the brief asked for buys one more search.
+    #
+    # One, never more, and never a model call to rephrase - the second search
+    # drops the recency window and searches the resolved subject. A retry costs
+    # about half a second and a fifth of a cent, and only on episodes that were
+    # going to be thin; an unbounded loop would put an unbounded wait in front
+    # of the first word.
+    research_retry: bool = field(
+        default_factory=lambda: os.environ.get("RESEARCH_RETRY", "1")
+        not in ("0", "false", "False", ""))
+
+    # --- Episode intelligence --------------------------------------------
+    # The layer between the typed question and the search - see
+    # `episode_intelligence.py` for what it is and why it sits there.
+    #
+    # **On.** It costs one model call in front of the first word on the search
+    # path, which breaks CLAUDE.md's one-sentence spec, and that was a
+    # deliberate decision: the writing is the product, and a fast episode about
+    # the wrong thing is worth less than a slower one about the right thing.
+    # The browse surfaces pay none of it - there the brief is built before the
+    # tap. Set to 0 to get the old behaviour exactly: the raw query goes to
+    # Exa, no structure, no why-now, no temporal cautions.
+    episode_intelligence: bool = field(
+        default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
+        not in ("0", "false", "False", ""))
+    # Understanding a request is a small, well-specified extraction, not the
+    # writing. It runs on the same model as the script by default so a
+    # deployment has one model to reason about, and at low effort because the
+    # time here is time the listener waits.
+    ei_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EI_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    ei_effort: str = field(
+        default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
+    ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 1200)
+    # Past this, the brief is not worth the wait and the raw query is searched
+    # instead. A ceiling rather than a target: EI must degrade to the old
+    # behaviour rather than become a new way for an episode to hang.
+    ei_timeout_seconds: float = _env_float("EI_TIMEOUT_SECONDS", 8.0)
+    # The window applied to a question about a moment when the brief names no
+    # other. Two weeks is wide enough to catch a story that broke over a
+    # weekend and narrow enough to keep an old well-ranked explainer out of the
+    # evidence for "what happened last night".
+    ei_default_recency_days: int = _env_int("EI_DEFAULT_RECENCY_DAYS", 14)
     # legacy | phase6 - see STREAMING_PIPELINES above.
     #
     # **phase6 is production.** It defaulted to `legacy` until the Phase 6 path

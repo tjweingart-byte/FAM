@@ -117,10 +117,12 @@ def test_the_retrieval_really_runs_for_both_kinds_of_question(monkeypatch, query
         def __bool__(self):
             return True
 
+        missing = ()
+
         def as_dict(self):
             return {"context": self.context}
 
-    async def fake_retrieve(q):
+    async def fake_retrieve(q, brief=None):
         calls.append(q)
         return Packet()
 
@@ -138,7 +140,7 @@ def test_a_research_failure_surfaces_instead_of_silently_answering(monkeypatch):
     A backend that cannot run must reach the listener as a sentence they can
     act on. Falling back to model knowledge here would restore exactly the
     behaviour this change removed, and would do it invisibly."""
-    async def broken(q):
+    async def broken(q, brief=None):
         raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
 
     monkeypatch.setattr(research_mod, "retrieve", broken)

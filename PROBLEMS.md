@@ -4541,3 +4541,210 @@ real browser from the verdict a refused request carries - the honest way to
 check a screen that cannot be reached while the system is switched off - and
 asserts it names the service, says the number and the reset, opens the plans,
 marks the current one, and says out loud that upgrading is unavailable.
+
+## 82. The episodes were researched, and nothing decided what to research
+
+### The symptom
+
+Quality, consistency and relevance, reported from use rather than from a trace:
+a bare entity like `Nvidia` produced a generic company explainer on a day the
+company had done something; a finished game was described as "last night" when
+it had ended two days earlier; a match still to be played was narrated as
+though its result were known; and a five-minute episode was a three-minute one
+with more words in it rather than a deeper one.
+
+Four different-looking complaints, one cause underneath three of them.
+
+### The cause
+
+`plan_episode` took what was typed, `ScriptGenerator.research` handed that
+string to Exa unchanged, and `build_prompt` put the result in front of the
+model. Nothing between the keyboard and the search decided *what the question
+was*. So:
+
+* **`Nvidia` was searched as "Nvidia".** There was no step that could ask why
+  someone types a company name on a particular morning, so the retrieval came
+  back with the company's own description of itself and the episode was
+  correct, current and useless.
+* **The evidence packet had no dates in it.** `build_packet` wrote
+  `SOURCE n / Title: / Key evidence:` and discarded `published_date` and the
+  URL, both of which Exa was already returning. The only time the model had was
+  `now_line()` - the current moment - and nothing to subtract from it. It was
+  being asked to choose between "last night" and "two days ago" with no
+  information that could distinguish them. **That is not a writing failure, and
+  a year of prompt work would not have fixed it.**
+* **The window was never narrowed**, so a well-linked two-year-old explainer
+  competed on equal terms with last night's report of the thing actually asked
+  about.
+* **Duration was a word count.** `plan_episode` multiplied minutes by
+  `TARGET_WPM` and attached a one-line scope note. Nothing said what the extra
+  minutes were *for*, so the model spent them the only way a word budget
+  suggests: more words on the same material.
+
+The fourth complaint - a preview narrated in the past tense - is a different
+failure with the same root. Nothing in the system held the idea that an event
+has a *status*, so nothing could refuse to write a result for something that
+had not happened.
+
+### The fix
+
+A layer between the typed question and the search - `episode_intelligence.py`.
+One model call, before Exa, producing a `Brief`: intent, resolved subject, a
+why-now hypothesis with a confidence attached, the query to actually search,
+what the evidence must establish, how fresh it has to be, which story shape
+fits, and what the writer must not assume. It feeds two consumers from one
+call - `research` reads the retrieval half, `build_prompt` reads the rest.
+
+**Why it is before retrieval and not after.** A critique downstream of Exa can
+only judge an episode built on whatever the packet happened to contain. If the
+query that produced the packet was wrong, the evidence is already the wrong
+evidence and no amount of checking recovers it. The gate has to be where it can
+still change the outcome.
+
+**What it costs, and that this was chosen.** One model call in front of the
+first word, on the search path. It breaks CLAUDE.md's one-sentence spec, which
+had not been broken before and was not broken accidentally here: the writing is
+the product, and a fast episode about the wrong thing is worth less than a
+slower one about the right thing. The browse surfaces pay none of it - there
+the brief is built before the tap, which is what prefetch is for. `write.py`
+prints the brief above the script, so a weak episode can be attributed to a
+weak brief or to a weak script written from a good one, which have fixes in
+different files.
+
+Then the retrieval, which is where three of the four symptoms actually die:
+
+* **The packet carries a publication date and a source grade.** The relative
+  phrase - "yesterday", "2 days ago" - is computed in `age_phrase` from the
+  dates rather than left to the model, so the blueprint's rule that relative
+  labels come from normalized time is enforced rather than requested. An
+  undated source says `date not stated` and is never given today's date.
+* **Recency filters; credibility sorts.** The window
+  (`start_published_date`, from `Brief.recency_days`) decides what is eligible;
+  `rank_results` orders what survives by publisher grade, newest first within a
+  grade. So "prioritise recency without giving up source quality" is two
+  mechanisms doing two jobs rather than a weighted sum nobody can reason about.
+* **One retry when the packet is thin.** `packet_covers` is a token test - not
+  a model call, for the same reason `research_reason` is not one - and a packet
+  missing what the brief asked for buys exactly one more search, on the
+  resolved subject with the window dropped. A retry that also misses still
+  returns its evidence, and the writer is told which parts are thin so the gap
+  is named rather than filled from memory in the same confident voice.
+
+And the two that are not about retrieval at all:
+
+* **Duration buys depth.** `DEPTH_BANDS` says what each band of minutes is
+  *for* - orientation, understanding, depth, the full arc - in content rather
+  than in words, and the band reaches the prompt.
+* **A story shape per episode type**, offered as a shape and never as boxes.
+  This is the one change here that could reintroduce a failure this project has
+  already paid for: the prompt before the rewrite imposed the same five beats
+  on every topic, so a golf recap had to invent something for "the main debate
+  or open question". `build_structure_note` names the shape and, in the same
+  breath, says a beat with nothing real behind it is dropped rather than
+  filled. `test_a_structure_is_offered_as_a_shape_and_never_as_boxes_to_fill`
+  pins that wording, because losing it turns a structure back into a template.
+
+### The seam that is built and not filled
+
+`live_facts.py`. Exa retrieves *writing about* the world, and for two kinds of
+question that is structurally wrong however good the query is: a game ends and
+the scoreboard knows instantly, while the recap saying so is written, published
+and indexed later - so in between, a search returns the preview. Same shape,
+shorter fuse, for a price.
+
+So there is a registry: a source declares a domain, diagnoses why it can or
+cannot serve, and fetches. Registering a real provider is one line and nothing
+else changes, because `prepare` already asks and `build_prompt` already knows
+how to put the answer in front of the writer - a live fact outranks the packet
+and says so, carrying the timestamp it was true at.
+
+**Nothing is configured, and that is deliberately not the same as nothing being
+here.** Both domains are declared and both report exactly what they would need.
+`/api/health` names them. The failure this avoids is the one the project keeps
+paying for: a capability that is absent and quiet gets shipped, and a
+scoreboard question answered from an article index is wrong in a way nobody
+sees until a listener hears it.
+
+### What is deliberately *not* fixed
+
+**A pre-retrieval gate cannot verify a fact.** Nothing has been retrieved when
+it runs and the model's own knowledge is months old, so the brief never asserts
+what happened - it states what must be established and hands the writer
+cautions. Event status is settled downstream, from dated evidence. Anyone
+reading the brief as a source of facts will be wrong.
+
+**The drift check is weak on purpose, and the reason is worth keeping.** The
+gate requires the rewritten search to share a content word with the question,
+by prefix rather than by equality. Equality fails on exactly the rewrite this
+layer exists to make: "the fed" becomes "US Federal Reserve rate decision" and
+shares no token with what was typed. Any test strict enough to catch a subject
+being *replaced* also rejects one being *resolved* - the two are identical to a
+token comparison. So it catches wholesale replacement only, and semantic drift
+is caught downstream where there is evidence to catch it with: the packet comes
+back without what `must_establish` asked for, and the retry goes to `subject`.
+
+**There is still no critic between the finished script and TTS**, and there
+cannot be one that blocks: the script is spoken as it is written, so there is
+no complete script to gate. The checking that exists is all upstream of the
+first word.
+
+**Nothing here has been heard.** There is no API key in the build container, so
+every claim above about *writing* is unverified - the same standing caveat as
+the rest of this file. `tools/ei_eval.py` is the twenty-prompt milestone from
+the packet, and it refuses to run without keys rather than reporting a green
+run on no data.
+
+### The rule this adds
+
+**A layer that adds quality must not be able to subtract availability.** Every
+failure path in `episode_intelligence` - no key, a timeout, a refusal,
+unreadable JSON, a gate that trips - falls back to a brief built from the raw
+query, which is exactly what FAM did before the module existed. And it degrades
+*loudly*: `Brief.degraded`, the log line, and `/api/health`. An EI that had
+quietly stopped running would look identical from outside to one that was
+working; the episodes would merely be less relevant, which is the slowest
+possible way to notice.
+
+One consequence worth stating, because it reverses a rule rather than extending
+one: `research.retrieve` is pinned by a test forbidding it to catch anything,
+so that a failed backend reaches the caller rather than becoming a different
+kind of research. `_second_look` is the single deliberate exemption, and the
+test now pins that too - a *first* retrieval failing means research never
+happened and must propagate; a *second* failing means research happened and an
+optional improvement did not, and throwing the first packet away for that would
+make the episode worse for nobody's benefit.
+
+### Coverage
+
+`tests/test_episode_intelligence.py` - thirty-two tests. The call is made with
+a closed schema at low effort; the brief reaches every field the rest of the
+system reads; what it cost lands in the episode's own total. Then the floor:
+a raise, a timeout, a refusal, unparseable JSON and the off switch each fall
+back to the raw query and say why. Then the gate: a replaced subject is
+reverted and a *resolved* one is not, an unknown intent is mapped back,
+confidence without a hypothesis is downgraded, a question about a moment
+acquires a window and an evergreen one does not, a recap always carries the
+not-yet-confirmed caution, and the gate never refuses whatever it is handed.
+Then the prompt: each duration asks for something different, depth is described
+as content rather than as a word count, a structure is offered as a shape,
+a degraded brief tells the writer nothing, and the cover half of an
+answer-first episode never waits for a brief.
+
+`tests/test_retrieval_quality.py` - twenty-three tests. Dates are read and
+turned into the words a person uses; a future-dated source is flagged rather
+than trusted; a missing date is never filled in. Publishers are graded and an
+unknown one is never graded high; the best source goes first and the newest
+wins within a grade; an undated source sorts last. A question about a moment is
+windowed and an evergreen one is not. A thin packet buys exactly one more
+search, on the resolved subject with the window dropped; the better packet wins
+and the cost is the sum of both; a retry that also misses still returns its
+evidence; a failed second look keeps the first packet. And, last, that without
+a brief retrieval behaves exactly as it did before - one search, no window, no
+retry, which is the floor.
+
+`tests/test_live_facts.py` - seventeen tests, most of them about absence. A
+question routes to its domain and only its domain; a source that fails is
+skipped rather than ending the episode; nothing configured returns nothing and
+pretends nothing; and health names every domain with no provider *and what it
+would take to have one*. Then the block itself: it says when it was true, it
+says it outranks the packet, and event status travels with it.

@@ -148,9 +148,11 @@
 
   <div class="controls" id="controls">
       <button onclick="setStatus(0)">Instant answer</button>
-      <button onclick="setStatus(1)">Needs today's facts</button>
-      <button onclick="setStatus(2)">No API key</button>
-      <button onclick="setStatus(3)">Key rejected</button>
+      <button onclick="setStatus(1)">Understanding</button>
+      <button onclick="setStatus(2)">Researching</button>
+      <button onclick="setStatus(3)">Writing</button>
+      <button onclick="setStatus(4)">No API key</button>
+      <button onclick="setStatus(5)">Key rejected</button>
       <button onclick="flash()">Show a cache hit (450ms)</button>
   </div>
 
@@ -164,7 +166,9 @@
 <script>
   var STATUSES = [
     'Writing your episode…',
-    'Answering now — checking sources underneath… 6s',
+    "Working out what you're asking… 3s",
+    "Reading today's sources… 5s",
+    'Writing your episode… 8s',
     'Playing the built-in sample script…',
     "The server's API key was rejected — no episode can be written."
   ];

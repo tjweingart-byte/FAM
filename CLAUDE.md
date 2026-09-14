@@ -68,6 +68,28 @@ Everything else is negotiable; this is not. Any change that puts seconds in
 front of the first word is wrong, however clever the thing filling those
 seconds is.
 
+> **Amended for search, deliberately and at the owner's explicit direction**
+> *(PROBLEMS.md §82).* Episode intelligence runs one model call between the
+> typed question and the search, so **searchFAM now starts a few seconds after
+> the tap rather than half a second after it.** This was decided with the trade
+> stated in both directions and chosen anyway: the writing is the product, and
+> a fast episode about the wrong thing is worth less than a slower one about
+> the right thing. What follows below is still true of everything else, and the
+> rest of this section is the reasoning that made the amendment a decision
+> rather than a drift.
+>
+> **The amendment is for search only.** myFAM and DailyFAM must pay none of it
+> — there, what someone might tap is known before they tap it, so the brief and
+> the script are built ahead of the tap and the wait is zero. That is the same
+> "start earlier" argument this file has always made, and EI is the thing that
+> makes prefetching worth more than it used to be: a pre-built brief is the
+> expensive half. **Explore never pays it either** — it replays finished
+> episodes and generates nothing.
+>
+> `EPISODE_INTELLIGENCE=0` restores the old latency exactly, and with it the
+> old behaviour: the raw query goes to Exa, with no structure, no why-now and
+> no temporal cautions.
+
 What that rules out, learned the hard way: live web search on every query (it
 front-loads 10-25 seconds), the slowest model by default, and any form of
 preamble used to disguise a wait. Search is now opt-in per request; the default
@@ -191,11 +213,31 @@ is the first thing to check.
 generating audio. That is the loop for improving this, and it is a judgement
 call rather than an engineering one.
 
-**`examples/` is the strongest lever on the writing.** Briefings dropped in
-there are shown to the model as the house voice. Rules describe a style loosely;
-examples are matched closely, so two or three good ones move the output more
-than any amount of further prompt wording. Prefer adding an example over adding
-another rule.
+**And a second cause has since been found and fixed, which was never a prompt
+problem at all** *(PROBLEMS.md §82).* Three of the four complaints about
+quality came from what the prompt was *given*, not from what it said: the
+question was searched verbatim, so `Nvidia` returned a company explainer on a
+day the company had done something; the evidence packet carried no dates, so an
+episode was asked to choose between "last night" and "two days ago" with
+nothing to choose on; and duration was a word count, so more minutes bought
+more words on the same material. **No amount of prompt work would have fixed
+any of those.** `episode_intelligence.py` decides what to search for before Exa
+is called, `research.build_packet` now dates and grades every source, and
+`DEPTH_BANDS` says what each band of minutes is *for*.
+
+**`write.py` now prints the brief above the script, and that split is the
+point.** A weak episode is either a weak brief or a weak script written from a
+good one, and those have fixes in different files. Read the EI block first.
+`--no-ei` runs the pre-EI path for comparison, and `tools/ei_eval.py` is the
+twenty-prompt milestone.
+
+**`examples/` is the strongest lever on the writing, and it is still empty.**
+Briefings dropped in there are shown to the model as the house voice. Rules
+describe a style loosely; examples are matched closely, so two or three good
+ones move the output more than any amount of further prompt wording. Prefer
+adding an example over adding another rule. Nobody has written one yet, so the
+strongest available lever on the remaining problem is untouched — and unlike
+the rest of this list it needs taste rather than a key.
 
 ## Open problems, in the order they hurt
 
@@ -375,6 +417,65 @@ another rule.
   tool has existed; always-on research turned that from a rare case into every
   episode, which is how it was finally seen. The packet and the tool stay
   alternatives, never both.
+- **Something decides what to search for, before the search.** *(PROBLEMS.md
+  §82.)* `episode_intelligence.py` runs one model call between the typed
+  question and Exa and produces a `Brief`: intent, resolved subject, a why-now
+  hypothesis with its confidence, the query to actually run, what the evidence
+  must establish, how fresh it has to be, the story shape, and what the writer
+  must not assume. One call feeds both halves — `research` reads the retrieval
+  fields, `build_prompt` reads the rest.
+  **It is before retrieval because a gate after it is worthless**: a critique
+  downstream of Exa can only judge an episode built on whatever the packet
+  happened to hold, and if the query was wrong the evidence is already the
+  wrong evidence. It is also why the brief **never asserts a fact** — nothing
+  has been retrieved when it runs, so it produces cautions and questions, and
+  event status is settled downstream from dated evidence.
+  The rule it adds, which generalises: **a layer that adds quality must not be
+  able to subtract availability.** Every failure — no key, a timeout, a
+  refusal, unreadable JSON, a gate that trips — falls back to the raw query,
+  which is exactly what FAM did before it existed, and says so in
+  `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
+  running would look identical from outside to one that was working.
+- **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
+  jobs, rather than a weighted score nobody can reason about. The window
+  (`start_published_date`, from the brief) decides what is eligible, so nothing
+  stale is considered however well linked it is; `rank_results` then orders
+  what survives by publisher grade, newest first within a grade. A question
+  about last night is therefore answered from last night, by a wire service
+  rather than by whoever published fastest.
+  Two details are load-bearing. **The packet carries the date and the grade and
+  never the hostname** — a domain in the packet is a domain the voice can read
+  out, and the model needs to know it is reading a wire service in order to
+  weigh it, not a way to say "reuters dot com" aloud. And **the relative phrase
+  is computed in code**, not left to the model: "yesterday" is subtraction, and
+  the failure it replaces was an episode asked to date events from evidence
+  that carried no dates at all.
+  A thin packet buys **one** more search — on the resolved subject, window
+  dropped, never a model call to rephrase — and a retry that still misses
+  returns its evidence anyway, with the gap *named* to the writer so it is said
+  plainly rather than filled from memory in the same confident voice.
+- **An article index is the wrong instrument for a scoreboard, and the seam for
+  that is built and empty.** *(§82, `live_facts.py`.)* A game ends and the
+  scoreboard knows instantly; the recap saying so is written, published and
+  indexed later, so in between a search returns the *preview*. Same shape,
+  shorter fuse, for a price. Registering a real provider is one line —
+  `prepare` already asks and `build_prompt` already knows how to place the
+  answer, which outranks the packet and carries the timestamp it was true at.
+  **Nothing is configured, and that is deliberately not the same as nothing
+  being here**: both domains are declared, both report exactly what they would
+  need, and `/api/health` names them. A capability that is absent and quiet
+  gets shipped, and a scoreboard question answered from an index is wrong in a
+  way nobody sees until a listener hears it.
+- **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
+  ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
+  orientation, understanding, depth, the full arc — described as content and
+  never as a word count, and the band reaches the prompt. A story shape per
+  episode type reaches it too, and **as a shape, never as boxes**: the prompt
+  before the rewrite imposed the same five beats on every topic, so a golf
+  recap had to invent something for "the main debate or open question".
+  `build_structure_note` names the shape and, in the same breath, says a beat
+  with nothing real behind it is dropped rather than filled. A test pins that
+  wording, because losing it turns a structure back into a template.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and the weekly recap need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
