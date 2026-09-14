@@ -564,10 +564,22 @@ def build() -> pathlib.Path:
     audio_js = (STATIC / "fam-audio.js").read_text(encoding="utf-8")
 
     # Inline the player: one file, so it can be opened from anywhere.
+    # A function rather than a template string: a backslash escape in the
+    # script - a `\s` in a regex, say - is a replacement-template escape to
+    # re.subn, and it fails the build with "bad escape" rather than doing
+    # anything sensible with it.
     html, n = re.subn(r'<script src="[^"]*fam-audio\.js"[^>]*></script>',
-                      "<script>\n" + audio_js + "\n</script>", html)
+                      lambda _m: "<script>\n" + audio_js + "\n</script>", html)
     if n != 1:
         raise SystemExit("could not inline fam-audio.js - has the script tag changed?")
+
+    # The episode visual, inlined for the same reason: the preview is one file
+    # opened from anywhere, and a <script src> would 404 there.
+    line_js = (STATIC / "fam-line.js").read_text(encoding="utf-8")
+    html, n = re.subn(r'<script src="[^"]*fam-line\.js"[^>]*></script>',
+                      lambda _m: "<script>\n" + line_js + "\n</script>", html)
+    if n != 1:
+        raise SystemExit("could not inline fam-line.js - has the script tag changed?")
 
     sys.path.insert(0, str(ROOT))
     import sharing

@@ -25,7 +25,7 @@ from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response
 from fastapi.responses import (
-    JSONResponse, RedirectResponse, StreamingResponse)
+    FileResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,7 @@ import embeddings
 from demo_script import DemoGenerator
 import credentials
 import entitlements
+import episode_visuals
 import messages as messages_mod
 import metering
 import oauth
@@ -871,6 +872,11 @@ async def health() -> dict:
         # Every database, its resolved path, and a real read against each.
         "databases": _database_report(),
         "voice_store": VOICE_STORE["dir"],
+        # Continuous-line episode artwork: whether this deploy offers it, where
+        # it looks for assets, and how many it has. A server with the feature on
+        # and an empty folder behaves exactly like one with it off - which is
+        # the kind of thing worth being able to ask rather than infer.
+        "visuals": episode_visuals.report(),
         # The public API surface, so a client can ask rather than assume.
         "api": {"version": API_VERSION, "prefix": API_PREFIX,
                 "cors_origins": _ALLOWED_ORIGINS},
@@ -2248,6 +2254,25 @@ class EventRequest(BaseModel):
     thread: str = Field("", max_length=200)
 
 
+def _attach_tile_visuals(groups) -> None:
+    """Give each tile its finished artwork, where finished artwork exists.
+
+    Only `ready` is attached. A tile has no state to show for `processing` or
+    `failed` - it falls back to the drawn icon it has always had - so sending
+    those would be five kilobytes per feed describing a decision no tile makes.
+    The player asks `/api/visual` for the full record, because the player is
+    the surface that does have those states.
+
+    Costs one stat per tile against a folder that is usually not there at all,
+    and never a model call.
+    """
+    for topics in groups:
+        for topic in topics:
+            record = episode_visuals.record_for(topic.get("query", ""))
+            if record["status"] == "ready":
+                topic["visual"] = record
+
+
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200)):
     """The four myFAM sections, ranked for this listener.
@@ -2272,6 +2297,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200)):
          for section in feed["sections"] for topic in section["topics"]],
     )
     feed["algo"] = topics_mod.ALGO_VERSION
+    _attach_tile_visuals(section["topics"] for section in feed["sections"])
     return feed
 
 
@@ -2434,6 +2460,56 @@ async def next_thread(
     except TTSUnavailable:
         return {"thread": ""}
     return {"thread": await pipeline.thread_for(plan)}
+
+
+@app.get("/api/visual")
+async def episode_visual(
+    request: Request,
+    q: str = Query(..., max_length=300, description="What the listener asked"),
+):
+    """The continuous-line artwork for this episode's subject, if there is any.
+
+    Deliberately shaped like `/api/next`: a cheap side-channel read that the
+    audio path neither waits for nor knows about. A player asks for it when it
+    opens and draws nothing if it never answers, which is what keeps the
+    one-sentence spec intact - nothing here can put a second in front of the
+    first word.
+
+    Keyed on the *query* alone. Length is not part of the identity for the same
+    reason voice is not part of the script cache key: a longer episode about
+    the same subject is the same drawing. See `episode_visuals`.
+
+    Not gated on surface. Which players draw this is a client decision - and
+    exploreFAM's answer is never - because the same endpoint has to serve the
+    iOS app, whose surfaces this server has never heard of.
+    """
+    _read_limit(request)
+    return {"visual": episode_visuals.record_for(q)}
+
+
+@app.get("/api/visual/asset/{name}")
+async def episode_visual_asset(name: str):
+    """Serve one artwork file out of the visuals folder.
+
+    The folder is per-machine state, not part of the project, so it cannot be
+    mounted as static files: the path is resolved and re-checked on every
+    request. A name outside the allowed shape, a symlink pointing out of the
+    folder, or a suffix this folder should never hold are all the same 404 -
+    there is nothing useful to tell the caller apart from "not here".
+
+    Cached hard by the browser. An asset is immutable for a given id: new
+    artwork for the same subject arrives as a new `version` in the manifest,
+    and the interface asks for it with that version attached.
+    """
+    path = episode_visuals.asset_path(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No such episode visual.")
+    return FileResponse(
+        path,
+        media_type=episode_visuals.MEDIA_TYPES.get(path.suffix.lower(),
+                                                   "application/octet-stream"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/api/audio")

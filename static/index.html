@@ -133,6 +133,10 @@
   .seed-card:active{ transform:scale(0.98); }
   .seed-thumb{ width:100%; aspect-ratio:4/3; background:#EDE6D6; position:relative; overflow:hidden; }
   .seed-thumb svg{ position:absolute; inset:0; width:100%; height:100%; }
+  /* The finished continuous line, where an episode has one. Same box as
+     the drawn icon it replaces, so a rail of mixed tiles stays a rail. */
+  .seed-thumb-img{ position:absolute; inset:0; width:100%; height:100%;
+                   object-fit:contain; background:#F8F4EA; }
   .seed-card-body{ padding:10px 11px 12px; }
   .seed-card-title{ font-family:'Fraunces', serif; font-weight:600; font-size:12.5px; line-height:1.28; color:var(--text); margin-bottom:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }.seeds-refresh{ display:flex; align-items:center; justify-content:center; gap:7px; padding:16px 0 6px; color:var(--copper); font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:700; cursor:pointer; }
   .seeds-refresh:active{ opacity:0.7; }
@@ -451,6 +455,24 @@
     margin-bottom:4px;
   }.pt-icon{ width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; color:var(--text); cursor:pointer; flex:none; flex-shrink:0; }
   .pt-icon.on{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
+  /* ============ CONTINUOUS-LINE EPISODE VISUAL ============
+     One square, one line, revealed from playback position. It sits above the
+     title on the Now Playing screen and nowhere else - exploreFAM has no
+     element to put it in, which is the strongest form the gate can take.
+
+     The screen is a flex column and `.mini-stage` below it is flex:1, so the
+     square takes the room it needs and the title, source and controls settle
+     downward on their own - no fixed offset anywhere to keep in step. It sits
+     outside `.mini-stage` on purpose: that element's tap advances the album,
+     and tapping the artwork should not skip the episode.
+
+     Hidden by default. An episode with no artwork has exactly the player it
+     has always had. */
+  .line-canvas{ width:min(62vw, 240px); aspect-ratio:1/1; border-radius:14px;
+                margin:4px auto 14px; overflow:hidden; flex:0 0 auto;
+                background:#F8F4EA; display:block; }
+  .line-canvas[hidden]{ display:none; }
+  .line-canvas svg{ width:100%; height:100%; display:block; }
   .mini-stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
@@ -1435,6 +1457,7 @@
           <span class="x" onclick="goBack()">✕</span>
         </div>
         <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
+        <div class="line-canvas" id="lineCanvas" hidden aria-hidden="true"></div>
         <div class="mini-stage" id="playerStage" onclick="playerTapAdvance(event)">
           <div class="mini-title" id="p-title">Title</div>
           <div class="mini-src" id="p-src">Source</div>
@@ -1807,6 +1830,7 @@
 
 
 <script src="/fam-audio.js"></script>
+<script src="/fam-line.js"></script>
 <script>
   var TOPICS = {
     spacex:{title:"SpaceX Starship: This Week's Test Flight", source:"Market Watch", caption:'…and this time, the heat shield tiles held through <mark>re-entry</mark>, which is the milestone engineers were watching for—'},
@@ -2494,6 +2518,8 @@
     }
     if(cur) cur.textContent = formatTime(seconds);
     if(tot) tot.textContent = formatTime(total);
+    // The line is revealed from the same position the bar is drawn from.
+    paintLineVisual(seconds, total);
 
     // The segmented player runs on the same FamAudio, so one ticker serves
     // both. Its bar used to be a placeholder - a fixed 44% fill in the CSS and
@@ -2515,6 +2541,67 @@
     stopProgress();
     progressTotal = totalSeconds;
     progressTimer = setInterval(refreshProgressNow, 200);
+  }
+
+  // ---------------- The continuous-line episode visual ----------------
+  // One square, one line, revealed as the episode plays; the completed frame
+  // is the episode's thumbnail. `fam-line.js` does the drawing - everything
+  // here is about *where* it is allowed to happen and *what* drives it.
+  //
+  // The gate is a list of surfaces, and exploreFAM is deliberately not on it.
+  // Explore is a reel: a continuous feed where one episode runs into the next
+  // and the whole screen is the card. A drawing that starts blank on every
+  // swipe would be a square of nothing for most of the time anyone spends
+  // there, and Explore's own design is not being changed for this. The gate is
+  // belt and braces over a structural fact: the canvas element exists only
+  // inside #screen-player, Explore plays through `playReel` which never
+  // touches any of this, and `speakText` clears the square for every path that
+  // is not the player.
+  //
+  // Nothing here is on the audio path. The metadata request goes out after
+  // FamAudio.play has already been asked for, and every failure at every stage
+  // resolves to "draw nothing" rather than to an error the listener sees.
+  var CONTINUOUS_VISUAL_SURFACES = ["player"];   // never "explore"
+  function continuousVisualAllowed(surface){
+    return !!window.FamLine && CONTINUOUS_VISUAL_SURFACES.indexOf(surface) >= 0;
+  }
+
+  var lineVisualStamp = "";
+  function lineMount(){
+    var el = document.getElementById("lineCanvas");
+    if(el && window.FamLine) FamLine.attach(el);
+    return el;
+  }
+
+  function beginLineVisual(surface, query){
+    if(!continuousVisualAllowed(surface) || !lineMount()) return;
+    var stamp = String(query || "");
+    lineVisualStamp = stamp;
+    FamLine.hide();
+    if(!stamp) return;
+    fetch("/api/visual?q=" + encodeURIComponent(stamp))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        // The listener may have moved on while this was in flight, and a
+        // drawing for the previous episode is worse than none.
+        if(!data || !data.visual || lineVisualStamp !== stamp) return;
+        return FamLine.show(data.visual);
+      })
+      .catch(function(){ /* an episode with no artwork is the normal case */ });
+  }
+
+  // Called from the same ticker that paints the progress bar, with the same
+  // two numbers. That is the whole synchronisation design: there is no second
+  // clock to drift, so pause, seek, rewind and 1.5x are not special cases.
+  function paintLineVisual(seconds, total){
+    if(!window.FamLine) return;
+    if(!(total > 0)) return;        // length not known yet: leave it blank
+    FamLine.progress(seconds / total);
+  }
+
+  function endLineVisual(){
+    lineVisualStamp = "";
+    if(window.FamLine) FamLine.hide();
   }
 
   // ---- Transport -----------------------------------------------------
@@ -2630,6 +2717,8 @@
     // is the entire point of dragging rather than pressing a button.
     var cur = document.getElementById("curTime");
     if(cur) cur.textContent = formatTime(seconds);
+    // Under a finger too: the drawing is what someone scrubbing is looking at.
+    paintLineVisual(seconds, scrubTotal());
   }
 
   function paintReelScrub(pct){
@@ -2830,6 +2919,11 @@
 
   function speakText(title, captionHtml, onEnd, context, bankTopicId, opts){
     opts = opts || {};
+    // Cleared for every path into playback - Play All, Explore New, a saved
+    // episode - and re-armed afterwards by `populatePlayer` alone. A square
+    // left over from the last episode is the one visual failure that would be
+    // worse than having no square at all.
+    endLineVisual();
     // Explore replays a script that was written for a specific length. Asking
     // for a different one is a different cache key, so it would miss - and on
     // a replay-only request a miss is a refusal, not a regeneration.
@@ -2897,6 +2991,7 @@
   }
   var famAbandonReporter = null;
   function stopSpeech(){
+    endLineVisual();
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
     awaitingFirstAudio = "";
     stopProgress(); FamAudio.stop();
@@ -2937,6 +3032,9 @@
     // decline. Album continuity is not lost - the popup's countdown tile is
     // the next episode in the album whenever there is one.
     speakText(query, t.caption, null, context, t.bankTopicId, playOpts);
+    // After the audio has been asked for, never before it. The artwork is a
+    // second, small request that the first word does not wait on.
+    beginLineVisual("player", query);
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
@@ -4000,6 +4098,24 @@
   }
 
 
+  // A tile's artwork: the finished line when this subject has one, and the
+  // drawn icon it has always had when it does not. Still, never animated -
+  // the evolving version belongs to the player, and a feed of twenty-four
+  // drawings all revealing at once would be a different product.
+  //
+  // `visual` only ever arrives as `ready` (see `_attach_tile_visuals` in
+  // app.py), so there is no state to branch on here. An <img> that fails to
+  // load removes itself and leaves the ivory square, which is a quieter
+  // failure than a broken-image glyph in a rail of six.
+  function tileArtHTML(topic){
+    var v = topic && topic.visual;
+    if(v && v.status === "ready" && v.thumbnail_url){
+      return '<img class="seed-thumb-img" alt="" loading="lazy" '
+           + 'onerror="this.remove()" src="' + escapeHtml(v.thumbnail_url) + '">';
+    }
+    return seedThumbSVG(topic && topic.icon);
+  }
+
   function seedThumbSVG(type){
     var squiggle = '<path d="M-10 90 Q35 25 75 65 T170 35" fill="none" stroke="#2A2530" stroke-width="1.5" opacity="0.22"/>';
     var icons = {
@@ -4097,7 +4213,7 @@
         myFamTopics[t.id] = t;
         var tag = (t.tags && t.tags[0]) ? t.tags[0] : "";
         return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
-          + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
+          + '<div class="seed-thumb">' + tileArtHTML(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
           + '</div>'
           + '<div class="seed-card-body">'

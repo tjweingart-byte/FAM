@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <!-- Two strokes. The pen left the page, so FAM refuses this. -->
+  <path d="M 100 500 Q 300 200 500 500" fill="none" stroke="#171820"/>
+  <path d="M 500 500 Q 700 800 900 500" fill="none" stroke="#171820"/>
+</svg>

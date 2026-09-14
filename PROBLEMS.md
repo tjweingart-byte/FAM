@@ -4541,3 +4541,55 @@ real browser from the verdict a refused request carries - the honest way to
 check a screen that cannot be reached while the system is switched off - and
 asserts it names the service, says the number and the reset, opens the plans,
 marks the current one, and says out loud that upgrading is unavailable.
+
+## 82. The reveal reported every number correctly and drew the whole picture
+
+The continuous-line episode visual - one square, one uninterrupted stroke,
+revealed as the episode plays, the finished frame becoming the thumbnail - is
+drawn with the standard trick: `stroke-dasharray` set to the path's total
+length, `stroke-dashoffset` walked from that length down to zero. Geometry is
+parsed and measured once; a playback tick writes one CSS property.
+
+The first version also carried `vector-effect="non-scaling-stroke"`, which was
+there for a good reason. The asset's stroke width is 1.4 on a 1000-unit canvas,
+and a 240px square on a phone scales that to about a third of a pixel - a line
+so thin it is barely there on a laptop and a single physical pixel on a phone.
+`non-scaling-stroke` pins the stroke at 1.4 *screen* pixels whatever the size,
+which is exactly what a hairline wants.
+
+It also silently moves the dash pattern into screen units, while
+`getTotalLength()` keeps answering in user units. So the dash was 3617 screen
+pixels long on a path that was 868 screen pixels long - about fifteen times
+too long once the 0.24 scale is taken into account. The pattern is "3617 on,
+3617 off", and at any offset below 3617 the entire path sits inside the "on"
+run.
+
+Which means: at progress 0 the square was correctly blank, and at every other
+progress the *whole illustration* was on screen. The reveal never happened.
+
+**Every number was right.** `FamLine.pathLength()` returned 3617.53.
+`FamLine.drawn()` returned 0, 0.25, 0.5, 1. The DOM showed
+`stroke-dashoffset: 2713.15`. The Python tests passed, the browser smoke test
+passed, and the renderer was reporting, accurately, a reveal that was not
+happening. It was caught by looking at four screenshots and noticing that three
+of them were the same file size.
+
+Two things changed, and the second is the one that matters:
+
+1. `vector-effect` is gone. The stroke width is converted instead - the
+   metadata value is read as CSS pixels at the rendered size and divided into
+   user units, recomputed by a `ResizeObserver` when the square changes size.
+   The dash pattern is left in the only coordinate system `getTotalLength`
+   speaks.
+
+2. **The smoke test now compares pixels, not numbers.** It screenshots the
+   square at two points during real playback and asserts the bytes differ, and
+   does it again across a seek and a rewind. Nothing else in this repository
+   could have caught this: the failure was invisible to every check that asked
+   the renderer what it had done rather than looking at what it drew.
+
+That is §52 again - "verify, do not inspect" - in the one place it had not been
+applied yet. "A reveal is configured" is not "a reveal is visible", and a
+component that reports its own progress will report it correctly right up until
+the moment it stops being true.
+

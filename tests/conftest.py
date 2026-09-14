@@ -110,11 +110,19 @@ EMBED_ENVIRONMENT = ("FAM_EMBED_BACKEND", "FAM_EMBED_MODEL")
 #: reach the network.
 VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY")
 
+#: Where episode artwork lives, and whether the feature is on. Read by
+#: `episode_visuals.py` rather than config.py, so the staleness guard's source
+#: scan cannot see them - and the default is `~/.fam/visuals`, a real folder on
+#: a machine where anyone has run `tools/seed_visual.py`. Without this a
+#: developer's seeded asset would turn "this episode has no visual" into "this
+#: episode has one", which is exactly the shape of leak this file exists for.
+VISUAL_ENVIRONMENT = ("FAM_VISUALS_DIR", "VISUALS_DIR", "EPISODE_VISUALS")
+
 #: Everything the suite clears, in one name so a new group cannot be added to
 #: the list above and forgotten at the two places that use it.
 LEAKY_ENVIRONMENT = (
     FAM_ENVIRONMENT + VOICE_ENVIRONMENT + DATA_ENVIRONMENT + EMBED_ENVIRONMENT
-    + LIMIT_ENVIRONMENT
+    + LIMIT_ENVIRONMENT + VISUAL_ENVIRONMENT
 )
 
 #: Set, not cleared: it is what stops config.py reading the two env files.
@@ -263,3 +271,20 @@ def isolated_quotas(tmp_path, monkeypatch):
     monkeypatch.setattr(
         appmod, "QUOTAS", quotas_mod.QuotaStore(str(tmp_path / "auth" / "quotas.db")))
     monkeypatch.setattr(quotas_mod, "settings_enforcing", lambda: False)
+
+
+@pytest.fixture(autouse=True)
+def isolated_visuals(tmp_path, monkeypatch):
+    """Every test looks for episode artwork in its own empty folder.
+
+    Clearing the variables is not enough here, because the *default* is a real
+    per-machine location: `~/.fam/visuals`, which `tools/seed_visual.py` exists
+    to put files into. A developer who has seeded an asset to see the feature
+    work would otherwise run a different suite from CI - the same failure the
+    voice reference caused, with artwork instead of a wav.
+
+    Pointed at a directory that is deliberately not created: "no folder" is the
+    state almost every test wants, and a test that wants an asset makes the
+    folder itself.
+    """
+    monkeypatch.setenv("FAM_VISUALS_DIR", str(tmp_path / "visuals"))

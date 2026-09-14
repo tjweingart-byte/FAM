@@ -8,6 +8,7 @@ three Explore bugs were found this way by hand; this runs it every push.
 """
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import sys
@@ -737,6 +738,118 @@ def main() -> int:
             )
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
+        # One continuous path, as a data URL so the preview - which has no
+        # server behind it - can still exercise the real fetch, parse, measure
+        # and reveal. Not artwork: a shape with a length to reveal.
+        SAMPLE_LINE = (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+            "<path d='M10 50 C 30 10, 70 90, 90 50' fill='none' "
+            "stroke='#171820' stroke-width='1.4'/></svg>")
+
+        def the_line_is_revealed_by_playback():
+            """The whole animation contract, driven by real audio.
+
+            Deliberately not calling FamLine.progress by hand: the thing under
+            test is that the drawing is a function of playback position, so it
+            is driven by playing, pausing, seeking and rewinding an episode and
+            reading what the renderer actually drew.
+
+            The asset is injected rather than fetched from /api/visual, because
+            the preview has no server - but everything after that point is the
+            production path: the same parse, the same measure, the same paint
+            from the same ticker.
+            """
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(500)
+            page.evaluate("startBankTopic(Object.keys(myFamTopics)[0])")
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_timeout(1200)
+            # After playback has been asked for: speakText clears the square
+            # for every path into the player, and only populatePlayer re-arms
+            # it - so injecting earlier would be wiped.
+            page.evaluate(
+                "FamLine.show({status:'ready', version:1, stroke_color:'#171820',"
+                " stroke_width:1.4, background_color:'#F8F4EA',"
+                " view_box:'0 0 100 100',"
+                " vector_url:'data:image/svg+xml;charset=utf-8,'"
+                " + encodeURIComponent(" + json.dumps(SAMPLE_LINE) + ")})")
+            page.wait_for_timeout(900)
+            assert page.evaluate("() => FamLine.pathLength() > 0"), \
+                "the path was never measured"
+            assert page.eval_on_selector("#lineCanvas", "e => !e.hidden"), \
+                "the square did not appear on the player"
+            assert page.eval_on_selector_all("#lineCanvas svg path", "e => e.length") == 1, \
+                "the canvas drew something other than one path"
+
+            # What the renderer *reports* is not what the listener sees. The
+            # first version of this passed every number and drew the whole
+            # figure in every frame but the first: `vector-effect:
+            # non-scaling-stroke` put dash lengths in screen units while the
+            # measured length was in user units, so the dash was fifteen times
+            # longer than the path. Only pixels catch that.
+            early = page.query_selector("#lineCanvas").screenshot()
+            page.wait_for_timeout(3000)
+            playing = page.evaluate("() => FamLine.drawn()")
+            assert playing > 0, "the line never started being revealed"
+            later = page.query_selector("#lineCanvas").screenshot()
+            assert later != early, \
+                "the square looks identical after three seconds of playback"
+
+            # Pause freezes it, because position stops moving.
+            page.evaluate("togglePlay()")
+            page.wait_for_timeout(1200)
+            paused = page.evaluate("() => FamLine.drawn()")
+            page.wait_for_timeout(1200)
+            assert abs(page.evaluate("() => FamLine.drawn()") - paused) < 1e-6, \
+                "the drawing kept going while the audio was paused"
+
+            page.evaluate("togglePlay()")
+            page.wait_for_timeout(1500)
+            assert page.evaluate("() => FamLine.drawn()") > paused, \
+                "the drawing did not resume with the audio"
+
+            # A seek jumps it, and a rewind un-draws it. Both fall out of the
+            # position being the only input; neither is handled anywhere.
+            page.evaluate("FamAudio.seek(FamAudio.seekLimit()); refreshProgressNow();")
+            page.wait_for_timeout(400)
+            forward = page.evaluate("() => FamLine.drawn()")
+            assert forward > paused, "seeking forward did not move the drawing"
+            complete = page.query_selector("#lineCanvas").screenshot()
+            assert complete != later, "seeking to the end drew nothing new"
+            page.evaluate("FamAudio.seek(0); refreshProgressNow();")
+            page.wait_for_timeout(400)
+            assert page.evaluate("() => FamLine.drawn()") < forward, \
+                "rewinding did not un-draw the line"
+            assert page.query_selector("#lineCanvas").screenshot() != complete, \
+                "rewinding left the finished drawing on screen"
+
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+
+        def explore_never_draws_the_line():
+            """The scope constraint, checked rather than described.
+
+            exploreFAM is excluded: no square, no renderer state, and its own
+            layout untouched. Checked after the player has drawn one, because
+            the failure worth catching is the square *leaking* from one surface
+            to the next rather than never appearing at all.
+            """
+            page.evaluate("openExplore()")
+            page.wait_for_selector("#screen-explore.active", timeout=10000)
+            page.evaluate("if(!FamAudio.isActive()) reelTogglePlay();")
+            page.wait_for_timeout(2500)
+            assert page.evaluate("() => FamAudio.position()") > 0, \
+                "Explore never played, so this proves nothing"
+            assert page.eval_on_selector("#lineCanvas", "e => e.hidden"), \
+                "the continuous-line square survived into exploreFAM"
+            assert page.eval_on_selector_all(
+                "#screen-explore .line-canvas", "e => e.length") == 0, \
+                "exploreFAM has a continuous-line canvas of its own"
+            assert page.evaluate("() => FamLine.status()") == "", \
+                "the renderer was still armed while Explore was playing"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def explore():
             page.evaluate("openExplore()")
             page.wait_for_timeout(2500)
@@ -780,6 +893,8 @@ def main() -> int:
         check("Mix visibility can be toggled", mix_visibility)
         check("Echo control is on every player", echo_button)
         check("Echo state reaches every player", echo_state_reaches_every_player)
+        check("The line is revealed by playback", the_line_is_revealed_by_playback)
+        check("Explore never draws the line", explore_never_draws_the_line)
 
         if errors:
             failures.append(f"page errors: {errors}")

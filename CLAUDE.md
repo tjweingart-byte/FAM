@@ -653,7 +653,7 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-six named smoke behaviours; anything less means something was skipped, and
+twenty-eight named smoke behaviours; anything less means something was skipped, and
 `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:
