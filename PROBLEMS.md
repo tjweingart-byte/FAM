@@ -4237,3 +4237,106 @@ What that does **not** prove is which of the three it is on `t6x3rlixn0tz18`,
 because this container cannot reach it, and it is not a listening test - the
 audio in that loop came from a stub, not from Chatterbox. CLAUDE.md's open
 problem #1 is untouched: nobody has heard a FAM episode in this voice.
+
+## 79. The 429 in production was the allowance, and it was counting requests
+
+Render logs showed the same question - *"which longevity interventions have
+real evidence"* - asked over and over, and every `GET /api/audio` answering
+`429 Too Many Requests`. Playback was effectively down.
+
+### What it was not
+
+**Not the frontend.** Established first, by driving the real interface in a
+real browser and counting: one search sends exactly one `/api/audio`, plus one
+`/api/event` and one `/api/next`. Nothing retries.
+
+**Not the rate limiter, which §77's session-keyed fix had already put right.**
+Reproduced against the running server before changing anything: six taps on one
+question, one every four seconds - twice the three-second pace, so the pace
+could not be involved. The first five were served. The sixth and every one
+after it were refused, and would stay refused until midnight UTC.
+
+### What it was
+
+`FREE_EPISODES_PER_DAY=5`, and the allowance was counting **requests**.
+
+Five taps on **one** question spent a free listener's entire day. That is not
+an edge case: it is what the interface asks people to do. The player's own
+topic row says *"tap to generate new episode"*, switching voice deliberately
+re-requests the same script, and the honest wait invites a second tap from
+anyone who is not sure the first one registered. None of those is a second
+episode - the listener heard one episode - and none of them costs a model call,
+because the script is already in the shared cache after the first.
+
+The rule in `quotas.py` was *"a cache hit still counts: the listener heard an
+episode and the GPU produced it"*. That is right about **somebody else's** cache
+hit, and the same words read as "every request counts" are what took production
+down. So a spend now carries an **episode key** - the cache key, meaning the
+same question, length, context and research setting - and the first reservation
+for that key in a window takes a unit while the repeats ride on it. Scoped to
+the window, so tomorrow's replay is tomorrow's episode; scoped to the listener,
+so nothing here makes an episode cheaper for the next person to ask for it.
+
+A repeat is granted `charged=False`, and a refund gives back only what was
+taken. Without that, failing on a replay would have refunded a unit nobody
+spent - allowance earned by failing.
+
+### The second charge for nothing at all
+
+The empty-episode `502` - *"the episode came back with no speech in it"* - was
+the one failure path with **no refund on it at all**. On a server whose voice
+has gone away, which is exactly when it fires, that is five silent failures and
+then a lockout until midnight, to a listener who has heard nothing. The
+docstring beside it already said this was "a bug to fix rather than a quota to
+soften"; fixing the empty episode is still the real answer, and charging for it
+was a second fault sitting on top of the first.
+
+### Two refusals, one status code
+
+`429` in an access log is the same three digits whether the pace or the
+allowance said no, and the two have opposite remedies: wait three seconds, or
+wait until tomorrow. Nothing distinguished them, which is why the rate limiter
+was the first suspect for a refusal the allowance was making. Both now carry
+`X-FAM-Refused-By`, both log a line naming themselves, and the pacing refusal
+carries `Retry-After` - without which a client's only strategy is to retry
+immediately, turning a throttle into the storm it exists to prevent.
+
+### And the pace, while it was in hand
+
+Two things were wrong with it in the same way the allowance was wrong:
+
+* **It priced a replay as a generation.** `/api/audio` paced everything that
+  was not `cached_only`, but a request whose script is in the cache spends no
+  model call either. It now asks the cache first - one local SQLite read, the
+  same lookup the pipeline is about to do anyway - and with
+  `CACHE_SEMANTIC_KEY` on, where the key itself needs a model call, it declines
+  to answer and the request is paced: the safe way round.
+* **It was a hard gate.** A gate refuses the second of two taps a person
+  genuinely makes. It is a three-token bucket now, refilling one per
+  `RATE_LIMIT_SECONDS`, so the sustained rate is exactly what it always was
+  while a burst is forgiven.
+
+### What was measured, after
+
+One listener, one episode, ten taps: all served, **one** unit of allowance
+spent, where before the fourth tap was refused and the day was gone. Ten rapid
+taps plus a voice switch on an episode already written: eleven served, one unit.
+Five different questions: served, and the sixth refused by the quota, naming
+itself and saying when it comes back.
+
+### Coverage
+
+`tests/test_rate_limit_production.py` - fifteen tests, nine of which fail
+against the code before this change. The same episode is charged once and a
+different one still costs a unit; a follow-up, a different length and an
+attachment are all correctly *different* episodes, so the key cannot quietly
+make real episodes free; an empty episode and an unavailable voice are not
+charged, and a refunded episode is forgotten so the retry that works is charged;
+a replay is not paced and an uncached question still is; and the two refusals
+are told apart.
+
+The interface's half is the smoke behaviour **"One tap sends one request"**,
+which fails against the interface as it was: three taps on an episode still
+loading sent three requests. Once audio is playing a re-tap goes through, since
+by then it is a replay - the check asserts that boundary too, so the guard
+cannot quietly become "one episode, ever".

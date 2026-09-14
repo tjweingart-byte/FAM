@@ -610,6 +610,58 @@ def main() -> int:
                 """() => document.getElementById("famLoading").classList.contains("active")"""
             ), "the loading screen did not go away"
 
+        def one_tap_is_one_request():
+            """One episode, one /api/audio - however many times it is tapped.
+
+            Production answered ordinary playback with 429 (PROBLEMS.md 70).
+            The server side of that is fixed and tested in pytest; this is the
+            other half. A duplicate request is not free even now: it is a
+            second stream the server has to prime, and before the fix each one
+            also spent an episode of a free listener's daily allowance. The
+            player's own topic row invites exactly this - it says "tap to
+            generate new episode" - and a listener watching the honest wait
+            taps it again.
+            """
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+            page.evaluate("""() => {
+                window.__audioCalls = [];
+                if (!window.__countingFetch) {
+                    window.__countingFetch = true;
+                    var inner = window.fetch;
+                    window.fetch = function (input, init) {
+                        var url = typeof input === "string" ? input : (input && input.url) || "";
+                        if (url.indexOf("/api/audio") === 0) window.__audioCalls.push(url);
+                        return inner(input, init);
+                    };
+                }
+            }""")
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(200)
+            page.fill("#searchInput", "what the evidence says about longevity")
+            # All three taps in one go, because that is the case: the second
+            # and third land while the first is still in flight. The preview
+            # answers instantly, so pausing between them would be measuring
+            # the shim rather than the guard.
+            page.evaluate("runSearch(); generate('_custom'); generate('_custom');")
+            page.wait_for_timeout(600)
+            calls = page.evaluate("() => window.__audioCalls.length")
+            assert calls == 1, (
+                f"one tap on one episode sent {calls} requests to /api/audio; "
+                "every one past the first is a stream the server primes for "
+                "nothing, and used to be an episode off the listener's day"
+            )
+            # And the boundary, so the guard is not mistaken for "one episode,
+            # ever": once audio is playing, re-tapping is a replay and goes
+            # through - it costs neither a model call nor a second episode.
+            page.evaluate("generate('_custom')")
+            page.wait_for_timeout(400)
+            again = page.evaluate("() => window.__audioCalls.length")
+            assert again == 2, (
+                f"re-tapping an episode that is already playing sent {again - 1} "
+                "request(s); a replay costs nothing and must not be blocked")
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+            page.wait_for_timeout(150)
+
         def loading_screen_covers_every_surface():
             """One screen, not one per tab. Four overlays chosen by id is how
             the home screen ended up with none."""
@@ -641,6 +693,7 @@ def main() -> int:
         check("Go Deeper fills for a new listener", go_deeper_fills_for_a_new_listener)
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)
+        check("One tap sends one request", one_tap_is_one_request)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
         check("Save for Later lists the shelf and its folders",
               save_for_later_lists_the_shelf_and_its_folders)

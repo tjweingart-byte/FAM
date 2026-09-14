@@ -132,7 +132,7 @@ def client(monkeypatch, tmp_path):
 
     monkeypatch.setattr(appmod, "EVENTS", T.EventStore(str(tmp_path / "e.db")))
     appmod._read_hits.clear()
-    appmod._last_request.clear()
+    appmod._gen_tokens.clear()
     return TestClient(appmod.app)
 
 
@@ -179,12 +179,24 @@ def instant(monkeypatch):
 
 
 def test_generation_is_still_paced(client, monkeypatch, instant):
-    """The expensive path keeps its limit - that is what it was for."""
+    """The expensive path keeps its limit - that is what it was for.
+
+    The pace is a bucket, so the burst has to be spent before a refusal shows
+    up; what is asserted is that the refusal still arrives.
+    """
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
-    first = client.post("/api/script", json={"query": "why the sky is blue", "minutes": 1})
-    second = client.post("/api/script", json={"query": "why the sea is blue", "minutes": 1})
-    assert first.status_code == 200
-    assert second.status_code == 429, "two generations back to back went through"
+    client.get("/api/auth/me")   # take the cookie, so every request is one listener
+    burst = appmod.settings.rate_limit_burst
+    codes = [
+        client.post("/api/script",
+                    json={"query": f"why thing {n} is blue", "minutes": 1}).status_code
+        for n in range(burst + 2)
+    ]
+    assert codes[:burst] == [200] * burst, "the allowed burst was refused"
+    assert codes[burst:] == [429] * 2, "generations kept going through past the burst"
+    refused = client.post("/api/script", json={"query": "one more", "minutes": 1})
+    assert int(refused.headers["Retry-After"]) >= 1, (
+        "a 429 that does not say how long to wait invites an immediate retry")
 
 
 def test_the_pace_bounds_starts_so_a_slow_episode_paces_itself(client, monkeypatch):
@@ -261,16 +273,28 @@ def test_two_listeners_behind_one_proxy_do_not_pace_each_other(monkeypatch, inst
 
 
 def test_one_listener_is_still_paced_inside_the_window(monkeypatch, instant):
-    """The limiter still has to limit. Same cookie jar, two generations."""
+    """The limiter still has to limit. Same cookie jar, generations back to back.
+
+    The pace is a bucket now (`RATE_LIMIT_BURST`), so what is asserted is the
+    thing that was always meant: a listener cannot keep starting generations
+    faster than `RATE_LIMIT_SECONDS` allows. Set to 1 here, which is the old
+    one-at-a-time gate, so the boundary is exact rather than arithmetic.
+    """
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", None)
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "settings",
+                        dataclasses.replace(appmod.settings, rate_limit_burst=1))
 
     alice = TestClient(appmod.app)
+    alice.get("/api/auth/me")     # take the cookie: the first request has none
     first = alice.post("/api/script", json={"query": "why the sky is blue", "minutes": 1})
     second = alice.post("/api/script", json={"query": "why the sea is blue", "minutes": 1})
 
     assert first.status_code == 200
     assert second.status_code == 429, "the same listener generated twice in the window"
+    assert second.headers.get("X-FAM-Refused-By") == "pace", (
+        "a pacing 429 and a quota 429 are the same three digits in a log; the "
+        "server has to say which it was")
 
 
 def test_with_no_session_the_limiter_falls_back_to_the_address(monkeypatch, instant):
@@ -284,6 +308,8 @@ def test_with_no_session_the_limiter_falls_back_to_the_address(monkeypatch, inst
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
     # No listener resolves, however the request arrived.
     monkeypatch.setattr(appmod, "_listener", lambda request: "")
+    monkeypatch.setattr(appmod, "settings",
+                        dataclasses.replace(appmod.settings, rate_limit_burst=1))
 
     alice = TestClient(appmod.app)
     bob = TestClient(appmod.app)
