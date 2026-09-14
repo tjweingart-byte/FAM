@@ -25,6 +25,7 @@ from typing import AsyncIterator, Callable, Optional
 import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
+import prefetch
 from cache import (ScriptCache, build_cache, cache_key, canonical_key, is_shareable,
                    key_bucket, ttl_for)
 import metering
@@ -51,6 +52,37 @@ class NotCached(Exception):
     promise lived only in the interface it would be one refactor away from
     being broken silently and expensively, so the pipeline refuses instead.
     """
+
+
+async def key_for(plan: EpisodePlan, client=None) -> str:
+    """Where an episode lives in the shared cache.
+
+    **Module-level, and that is the point.** Prefetch writes a script before
+    anyone asks for it, and a tap finds that script only if both sides compute
+    the same key. Two implementations that agree today drift the first time one
+    of them gains a field, and the failure is silent and total: every
+    speculative script is paid for and never read, while the feed looks exactly
+    as it did before. One function means they cannot disagree.
+
+    Returns "" for an episode that is nobody else's business. An attachment
+    makes it personal, and no key means no read, no write, and nothing that
+    could reach another listener or Explore.
+    """
+    if plan.attachments:
+        return ""
+    canonical = None
+    if settings.cache_semantic_key and client is not None:
+        canonical = await canonical_key(plan.query, client)
+    return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search)
+
+
+def bucket_for(plan: EpisodePlan) -> str:
+    """The set of entries an episode could stand in for. Shared for the same
+    reason as `key_for`: a near-match bucket computed two ways is a bucket
+    nothing is ever found in."""
+    if plan.attachments or not settings.cache_vector:
+        return ""
+    return key_bucket(plan.minutes, plan.context, plan.search)
 
 QUEUE_DEPTH = 4
 # Silence inserted between sentences so the delivery does not sound rushed.
@@ -146,6 +178,11 @@ class GenerationStats:
     match: str = ""
     #: Cosine of a near hit, 0.0 otherwise.
     match_score: float = 0.0
+    #: True when this hit was on a script prefetch had written before anybody
+    #: asked. The number CLAUDE.md's "how much to prefetch?" turns on, recorded
+    #: on the serving path because a hit rate inferred anywhere else is a hit
+    #: rate nobody should trust.
+    prefetched: bool = False
     answered_first: bool = False
     handover_seconds: float = 0.0
     #: Audio seconds the from-knowledge half covered before research took over.
@@ -228,6 +265,7 @@ class GenerationStats:
             "cache": self.cache,
             "match": self.match,
             "match_score": round(self.match_score, 3),
+            "prefetched": self.prefetched,
             "synth_seconds": round(self.synth_seconds, 2),
             "min_headroom": round(self.min_headroom, 1) if self.min_headroom < 999 else None,
             "starved": self.starved,
@@ -917,26 +955,17 @@ class PodcastPipeline:
         """Where this episode lives in the shared cache. "" when caching is off."""
         if not self.cache:
             return ""
-        # An episode built on someone's own document, photo or link is theirs.
-        # No key means no read, no write, and therefore nothing that could be
-        # served to another listener or surface in Explore.
-        if plan.attachments:
-            return ""
-        canonical = None
-        if settings.cache_semantic_key:
-            canonical = await canonical_key(plan.query, self.generator.client)
-        return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search)
+        # `getattr`, not an attribute access: before this was extracted, the
+        # client was only reached when CACHE_SEMANTIC_KEY was on, so a
+        # generator without one worked fine. Reading it eagerly here made the
+        # pipeline require an attribute it had never required.
+        return await key_for(plan, getattr(self.generator, "client", None))
 
     def _bucket(self, plan: EpisodePlan) -> str:
-        """The set of entries this episode could stand in for.
-
-        Empty when the episode is nobody else's business - an attachment makes
-        it personal, and a personal episode must not be findable by anyone,
-        including by being near something.
-        """
-        if not self.cache or plan.attachments or not settings.cache_vector:
+        """The set of entries this episode could stand in for. "" when off."""
+        if not self.cache:
             return ""
-        return key_bucket(plan.minutes, plan.context, plan.search)
+        return bucket_for(plan)
 
     async def thread_for(self, plan: EpisodePlan) -> str:
         """The go-deeper thread of an episode that has already been generated.
@@ -955,6 +984,10 @@ class PodcastPipeline:
     ) -> AsyncIterator[bytes]:
         """Yield raw PCM for the whole episode, starting as soon as possible."""
         stats = stats if stats is not None else GenerationStats()
+        # Somebody is waiting on this one. Prefetch reads the clock this sets
+        # and stands aside - a speculative episode that delays a real one has
+        # inverted the entire point of prefetching.
+        prefetch.note_live_generation()
         stats.plan_seconds = plan.target_seconds
         stats.engine = self.engine.name
         stats.voice = self.voice or ""
@@ -994,7 +1027,15 @@ class PodcastPipeline:
             if cached:
                 stats.cache = "hit"
                 stats.thread = self.cache.thread(key)
-                log.info("cache %s hit for %r (%d min)", stats.match, plan.query, plan.minutes)
+                # If prefetch put this here, the guess came true. Counted at
+                # the moment of the hit and with the key that actually hit,
+                # because "how much to prefetch" cannot be answered by
+                # anything except the hit rate - and a rate inferred from
+                # anywhere but the serving path is a rate nobody should trust.
+                stats.prefetched = prefetch.note_consumed(key)
+                log.info("cache %s hit for %r (%d min)%s", stats.match, plan.query,
+                         plan.minutes, " [warmed ahead of the tap]"
+                         if stats.prefetched else "")
                 # Replaying the same sentences through the same controller
                 # reproduces the episode - the same script, in the same order,
                 # for zero API tokens. Not sample-identical under Phase 6: the

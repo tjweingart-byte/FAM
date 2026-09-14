@@ -56,6 +56,12 @@ FAM_ENVIRONMENT = (
     # that quietly skips every EI behaviour and still reports green.
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS",
+    # Prefetch: whether episodes are written before anybody asks, how much is
+    # paid in advance and what the day's ceiling is. A developer with
+    # PREFETCH=1 set must not run a suite that spends money where CI does not.
+    "PREFETCH", "PREFETCH_LEVEL", "PREFETCH_PER_CYCLE",
+    "PREFETCH_DAILY_EPISODES", "PREFETCH_DAILY_DOLLARS",
+    "PREFETCH_QUIET_SECONDS", "PREFETCH_BRIEF_TTL_SECONDS",
     "FAM_ENV_FILE", "HOST", "MAX_OUTPUT_TOKENS", "MAX_WEB_SEARCHES",
     "MAX_WPM", "MIN_WPM", "MODEL", "PORT", "PREROLL_SECONDS",
     "RATE_LIMIT_BURST", "RATE_LIMIT_SECONDS", "READ_LIMIT_PER_WINDOW", "SAMPLE_RATE", "SAY_BIN",

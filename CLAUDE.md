@@ -107,6 +107,11 @@ browse surfaces, where what someone might tap is known well before they tap it,
 and where a speculative script is far more likely to be used than one triggered
 by a keystroke pause. That is where to spend it.
 
+**The framework for spending it there is now built** *(PROBLEMS.md §83,
+`prefetch.py`).* It ships off, and it is a framework rather than a policy: what
+to warm, how much of it, and when, are questions that want the hit rate it
+produces. See the settled constraint below.
+
 ## What makes a FAM episode different
 
 **First, it satisfies the thing that brought them.** Someone searched, or tapped
@@ -476,6 +481,48 @@ the rest of this list it needs taste rather than a key.
   `build_structure_note` names the shape and, in the same breath, says a beat
   with nothing real behind it is dropped rather than filled. A test pins that
   wording, because losing it turns a structure back into a template.
+- **Prefetch writes into the same cache, under the same key, as a live
+  episode.** *(PROBLEMS.md §83.)* That is the whole design: nothing on the tap
+  path changes, and a tap on a warmed tile is an ordinary cache hit. Which
+  makes the key the ball game - two implementations agree today and drift the
+  first time one gains a field, and the failure is silent and total (every
+  speculative script paid for and never read, with the feed looking exactly as
+  it did). So `pipeline.key_for` and `bucket_for` are module-level, the
+  pipeline delegates to them, and a test reads the pipeline's own source to
+  keep it that way. **If you add a field that changes what an episode is, it
+  goes in there and nowhere else.**
+  **Two warm levels**, which is the honest shape of "how much to prefetch":
+  `brief` runs contextual relevance only and is the default - it removes the
+  seconds EI costs for one small call - and `script` writes the whole episode,
+  so the tap pays nothing and a wrong guess costs a full one. A warmed brief
+  expires, because a brief is a claim about *now* and a stale one would make
+  the episode confidently about the wrong day; a degraded brief is never kept
+  at all, since that would be a tap silently skipping EI after paying for it.
+  Four things it may never do: **compete with a live listener** (the serving
+  path marks itself, prefetch stands aside, one warm at a time), **spend past
+  its ceiling** (episodes *and* dollars, because a 10-minute researched episode
+  costs several times a 1-minute one), **warm anything personal** (the same
+  `is_shareable` rule a live episode obeys), and **pretend it is paying** -
+  warmed and taken are counted separately per source, recorded from the
+  serving path with the key that actually hit, and reported as `None` rather
+  than `0` when there is no data, because zero out of zero reads as failure and
+  is actually silence.
+  **It ships off** (`PREFETCH=0`), on the tier system's reasoning: the
+  mechanism is worth having ready and the policy is worth deciding with
+  numbers. Nothing schedules a cycle yet - that is the next decision, not an
+  oversight. `python tools/prefetch_report.py` shows what a deployment would
+  warm without spending anything; `--live` reads the hit rate off a server.
+- **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
+  Every guess carries a reason in words - "#2 in trending, the same tile for
+  everyone", "in their 'At the gym' mix (typed, so shared with nobody)" - and
+  it survives to the report, because the only way to judge a prefetcher is to
+  see which *kinds* of guess get taken. The source ordering is a **cost design,
+  not a ranking one**: trending is identical for everybody so one warmed script
+  serves every tap, a bank mix member is shared where a typed one is a script a
+  day for one person, and a feed rail is the most personal and least shareable.
+  Sources are **forbidden to call a model or the network** - one that costs
+  money to *ask* turns a speculative saving into a certain spend - and a test
+  reads the module rather than trusting the rule.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and the weekly recap need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
@@ -679,7 +726,14 @@ which is the go/no-go for all of it.
 - **Local or hosted voices?** Changes the cost model more than the model choice
   does.
 - **How much to prefetch?** Every speculative script costs money; every one not
-  fetched costs a wait.
+  fetched costs a wait. *The framework is built and off* (§83), so this is now
+  a measurement rather than a guess: turn `PREFETCH=1` on, let it warm, and
+  read the per-source hit rate off `/api/health` or
+  `tools/prefetch_report.py --live`. A source warmed often and taken rarely is
+  paying for episodes nobody wanted; one taken nearly every time is worth
+  warming deeper (`PREFETCH_LEVEL=script`). **Still to decide, and deliberately
+  not decided here: what schedules a cycle** - when, how often, and per
+  listener or globally.
 - **Is a local embedding model worth installing?** The near-match cache
   (PROBLEMS.md §68) is built, measured and off by default. It raises the share
   of re-phrasings that find an existing episode from 22% to 56% on a measured

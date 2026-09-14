@@ -4748,3 +4748,186 @@ skipped rather than ending the episode; nothing configured returns nothing and
 pretends nothing; and health names every domain with no provider *and what it
 would take to have one*. Then the block itself: it says when it was true, it
 says it outranks the packet, and event status travels with it.
+
+## 83. Prefetch: the framework, with the policy left to a number nobody has yet
+
+### The problem
+
+CLAUDE.md has said from the first page that **latency is answered by starting
+earlier, never by filling the gap**, and that the browse surfaces are where
+that is actually possible - myFAM and DailyFAM know what somebody might tap
+before they tap it. Nothing had been built for it.
+
+§82 made it more valuable and more urgent at the same time. Episode
+intelligence - contextual relevance - put a model call in front of the first
+word on search, deliberately and at the owner's direction. On search that is a
+trade. On a browse surface it does not have to be a trade at all: the brief is
+the expensive half, the tap is predictable, so the brief can be paid for before
+the finger lands.
+
+### The design, and the one detail everything else hangs off
+
+**Prefetch writes into the same script cache, under the same key, as a live
+episode.** Nothing on the tap path changes. A tap on a warmed tile is an
+ordinary cache hit, and the pipeline has served those since long before this
+existed.
+
+Which makes the cache key the whole ball game. If prefetch computes it one way
+and the tap another, they agree today and drift the first time one of them
+gains a field - and the failure is **silent and total**: every speculative
+script is paid for and never read, while the feed looks exactly as it did
+before. So `pipeline.key_for` and `pipeline.bucket_for` were extracted to
+module level and `PodcastPipeline` now delegates to them. One function, two
+callers, no possibility of disagreement, and a test that reads the pipeline's
+own source to keep it that way.
+
+That extraction immediately found a second bug of its own making: reading
+`self.generator.client` as an argument made the pipeline require an attribute
+it had previously only touched when `CACHE_SEMANTIC_KEY` was on. Six tests with
+fake generators failed. `getattr(..., None)` restores the old tolerance, and
+`key_for` already guards on `client is not None`.
+
+### Two warm levels, because "how much to prefetch" is a real question
+
+CLAUDE.md lists it as open: *every speculative script costs money; every one
+not fetched costs a wait*. The two levels are the honest shape of that:
+
+* **brief** - run contextual relevance only and keep the result. One small
+  model call. Removes the seconds EI costs; the tap still pays retrieval and
+  writing. **This is the default** on the reasoning that it buys most of the
+  felt improvement for a fraction of the waste.
+* **script** - write the whole episode. The tap pays nothing at all, and a
+  wrong guess costs a full episode.
+
+A warmed brief is **time-bounded**, and that is not a tidiness rule: a brief is
+a claim about *now*. A why-now hypothesis and a recency window built this
+morning are wrong by this evening, and a stale brief is worse than none because
+it would make the episode confidently about the wrong day. A **degraded** brief
+is never kept at all - keeping one would mean a tap skips contextual relevance
+and gets the pre-EI behaviour, having already paid for a call that failed.
+
+### Where the guesses come from
+
+`prefetch_sources.py`, separate from the machinery so that adding a surface is
+a new class there rather than an edit here, and so the machinery can be tested
+without a topic bank. Four are built, and the ordering is a **cost design, not
+a ranking one** - CLAUDE.md's "one bank for everyone, personalisation in the
+ordering, not the inventory" is what makes some guesses structurally cheaper:
+
+* **trending** - identical for every listener by construction, so one warmed
+  script is taken by everybody who taps that tile. Best value per dollar in the
+  app, and the only source worth running with nobody signed in.
+* **mixes** - the strongest prediction FAM has: somebody wrote down that they
+  want this subject every day, and a mix holds topic ids rather than audio
+  precisely so it is generated fresh each morning. Bank members outrank typed
+  ones because a bank member is shared and a typed one is a script a day for
+  exactly one person - which `mixes.MixItem` already said, and which the
+  candidate's reason now says out loud.
+* **feed** - the same `build_feed` the page draws itself from, so a warmed tile
+  and a shown tile cannot disagree. A second implementation of "what next" is
+  what CLAUDE.md already refused once for `rank_next_up`.
+* **threads** - the `<<NEXT:>>` follow-up, which is already written and already
+  offered as a chip. Warming it is the difference between that chip being
+  instant and being an ordinary episode.
+
+Every candidate carries a **reason**, and that is the contextual-relevance
+claim being made out loud. It survives to the report, because the only way to
+judge a prefetcher is to see which kinds of guess get taken.
+
+Sources are **forbidden to call a model or the network** - a source that costs
+money to *ask* turns a speculative saving into a certain spend - and a test
+reads the module to enforce it rather than trusting the rule.
+
+### The four things it must never do
+
+1. **Never compete with a live listener.** `stream_pcm` calls
+   `note_live_generation()`; prefetch reads that clock and stands aside for
+   `PREFETCH_QUIET_SECONDS`. One warm at a time, under a lock. A speculative
+   episode that delays a real one has inverted the entire point.
+2. **Never spend past a ceiling**, in two currencies because they fail
+   differently: the episode count stops a runaway loop, the dollar figure stops
+   a *correct* loop being expensive. A 10-minute researched episode costs
+   several times a 1-minute one, so counting episodes alone does not bound the
+   bill. An unpriced model is *named* in the log rather than silently costing
+   nothing - a budget that stops counting is a budget that no longer caps.
+3. **Never warm something personal.** `is_shareable` and the attachment rule,
+   the same as a live episode. A warmed private question is a script nobody can
+   be served, paid for in advance.
+4. **Never pretend it is paying.** Warmed and taken are counted separately, per
+   source, and `note_consumed` is called from the serving path with the key
+   that actually hit - a hit rate inferred anywhere else is one nobody should
+   trust. The rate is `None` rather than `0` when nothing has been warmed,
+   because zero out of zero reads as a failing prefetcher and is actually no
+   data at all.
+
+### Shipped off, and why
+
+`PREFETCH=0`. The same reasoning as the tier system (§81): the mechanism is
+worth having ready and the policy is worth deciding with numbers. The hit rate
+that answers "how much to prefetch" does not exist yet, and switching this on
+is what starts producing it. `/api/health` reports which state a deploy is in,
+because a prefetcher that is off looks exactly like one that is on and missing
+everything - and `prefetch_sources.report()` names every surface with no source
+installed, because a prefetcher running on one out of four looks identical from
+outside to one running on all of them.
+
+`python tools/prefetch_report.py` prints what a deployment *would* warm without
+spending anything (safe against production data, since sources cannot call
+anything), and `--live` reads the hit rate off a running server. There is
+deliberately no command that warms: spending is the server's job under its
+budget, and a tool that could spend outside it would be a second place the
+ceiling has to be enforced.
+
+### A bug the tests found, which was real
+
+`install()` runs at startup and registered its sources unconditionally, while
+`register` refuses a duplicate name - correctly, since two sources with one
+name double-count the hit rate the whole thing is judged on. Any *second*
+startup in one process therefore raised at boot: every test that opens a
+`TestClient`, and any in-process reload. Ninety-three errors said so at once.
+`install` now replaces the sources it manages and leaves anything else alone,
+because startup is the statement "these are this deployment's sources" and a
+statement has to be re-makeable.
+
+### What is deliberately not here
+
+**Nothing schedules a cycle.** `run_once` exists and nothing calls it on a
+timer. That is the next decision rather than an oversight: when to run, how
+often, and per-listener or globally, are policy questions that want the same
+hit-rate evidence as the level does - and a scheduler added now would spend
+money on a schedule nobody has justified.
+
+**The brief store is in-process.** It does not survive a restart and is not
+shared between workers, so a multi-worker deploy warms per worker. Scripts -
+the expensive half - go in the real shared cache. This is the stated limit of
+the seam, and moving it to a shared store is a change to `BriefStore` alone.
+
+**No hit rate exists.** Everything above is machinery. There is no API key in
+the build container and prefetch has never run against a real model, so which
+sources pay for themselves is unknown and is exactly what turning it on is for.
+
+### Coverage
+
+`tests/test_prefetch.py` - thirty-seven tests, organised around the four
+properties that have to hold before anybody turns it on. The key one first: the
+pipeline is read to confirm it delegates to `key_for`, and a warmed episode is
+then looked up with the key a tap would compute. Then standing aside (a live
+generation blocks a warm; the serving path really does send the signal; two
+concurrent warms serialise), the ceiling (episodes, dollars, the daily roll,
+and nothing at all while off), and the ledger (a hit counted once and only
+once, never claimed for a key nobody warmed, `None` rather than zero with no
+data, and per source). Then the plan: sources interleaved so one cannot take
+the whole budget, the same question warmed once, an unshareable one never, and
+a cycle that stops the moment the answer can only be the same. Then the brief:
+handed to the writing path before it pays for one, degraded ones never kept,
+stale ones expired, and one warmed at three minutes never used at ten.
+
+`tests/test_prefetch_sources.py` - sixteen tests against the real bank and the
+real stores. Trending answers with no listener and is never tagged to one; the
+candidate is the tile's `query` and not its label, because warming the label
+writes an episode nobody asks for. A bank mix member outranks a typed one and
+the typed one says it is shared with nobody. The feed source warms the rails
+the page actually draws and does not warm trending a second time. A thread
+source whose store falls over returns nothing rather than taking the cycle
+down. Every candidate has a reason and the length the cache key expects. And,
+last, the module is read to prove no source reaches for a model or the network.

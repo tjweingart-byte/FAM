@@ -43,6 +43,8 @@ import quotas
 import saved as saved_mod
 import sharing
 from config import DEFAULT_PIPELINE, describe_key, key_source, settings
+import prefetch
+import prefetch_sources
 from episode_intelligence import report as ei_report
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
@@ -217,6 +219,15 @@ async def lifespan(_: FastAPI):
     stale = ATTACHMENTS.purge_expired()
     if stale:
         log.info("attachments: dropped %d expired", stale)
+    # Which surfaces this server can predict for. Installed whatever
+    # PREFETCH says, because the *registry* is what /api/health reports and a
+    # deploy with no sources installed looks identical to one with prefetch
+    # switched off - two different problems with two different fixes.
+    prefetch_sources.install(event_store=EVENTS, mix_store=MIXES)
+    prefetch.prefetcher(
+        generator=None if DEMO_MODE else ScriptGenerator(),
+        cache=SCRIPT_CACHE,
+    )
     yield
 
 
@@ -852,6 +863,12 @@ async def health() -> dict:
         # rather than silently absent, because a scoreboard question answered
         # from an index is wrong in a way nobody sees until a listener hears it.
         "live_facts": live_facts_report(),
+        # Whether episodes are being written before anybody asks for them, on
+        # what evidence, and whether the guesses are being taken. The hit rate
+        # is the only thing that answers CLAUDE.md's open question about how
+        # much to prefetch, and a prefetcher nobody checks is a standing bill.
+        "prefetch": prefetch.report(),
+        "prefetch_sources": prefetch_sources.report(),
         # Which streaming architecture this process is actually running, and
         # whether that was chosen or inherited. A deployment that has been
         # rolled back to `legacy` by hand looks identical to one that has not

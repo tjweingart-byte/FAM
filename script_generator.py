@@ -25,6 +25,7 @@ import credentials
 import episode_intelligence
 import live_facts
 import metering
+import prefetch
 from anthropic_client import build_async_client
 from cache import research_reason
 from config import settings
@@ -788,6 +789,16 @@ class ScriptGenerator:
             return plan
         if not settings.episode_intelligence:
             return plan
+
+        # Built before the tap, if a browse surface predicted this one. The
+        # whole point of prefetching contextual relevance: the seconds it costs
+        # on search are the seconds a warmed brief removes here, and a miss
+        # costs one dictionary lookup.
+        warmed = prefetch.warm_brief(plan.query, plan.minutes, plan.context)
+        if warmed is not None:
+            log.info("using a brief warmed before the tap for %r", plan.query)
+            return dataclasses.replace(plan, brief=warmed)
+
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes)
         return dataclasses.replace(plan, brief=brief)
