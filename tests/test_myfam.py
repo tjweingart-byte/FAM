@@ -395,3 +395,117 @@ def test_the_profile_endpoint_serves_it(client):
                                     "topic_id": "ai-agents"})
     body = client.get("/api/profile?user=p1").json()
     assert body["finished"] == 1 and "tech" in body["subjects"]
+
+
+# --- the tag vocabulary ---------------------------------------------------
+
+
+def test_a_subtag_always_brings_its_facet():
+    """Subtags refine a facet; they never take an episode out of one.
+
+    This is what makes the two-level vocabulary additive. A listener who chose
+    only "Technology" in the intro must keep matching every tech episode, or
+    adding resolution would have silently narrowed their feed.
+    """
+    tags = T.tags_for_text("who actually makes the chips")
+    assert "chips" in tags, "the subtag should be matched"
+    assert "tech" in tags, "and must carry its facet with it"
+    for topic in T.TOPIC_BANK:
+        facets = set(topic.tags) & set(T.TAG_LABELS)
+        assert facets, f"{topic.id} has no facet and is unreachable from the intro"
+        for tag in topic.tags:
+            assert T.facet_of(tag) in facets, (
+                f"{topic.id} carries {tag} without its parent facet")
+
+
+def test_the_bank_is_no_longer_mostly_ties():
+    """The vocabulary exists to make one topic rankable against another.
+
+    Before subtags, 28 topics shared 20 distinct tag signatures and a listener
+    whose history was one facet got three identical scores broken by topic id
+    - alphabetical order wearing a recommender's hat.
+    """
+    signatures = {t.tags for t in T.TOPIC_BANK}
+    assert len(signatures) >= 27, (
+        f"only {len(signatures)} distinct signatures for {len(T.TOPIC_BANK)} topics")
+
+
+def test_a_listener_with_real_history_gets_a_ranking_not_an_alphabet():
+    profile = {"tech": 1.0, "chips": 0.8, "ai": 0.6}
+    scores = [T._affinity(t, profile) for t in T.TOPIC_BANK]
+    positive = [s for s in scores if s > 0]
+    assert len(set(round(s, 6) for s in positive)) >= 3, (
+        "the ranking still collapses into ties for a listener with history")
+
+
+def test_listener_facing_tags_stay_in_the_eight_words_they_were_offered():
+    """The extra resolution is for the ranker; a screen still says "Health"."""
+    folded = T.facets_only(("sleep", "body-science", "health", "ai"))
+    assert folded == ["health", "science", "tech"], (
+        "body-science parents to science, not to health")
+    assert all(f in T.TAG_LABELS for f in folded)
+
+
+# --- fatigue --------------------------------------------------------------
+
+
+def test_a_tile_shown_and_never_played_stops_being_pushed(store):
+    """The one thing impressions are allowed to do to the ranking."""
+    now = time.time()
+    for i in range(8):
+        store.record_impressions(
+            "u", [("from_history", "ai-agents")], at=now - i * 7200)
+    store.record(T.Event("u", "complete", "song-breaks-internet", "",
+                         T.BANK_BY_ID["song-breaks-internet"].tags, now - 86400))
+    profile = T.taste(store.for_user("u"), now)
+    damp = T.fatigue(store.impression_occasions("u"),
+                     T._played_ids(store.for_user("u")))
+    assert damp["ai-agents"] < 1.0
+
+    plain = [t.id for t in T.rank_from_history(profile, set())]
+    damped = [t.id for t in T.rank_from_history(profile, set(), damp)]
+    assert "ai-agents" in plain, "precondition: it ranks without fatigue"
+    # Off the shelf entirely counts as losing ground; SECTION_SIZE is a
+    # window, so a tile can be damped past the end of it rather than down it.
+    fell = ("ai-agents" not in damped
+            or damped.index("ai-agents") > plain.index("ai-agents"))
+    assert fell, "a tile ignored eight times should lose ground"
+
+
+def test_refreshing_the_page_is_not_a_rejection(store):
+    """A feed load writes a row per tile; opening myFAM twice is not evidence."""
+    now = time.time()
+    for i in range(12):
+        store.record_impressions("u", [("trending", "ai-agents")], at=now + i)
+    assert store.impression_occasions("u")["ai-agents"] == 1, (
+        "impressions inside one bucket must collapse to a single occasion")
+    assert T.fatigue(store.impression_occasions("u")) == {}
+
+
+def test_fatigue_never_buries_a_tile_for_good(store):
+    now = time.time()
+    for i in range(400):
+        store.record_impressions("u", [("trending", "ai-agents")], at=now - i * 7200)
+    damp = T.fatigue(store.impression_occasions("u"))
+    assert damp["ai-agents"] >= T.FATIGUE_FLOOR > 0
+
+
+def test_playing_something_clears_its_fatigue(store):
+    """The impressions before a play are the opposite of disinterest."""
+    now = time.time()
+    for i in range(9):
+        store.record_impressions("u", [("from_history", "ai-agents")],
+                                 at=now - i * 7200)
+    assert "ai-agents" in T.fatigue(store.impression_occasions("u"))
+    assert "ai-agents" not in T.fatigue(store.impression_occasions("u"),
+                                        played={"ai-agents"})
+
+
+def test_impressions_still_say_nothing_about_taste(store):
+    """Fatigue is per-topic and negative. It must never become a tag score."""
+    now = time.time()
+    for i in range(20):
+        store.record_impressions("u", [("trending", "ai-agents")], at=now - i * 7200)
+    assert T.taste(store.for_user("u"), now) == {}, (
+        "being shown a tile taught the feed a preference")
+    assert T.IMPRESSION not in T.EVENT_WEIGHT
