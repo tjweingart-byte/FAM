@@ -106,6 +106,21 @@ that passes it will speak; one that does not will say why in a sentence.
 `python verify_voice.py` goes further and actually synthesises, which is the
 difference between "Chatterbox is installed" and "this machine can speak".
 
+**And one thing to read on the deployed host rather than on yours:**
+
+    curl -s https://<host>/api/health | python -m json.tool
+
+`visuals.style.references_missing` must be `[]`. The approved illustrations in
+`visual_references/` are what the image model is *shown* as FAM's house style,
+and a container is built from a git clone — so artwork that lives only in a
+working copy never arrives, the style is described in words instead, and the
+art comes out visibly different while every other signal stays green. That
+happened: the three named references were on a laptop and in no commit, and
+the deployed log said `no approved references in /app/visual_references` for
+as long as nobody read it. `tests/test_reference_packaging.py` now fails if the
+named set is not committed, which is the same check made before a deploy
+rather than after one.
+
 ## What is deliberately still manual
 
 **The voice and its rights record.** They are per-machine state and stay out
