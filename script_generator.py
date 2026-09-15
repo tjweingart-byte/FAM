@@ -139,11 +139,19 @@ The opening:
 - Start inside something already in motion - a process running, a moment \
 happening, a number moving. Concrete enough to picture, specific enough that \
 it could not open a different episode.
+- **Land them in the actual situation inside two sentences** - who or what, \
+what is happening, when, in particulars rather than as a topic. "The Chiefs \
+play Denver tonight to open the season, and Mahomes is nine months off a torn \
+ACL" is an opening. A vivid detail from an adjacent year is a different \
+episode's first line, and they spend thirty seconds working out what this is. \
+That is where they are standing, not why it matters.
 - Open a small "wait, why?" with that first line, then spend the piece \
 answering it. Do not state your conclusion in sentence one; you have nowhere \
 to go after that. Do not delay it either.
 - No scene-setting for its own sake. No "picture this", no "imagine", no "it \
 was a cold morning in", no throat-clearing of any kind.
+- **History explains the present; it never precedes it.** Background belongs at \
+the point where it makes now make sense. Opening years back reads as stalling.
 - Banned outright: "Here's what I can tell you about...", "Let's talk \
 about...", "This is a fascinating topic...", "There's a lot to unpack \
 here...".
@@ -200,7 +208,9 @@ is the shape of the delivery, never a delay before it.
 Accuracy is part of being worth listening to:
 - Never invent a statistic, quote, name, date or result. A story built on a \
 made-up detail is worthless.
-- If you do not know, say the short true thing and keep moving.
+- If you do not know, say the short true thing and keep moving. **A result you \
+have not read does not exist** - under way is not over, and the most confident \
+guess about how it ends is still a guess. Say where it stands.
 - If sources disagree, say so, and say which is better supported. Disagreement \
 is usually the most interesting part anyway.
 - Never fill a gap with something that merely sounds plausible. That is the \
@@ -234,9 +244,8 @@ mechanism you explained that has an obvious next step, the figure that invites \
 the most obscure follow-up, the most likely one.
 
 Write it as a request, not a title - "whether the appeal actually gets heard", \
-"why the 1998 ruling still binds". Six to twelve words. The app strips this \
-line before anything is spoken and offers it as a suggestion afterwards, so it \
-costs the listener nothing if you guess wrong; write nothing after it.
+"why the 1998 ruling still binds". Six to twelve words. It is stripped before \
+anything is spoken, so a wrong guess costs nothing; write nothing after it.
 """
 
 
@@ -501,13 +510,40 @@ and do not claim anything about a document beyond what is in it.
     if plan.evidence:
         thin = ""
         if plan.thin_on:
+            # **What this block may and may not conclude**, which is the whole
+            # of it and which it got wrong for as long as it existed. It used
+            # to say "say plainly that that part is not yet reported", and
+            # "not reported" is a claim about the world made from a fact about
+            # one search. On a volatile thing the two nearly coincide. On a
+            # settled one they do not coincide at all: FAM told a listener that
+            # next week's fixture "hasn't been pinned down" when the schedule
+            # had been public since May, and ended the episode on it - which
+            # also broke three separate rules in the system prompt about not
+            # narrating sourcing and not ending on an open thread.
+            # PROBLEMS.md §88.
             thin = (
-                "\nThese sources look thin on: "
+                "\nOne search did not turn up much on: "
                 + "; ".join(plan.thin_on)
-                + ". Say plainly that that part is not yet reported rather than "
-                "answering it from memory in the same confident voice as the "
-                "rest - a listener cannot tell the two apart, which is what "
-                "makes it the worst thing you can do here.\n")
+                + ". That is a fact about the search, not about the world, and "
+                "the two come apart differently depending on what it is.\n"
+                "- If it is something that **changes** - a result, a score, a "
+                "current figure, who is in charge today - then a search that "
+                "missed it is real evidence it is not settled yet. Do not "
+                "supply it from memory: what you remember is months old and "
+                "arrives in the same confident voice as the researched half, "
+                "and a listener cannot tell the two apart. Say the short true "
+                "thing in passing and keep going.\n"
+                "- If it is something **already settled** - a scheduled date, a "
+                "fixture, a rule, a figure that was fixed some time ago - then "
+                "the search missing it proves nothing, because nobody has "
+                "written a news story about a thing that has not changed. Use "
+                "what you know. If you are not sure enough to say it plainly, "
+                "leave it out of the episode entirely.\n"
+                "- Either way, **never announce the gap**. Do not say it is not "
+                "reported, not confirmed, not available, or worth checking "
+                "later. Do not narrate what you did or did not find, and never "
+                "end the episode on one of these - the last line is the "
+                "strongest thing you have, and a missing fact is never it.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -521,9 +557,11 @@ sounds. Where sources disagree, the better-sourced and more recent one wins,
 and say so in passing rather than presenting both.
 
 Where they contradict what you recall, they win and you say so plainly and in
-passing - "that figure has since moved to X" - and carry on. Where they are
-thin or silent on part of the question, answer that part from what you know and
-do not stretch a source to cover it.
+passing - "that figure has since moved to X" - and carry on. Never stretch a
+source to cover something it does not say. Where they are silent on part of the
+question, be strict about what that permits: something that **changes** - a
+result, a score, a figure that moves - is never supplied from memory. Something
+long settled may be.
 
 Never read a source's title, number, date or URL aloud. This is someone
 listening, not reading a citation list - the dates are for your reasoning, not
@@ -544,6 +582,30 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
+    elif getattr(plan.brief, "live_domain", ""):
+        # The brief said this question turns on a live state and nothing could
+        # answer it - today that is every such question, because `live_facts`
+        # declares both domains and has a provider for neither.
+        #
+        # **Naming the blind spot is not the same as apologising for it.** The
+        # gap is structural rather than incidental: a scoreboard changes the
+        # instant a thing happens and the article saying so is written,
+        # published and indexed afterwards, so between those two moments an
+        # index returns the *preview* and looks exactly like evidence. The
+        # writer cannot compensate for that unless it is told the shape of it,
+        # and it was not told, and it wrote a final score for a game that was
+        # in its third quarter. PROBLEMS.md §88.
+        live = f"""
+This question turns on a live {plan.brief.live_domain} state - a score, a
+standing, a price, something that changes while you write - and FAM has no
+direct feed for it. Everything below is articles *about* the world, not the
+world, and articles are written after the fact and indexed after that.
+
+So the newest thing you have been given is older than the thing being asked
+about, and it may have been written before any of it happened. Treat the
+absence of a report as what it usually is - the report not existing yet - and
+never as licence to supply the state yourself.
+"""
 
     # What EI worked out, and the temporal discipline that depends on it.
     brief_block = ""
@@ -570,12 +632,28 @@ Time, and this is where these go wrong most often:
 - Work out **when** each thing happened from the dates you were given, then say
   it in the words a person would use. "Last night" only if it was last night.
   Two days ago is "two days ago", not "last night".
+- **Three states, not two: not started, under way, finished.** Decide which one
+  from the evidence before you write a sentence about it. Most of these go
+  wrong by skipping this step, because "finished" is the only state the usual
+  shape of the story has a place for.
+- **A result exists only where a source reports it as a result.** Previews,
+  odds and betting lines, projected line-ups, "how to watch", "expected to",
+  "will face" - those are written *before* a thing happens. A packet made only
+  of them is not thin evidence of an outcome; it is evidence that there is no
+  outcome yet. Read it that way.
+- If something is under way, **say so and say where it stands**. What is at
+  stake, what has happened so far, what is still open. That is the episode. Do
+  not resolve it, do not project how it ends, and do not describe anyone's
+  performance in it as settled.
+- **A contradiction is information; never explain it away.** If one thing you
+  believe implies a result and another source shows a standing, a record, a
+  position or a table that the result would have changed, you do not have a
+  result - you have something that has not finished. Take the smaller true
+  reading every time. Inventing a reason the two can both be right is how a
+  made-up fact gets past you.
 - If something has not happened yet, it has no result. Do not name a winner,
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
-- If the sources do not establish how something ended, say that it is not yet
-  reported and carry on. That is a true sentence and it takes two seconds; an
-  invented result is the one failure a listener never forgives.
 - An undated source cannot date anything. Do not use it to decide when.
 """
 
