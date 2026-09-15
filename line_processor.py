@@ -17,13 +17,30 @@ Three decisions in there are worth stating, because each is a place the naive
 answer is wrong:
 
 * **The pen never leaves the paper, so retracing is allowed and jumping is
-  not.** A drawing whose graph has odd-degree vertices has no Euler path;
-  the route-inspection ("Chinese postman") answer is to duplicate the cheapest
-  set of existing edges until one exists. Retracing a line that is already
-  drawn is invisible. Drawing a straight line across empty ivory to reach the
-  next piece is a scar, and this module will never do it: unreachable work is
-  either bridged across a gap small enough to be a gap, or the art is rejected
-  and regenerated.
+  not.** This is the hard one, and it is a product-quality constraint rather
+  than a tuning preference: a listener watching the line travel must never see
+  it strike out across the negative space. A mark that was not in the artwork
+  is a scar, and one of them ruins an otherwise good animation.
+
+  A drawing whose graph has odd-degree vertices has no Euler path; the
+  route-inspection ("Chinese postman") answer is to duplicate the cheapest set
+  of *existing* edges until one exists. Retracing a line the artist drew is
+  invisible, so duplicating edges is free in the only currency that matters.
+  Drawing a straight line across empty ivory to reach the next piece is not,
+  and this module will never do it. In order of preference: follow the
+  linework; retrace existing geometry to get back to undrawn work, by the
+  shortest such route; bridge only a gap tiny enough to read as an accident of
+  the artwork; otherwise reject the art and regenerate it.
+
+  Three things enforce that, because one of them is a single point of failure:
+  `_shortest_paths` prices a bridge at `BRIDGE_RETRACE_PENALTY` times its
+  length so the matching retraces ink in preference to repairs, `_assemble`
+  refuses to *build* a route whose consecutive strokes do not touch, and
+  `visual_validator` refuses to *ship* one whose bridging is visible. The
+  route also carries its own edge identities out of Hierholzer rather than
+  being reconstructed from the vertex sequence afterwards - with parallel
+  edges, which a duplicating route is full of, reconstruction can pick the
+  wrong edge, and the mark it leaves is exactly the scar above.
 * **Skeletonise, do not trace the outline.** A stroke has two sides; its
   outline is a long thin loop that draws every line twice and looks like it.
   Zhang-Suen thinning collapses each stroke to its centreline, which is the
@@ -95,6 +112,13 @@ class LineArt:
     #: Share of the route that is drawn over line already drawn. Small is
     #: invisible; large means the art was badly connected.
     retraced: float = 0.0
+    #: The longest single bridge in the finished drawing, in viewBox units, and
+    #: the total of all of them. These are the only marks in the route that
+    #: were not in the artwork, so they are the numbers the no-scars rule is
+    #: enforced on - `visual_validator` rejects a drawing whose longest bridge
+    #: is something a listener could see as a line across empty ivory.
+    max_bridge: float = 0.0
+    bridged_length: float = 0.0
     ink_share: float = 0.0
     warnings: list = field(default_factory=list)
     timings_ms: dict = field(default_factory=dict)
@@ -106,6 +130,8 @@ class LineArt:
             "curves": self.curves,
             "components": self.components,
             "bridged": self.bridged,
+            "max_bridge": round(self.max_bridge, 2),
+            "bridged_length": round(self.bridged_length, 2),
             "retraced": round(self.retraced, 4),
             "ink_share": round(self.ink_share, 5),
             "warnings": list(self.warnings),
@@ -132,7 +158,30 @@ MIN_SPECK = 12
 SPUR_PIXELS = 7
 #: How far apart two loose ends may be and still be called a gap, as a share of
 #: the canvas. Beyond this it is not a gap, it is two drawings.
-BRIDGE_SHARE = 0.035
+#:
+#: Tightened from 0.035. Rule 6 of the traversal policy says a gap may be
+#: bridged only when it is a *genuinely tiny accidental* one, and 3.5% of the
+#: canvas is a mark somebody can see. At 2% of a 720px working image this is
+#: about fourteen pixels - the width of a few strokes.
+BRIDGE_SHARE = 0.02
+#: The same limit again, in final viewBox units, and this one is authoritative.
+#: `fit_to_canvas` rescales the drawing to fill the canvas, and it can scale
+#: *up*: a bridge that was small in a source image where the subject sat in one
+#: corner is not small once that corner fills the frame. Measured after the
+#: fit, where the number means what a listener will actually see.
+MAX_BRIDGE_UNITS = 18.0
+#: How much more expensive a bridge is to retrace than real ink, when the
+#: route-inspection matching is choosing which edges to duplicate. Retracing a
+#: line the artist drew is invisible; retracing a bridge draws FAM's own repair
+#: a second time, in the middle of empty ivory, which is the most visible mark
+#: in the picture. Same length, different cost - rule 5 of the traversal
+#: policy, "least visual disruption".
+BRIDGE_RETRACE_PENALTY = 6.0
+#: How far apart two chains may be where they meet before the route is called
+#: broken, in working pixels. Not zero: a chain ends on an actual pixel of a
+#: junction cluster while the node it belongs to is that cluster's centroid, so
+#: consecutive chains legitimately meet a pixel or two apart.
+CONTIGUOUS_TOLERANCE = 4.0
 #: A component smaller than this share of the total may be dropped as debris.
 #: Anything bigger is the artwork being genuinely in pieces, which is a
 #: regeneration and not something to paper over.
@@ -710,7 +759,14 @@ def _adjacency(edges: list) -> dict:
 
 
 def _shortest_paths(source: int, adj: dict, edges: list) -> tuple[dict, dict]:
-    """Dijkstra over chain lengths, for pairing odd vertices."""
+    """Dijkstra for pairing odd vertices, over what a retrace *costs*.
+
+    Cost, not length. This pairing decides which existing edges get drawn a
+    second time, and a bridge drawn twice is FAM's own repair traced over
+    itself in the middle of the negative space - far more visible than the same
+    distance of the artist's own line. Weighting it makes the matching route
+    around it where it can.
+    """
     import heapq
 
     distance = {source: 0.0}
@@ -721,7 +777,10 @@ def _shortest_paths(source: int, adj: dict, edges: list) -> tuple[dict, dict]:
         if here > distance.get(node, math.inf):
             continue
         for other, index in adj.get(node, ()):
-            step = here + edges[index].length
+            edge = edges[index]
+            # Length is what it measures; cost is what it looks like.
+            step = here + edge.length * (BRIDGE_RETRACE_PENALTY
+                                         if edge.bridge else 1.0)
             if step < distance.get(other, math.inf):
                 distance[other] = step
                 came[other] = (node, index)
@@ -790,7 +849,31 @@ def eulerise(edges: list) -> tuple[list, float]:
 
 
 def euler_route(edges: list) -> list:
-    """Hierholzer's algorithm: the order the pen travels.
+    """Hierholzer's algorithm: the order the pen travels, as oriented chains.
+
+    Returns `[(points, is_bridge), ...]` where each chain's first point is the
+    previous chain's last. **That guarantee is the whole function**, and it is
+    what this did not previously provide.
+
+    It used to run Hierholzer for the *vertex* sequence and then reconstruct
+    the edges from it by searching for "any unused edge between these two
+    vertices". Two things go wrong with that, and they compound:
+
+    * with parallel edges - two different chains joining the same pair of
+      junctions, which line art produces constantly - the search can pick a
+      different edge from the one the algorithm actually traversed, after
+      which the reconstruction is walking a route nobody planned;
+    * and when it then found no edge at all between consecutive vertices, it
+      `continue`d. The next chain appended started wherever its own node was,
+      which could be anywhere on the canvas.
+
+    `process` concatenated those chains without checking, smoothing turned the
+    discontinuity into a graceful curve, and the result was a long connector
+    sweeping across empty ivory that was never in the artwork. A scar.
+
+    So the edge indices are recorded *as they are used*, during the traversal,
+    and the trail is exact by construction rather than by reconstruction. There
+    is nothing left to search for and nothing to fail to find.
 
     Starts at an odd-degree vertex when there is one, which is what makes the
     result an open stroke with a beginning and an end rather than a loop that
@@ -816,60 +899,44 @@ def euler_route(edges: list) -> list:
     used = [False] * len(edges)
     pointer = {node: 0 for node in adj}
     stack = [start]
-    order: list = []
+    # Parallel to `stack`, holding the edge that got us to each vertex on it.
+    arrived_by: list = []
+    circuit: list = []
     while stack:
         node = stack[-1]
         items = adj.get(node, ())
         while pointer[node] < len(items) and used[items[pointer[node]][1]]:
             pointer[node] += 1
         if pointer[node] == len(items):
-            order.append(node)
             stack.pop()
+            if arrived_by:
+                circuit.append(arrived_by.pop())
             continue
         other, index = items[pointer[node]]
         used[index] = True
         pointer[node] += 1
+        arrived_by.append(index)
         stack.append(other)
+    circuit.reverse()
 
-    # `order` is the vertex sequence in reverse; rebuild the edge sequence
-    # from it so each chain can be oriented the way it is travelled.
-    sequence = list(reversed(order))
+    # Orient each chain the way it is actually travelled. `at` is where the pen
+    # is; an edge that does not touch it means the trail is inconsistent, which
+    # would be a bug in the walk above rather than in the artwork - so it says
+    # so instead of drawing whatever it has.
     route: list = []
-    taken = [False] * len(edges)
-    for a, b in zip(sequence, sequence[1:]):
-        index = _pick_edge(edges, taken, a, b)
-        if index is None:
-            continue
-        taken[index] = True
+    at = start
+    for index in circuit:
         edge = edges[index]
-        points = edge.points if edge.u == a else list(reversed(edge.points))
-        if edge.u == edge.v and route:
-            # A self-loop is travelled from wherever the pen already is.
-            points = _rotate_loop(points, route[-1])
-        route.append(points)
+        if edge.u == at:
+            points, at = edge.points, edge.v
+        elif edge.v == at:
+            points, at = list(reversed(edge.points)), edge.u
+        else:
+            raise LineProcessingError(
+                "the traversal left the drawing - an edge in the route does "
+                "not touch where the pen is", "broken_route")
+        route.append((points, edge.bridge))
     return route
-
-
-def _pick_edge(edges: list, taken: list, a: int, b: int):
-    for index, edge in enumerate(edges):
-        if taken[index]:
-            continue
-        if (edge.u == a and edge.v == b) or (edge.v == a and edge.u == b):
-            return index
-    return None
-
-
-def _rotate_loop(points: list, previous: list) -> list:
-    """Start a closed loop at the point nearest where the pen already is."""
-    if not previous:
-        return points
-    here = previous[-1]
-    best, at = math.inf, 0
-    for index, point in enumerate(points):
-        span = math.hypot(point[0] - here[0], point[1] - here[1])
-        if span < best:
-            best, at = span, index
-    return points[at:] + points[1:at + 1]
 
 
 # --------------------------------------------------------------------------
@@ -1008,14 +1075,15 @@ def flatten(beziers: list, steps: int = FLATTEN_STEPS) -> list:
 
 
 def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
-                  margin: int = visual_style.SAFE_MARGIN) -> list:
+                  margin: int = visual_style.SAFE_MARGIN) -> tuple:
     """Pixel coordinates (row, column) into viewBox coordinates (x, y).
 
     Scaled uniformly and centred, so the drawing keeps its proportions and
-    lands inside the safe margin whatever the source image measured.
+    lands inside the safe margin whatever the source image measured. Returns
+    `(points, scale)` - see the note on the return.
     """
     if not points:
-        return []
+        return [], 1.0
     ys = [p[0] for p in points]
     xs = [p[1] for p in points]
     top, bottom = min(ys), max(ys)
@@ -1026,8 +1094,54 @@ def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
     scale = min(usable / width, usable / height)
     offset_x = (size - width * scale) / 2.0
     offset_y = (size - height * scale) / 2.0
-    return [((x - left) * scale + offset_x, (y - top) * scale + offset_y)
-            for y, x in points]
+    fitted = [((x - left) * scale + offset_x, (y - top) * scale + offset_y)
+              for y, x in points]
+    # The scale comes back with the points because a length measured in the
+    # source is not a length anybody sees. A bridge is judged on what it looks
+    # like on the finished canvas, and this is the only place that conversion
+    # is known.
+    return fitted, scale
+
+
+def _assemble(route: list) -> tuple:
+    """Oriented chains into one polyline, refusing to jump.
+
+    **The hard rule this enforces: the pen never crosses blank canvas.** A
+    drawing is allowed to retrace line it has already drawn - that is
+    invisible - and it is allowed to close a gap so small it reads as an
+    accident of the artwork. It is never allowed to travel from one place to
+    another across empty ivory, because after smoothing that becomes a long
+    graceful curve through the negative space that was never in the
+    illustration, and it ruins an otherwise good animation.
+
+    Every step is checked rather than assumed. Where two chains meet they must
+    actually meet - within `CONTIGUOUS_TOLERANCE`, which exists only because a
+    chain ends on a real pixel while its node is that cluster's centroid. A
+    larger gap is not something to draw through; it means the traversal is
+    wrong, and the honest answer is to fail and let the retry ladder produce
+    different art. It used to be concatenated in silence.
+
+    Returns the polyline and the length of each bridge crossed, so the scale of
+    what *was* invented is measurable rather than a matter of trust.
+    """
+    pixels: list = []
+    spans: list = []
+    for points, is_bridge in route:
+        if not points:
+            continue
+        if not pixels:
+            pixels.extend(points)
+        else:
+            gap = math.dist(pixels[-1], points[0])
+            if gap > CONTIGUOUS_TOLERANCE:
+                raise LineProcessingError(
+                    f"the route jumps {gap:.0f} pixels between strokes, which "
+                    "would draw a line across empty canvas that is not in the "
+                    "artwork", "discontinuous")
+            pixels.extend(points[1:] if gap <= 1.0 else points)
+        if is_bridge:
+            spans.append(_polyline_length(points))
+    return pixels, spans
 
 
 # --------------------------------------------------------------------------
@@ -1214,15 +1328,14 @@ def process(data: bytes, trace=None) -> LineArt:
     if not route:
         raise LineProcessingError("no route through the artwork", "no_route")
 
-    pixels: list = []
-    for chain in route:
-        if pixels and chain and pixels[-1] == chain[0]:
-            pixels.extend(chain[1:])
-        else:
-            pixels.extend(chain)
+    pixels, bridge_spans = _assemble(route)
 
     began = time.monotonic()
-    canvas_points = fit_to_canvas(pixels)
+    canvas_points, fit_scale = fit_to_canvas(pixels)
+    # Bridges measured where they will be seen. A gap that was fourteen pixels
+    # in a source image whose subject filled one corner is not fourteen pixels
+    # once that corner fills the canvas.
+    bridges = [span * fit_scale for span in bridge_spans]
     # The route as traversed, before any smoothing. Compared against the final
     # render this is the whole of what smoothing and simplification cost.
     stage.path("4-route", canvas_points)
@@ -1253,6 +1366,8 @@ def process(data: bytes, trace=None) -> LineArt:
         curves=len(beziers),
         components=components,
         bridged=bridged,
+        max_bridge=max(bridges) if bridges else 0.0,
+        bridged_length=sum(bridges),
         retraced=(duplicated / total_before) if total_before else 0.0,
         ink_share=ink_share,
         warnings=warnings,

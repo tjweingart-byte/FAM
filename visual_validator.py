@@ -48,6 +48,20 @@ MAX_EDGE_SHARE = 0.18
 #: Retracing is allowed - the pen goes back over its own line - but past this
 #: it stops being invisible.
 MAX_RETRACED = 0.35
+#: The hard one. A bridge is the only mark in a finished drawing that was not
+#: in the artwork, and past this length it stops being an invisible repair of
+#: an accidental gap and becomes a line drawn across empty canvas - a scar.
+#: In viewBox units, so 18 is 1.8% of the canvas width.
+#:
+#: This is a product-quality constraint rather than a tuning preference: a
+#: listener watching the line travel must never see it strike out across the
+#: negative space. The processor already refuses to *build* such a route; this
+#: refuses to *ship* one, because a drawing that got past the first gate by
+#: some path nobody anticipated must still not reach a player.
+MAX_BRIDGE_UNITS = 18.0
+#: And all of them together, as a share of the whole drawing. Several bridges
+#: each under the limit still add up to a picture that is partly invention.
+MAX_BRIDGED_SHARE = 0.02
 #: Fewer curves than this is not a drawing; more is detail nobody can see at
 #: the size these are shown, and a path the player has to reveal smoothly.
 MIN_CURVES = 12
@@ -218,6 +232,22 @@ def _check_quality(art, verdict: Verdict) -> None:
         verdict.fail(f"{retraced:.0%} of the route is drawn over line already "
                      "drawn; the artwork was too badly connected")
 
+    # The no-scars rule. Everything else here is about whether the picture is
+    # good; this is about whether it contains a mark FAM invented.
+    max_bridge = float(getattr(art, "max_bridge", 0.0))
+    bridged_length = float(getattr(art, "bridged_length", 0.0))
+    verdict.metrics["max_bridge"] = round(max_bridge, 2)
+    verdict.metrics["bridged_length"] = round(bridged_length, 2)
+    if max_bridge > MAX_BRIDGE_UNITS:
+        verdict.fail(
+            f"the route crosses {max_bridge:.0f} units of blank canvas in one "
+            f"step; anything over {MAX_BRIDGE_UNITS:.0f} is a visible line "
+            "that was never in the artwork")
+    if length and bridged_length / length > MAX_BRIDGED_SHARE:
+        verdict.fail(
+            f"{bridged_length / length:.1%} of the drawing is bridging rather "
+            "than artwork; the illustration was too broken to repair invisibly")
+
 
 def _check_thumbnail(thumbnail: bytes, verdict: Verdict) -> None:
     """The picture actually renders, and has both paper and ink in it.
@@ -265,4 +295,6 @@ def report() -> dict:
         "min_extent": MIN_EXTENT,
         "max_edge_share": MAX_EDGE_SHARE,
         "max_retraced": MAX_RETRACED,
+        "max_bridge_units": MAX_BRIDGE_UNITS,
+        "max_bridged_share": MAX_BRIDGED_SHARE,
     }

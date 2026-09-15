@@ -152,7 +152,9 @@ Four decisions in there are places the obvious answer is wrong:
   no Euler path, and the route-inspection ("Chinese postman") answer is to
   duplicate the cheapest existing edges until one exists. Going back over a line
   already drawn is invisible. A straight line across empty ivory to reach the
-  next piece is a scar, and this module will never draw one.
+  next piece is a scar, and this module will never draw one. It is a hard
+  product-quality rule rather than a tuning preference — see **The no-scars
+  rule** below.
 * **Skeletonise, do not trace the outline.** A stroke has two sides; its outline
   is a long thin loop that draws every line twice and looks like it.
 * **A diagonal neighbour does not count when an orthogonal one reaches it.**
@@ -168,6 +170,56 @@ Badly connected art is **refused, not rescued**: a gap is bridged only when one
 side is a loose end and the other is within a few percent of the canvas, and
 anything worse fails validation and is drawn again. The answer to a picture in
 three pieces is a different picture.
+
+### The no-scars rule
+
+A listener watching the line travel must never see it strike out across the
+negative space. This was not theoretical: a real animation was ruined by one
+final artificial connector drawn across the blank canvas to force continuity,
+and the rest of that drawing was good. So the pen's options, in order:
+
+1. Follow the intended linework.
+2. If continuity would otherwise need a new visible bridge, **retrace an
+   existing segment instead** — the pen appears to travel back along a stroke
+   rather than cutting across open space.
+3. Keep retracing constrained to already-drawn geometry.
+4. Prefer the shortest existing-path retrace back to undrawn work.
+5. Where several retraces exist, prefer least visual disruption and least added
+   travel. `BRIDGE_RETRACE_PENALTY` makes this concrete: retracing a *bridge* is
+   priced at six times its length, because redrawing FAM's own repair through
+   empty ivory is the most visible mark in the picture, while redrawing the
+   artist's ink is free in the only currency that matters.
+6. Bridge only a genuinely tiny accidental gap between endpoints that clearly
+   should connect — `BRIDGE_SHARE` is 2% of the working image, about fourteen
+   pixels, roughly a few stroke widths.
+7. Never draw a long straight or curved connector across negative space.
+
+In graph terms: retracing is allowed, duplicating existing edges is allowed,
+introducing a new long edge through blank canvas is not.
+
+**Three mechanisms enforce it, because one would be a single point of failure.**
+
+* The route carries its **own edge identities** out of Hierholzer rather than
+  being reconstructed from the vertex sequence afterwards. A duplicating route
+  is full of parallel edges, and reconstruction can pick the wrong one — which
+  is exactly how the scar got drawn: the wrong pick left a stroke unmatched, the
+  concatenation joined two non-adjacent chains, and smoothing turned the
+  discontinuity into a graceful curve across blank ivory. It looked deliberate.
+* `_assemble` refuses to **build** a route whose consecutive strokes do not
+  meet within `CONTIGUOUS_TOLERANCE` (four working pixels — not zero, because a
+  chain ends on an actual junction pixel while its node is the cluster's
+  centroid). A jump is a `discontinuous` failure and a regeneration.
+* `visual_validator` refuses to **ship** one. Bridges are measured *after*
+  `fit_to_canvas`, in final viewBox units, because the fit can scale a drawing
+  **up** and a bridge that was small in a cornered subject is not small once
+  that corner fills the frame. `MAX_BRIDGE_UNITS` is 18 — 1.8% of the canvas
+  width — for any single bridge, and `MAX_BRIDGED_SHARE` caps all of them
+  together at 2% of the drawing, because several individually invisible repairs
+  still add up to a picture that is partly invention.
+
+`LineArt` therefore reports `max_bridge` and `bridged_length` beside
+`retraced`, and both reach the stored metrics — so "was this drawing partly
+invented" is a number rather than a judgement call.
 
 **The thumbnail is rendered from the path, never from the source artwork.** The
 player's last frame and the tile have to be the same picture; rendering one from
@@ -220,7 +272,9 @@ Before a listener is shown anything, three separate jobs:
   unnoticed. The endpoint adds a `Content-Security-Policy` on top.
 * **Good enough to show** — not mostly blank, not a scribble, the subject is not
   a speck, the line is not pressed against the edges, retracing is under a
-  third, the thumbnail decodes and has both paper and ink in it.
+  third, **no single bridge is longer than 18 viewBox units and bridging is
+  under 2% of the drawing** (the no-scars rule above), the thumbnail decodes and
+  has both paper and ink in it.
 
 A failure is a regeneration, up the ladder: standard direction → insist on
 continuity → ask for a simpler picture. Three attempts, then `failed`, and the

@@ -5254,3 +5254,118 @@ artifact it was asked to preserve, with its size, and marks the ones that were
 not written. "It is all there" is something the run says rather than something
 somebody goes and checks - and the very first run with the checklist in place
 said, in bold, that eight of the twelve were missing.
+
+---
+
+## 85. The route drew a line that was never in the picture
+
+Tested on a real animation, the continuous-line reveal worked: the pen travels,
+the drawing appears, the transport behaves. One thing ruined it. Near the end
+the pen struck out across the empty ivory in a long clean arc, drew nothing,
+arrived somewhere else and carried on. It did not read as a bug. It read as a
+deliberate mark, and it was the most visible mark in the picture — which is
+exactly what makes it the worst kind of defect: an artefact that looks like a
+choice.
+
+**The cause was three deep, and only the last of the three is where anyone
+would have looked.**
+
+`euler_route` ran Hierholzer over the graph to get a sequence of *vertices*,
+then walked that sequence reconstructing which edge joined each pair via
+`_pick_edge(edges, taken, a, b)`. A route-inspection traversal duplicates
+edges on purpose — that is the whole mechanism for making an odd-degree graph
+Eulerian — so the graph it walks is *full* of parallel edges between the same
+two nodes. Asked "which edge goes from A to B", `_pick_edge` could return the
+wrong one. And when it found nothing left that matched, it did this:
+
+```python
+if index is None:
+    continue
+```
+
+A silent skip. One stroke dropped out of the route; the strokes on either side
+of it were no longer adjacent.
+
+Then `process` concatenated the route's point lists without checking that
+consecutive ones touched. Then `smooth` ran over the seam and — doing precisely
+its job — turned the discontinuity into a graceful curve. A hole in the data
+became a confident stroke through the negative space. Nothing raised, nothing
+logged, nothing in the metrics: `retraced` was fine, `components` was 1,
+validation passed, the asset was marked ready.
+
+**The fix is a policy, not a patch.** The user stated it as a hard
+product-quality constraint rather than an optimisation preference, and it is
+worth repeating in the form it was given, because the ordering is the useful
+part: follow the linework; if continuity would need a new visible bridge,
+retrace an existing segment instead; keep retracing constrained to
+already-drawn geometry; prefer the shortest existing-path retrace back to
+undrawn work; among several, prefer least visual disruption and least added
+travel; bridge only a genuinely tiny accidental gap between endpoints that
+clearly should connect; never draw a long straight or curved connector across
+negative space. In graph terms: retracing allowed, duplicating existing edges
+allowed, a new long edge through blank canvas not allowed.
+
+Four changes carry it.
+
+**The traversal carries its own edge identities.** Hierholzer now pushes the
+edge index that got it to each vertex onto a stack parallel to the vertex
+stack, and pops it when that vertex is finished. The circuit that comes out is
+a list of edges, not a list of nodes, so there is nothing to reconstruct and
+nothing to guess. `_pick_edge` and `_rotate_loop` are gone. The one remaining
+way to leave the drawing — an edge in the circuit that does not touch where the
+pen is — now raises `broken_route` instead of being skipped.
+
+**A discontinuity is refused at assembly.** `_assemble` measures the gap
+between the end of one stroke and the start of the next and raises
+`discontinuous` above `CONTIGUOUS_TOLERANCE`. That tolerance is four working
+pixels rather than zero, because a chain legitimately ends on an actual pixel
+of a junction cluster while the node it belongs to is that cluster's centroid;
+consecutive chains meet a pixel or two apart by construction. Four pixels
+cannot be smoothed into a visible mark. Forty can.
+
+**Bridges are priced, not just counted.** `_shortest_paths` is what the
+odd-vertex matching uses to decide which edges to duplicate, and it costed
+every edge at its length. Retracing a bridge and retracing real ink are the
+same length and are not remotely the same thing: one is invisible, the other
+draws FAM's own repair a second time through empty ivory.
+`BRIDGE_RETRACE_PENALTY` makes a bridge cost six times its length *to the
+matcher only* — length is what it measures, cost is what it looks like — so
+the route retraces the artist's lines in preference to its own.
+
+**And a bridge is measured where it will be seen.** `BRIDGE_SHARE` was 3.5% of
+the working image, which is a mark somebody can see; it is now 2%. More
+importantly the limit that decides is now in final viewBox units, applied after
+`fit_to_canvas` — which for this reason now returns its scale factor. The fit
+can scale a drawing **up**: a subject sitting in one corner of the source
+image gets enlarged to fill the frame, and a bridge that was fourteen pixels
+there is not fourteen units here. Measuring before the fit measures the wrong
+number in the one case that matters.
+
+`LineArt` reports `max_bridge` and `bridged_length`, both reach the stored
+metrics, and `visual_validator` refuses to ship a drawing with any single
+bridge over `MAX_BRIDGE_UNITS` (18 units, 1.8% of the canvas) or with more than
+`MAX_BRIDGED_SHARE` (2%) of its total length in bridging. Several individually
+invisible repairs still add up to a picture that is partly invention.
+
+**Two gates rather than one, deliberately.** The processor refuses to *build* a
+scarred route and the validator refuses to *ship* one, and the second is not
+redundant with the first. The defect here got past every check that existed
+because each check was asking a cheaper question than the one that mattered —
+the standing rule from §52 — and a drawing that reaches a player by some path
+nobody anticipated must still not contain a mark FAM invented.
+
+**What it cost, and what it says.** The lesson is not "check adjacency". It is
+that a *smoothing step is a liar*: any stage whose job is to make things look
+intentional will make a data defect look intentional too, and will do it
+silently and well. The seam was there in the point lists and would have been
+obvious in the skeleton overlay; by the time it reached the SVG it was
+indistinguishable from art. Anything downstream of a beautifier has to be
+validated upstream of it.
+
+Seven tests pin the rule under a "no-scars" heading in
+`tests/test_line_processor.py`: that the traversal never leaves a gap for the
+smoothing to bridge, that a route which would jump is refused rather than
+drawn, that chains meeting within a pixel or two are still fine, that a bridge
+is measured after the fit, that the limit is tight enough to be invisible, that
+retracing a bridge costs more than retracing artwork, and that a scar is
+rejected before the asset is marked ready.

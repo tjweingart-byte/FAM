@@ -114,6 +114,136 @@ def test_the_route_never_leaps_across_the_canvas():
     assert max(hops) < 40, f"the pen jumped {max(hops):.0f} units across the canvas"
 
 
+# --------------------------------------------------------------------------
+# The no-scars rule
+# --------------------------------------------------------------------------
+# A hard product-quality constraint, not a tuning preference. A listener
+# watching the line travel must never see it strike out across the negative
+# space: retracing existing line is invisible and allowed, duplicating existing
+# edges is allowed, and a new long edge through blank canvas is not. It was
+# seen in a real animation and it ruined it.
+
+
+def test_the_traversal_never_leaves_a_gap_for_the_smoothing_to_bridge():
+    """The bug that produced the scar, pinned at its source.
+
+    `euler_route` used to run Hierholzer for the *vertex* sequence and then
+    reconstruct the edges by searching for "any unused edge between these two
+    vertices". With parallel edges that can pick a different edge from the one
+    traversed; when it then found none at all it skipped, and the next chain
+    began wherever its own node happened to be. `process` concatenated them,
+    smoothing turned the discontinuity into a graceful curve, and a long
+    connector swept across empty ivory.
+
+    So the route is checked chain by chain: where two meet, they must meet.
+    """
+    art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67)))
+    route = lp.euler_route(lp.eulerise(
+        lp.build_graph(lp.prune_spurs(lp.skeletonise(
+            lp.despeckle(lp._resize_mask(
+                lp.ink_mask(lp.decode_image(
+                    draw(circle(), line(0.13, 0.33, 0.87, 0.67))))[0],
+                lp.WORK_SIZE)))))[0])[0])
+    for (first, _), (second, _) in zip(route, route[1:]):
+        gap = math.dist(first[-1], second[0])
+        assert gap <= lp.CONTIGUOUS_TOLERANCE, (
+            f"the route jumps {gap:.0f}px between chains - smoothing would "
+            "draw that as a curve across blank canvas")
+    assert art.max_bridge == 0.0
+
+
+def test_a_route_that_would_jump_is_refused_rather_than_drawn():
+    """The belt to the braces above. If a discontinuity ever reaches the
+    assembler by some path nobody anticipated, the answer is to fail and let
+    the retry ladder produce different art - never to draw through it."""
+    far_apart = [
+        ([(0.0, 0.0), (10.0, 10.0)], False),
+        ([(400.0, 400.0), (410.0, 410.0)], False),
+    ]
+    with pytest.raises(lp.LineProcessingError) as raised:
+        lp._assemble(far_apart)
+    assert raised.value.reason == "discontinuous"
+    assert "across empty canvas" in str(raised.value)
+
+
+def test_chains_that_meet_within_a_pixel_or_two_are_fine():
+    """The tolerance is not slack. A chain ends on a real pixel while its node
+    is that cluster's centroid, so consecutive chains legitimately meet a pixel
+    or two apart; zero tolerance would reject every drawing."""
+    joined = [
+        ([(0.0, 0.0), (10.0, 10.0)], False),
+        ([(11.0, 11.0), (20.0, 20.0)], False),
+    ]
+    pixels, spans = lp._assemble(joined)
+    assert len(pixels) == 4
+    assert spans == []
+
+
+def test_a_bridge_is_measured_where_it_will_be_seen():
+    """`fit_to_canvas` rescales the drawing, and it can scale *up*. A gap that
+    was small in a source image whose subject sat in one corner is not small
+    once that corner fills the canvas, so the limit is enforced in viewBox
+    units rather than source pixels."""
+    art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67),
+                          line(0.812, 0.50, 0.912, 0.47)))
+    assert art.bridged >= 1
+    assert 0 < art.max_bridge <= lp.MAX_BRIDGE_UNITS, (
+        f"a {art.max_bridge:.0f}-unit bridge is a visible line across the "
+        "canvas")
+    assert art.bridged_length >= art.max_bridge
+
+
+def test_the_bridging_limit_is_tight_enough_to_be_invisible():
+    """Rule 6: a gap may be closed only when it is genuinely tiny and
+    accidental. Two ends a tenth of the canvas apart are not a gap, they are
+    two drawings, and joining them is the scar."""
+    assert lp.BRIDGE_SHARE <= 0.02
+    with pytest.raises(lp.LineProcessingError) as raised:
+        # Two strokes separated by ~8% of the canvas - far beyond a gap.
+        lp.process(draw(line(0.10, 0.50, 0.40, 0.50),
+                        line(0.48, 0.50, 0.78, 0.50)))
+    assert raised.value.reason == "disconnected"
+
+
+def test_retracing_a_bridge_costs_more_than_retracing_the_artwork():
+    """Rule 5, least visual disruption. The route-inspection matching decides
+    which edges get drawn twice; a bridge drawn twice is FAM's own repair
+    traced over itself in open space, which is the most visible mark it could
+    make. Same length, higher cost, so the matching routes around it."""
+    assert lp.BRIDGE_RETRACE_PENALTY > 1.0
+    ink = lp.Edge(0, 1, [(0.0, 0.0), (0.0, 10.0)], bridge=False)
+    repair = lp.Edge(0, 1, [(0.0, 0.0), (0.0, 10.0)], bridge=True)
+    edges = [ink, repair]
+    adj = lp._adjacency(edges)
+    distance, came = lp._shortest_paths(0, adj, edges)
+    # Both edges join the same pair; the cheaper one is the artist's.
+    assert came[1][1] == 0, "the matching preferred retracing FAM's own repair"
+    assert distance[1] == pytest.approx(ink.length)
+
+
+def test_a_scar_is_rejected_before_the_asset_is_marked_ready():
+    """The validator's half of the rule. The processor refuses to *build* a
+    route with a long connector; this refuses to *ship* one, because a drawing
+    that got past the first gate by some route nobody anticipated must still
+    never reach a player."""
+    import visual_validator
+
+    art = lp.process(draw(circle()))
+    assert visual_validator.validate(lp.svg_document(art.d), art).ok
+
+    art.max_bridge = visual_validator.MAX_BRIDGE_UNITS + 1
+    verdict = visual_validator.validate(lp.svg_document(art.d), art)
+    assert not verdict.ok
+    assert any("blank canvas" in reason for reason in verdict.reasons)
+
+    art.max_bridge = 0.0
+    art.bridged_length = art.length * 0.5
+    verdict = visual_validator.validate(lp.svg_document(art.d), art)
+    assert not verdict.ok
+    assert any("bridging rather than artwork" in reason
+               for reason in verdict.reasons)
+
+
 def test_a_small_gap_is_bridged_and_the_piece_is_kept():
     """The commonest break in generated line art: a stroke that stops just
     short of the middle of another, where there is no loose end to meet."""

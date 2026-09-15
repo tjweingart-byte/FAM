@@ -552,6 +552,17 @@ the rest of this list it needs taste rather than a key.
   answer to a picture in three pieces is a different picture; and
   **placeholder art is never a fallback** - `synthetic` is selected explicitly
   or not at all, which is §51 and §61 applied to pixels.
+  **And the pen never crosses blank canvas** *(§85).* Retracing existing line
+  is invisible and allowed, duplicating existing edges is allowed, and a new
+  long edge through negative space is not - a listener must never see a mark
+  FAM invented to keep the path continuous. One ruined a real animation. It is
+  enforced twice on purpose: the processor refuses to *build* such a route
+  (the traversal carries its own edge identities, and a route whose strokes do
+  not touch raises rather than being concatenated), and the validator refuses
+  to *ship* one, measuring bridges after `fit_to_canvas` because the fit can
+  scale a drawing up. **Never relax this into a tuning parameter** - the
+  failure is silent, because smoothing turns a gap in the data into a
+  confident stroke that looks deliberate.
 
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for
