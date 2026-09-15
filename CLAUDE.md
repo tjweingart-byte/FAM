@@ -469,6 +469,42 @@ the rest of this list it needs taste rather than a key.
   dropped, never a model call to rephrase — and a retry that still misses
   returns its evidence anyway, with the gap *named* to the writer so it is said
   plainly rather than filled from memory in the same confident voice.
+- **Started is not finished, and nothing upstream of the evidence may claim
+  otherwise.** *(PROBLEMS.md §88.)* FAM wrote a final score for a game in its
+  third quarter, and the chain that let it starts with a label: `recap` used to
+  mean "something finished", which is a claim about the world made by the one
+  layer forbidden to make claims, about the one thing it cannot know. What EI
+  may decide is **whether the answer they want is a result** - a property of the
+  request, decidable with nothing retrieved - and `Brief.outcome_dependent` is
+  that. Whether the result *exists* is settled downstream, from dated evidence,
+  and nowhere else.
+  Three things follow and are load-bearing. **There are three states, not two**
+  - not started, under way, finished - and the third shape (`in_progress`) has
+  to be *named*, because "drop a beat you have nothing for" cannot apply to the
+  result of a recap: that beat is what the shape is for, so dropping it deletes
+  the episode and the model fills it instead. **A packet of previews is
+  evidence of no outcome**, not thin evidence of one - odds, projected
+  line-ups, "expected to", "how to watch" are all written before the thing
+  happens. And **a contradiction is information**: an episode given a standing
+  its own claimed result would have changed must take the smaller true reading,
+  never invent a reconciliation, which is what "that's just a rounding
+  artifact" was.
+- **A search that missed something has established nothing about the world.**
+  *(§88.)* `thin_on` used to instruct the writer to "say plainly that that part
+  is not yet reported" - converting a fact about one retrieval into a claim
+  about the world, and then usually into the last line. For a volatile thing
+  the two nearly coincide; for a settled one they do not, and FAM told a
+  listener next week's fixture "hasn't been pinned down" when it had been
+  public for months. So the two are split by hand: something that **changes** is
+  never supplied from memory, something **already settled** may be and is
+  otherwise left out entirely, and the gap is never announced and never the
+  thing an episode ends on.
+- **Situate, never orient, and do it in the first two sentences.** *(§88.)*
+  "Speak from inside" bans explaining why a subject matters; it was read as
+  permission to open anywhere, and produced a 2017 draft anecdote in front of a
+  live game. Situating is different from orienting: it says where the listener
+  is standing - who, what, when, in particulars - and it is required. History
+  earns its place by explaining the present rather than preceding it.
 - **An article index is the wrong instrument for a scoreboard, and the seam for
   that is built and empty.** *(§82, `live_facts.py`.)* A game ends and the
   scoreboard knows instantly; the recap saying so is written, published and

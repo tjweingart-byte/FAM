@@ -5636,3 +5636,202 @@ one step.
 Five is not a caveat on the other four. It is a standing correction to every
 threshold in the system, including the ones added in §86 - and the very first
 thing it caught was one of them.
+
+## 88. It wrote a final score for a game that was in its third quarter
+
+Someone asked FAM "Chiefs game" on a Monday night in week 1, with about ten
+minutes left in the third quarter and Denver trailing 21-7. The episode opened
+on the 2017 draft, said *"Kansas City beat Denver 27-16"*, spent its middle
+explaining how well Mahomes had played, and finished by saying it did not know
+who the Chiefs play in week 2 - a fixture that had been public since May.
+
+The same question asked twelve hours later produced a good episode. That is the
+most useful fact in the report, because it rules out almost everything: the
+prompt was fine, the model was fine, the retrieval worked. What failed was
+confined to **the window between an event starting and a report about it
+existing**, and in that window FAM had no way to say what was happening and
+several reasons to say something that was not.
+
+### Five separate faults, and only one of them is a prompt
+
+**1. EI asserted that the game had finished, using a label.** `INTENTS` read:
+
+    "recap",  # something finished; tell me what happened
+
+That is a claim about the world, made by the one layer in FAM whose own module
+docstring says it *never asserts a fact*, about the one thing it cannot possibly
+know: nothing has been retrieved when EI runs and its own knowledge is months
+old. The label looked like a classification of the request and was in fact a
+statement that the event was over, and everything downstream read it as one.
+
+The fix is not a better guess. It is to ask a question EI can actually answer.
+"Has the game finished" is about the world; **"is the answer they want a
+result"** is about the request, and is decidable with no evidence at all - "who
+won" has no answer until something concludes, whether it concluded an hour ago
+or is still going. That is `Brief.outcome_dependent`, and `recap` now reads
+"tell me what happened, if it has happened".
+
+**2. The story shape required a result, so the writer produced one.**
+`sports_recap` is *"what was at stake, then the turns the game actually hinged
+on, **then the result**, then who decided it, then what it changes"*.
+
+`build_structure_note` already says a beat with nothing behind it is dropped
+rather than filled, and that was written for exactly this class of failure (§82,
+the golf recap invented "the main debate" to fill a slot). It was not enough
+here, and the reason generalises: **dropping the result from a recap leaves
+nothing**. It is not a beat of the shape, it is what the shape is for. A rule
+that says "drop it" is asking the model to delete the episode, so it filled it
+instead.
+
+So the alternative has to be *named*, not deduced. `in_progress` is a new shape
+- what is at stake, how it stands now, what has already been settled, what is
+still open - and when a brief is outcome-dependent the structure note points at
+it explicitly: if the evidence does not report the result as final, this is not
+the shape, write that one. **It is a real episode, not a consolation.** What is
+at stake and what has happened so far is most of what someone asking mid-event
+actually wants, which is the part the whole failure obscures.
+
+**3. The temporal block had two states and the world has three.** It covered
+*not started* ("if something has not happened yet, it has no result") and
+*finished but unclear* ("if the sources do not establish how something ended").
+A game in its third quarter is neither, and there was no sentence anywhere in
+FAM for it.
+
+Worse, the packet was **entirely pregame** and read as evidence for a recap. The
+script's own sentences give it away: "the favorite side of a spread that had
+them at two and a half points", "his *projected* starting left tackle", a pass
+rush "*expected to be* one of the tougher tests". Those are preview sentences,
+retrieved because the recency window was correct and the recap did not exist
+yet. Nobody had ever told the writer what a packet of previews *means*: it is
+not thin evidence of an outcome, it is evidence that there is no outcome.
+
+**4. It read a contradiction and talked itself out of it.** This is the tell
+that it knew:
+
+> "That result puts Kansas City at one win, no losses, though the standing
+> snapshot from right after the game still shows them listed second in the AFC
+> West. That's just a rounding artifact of how early it is in the season, not a
+> sign anything's wrong."
+
+The packet contained a standings source that its own invented result would have
+changed. Given direct evidence against the fabrication, the episode **invented a
+second fact to reconcile the first**. So the temporal block now says that a
+contradiction is information rather than a problem: if something you believe
+implies a result and a standing, record or table says otherwise, you do not have
+a result - you have something that has not finished - and the smaller true
+reading wins every time.
+
+**5. A missing search result was reported as the world being silent.** The week
+2 line came from `thin_on`. `packet_covers` found the brief's "next opponent"
+missing, and `build_prompt` said:
+
+    Say plainly that that part is not yet reported
+
+One search missing something is a fact about *the search*. "Not yet reported" is
+a claim about *the world*. For a volatile fact the two nearly coincide, and that
+is why the wording survived. For a settled one they do not coincide at all:
+nobody writes a news story about a fixture that has not changed since May, so
+the search misses it and the instruction converts that into a false claim - and
+then puts it in the last line, which also broke three separate system-prompt
+rules about not narrating sourcing, not forecasting, and never ending on an open
+thread. **The block was fighting the prompt it lives in.**
+
+It now splits the two cases by hand, because they genuinely differ: something
+that *changes* is not supplied from memory (a search that missed it is real
+evidence it is unsettled), something *already settled* may be, and if you are
+not sure enough to say it plainly you leave it out of the episode entirely.
+Either way the gap is never announced and is never the last thing heard.
+
+### The smallest bug, and the most expensive
+
+    if brief.intent in ("recap", "update") and not brief.cautions:
+        brief.cautions.append("nothing has been confirmed yet: ...")
+
+The single most important caution in FAM was appended **only when the model
+produced none of its own**. A model that has just been asked for cautions
+produces some, so in production this fired almost never - while the source read
+as though the guard were present, and the test that covered it passed, because
+it was written with an empty list.
+
+That shape is worth naming because nothing about it looks wrong on the page: a
+guard whose precondition is *"nothing else happened"* is off exactly when the
+system is working normally. It is now appended unconditionally and **prepended**,
+which also puts it out of reach of the `[:6]` truncation two lines below that
+could otherwise have dropped it. And its wording gained the state it had no
+words for: *"an event that has started is not an event that has finished"*.
+
+### The seam this lands on, which was predicted and is still empty
+
+§82 wrote down exactly this failure in advance:
+
+> A game ends and the scoreboard knows instantly; the recap saying so is
+> written, published and indexed later, so in between a search returns the
+> *preview*.
+
+`live_facts.py` is the seam for it and has a provider for neither of its two
+declared domains, so `lookup` returns `None` and the episode was written as
+though nothing were missing. A capability that is absent and quiet gets shipped.
+
+Registering a real scores provider is still one line and still the actual fix.
+Until somebody does it, `build_prompt` now says the gap out loud whenever a
+brief names a live domain and nothing answered: articles are written after the
+fact and indexed after that, so the newest thing you have is older than the
+thing being asked about, and the absence of a report is the report not existing
+yet - never licence to supply the state yourself.
+
+### The opening was vague, and it was following the rules
+
+The episode opened on a 2017 draft decision. That is what "start inside
+something already in motion", "no orienting", and "do not state your conclusion
+in sentence one" produce when taken literally: a vivid concrete detail that
+could have opened any Mahomes episode from any of eight seasons, and which left
+the listener thirty seconds from knowing what they were listening to.
+
+Nothing in the prompt said the opening has to be about **this** episode. It does
+now, and the distinction it turns on is worth keeping straight because the two
+sound alike:
+
+* **Orienting** is telling someone why a subject matters or what they are about
+  to hear. Still banned, for the reason it always was.
+* **Situating** is telling them where they are standing. Who, what, when, in
+  particulars - "the Chiefs play Denver tonight to open the season, and Mahomes
+  is nine months off a torn ACL". Required, inside two sentences.
+
+With the corollary that history earns its place by explaining the present rather
+than preceding it. A cold open years back reads as stalling, because it is.
+
+### What this cost the prompt budget, and how
+
+`test_the_prompt_stays_lean` caught the addition at 8,407 characters against a
+7,600 bound, which is the test doing its job. The two new rules were then cut to
+about a third of their first draft and paid for by a dedup pass in the same
+change - the `<<NEXT:>>` mechanics no longer explained in both prompts, the
+orienting contrast folded into the bullet it restates. The bound moved 7,600 ->
+7,800, by the residue rather than by the addition. Creep is addition with no
+pass for duplication; the way past that test is to do the pass.
+
+### What is fixed, and what is not
+
+Fixed: EI no longer asserts that anything finished; a question whose answer is a
+result is marked as one and cannot lose its caution; there is a story shape for
+an event under way and the writer is told when to switch to it; pregame evidence
+is named as evidence of no result; a contradiction is not to be reconciled by
+invention; a thin packet is no longer reported as the world being silent; the
+missing live feed is stated rather than absent; and the opening has to land the
+listener in the actual situation.
+
+Not fixed, and not fixable here: **none of this has been heard.** There is no
+API key in the build container, so every one of these is a prompt and a code
+path proven by tests rather than by an episode. The thing that would actually
+settle it is one run of
+
+    python write.py "chiefs game" --minutes 3
+
+during a game, with a key, reading the EI block above the script - which is
+precisely the split `write.py` prints for, and which now shows
+`answer is a RESULT` and the missing live feed on the same screen as the words
+they produced.
+
+And still the real fix for the whole class: **register a scores provider.** Every
+change above makes FAM honest about not knowing the score. None of them makes it
+know the score.

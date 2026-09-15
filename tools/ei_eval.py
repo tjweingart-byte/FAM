@@ -74,6 +74,21 @@ PROMPTS = {
         "what is the NASDAQ doing",
         "bitcoin price",
     ],
+    # **Asked while it is still happening**, which is the group that did not
+    # exist when this harness was written and is the one PROBLEMS.md §88 came
+    # from. Not the same test as `future`: a thing that has not started has no
+    # preview problem, because the previews are the correct evidence for it.
+    # Here the previews are *all* that exists and they read as evidence for a
+    # recap, so the only honest episode is an in-progress one.
+    #
+    # It cannot be run on a schedule, which is the point: run this group while
+    # something is actually on, and read whether the script says where it
+    # stands or tells you how it ended.
+    "in-progress": [
+        "Chiefs game",
+        "how is the match going",
+        "what is happening in the election count",
+    ],
     # Explicitly about something that has not happened. The tense test: a
     # preview described in the past tense is the failure in the packet's table.
     "future": [
@@ -144,6 +159,7 @@ async def one(generator: ScriptGenerator, query: str, minutes: int,
         "degraded": bool(getattr(brief, "degraded", True)),
         "intent": getattr(brief, "intent", "-"),
         "structure": getattr(brief, "structure", "-"),
+        "outcome_dependent": bool(getattr(brief, "outcome_dependent", False)),
         "why_now": getattr(brief, "why_now", ""),
         "confidence": getattr(brief, "why_now_confidence", "-"),
         "searched": getattr(brief, "retrieval", query),
@@ -191,6 +207,7 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
         print("  EI DEGRADED - the raw query was searched (the pre-EI path)")
     else:
         print(f"  {row['intent']} / {row['structure']}"
+              f"{'   ·   answer is a RESULT' if row['outcome_dependent'] else ''}"
               f"   ·   why-now: {row['why_now'] or '-'} ({row['confidence']})")
     window = f"  · last {row['window']}d" if row["window"] else "  · no window"
     print(f"  searched  {row['searched']!r}{window}")
@@ -223,7 +240,13 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
             print("    ^ check each against the source dates above. This is the "
                   "one thing no machine here can check for you.")
         results = RESULT_WORDS.findall(row["script"])
-        if results:
+        if results and row["outcome_dependent"]:
+            print(f"  RESULT LANGUAGE: {', '.join(sorted(set(r.lower() for r in results)))}")
+            print("    ^ the answer to this one IS a result, so check the source "
+                  "dates above: if they all predate the event, the episode was "
+                  "written from previews and this language is invented. That is "
+                  "§88, and it is the check this harness exists for.")
+        elif results:
             print(f"  RESULT LANGUAGE: {', '.join(sorted(set(r.lower() for r in results)))}")
             print("    ^ if this event has not happened yet, that is an "
                   "invented result.")

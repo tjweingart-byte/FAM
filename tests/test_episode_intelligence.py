@@ -267,6 +267,119 @@ def test_a_recap_always_carries_the_caution_that_nothing_is_confirmed_yet():
     assert any("confirmed" in c for c in ei.gate(brief, "who won").cautions)
 
 
+def test_the_mandatory_caution_survives_the_model_having_its_own():
+    """The bug, and it is the smallest and most expensive one in §88.
+
+    The caution was appended `if not brief.cautions` - so the single most
+    important instruction in FAM was suppressed by the presence of any other
+    caution at all. A model asked for cautions produces some, so in production
+    it was suppressed nearly every time, while the source read as though the
+    guard were there and the test above passed on an empty list."""
+    brief = ei.Brief(query="chiefs game", search_query="chiefs game",
+                     intent="recap", structure="sports_recap",
+                     cautions=["the Broncos are the reigning division winners"])
+    gated = ei.gate(brief, "chiefs game")
+    assert any("confirmed yet" in c for c in gated.cautions)
+    # And it cannot be pushed off the end by the six-item truncation either.
+    crowded = ei.Brief(query="who won", search_query="who won", intent="recap",
+                       cautions=[f"caution {n}" for n in range(9)])
+    assert "confirmed yet" in ei.gate(crowded, "who won").cautions[0]
+
+
+def test_the_caution_says_that_started_is_not_finished():
+    """The old wording - "nothing has been confirmed yet" - is true of a game
+    that has not kicked off and of one in its third quarter, and reads as being
+    about the former. The state it had no words for is the one that went
+    wrong."""
+    gated = ei.gate(ei.Brief(query="who won", search_query="who won",
+                             intent="recap"), "who won")
+    assert any("has started is not an event that has finished" in c
+               for c in gated.cautions)
+
+
+def test_a_question_whose_answer_is_a_result_is_marked_as_one():
+    """A property of the request, never of the world - which is what makes it
+    answerable by a layer that has retrieved nothing. EI cannot know whether
+    the game finished; it knows perfectly well that "who won" has no answer
+    until one does."""
+    for intent in ("recap", "update"):
+        brief = ei.gate(ei.Brief(query="who won", search_query="who won",
+                                 intent=intent), "who won")
+        assert brief.outcome_dependent, intent
+    # A live domain is the case where the lag between concluding and being
+    # reported is longest, so it counts however the intent was labelled.
+    live = ei.gate(ei.Brief(query="chiefs game", search_query="chiefs game",
+                            intent="explainer", live_domain="sports"),
+                   "chiefs game")
+    assert live.outcome_dependent
+    # And an evergreen question is not dragged into it.
+    evergreen = ei.gate(ei.Brief(query="how does a heat pump work",
+                                 search_query="heat pump", intent="explainer"),
+                        "how does a heat pump work")
+    assert not evergreen.outcome_dependent
+
+
+def test_a_shape_that_needs_an_outcome_names_the_one_that_does_not():
+    """Drop-any-beat-you-have-nothing-for was not enough on its own: the
+    result *is* the sports-recap shape, so dropping it leaves nothing and
+    filling it is the path of least resistance. The alternative has to be
+    named."""
+    note = ei.build_structure_note(
+        ei.Brief(structure="sports_recap", outcome_dependent=True))
+    assert "in-progress" in note
+    assert ei.STRUCTURES["in_progress"] in note
+    assert "Do not keep the shape and fill the missing beat" in note
+
+    # An episode that does not turn on an outcome is told none of this.
+    plain = ei.build_structure_note(ei.Brief(structure="explainer"))
+    assert "in-progress" not in plain
+
+
+def test_the_writer_is_told_the_result_may_not_exist_yet():
+    """The brief block is where the episode's shape is decided, so this belongs
+    above the cautions: it changes what the episode *is*, not how a sentence in
+    it is worded."""
+    block = ei.build_brief_block(
+        ei.Brief(query="chiefs game", subject="the Kansas City Chiefs game",
+                 intent="recap", structure="sports_recap",
+                 outcome_dependent=True), 3)
+    assert "a result only exists once the thing it comes from has finished" in block
+    assert "Both are real episodes" in block
+
+
+def test_a_live_question_with_no_feed_says_so_rather_than_going_quiet():
+    """`live_facts` declares sports and markets and has a provider for neither,
+    so today this fires on every such question. The lag is structural - a
+    scoreboard changes instantly and the article saying so is written,
+    published and indexed afterwards - and the writer cannot allow for it
+    unless it is told."""
+    brief = ei.Brief(query="chiefs game", search_query="chiefs game",
+                     intent="recap", live_domain="sports")
+    plan = dataclasses.replace(plan_episode("chiefs game", 3),
+                               brief=brief, evidence="SOURCE 1\nTitle: x\n")
+    prompt = build_prompt(plan)
+    assert "FAM has no" in prompt and "direct feed for it" in prompt
+    assert "never as licence to supply the state yourself" in prompt
+
+    # And an episode that turns on nothing live is not told any of it.
+    quiet = dataclasses.replace(plan, brief=ei.Brief(query="x", intent="explainer"))
+    assert "direct feed for it" not in build_prompt(quiet)
+
+
+def test_ei_may_not_pick_the_in_progress_shape_itself():
+    """Choosing it would be EI saying the event is under way, which is the same
+    unknowable claim `recap` used to smuggle in pointing the other way. The
+    writer reaches that shape from the evidence; EI never hands it over."""
+    assert "in_progress" in ei.STRUCTURES
+    assert "in_progress" not in ei.PICKABLE_STRUCTURES
+    assert "in_progress" not in ei.BRIEF_SCHEMA["properties"]["structure"]["enum"]
+
+    # And a model that names it anyway is mapped back rather than obeyed.
+    brief = ei.gate(ei.Brief(query="who won", search_query="who won",
+                             intent="recap", structure="in_progress"), "who won")
+    assert brief.structure == ei.INTENT_STRUCTURE["recap"]
+
+
 def test_the_gate_never_refuses():
     """Whatever it is handed, something searchable comes out. A gate that could
     return nothing would be a new way for an episode to fail."""
@@ -378,8 +491,73 @@ def test_evidence_that_missed_something_says_so_rather_than_going_quiet():
                                evidence="SOURCE 1\nTitle: x\n",
                                thin_on=("the final score",))
     prompt = build_prompt(plan)
-    assert "thin on: the final score" in prompt
-    assert "not yet reported" in prompt
+    assert "the final score" in prompt
+    assert "a fact about the search, not about the world" in prompt
+
+
+def test_a_thin_packet_is_never_reported_as_the_world_being_silent():
+    """PROBLEMS.md §88's smallest failure and its clearest one.
+
+    This block used to say "say plainly that that part is not yet reported".
+    One search missing something is a fact about the search; "not yet reported"
+    is a claim about the world, and the two only coincide for things that
+    change. Next week's fixture had been public since May, and FAM told a
+    listener it "hasn't been pinned down" - and ended the episode on it."""
+    plan = dataclasses.replace(plan_episode("chiefs game", 3),
+                               evidence="SOURCE 1\nTitle: x\n",
+                               thin_on=("the Chiefs' week 2 opponent",))
+    prompt = build_prompt(plan)
+
+    # The claim it must no longer make on the strength of one search.
+    assert "not yet reported" not in prompt
+
+    # The distinction that replaced it, both halves of it.
+    assert "changes" in prompt and "already settled" in prompt
+
+    # And the rule that stops the gap becoming the last thing the listener
+    # hears, which is what the system prompt has always said about endings.
+    assert "never announce the gap" in prompt.lower()
+    assert "end the episode on one of these" in prompt
+
+
+def test_an_event_under_way_is_a_state_the_prompt_has_a_name_for():
+    """The whole of §88 in one assertion.
+
+    The temporal block had two states - not started, and finished-but-unclear -
+    and a game in its third quarter is neither. Every story shape available
+    needed an outcome, so the writer supplied one: a 27-16 final for a game
+    that stood at 21-7."""
+    plan = dataclasses.replace(plan_episode("chiefs game", 3),
+                               evidence="SOURCE 1\nPublished: 2026-09-14\n")
+    prompt = build_prompt(plan)
+    assert "not started, under way, finished" in prompt
+    assert "A result exists only where a source reports it as a result" in prompt
+    assert "say so and say where it stands" in prompt
+
+
+def test_pregame_evidence_is_named_as_evidence_there_is_no_result():
+    """The specific misreading that produced the episode. The packet was made
+    entirely of previews - the spread, the projected left tackle, the pass rush
+    "expected to be" a test - and every one of those was treated as material
+    for a recap rather than as proof the game had not been played."""
+    plan = dataclasses.replace(plan_episode("chiefs game", 3),
+                               evidence="SOURCE 1\nPublished: 2026-09-14\n")
+    prompt = build_prompt(plan)
+    for marker in ("odds", "projected line-ups", "how to watch", "expected to"):
+        assert marker in prompt, f"{marker!r} is a pregame tell and should be named"
+    assert "not thin evidence of an outcome" in prompt
+
+
+def test_a_contradiction_is_never_resolved_by_inventing_a_reason_for_it():
+    """The tell that the episode knew something was wrong and talked itself
+    out of it: it read a standings table that its own invented result would
+    have changed, and called the disagreement "a rounding artifact of how
+    early it is in the season"."""
+    plan = dataclasses.replace(plan_episode("chiefs game", 3),
+                               evidence="SOURCE 1\nPublished: 2026-09-14\n")
+    prompt = build_prompt(plan)
+    assert "A contradiction is information; never explain it away" in prompt
+    assert "Take the smaller true" in prompt and "reading every time" in prompt
 
 
 # --------------------------------------------------------------------------

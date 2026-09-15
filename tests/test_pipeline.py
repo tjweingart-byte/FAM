@@ -944,10 +944,23 @@ def test_the_prompt_stays_lean():
     Every token here is paid on every episode. The 2,025-token version was
     reached by four rounds of addition with no pass for duplication; this
     catches the next four.
+
+    **Raised once, from 7,600, and the reason is the point of writing it down.**
+    PROBLEMS.md §88 added two rules the owner asked for after hearing a real
+    episode: situate the listener in the first two sentences, and a result you
+    have not read does not exist. That addition came with a dedup pass in the
+    same change - the `<<NEXT:>>` mechanics no longer explained twice, the
+    orienting contrast folded into the bullet it restates - which gave back
+    roughly seven hundred of the eight hundred characters it cost. So the bound
+    moved by the residue, not by the addition.
+
+    That is the distinction this number exists to enforce, and moving it is not
+    a way around it: creep is addition with no pass for duplication, and the
+    way past this test is to do the pass, not to raise the bound again.
     """
     from script_generator import SYSTEM_PROMPT
 
-    assert len(SYSTEM_PROMPT) < 7600, (
+    assert len(SYSTEM_PROMPT) < 7800, (
         f"system prompt is {len(SYSTEM_PROMPT)} chars (~{len(SYSTEM_PROMPT)//4} "
         "tokens); dedup before adding more, and prefer an example over a rule"
     )
