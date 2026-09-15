@@ -200,6 +200,12 @@ DEFAULT_RESEARCH_BACKEND = "exa"
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.
 PREFETCH_LEVELS = ("brief", "script")
 
+#: Who may draw an episode's illustration. Named here for the same reason as
+#: the levels above: `Settings`, `visual_provider.PROVIDERS` and the tests all
+#: read "the providers" from one place, so a name added in one cannot be
+#: missing from another.
+VISUAL_PROVIDERS = ("openai", "synthetic", "none")
+
 #: Backends slow enough that the from-knowledge cover earns its second call.
 #:
 #: `answer_first` exists for exactly one reason: Claude's server-side search
@@ -485,6 +491,88 @@ class Settings:
     # make the episode confidently about the wrong day.
     prefetch_brief_ttl_seconds: float = _env_float(
         "PREFETCH_BRIEF_TTL_SECONDS", 3600.0)
+
+    # --- The drawing ------------------------------------------------------
+    # "A single line connecting us all." One continuous-line illustration per
+    # eligible episode, revealed by the audio as it plays and kept afterwards
+    # as the episode's thumbnail. See VISUALS.md.
+    #
+    # On by default, and safe to be: with no image credential every code path
+    # runs and every one of them ends in `unconfigured`, which costs nothing
+    # and is reported on /api/health and in the player. Nothing here is ever
+    # in front of audio - the job is a background task and the heavy steps run
+    # in threads - so the worst an enabled-but-broken visual layer can do is
+    # leave the ivory square blank.
+    visuals: bool = field(
+        default_factory=lambda: os.environ.get("VISUALS", "1")
+        not in ("0", "false", "False", ""))
+    # openai | synthetic | none. `synthetic` draws a real continuous line
+    # locally with no key, for seeing the pipeline work; it is never selected
+    # as a fallback, because a placeholder that substitutes itself for the real
+    # thing is the failure this project has lost the most time to.
+    visual_image_provider: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_IMAGE_PROVIDER", "openai")
+        .strip().lower())
+    visual_image_model: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_IMAGE_MODEL", "gpt-image-1"))
+    # low | medium | high. Quality is the feature here - the brief is a premium
+    # editorial illustration, and the cheaper tiers produce exactly the generic
+    # AI look the style spec rules out. `high` costs about $0.17 an image.
+    visual_image_quality: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_IMAGE_QUALITY", "high"))
+    # Square, always. The illustration is shown in a 1:1 canvas on the player
+    # and a 1:1 tile in the feed, and a crop would move the composition.
+    visual_image_size: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_IMAGE_SIZE", "1024x1024"))
+    visual_image_timeout_seconds: float = _env_float(
+        "VISUAL_IMAGE_TIMEOUT_SECONDS", 180.0)
+    # Attempts in total, not retries on top of the first. Three is the ladder
+    # in visual_style: standard, insist on continuity, simplify.
+    visual_max_retries: int = _env_int("VISUAL_MAX_RETRIES", 3)
+    # How many drawings may be in flight at once. The ceiling that matters is
+    # the provider's, not this machine's - the processing is tenths of a second
+    # in a thread.
+    visual_concurrency: int = _env_int("VISUAL_CONCURRENCY", 2)
+    # A ceiling, not a quota: it stops a runaway, it does not ration anybody.
+    # Zero means no ceiling.
+    visual_daily_budget_usd: float = _env_float("VISUAL_DAILY_BUDGET_USD", 5.0)
+    # How long the visual job waits for the episode's own understanding before
+    # directing from the query alone. Costs nothing - nobody is waiting on a
+    # picture - and buys an illustration about the same episode the words are
+    # about.
+    visual_understanding_wait_seconds: float = _env_float(
+        "VISUAL_UNDERSTANDING_WAIT_SECONDS", 12.0)
+    # Whether the Visual Director gets a model call of its own. Off means every
+    # illustration is directed from the raw query, which still draws - the
+    # director may never subtract availability - and is visibly worse.
+    visual_director: bool = field(
+        default_factory=lambda: os.environ.get("VISUAL_DIRECTOR", "1")
+        not in ("0", "false", "False", ""))
+    visual_director_model: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_DIRECTOR_MODEL",
+                                               "claude-sonnet-5"))
+    visual_director_effort: str = field(
+        default_factory=lambda: os.environ.get("VISUAL_DIRECTOR_EFFORT", "low"))
+    visual_director_max_tokens: int = _env_int("VISUAL_DIRECTOR_MAX_TOKENS", 900)
+    visual_director_timeout_seconds: float = _env_float(
+        "VISUAL_DIRECTOR_TIMEOUT_SECONDS", 20.0)
+    # Show the image model FAM's approved illustrations where it supports
+    # reference conditioning. Costs nothing when the folder is empty.
+    visual_use_references: bool = field(
+        default_factory=lambda: os.environ.get("VISUAL_USE_REFERENCES", "1")
+        not in ("0", "false", "False", ""))
+    # The side of the raster the thumbnail is rendered at, from the vector.
+    # Retina tiles and share cards want more than the 1000-unit viewBox.
+    visual_thumbnail_pixels: int = _env_int("VISUAL_THUMBNAIL_PIXELS", 1536)
+    # The side the synthetic provider draws its source at. Ignored by a real
+    # provider, which is asked for VISUAL_IMAGE_SIZE.
+    visual_source_pixels: int = _env_int("VISUAL_SOURCE_PIXELS", 1024)
+    # How many tiles one browse-surface warm may draw ahead of the tap.
+    visual_warm_per_cycle: int = _env_int("VISUAL_WARM_PER_CYCLE", 6)
+    # How long the server must have gone without a live episode before it will
+    # draw one nobody has asked for. Prefetch's rule, for the same reason: a
+    # speculative picture that delays a real episode has inverted the point.
+    visual_quiet_seconds: float = _env_float("VISUAL_QUIET_SECONDS", 15.0)
     # legacy | phase6 - see STREAMING_PIPELINES above.
     #
     # **phase6 is production.** It defaulted to `legacy` until the Phase 6 path
@@ -813,6 +901,20 @@ class Settings:
                     f"{name.upper()}={getattr(self, name)} must be at least 1. "
                     "Zero would send Claude an empty evidence packet and call "
                     "it research.")
+        if self.visual_image_provider not in VISUAL_PROVIDERS:
+            raise ValueError(
+                f"VISUAL_IMAGE_PROVIDER={self.visual_image_provider!r} is not "
+                f"an image provider. Use one of: {', '.join(VISUAL_PROVIDERS)}. "
+                "Refusing rather than picking one: a typo that quietly meant "
+                "`synthetic` would ship placeholder art as if it were FAM's.")
+        if self.visual_max_retries < 1:
+            raise ValueError(
+                f"VISUAL_MAX_RETRIES={self.visual_max_retries} must be at "
+                "least 1; zero would queue a drawing and never attempt it.")
+        if self.visual_concurrency < 1:
+            raise ValueError(
+                f"VISUAL_CONCURRENCY={self.visual_concurrency} must be at "
+                "least 1; zero would queue every drawing forever.")
         if self.exa_packet_sources > self.exa_num_results:
             raise ValueError(
                 f"EXA_PACKET_SOURCES={self.exa_packet_sources} exceeds "

@@ -1602,11 +1602,20 @@ STAGE = """
 def build() -> pathlib.Path:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     audio_js = (STATIC / "fam-audio.js").read_text(encoding="utf-8")
+    line_js = (STATIC / "fam-line.js").read_text(encoding="utf-8")
 
     html, n = re.subn(r'<script src="[^"]*fam-audio\.js"[^>]*></script>',
                       "<script>\n" + audio_js + "\n</script>", html)
     if n != 1:
         raise SystemExit("could not inline fam-audio.js - has the script tag changed?")
+
+    # The illustration renderer, inlined for the same reason: one file that
+    # opens from anywhere. Without it the preview's player throws on the first
+    # tap, which is a broken preview rather than a preview without pictures.
+    html, n = re.subn(r'<script src="[^"]*fam-line\.js"[^>]*></script>',
+                      "<script>\n" + line_js + "\n</script>", html)
+    if n != 1:
+        raise SystemExit("could not inline fam-line.js - has the script tag changed?")
 
     # topics.ALGO_VERSION, so an impression row carries the same stamp the
     # server would write rather than a number invented here.

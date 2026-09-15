@@ -56,3 +56,15 @@ pod-results/
 # If genuinely new experiment source is ever written on this branch, this line
 # would hide it. Add it with `git add -f`, or reconsider the line.
 experiments/
+
+# Generated illustrations. The source artwork, the vector and the rendered
+# thumbnail for every episode drawn on this machine - content, not source, and
+# a deployment rebuilds what it needs from the API. `fam-visuals.db` is already
+# covered by *.db above; this is the folder beside it.
+episode-visuals/
+
+# Approved FAM illustrations shown to the image model as the house style. They
+# are real artwork somebody made, so whether they belong in the repository is a
+# decision to take deliberately rather than by accident - drop them in, and
+# force-add them if you want them shared.
+visual_references/

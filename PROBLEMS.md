@@ -4931,3 +4931,220 @@ the page actually draws and does not warm trending a second time. A thread
 source whose store falls over returns nothing rather than taking the cycle
 down. Every candidate has a reason and the length the cache key expects. And,
 last, the module is read to prove no source reaches for a model or the network.
+
+## 84. The episode had nothing to look at, and the obvious way to fix that would have been a video
+
+FAM is audio, and it stays audio. But a listening app is opened on a phone and
+held in a hand, and a three-minute episode with a title and a progress bar on
+screen is three minutes of nothing to look at. The brief was one continuous-line
+illustration per episode - "a single line connecting us all" - drawn across an
+ivory square by the audio as it plays, and kept afterwards as that episode's
+thumbnail.
+
+`VISUALS.md` is the whole of it. This is what was hard, what the obvious answers
+got wrong, and what is still unproven.
+
+### The obvious answer is a video, and it is wrong in four ways
+
+Generate an MP4 of the line being drawn, play it under the audio. It fails on
+everything this app's transport does: pause has to freeze it, a seek has to jump
+it, a rewind has to un-draw it, and 2x has to keep it in step - and a frame-based
+file can do the first two badly and the last two not at all. It also costs
+bandwidth on a product whose settled constraint is that nothing is ever written
+as a file, and it produces a *second* asset that has to agree with the thumbnail
+and eventually will not.
+
+The answer is a real ordered vector path, revealed as a share of its own length:
+
+    progress = clamp(currentTime / duration, 0, 1)
+
+That one line is the entire player. Pause, resume, seek, rewind, speed changes,
+a locked phone and a backgrounded tab all work without a case each, because the
+reveal is a *pure function of playback position* rather than an animation with an
+opinion of its own. It is the same shape of answer as `fam-audio.js`'s
+clock-derived cursor, and for the same reason: anything with its own timer
+drifts.
+
+### The architectural problem: the picture cannot wait for the script
+
+On search, audio starts before the script is finished. So an illustrator placed
+downstream of the writer could only ever begin after the listener already had
+sound - which is the worst possible moment, because the episode is already half
+over by the time the drawing arrives.
+
+**The script and the picture are siblings, not a chain.** Both read the same
+upstream understanding - the EI brief and the research packet - at the same
+moment. `understanding.py` is that fork as code: `ScriptGenerator.prepare`
+announces what it worked out and carries on, and the drawing job, which is
+already running, picks it up. One-directional on purpose: if nothing is
+listening, nothing happens and nothing is slower. Threading the brief out
+through the pipeline's return types would have put the illustration in the audio
+path's call graph, which is exactly the coupling this must not have.
+
+It polls at 100 ms rather than using an `asyncio.Event` because a waiter and a
+publisher have to share an event loop for an Event to work, and this project
+runs tests, a preview build and a server that each make their own.
+
+### The hard case is search, and it needed no code
+
+The vector can arrive thirty seconds into an episode that is already playing.
+The instinct is to write a catch-up path. There is none: the first frame after
+the drawing arrives is painted at whatever the formula says, which is 30/180 =
+17%, and it continues from there. **Never restarting at zero falls out of the
+formula** rather than being a rule anybody has to enforce.
+
+The one thing that *is* a deliberate rule is the opposite: readiness and reveal
+are different things. A myFAM tile whose picture is finished still starts its
+player at 0% and draws it again with the audio. Watching it appear is the
+feature.
+
+### The part that actually took the work: it looks like one line and it is not
+
+An image model asked for continuous-line art returns something that reads as one
+stroke and is, as geometry, a few hundred disconnected marks. There is no such
+thing as the first 17% of a pile of strokes. So `line_processor.py` turns a
+raster into one ordered route: isolate ink, skeletonise, build a graph, bridge
+gaps, find a route, smooth, fit curves.
+
+Four things in there where the obvious answer is wrong, each found by doing the
+obvious thing first and looking at the result:
+
+**A diagonal neighbour is not a neighbour when an orthogonal one reaches it.**
+The first working version reported 930 junctions in a skeleton of 2,413 pixels -
+for a drawing of one smooth closed curve. The thinning was correct and
+one-pixel-wide; the *counting* was wrong. Eight-connected neighbour counting
+calls every bend in a thinned line a T-junction, because on a staircase (which
+is what every curve looks like after thinning) the diagonal step and the two
+orthogonal steps that go round it are all neighbours. Counting a diagonal only
+when nothing else reaches it takes the same skeleton to two endpoints and no
+junctions. The same rule has to govern the *walk* as well as the classification,
+or a walker finds three ways on where the classifier said two and takes an
+arbitrary turn at every bend.
+
+**Retracing is allowed; jumping is not.** A graph with odd-degree vertices has no
+Euler path. The route-inspection ("Chinese postman") answer is to duplicate the
+cheapest existing edges until one exists - the pen goes back over a line it has
+already drawn, which is invisible. The alternative, drawing a straight line
+across empty ivory to reach the next piece, is a scar, and this module will never
+draw one. Measured at 8% retracing on a circle-plus-chord-plus-tail test image,
+which is nothing anybody can see.
+
+**Smooth, then simplify, then fit - and the obvious order is backwards.**
+Simplifying first *locks the pixel staircase in*: every step deviates by about a
+pixel, which is more than any tolerance small enough to keep real detail, so the
+steps are the points that survive and the curve fitting then dutifully draws a
+tremor. Visible at 1536px as a hand shake, and it is exactly the "crude vector
+tracing" the brief rules out. Smoothing first (a 1-2-1 binomial filter, ends
+pinned) took one test figure from 357 curves with visible jitter to 113 clean
+ones.
+
+**Badly connected art is refused, not rescued.** A gap is bridged only when one
+side is a loose end and the other is within about 3.5% of the canvas - and the
+other side may be a point part-way along another stroke, which is the break that
+actually happens, since a stroke usually stops short of the *middle* of another
+where there is no loose end to meet. Anything worse fails validation and is
+drawn again. The answer to a picture in three pieces is a different picture.
+
+### The thumbnail is rendered from the vector, and that is not a detail
+
+"The player's last frame is the episode's thumbnail" is only true if there is one
+source of truth. Rendering the tile from the raster the image model returned and
+the player from the vector guarantees two pictures that resemble each other, and
+the difference is the sort nobody notices until a listener does. So the PNG is
+rasterised from the *flattened Bézier path* - the same geometry the player
+reveals - and if the file is ever missing it is re-rendered from the stored `d`.
+
+### Two bugs the tests found, both real
+
+**A regeneration wiped the drawing before trying to replace it.** `regenerate`
+wrote its scratch record to the store first, so an administrator asking for a
+better picture on a failing provider ended up with no picture. The whole point
+of the manual redo is that it cannot do that. It now runs the job without
+writing first, and puts the previous record back verbatim - files included, since
+assets are only written on the `ready` branch - if the redo does not succeed.
+
+**Module state leaked between tests**, which is the same failure in a smaller
+form: `reset()` cleared the store and the in-flight set but not the telemetry
+counters or the "somebody is listening right now" clock, so one test's live
+generation made every later test's warm stand aside forever.
+
+### Placeholder art is never a fallback
+
+`VISUAL_IMAGE_PROVIDER=synthetic` draws a genuine continuous line locally, with
+no key and no network, and it exists so the whole pipeline can be seen working
+and so the tests exercise real geometry rather than a fixture. It is selected
+explicitly or not at all: with `openai` configured and no key, an episode has no
+illustration and everything says so.
+
+That is §51 and §61's lesson applied to pixels. An app that quietly looks worse
+than intended is the failure this project has lost the most time to, and a
+stand-in that substitutes itself when a credential is missing is precisely how
+that happens. Where synthetic art does appear it is labelled `placeholder art`
+on the canvas, `placeholder: true` in the API and `[PLACEHOLDER ART]` on
+`/api/health`.
+
+### exploreFAM, twice
+
+The one hard exclusion in the brief. It holds in two independent places, because
+either alone is one refactor from being wrong:
+
+* `visuals.eligible` refuses a replay-only request server-side, so a client that
+  asked would get nothing and cause nothing to be drawn.
+* Explore's player calls `FamAudio` directly rather than going through
+  `speakText`, so there is no flag to forget and nothing to turn off.
+
+Both are asserted - in pytest, and in the browser smoke test, which opens Explore
+and checks there is no canvas in it and that the renderer is not driving
+anything.
+
+### What is deliberately not here, and what is unproven
+
+**Nobody has seen a real FAM illustration.** The build container has no image
+credential, so every drawing verified so far is synthetic. What is proven end to
+end, in a real browser against a real server: the square starts blank, the line
+appears and advances with the audio, seeking moves it both ways, pausing freezes
+it, the path on screen is the path the server stores, the thumbnail renders from
+it, and Explore has none of it. What is *unproven* is how `gpt-image-1`'s line
+art survives skeletonisation and how often it survives at all -
+`visual_processing_failed` and `visual_validation_failed` on `/api/health` are
+where that answer will appear, and the retry ladder exists because the first
+answer will not be 100%.
+
+**`visual_references/` is empty**, and it is the strongest lever on how these
+look - the same thing `examples/` is to the writing. Rules describe a style;
+examples are matched. With references present the request goes to
+`/images/edits` and the model is shown them.
+
+**Nothing schedules a warm cycle.** Drawing ahead happens when a browse surface
+is loaded, not on a timer - the same open question prefetch has, wanting the same
+hit-rate evidence.
+
+### Coverage
+
+`tests/test_line_processor.py` - seventeen tests, every one drawing its own
+source image so the right answer is known rather than eyeballed. One path with
+one moveto; a closed loop that closes; the route never leaping across the canvas;
+a small gap bridged and the piece kept; retracing present and small; two separate
+drawings refused; a blank canvas refused; a dark image refused rather than
+thresholded into noise; the turn angle between segments measured, to catch the
+staircase coming back; the staircase-is-not-a-junction rule pinned directly.
+
+`tests/test_visuals.py` - twenty-eight, around the five constraints. The key,
+including that exactly one function computes it. exploreFAM, four ways. One
+episode drawn once across a tap, a re-tap and a duplicate. Every failure ending
+as a state rather than an exception, and the ladder escalating structure rather
+than art direction. The ceiling, the stand-aside, the reason on every candidate.
+The fork - a drawing that really does read the brief the writer published. And a
+failed regeneration leaving the previous drawing exactly where it was.
+
+`tests/test_visual_director.py` - seventeen, on the two rules it inherits from
+EI: it may never subtract availability (no key, a timeout, any exception at all,
+switched off - all still produce a drawable brief), and it never asserts a fact.
+
+`tests/test_visual_endpoints.py` - sixteen, on the API before the screen:
+polling that cannot spend, an SVG served as one safe document with a CSP, a
+replay leaving nothing behind, every feed tile carrying its drawing.
+
+`tools/visual_probe.py` - the browser, against a running server, because the
+reveal is a dash offset written by an animation frame from an audio clock and
+nothing in pytest can see any part of that sentence.

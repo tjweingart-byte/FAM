@@ -1,0 +1,327 @@
+"""One visual language, written down once.
+
+"A single line connecting us all." Every eligible FAM episode gets **one**
+continuous-line illustration, and the same vector serves both roles it is asked
+to play - the finished image is the thumbnail, the partially-drawn image is the
+player. There is deliberately no second artwork for the second role, for the
+same reason the script cache stores scripts rather than audio: the expensive
+thing is made once and used twice.
+
+This module holds the part of that which never changes from episode to episode.
+`visual_director` decides *what* to draw; this decides *how everything is
+drawn*, and it does not rotate. FAM should look like one artist, so the style
+is a constant and not a parameter - a per-episode style would give a feed where
+every tile came from a different studio, which is the one thing a visual system
+is for preventing.
+
+Three consumers:
+
+* `visual_provider` turns `image_prompt()` into a request to an image model.
+* `line_processor` reads `INK`, `PAPER` and the geometry constants to know what
+  is line and what is paper, and what the vector it emits must look like.
+* the player and the thumbnail read `PAPER`, `INK` and `STROKE_WIDTH`, so the
+  square a listener watches being drawn is the square they saw on the tile.
+
+**The reference images are the strongest lever here, and they are empty.** The
+same thing `examples/` is to the writing, `visual_references/` is to the
+drawing: rules describe a style loosely, and a provider that supports reference
+conditioning matches an example closely. Two or three approved FAM
+illustrations dropped in that folder will move the output further than any
+further wording below. Nobody has put one there yet.
+"""
+from __future__ import annotations
+
+import base64
+import logging
+import mimetypes
+from dataclasses import dataclass, field
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+#: Warm ivory. The canvas a listener stares at for three minutes, so it is a
+#: paper colour rather than a white one - white reads as "not loaded yet",
+#: which is exactly the wrong thing for a square that is deliberately blank at
+#: the start of an episode.
+PAPER = "#F8F4EA"
+#: Charcoal, not black. Black on ivory is a printer; this is a pen.
+INK = "#171820"
+#: Fine. The line has to stay a line at 1536px and still be visible at the
+#: 132px a myFAM tile gives it, and the answer to that is a thin stroke that
+#: scales rather than a heavier one that does not.
+STROKE_WIDTH = 1.4
+#: Every vector is emitted in this space, whatever the source image measured.
+#: One coordinate system means the thumbnail, the player and the iOS client
+#: can all be handed the same `d` attribute and get the same picture.
+VIEWBOX = 1000
+#: Nothing may be drawn nearer than this to the edge, in viewBox units. A
+#: composition that runs off the canvas reads as a crop of something bigger,
+#: and the validator rejects one that does.
+SAFE_MARGIN = 40
+
+#: Where approved FAM illustrations live, for providers that can be shown one.
+REFERENCE_DIR = PROJECT_ROOT / "visual_references"
+#: What a reference may be. Anything else in the folder is ignored rather than
+#: sent - an image model handed a .DS_Store is a wasted request.
+REFERENCE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+#: How many references to show at once. More is not better: a provider given
+#: eight references averages them into something that looks like none of them.
+MAX_REFERENCES = 3
+
+
+@dataclass(frozen=True)
+class StyleSpec:
+    """The constant half of every image request.
+
+    Frozen, and built once at the bottom of this module. It is a dataclass
+    rather than loose module constants so that a test can assert on the whole
+    of it, and so `visual_provider` has one object to log and store beside the
+    artwork - "which style produced this" has to be answerable later, when the
+    style has moved on and the old tiles are still in the feed.
+    """
+
+    name: str
+    version: int
+    paper: str
+    ink: str
+    stroke_width: float
+    #: The house description, in the order an art director would say it.
+    canvas: tuple[str, ...] = ()
+    line: tuple[str, ...] = ()
+    composition: tuple[str, ...] = ()
+    behaviour: tuple[str, ...] = ()
+    character: tuple[str, ...] = ()
+    avoid: tuple[str, ...] = ()
+    references: tuple[str, ...] = field(default_factory=tuple)
+
+    def as_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "paper": self.paper,
+            "ink": self.ink,
+            "stroke_width": self.stroke_width,
+        }
+
+
+STYLE = StyleSpec(
+    name="fam-single-line",
+    # Bumped when the look changes. It is part of the visual key, so a bump
+    # retires every stored illustration rather than leaving a feed that is half
+    # one style and half another - which is worse than either style alone.
+    version=1,
+    paper=PAPER,
+    ink=INK,
+    stroke_width=STROKE_WIDTH,
+    canvas=(
+        "a perfect square",
+        f"a flat, warm ivory ground, exactly the colour {PAPER}, edge to edge",
+        "no border, no frame, no vignette, no paper texture, no drop shadow",
+    ),
+    line=(
+        f"one extremely fine charcoal line, the colour {INK}",
+        "uniform visual weight from end to end - never tapering, never thickening",
+        "rounded ends and rounded joins, as though drawn with a fine pen held flat",
+        "the line is the only mark on the page",
+    ),
+    composition=(
+        "generous negative space; at least half the canvas is untouched ivory",
+        "one clear subject with a strong silhouette, given room to breathe",
+        "asymmetry is welcome; dead-centre symmetry is not required",
+        "editorial, like the opening illustration of a long magazine piece",
+        "nothing touches the edge of the canvas",
+    ),
+    behaviour=(
+        "long, flowing, unbroken paths that wander with intent",
+        "elegant loops and returns rather than short disconnected strokes",
+        "the whole drawing reads as one journey of the pen across the page",
+        "the pen never leaves the paper: every part of the image is connected "
+        "to every other part",
+    ),
+    character=(
+        "sophisticated, restrained, human, timeless",
+        "confident enough to leave things out",
+        "intelligent rather than decorative",
+    ),
+    avoid=(
+        "thick or variable-width lines",
+        "shading, hatching, cross-hatching, stippling",
+        "fills of any kind, gradients, colour",
+        "text, letters, numbers, labels, captions, watermarks, signatures",
+        "logos or brand marks",
+        "cartoon or comic styling, mascots, faces with expressions",
+        "icon sets, pictograms, infographic furniture, arrows, charts",
+        "photorealism and three-dimensional rendering",
+        "clutter, busy detail, repeated pattern fill",
+        "random scribble used to fill space",
+        "many small disconnected strokes",
+    ),
+)
+
+
+def _bullets(items) -> str:
+    return "\n".join(f"- {item}" for item in items)
+
+
+def style_block() -> str:
+    """The house style, as prose an image model is given verbatim.
+
+    Deliberately one string rather than something assembled per request: every
+    episode is drawn by the same artist, so every episode is described to that
+    artist in the same words.
+    """
+    return (
+        "FAM SINGLE-LINE ILLUSTRATION - house style\n\n"
+        "CANVAS\n" + _bullets(STYLE.canvas) + "\n\n"
+        "THE LINE\n" + _bullets(STYLE.line) + "\n\n"
+        "COMPOSITION\n" + _bullets(STYLE.composition) + "\n\n"
+        "HOW THE LINE MOVES\n" + _bullets(STYLE.behaviour) + "\n\n"
+        "CHARACTER\n" + _bullets(STYLE.character) + "\n\n"
+        "NEVER\n" + _bullets(STYLE.avoid)
+    )
+
+
+#: Attempt 2. The first attempt failed structurally - the art looked like one
+#: line and was not - so this says the one thing that failure is about, loudly,
+#: and changes nothing else. Escalating the *style* on a structural failure
+#: would be answering a question nobody asked.
+CONTINUITY_INSISTENCE = (
+    "CRITICAL, above every other instruction: the drawing must be ONE single "
+    "unbroken continuous line. Start the pen at one point, never lift it, and "
+    "finish. Every stroke must physically touch the rest of the drawing - no "
+    "floating marks, no separate pieces, no detached details, no dots. If a "
+    "detail cannot be reached without lifting the pen, leave it out."
+)
+
+#: Attempt 3. Structure failed twice, so the subject is the thing to change:
+#: fewer forms, larger, fewer crossings. A simpler picture is a picture that
+#: can be drawn in one stroke.
+SIMPLIFY_INSISTENCE = (
+    "Draw this as simply as it can possibly be drawn. ONE single unbroken "
+    "continuous line, one large central form, very few crossings, and a great "
+    "deal of empty ivory. Fewer elements drawn larger is better than more "
+    "elements drawn smaller. Leave out every detail that is not the idea "
+    "itself."
+)
+
+
+def image_prompt(brief, attempt: int = 1) -> str:
+    """The whole request: what to draw, then how FAM draws everything.
+
+    `brief` is a `visual_director.VisualBrief`. It is duck-typed rather than
+    imported so that this module has no dependency on the director - the style
+    is the constant and the brief is the variable, and a constant that imports
+    its variable is a constant that cannot be tested on its own.
+
+    `attempt` escalates the *structural* insistence and never the art
+    direction, because the retries this ladder exists for are structural
+    failures. See `visuals.RETRY_LADDER`, which is where the ladder is decided;
+    this only knows how to say each rung.
+    """
+    subject = (getattr(brief, "subject", "") or "").strip()
+    form = (getattr(brief, "primary_form", "") or "").strip()
+    metaphor = (getattr(brief, "visual_metaphor", "") or "").strip()
+    composition = (getattr(brief, "composition", "") or "").strip()
+    tone = (getattr(brief, "tone", "") or "").strip()
+    complexity = (getattr(brief, "complexity", "") or "medium").strip()
+    avoid = [str(item).strip() for item in (getattr(brief, "avoid", None) or [])
+             if str(item).strip()]
+
+    lines = ["WHAT TO DRAW"]
+    if subject:
+        lines.append(f"- Subject: {subject}")
+    if form:
+        lines.append(f"- The main form on the page: {form}")
+    if metaphor:
+        lines.append(f"- The idea the drawing carries: {metaphor}")
+    if composition:
+        lines.append(f"- Composition: {composition}")
+    if tone:
+        lines.append(f"- Tone: {tone}")
+    lines.append(f"- Complexity: {COMPLEXITY_NOTE.get(complexity, COMPLEXITY_NOTE['medium'])}")
+    if avoid:
+        lines.append("- For this image in particular, avoid: " + ", ".join(avoid))
+
+    parts = ["\n".join(lines), style_block()]
+    if attempt >= 3:
+        parts.append(SIMPLIFY_INSISTENCE)
+    elif attempt >= 2:
+        parts.append(CONTINUITY_INSISTENCE)
+    return "\n\n".join(parts)
+
+
+#: What each complexity band means as *drawing*, rather than as a number. The
+#: same reasoning as `DEPTH_BANDS` for duration: "medium" has to be a
+#: description of the picture or it becomes a stroke count to hit.
+COMPLEXITY_NOTE = {
+    "low": "very few elements - one form, drawn large, with a great deal of "
+           "empty ivory around it",
+    "medium": "one dominant form with one or two supporting gestures; still "
+              "mostly empty ivory",
+    "high": "one dominant form with several supporting gestures, still "
+            "uncluttered and still with clear negative space",
+}
+
+
+@dataclass(frozen=True)
+class Reference:
+    """One approved FAM illustration, ready to be sent to a provider."""
+
+    name: str
+    media_type: str
+    data_b64: str
+
+
+def references(limit: int = MAX_REFERENCES) -> list[Reference]:
+    """The approved FAM illustrations on this machine, if any.
+
+    Empty is the normal state today and is not a failure: a provider that is
+    given no reference falls back to the written style, which is exactly the
+    behaviour before this folder existed. It is read from disk on every call
+    rather than cached, because the folder being fillable without a restart is
+    most of what makes it a usable lever.
+    """
+    if not REFERENCE_DIR.is_dir():
+        return []
+    found: list[Reference] = []
+    for path in sorted(REFERENCE_DIR.iterdir()):
+        if len(found) >= limit:
+            break
+        if path.suffix.lower() not in REFERENCE_SUFFIXES or not path.is_file():
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            log.warning("could not read visual reference %s: %s", path.name, exc)
+            continue
+        media_type = mimetypes.guess_type(path.name)[0] or "image/png"
+        found.append(Reference(path.name, media_type,
+                               base64.b64encode(raw).decode("ascii")))
+    return found
+
+
+def report() -> dict:
+    """What `/api/health` says about the style.
+
+    The reference count is here because an empty folder is invisible from
+    outside and is the difference between art that matches FAM and art that
+    merely matches the adjectives above.
+    """
+    names = [ref.name for ref in references()]
+    return {
+        "style": STYLE.name,
+        "version": STYLE.version,
+        "paper": STYLE.paper,
+        "ink": STYLE.ink,
+        "stroke_width": STYLE.stroke_width,
+        "references": names,
+        "reference_dir": str(REFERENCE_DIR),
+        "reference_note": (
+            "no approved references on this machine - the style is being "
+            "described in words only. Drop two or three approved FAM "
+            "illustrations into visual_references/ to show the model the "
+            "house voice instead of describing it."
+        ) if not names else "",
+    }

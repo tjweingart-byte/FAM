@@ -112,6 +112,16 @@ by a keystroke pause. That is where to spend it.
 to warm, how much of it, and when, are questions that want the hit rate it
 produces. See the settled constraint below.
 
+**And every eligible episode now has something to look at while it plays**
+*(PROBLEMS.md §84, `VISUALS.md`).* One continuous-line illustration, drawn
+across an ivory square by the audio itself and kept afterwards as that
+episode's thumbnail. It is the same "start earlier" argument again: the browse
+surfaces know what might be tapped, so their pictures are finished before the
+tap and cost nothing; search draws in parallel with the episode and joins at
+whatever position the audio has reached. **Explore has none of it** - it
+replays finished episodes and generates nothing, which is the promise a picture
+would break.
+
 ## What makes a FAM episode different
 
 **First, it satisfies the thing that brought them.** Someone searched, or tapped
@@ -512,6 +522,37 @@ the rest of this list it needs taste rather than a key.
   numbers. Nothing schedules a cycle yet - that is the next decision, not an
   oversight. `python tools/prefetch_report.py` shows what a deployment would
   warm without spending anything; `--live` reads the hit rate off a server.
+- **One episode, one drawing, and the audio is what draws it.** *(PROBLEMS.md
+  §84, `VISUALS.md`.)* Every eligible episode gets one continuous-line
+  illustration; finished it is the thumbnail, being drawn it is the player.
+  **Not a video, and not two assets.** The reveal is
+  `clamp(currentTime / duration, 0, 1)` applied to one ordered vector path,
+  which is why pause, seek, rewind and 2x all work without a case each - an
+  animation with its own clock would need five and would drift in all of them.
+  **The picture and the script are siblings, never a chain.** On search the
+  audio starts before the script is finished, so an illustrator downstream of
+  the writer could only ever begin after the listener already had sound. Both
+  read the same understanding - the EI brief and the research packet - at the
+  same moment; `understanding.py` is that fork, one-directional, so that if
+  nothing is listening nothing is slower. The hard case needs no code: a vector
+  arriving thirty seconds in is painted at 17% and continues, because never
+  restarting at zero *falls out of the formula*. The deliberate opposite rule
+  is that readiness and reveal are different things - a tile whose picture is
+  finished still starts its player at 0%.
+  **exploreFAM is excluded, twice.** `visuals.eligible` refuses a replay-only
+  request server-side, and Explore's player calls `FamAudio` directly rather
+  than through `speakText`, so there is no flag to forget. Either alone is one
+  refactor from being wrong.
+  Four more things that are settled: the visual key is **one function**
+  (`visuals.key_for`, the same doctrine as `pipeline.key_for`) and excludes
+  length and voice for the same reason the script cache excludes voice; the
+  thumbnail is rendered **from the vector**, never from the artwork the model
+  returned, because "the last frame is the thumbnail" is only true with one
+  source of truth; badly connected art is **refused, not rescued**, since the
+  answer to a picture in three pieces is a different picture; and
+  **placeholder art is never a fallback** - `synthetic` is selected explicitly
+  or not at all, which is §51 and §61 applied to pixels.
+
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for
   everyone", "in their 'At the gym' mix (typed, so shared with nobody)" - and
@@ -797,7 +838,8 @@ most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
-and downloads, and `IOS_APP.md` for the app version this is now being written
+and downloads, `VISUALS.md` for the continuous-line illustration every episode
+now carries, and `IOS_APP.md` for the app version this is now being written
 towards.
 
 A fresh container has none of the dependencies installed. Setup is two lines,
@@ -808,8 +850,8 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-six named smoke behaviours; anything less means something was skipped, and
-`dev.sh` now says so out loud (PROBLEMS.md §49).
+twenty-seven named smoke behaviours; anything less means something was skipped,
+and `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:
 
@@ -817,6 +859,12 @@ What is true but not obvious from the code:
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing
   sounds* is unverified until someone runs it with a key.
+  The same is now true of **how the drawings look**: there is no image
+  credential either, so every illustration verified here is the deliberately
+  labelled synthetic kind. The mechanism is proven end to end in a browser
+  (`tools/visual_probe.py`); what `gpt-image-1` actually produces, and how
+  often it survives the line processor, is unknown until somebody adds
+  `VISUAL_IMAGE_API_KEY`.
 - The checks answer "does it work", not "does it look right". `tools/shots.py`
   photographs all sixteen surfaces so a refactor can be proved neutral;
   `tools/stall_probe.py` measures browser stalls without a key, and

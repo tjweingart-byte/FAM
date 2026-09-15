@@ -149,6 +149,26 @@ auto-advance, the demo-mode cache, the play button that resumed instead of
 pausing — were invisible to the Python tests and obvious in a browser.
 
 
+## Watching the line being drawn (`tools/visual_probe.py`)
+
+`./dev.sh check` cannot see the episode's illustration actually move. The reveal
+is a `stroke-dashoffset` written by an animation frame from a position derived
+from an audio clock, and every part of that sentence needs a browser *and* a
+server. So there is a second probe, which starts nothing itself:
+
+    ./dev.sh                              # one terminal
+    python tools/visual_probe.py          # another
+
+It asserts the square starts blank, the line advances with the audio, seeking
+moves it both ways, pausing freezes it, the path on screen is the path the
+server stores — so the thumbnail and the player's last frame are one picture —
+and exploreFAM has no canvas at all.
+
+With no image credential on the machine, run the server with
+`VISUAL_IMAGE_PROVIDER=synthetic` and the probe exercises the whole pipeline on
+clearly-labelled placeholder line art. `VISUALS.md` is the rest of it.
+
+
 ## Proving a change did not move anything (`tools/shots.py`)
 
 Everything above asks whether the app *works*. None of it can see a page that

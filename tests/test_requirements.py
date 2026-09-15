@@ -47,6 +47,18 @@ DELIBERATELY_OPTIONAL = {
     # missing package, and research.diagnose() reports it on /api/health - so
     # the app starts and says what it cannot do.
     "exa_py": "requirements-exa.txt",
+    # Reading the artwork an image model returns. `line_processor.decode_image`
+    # tries Pillow first because it reads everything, and falls back to a PNG
+    # reader built out of the standard library when it is absent - the provider
+    # is asked for PNG, so the fallback covers the case that actually happens.
+    # A deployment with no Pillow draws exactly the same illustrations; the
+    # decode is a little slower and nothing else changes.
+    #
+    # Not silent: a Pillow that is present and cannot read the image logs and
+    # falls through, and the built-in reader refuses anything it does not
+    # genuinely support rather than guessing at it, so a picture decoded wrongly
+    # never reaches the skeletoniser as noise.
+    "PIL": "optional; line_processor falls back to a standard-library PNG reader",
     # Sign in with Google and Sign in with Apple, installed from
     # requirements-oauth.txt. Imported inside `oauth._library`, which raises
     # OAuthUnavailable naming the pip line; /api/health reports it per
