@@ -552,6 +552,30 @@ the rest of this list it needs taste rather than a key.
   answer to a picture in three pieces is a different picture; and
   **placeholder art is never a fallback** - `synthetic` is selected explicitly
   or not at all, which is §51 and §61 applied to pixels.
+  **The priority order, settled** *(§86, §87).* When these pull against each
+  other, the lower number wins: **1.** preserve the artwork; **2.** preserve
+  the no-scars rule; **3.** prefer visible new drawing over retracing when
+  both are valid; **4.** retrace existing ink when necessary; **5.** do not
+  let numeric heuristics override visual quality.
+  Five is a standing correction to every threshold in the system, including
+  the ones added *for* this: a richness metric is a **rejection aid, never a
+  definition of good FAM art**, and a beautiful sophisticated composition must
+  not be refused for scoring low on one. So a `Verdict` carries `reasons`
+  *and* `advisories` and only `reasons` refuse; the source gate's soft targets
+  each have a hard bound far beyond them; and the one richness bound that can
+  refuse is a **structural fact rather than a threshold** - a pictogram is a
+  closed outline with no junctions and no loose ends, where a spare figure
+  study has both. That distinction is not academic: the density floor written
+  in §86 scored a plain circle at 2.0 and a spare figure study at 2.3, and
+  **refused the figure study**. Where a metric and the picture disagree, the
+  metric is wrong.
+  Three and four are the routing rule: retracing is always preferred to a
+  bridge, but among equally safe routes take the one that keeps new line
+  arriving. `reveal_stall` measures the longest unbroken run of retracing
+  (total is the wrong number - 30% in bursts is fine, 20% at once is not) and
+  `best_route` tries several orderings of the *same* drawing, which provably
+  cannot change the picture. A route that still stalls is advisory: the
+  artwork is not what went wrong.
   **Art first, engineering second** *(§86).* FAM is **not** one simple icon
   drawn with one line; it is **one rich idea, interpreted as one beautiful
   editorial illustration, revealed through one continuous line.** "Continuous

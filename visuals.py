@@ -800,6 +800,15 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
             record.metrics = {"source_screening": screening.as_dict()}
             store().put(record)
             continue
+        if screening.advisories:
+            # Noticed and drawn anyway. A richness heuristic is a rejection aid
+            # and not a definition of good FAM art - a spare, sophisticated
+            # composition scores low on every one of them - so this is a line
+            # in the log and a field on the record, never a refusal.
+            log.info("drawing %r despite: %s", record.query,
+                     "; ".join(screening.advisories))
+            track("visual_source_advisory", id=record.id, attempt=attempt,
+                  advisories=screening.advisories, metrics=screening.metrics)
 
         store().mark(record, "processing")
         track("visual_processing_started", id=record.id, attempt=attempt)
@@ -832,6 +841,10 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         thumbnail = await asyncio.to_thread(
             line_processor.render_png, art.points, settings.visual_thumbnail_pixels)
         verdict = visual_validator.validate(svg, art, thumbnail)
+        if verdict.advisories:
+            log.info("%s: %s", record.id, "; ".join(verdict.advisories))
+            track("visual_advisory", id=record.id, attempt=attempt,
+                  advisories=verdict.advisories)
         if not verdict.ok:
             last_error = "; ".join(verdict.reasons)
             track("visual_validation_failed", id=record.id, attempt=attempt,
@@ -852,7 +865,7 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         track("visual_ready", id=record.id, attempt=attempt, query=record.query,
               curves=art.curves, retraced=round(art.retraced, 3),
               bridged=art.bridged, fidelity=round(art.fidelity, 3),
-              detail=art.detail)
+              detail=art.detail, stall=round(art.longest_stall, 3))
         return
 
     store().mark(record, "failed",

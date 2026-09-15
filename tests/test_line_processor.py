@@ -144,7 +144,7 @@ def test_the_traversal_never_leaves_a_gap_for_the_smoothing_to_bridge():
                 lp.ink_mask(lp.decode_image(
                     draw(circle(), line(0.13, 0.33, 0.87, 0.67))))[0],
                 lp.WORK_SIZE)))))[0])[0])
-    for (first, _), (second, _) in zip(route, route[1:]):
+    for (first, _, _), (second, _, _) in zip(route, route[1:]):
         gap = math.dist(first[-1], second[0])
         assert gap <= lp.CONTIGUOUS_TOLERANCE, (
             f"the route jumps {gap:.0f}px between chains - smoothing would "
@@ -157,8 +157,8 @@ def test_a_route_that_would_jump_is_refused_rather_than_drawn():
     assembler by some path nobody anticipated, the answer is to fail and let
     the retry ladder produce different art - never to draw through it."""
     far_apart = [
-        ([(0.0, 0.0), (10.0, 10.0)], False),
-        ([(400.0, 400.0), (410.0, 410.0)], False),
+        ([(0.0, 0.0), (10.0, 10.0)], False, False),
+        ([(400.0, 400.0), (410.0, 410.0)], False, False),
     ]
     with pytest.raises(lp.LineProcessingError) as raised:
         lp._assemble(far_apart)
@@ -171,8 +171,8 @@ def test_chains_that_meet_within_a_pixel_or_two_are_fine():
     is that cluster's centroid, so consecutive chains legitimately meet a pixel
     or two apart; zero tolerance would reject every drawing."""
     joined = [
-        ([(0.0, 0.0), (10.0, 10.0)], False),
-        ([(11.0, 11.0), (20.0, 20.0)], False),
+        ([(0.0, 0.0), (10.0, 10.0)], False, False),
+        ([(11.0, 11.0), (20.0, 20.0)], False, False),
     ]
     pixels, spans = lp._assemble(joined)
     assert len(pixels) == 4
@@ -511,3 +511,114 @@ def test_the_routing_limit_is_far_stricter_than_the_validators_backstop():
     assert in_units < visual_validator.MAX_BRIDGE_UNITS * 0.75, (
         "routing is bridging right up to the validator's limit; the safety net "
         "has become the definition of good routing")
+
+
+# --------------------------------------------------------------------------
+# Prefer visible new drawing over retracing
+# --------------------------------------------------------------------------
+# Priority three, between "never scar" and "retrace when necessary". The
+# drawing is revealed against the audio, so a long unbroken run of retracing is
+# a run of seconds in which the episode plays on and the picture does not
+# change. Retracing is fine. Retracing for a long time is a stall.
+
+
+def test_the_stall_measure_is_about_time_not_total_retracing():
+    """A route that retraces a lot in short bursts is fine; one that retraces
+    less but all at once is not. Total is the wrong number."""
+    step = [(0.0, 0.0), (10.0, 0.0)]
+    bursty = [(step, False, i in (1, 3, 5, 7)) for i in range(10)]
+    all_at_once = [(step, False, i in (6, 7, 8, 9)) for i in range(10)]
+    # Same total retracing in both, and only one of them stalls.
+    assert sum(1 for _, _, r in bursty if r) == \
+        sum(1 for _, _, r in all_at_once if r)
+    assert lp.reveal_stall(bursty) < lp.reveal_stall(all_at_once)
+    assert lp.reveal_stall(bursty) == pytest.approx(0.1)
+    assert lp.reveal_stall(all_at_once) == pytest.approx(0.4)
+
+
+def test_a_route_with_no_retracing_never_stalls():
+    assert lp.reveal_stall([([(0.0, 0.0), (1.0, 0.0)], False, False)] * 5) == 0.0
+    assert lp.reveal_stall([]) == 0.0
+
+
+def test_choosing_a_route_cannot_change_the_picture():
+    """The property that makes this safe to optimise at all. Priority one says
+    preserve the artwork; every candidate ordering traverses the same edges, so
+    the ink, the retraced share and the fidelity are identical whichever wins.
+    Only the order the listener meets it in differs."""
+    source = rich()
+    first = lp.process(source)
+    # A run confined to one ordering, against the chooser's pick.
+    import contextlib
+
+    class OneVariant:
+        def __enter__(self):
+            self.real = lp.ROUTE_TRIALS
+            lp.ROUTE_TRIALS = 1
+        def __exit__(self, *exc):
+            lp.ROUTE_TRIALS = self.real
+
+    with OneVariant():
+        single = lp.process(source)
+
+    assert first.retraced == pytest.approx(single.retraced)
+    assert first.fidelity == pytest.approx(single.fidelity, abs=0.01)
+    assert first.components == single.components
+    assert first.bridged == single.bridged
+
+
+def test_the_chooser_actually_improves_what_is_watched():
+    """Measured rather than assumed. Orderings of the same drawing differ a
+    lot in how they pace it - on these figures the first ordering stalls for
+    twice as long as the best one - and a chooser that never improved anything
+    would be cost with no benefit and should be deleted rather than left in."""
+    best_gain = 1.0
+    for seed in (1, 7, 4242):
+        mask = lp.despeckle(lp._resize_mask(
+            lp.ink_mask(lp.decode_image(rich(seed)))[0], lp.WORK_SIZE))
+        edges, positions = lp.build_graph(lp.prune_spurs(lp.skeletonise(mask)))
+        edges, _ = lp.bridge_gaps(edges, positions,
+                                  lp.BRIDGE_SHARE * max(mask.shape))
+        edges, _, _ = lp.keep_largest_component(edges)
+        edges, _ = lp.eulerise(edges)
+        stalls = [lp.reveal_stall(lp.euler_route(edges, v))
+                  for v in range(lp.ROUTE_TRIALS)]
+        assert min(stalls) <= stalls[0]
+        best_gain = min(best_gain, min(stalls) / max(stalls[0], 1e-9))
+    assert best_gain < 0.7, (
+        "no ordering improved the pacing materially; the chooser is buying "
+        "nothing and should be removed rather than left in")
+
+
+def test_the_reveal_of_a_real_drawing_does_not_stall_for_long():
+    import visual_validator
+
+    art = lp.process(rich())
+    assert art.longest_stall <= visual_validator.MAX_STALL, (
+        f"the reveal goes {art.longest_stall:.0%} of its length with nothing "
+        "new appearing")
+
+
+def test_a_stalling_route_is_noticed_and_never_refused():
+    """Priority five. The artwork is not what went wrong when a route paces
+    badly - the same picture in a different order does not - so refusing it
+    here would throw away good art over a property of the traversal."""
+    import visual_validator
+
+    class Stalling:
+        d = "M0 0 L1 1"
+        length = 2000.0
+        curves = 200
+        retraced = 0.3
+        components = 1
+        max_bridge = 0.0
+        bridged_length = 0.0
+        fidelity = 1.0
+        invented = 0.0
+        longest_stall = 0.9
+        detail = 0
+
+    verdict = visual_validator.Verdict()
+    visual_validator._check_quality(Stalling(), verdict)
+    assert verdict.ok, verdict.reasons
+    assert any("no new line appearing" in note for note in verdict.advisories)

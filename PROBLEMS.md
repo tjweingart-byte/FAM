@@ -5535,3 +5535,104 @@ at 4 or at 14 is unknown, and so is how often the model's answer survives it.
 `tools/visual_trace.py` preserves every stage, and the source screening is now
 written into the trace as `source-screening.json`, so the first real run says
 what it measured rather than only whether it passed.
+
+---
+
+## 87. The gate that would have refused the references
+
+§86 put a quality gate in front of the vectoriser and gave it a floor: a scan
+across the picture must meet at least three separate marks on average, because
+a plain circle - the shape of every pictogram - meets exactly two. The
+separation looked clean. An icon scored 2.0 and a scene scored 8.0, a factor of
+four apart, and the floor sat comfortably between them.
+
+Then a test was written for the *other* half of the rule - that a beautiful,
+spare composition must not be refused for scoring low - and it drew one: a
+figure's gesture, four strokes, the page left empty around it. The kind of
+drawing the meditation reference is.
+
+**It scored 2.3, and the gate refused it.**
+
+That is the failure the whole feature exists to avoid, committed by the code
+written to avoid it, and found only because the instruction to write the test
+was explicit. A density measure cannot tell restraint from a pictogram. The two
+are genuinely close in that number, because the number is measuring *how much*
+and the difference between them is *what kind*.
+
+**So the density measure was demoted to an advisory and the refusal was rebuilt
+on a structural fact.** A pictogram is a closed outline: nothing meets anything
+and nothing stops anywhere. `line_processor.structure` counts junctions and
+loose ends in the skeleton, and the three cases separate completely rather than
+narrowly:
+
+    plain circle     (0, 0)
+    spare figure     (1, 5)
+    full scene      (81, 18)
+
+One line meeting another line, or one loose end anywhere in the drawing, clears
+it. It cannot misfire on restraint, which is exactly what a threshold on a
+continuous quantity can always do. It costs a thinning pass, about twenty
+milliseconds, and that is the price of being able to tell those two apart.
+
+**The general rule, which is now written into `Verdict` itself.** A verdict
+carries `reasons` *and* `advisories`, and only `reasons` refuse. A measurement
+that is evidence of a problem rather than proof of one is recorded on the
+record, in the trace, in the log and on `/api/health`, and costs the picture
+nothing. Every soft measure in the source gate now has a hard bound set far
+beyond it - a speck at 25% of the square rather than a small composition at
+45%, a fill at 35% ink rather than a dense drawing at 16%, scribble at sixty
+marks per scan rather than dense at twenty-six - and `report()` prints the two
+sets separately, because an unenforced threshold looks exactly like an enforced
+one from outside.
+
+## The reveal was pacing itself badly, and nothing was looking
+
+The second half of the same instruction, and a problem nobody had measured
+because there was no number for it.
+
+Retracing is invisible as *ink* - that is the whole reason it is preferred to a
+bridge - but it is not invisible in *time*. The drawing is revealed against the
+audio, so an unbroken run of retracing is a run of seconds in which the episode
+plays on and the picture does not change. Measured on real figures, the route
+Hierholzer happened to produce spent up to **15.6% of the reveal** in a single
+such run: on a three-minute episode, nearly half a minute of a drawing that has
+stopped appearing.
+
+Note that `retraced` - the number that already existed, and the one the
+validator caps - says nothing about this. A route that retraces 30% in short
+bursts is fine and one that retraces 20% all at once is not. Total is the wrong
+measure; `reveal_stall` measures the longest unbroken run as a share of the
+journey.
+
+**The fix is free, because the picture is not what needed changing.**
+`euler_route` now takes a `variant` that rotates each vertex's adjacency list
+before the walk, so it produces a different valid ordering of **exactly the same
+multiset of edges**. Same ink, same retraced share, same fidelity - only the
+order the listener meets it in differs. `best_route` tries eight and keeps the
+one that paces best, stopping early once no run exceeds 6% of the journey. Each
+is a linear walk, so the whole thing is a few milliseconds.
+
+Measured, it earns its place rather than being tidy: 12.9% -> 6.5% on one
+figure, 15.6% -> 5.6% on another. A test asserts that at least one ordering
+improves materially, on the grounds that a chooser which never improved
+anything would be cost with no benefit and should be deleted rather than left
+in - and another asserts the property that makes it safe at all, that choosing
+a route cannot change the picture.
+
+And a route that still stalls is **advisory, never a refusal**. The artwork is
+not what went wrong when a traversal paces badly - the same picture in a
+different order does not - so rejecting it would be throwing away good art over
+a property of the route, which is the numbers overruling the picture twice in
+one step.
+
+**The priority order this settles**, and which now leads `VISUALS.md`:
+
+1. Preserve the artwork.
+2. Preserve the no-scars rule.
+3. Prefer visible new drawing over retracing when both are valid.
+4. Retrace existing ink when necessary.
+5. Do not let numeric heuristics override visual quality.
+
+Five is not a caveat on the other four. It is a standing correction to every
+threshold in the system, including the ones added in §86 - and the very first
+thing it caught was one of them.

@@ -45,6 +45,32 @@ picture* (the fix for "it will not route" is forms that **touch**, not fewer
 forms), and a beautiful drawing that comes out ugly is a **line-processing
 failure** — preserve the source, fix the processing.
 
+### The priority order
+
+Settled. When two of these pull against each other, the lower number wins.
+
+1. **Preserve the artwork.**
+2. **Preserve the no-scars rule.**
+3. **Prefer visible new drawing over retracing** when both are valid.
+4. **Retrace existing ink** when necessary.
+5. **Do not let numeric heuristics override visual quality.**
+
+Five is not a caveat on the other four, it is a standing correction to this
+whole document: every threshold written down here is a *rejection aid*, not a
+definition of good FAM art. A beautiful, sophisticated composition must not be
+refused because it scores low on a density measure — and the approved
+references are full of exactly that composition. Where a metric and the picture
+disagree, **the metric is wrong.**
+
+That is why the source gate has two tiers (hard bounds refuse, targets only
+advise), why the one richness bound that *can* refuse is a structural fact
+rather than a threshold somebody guessed, and why a badly paced reveal is
+noticed and drawn rather than rejected.
+
+Three and four together are the routing rule: retracing is what keeps the pen
+off the negative space and is always preferred to a bridge — but among routes
+that are equally safe, take the one that keeps new line arriving.
+
 ### What a FAM illustration is
 
 Sophisticated editorial line illustration. Warm ivory ground, extremely fine
@@ -280,6 +306,29 @@ to repair a genuinely tiny accidental gap between endpoints that visually and
 semantically belong to the same stroke. Never choose one because it passes the
 validator.
 
+### ...but prefer new drawing to retracing when both are safe
+
+Priority three sits between "never scar" and "retrace when necessary", and it
+is about *time* rather than ink. The drawing is revealed against the audio, so
+an unbroken run of retracing is a run of seconds in which the episode plays on
+and the picture does not change.
+
+`reveal_stall` measures the longest such run as a share of the journey — the
+total retraced share is the wrong number, because a route that retraces 30% in
+short bursts is fine and one that retraces 20% all at once is not.
+
+`best_route` then tries several orderings of the same drawing and keeps the one
+that paces it best. `euler_route(edges, variant)` rotates each vertex's
+adjacency list before the walk, so every candidate traverses **exactly the same
+multiset of edges** — the ink, the retraced share and the fidelity are
+identical whichever wins, and only the order the listener meets it in changes.
+That property is what makes this safe to optimise at all under priority one,
+and a test pins it. Measured, it earns its place: on one figure the first
+ordering stalls for 12.9% of the reveal and the best for 6.5%.
+
+A route that still stalls is **advisory, never a refusal** — the artwork is not
+what went wrong, since the same picture in a different order does not stall.
+
 **Three mechanisms enforce it, because one would be a single point of failure.**
 
 * The route carries its **own edge identities** out of Hierholzer rather than
@@ -371,6 +420,28 @@ still costs nothing.
 | **ink share** | `< 0.4%` | a sketch, not an illustration |
 | | `> 16%` | the negative space is gone; a fill, a wash or a photograph |
 | **colour** | `> 2%` saturated | the model ignored the style |
+
+**Hard bounds refuse; targets only advise.** Only the rows above that are
+*provable* can reject a picture — blank, a speck (under 25% of the square), a
+fill (over 35% ink), scribble (over 60 marks per scan), colour, and the
+structural icon test below. Everything else is recorded in `advisories`, shown
+on the record, in the trace and on `/api/health`, and costs the picture
+nothing. `report()` prints the two sets separately, so which numbers can
+actually refuse a drawing is visible from outside.
+
+**The icon test is structural, and it had to be.** The first version of it was
+the density measure with a hard floor set just above a plain circle, at 2.4 —
+and a spare figure study, one gesture with the page left empty around it,
+scores **2.3**. That is the exact composition the approved references are full
+of, and it would have been refused for the number. Density cannot tell
+restraint from a pictogram.
+
+What can, categorically: a pictogram is *structurally* a closed outline —
+nothing meets anything, nothing stops anywhere. `line_processor.structure`
+counts junctions and loose ends, and a plain circle is `(0, 0)` where the spare
+figure is `(1, 5)` and a full scene is `(81, 18)`. One line meeting another
+line, or one loose end, clears it. It costs a thinning pass, about twenty
+milliseconds, and that is the price of being able to tell those two apart.
 
 Two honest limits, stated rather than papered over. **"Generic" and
 "inconsistent with the references" are taste** and are not measured here — they

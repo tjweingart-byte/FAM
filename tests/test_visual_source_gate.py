@@ -92,11 +92,11 @@ def test_the_placeholder_provider_can_pass_its_own_gate():
         assert verdict.ok, (seed, verdict.reasons)
 
 
-def test_a_symbol_floating_in_space_is_refused():
-    """Poor composition, measured: a rich scene reaches across its canvas."""
+def test_a_speck_on_the_canvas_is_refused():
+    """The hard bound: at this size it is not a composition at all."""
     verdict = vv.screen_source(paint([ring(r=0.09)]))
     assert not verdict.ok
-    assert any("floating in space" in reason for reason in verdict.reasons)
+    assert any("speck" in reason for reason in verdict.reasons), verdict.reasons
 
 
 def test_clutter_is_refused_at_the_other_end():
@@ -106,7 +106,7 @@ def test_clutter_is_refused_at_the_other_end():
               for i in range(72)]
     verdict = vv.screen_source(paint(dense))
     assert not verdict.ok
-    assert any("cluttered" in r or "negative space" in r
+    assert any("fill or a photograph" in r or "scribble" in r
                for r in verdict.reasons), verdict.reasons
 
 
@@ -160,3 +160,82 @@ def test_the_crossing_measure_tells_an_outline_from_a_drawing():
     drawing = lp.line_crossings(mask_scene)
     assert icon < vv.MIN_SOURCE_CROSSINGS <= drawing
     assert drawing > icon * 2, (icon, drawing)
+
+
+# --------------------------------------------------------------------------
+# A heuristic is a rejection aid, not a definition of good FAM art
+# --------------------------------------------------------------------------
+# The failure this section exists to stop: FAM refusing a beautiful drawing
+# because it scored low on a density number. The approved references are the
+# source of truth, and at least one of them - a single seated figure with the
+# page left empty around it - is exactly the composition these measures mark
+# down. If a metric and the art disagree, the metric is wrong.
+
+
+def spare() -> list:
+    """Sophisticated and sparse: a figure's gesture, given the page. Fewer
+    marks than the grid above by a wide margin, and better."""
+    return [
+        [(0.30, 0.70), (0.34, 0.52), (0.44, 0.40), (0.56, 0.36)],
+        [(0.56, 0.36), (0.66, 0.40), (0.70, 0.52), (0.66, 0.66)],
+        [(0.34, 0.52), (0.50, 0.58), (0.66, 0.52)],
+        [(0.24, 0.74), (0.76, 0.74)],
+    ]
+
+
+def test_a_spare_beautiful_composition_is_drawn_not_refused():
+    """The whole point. It is noticed, it is reported, and it is drawn."""
+    verdict = vv.screen_source(paint(spare()))
+    assert verdict.ok, verdict.reasons
+    # Noticed rather than ignored - the number is still worth having.
+    assert verdict.advisories or verdict.metrics["source_crossings"] >= \
+        vv.MIN_SOURCE_CROSSINGS
+
+
+def test_an_advisory_is_never_a_refusal():
+    """Structural, so it cannot be undone by adding one more `fail` call in the
+    wrong branch."""
+    verdict = vv.Verdict()
+    verdict.advise("sparse for a FAM scene")
+    assert verdict.ok
+    assert verdict.advisories
+    assert not verdict.reasons
+    assert verdict.as_dict()["advisories"] == ["sparse for a FAM scene"]
+
+
+def test_the_icon_test_is_a_structural_fact_not_a_density_threshold():
+    """The measurement that forced this design. A hard density bound was tried,
+    set just above a plain circle at 2.4 - and the spare figure study above
+    scores 2.3. Density cannot tell restraint from a pictogram, so it does not
+    get to decide.
+
+    Structure can, categorically: a pictogram is a closed outline, with nothing
+    meeting anything and nothing stopping anywhere."""
+    def measured(strokes):
+        mask = lp.despeckle(lp._resize_mask(
+            lp.ink_mask(lp.decode_image(paint(strokes)))[0], lp.WORK_SIZE))
+        return lp.structure(mask), lp.line_crossings(mask)
+
+    (icon_structure, icon_density) = measured([ring()])
+    (spare_structure, spare_density) = measured(spare())
+
+    # The density measure genuinely cannot separate them: 2.0 against 2.3.
+    assert abs(icon_density - spare_density) < 0.5
+    # The structural one separates them completely.
+    assert sum(icon_structure) < vv.MIN_SOURCE_STRUCTURE <= sum(spare_structure)
+    assert not hasattr(vv, "HARD_MIN_SOURCE_CROSSINGS"),         "the density bound came back as a refusal"
+
+
+def test_every_soft_measure_has_a_hard_bound_well_beyond_it_or_none_at_all():
+    """A target that doubles as a refusal is a definition, not an aid."""
+    assert vv.HARD_MIN_SOURCE_EXTENT < vv.MIN_SOURCE_EXTENT
+    assert vv.HARD_MAX_SOURCE_INK > vv.MAX_SOURCE_INK
+    assert vv.HARD_MAX_SOURCE_CROSSINGS > vv.MAX_SOURCE_CROSSINGS
+
+
+def test_the_report_says_which_numbers_can_actually_refuse_a_picture():
+    """An unenforced threshold looks exactly like an enforced one from
+    outside - the tier system's lesson, applied to pixels."""
+    gate = vv.report()["source_gate"]
+    assert set(gate["refuses"]) and set(gate["advises"])
+    assert "rejection aid" in gate["note"]

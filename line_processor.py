@@ -125,6 +125,10 @@ class LineArt:
     #: measured rather than eyeballed. See `fidelity`.
     fidelity: float = 1.0
     invented: float = 0.0
+    #: The longest unbroken stretch of retracing, as a share of the reveal -
+    #: how long the listener goes with the audio playing and no new line
+    #: appearing. Retracing is fine; retracing for a long time is a stall.
+    longest_stall: float = 0.0
     #: Which rung of `DETAIL_LADDER` produced this. 0 is the default; anything
     #: higher means the default lost detail and the processing was retried
     #: gently rather than the artwork being redrawn simpler.
@@ -144,6 +148,7 @@ class LineArt:
             "bridged_length": round(self.bridged_length, 2),
             "fidelity": round(self.fidelity, 4),
             "invented": round(self.invented, 4),
+            "longest_stall": round(self.longest_stall, 4),
             "detail": self.detail,
             "retraced": round(self.retraced, 4),
             "ink_share": round(self.ink_share, 5),
@@ -299,6 +304,35 @@ def colour_share(data: bytes) -> float | None:
         return None
     spread = rgb.max(axis=2) - rgb.min(axis=2)
     return float((spread > 24).mean())
+
+
+def structure(mask: np.ndarray) -> tuple[int, int]:
+    """How many junctions and loose ends the drawing has.
+
+    `(junctions, endpoints)` - skeleton pixels where three or more lines meet,
+    and where one line stops.
+
+    It answers a question density cannot, and the difference matters because
+    the statistical measure gets the hard case wrong. A **pictogram is
+    structurally a closed outline**: nothing meets anything, nothing stops
+    anywhere, so both numbers are zero. Measured, a plain circle scores
+    `(0, 0)`; a spare figure study - one gesture, the page left empty, exactly
+    the composition a density heuristic marks down hardest - scores `(1, 5)`,
+    and a full scene scores `(81, 18)`.
+
+    So "is this provably an icon" is a structural fact rather than a threshold
+    somebody guessed, and it cannot misfire on restraint. That is what makes it
+    safe to *refuse* on, where `line_crossings` is only safe to comment on.
+
+    It costs a thinning pass - about twenty milliseconds - which is the price
+    of the gate being able to tell those two apart.
+    """
+    skeleton = prune_spurs(skeletonise(mask))
+    if not skeleton.any():
+        return 0, 0
+    degrees = degree_map(skeleton)
+    values = degrees[skeleton]
+    return int((values >= 3).sum()), int((values == 1).sum())
 
 
 def line_crossings(mask: np.ndarray) -> float:
@@ -630,6 +664,11 @@ class Edge:
     v: int
     points: list           # pixel coordinates, u-end first
     bridge: bool = False
+    #: A copy made by `eulerise` so the pen can get back to undrawn work. The
+    #: geometry is identical to the original's, so drawing it adds no line to
+    #: the picture - which is what makes retracing invisible, and also what
+    #: makes a long run of it a stretch where nothing appears.
+    duplicate: bool = False
 
     @property
     def length(self) -> float:
@@ -1013,7 +1052,7 @@ def eulerise(edges: list) -> tuple[list, float]:
             previous, index = came[node]
             original = edges[index]
             edges.append(Edge(original.u, original.v, list(original.points),
-                              bridge=original.bridge))
+                              bridge=original.bridge, duplicate=True))
             duplicated += original.length
             node = previous
         pending.remove(a)
@@ -1021,12 +1060,18 @@ def eulerise(edges: list) -> tuple[list, float]:
     return edges, duplicated
 
 
-def euler_route(edges: list) -> list:
+def euler_route(edges: list, variant: int = 0) -> list:
     """Hierholzer's algorithm: the order the pen travels, as oriented chains.
 
-    Returns `[(points, is_bridge), ...]` where each chain's first point is the
-    previous chain's last. **That guarantee is the whole function**, and it is
-    what this did not previously provide.
+    Returns `[(points, is_bridge, is_retrace), ...]` where each chain's first
+    point is the previous chain's last. **That guarantee is the whole
+    function**, and it is what this did not previously provide.
+
+    `variant` rotates each vertex's adjacency list before the walk. Every
+    variant traverses exactly the same multiset of edges and therefore draws
+    exactly the same picture - what changes is only the *order* the pen visits
+    it in, which is what the listener watches. `best_route` uses that to pick
+    an ordering that keeps new line appearing; see `reveal_stall`.
 
     It used to run Hierholzer for the *vertex* sequence and then reconstruct
     the edges from it by searching for "any unused edge between these two
@@ -1059,6 +1104,13 @@ def euler_route(edges: list) -> list:
         adj.setdefault(edge.u, []).append((edge.v, index))
         if edge.v != edge.u:
             adj.setdefault(edge.v, []).append((edge.u, index))
+    if variant:
+        # Rotate rather than shuffle: deterministic, seedless, and enough to
+        # reach genuinely different orderings of the same drawing.
+        for node, items in adj.items():
+            if len(items) > 1:
+                at = (node + variant) % len(items)
+                adj[node] = items[at:] + items[:at]
     # A self-loop contributes two to a vertex's degree while appearing once in
     # the adjacency list. Counting the list would make every vertex carrying a
     # loop look odd, and the route would start in the wrong place.
@@ -1108,7 +1160,7 @@ def euler_route(edges: list) -> list:
             raise LineProcessingError(
                 "the traversal left the drawing - an edge in the route does "
                 "not touch where the pen is", "broken_route")
-        route.append((points, edge.bridge))
+        route.append((points, edge.bridge, edge.duplicate))
     return route
 
 
@@ -1429,6 +1481,84 @@ def node_tolerance(edges: list, positions: dict) -> float:
     return max(CONTIGUOUS_TOLERANCE, 2.0 * worst + 1.5)
 
 
+#: How many orderings of the same drawing to try before settling on one. Each
+#: is a linear walk over the graph, so this is a handful of milliseconds even
+#: on a dense illustration - and what it buys is the difference between a
+#: reveal that keeps producing picture and one that spends ten seconds going
+#: back over line the listener has already seen.
+ROUTE_TRIALS = 8
+#: Good enough to stop looking: no unbroken retrace longer than this share of
+#: the journey.
+STALL_TARGET = 0.06
+
+
+def reveal_stall(route: list) -> float:
+    """The longest stretch of the reveal in which no new line appears.
+
+    As a share of the whole journey, because that is how a listener meets it:
+    the drawing is revealed against the audio, so a run of retracing is a run
+    of seconds in which the episode plays on and the picture does not change.
+
+    Retracing itself is fine and is the thing that keeps the pen off the
+    negative space - **priority four**. What this measures is priority *three*:
+    where two valid routes both preserve the artwork and both avoid a scar,
+    prefer the one that keeps new drawing arriving. A route is not better for
+    retracing less in total; it is better for never retracing for long.
+    """
+    if not route:
+        return 0.0
+    lengths = [_polyline_length(points) for points, _, _ in route]
+    total = sum(lengths)
+    if total <= 0:
+        return 0.0
+    worst = run = 0.0
+    for length, (_, _, retrace) in zip(lengths, route):
+        run = run + length if retrace else 0.0
+        worst = max(worst, run)
+    return worst / total
+
+
+def best_route(edges: list, tolerance: float) -> tuple:
+    """The same drawing, in the order that reveals it best.
+
+    Returns `(pixels, bridge_spans, stall, warnings)`.
+
+    **It cannot change the picture.** Every candidate traverses exactly the
+    same multiset of edges, so the ink, the retraced share and the fidelity are
+    identical whichever one wins; only the order differs. That is what makes
+    this safe to optimise at all - the priority order says preserve the artwork
+    first, and this provably does not touch it.
+
+    A candidate that fails to assemble is skipped rather than fatal, and said
+    out loud when a later one succeeds: it means one ordering of this graph was
+    inconsistent, which is worth knowing even though the drawing was fine.
+    """
+    warnings: list = []
+    best = None
+    failure = None
+    for variant in range(ROUTE_TRIALS):
+        candidate = euler_route(edges, variant)
+        if not candidate:
+            continue
+        try:
+            pixels, spans = _assemble(candidate, tolerance)
+        except LineProcessingError as exc:
+            failure = exc
+            continue
+        stall = reveal_stall(candidate)
+        if best is None or stall < best[2]:
+            best = (pixels, spans, stall)
+        if stall <= STALL_TARGET:
+            break
+    if best is None:
+        raise failure or LineProcessingError("no route through the artwork",
+                                             "no_route")
+    if failure is not None:
+        warnings.append(f"one traversal of this drawing was discontinuous "
+                        f"({failure}); a different ordering was used")
+    return best[0], best[1], best[2], warnings
+
+
 def _assemble(route: list, tolerance: float = CONTIGUOUS_TOLERANCE) -> tuple:
     """Oriented chains into one polyline, refusing to jump.
 
@@ -1454,7 +1584,7 @@ def _assemble(route: list, tolerance: float = CONTIGUOUS_TOLERANCE) -> tuple:
     """
     pixels: list = []
     spans: list = []
-    for points, is_bridge in route:
+    for points, is_bridge, _ in route:
         if not points:
             continue
         if not pixels:
@@ -1651,12 +1781,12 @@ def process(data: bytes, trace=None) -> LineArt:
 
     total_before = sum(edge.length for edge in edges)
     edges, duplicated = eulerise(edges)
-    route = euler_route(edges)
+    # Several valid orderings of the same drawing, and the one that keeps new
+    # line arriving wins. It cannot change the picture - see `best_route`.
+    pixels, bridge_spans, stall, route_warnings = best_route(
+        edges, node_tolerance(edges, positions))
+    warnings.extend(route_warnings)
     timings["route"] = int((time.monotonic() - began) * 1000)
-    if not route:
-        raise LineProcessingError("no route through the artwork", "no_route")
-
-    pixels, bridge_spans = _assemble(route, node_tolerance(edges, positions))
 
     began = time.monotonic()
     transform = canvas_transform(pixels)
@@ -1728,6 +1858,7 @@ def process(data: bytes, trace=None) -> LineArt:
         bridged_length=sum(bridges),
         fidelity=kept,
         invented=invented,
+        longest_stall=stall,
         detail=detail,
         retraced=(duplicated / total_before) if total_before else 0.0,
         ink_share=ink_share,
