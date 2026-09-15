@@ -112,6 +112,16 @@ by a keystroke pause. That is where to spend it.
 to warm, how much of it, and when, are questions that want the hit rate it
 produces. See the settled constraint below.
 
+**And every eligible episode now has something to look at while it plays**
+*(PROBLEMS.md §84, `VISUALS.md`).* One continuous-line illustration, drawn
+across an ivory square by the audio itself and kept afterwards as that
+episode's thumbnail. It is the same "start earlier" argument again: the browse
+surfaces know what might be tapped, so their pictures are finished before the
+tap and cost nothing; search draws in parallel with the episode and joins at
+whatever position the audio has reached. **Explore has none of it** - it
+replays finished episodes and generates nothing, which is the promise a picture
+would break.
+
 ## What makes a FAM episode different
 
 **First, it satisfies the thing that brought them.** Someone searched, or tapped
@@ -512,6 +522,110 @@ the rest of this list it needs taste rather than a key.
   numbers. Nothing schedules a cycle yet - that is the next decision, not an
   oversight. `python tools/prefetch_report.py` shows what a deployment would
   warm without spending anything; `--live` reads the hit rate off a server.
+- **One episode, one drawing, and the audio is what draws it.** *(PROBLEMS.md
+  §84, `VISUALS.md`.)* Every eligible episode gets one continuous-line
+  illustration; finished it is the thumbnail, being drawn it is the player.
+  **Not a video, and not two assets.** The reveal is
+  `clamp(currentTime / duration, 0, 1)` applied to one ordered vector path,
+  which is why pause, seek, rewind and 2x all work without a case each - an
+  animation with its own clock would need five and would drift in all of them.
+  **The picture and the script are siblings, never a chain.** On search the
+  audio starts before the script is finished, so an illustrator downstream of
+  the writer could only ever begin after the listener already had sound. Both
+  read the same understanding - the EI brief and the research packet - at the
+  same moment; `understanding.py` is that fork, one-directional, so that if
+  nothing is listening nothing is slower. The hard case needs no code: a vector
+  arriving thirty seconds in is painted at 17% and continues, because never
+  restarting at zero *falls out of the formula*. The deliberate opposite rule
+  is that readiness and reveal are different things - a tile whose picture is
+  finished still starts its player at 0%.
+  **exploreFAM is excluded, twice.** `visuals.eligible` refuses a replay-only
+  request server-side, and Explore's player calls `FamAudio` directly rather
+  than through `speakText`, so there is no flag to forget. Either alone is one
+  refactor from being wrong.
+  Four more things that are settled: the visual key is **one function**
+  (`visuals.key_for`, the same doctrine as `pipeline.key_for`) and excludes
+  length and voice for the same reason the script cache excludes voice; the
+  thumbnail is rendered **from the vector**, never from the artwork the model
+  returned, because "the last frame is the thumbnail" is only true with one
+  source of truth; badly connected art is **refused, not rescued**, since the
+  answer to a picture in three pieces is a different picture; and
+  **placeholder art is never a fallback** - `synthetic` is selected explicitly
+  or not at all, which is §51 and §61 applied to pixels.
+  **The priority order, settled** *(§86, §87).* When these pull against each
+  other, the lower number wins: **1.** preserve the artwork; **2.** preserve
+  the no-scars rule; **3.** prefer visible new drawing over retracing when
+  both are valid; **4.** retrace existing ink when necessary; **5.** do not
+  let numeric heuristics override visual quality.
+  Five is a standing correction to every threshold in the system, including
+  the ones added *for* this: a richness metric is a **rejection aid, never a
+  definition of good FAM art**, and a beautiful sophisticated composition must
+  not be refused for scoring low on one. So a `Verdict` carries `reasons`
+  *and* `advisories` and only `reasons` refuse; the source gate's soft targets
+  each have a hard bound far beyond them; and the one richness bound that can
+  refuse is a **structural fact rather than a threshold** - a pictogram is a
+  closed outline with no junctions and no loose ends, where a spare figure
+  study has both. That distinction is not academic: the density floor written
+  in §86 scored a plain circle at 2.0 and a spare figure study at 2.3, and
+  **refused the figure study**. Where a metric and the picture disagree, the
+  metric is wrong.
+  Three and four are the routing rule: retracing is always preferred to a
+  bridge, but among equally safe routes take the one that keeps new line
+  arriving. `reveal_stall` measures the longest unbroken run of retracing
+  (total is the wrong number - 30% in bursts is fine, 20% at once is not) and
+  `best_route` tries several orderings of the *same* drawing, which provably
+  cannot change the picture. A route that still stalls is advisory: the
+  artwork is not what went wrong.
+  **Art first, engineering second** *(§86).* FAM is **not** one simple icon
+  drawn with one line; it is **one rich idea, interpreted as one beautiful
+  editorial illustration, revealed through one continuous line.** "Continuous
+  line" describes *how* it is drawn and never *how much*. The Visual
+  Director's job is the strongest editorial interpretation of the episode -
+  a scene, an environment, a relationship, a metaphor - and the line
+  processor's job is to **preserve that artwork and find a route through
+  it.** Never the other way round.
+  This needs writing down because nothing enforces it by default and
+  everything erodes it: skeletonising, routing and animating are all easier on
+  simpler art, so seven separate locally-reasonable decisions all pointed the
+  same way and the feed converged on pictograms with no bug anywhere. **Every
+  threshold in that pipeline was first calibrated against a single figure on
+  an empty page, so every one of them is a way to reject a drawing for being a
+  drawing** - when one starts refusing rich artwork, the threshold is what is
+  wrong. Two rules fall out and are load-bearing: **no rung of the retry
+  ladder may ask for a simpler picture** (the fix for "it will not route" is
+  forms that *touch*, not fewer forms - `SIMPLIFY_INSISTENCE` is deleted, not
+  disabled), and **a beautiful drawing that comes out ugly is a
+  line-processing failure** - `DETAIL_LADDER` redoes the vectorisation on the
+  same source, and `fidelity` is the number that says whether it worked.
+  `screen_source` asks the one question in front of the vectoriser - *would
+  this feel premium enough to be a finished myFAM thumbnail* - because the
+  line processor is good enough to rescue an icon into the feed, and the
+  measure that does the work is how many separate runs of ink a scan meets (a
+  circle scores 2, a scene scores 8). The approved references in
+  `visual_references/` are the source of truth; **where the words and the
+  references disagree, follow the references.**
+  **And the pen never crosses blank canvas** *(§85).* Retracing existing line
+  is invisible and allowed, duplicating existing edges is allowed, and a new
+  long edge through negative space is not - a listener must never see a mark
+  FAM invented to keep the path continuous. One ruined a real animation. It is
+  enforced twice on purpose: the processor refuses to *build* such a route
+  (the traversal carries its own edge identities, and a route whose strokes do
+  not touch raises rather than being concatenated), and the validator refuses
+  to *ship* one, measuring bridges after `fit_to_canvas` because the fit can
+  scale a drawing up. **Never relax this into a tuning parameter** - the
+  failure is silent, because smoothing turns a gap in the data into a
+  confident stroke that looks deliberate.
+  **Those limits are a safety net, never an artistic allowance** *(§86).*
+  18 units and 2% are maximum *rejection boundaries* - the point past which a
+  mark is provably a scar - and reading them as permission to bridge anything
+  shorter is backwards. The rule routing obeys is stricter: `BRIDGE_SHARE` is
+  1% of the working image, and `BRIDGE_ALIGNMENT` adds the half a distance
+  threshold cannot express - **the gap must point the way the pen was already
+  going**, which is what "endpoints that belong to the same intended stroke"
+  means as code. Retrace existing ink whenever possible; a synthetic bridge
+  repairs a genuinely tiny accidental gap and nothing else; otherwise reject
+  and regenerate.
+
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for
   everyone", "in their 'At the gym' mix (typed, so shared with nobody)" - and
@@ -797,7 +911,8 @@ most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
-and downloads, `IOS_APP.md` for the app version this is now being written
+and downloads, `VISUALS.md` for the continuous-line illustration every episode
+now carries, `IOS_APP.md` for the app version this is now being written
 towards, `BETA_READINESS.md` for the schedule that follows from it — the
 four ways to reach an iPhone, weighed, and the staged path to TestFlight — and
 `TESTFLIGHT.md` for the procedure that ships a build, beside the client in
@@ -812,8 +927,8 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-six named smoke behaviours; anything less means something was skipped, and
-`dev.sh` now says so out loud (PROBLEMS.md §49).
+twenty-seven named smoke behaviours; anything less means something was skipped,
+and `dev.sh` now says so out loud (PROBLEMS.md §49).
 
 What is true but not obvious from the code:
 
@@ -821,6 +936,12 @@ What is true but not obvious from the code:
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing
   sounds* is unverified until someone runs it with a key.
+  The same is now true of **how the drawings look**: there is no image
+  credential either, so every illustration verified here is the deliberately
+  labelled synthetic kind. The mechanism is proven end to end in a browser
+  (`tools/visual_probe.py`); what `gpt-image-1` actually produces, and how
+  often it survives the line processor, is unknown until somebody adds
+  `VISUAL_IMAGE_API_KEY`.
 - The checks answer "does it work", not "does it look right". `tools/shots.py`
   photographs all sixteen surfaces so a refactor can be proved neutral;
   `tools/stall_probe.py` measures browser stalls without a key, and

@@ -36,6 +36,7 @@ from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_wo
 from speech_assembly import (AssembledChunk, AssemblyPolicy,
                              SpeechAssembler, fit_to_budget)
 from tts import TTSEngine, build_engine
+import visuals
 
 log = logging.getLogger(__name__)
 
@@ -951,6 +952,31 @@ class PodcastPipeline:
         async for chunk in self._speak_pump(research, pace, stats):
             yield chunk
 
+    def _request_visual(self, plan: EpisodePlan) -> str:
+        """Start this episode's illustration, if it is to have one.
+
+        Deliberately not `async` and deliberately swallowing everything: it is
+        called from the first few lines of the audio path, and a picture must
+        never be able to take an episode down. A drawing that cannot be started
+        leaves the ivory square blank, which is a designed state.
+        """
+        try:
+            return visuals.request(
+                plan.query, context=plan.context,
+                # The pipeline does not know which tab a tap came from. It
+                # knows the one distinction that changes the picture - a
+                # follow-up is a different episode from the question asked
+                # cold - and `app.py` supplies the real surface when it has it.
+                surface="godeeper" if plan.context else "search",
+                reason="the episode a listener is hearing now",
+                brief=plan.brief, evidence=plan.evidence,
+                cached_only=plan.cached_only, attachments=plan.attachments,
+                live=True)
+        except Exception:  # noqa: BLE001 - a picture never costs an episode
+            log.debug("could not start an illustration for %r", plan.query,
+                      exc_info=True)
+            return ""
+
     async def _cache_key(self, plan: EpisodePlan) -> str:
         """Where this episode lives in the shared cache. "" when caching is off."""
         if not self.cache:
@@ -988,6 +1014,19 @@ class PodcastPipeline:
         # and stands aside - a speculative episode that delays a real one has
         # inverted the entire point of prefetching.
         prefetch.note_live_generation()
+        # The drawing, started now and never waited for. `request` returns
+        # immediately in every case - it decides, starts a background task if
+        # there is one to start, and hands back a key nobody here reads.
+        #
+        # Here rather than only in `app.py` so that every entry point is
+        # covered by one line: an episode started from a test, a tool or a
+        # future endpoint gets its illustration without that caller having to
+        # know this feature exists. The call is idempotent on the visual key,
+        # so `app.py` asking first with a richer surface costs nothing.
+        #
+        # Explore cannot reach this: `visuals.eligible` refuses a replay-only
+        # plan, so the exclusion holds even if an interface asked.
+        self._request_visual(plan)
         stats.plan_seconds = plan.target_seconds
         stats.engine = self.engine.name
         stats.voice = self.voice or ""

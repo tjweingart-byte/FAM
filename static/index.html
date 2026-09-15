@@ -452,6 +452,41 @@
   }.pt-icon{ width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; color:var(--text); cursor:pointer; flex:none; flex-shrink:0; }
   .pt-icon.on{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
   .mini-stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
+  /* ---- the episode's illustration -------------------------------------
+     A square of warm ivory that one continuous line is drawn across as the
+     audio plays. Blank at the start of every episode and blank when there is
+     no drawing, which is a designed state rather than a missing asset: the
+     listener does not know the picture yet, and finding out is the point.
+
+     Sized against the stage it sits in AND the viewport height, because the
+     player also carries a title, a caption panel, a transport and two rows of
+     controls. A square that took the full width of a short phone pushed the
+     play button off the bottom - which is a picture that has eaten the
+     product. Nothing existing was removed to make room for it. */
+  .line-stage{
+    width:min(68%, 32vh, 260px); aspect-ratio:1/1; flex:none;
+    margin:0 auto 14px; border-radius:14px; position:relative;
+    background:#F8F4EA; overflow:hidden;
+    box-shadow:0 18px 40px -22px rgba(0,0,0,0.65);
+    transition:opacity 260ms ease;
+  }
+  .line-stage[hidden]{ display:none; }
+  .line-stage .line-svg{ width:100%; height:100%; display:block; }
+  /* The line itself is revealed by stroke-dashoffset, written from the audio
+     position - see fam-line.js. There is deliberately no CSS transition on
+     the offset: a transition would put its own easing between the audio and
+     the drawing, which is exactly the drift this design avoids. */
+  .line-stage .line-path{ opacity:0; }
+  .line-badge{
+    position:absolute; left:8px; bottom:8px;
+    font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.08em;
+    text-transform:uppercase; color:#8A8478; background:rgba(248,244,234,0.86);
+    border:1px solid rgba(23,24,32,0.14); border-radius:999px; padding:3px 7px;
+  }
+  /* The same square, on a myFAM / DailyFAM tile. Finished, never animated:
+     the tile shows the drawing whole and the player draws it again. */
+  .seed-thumb .line-thumb{ width:100%; height:100%; display:block; background:#F8F4EA; }
+  .seed-thumb.has-line{ background:#F8F4EA; }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
@@ -1436,6 +1471,7 @@
         </div>
         <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
         <div class="mini-stage" id="playerStage" onclick="playerTapAdvance(event)">
+          <div class="line-stage" id="playerLine" hidden></div>
           <div class="mini-title" id="p-title">Title</div>
           <div class="mini-src" id="p-src">Source</div>
           <div class="next-hint" id="nextHint"></div>
@@ -1471,6 +1507,7 @@
         <div class="segbar" id="paSegbar"></div>
         <div class="player-body">
           <div class="player-main">
+            <div class="line-stage" id="playAllLine" hidden></div>
             <div class="art" onclick="paTogglePlay()"><div class="playbtn" id="paPlayIcon"><svg width="17" height="17" viewBox="0 0 24 24" fill="var(--paper)"><path d="M8 5v14l11-7z"/></svg></div></div>
             <div class="p-meta"><div class="ttl" id="pa-title">Title</div><div class="src" id="pa-src">Source</div></div>
             <div class="pa-topic-index" id="pa-index">Topic 1 of 5</div>
@@ -1807,6 +1844,7 @@
 
 
 <script src="/fam-audio.js"></script>
+<script src="/fam-line.js"></script>
 <script>
   var TOPICS = {
     spacex:{title:"SpaceX Starship: This Week's Test Flight", source:"Market Watch", caption:'…and this time, the heat shield tiles held through <mark>re-entry</mark>, which is the milestone engineers were watching for—'},
@@ -2534,12 +2572,65 @@
       if(paCur) paCur.textContent = formatTime(seconds);
       if(paTot) paTot.textContent = formatTime(total);
     }
+
+    // The drawing repaints itself every animation frame; this is the one
+    // place a *seek* is known to have happened, and repainting here lands the
+    // line in the same frame as the bar rather than one frame after it.
+    if(typeof FamLine !== "undefined") FamLine.sync();
   }
 
   function startProgress(totalSeconds){
     stopProgress();
     progressTotal = totalSeconds;
     progressTimer = setInterval(refreshProgressNow, 200);
+  }
+
+  // ---------------- The episode's illustration ----------------
+  // One continuous line, drawn across an ivory square by the audio itself.
+  // See /fam-line.js for the whole of it; this is only the wiring.
+  //
+  // The clock is the same pair of numbers the progress bar uses, deliberately:
+  // if the line and the bar ever disagreed about how far through the episode
+  // we are, one of them would be lying, and there is no way for a listener to
+  // tell which.
+  //
+  // exploreFAM is not wired in at all. Its player calls FamAudio directly
+  // rather than going through speakText, so there is no line of code to
+  // forget - and `visuals.eligible` refuses a replay-only episode server-side
+  // even if there were.
+  function famLineClock(){
+    var total = FamAudio.isComplete() ? FamAudio.duration() : progressTotal;
+    return { position: FamAudio.position(), duration: total };
+  }
+
+  var famLineStages = [];
+  (function(){
+    if(typeof FamLine === "undefined") return;
+    FamLine.init({ clock: famLineClock });
+    ["playerLine", "playAllLine"].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){ FamLine.mount(el); famLineStages.push(el); }
+    });
+  })();
+
+  function showLineStages(on){
+    famLineStages.forEach(function(el){ el.hidden = !on; });
+  }
+
+  // A new episode. The canvas blanks and the reveal goes back to zero even
+  // when the drawing is already finished and was on the tile a second ago:
+  // asset readiness and reveal state are different things, and watching it
+  // being drawn is the feature.
+  function startEpisodeLine(query, context, surface){
+    if(typeof FamLine === "undefined") return;
+    showLineStages(true);
+    FamLine.begin({ query: query, context: context || "", surface: surface || "" });
+  }
+
+  function stopEpisodeLine(){
+    if(typeof FamLine === "undefined") return;
+    FamLine.clear();
+    showLineStages(false);
   }
 
   // ---- Transport -----------------------------------------------------
@@ -2865,6 +2956,16 @@
     var reportedOutcome = false;
     setEchoed(false);
     awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
+    // Started here rather than on first audio, so the ivory square is already
+    // on screen while the honest wait counts - and so the drawing is being
+    // asked for at the same moment the episode is, which is the whole point of
+    // the two being siblings rather than one waiting on the other.
+    //
+    // Not for a replay-only episode: Explore generates nothing, and asking for
+    // a drawing there would be asking for a spend the surface promises never
+    // to make.
+    if(opts.cachedOnly){ stopEpisodeLine(); }
+    else { startEpisodeLine(title, context || "", opts.source || ""); }
     FamAudio.play(title, minutes, {
       onFirstAudio: function(){
         awaitingFirstAudio = "";
@@ -2925,6 +3026,7 @@
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
     awaitingFirstAudio = "";
     stopProgress(); FamAudio.stop();
+    stopEpisodeLine();
   }
   function pauseSpeech(){ FamAudio.pause(); }
   function resumeSpeech(){ FamAudio.resume(); }
@@ -4041,6 +4143,32 @@
     return '<svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid meet">' + squiggle + (icons[type] || icons.leaf) + '</svg>';
   }
 
+  // The episode's own illustration on the tile, when it has been drawn, and
+  // the old generic glyph when it has not.
+  //
+  // The tile is the *finished* picture and the player draws the same one from
+  // nothing. They are one vector rendered twice, never two pieces of artwork -
+  // which is what makes the last frame of the player and the tile the listener
+  // tapped the same image rather than two that resemble each other.
+  //
+  // Rendered as an inline SVG rather than an <img> pointing at the PNG: the
+  // geometry is already in the feed payload, so this costs no request at all,
+  // and a vector stays crisp on any screen.
+  function seedHasLine(topic){
+    return !!(topic && topic.visual && topic.visual.status === "ready" && topic.visual.d);
+  }
+
+  function seedThumb(topic){
+    if(!seedHasLine(topic)) return seedThumbSVG(topic.icon);
+    var v = topic.visual;
+    return '<svg class="line-thumb" viewBox="' + escapeHtml(v.view_box || "0 0 1000 1000")
+      + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">'
+      + '<path d="' + escapeHtml(v.d) + '" fill="none" stroke="'
+      + escapeHtml(v.stroke_color || "#171820") + '" stroke-width="'
+      + escapeHtml(String(v.stroke_width || 1.4))
+      + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
   // ---------------- myFAM feed ----------------
   // Four sections, four different signals, ranked server-side over a bank of
   // topics that is the SAME for every listener. That is the cost design: a
@@ -4122,7 +4250,8 @@
         myFamTopics[t.id] = t;
         var tag = (t.tags && t.tags[0]) ? t.tags[0] : "";
         return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
-          + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
+          + '<div class="seed-thumb' + (seedHasLine(t) ? ' has-line' : '') + '">'
+          + seedThumb(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
           + '</div>'
           + '<div class="seed-card-body">'

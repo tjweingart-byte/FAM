@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import credentials
 import research
+import visuals
 from cache import build_cache
 from config import describe_key, key_source, settings
 
@@ -190,6 +191,44 @@ def main() -> int:
     else:
         say(f"  cache      {episodes} episode(s) ready - explore has cards")
 
+    # The fifth way this can look like it is working. A player with a blank
+    # ivory square looks identical whether the feature is off, the credential
+    # is missing, or every drawing happens to have failed - and the first two
+    # are a one-line fix nobody would think to make from looking at it.
+    drawings = visuals.report()
+    if not drawings["enabled"]:
+        say(f"  drawings   {BOLD}off{RESET} (VISUALS=0) - every player shows a "
+            f"blank ivory square")
+    elif drawings["provider"]["configured"]:
+        provider = drawings["provider"]
+        if provider["placeholder"]:
+            say(f"  drawings   {BOLD}PLACEHOLDER{RESET} - synthetic line art, "
+                f"drawn locally. Not FAM artwork,")
+            say(f"{DIM}             and labelled as such on every tile and player."
+                f"{RESET}")
+            worst = max(worst, 1)
+        else:
+            say(f"  drawings   {BOLD}{provider['provider']}{RESET} · "
+                f"{provider['model']} · {provider['quality']} · "
+                f"~${provider['priced_per_image_usd']:.2f} an episode")
+            if not drawings["style"]["references"]:
+                say(f"{DIM}             No approved references in "
+                    f"visual_references/ - the style is being described"
+                    f"{RESET}")
+                say(f"{DIM}             in words only, which is the weakest way "
+                    f"to ask for it. See VISUALS.md.{RESET}")
+    else:
+        say(f"  drawings   {BOLD}NO IMAGE KEY{RESET} - every player shows a blank "
+            f"ivory square.")
+        say(f"{DIM}             Episodes are unaffected; there is simply nothing "
+            f"to look at.")
+        say(f"             Fix: set VISUAL_IMAGE_API_KEY (or OPENAI_API_KEY), or "
+            f"set")
+        say(f"             VISUAL_IMAGE_PROVIDER=synthetic to see the mechanism "
+            f"with")
+        say(f"             clearly-labelled placeholder art.{RESET}")
+        worst = max(worst, 1)
+
     say(f"\n{BOLD}What each tab will do{RESET}")
     fresh = "writes a real episode" if live else "plays the canned sample"
     researched = ("  ·  a time-sensitive question will FAIL (research unavailable)"
@@ -198,7 +237,7 @@ def main() -> int:
     say(f"  myFAM      tap a tile  ->  {fresh}; rails rank the shared bank")
     say(f"  DailyFAM   starter mixes work cold; tap a mix to play it through")
     say(f"  explore    replays {'cached episodes' if episodes > 0 else 'nothing yet'} "
-        f"- never generates, by design")
+        f"- never generates, and has no drawing, by design")
     say(f"  profile    shows what the event log holds, and nothing it does not")
     say("")
     return worst

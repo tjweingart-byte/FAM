@@ -559,6 +559,37 @@ def main() -> int:
             )
             assert not missing, f"no echo control on: {missing}"
 
+        def the_ivory_canvas_is_on_the_player_and_never_on_explore():
+            """The one hard exclusion in the continuous-line feature, checked
+            in a browser rather than trusted to a code comment.
+
+            The player gets a square of ivory that the audio draws a line
+            across; exploreFAM replays finished episodes, generates nothing,
+            and is deliberately unchanged. Both halves are asserted because
+            either one alone can pass while the feature is wrong: a canvas that
+            is missing everywhere, or one that has leaked onto the reel.
+            """
+            assert page.query_selector("#playerLine"), \
+                "the player has no visual canvas"
+            assert page.eval_on_selector(
+                "#playerLine", "e => getComputedStyle(e).backgroundColor") \
+                in ("rgb(248, 244, 234)",), "the canvas is not warm ivory"
+            # Square, whatever the phone.
+            shape = page.eval_on_selector(
+                "#playerLine",
+                "e => { var r = e.getBoundingClientRect();"
+                " return r.width && Math.abs(r.width - r.height) < 2; }")
+            assert shape is not False, "the canvas is not a square"
+            assert page.eval_on_selector_all(
+                "#screen-explore .line-stage, #screen-explore .line-path",
+                "e => e.length") == 0, "exploreFAM has a visual canvas in it"
+            # And it is not merely hidden there - the renderer is not driving
+            # anything while Explore is the surface.
+            page.evaluate("openExplore()")
+            page.wait_for_timeout(600)
+            assert page.evaluate("FamLine.isShowing()") is False, \
+                "a drawing is being driven on exploreFAM"
+
         def echo_state_reaches_every_player():
             """One echo must light up all of them, not just the one tapped."""
             page.evaluate("setEchoed(true)")
@@ -786,6 +817,8 @@ def main() -> int:
         check("Mix visibility can be toggled", mix_visibility)
         check("Echo control is on every player", echo_button)
         check("Echo state reaches every player", echo_state_reaches_every_player)
+        check("The ivory canvas is on the player, never on Explore",
+              the_ivory_canvas_is_on_the_player_and_never_on_explore)
 
         if errors:
             failures.append(f"page errors: {errors}")
