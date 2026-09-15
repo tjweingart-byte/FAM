@@ -35,8 +35,13 @@ from script_generator import ScriptNotes, build_prompt, plan_episode  # noqa: E4
 
 
 class FakeResult:
-    def __init__(self, title, url, highlights):
+    def __init__(self, title, url, highlights, published_date=None):
         self.title, self.url, self.highlights = title, url, highlights
+        # Exa returns this and `build_packet` used to throw it away, which is
+        # what left episodes dating events by guesswork. Defaulted to None so
+        # the undated case - a real one - stays exercised by the tests that do
+        # not care about dates.
+        self.published_date = published_date
 
 
 class FakeReply:
@@ -88,21 +93,73 @@ def use_backend(monkeypatch, value: str):
 # the packet, pinned to the benchmark
 # --------------------------------------------------------------------------
 def test_the_packet_is_shaped_as_the_benchmark_built_it():
-    """`SOURCE n / Title: / Key evidence:`, top 3, 2 highlights each."""
-    packet = research.build_packet(RESULTS, packet_sources=3,
-                                   highlights_per_source=2)
+    """The benchmark's shape, still reachable, still pinned.
+
+    `EXA_DATED_PACKET=0` reproduces the packet the hand-measured 2026-09-05 run
+    used - `SOURCE n / Title: / Key evidence:`, top 3, 2 highlights each - so
+    those numbers stay comparable to anything measured against it today.
+    """
+    import dataclasses
+
+    import config
+
+    undated = dataclasses.replace(config.settings, exa_dated_packet=False)
+    original, config.settings = config.settings, undated
+    research.settings = undated
+    try:
+        packet = research.build_packet(RESULTS, packet_sources=3,
+                                       highlights_per_source=2)
+    finally:
+        config.settings = original
+        research.settings = original
     assert packet.startswith("SOURCE 1\nTitle: Fed holds rates\nKey evidence:\n")
     assert "SOURCE 3" in packet and "SOURCE 4" not in packet
     assert "Ignored third." not in packet, "more than 2 highlights reached the packet"
     assert "Should not appear." not in packet, "a 4th source reached the packet"
 
 
+def test_the_packet_dates_and_grades_every_source():
+    """The shape production uses, and why it changed.
+
+    An episode has to decide between "last night" and "two days ago", and the
+    packet used to give it a title and some highlights to decide on. Both
+    fields were already in Exa's reply and were being discarded. The relative
+    phrase is computed here rather than left to the model, so the blueprint's
+    rule - relative labels come from normalized time, never guessed from prose
+    - is enforced rather than requested.
+    """
+    packet = research.build_packet(RESULTS, packet_sources=3,
+                                   highlights_per_source=2)
+    assert "SOURCE 1\nTitle: " in packet
+    assert "Published: " in packet
+    assert "Source type: " in packet
+    assert "Key evidence:" in packet
+    assert "SOURCE 3" in packet and "SOURCE 4" not in packet
+    assert "Ignored third." not in packet, "more than 2 highlights reached the packet"
+
+
+def test_an_undated_source_says_so_rather_than_being_dated_today():
+    """The one thing worse than no date is a wrong one. A source Exa did not
+    date must not acquire today's date on the way into the prompt."""
+    packet = research.build_packet(
+        [FakeResult("No date", "https://example.org/x", ["Something."])], 1, 1)
+    assert "Published: unknown (date not stated)" in packet
+
+
 def test_the_packet_carries_no_urls_or_numbers_for_the_voice_to_read():
     """It is spoken aloud downstream. A URL in the packet is a URL a model can
-    read out, and a listener is not looking at a citation list."""
+    read out, and a listener is not looking at a citation list.
+
+    This is why the source grade reaches the prompt as a *description* rather
+    than as the hostname it was derived from: the model needs to know it is
+    reading a wire service in order to weigh it, and needs no way to say
+    "reuters dot com" out loud. `domains()` still reports the hosts, out of
+    band, for a person to judge.
+    """
     packet = research.build_packet(RESULTS, 3, 2)
     assert "https://" not in packet
     assert "reuters.com" not in packet
+    assert "ft.com" not in packet
 
 
 def test_an_empty_result_set_is_an_empty_packet():
@@ -247,6 +304,17 @@ def test_exa_failure_does_not_become_a_claude_search():
         "retrieve catches something; a failed backend must reach the caller "
         "rather than being turned into a different kind of research")
 
+    # The one place allowed to swallow, and only that one. A *second* search
+    # failing means research already happened and an optional improvement to it
+    # did not - throwing the first packet away for that would make the episode
+    # worse for nobody's benefit. Pinned here so the exemption cannot quietly
+    # widen back into `retrieve`.
+    second = ast.parse(textwrap.dedent(inspect.getsource(research._second_look)))
+    assert len([n for n in ast.walk(second)
+                if isinstance(n, ast.ExceptHandler)]) == 1, (
+        "_second_look is the single deliberate exemption; it should have "
+        "exactly one handler")
+
 
 def test_a_backend_that_cannot_run_raises_instead_of_switching(monkeypatch):
     """The behaviour that check is about, exercised rather than read."""
@@ -329,7 +397,7 @@ def test_the_prompt_tells_the_model_not_to_read_sources_aloud(exa, monkeypatch):
     plan = asyncio.run(generator.research(
         plan_episode("what did the fed do today", 3, search=True), ScriptNotes()))
     prompt = build_prompt(plan)
-    assert "Never read a source's title, number or URL aloud" in prompt
+    assert "Never read a source's title, number, date or URL aloud" in prompt
     assert "they win and you say so plainly" in prompt, (
         "the model must be told the evidence outranks what it recalls")
 

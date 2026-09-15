@@ -600,7 +600,13 @@ def main() -> int:
             assert status.strip(), "the loading screen said nothing about what it was doing"
             # PROBLEMS.md 55: the wait names itself. A brand animation that
             # replaced that line would be the filler problem in a nicer font.
-            assert ("Writing" in status or "sources" in status
+            #
+            # 82 added the first of these: episode intelligence deliberately
+            # put seconds back in front of the first word, so the line now
+            # moves through understanding, retrieval and writing in the order
+            # they happen rather than claiming audio has already started.
+            assert ("asking" in status or "Writing" in status
+                    or "sources" in status
                     or "sample script" in status or "rejected" in status), (
                 f"the loading screen does not say what it is waiting for: {status!r}"
             )

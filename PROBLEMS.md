@@ -4541,3 +4541,393 @@ real browser from the verdict a refused request carries - the honest way to
 check a screen that cannot be reached while the system is switched off - and
 asserts it names the service, says the number and the reset, opens the plans,
 marks the current one, and says out loud that upgrading is unavailable.
+
+## 82. The episodes were researched, and nothing decided what to research
+
+### The symptom
+
+Quality, consistency and relevance, reported from use rather than from a trace:
+a bare entity like `Nvidia` produced a generic company explainer on a day the
+company had done something; a finished game was described as "last night" when
+it had ended two days earlier; a match still to be played was narrated as
+though its result were known; and a five-minute episode was a three-minute one
+with more words in it rather than a deeper one.
+
+Four different-looking complaints, one cause underneath three of them.
+
+### The cause
+
+`plan_episode` took what was typed, `ScriptGenerator.research` handed that
+string to Exa unchanged, and `build_prompt` put the result in front of the
+model. Nothing between the keyboard and the search decided *what the question
+was*. So:
+
+* **`Nvidia` was searched as "Nvidia".** There was no step that could ask why
+  someone types a company name on a particular morning, so the retrieval came
+  back with the company's own description of itself and the episode was
+  correct, current and useless.
+* **The evidence packet had no dates in it.** `build_packet` wrote
+  `SOURCE n / Title: / Key evidence:` and discarded `published_date` and the
+  URL, both of which Exa was already returning. The only time the model had was
+  `now_line()` - the current moment - and nothing to subtract from it. It was
+  being asked to choose between "last night" and "two days ago" with no
+  information that could distinguish them. **That is not a writing failure, and
+  a year of prompt work would not have fixed it.**
+* **The window was never narrowed**, so a well-linked two-year-old explainer
+  competed on equal terms with last night's report of the thing actually asked
+  about.
+* **Duration was a word count.** `plan_episode` multiplied minutes by
+  `TARGET_WPM` and attached a one-line scope note. Nothing said what the extra
+  minutes were *for*, so the model spent them the only way a word budget
+  suggests: more words on the same material.
+
+The fourth complaint - a preview narrated in the past tense - is a different
+failure with the same root. Nothing in the system held the idea that an event
+has a *status*, so nothing could refuse to write a result for something that
+had not happened.
+
+### The fix
+
+A layer between the typed question and the search - `episode_intelligence.py`.
+One model call, before Exa, producing a `Brief`: intent, resolved subject, a
+why-now hypothesis with a confidence attached, the query to actually search,
+what the evidence must establish, how fresh it has to be, which story shape
+fits, and what the writer must not assume. It feeds two consumers from one
+call - `research` reads the retrieval half, `build_prompt` reads the rest.
+
+**Why it is before retrieval and not after.** A critique downstream of Exa can
+only judge an episode built on whatever the packet happened to contain. If the
+query that produced the packet was wrong, the evidence is already the wrong
+evidence and no amount of checking recovers it. The gate has to be where it can
+still change the outcome.
+
+**What it costs, and that this was chosen.** One model call in front of the
+first word, on the search path. It breaks CLAUDE.md's one-sentence spec, which
+had not been broken before and was not broken accidentally here: the writing is
+the product, and a fast episode about the wrong thing is worth less than a
+slower one about the right thing. The browse surfaces pay none of it - there
+the brief is built before the tap, which is what prefetch is for. `write.py`
+prints the brief above the script, so a weak episode can be attributed to a
+weak brief or to a weak script written from a good one, which have fixes in
+different files.
+
+Then the retrieval, which is where three of the four symptoms actually die:
+
+* **The packet carries a publication date and a source grade.** The relative
+  phrase - "yesterday", "2 days ago" - is computed in `age_phrase` from the
+  dates rather than left to the model, so the blueprint's rule that relative
+  labels come from normalized time is enforced rather than requested. An
+  undated source says `date not stated` and is never given today's date.
+* **Recency filters; credibility sorts.** The window
+  (`start_published_date`, from `Brief.recency_days`) decides what is eligible;
+  `rank_results` orders what survives by publisher grade, newest first within a
+  grade. So "prioritise recency without giving up source quality" is two
+  mechanisms doing two jobs rather than a weighted sum nobody can reason about.
+* **One retry when the packet is thin.** `packet_covers` is a token test - not
+  a model call, for the same reason `research_reason` is not one - and a packet
+  missing what the brief asked for buys exactly one more search, on the
+  resolved subject with the window dropped. A retry that also misses still
+  returns its evidence, and the writer is told which parts are thin so the gap
+  is named rather than filled from memory in the same confident voice.
+
+And the two that are not about retrieval at all:
+
+* **Duration buys depth.** `DEPTH_BANDS` says what each band of minutes is
+  *for* - orientation, understanding, depth, the full arc - in content rather
+  than in words, and the band reaches the prompt.
+* **A story shape per episode type**, offered as a shape and never as boxes.
+  This is the one change here that could reintroduce a failure this project has
+  already paid for: the prompt before the rewrite imposed the same five beats
+  on every topic, so a golf recap had to invent something for "the main debate
+  or open question". `build_structure_note` names the shape and, in the same
+  breath, says a beat with nothing real behind it is dropped rather than
+  filled. `test_a_structure_is_offered_as_a_shape_and_never_as_boxes_to_fill`
+  pins that wording, because losing it turns a structure back into a template.
+
+### The seam that is built and not filled
+
+`live_facts.py`. Exa retrieves *writing about* the world, and for two kinds of
+question that is structurally wrong however good the query is: a game ends and
+the scoreboard knows instantly, while the recap saying so is written, published
+and indexed later - so in between, a search returns the preview. Same shape,
+shorter fuse, for a price.
+
+So there is a registry: a source declares a domain, diagnoses why it can or
+cannot serve, and fetches. Registering a real provider is one line and nothing
+else changes, because `prepare` already asks and `build_prompt` already knows
+how to put the answer in front of the writer - a live fact outranks the packet
+and says so, carrying the timestamp it was true at.
+
+**Nothing is configured, and that is deliberately not the same as nothing being
+here.** Both domains are declared and both report exactly what they would need.
+`/api/health` names them. The failure this avoids is the one the project keeps
+paying for: a capability that is absent and quiet gets shipped, and a
+scoreboard question answered from an article index is wrong in a way nobody
+sees until a listener hears it.
+
+### What is deliberately *not* fixed
+
+**A pre-retrieval gate cannot verify a fact.** Nothing has been retrieved when
+it runs and the model's own knowledge is months old, so the brief never asserts
+what happened - it states what must be established and hands the writer
+cautions. Event status is settled downstream, from dated evidence. Anyone
+reading the brief as a source of facts will be wrong.
+
+**The drift check is weak on purpose, and the reason is worth keeping.** The
+gate requires the rewritten search to share a content word with the question,
+by prefix rather than by equality. Equality fails on exactly the rewrite this
+layer exists to make: "the fed" becomes "US Federal Reserve rate decision" and
+shares no token with what was typed. Any test strict enough to catch a subject
+being *replaced* also rejects one being *resolved* - the two are identical to a
+token comparison. So it catches wholesale replacement only, and semantic drift
+is caught downstream where there is evidence to catch it with: the packet comes
+back without what `must_establish` asked for, and the retry goes to `subject`.
+
+**There is still no critic between the finished script and TTS**, and there
+cannot be one that blocks: the script is spoken as it is written, so there is
+no complete script to gate. The checking that exists is all upstream of the
+first word.
+
+**Nothing here has been heard.** There is no API key in the build container, so
+every claim above about *writing* is unverified - the same standing caveat as
+the rest of this file. `tools/ei_eval.py` is the twenty-prompt milestone from
+the packet, and it refuses to run without keys rather than reporting a green
+run on no data.
+
+### The rule this adds
+
+**A layer that adds quality must not be able to subtract availability.** Every
+failure path in `episode_intelligence` - no key, a timeout, a refusal,
+unreadable JSON, a gate that trips - falls back to a brief built from the raw
+query, which is exactly what FAM did before the module existed. And it degrades
+*loudly*: `Brief.degraded`, the log line, and `/api/health`. An EI that had
+quietly stopped running would look identical from outside to one that was
+working; the episodes would merely be less relevant, which is the slowest
+possible way to notice.
+
+One consequence worth stating, because it reverses a rule rather than extending
+one: `research.retrieve` is pinned by a test forbidding it to catch anything,
+so that a failed backend reaches the caller rather than becoming a different
+kind of research. `_second_look` is the single deliberate exemption, and the
+test now pins that too - a *first* retrieval failing means research never
+happened and must propagate; a *second* failing means research happened and an
+optional improvement did not, and throwing the first packet away for that would
+make the episode worse for nobody's benefit.
+
+### Coverage
+
+`tests/test_episode_intelligence.py` - thirty-two tests. The call is made with
+a closed schema at low effort; the brief reaches every field the rest of the
+system reads; what it cost lands in the episode's own total. Then the floor:
+a raise, a timeout, a refusal, unparseable JSON and the off switch each fall
+back to the raw query and say why. Then the gate: a replaced subject is
+reverted and a *resolved* one is not, an unknown intent is mapped back,
+confidence without a hypothesis is downgraded, a question about a moment
+acquires a window and an evergreen one does not, a recap always carries the
+not-yet-confirmed caution, and the gate never refuses whatever it is handed.
+Then the prompt: each duration asks for something different, depth is described
+as content rather than as a word count, a structure is offered as a shape,
+a degraded brief tells the writer nothing, and the cover half of an
+answer-first episode never waits for a brief.
+
+`tests/test_retrieval_quality.py` - twenty-three tests. Dates are read and
+turned into the words a person uses; a future-dated source is flagged rather
+than trusted; a missing date is never filled in. Publishers are graded and an
+unknown one is never graded high; the best source goes first and the newest
+wins within a grade; an undated source sorts last. A question about a moment is
+windowed and an evergreen one is not. A thin packet buys exactly one more
+search, on the resolved subject with the window dropped; the better packet wins
+and the cost is the sum of both; a retry that also misses still returns its
+evidence; a failed second look keeps the first packet. And, last, that without
+a brief retrieval behaves exactly as it did before - one search, no window, no
+retry, which is the floor.
+
+`tests/test_live_facts.py` - seventeen tests, most of them about absence. A
+question routes to its domain and only its domain; a source that fails is
+skipped rather than ending the episode; nothing configured returns nothing and
+pretends nothing; and health names every domain with no provider *and what it
+would take to have one*. Then the block itself: it says when it was true, it
+says it outranks the packet, and event status travels with it.
+
+## 83. Prefetch: the framework, with the policy left to a number nobody has yet
+
+### The problem
+
+CLAUDE.md has said from the first page that **latency is answered by starting
+earlier, never by filling the gap**, and that the browse surfaces are where
+that is actually possible - myFAM and DailyFAM know what somebody might tap
+before they tap it. Nothing had been built for it.
+
+§82 made it more valuable and more urgent at the same time. Episode
+intelligence - contextual relevance - put a model call in front of the first
+word on search, deliberately and at the owner's direction. On search that is a
+trade. On a browse surface it does not have to be a trade at all: the brief is
+the expensive half, the tap is predictable, so the brief can be paid for before
+the finger lands.
+
+### The design, and the one detail everything else hangs off
+
+**Prefetch writes into the same script cache, under the same key, as a live
+episode.** Nothing on the tap path changes. A tap on a warmed tile is an
+ordinary cache hit, and the pipeline has served those since long before this
+existed.
+
+Which makes the cache key the whole ball game. If prefetch computes it one way
+and the tap another, they agree today and drift the first time one of them
+gains a field - and the failure is **silent and total**: every speculative
+script is paid for and never read, while the feed looks exactly as it did
+before. So `pipeline.key_for` and `pipeline.bucket_for` were extracted to
+module level and `PodcastPipeline` now delegates to them. One function, two
+callers, no possibility of disagreement, and a test that reads the pipeline's
+own source to keep it that way.
+
+That extraction immediately found a second bug of its own making: reading
+`self.generator.client` as an argument made the pipeline require an attribute
+it had previously only touched when `CACHE_SEMANTIC_KEY` was on. Six tests with
+fake generators failed. `getattr(..., None)` restores the old tolerance, and
+`key_for` already guards on `client is not None`.
+
+### Two warm levels, because "how much to prefetch" is a real question
+
+CLAUDE.md lists it as open: *every speculative script costs money; every one
+not fetched costs a wait*. The two levels are the honest shape of that:
+
+* **brief** - run contextual relevance only and keep the result. One small
+  model call. Removes the seconds EI costs; the tap still pays retrieval and
+  writing. **This is the default** on the reasoning that it buys most of the
+  felt improvement for a fraction of the waste.
+* **script** - write the whole episode. The tap pays nothing at all, and a
+  wrong guess costs a full episode.
+
+A warmed brief is **time-bounded**, and that is not a tidiness rule: a brief is
+a claim about *now*. A why-now hypothesis and a recency window built this
+morning are wrong by this evening, and a stale brief is worse than none because
+it would make the episode confidently about the wrong day. A **degraded** brief
+is never kept at all - keeping one would mean a tap skips contextual relevance
+and gets the pre-EI behaviour, having already paid for a call that failed.
+
+### Where the guesses come from
+
+`prefetch_sources.py`, separate from the machinery so that adding a surface is
+a new class there rather than an edit here, and so the machinery can be tested
+without a topic bank. Four are built, and the ordering is a **cost design, not
+a ranking one** - CLAUDE.md's "one bank for everyone, personalisation in the
+ordering, not the inventory" is what makes some guesses structurally cheaper:
+
+* **trending** - identical for every listener by construction, so one warmed
+  script is taken by everybody who taps that tile. Best value per dollar in the
+  app, and the only source worth running with nobody signed in.
+* **mixes** - the strongest prediction FAM has: somebody wrote down that they
+  want this subject every day, and a mix holds topic ids rather than audio
+  precisely so it is generated fresh each morning. Bank members outrank typed
+  ones because a bank member is shared and a typed one is a script a day for
+  exactly one person - which `mixes.MixItem` already said, and which the
+  candidate's reason now says out loud.
+* **feed** - the same `build_feed` the page draws itself from, so a warmed tile
+  and a shown tile cannot disagree. A second implementation of "what next" is
+  what CLAUDE.md already refused once for `rank_next_up`.
+* **threads** - the `<<NEXT:>>` follow-up, which is already written and already
+  offered as a chip. Warming it is the difference between that chip being
+  instant and being an ordinary episode.
+
+Every candidate carries a **reason**, and that is the contextual-relevance
+claim being made out loud. It survives to the report, because the only way to
+judge a prefetcher is to see which kinds of guess get taken.
+
+Sources are **forbidden to call a model or the network** - a source that costs
+money to *ask* turns a speculative saving into a certain spend - and a test
+reads the module to enforce it rather than trusting the rule.
+
+### The four things it must never do
+
+1. **Never compete with a live listener.** `stream_pcm` calls
+   `note_live_generation()`; prefetch reads that clock and stands aside for
+   `PREFETCH_QUIET_SECONDS`. One warm at a time, under a lock. A speculative
+   episode that delays a real one has inverted the entire point.
+2. **Never spend past a ceiling**, in two currencies because they fail
+   differently: the episode count stops a runaway loop, the dollar figure stops
+   a *correct* loop being expensive. A 10-minute researched episode costs
+   several times a 1-minute one, so counting episodes alone does not bound the
+   bill. An unpriced model is *named* in the log rather than silently costing
+   nothing - a budget that stops counting is a budget that no longer caps.
+3. **Never warm something personal.** `is_shareable` and the attachment rule,
+   the same as a live episode. A warmed private question is a script nobody can
+   be served, paid for in advance.
+4. **Never pretend it is paying.** Warmed and taken are counted separately, per
+   source, and `note_consumed` is called from the serving path with the key
+   that actually hit - a hit rate inferred anywhere else is one nobody should
+   trust. The rate is `None` rather than `0` when nothing has been warmed,
+   because zero out of zero reads as a failing prefetcher and is actually no
+   data at all.
+
+### Shipped off, and why
+
+`PREFETCH=0`. The same reasoning as the tier system (§81): the mechanism is
+worth having ready and the policy is worth deciding with numbers. The hit rate
+that answers "how much to prefetch" does not exist yet, and switching this on
+is what starts producing it. `/api/health` reports which state a deploy is in,
+because a prefetcher that is off looks exactly like one that is on and missing
+everything - and `prefetch_sources.report()` names every surface with no source
+installed, because a prefetcher running on one out of four looks identical from
+outside to one running on all of them.
+
+`python tools/prefetch_report.py` prints what a deployment *would* warm without
+spending anything (safe against production data, since sources cannot call
+anything), and `--live` reads the hit rate off a running server. There is
+deliberately no command that warms: spending is the server's job under its
+budget, and a tool that could spend outside it would be a second place the
+ceiling has to be enforced.
+
+### A bug the tests found, which was real
+
+`install()` runs at startup and registered its sources unconditionally, while
+`register` refuses a duplicate name - correctly, since two sources with one
+name double-count the hit rate the whole thing is judged on. Any *second*
+startup in one process therefore raised at boot: every test that opens a
+`TestClient`, and any in-process reload. Ninety-three errors said so at once.
+`install` now replaces the sources it manages and leaves anything else alone,
+because startup is the statement "these are this deployment's sources" and a
+statement has to be re-makeable.
+
+### What is deliberately not here
+
+**Nothing schedules a cycle.** `run_once` exists and nothing calls it on a
+timer. That is the next decision rather than an oversight: when to run, how
+often, and per-listener or globally, are policy questions that want the same
+hit-rate evidence as the level does - and a scheduler added now would spend
+money on a schedule nobody has justified.
+
+**The brief store is in-process.** It does not survive a restart and is not
+shared between workers, so a multi-worker deploy warms per worker. Scripts -
+the expensive half - go in the real shared cache. This is the stated limit of
+the seam, and moving it to a shared store is a change to `BriefStore` alone.
+
+**No hit rate exists.** Everything above is machinery. There is no API key in
+the build container and prefetch has never run against a real model, so which
+sources pay for themselves is unknown and is exactly what turning it on is for.
+
+### Coverage
+
+`tests/test_prefetch.py` - thirty-seven tests, organised around the four
+properties that have to hold before anybody turns it on. The key one first: the
+pipeline is read to confirm it delegates to `key_for`, and a warmed episode is
+then looked up with the key a tap would compute. Then standing aside (a live
+generation blocks a warm; the serving path really does send the signal; two
+concurrent warms serialise), the ceiling (episodes, dollars, the daily roll,
+and nothing at all while off), and the ledger (a hit counted once and only
+once, never claimed for a key nobody warmed, `None` rather than zero with no
+data, and per source). Then the plan: sources interleaved so one cannot take
+the whole budget, the same question warmed once, an unshareable one never, and
+a cycle that stops the moment the answer can only be the same. Then the brief:
+handed to the writing path before it pays for one, degraded ones never kept,
+stale ones expired, and one warmed at three minutes never used at ten.
+
+`tests/test_prefetch_sources.py` - sixteen tests against the real bank and the
+real stores. Trending answers with no listener and is never tagged to one; the
+candidate is the tile's `query` and not its label, because warming the label
+writes an episode nobody asks for. A bank mix member outranks a typed one and
+the typed one says it is shared with nobody. The feed source warms the rails
+the page actually draws and does not warm trending a second time. A thread
+source whose store falls over returns nothing rather than taking the cycle
+down. Every candidate has a reason and the length the cache key expects. And,
+last, the module is read to prove no source reaches for a model or the network.

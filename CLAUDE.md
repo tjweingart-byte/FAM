@@ -68,6 +68,28 @@ Everything else is negotiable; this is not. Any change that puts seconds in
 front of the first word is wrong, however clever the thing filling those
 seconds is.
 
+> **Amended for search, deliberately and at the owner's explicit direction**
+> *(PROBLEMS.md §82).* Episode intelligence runs one model call between the
+> typed question and the search, so **searchFAM now starts a few seconds after
+> the tap rather than half a second after it.** This was decided with the trade
+> stated in both directions and chosen anyway: the writing is the product, and
+> a fast episode about the wrong thing is worth less than a slower one about
+> the right thing. What follows below is still true of everything else, and the
+> rest of this section is the reasoning that made the amendment a decision
+> rather than a drift.
+>
+> **The amendment is for search only.** myFAM and DailyFAM must pay none of it
+> — there, what someone might tap is known before they tap it, so the brief and
+> the script are built ahead of the tap and the wait is zero. That is the same
+> "start earlier" argument this file has always made, and EI is the thing that
+> makes prefetching worth more than it used to be: a pre-built brief is the
+> expensive half. **Explore never pays it either** — it replays finished
+> episodes and generates nothing.
+>
+> `EPISODE_INTELLIGENCE=0` restores the old latency exactly, and with it the
+> old behaviour: the raw query goes to Exa, with no structure, no why-now and
+> no temporal cautions.
+
 What that rules out, learned the hard way: live web search on every query (it
 front-loads 10-25 seconds), the slowest model by default, and any form of
 preamble used to disguise a wait. Search is now opt-in per request; the default
@@ -84,6 +106,11 @@ user's request; it is not in the code. The same reasoning still applies to the
 browse surfaces, where what someone might tap is known well before they tap it,
 and where a speculative script is far more likely to be used than one triggered
 by a keystroke pause. That is where to spend it.
+
+**The framework for spending it there is now built** *(PROBLEMS.md §83,
+`prefetch.py`).* It ships off, and it is a framework rather than a policy: what
+to warm, how much of it, and when, are questions that want the hit rate it
+produces. See the settled constraint below.
 
 ## What makes a FAM episode different
 
@@ -191,11 +218,31 @@ is the first thing to check.
 generating audio. That is the loop for improving this, and it is a judgement
 call rather than an engineering one.
 
-**`examples/` is the strongest lever on the writing.** Briefings dropped in
-there are shown to the model as the house voice. Rules describe a style loosely;
-examples are matched closely, so two or three good ones move the output more
-than any amount of further prompt wording. Prefer adding an example over adding
-another rule.
+**And a second cause has since been found and fixed, which was never a prompt
+problem at all** *(PROBLEMS.md §82).* Three of the four complaints about
+quality came from what the prompt was *given*, not from what it said: the
+question was searched verbatim, so `Nvidia` returned a company explainer on a
+day the company had done something; the evidence packet carried no dates, so an
+episode was asked to choose between "last night" and "two days ago" with
+nothing to choose on; and duration was a word count, so more minutes bought
+more words on the same material. **No amount of prompt work would have fixed
+any of those.** `episode_intelligence.py` decides what to search for before Exa
+is called, `research.build_packet` now dates and grades every source, and
+`DEPTH_BANDS` says what each band of minutes is *for*.
+
+**`write.py` now prints the brief above the script, and that split is the
+point.** A weak episode is either a weak brief or a weak script written from a
+good one, and those have fixes in different files. Read the EI block first.
+`--no-ei` runs the pre-EI path for comparison, and `tools/ei_eval.py` is the
+twenty-prompt milestone.
+
+**`examples/` is the strongest lever on the writing, and it is still empty.**
+Briefings dropped in there are shown to the model as the house voice. Rules
+describe a style loosely; examples are matched closely, so two or three good
+ones move the output more than any amount of further prompt wording. Prefer
+adding an example over adding another rule. Nobody has written one yet, so the
+strongest available lever on the remaining problem is untouched — and unlike
+the rest of this list it needs taste rather than a key.
 
 ## Open problems, in the order they hurt
 
@@ -375,6 +422,107 @@ another rule.
   tool has existed; always-on research turned that from a rare case into every
   episode, which is how it was finally seen. The packet and the tool stay
   alternatives, never both.
+- **Something decides what to search for, before the search.** *(PROBLEMS.md
+  §82.)* `episode_intelligence.py` runs one model call between the typed
+  question and Exa and produces a `Brief`: intent, resolved subject, a why-now
+  hypothesis with its confidence, the query to actually run, what the evidence
+  must establish, how fresh it has to be, the story shape, and what the writer
+  must not assume. One call feeds both halves — `research` reads the retrieval
+  fields, `build_prompt` reads the rest.
+  **It is before retrieval because a gate after it is worthless**: a critique
+  downstream of Exa can only judge an episode built on whatever the packet
+  happened to hold, and if the query was wrong the evidence is already the
+  wrong evidence. It is also why the brief **never asserts a fact** — nothing
+  has been retrieved when it runs, so it produces cautions and questions, and
+  event status is settled downstream from dated evidence.
+  The rule it adds, which generalises: **a layer that adds quality must not be
+  able to subtract availability.** Every failure — no key, a timeout, a
+  refusal, unreadable JSON, a gate that trips — falls back to the raw query,
+  which is exactly what FAM did before it existed, and says so in
+  `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
+  running would look identical from outside to one that was working.
+- **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
+  jobs, rather than a weighted score nobody can reason about. The window
+  (`start_published_date`, from the brief) decides what is eligible, so nothing
+  stale is considered however well linked it is; `rank_results` then orders
+  what survives by publisher grade, newest first within a grade. A question
+  about last night is therefore answered from last night, by a wire service
+  rather than by whoever published fastest.
+  Two details are load-bearing. **The packet carries the date and the grade and
+  never the hostname** — a domain in the packet is a domain the voice can read
+  out, and the model needs to know it is reading a wire service in order to
+  weigh it, not a way to say "reuters dot com" aloud. And **the relative phrase
+  is computed in code**, not left to the model: "yesterday" is subtraction, and
+  the failure it replaces was an episode asked to date events from evidence
+  that carried no dates at all.
+  A thin packet buys **one** more search — on the resolved subject, window
+  dropped, never a model call to rephrase — and a retry that still misses
+  returns its evidence anyway, with the gap *named* to the writer so it is said
+  plainly rather than filled from memory in the same confident voice.
+- **An article index is the wrong instrument for a scoreboard, and the seam for
+  that is built and empty.** *(§82, `live_facts.py`.)* A game ends and the
+  scoreboard knows instantly; the recap saying so is written, published and
+  indexed later, so in between a search returns the *preview*. Same shape,
+  shorter fuse, for a price. Registering a real provider is one line —
+  `prepare` already asks and `build_prompt` already knows how to place the
+  answer, which outranks the packet and carries the timestamp it was true at.
+  **Nothing is configured, and that is deliberately not the same as nothing
+  being here**: both domains are declared, both report exactly what they would
+  need, and `/api/health` names them. A capability that is absent and quiet
+  gets shipped, and a scoreboard question answered from an index is wrong in a
+  way nobody sees until a listener hears it.
+- **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
+  ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
+  orientation, understanding, depth, the full arc — described as content and
+  never as a word count, and the band reaches the prompt. A story shape per
+  episode type reaches it too, and **as a shape, never as boxes**: the prompt
+  before the rewrite imposed the same five beats on every topic, so a golf
+  recap had to invent something for "the main debate or open question".
+  `build_structure_note` names the shape and, in the same breath, says a beat
+  with nothing real behind it is dropped rather than filled. A test pins that
+  wording, because losing it turns a structure back into a template.
+- **Prefetch writes into the same cache, under the same key, as a live
+  episode.** *(PROBLEMS.md §83.)* That is the whole design: nothing on the tap
+  path changes, and a tap on a warmed tile is an ordinary cache hit. Which
+  makes the key the ball game - two implementations agree today and drift the
+  first time one gains a field, and the failure is silent and total (every
+  speculative script paid for and never read, with the feed looking exactly as
+  it did). So `pipeline.key_for` and `bucket_for` are module-level, the
+  pipeline delegates to them, and a test reads the pipeline's own source to
+  keep it that way. **If you add a field that changes what an episode is, it
+  goes in there and nowhere else.**
+  **Two warm levels**, which is the honest shape of "how much to prefetch":
+  `brief` runs contextual relevance only and is the default - it removes the
+  seconds EI costs for one small call - and `script` writes the whole episode,
+  so the tap pays nothing and a wrong guess costs a full one. A warmed brief
+  expires, because a brief is a claim about *now* and a stale one would make
+  the episode confidently about the wrong day; a degraded brief is never kept
+  at all, since that would be a tap silently skipping EI after paying for it.
+  Four things it may never do: **compete with a live listener** (the serving
+  path marks itself, prefetch stands aside, one warm at a time), **spend past
+  its ceiling** (episodes *and* dollars, because a 10-minute researched episode
+  costs several times a 1-minute one), **warm anything personal** (the same
+  `is_shareable` rule a live episode obeys), and **pretend it is paying** -
+  warmed and taken are counted separately per source, recorded from the
+  serving path with the key that actually hit, and reported as `None` rather
+  than `0` when there is no data, because zero out of zero reads as failure and
+  is actually silence.
+  **It ships off** (`PREFETCH=0`), on the tier system's reasoning: the
+  mechanism is worth having ready and the policy is worth deciding with
+  numbers. Nothing schedules a cycle yet - that is the next decision, not an
+  oversight. `python tools/prefetch_report.py` shows what a deployment would
+  warm without spending anything; `--live` reads the hit rate off a server.
+- **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
+  Every guess carries a reason in words - "#2 in trending, the same tile for
+  everyone", "in their 'At the gym' mix (typed, so shared with nobody)" - and
+  it survives to the report, because the only way to judge a prefetcher is to
+  see which *kinds* of guess get taken. The source ordering is a **cost design,
+  not a ranking one**: trending is identical for everybody so one warmed script
+  serves every tap, a bank mix member is shared where a typed one is a script a
+  day for one person, and a feed rail is the most personal and least shareable.
+  Sources are **forbidden to call a model or the network** - one that costs
+  money to *ask* turns a speculative saving into a certain spend - and a test
+  reads the module rather than trusting the rule.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and the weekly recap need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
@@ -578,7 +726,14 @@ which is the go/no-go for all of it.
 - **Local or hosted voices?** Changes the cost model more than the model choice
   does.
 - **How much to prefetch?** Every speculative script costs money; every one not
-  fetched costs a wait.
+  fetched costs a wait. *The framework is built and off* (§83), so this is now
+  a measurement rather than a guess: turn `PREFETCH=1` on, let it warm, and
+  read the per-source hit rate off `/api/health` or
+  `tools/prefetch_report.py --live`. A source warmed often and taken rarely is
+  paying for episodes nobody wanted; one taken nearly every time is worth
+  warming deeper (`PREFETCH_LEVEL=script`). **Still to decide, and deliberately
+  not decided here: what schedules a cycle** - when, how often, and per
+  listener or globally.
 - **Is a local embedding model worth installing?** The near-match cache
   (PROBLEMS.md §68) is built, measured and off by default. It raises the share
   of re-phrasings that find an existing episode from 22% to 56% on a measured
