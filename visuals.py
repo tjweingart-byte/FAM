@@ -82,21 +82,22 @@ PENDING_STATES = ("queued", "generating", "processing", "validating")
 #: restart does not leave an episode illustrated by nobody.
 STALE_CLAIM_SECONDS = 600.0
 
-#: What each attempt changes. Structural failures are answered by insisting on
-#: continuity, then by asking for the same richness composed so that its parts
-#: touch - never by changing the house style, and **never by asking for a
-#: simpler picture**. See `visual_style.image_prompt`.
-#:
-#: The third rung used to read "a simpler visual metaphor", and it was the
-#: engineering dictating the art: a failure in FAM's vectoriser was answered by
-#: making the illustration worse, on exactly the subjects that had already
-#: failed twice. The forms needing to *touch* is a real constraint with an
-#: answer that costs the drawing nothing.
+#: What each attempt changes, in words, for the log and the stored record. The
+#: prompt text itself lives in `visual_style` - these are labels, not the
+#: instruction - and the third rung's history is documented there, at
+#: `CONNECTED_RICHNESS_INSISTENCE`.
 RETRY_LADDER = (
     "standard FAM direction",
     "stronger continuous-line instructions",
     "the same scene, composed so its parts touch",
 )
+
+
+def _rung(attempt: int) -> str:
+    """Which rung an attempt is on, in words. Attempts past the last rung stay
+    on the last rung - `VISUAL_MAX_RETRIES` is settable and the ladder is
+    not."""
+    return RETRY_LADDER[min(attempt, len(RETRY_LADDER)) - 1]
 
 
 # --------------------------------------------------------------------------
@@ -576,8 +577,8 @@ def within_budget() -> tuple[bool, str]:
     return True, ""
 
 
-def request(query: str, *, context: str = "", minutes: int = 3,
-            surface: str = "search", reason: str = "", topic: str = "",
+def request(query: str, *, context: str = "", surface: str = "search",
+            reason: str = "", topic: str = "",
             brief=None, evidence: str = "", cached_only: bool = False,
             attachments=(), live: bool = True, notes=None) -> str:
     """Ask for this episode's drawing. Returns immediately, always.
@@ -641,7 +642,7 @@ def request(query: str, *, context: str = "", minutes: int = 3,
     track("visual_job_queued", id=visual_id, surface=surface, query=query,
           reason=reason)
     task = loop.create_task(_run(record, brief=brief, evidence=evidence,
-                                 topic=topic, minutes=minutes, notes=notes))
+                                 topic=topic, notes=notes))
     # Held so the loop does not garbage-collect a task nobody awaits, and
     # discarded on completion so the set is not a slow leak.
     _TASKS.add(task)
@@ -653,7 +654,7 @@ _TASKS: set = set()
 
 
 async def _run(record: VisualRecord, *, brief=None, evidence: str = "",
-               topic: str = "", minutes: int = 3, notes=None,
+               topic: str = "", notes=None,
                force: bool = False) -> None:
     """The whole job, off the audio path.
 
@@ -664,7 +665,7 @@ async def _run(record: VisualRecord, *, brief=None, evidence: str = "",
     try:
         async with _semaphore():
             await _draw(record, brief=brief, evidence=evidence, topic=topic,
-                        minutes=minutes, notes=notes, force=force)
+                        notes=notes, force=force)
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis
         log.exception("drawing %r failed unexpectedly", record.query)
         record.error = str(exc)
@@ -702,9 +703,16 @@ def _write_trace(folder, name: str, text: str) -> None:
         log.warning("could not write trace %s: %s", name, exc)
 
 
-async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
-                topic: str = "", minutes: int = 3, notes=None,
-                force: bool = False) -> None:
+async def _prepare(record: VisualRecord, *, brief, evidence: str,
+                   topic: str, notes, force: bool) -> tuple | None:
+    """Everything that happens once, before the first attempt.
+
+    Returns `(provider, direction, references)`, or `None` when there is
+    nothing to draw - already claimed, or no provider configured. Split out of
+    `_draw` because it runs once and the loop runs up to three times, and a
+    reader chasing a retry should not have to step past the claim, the
+    understanding and the art direction to find it.
+    """
     if force:
         # A deliberate redo. The claim check exists to stop *accidental*
         # duplicates, and refusing an administrator who asked for one by name
@@ -713,14 +721,14 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         store().mark(record, "generating")
     elif not store().claim(record):
         log.debug("%s is already being drawn", record.id)
-        return
+        return None
 
     provider = visual_provider.build_provider()
     ready, why = provider.configured()
     if not ready:
         store().mark(record, "unconfigured", why)
         track("visual_generation_failed", id=record.id, error=why)
-        return
+        return None
     record.provider = provider.name
     record.model = getattr(provider, "model", "")
 
@@ -756,13 +764,32 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         # healthy, and quietly stops looking like FAM.
         log.warning("no approved references in %s - the house style is being "
                     "described in words only", visual_style.REFERENCE_DIR)
+    return provider, direction, references
+
+
+async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
+                topic: str = "", notes=None,
+                force: bool = False) -> None:
+    """One episode's drawing, attempt by attempt.
+
+    The loop is the retry ladder: generate, screen the art, vectorise, judge,
+    and either store it or go round again with a stronger instruction. Every
+    exit leaves a state on the record - `ready`, `failed` or `unconfigured` -
+    because a picture must never be able to take an episode down with it.
+    """
+    prepared = await _prepare(record, brief=brief, evidence=evidence,
+                              topic=topic, notes=notes, force=force)
+    if prepared is None:
+        return
+    provider, direction, references = prepared
+
     last_error = ""
     for attempt in range(record.attempts + 1,
                          settings.visual_max_retries + 1):
         record.attempts = attempt
         if attempt > 1:
             track("visual_retry", id=record.id, attempt=attempt,
-                  ladder=RETRY_LADDER[min(attempt, len(RETRY_LADDER)) - 1])
+                  ladder=_rung(attempt))
         store().mark(record, "generating")
         track("visual_generation_started", id=record.id, attempt=attempt,
               provider=provider.name, model=record.model)
@@ -810,6 +837,9 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
             track("visual_source_advisory", id=record.id, attempt=attempt,
                   advisories=screening.advisories, metrics=screening.metrics)
 
+        if trace is not None:
+            _write_trace(trace, "prompt.txt", image.prompt)
+
         store().mark(record, "processing")
         track("visual_processing_started", id=record.id, attempt=attempt)
         processing_started = time.monotonic()
@@ -817,8 +847,6 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
             # In a thread, without exception. Skeletonising a megapixel is
             # tenths of a second of solid CPU, and this loop is streaming
             # somebody's episode.
-            if trace is not None:
-                _write_trace(trace, "prompt.txt", image.prompt)
             art = await asyncio.to_thread(line_processor.process, image.data,
                                           trace)
         except line_processor.LineProcessingError as exc:
@@ -858,7 +886,7 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         record.metrics = {**art.as_dict(), "validation": verdict.metrics,
                           "source_screening": screening.metrics,
                           "provider": image.as_dict(),
-                          "ladder": RETRY_LADDER[min(attempt, len(RETRY_LADDER)) - 1]}
+                          "ladder": _rung(attempt)}
         store().write_assets(record, source=image.data, svg=svg,
                              thumbnail=thumbnail)
         store().mark(record, "ready")

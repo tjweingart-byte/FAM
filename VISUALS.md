@@ -364,6 +364,24 @@ the vector and the other from the raster guarantees that they are not.
 
 ---
 
+## Three ladders, and why they are three
+
+A reader meets three "try again differently" mechanisms in this feature. They
+are orthogonal, each answers a different settled rule, and confusing them is
+how one gets used for the other's job:
+
+| ladder | what it changes | answers |
+|---|---|---|
+| `visuals.RETRY_LADDER` | **different artwork** — a new image generation | the art is unusable: not one line, an icon, coloured |
+| `line_processor.DETAIL_LADDER` | **the same artwork, vectorised more gently** | the vector lost the drawing. *Never* answered with different art |
+| `line_processor.ROUTE_TRIALS` | **the same vector, drawn in a different order** | the reveal stalls. Cannot change the picture at all |
+
+Cost falls by an order of magnitude down the table: a retry is a paid image, a
+detail rung is a few milliseconds of curve fitting, a route trial is a linear
+walk. So does blast radius — only the first can change what the listener sees.
+
+---
+
 ## What is stored
 
     fam-visuals.db                  the index: status, path, metrics, cost

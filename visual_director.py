@@ -55,8 +55,7 @@ of; `scene`, `primary_form` and `visual_metaphor` are how it gets drawn.
 The constraint that follows, and which this module must never quietly break:
 **the art comes first and the engineering preserves it.** FAM's vectoriser
 needs a drawing it can travel in one stroke, and the correct way to give it one
-is a scene whose parts *touch* - not a scene with fewer parts. Nothing here may
-ask for a simpler picture in order to make the pipeline's job easier.
+is a scene whose parts *touch*, not a scene with fewer parts.
 """
 from __future__ import annotations
 
@@ -68,6 +67,7 @@ import re
 from dataclasses import dataclass, field
 
 import credentials
+import visual_style
 from anthropic_client import build_async_client
 from config import settings
 
@@ -79,14 +79,12 @@ log = logging.getLogger(__name__)
 #: pad to.
 COMPLEXITIES = ("low", "medium", "high")
 
-#: What is never in a FAM illustration, whatever the subject. The per-episode
-#: `avoid` list the model returns is added to this, never substituted for it.
-BASELINE_AVOID = (
-    "text", "logos", "shading", "colour", "gradients", "photorealism",
-    "cartoon", "icons", "pictograms", "clip art",
-    "generic corporate illustration", "infographic", "poster design",
-    "handshake or two-symbols-meeting imagery", "clutter",
-)
+#: What is never in a FAM illustration, whatever the subject. Defined in
+#: `visual_style` beside the house style's own NEVER list, because those two
+#: have to agree and only do so if they are read together; re-exported here
+#: because this is the module that applies it. The per-episode `avoid` a model
+#: returns is added to it, never substituted for it.
+BASELINE_AVOID = visual_style.BASELINE_AVOID
 
 
 @dataclass

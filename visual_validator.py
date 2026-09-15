@@ -41,7 +41,6 @@ in this module may be relaxed in the other direction.
 """
 from __future__ import annotations
 
-import math
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -470,27 +469,29 @@ def screen_source(data: bytes) -> Verdict:
     2.4, it refused a spare figure study at 2.3.
 
     What it can refuse: blank, a speck, a closed outline, a fill, scribble,
-    coloured. What it can only *notice*: sparse, dense, small. And two things it does not touch at all - "generic" and
-    "inconsistent with the approved references" are taste, they belong to the
-    image model, `visual_style` and `visual_references/`, and a gate that
-    pretended to measure them would be worse than one that says it does not.
+    coloured. What it can only *notice*: sparse, dense, small. And two things
+    it does not touch at all - "generic" and "inconsistent with the approved
+    references" are taste, they belong to the image model, `visual_style` and
+    `visual_references/`, and a gate that pretended to measure them would be
+    worse than one that says it does not.
 
     Never raises, for the same reason `validate` never does: a gate that can
     throw can take the episode down with the picture.
 
-    It costs a decode and a threshold - the cheap end of what `process` does
-    anyway, about thirty milliseconds, and deliberately not the skeletonisation.
-    Repeating that much is the price of the gate being in front of the work
-    rather than inside it, and of it being testable on its own.
+    It costs a decode, a threshold and a thinning pass - roughly fifty
+    milliseconds, all of which `process` then does again. Repeating it is the
+    price of the gate standing in front of the work rather than inside it, and
+    of it being testable on its own; the thinning in particular is not
+    optional, because the structural icon test is the one bound here worth
+    refusing on.
     """
     verdict = Verdict()
     try:
         import line_processor
 
-        grey = line_processor.decode_image(data)
-        mask, _ = line_processor.ink_mask(grey)
-        mask = line_processor._resize_mask(mask, line_processor.WORK_SIZE)
-        mask = line_processor.despeckle(mask)
+        # The same preparation `process` will do, through the same function -
+        # so the gate is judging the mask that actually gets vectorised.
+        mask, _ = line_processor.prepare_mask(data)
     except Exception as exc:  # noqa: BLE001
         return verdict.fail(f"the artwork could not be read ({exc})")
 
@@ -589,17 +590,6 @@ def _check_thumbnail(thumbnail: bytes, verdict: Verdict) -> None:
     if ink_share > 0.30:
         verdict.fail(f"the thumbnail is {ink_share:.0%} ink; far too dense for "
                      "this style")
-
-
-def is_fatal(reasons) -> bool:
-    """Whether a failure is worth regenerating for.
-
-    Everything is, today - every reason above is either a bad picture or a bad
-    vectorisation, and both are answered by drawing it again. The function
-    exists so that the *decision* has a name and a place, rather than being an
-    unconditional retry somebody has to infer from the absence of a condition.
-    """
-    return bool(reasons)
 
 
 def report() -> dict:

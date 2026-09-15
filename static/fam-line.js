@@ -81,6 +81,9 @@ window.FamLine = (function () {
     svg.setAttribute("class", "line-svg");
     var path = document.createElementNS(SVG_NS, "path");
     path.setAttribute("fill", "none");
+    /* Placeholders until /api/visual supplies the real values in `apply`.
+       `visual_style.INK` and `STROKE_WIDTH` are the source of truth; nothing
+       is drawn before the response arrives, so these are never seen. */
     path.setAttribute("stroke", "#171820");
     path.setAttribute("stroke-width", "1.4");
     path.setAttribute("stroke-linecap", "round");
@@ -110,6 +113,18 @@ window.FamLine = (function () {
     for (var i = 0; i < hosts.length; i++) fn(hosts[i]);
   }
 
+  /* Back to ivory. Shared by begin() and clear(), which were doing the same
+     six lines each and are the two places a missed one would leave the last
+     episode's drawing on the next episode's canvas. */
+  function blank(host) {
+    host.root.classList.remove("has-line");
+    host.root.classList.add("blank");
+    host.path.setAttribute("d", "");
+    host.path.style.opacity = "0";
+    host.badge.hidden = true;
+    host.length = 0;
+  }
+
   /* ---- the episode ------------------------------------------------- */
 
   /* A new episode started. The canvas goes blank and the reveal goes to zero,
@@ -124,14 +139,9 @@ window.FamLine = (function () {
     current = null;
     eachHost(function (host) {
       host.lastOffset = null;
-      host.root.classList.remove("has-line");
-      host.root.classList.add("blank");
-      host.path.setAttribute("d", "");
       host.path.style.strokeDasharray = "";
       host.path.style.strokeDashoffset = "";
-      host.path.style.opacity = "0";
-      host.badge.hidden = true;
-      host.length = 0;
+      blank(host);
     });
     stopPolling();
     startLoop();
@@ -148,14 +158,7 @@ window.FamLine = (function () {
     current = null;
     stopPolling();
     stopLoop();
-    eachHost(function (host) {
-      host.root.classList.remove("has-line");
-      host.root.classList.add("blank");
-      host.path.setAttribute("d", "");
-      host.path.style.opacity = "0";
-      host.badge.hidden = true;
-      host.length = 0;
-    });
+    eachHost(blank);
   }
 
   /* Show a drawing that is already in hand - a myFAM tile whose visual came

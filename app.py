@@ -2714,7 +2714,7 @@ async def audio(
     # Idempotent on the visual key: the pipeline's own request a moment later
     # finds this one already in flight and returns.
     visuals_mod.request(
-        plan.query, context=context, minutes=minutes,
+        plan.query, context=context,
         surface=_surface(cached_only, topic_id, context),
         reason="tapped on " + _surface(cached_only, topic_id, context),
         topic=(topics_mod.BANK_BY_ID[topic_id].title

@@ -527,7 +527,8 @@ class Settings:
     visual_image_timeout_seconds: float = _env_float(
         "VISUAL_IMAGE_TIMEOUT_SECONDS", 180.0)
     # Attempts in total, not retries on top of the first. Three is the ladder
-    # in visual_style: standard, insist on continuity, simplify.
+    # in visual_style: standard direction, insist on continuity, then the same
+    # scene composed so its parts touch. No rung asks for a simpler picture.
     visual_max_retries: int = _env_int("VISUAL_MAX_RETRIES", 3)
     # How many drawings may be in flight at once. The ceiling that matters is
     # the provider's, not this machine's - the processing is tenths of a second

@@ -39,7 +39,7 @@ from __future__ import annotations
 import base64
 import logging
 import mimetypes
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -142,7 +142,6 @@ class StyleSpec:
     behaviour: tuple[str, ...] = ()
     character: tuple[str, ...] = ()
     avoid: tuple[str, ...] = ()
-    references: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> dict:
         return {
@@ -248,6 +247,25 @@ STYLE = StyleSpec(
         "random scribble used to fill space",
         "many small disconnected strokes",
     ),
+)
+
+
+#: What is never in a FAM illustration, whatever the subject - the same rule as
+#: `STYLE.avoid` above, in the shorter form the *per-episode* brief carries.
+#:
+#: **Two lists, deliberately, and they must not drift apart.** `STYLE.avoid` is
+#: the house style's NEVER section and is described to the model at length;
+#: this is the floor under `visual_director.VisualBrief.avoid`, which a model
+#: returns and which is *added* to this rather than substituted for it - so a
+#: model that answers with its own short `avoid` list cannot be how "no text"
+#: stops being said. They live next to each other here because the failure is
+#: adding a ban to one and forgetting the other, and that is only visible if
+#: they are in the same file. `visual_director` imports this one.
+BASELINE_AVOID = (
+    "text", "logos", "shading", "colour", "gradients", "photorealism",
+    "cartoon", "icons", "pictograms", "clip art",
+    "generic corporate illustration", "infographic", "poster design",
+    "handshake or two-symbols-meeting imagery", "clutter",
 )
 
 

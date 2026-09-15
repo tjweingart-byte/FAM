@@ -32,34 +32,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import line_processor as lp  # noqa: E402
 import visual_style  # noqa: E402
+import visual_validator  # noqa: E402
+from visual_fixtures import circle, line, render, sample  # noqa: E402
 
 SIZE = 900
 
 
 def draw(*strokes, size: int = SIZE, width: float = 1.4) -> bytes:
     """Render strokes as FAM renders things: charcoal on ivory."""
-    coverage = np.zeros((size, size), dtype=np.float32)
-    for stroke in strokes:
-        points = [(x * size, y * size) for x, y in stroke]
-        np.maximum(coverage, lp._coverage(points, size, width), out=coverage)
-    paper = np.array(lp._hex(visual_style.PAPER), dtype=np.float32)
-    ink = np.array(lp._hex(visual_style.INK), dtype=np.float32)
-    blended = (paper[None, None, :] * (1 - coverage[:, :, None])
-               + ink[None, None, :] * coverage[:, :, None])
-    return lp.encode_png(np.clip(blended, 0, 255).astype(np.uint8))
-
-
-def sample(fn, n: int = 600) -> list:
-    return [fn(i / n) for i in range(n + 1)]
-
-
-def circle(cx=0.5, cy=0.5, r=0.3) -> list:
-    return sample(lambda t: (cx + r * math.cos(t * math.tau),
-                             cy + r * math.sin(t * math.tau)))
-
-
-def line(x0, y0, x1, y1) -> list:
-    return sample(lambda t: (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
+    return render(strokes, size, width)
 
 
 # --------------------------------------------------------------------------
@@ -140,10 +121,8 @@ def test_the_traversal_never_leaves_a_gap_for_the_smoothing_to_bridge():
     art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67)))
     route = lp.euler_route(lp.eulerise(
         lp.build_graph(lp.prune_spurs(lp.skeletonise(
-            lp.despeckle(lp._resize_mask(
-                lp.ink_mask(lp.decode_image(
-                    draw(circle(), line(0.13, 0.33, 0.87, 0.67))))[0],
-                lp.WORK_SIZE)))))[0])[0])
+            lp.prepare_mask(
+                draw(circle(), line(0.13, 0.33, 0.87, 0.67)))[0])))[0])[0])
     for (first, _, _), (second, _, _) in zip(route, route[1:]):
         gap = math.dist(first[-1], second[0])
         assert gap <= lp.CONTIGUOUS_TOLERANCE, (
@@ -187,7 +166,7 @@ def test_a_bridge_is_measured_where_it_will_be_seen():
     art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67),
                           line(0.806, 0.50, 0.906, 0.47)))
     assert art.bridged >= 1
-    assert 0 < art.max_bridge <= lp.MAX_BRIDGE_UNITS, (
+    assert 0 < art.max_bridge <= visual_validator.MAX_BRIDGE_UNITS, (
         f"a {art.max_bridge:.0f}-unit bridge is a visible line across the "
         "canvas")
     assert art.bridged_length >= art.max_bridge
@@ -226,8 +205,6 @@ def test_a_scar_is_rejected_before_the_asset_is_marked_ready():
     route with a long connector; this refuses to *ship* one, because a drawing
     that got past the first gate by some route nobody anticipated must still
     never reach a player."""
-    import visual_validator
-
     art = lp.process(draw(circle()))
     assert visual_validator.validate(lp.svg_document(art.d), art).ok
 
@@ -436,8 +413,7 @@ def test_the_seam_tolerance_comes_from_the_artwork_not_a_constant():
     denser drawing has larger clusters. A constant here rejected rich artwork
     for being rich, which is the engineering dictating the art."""
     skeleton = lp.prune_spurs(lp.skeletonise(
-        lp.despeckle(lp._resize_mask(lp.ink_mask(lp.decode_image(rich()))[0],
-                                     lp.WORK_SIZE))))
+        lp.prepare_mask(rich())[0]))
     edges, positions = lp.build_graph(skeleton)
     tolerance = lp.node_tolerance(edges, positions)
     assert tolerance >= lp.CONTIGUOUS_TOLERANCE, "the floor was lost"
@@ -450,7 +426,7 @@ def test_vectorising_keeps_the_artwork_it_was_given():
     """Rule five, second half: if beautiful source artwork comes out of here
     simplified or distorted, that is a line-processing failure."""
     art = lp.process(rich())
-    assert art.fidelity >= lp.MIN_FIDELITY, (
+    assert art.fidelity >= visual_validator.MIN_FIDELITY, (
         f"the vector keeps only {art.fidelity:.0%} of the artwork")
     assert art.invented <= 0.04, "the vectoriser drew line that was not there"
 
@@ -463,7 +439,7 @@ def test_losing_detail_is_answered_by_redoing_the_processing(monkeypatch):
     monkeypatch.setattr(lp, "DETAIL_LADDER", lossy)
     art = lp.process(source)
     assert art.detail > 0, "the lossy first rung was shipped rather than redone"
-    assert art.fidelity >= lp.MIN_FIDELITY
+    assert art.fidelity >= visual_validator.MIN_FIDELITY
     assert any("detail level" in w for w in art.warnings), \
         "the drawing was rescued silently"
 
@@ -504,8 +480,6 @@ def test_the_routing_limit_is_far_stricter_than_the_validators_backstop():
     """The validator's numbers are maximum rejection boundaries, NOT permission
     to bridge anything shorter. The artistic rule is this one, and it has to
     stay well inside the backstop or the backstop becomes the policy."""
-    import visual_validator
-
     in_units = lp.BRIDGE_SHARE * lp.WORK_SIZE * (visual_style.VIEWBOX
                                                  / lp.WORK_SIZE)
     assert in_units < visual_validator.MAX_BRIDGE_UNITS * 0.75, (
@@ -549,8 +523,6 @@ def test_choosing_a_route_cannot_change_the_picture():
     source = rich()
     first = lp.process(source)
     # A run confined to one ordering, against the chooser's pick.
-    import contextlib
-
     class OneVariant:
         def __enter__(self):
             self.real = lp.ROUTE_TRIALS
@@ -574,8 +546,7 @@ def test_the_chooser_actually_improves_what_is_watched():
     would be cost with no benefit and should be deleted rather than left in."""
     best_gain = 1.0
     for seed in (1, 7, 4242):
-        mask = lp.despeckle(lp._resize_mask(
-            lp.ink_mask(lp.decode_image(rich(seed)))[0], lp.WORK_SIZE))
+        mask = lp.prepare_mask(rich(seed))[0]
         edges, positions = lp.build_graph(lp.prune_spurs(lp.skeletonise(mask)))
         edges, _ = lp.bridge_gaps(edges, positions,
                                   lp.BRIDGE_SHARE * max(mask.shape))
@@ -591,8 +562,6 @@ def test_the_chooser_actually_improves_what_is_watched():
 
 
 def test_the_reveal_of_a_real_drawing_does_not_stall_for_long():
-    import visual_validator
-
     art = lp.process(rich())
     assert art.longest_stall <= visual_validator.MAX_STALL, (
         f"the reveal goes {art.longest_stall:.0%} of its length with nothing "
@@ -603,8 +572,6 @@ def test_a_stalling_route_is_noticed_and_never_refused():
     """Priority five. The artwork is not what went wrong when a route paces
     badly - the same picture in a different order does not - so refusing it
     here would throw away good art over a property of the traversal."""
-    import visual_validator
-
     class Stalling:
         d = "M0 0 L1 1"
         length = 2000.0

@@ -962,7 +962,7 @@ class PodcastPipeline:
         """
         try:
             return visuals.request(
-                plan.query, context=plan.context, minutes=plan.minutes,
+                plan.query, context=plan.context,
                 # The pipeline does not know which tab a tap came from. It
                 # knows the one distinction that changes the picture - a
                 # follow-up is a different episode from the question asked

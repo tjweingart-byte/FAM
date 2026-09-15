@@ -205,10 +205,7 @@ class OpenAIImageProvider:
             "background": "opaque",
             "output_format": "png",
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(f"{OPENAI_BASE}/images/generations",
-                                         headers=self._headers(), json=body)
-        return _checked(response, self.model)
+        return await self._post("/images/generations", json=body)
 
     async def _edit(self, prompt: str, references) -> dict:
         """Generation with the approved illustrations attached.
@@ -236,14 +233,22 @@ class OpenAIImageProvider:
             "background": "opaque",
             "output_format": "png",
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(f"{OPENAI_BASE}/images/edits",
-                                         headers=self._headers(), data=data,
-                                         files=files)
-        return _checked(response, self.model)
+        return await self._post("/images/edits", data=data, files=files)
 
-    def _headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.api_key}"}
+    async def _post(self, path: str, **body) -> dict:
+        """The one place this class reaches the network.
+
+        `json=` on one path and `data=`+`files=` on the other is the only
+        difference between the two requests, and it is a real one: reference
+        conditioning has to be multipart. Everything else - the client, the
+        timeout, the key, and turning a failure into the provider's own words -
+        is the same, and was written out twice.
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{OPENAI_BASE}{path}",
+                headers={"Authorization": f"Bearer {self.api_key}"}, **body)
+        return _checked(response, self.model)
 
 
 def _checked(response: httpx.Response, model: str) -> dict:
@@ -350,13 +355,9 @@ class SyntheticProvider:
         # honour that literally - fewer harmonics is a plainer figure.
         complexity = {"low": 3, "medium": 4, "high": 5}.get(
             getattr(brief, "complexity", "medium"), 4)
-        # Note what is deliberately absent: attempt 3 used to force
-        # `complexity = 2`, honouring an old third rung that asked for a
-        # simpler picture. That rung is gone (`visual_style`), and with it the
-        # idea that a structural failure is answered by drawing less. The
-        # placeholder now behaves like the real thing: the same richness every
-        # attempt, and the retries change how it is joined, not how much of it
-        # there is.
+        # The same richness on every attempt, deliberately: the retries change
+        # how a drawing is joined, never how much of it there is. See
+        # `visual_style.CONNECTED_RICHNESS_INSISTENCE`.
         points = await asyncio.to_thread(_figure, seed, complexity)
         data = await asyncio.to_thread(
             line_processor.rasterise_polyline, points,

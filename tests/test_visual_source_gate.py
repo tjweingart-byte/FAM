@@ -17,40 +17,26 @@ measure them would be worse than one that says it does not.
 """
 from __future__ import annotations
 
-import math
 import os
 import sys
-
-import numpy as np
-import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import line_processor as lp  # noqa: E402
 import visual_provider  # noqa: E402
-import visual_style  # noqa: E402
 import visual_validator as vv  # noqa: E402
+from visual_fixtures import circle, render  # noqa: E402
 
 SIZE = 720
 
 
 def paint(strokes, size: int = SIZE, width: float = 1.5,
           colour: tuple | None = None) -> bytes:
-    coverage = np.zeros((size, size), dtype=np.float32)
-    for stroke in strokes:
-        np.maximum(coverage,
-                   lp._coverage([(x * size, y * size) for x, y in stroke],
-                                size, width), out=coverage)
-    paper = np.array(lp._hex(visual_style.PAPER), dtype=np.float32)
-    ink = np.array(colour or lp._hex(visual_style.INK), dtype=np.float32)
-    blended = (paper[None, None, :] * (1 - coverage[:, :, None])
-               + ink[None, None, :] * coverage[:, :, None])
-    return lp.encode_png(np.clip(blended, 0, 255).astype(np.uint8))
+    return render(strokes, size, width, colour)
 
 
 def ring(cx=0.5, cy=0.5, r=0.3, n=500) -> list:
-    return [(cx + r * math.cos(t / n * math.tau),
-             cy + r * math.sin(t / n * math.tau)) for t in range(n + 1)]
+    return circle(cx, cy, r, n)
 
 
 def scene() -> list:
@@ -152,10 +138,8 @@ def test_every_measurement_reaches_the_verdict():
 def test_the_crossing_measure_tells_an_outline_from_a_drawing():
     """The number the icon test rests on, checked directly rather than through
     three layers of pipeline."""
-    mask_icon = lp.despeckle(lp._resize_mask(
-        lp.ink_mask(lp.decode_image(paint([ring()])))[0], lp.WORK_SIZE))
-    mask_scene = lp.despeckle(lp._resize_mask(
-        lp.ink_mask(lp.decode_image(paint(scene())))[0], lp.WORK_SIZE))
+    mask_icon = lp.prepare_mask(paint([ring()]))[0]
+    mask_scene = lp.prepare_mask(paint(scene()))[0]
     icon = lp.line_crossings(mask_icon)
     drawing = lp.line_crossings(mask_scene)
     assert icon < vv.MIN_SOURCE_CROSSINGS <= drawing
@@ -212,8 +196,7 @@ def test_the_icon_test_is_a_structural_fact_not_a_density_threshold():
     Structure can, categorically: a pictogram is a closed outline, with nothing
     meeting anything and nothing stopping anywhere."""
     def measured(strokes):
-        mask = lp.despeckle(lp._resize_mask(
-            lp.ink_mask(lp.decode_image(paint(strokes)))[0], lp.WORK_SIZE))
+        mask = lp.prepare_mask(paint(strokes))[0]
         return lp.structure(mask), lp.line_crossings(mask)
 
     (icon_structure, icon_density) = measured([ring()])

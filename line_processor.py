@@ -66,6 +66,7 @@ from __future__ import annotations
 import logging
 import math
 import struct
+import time
 import zlib
 from dataclasses import dataclass, field
 
@@ -205,16 +206,11 @@ BRIDGE_SHARE = 0.01
 #: to. 0.5 is sixty degrees - generous enough for a curve that was interrupted
 #: mid-bend, tight enough to refuse a right-angled hop onto a passing line.
 BRIDGE_ALIGNMENT = 0.5
-#: The outer bound, in final viewBox units. Note the ordering: the *artistic*
-#: limit is `BRIDGE_SHARE` above and it is much tighter than this. This one
-#: exists because `fit_to_canvas` can rescale, so a gap that passed the tight
-#: test in source pixels still has to be re-checked in the units a listener
-#: sees; it is a second refusal, never a second allowance.
-#: `fit_to_canvas` rescales the drawing to fill the canvas, and it can scale
-#: *up*: a bridge that was small in a source image where the subject sat in one
-#: corner is not small once that corner fills the frame. Measured after the
-#: fit, where the number means what a listener will actually see.
-MAX_BRIDGE_UNITS = 18.0
+#: The outer bound on a bridge, in final viewBox units, lives in
+#: `visual_validator.MAX_BRIDGE_UNITS` and is enforced there - `LineArt` merely
+#: reports `max_bridge` for it to judge. It used to be declared here as well,
+#: with the same name and the same value and nothing reading it, which is the
+#: shape of a constant that silently stops agreeing with itself.
 #: How much more expensive a bridge is to retrace than real ink, when the
 #: route-inspection matching is choosing which edges to duplicate. Retracing a
 #: line the artist drew is invisible; retracing a bridge draws FAM's own repair
@@ -486,6 +482,23 @@ def _resize_mask(mask: np.ndarray, size: int) -> np.ndarray:
     flat = (rows[:, None] * out_w + cols[None, :]).ravel()
     hits = np.bincount(flat[mask.ravel()], minlength=out_h * out_w)
     return (hits > 0).reshape(out_h, out_w)
+
+
+def prepare_mask(data: bytes) -> tuple[np.ndarray, float]:
+    """Image bytes to the ink mask everything downstream reasons about.
+
+    Decode, threshold, scale to `WORK_SIZE`, drop the dust. Returns the mask
+    and the share of the *original* image that was ink.
+
+    One function rather than four lines repeated, and the reason is correctness
+    rather than tidiness: `visual_validator.screen_source` judges whether the
+    artwork is worth drawing and `process` then draws it, and if those two ever
+    prepared the mask differently the gate would be screening something other
+    than the thing that gets vectorised. It also stops the validator reaching
+    into `_resize_mask`, which is private for a reason.
+    """
+    mask, ink_share = ink_mask(decode_image(data))
+    return despeckle(_resize_mask(mask, WORK_SIZE)), ink_share
 
 
 # --------------------------------------------------------------------------
@@ -775,6 +788,23 @@ def _polyline_length(points) -> float:
     return total
 
 
+def _degrees(edges: list) -> dict:
+    """How many edge-ends meet at each node.
+
+    Counted from the edges rather than from an adjacency list, and that is the
+    whole reason this is a function: **a self-loop contributes two to its
+    vertex's degree while appearing once in any adjacency list.** Counting the
+    list makes every vertex carrying a loop look odd, and an Euler path that
+    starts in the wrong place is a drawing that starts in the middle of a line.
+    Three copies of this loop used to sit in three functions.
+    """
+    degree: dict = {}
+    for edge in edges:
+        degree[edge.u] = degree.get(edge.u, 0) + 1
+        degree[edge.v] = degree.get(edge.v, 0) + 1
+    return degree
+
+
 class _Union:
     def __init__(self) -> None:
         self.parent: dict = {}
@@ -792,6 +822,14 @@ class _Union:
             return False
         self.parent[rb] = ra
         return True
+
+    @classmethod
+    def of(cls, edges: list) -> "_Union":
+        """Which pieces of the drawing are joined to which."""
+        union = cls()
+        for edge in edges:
+            union.union(edge.u, edge.v)
+        return union
 
 
 #: Never close more than this many gaps in one drawing. A picture needing a
@@ -873,14 +911,8 @@ def bridge_gaps(edges: list, positions: dict, span: float) -> tuple[list, int]:
     """
     added = 0
     for _ in range(MAX_BRIDGES):
-        union = _Union()
-        for edge in edges:
-            union.union(edge.u, edge.v)
-        degree: dict = {}
-        for edge in edges:
-            degree[edge.u] = degree.get(edge.u, 0) + 1
-            degree[edge.v] = degree.get(edge.v, 0) + 1
-        ends = [node for node, count in degree.items() if count == 1]
+        union = _Union.of(edges)
+        ends = [node for node, count in _degrees(edges).items() if count == 1]
         if not ends or len({union.find(e.u) for e in edges}) < 2:
             break
 
@@ -942,9 +974,7 @@ def keep_largest_component(edges: list) -> tuple[list, int, float]:
     regeneration: an illustration missing a third of itself is not a rescue, it
     is a different picture.
     """
-    union = _Union()
-    for edge in edges:
-        union.union(edge.u, edge.v)
+    union = _Union.of(edges)
     groups: dict = {}
     for edge in edges:
         groups.setdefault(union.find(edge.u), []).append(edge)
@@ -1016,11 +1046,8 @@ def eulerise(edges: list) -> tuple[list, float]:
     and finishes at the other. That is both cheaper and what a pen does.
     """
     adj = _adjacency(edges)
-    degree: dict = {}
-    for edge in edges:
-        degree[edge.u] = degree.get(edge.u, 0) + 1
-        degree[edge.v] = degree.get(edge.v, 0) + 1
-    odd = sorted(node for node, count in degree.items() if count % 2 == 1)
+    odd = sorted(node for node, count in _degrees(edges).items()
+                 if count % 2 == 1)
     if len(odd) <= 2:
         return edges, 0.0
 
@@ -1099,11 +1126,7 @@ def euler_route(edges: list, variant: int = 0) -> list:
     """
     if not edges:
         return []
-    adj: dict = {}
-    for index, edge in enumerate(edges):
-        adj.setdefault(edge.u, []).append((edge.v, index))
-        if edge.v != edge.u:
-            adj.setdefault(edge.v, []).append((edge.u, index))
+    adj = _adjacency(edges)
     if variant:
         # Rotate rather than shuffle: deterministic, seedless, and enough to
         # reach genuinely different orderings of the same drawing.
@@ -1111,14 +1134,7 @@ def euler_route(edges: list, variant: int = 0) -> list:
             if len(items) > 1:
                 at = (node + variant) % len(items)
                 adj[node] = items[at:] + items[:at]
-    # A self-loop contributes two to a vertex's degree while appearing once in
-    # the adjacency list. Counting the list would make every vertex carrying a
-    # loop look odd, and the route would start in the wrong place.
-    degree: dict = {}
-    for edge in edges:
-        degree[edge.u] = degree.get(edge.u, 0) + 1
-        degree[edge.v] = degree.get(edge.v, 0) + 1
-    odd = [node for node, count in degree.items() if count % 2 == 1]
+    odd = [node for node, count in _degrees(edges).items() if count % 2 == 1]
     start = min(odd) if odd else min(adj)
 
     used = [False] * len(edges)
@@ -1352,17 +1368,19 @@ def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
 #: under a stroke width at the size these are shown, so a difference inside it
 #: is invisible and a difference outside it is a change to the picture.
 FIDELITY_TOLERANCE = 6.0
-#: How much of the source artwork the finished vector must still contain.
+#: Good enough to stop walking `DETAIL_LADDER`: the vector still contains this
+#: much of the artwork it came from.
 #:
-#: **This is the gate rule 5 asks for, and the direction it points matters.**
-#: If beautiful source artwork comes out of here simplified, distorted or
-#: missing detail, that is a LINE PROCESSING failure - the answer is to
-#: preserve the source and fix the processing, never to ask for simpler art.
-#: `DETAIL_LADDER` is that fix, applied automatically before this is judged.
-MIN_FIDELITY = 0.94
+#: **A target, not a floor, and that is why it is no longer called
+#: MIN_FIDELITY.** The floor - the number deciding whether a drawing may reach
+#: a listener at all - is `visual_validator.MIN_FIDELITY`, and it is lower.
+#: This one only decides when to stop trying gentler settings. Two numbers
+#: sharing one name across two modules is how they quietly stop meaning what
+#: the reader thinks they mean.
+FIDELITY_TARGET = 0.94
 #: Vectorisation settings, gentlest last. `process` walks this ladder on the
 #: *same* source artwork - the same decode, the same skeleton, the same route -
-#: and keeps the first pass that clears `MIN_FIDELITY`. It is cheap: only the
+#: and keeps the first pass that clears `FIDELITY_TARGET`. It is cheap: only the
 #: smoothing, simplification and curve fitting are redone, which is a few
 #: milliseconds on a few thousand points, and not the skeletonisation.
 #:
@@ -1559,6 +1577,44 @@ def best_route(edges: list, tolerance: float) -> tuple:
     return best[0], best[1], best[2], warnings
 
 
+def vectorise(canvas_points: list, artwork: list) -> tuple:
+    """Points to curves, gently enough that the drawing survives.
+
+    Returns `(d, flat, beziers, kept, invented, detail)`.
+
+    **Smooth, then simplify, then fit** - in that order, because simplifying
+    first locks the pixel staircase into the points that survive and no amount
+    of curve fitting afterwards takes it out again.
+
+    Then walk `DETAIL_LADDER` until the result still contains `artwork`. This
+    is the "art first" rule made mechanical: when a beautiful drawing comes out
+    of here simplified or distorted that is a **line-processing** failure, and
+    the answer is to preserve the source and redo the processing rather than
+    ask for simpler art. Each rung repeats only the smoothing and the curve
+    fitting - a few milliseconds - and never the skeletonisation.
+
+    Raises when no rung produced a path at all, which is a drawing with too
+    little in it rather than a drawing that came out badly.
+    """
+    best = None
+    for detail, (passes, epsilon) in enumerate(DETAIL_LADDER):
+        points = simplify(smooth(canvas_points, passes), epsilon)
+        beziers = to_beziers(points)
+        d = path_d(beziers)
+        flat = flatten(beziers)
+        if not d:
+            continue
+        kept, invented = fidelity(artwork, flat)
+        if best is None or kept > best[3]:
+            best = (d, flat, beziers, kept, invented, detail)
+        if kept >= FIDELITY_TARGET:
+            break
+    if best is None:
+        raise LineProcessingError("the traced line was too short to draw",
+                                  "too_short")
+    return best
+
+
 def _assemble(route: list, tolerance: float = CONTIGUOUS_TOLERANCE) -> tuple:
     """Oriented chains into one polyline, refusing to jump.
 
@@ -1704,15 +1760,6 @@ class _Trace:
         self._write(f"{name}.png", encode_png(np.clip(image, 0, 255).astype(np.uint8)))
 
 
-def _nearest(array: np.ndarray, size: int) -> np.ndarray:
-    """Resample to a square, without a dependency. Nearest-neighbour is fine
-    here: this is a diagnostic backdrop, not an asset."""
-    height, width = array.shape
-    rows = (np.arange(size) * height // size).clip(0, height - 1)
-    cols = (np.arange(size) * width // size).clip(0, width - 1)
-    return array[rows[:, None], cols[None, :]]
-
-
 # --------------------------------------------------------------------------
 # The whole thing
 # --------------------------------------------------------------------------
@@ -1735,10 +1782,9 @@ def process(data: bytes, trace=None) -> LineArt:
     question with four possible answers - the threshold lost the line, the
     thinning broke it, the traversal took a bad route, or the smoothing rounded
     it off - and they are indistinguishable from the finished picture. Each
-    stage on disk tells them apart in one look.
+    stage on disk tells them apart in one look, and `fidelity` puts a number on
+    the last of them.
     """
-    import time
-
     timings: dict = {}
     warnings: list = []
 
@@ -1746,10 +1792,7 @@ def process(data: bytes, trace=None) -> LineArt:
     stage.source(data)
 
     began = time.monotonic()
-    grey = decode_image(data)
-    mask, ink_share = ink_mask(grey)
-    mask = _resize_mask(mask, WORK_SIZE)
-    mask = despeckle(mask)
+    mask, ink_share = prepare_mask(data)
     stage.mask("2-ink-mask", mask)
     timings["decode"] = int((time.monotonic() - began) * 1000)
     if not mask.any():
@@ -1767,8 +1810,8 @@ def process(data: bytes, trace=None) -> LineArt:
     if not edges:
         raise LineProcessingError("the artwork has no traceable line in it",
                                   "no_graph")
-    span = BRIDGE_SHARE * max(skeleton.shape)
-    edges, bridged = bridge_gaps(edges, positions, span)
+    edges, bridged = bridge_gaps(edges, positions,
+                                 BRIDGE_SHARE * max(skeleton.shape))
     edges, components, dropped_share = keep_largest_component(edges)
     if dropped_share > MINOR_COMPONENT_SHARE:
         raise LineProcessingError(
@@ -1795,7 +1838,7 @@ def process(data: bytes, trace=None) -> LineArt:
     # Bridges measured where they will be seen. A gap that was six pixels in a
     # source image whose subject filled one corner is not six pixels once that
     # corner fills the canvas.
-    bridges = [span * fit_scale for span in bridge_spans]
+    bridges = [length * fit_scale for length in bridge_spans]
     # The route as traversed, before any smoothing. Compared against the final
     # render this is the whole of what smoothing and simplification cost.
     stage.path("4-route", canvas_points)
@@ -1808,33 +1851,7 @@ def process(data: bytes, trace=None) -> LineArt:
     artwork = apply_transform(
         transform, [(int(y), int(x)) for y, x in zip(*np.nonzero(skeleton))])
 
-    # Smooth, then simplify, then fit. In that order: simplifying first would
-    # lock the pixel staircase into the points that survive, and no amount of
-    # curve fitting afterwards can take it out again.
-    #
-    # And walk `DETAIL_LADDER` until the result still contains the artwork.
-    # **This is rule five made mechanical**: when a beautiful drawing comes out
-    # of here simplified or distorted, that is a line-processing failure, and
-    # the answer is to preserve the source and redo the processing - never to
-    # ask for simpler art. Each rung is a few milliseconds, because only the
-    # smoothing and the curve fitting are repeated.
-    best = None
-    for detail, (passes, epsilon) in enumerate(DETAIL_LADDER):
-        points = simplify(smooth(canvas_points, passes), epsilon)
-        beziers = to_beziers(points)
-        d = path_d(beziers)
-        flat = flatten(beziers)
-        if not d:
-            continue
-        kept, invented = fidelity(artwork, flat)
-        if best is None or kept > best[0]:
-            best = (kept, invented, detail, d, flat, beziers)
-        if kept >= MIN_FIDELITY:
-            break
-    if best is None:
-        raise LineProcessingError("the traced line was too short to draw",
-                                  "too_short")
-    kept, invented, detail, d, flat, beziers = best
+    d, flat, beziers, kept, invented, detail = vectorise(canvas_points, artwork)
     if detail:
         warnings.append(
             f"vectorised at detail level {detail} to keep the artwork "
@@ -1939,6 +1956,21 @@ def encode_png(rgb: np.ndarray) -> bytes:
             + chunk(b"IEND", b""))
 
 
+def ink_on_paper(coverage: np.ndarray, ink: tuple = ()) -> bytes:
+    """Anti-aliased coverage, composited onto FAM's ivory, as a PNG.
+
+    The last step of every raster this module produces - the thumbnail, the
+    synthetic provider's source art, the tests' fixtures - and it was written
+    out three times. One copy means the tile, the placeholder and the fixtures
+    cannot end up on subtly different paper.
+    """
+    paper = np.array(_hex(visual_style.PAPER), dtype=np.float32)
+    charcoal = np.array(ink or _hex(visual_style.INK), dtype=np.float32)
+    blended = (paper[None, None, :] * (1 - coverage[:, :, None])
+               + charcoal[None, None, :] * coverage[:, :, None])
+    return encode_png(np.clip(blended, 0, 255).astype(np.uint8))
+
+
 def render_png(points: list, size: int, stroke_width: float = 0.0,
                view_box: int = visual_style.VIEWBOX) -> bytes:
     """The finished illustration, as pixels, from the vector.
@@ -1952,12 +1984,8 @@ def render_png(points: list, size: int, stroke_width: float = 0.0,
     stroke_width = stroke_width or visual_style.STROKE_WIDTH
     scale = size / float(view_box)
     scaled = [(x * scale, y * scale) for x, y in points]
-    coverage = _coverage(scaled, size, max(0.55, stroke_width * scale / 2.0))
-    paper = np.array(_hex(visual_style.PAPER), dtype=np.float32)
-    ink = np.array(_hex(visual_style.INK), dtype=np.float32)
-    blended = (paper[None, None, :] * (1 - coverage[:, :, None])
-               + ink[None, None, :] * coverage[:, :, None])
-    return encode_png(np.clip(blended, 0, 255).astype(np.uint8))
+    return ink_on_paper(
+        _coverage(scaled, size, max(0.55, stroke_width * scale / 2.0)))
 
 
 def rasterise_polyline(points01: list, size: int, stroke_px: float) -> bytes:
@@ -1967,12 +1995,7 @@ def rasterise_polyline(points01: list, size: int, stroke_px: float) -> bytes:
     and by the tests to produce artwork whose correct answer is known.
     """
     scaled = [(x * size, y * size) for x, y in points01]
-    coverage = _coverage(scaled, size, max(0.6, stroke_px / 2.0))
-    paper = np.array(_hex(visual_style.PAPER), dtype=np.float32)
-    ink = np.array(_hex(visual_style.INK), dtype=np.float32)
-    blended = (paper[None, None, :] * (1 - coverage[:, :, None])
-               + ink[None, None, :] * coverage[:, :, None])
-    return encode_png(np.clip(blended, 0, 255).astype(np.uint8))
+    return ink_on_paper(_coverage(scaled, size, max(0.6, stroke_px / 2.0)))
 
 
 def svg_document(d: str, view_box: str = "", stroke: str = "",
