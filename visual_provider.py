@@ -156,9 +156,17 @@ class OpenAIImageProvider:
         if not ready:
             raise VisualProviderUnconfigured(why)
 
-        prompt = visual_style.image_prompt(brief, attempt)
-        started = time.monotonic()
         references = list(references or [])
+        # Built once, here, so that the prompt recorded beside the finished
+        # artwork is the one that was actually sent. It was not: the style
+        # prompt was recorded and the reference preamble was added inside
+        # `_edit`, so the stored record described a request nobody made - which
+        # is precisely the thing you go looking at when a picture comes back
+        # wrong.
+        prompt = visual_style.image_prompt(brief, attempt)
+        if references:
+            prompt = visual_style.reference_preamble(references) + "\n\n" + prompt
+        started = time.monotonic()
         try:
             if references:
                 payload = await self._edit(prompt, references)
@@ -203,21 +211,30 @@ class OpenAIImageProvider:
         return _checked(response, self.model)
 
     async def _edit(self, prompt: str, references) -> dict:
+        """Generation with the approved illustrations attached.
+
+        `gpt-image-1` is shown reference imagery through `/images/edits` - the
+        input images condition the output rather than being edited, because no
+        mask is sent. It is the only way to ask this model to match a look
+        rather than to be told about one.
+        """
         files = []
         for ref in references:
             files.append(("image[]", (ref.name, base64.b64decode(ref.data_b64),
                                       ref.media_type)))
         data = {
             "model": self.model,
-            "prompt": (
-                "Draw a NEW illustration in exactly the style of the reference "
-                "images - the same line weight, the same ivory ground, the "
-                "same restraint and the same use of empty space. Do not copy "
-                "their subject.\n\n" + prompt
-            ),
+            "prompt": prompt,
             "size": self.size,
             "quality": self.quality,
             "n": "1",
+            # Both sent here as well as on the generations path, and neither is
+            # decorative. `background` keeps the ivory the product's own rather
+            # than whatever sits behind a transparent PNG; `output_format`
+            # keeps the reply decodable by the built-in PNG reader on a machine
+            # without Pillow, which is a supported deployment.
+            "background": "opaque",
+            "output_format": "png",
         }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(f"{OPENAI_BASE}/images/edits",

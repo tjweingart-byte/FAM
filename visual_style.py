@@ -22,12 +22,17 @@ Three consumers:
 * the player and the thumbnail read `PAPER`, `INK` and `STROKE_WIDTH`, so the
   square a listener watches being drawn is the square they saw on the tile.
 
-**The reference images are the strongest lever here, and they are empty.** The
-same thing `examples/` is to the writing, `visual_references/` is to the
-drawing: rules describe a style loosely, and a provider that supports reference
-conditioning matches an example closely. Two or three approved FAM
-illustrations dropped in that folder will move the output further than any
-further wording below. Nobody has put one there yet.
+**The reference images are the strongest lever here.** The same thing
+`examples/` is to the writing, `visual_references/` is to the drawing: rules
+describe a style loosely, and a provider that supports reference conditioning
+matches an example closely. Two or three approved FAM illustrations in that
+folder move the output further than any further wording below.
+
+And when they are present they **outrank the wording** - `reference_preamble`
+says so to the model in as many words. A description and a demonstration of the
+same style never agree exactly; line weight and the amount of empty space are
+the two that always differ. Without an explicit ordering the model averages
+them, and the average is the generic look everything below exists to rule out.
 """
 from __future__ import annotations
 
@@ -205,6 +210,39 @@ SIMPLIFY_INSISTENCE = (
     "elements drawn smaller. Leave out every detail that is not the idea "
     "itself."
 )
+
+
+def reference_preamble(references) -> str:
+    """What to say when the model is being *shown* the style rather than told it.
+
+    One sentence of it is load-bearing: **the images outrank the words.** The
+    style block below is a careful description of a look, and a description and
+    a demonstration of the same look never agree exactly - line weight and the
+    amount of empty space are the two that always differ. Without an explicit
+    ordering the model averages them, and the averaged result is neither: it is
+    the generic thing the style block exists to rule out.
+
+    The references are named rather than merely attached so that the prompt kept
+    beside the finished artwork says which images governed it. A year from now,
+    "why does this one look different" is answerable only if the record knows
+    what it was shown.
+    """
+    names = ", ".join(getattr(ref, "name", "?") for ref in references)
+    return (
+        "THE ATTACHED IMAGES ARE THE STYLE.\n"
+        f"You have been given {len(references)} approved FAM illustration(s)"
+        + (f" ({names})" if names else "") + ". They define the house style: "
+        "the exact line weight, the ivory ground, the restraint, the amount of "
+        "empty space, the way the line flows and returns, and the overall "
+        "character of the drawing.\n\n"
+        "Match them. Draw a NEW illustration of the subject described below in "
+        "that style. Do not copy, trace, collage or reuse their subjects - only "
+        "how they are drawn. Draw ONE illustration on ONE square canvas, "
+        "whatever the reference images are arranged as.\n\n"
+        "The written style notes below describe the same look in words. Where "
+        "the words and the images disagree, FOLLOW THE IMAGES - they are the "
+        "source of truth and the words are only an approximation of them."
+    )
 
 
 def image_prompt(brief, attempt: int = 1) -> str:

@@ -1031,9 +1031,120 @@ def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
 
 
 # --------------------------------------------------------------------------
+# Looking inside it
+# --------------------------------------------------------------------------
+class _Trace:
+    """Writes each stage to disk, or does nothing at all.
+
+    Nothing at all is the production case and the default. Every method is a
+    no-op when no directory was given, so the instrumentation costs one
+    attribute check per stage and cannot change what `process` returns.
+
+    What the stages are for: a finished drawing that is worse than the artwork
+    it came from has four possible causes, and they look identical from the
+    outside. The threshold can lose a pale line; the thinning can break a
+    stroke; the traversal can take a route that retraces half the picture; the
+    smoothing can round a deliberate corner off. `2-ink-mask` against the
+    source separates the first, `3-skeleton` the second, `4-route` against
+    `5-final` the last two, and `6-overlay` says in one glance how much of the
+    original survived at all.
+    """
+
+    def __init__(self, directory) -> None:
+        self.dir = None
+        if directory is None:
+            return
+        from pathlib import Path
+
+        self.dir = Path(directory)
+        self.dir.mkdir(parents=True, exist_ok=True)
+
+    def _write(self, name: str, data: bytes) -> None:
+        if self.dir is None:
+            return
+        try:
+            (self.dir / name).write_bytes(data)
+        except OSError as exc:  # noqa: BLE001 - a trace never breaks a drawing
+            log.warning("could not write trace %s: %s", name, exc)
+
+    def source(self, data: bytes) -> None:
+        """The artwork exactly as the provider returned it, byte for byte."""
+        self._write("1-source.png", data)
+
+    def mask(self, name: str, mask: np.ndarray) -> None:
+        if self.dir is None:
+            return
+        paper = np.array(_hex(visual_style.PAPER), dtype=np.uint8)
+        ink = np.array(_hex(visual_style.INK), dtype=np.uint8)
+        image = np.where(mask[:, :, None], ink[None, None, :], paper[None, None, :])
+        self._write(f"{name}.png", encode_png(image.astype(np.uint8)))
+
+    def path(self, name: str, points: list) -> None:
+        """One stage's geometry, rendered the way the product renders it."""
+        if self.dir is None or len(points) < 2:
+            return
+        self._write(f"{name}.png", render_png(points, 1024))
+
+    def overlay(self, name: str, mask: np.ndarray, points: list) -> None:
+        """The finished line laid over the ink it was traced from.
+
+        The single most useful frame: what the vectoriser kept, and what it
+        quietly dropped. The ink goes down faint and the finished line goes
+        over it in a colour that could not be mistaken for charcoal.
+
+        **The two are put into the same frame first, and that is the whole
+        difficulty.** `fit_to_canvas` crops the drawing to its own ink and
+        rescales it into the safe margin, so the vector no longer sits where
+        the artwork did - laying them on top of each other raw produces two
+        similar shapes at different sizes, which looks like a vectoriser that
+        drifted and is actually just the frame. The same transform is applied
+        to the ink here, so a difference in this image is a real difference.
+        """
+        if self.dir is None or len(points) < 2 or not mask.any():
+            return
+        size = 1024
+        image = np.full((size, size, 3), 250.0, dtype=np.float32)
+
+        # The ink, through `fit_to_canvas`'s transform: cropped to its own
+        # bounding box, scaled uniformly, centred.
+        rows, cols = np.nonzero(mask)
+        top, bottom = int(rows.min()), int(rows.max())
+        left, right = int(cols.min()), int(cols.max())
+        crop = mask[top:bottom + 1, left:right + 1]
+        margin = visual_style.SAFE_MARGIN * size / visual_style.VIEWBOX
+        usable = size - 2 * margin
+        height, width = crop.shape
+        scale = min(usable / max(1, width), usable / max(1, height))
+        out_w, out_h = max(1, int(width * scale)), max(1, int(height * scale))
+        placed = crop[(np.arange(out_h) * height // out_h).clip(0, height - 1)[:, None],
+                      (np.arange(out_w) * width // out_w).clip(0, width - 1)[None, :]]
+        at_x, at_y = int((size - out_w) / 2), int((size - out_h) / 2)
+        window = image[at_y:at_y + out_h, at_x:at_x + out_w]
+        window[placed] = window[placed] * 0.45 + 255.0 * 0.55 * 0.35
+
+        # The finished path, in a colour no FAM illustration contains.
+        factor = size / float(visual_style.VIEWBOX)
+        coverage = _coverage([(x * factor, y * factor) for x, y in points],
+                             size, 1.3)
+        mark = np.array((214, 78, 46), dtype=np.float32)
+        image = (image * (1 - coverage[:, :, None])
+                 + mark[None, None, :] * coverage[:, :, None])
+        self._write(f"{name}.png", encode_png(np.clip(image, 0, 255).astype(np.uint8)))
+
+
+def _nearest(array: np.ndarray, size: int) -> np.ndarray:
+    """Resample to a square, without a dependency. Nearest-neighbour is fine
+    here: this is a diagnostic backdrop, not an asset."""
+    height, width = array.shape
+    rows = (np.arange(size) * height // size).clip(0, height - 1)
+    cols = (np.arange(size) * width // size).clip(0, width - 1)
+    return array[rows[:, None], cols[None, :]]
+
+
+# --------------------------------------------------------------------------
 # The whole thing
 # --------------------------------------------------------------------------
-def process(data: bytes) -> LineArt:
+def process(data: bytes, trace=None) -> LineArt:
     """Source artwork to one canonical ordered path.
 
     Raises `LineProcessingError` with a `reason` when the art cannot become one
@@ -1044,23 +1155,37 @@ def process(data: bytes) -> LineArt:
     CPU-bound and deliberately synchronous. Every caller runs it in a thread -
     audio is streaming on the event loop, and this is the one part of the
     feature heavy enough to be heard if it were not.
+
+    `trace` is a directory to write the intermediate stages into, and it is
+    **off in production and changes nothing when it is**: with `None` this
+    function does exactly what it did before, including not importing anything
+    extra. It exists because "the drawing came out worse than the artwork" is a
+    question with four possible answers - the threshold lost the line, the
+    thinning broke it, the traversal took a bad route, or the smoothing rounded
+    it off - and they are indistinguishable from the finished picture. Each
+    stage on disk tells them apart in one look.
     """
     import time
 
     timings: dict = {}
     warnings: list = []
 
+    stage = _Trace(trace)
+    stage.source(data)
+
     began = time.monotonic()
     grey = decode_image(data)
     mask, ink_share = ink_mask(grey)
     mask = _resize_mask(mask, WORK_SIZE)
     mask = despeckle(mask)
+    stage.mask("2-ink-mask", mask)
     timings["decode"] = int((time.monotonic() - began) * 1000)
     if not mask.any():
         raise LineProcessingError("there is no line in the artwork", "blank")
 
     began = time.monotonic()
     skeleton = prune_spurs(skeletonise(mask))
+    stage.mask("3-skeleton", skeleton)
     timings["skeletonise"] = int((time.monotonic() - began) * 1000)
     if not skeleton.any():
         raise LineProcessingError("the artwork thinned away to nothing", "blank")
@@ -1098,6 +1223,9 @@ def process(data: bytes) -> LineArt:
 
     began = time.monotonic()
     canvas_points = fit_to_canvas(pixels)
+    # The route as traversed, before any smoothing. Compared against the final
+    # render this is the whole of what smoothing and simplification cost.
+    stage.path("4-route", canvas_points)
     canvas_points = _dedupe(canvas_points)
     # Smooth, then simplify, then fit. In that order: simplifying first would
     # lock the pixel staircase into the points that survive, and no amount of
@@ -1111,6 +1239,12 @@ def process(data: bytes) -> LineArt:
     if not d:
         raise LineProcessingError("the traced line was too short to draw",
                                   "too_short")
+
+    stage.path("5-final", flat)
+    # Against the mask rather than the source image: the mask is what the
+    # skeletoniser actually saw, so a difference here is the vectoriser's and
+    # not the threshold's - which `2-ink-mask` already answers on its own.
+    stage.overlay("6-overlay", mask, flat)
 
     return LineArt(
         d=d,

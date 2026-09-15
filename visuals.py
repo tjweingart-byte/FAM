@@ -500,6 +500,17 @@ def latencies() -> dict:
 # --------------------------------------------------------------------------
 # Running one
 # --------------------------------------------------------------------------
+#: When set, every drawing writes its intermediate stages into this directory:
+#: the director's brief, the exact prompt sent, the artwork as it came back,
+#: the ink mask, the skeleton, the route before smoothing, the finished line and
+#: an overlay of the two. `None` in production and nothing is written.
+#:
+#: A module global rather than an argument threaded through `request`, because
+#: every caller on the audio path would have to pass `None` to a parameter that
+#: exists for one diagnostic tool. `tools/visual_trace.py` sets it, and it is
+#: the only thing that does.
+TRACE_DIR = None
+
 _INFLIGHT: set = set()
 _SEMAPHORE: asyncio.Semaphore | None = None
 _SEMAPHORE_LOOP = None
@@ -659,6 +670,31 @@ async def _run(record: VisualRecord, *, brief=None, evidence: str = "",
         track_latency("visual_total_latency_ms", elapsed)
 
 
+def _trace_for(record: VisualRecord, attempt: int, direction):
+    """This attempt's trace directory, or None when tracing is off.
+
+    Per attempt, because the retry ladder is the interesting part when art
+    keeps failing: attempt 1 and attempt 3 are different prompts and different
+    pictures, and one folder holding whichever ran last answers nothing.
+    """
+    if TRACE_DIR is None:
+        return None
+    from pathlib import Path
+
+    folder = Path(TRACE_DIR) / f"attempt-{attempt}"
+    folder.mkdir(parents=True, exist_ok=True)
+    _write_trace(folder, "director-brief.json",
+                 json.dumps(direction.as_dict(), indent=2, default=str))
+    return folder
+
+
+def _write_trace(folder, name: str, text: str) -> None:
+    try:
+        (folder / name).write_text(text, encoding="utf-8")
+    except OSError as exc:  # noqa: BLE001 - a trace never breaks a drawing
+        log.warning("could not write trace %s: %s", name, exc)
+
+
 async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
                 topic: str = "", minutes: int = 3, notes=None,
                 force: bool = False) -> None:
@@ -704,6 +740,15 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
     store().put(record)
 
     references = visual_style.references() if settings.visual_use_references else []
+    if references:
+        log.info("drawing %r in the style of %s", record.query,
+                 ", ".join(ref.name for ref in references))
+    elif settings.visual_use_references:
+        # Worth a line every time rather than only on a health page. A
+        # deployment that lost `visual_references/` still draws, still reports
+        # healthy, and quietly stops looking like FAM.
+        log.warning("no approved references in %s - the house style is being "
+                    "described in words only", visual_style.REFERENCE_DIR)
     last_error = ""
     for attempt in range(record.attempts + 1,
                          settings.visual_max_retries + 1):
@@ -714,6 +759,7 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         store().mark(record, "generating")
         track("visual_generation_started", id=record.id, attempt=attempt,
               provider=provider.name, model=record.model)
+        trace = _trace_for(record, attempt, direction)
         try:
             image = await provider.generate(direction, attempt=attempt,
                                             references=references)
@@ -739,7 +785,10 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
             # In a thread, without exception. Skeletonising a megapixel is
             # tenths of a second of solid CPU, and this loop is streaming
             # somebody's episode.
-            art = await asyncio.to_thread(line_processor.process, image.data)
+            if trace is not None:
+                _write_trace(trace, "prompt.txt", image.prompt)
+            art = await asyncio.to_thread(line_processor.process, image.data,
+                                          trace)
         except line_processor.LineProcessingError as exc:
             last_error = str(exc)
             track("visual_processing_failed", id=record.id, attempt=attempt,

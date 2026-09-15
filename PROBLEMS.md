@@ -5148,3 +5148,76 @@ replay leaving nothing behind, every feed tile carrying its drawing.
 `tools/visual_probe.py` - the browser, against a running server, because the
 reveal is a dash offset written by an animation frame from an audio clock and
 nothing in pytest can see any part of that sentence.
+
+### The references arrived, and three things were wrong with how they were wired
+
+The approved illustrations were added to `visual_references/` - which is the
+strongest lever on how these look, and the one that had never been pulled. The
+wiring turned out to be right in its shape and wrong in three details, all of
+which fail silently.
+
+**The folder was gitignored.** Written deliberately, with a comment explaining
+that artwork is somebody's real work and whether it belongs in a repository is
+a decision to take on purpose. That reasoning is fine for a folder nobody has
+filled and completely wrong once it is full: the references are what the model
+is *shown*, so a deployment without them describes the style in words instead,
+produces visibly different art, still reports healthy, and says nothing louder
+than an empty list on `/api/health`. They would have worked on the laptop they
+were added to and stopped working everywhere else - this project's oldest
+failure wearing a new hat. They ship with the code now, like the prompts do,
+because that is what they are.
+
+**The prompt did not say which of the two descriptions of the style wins.** The
+attached images demonstrate a look; the style block describes the same look in
+words. Those never agree exactly - line weight and the amount of negative space
+are the two that always differ - and a model given both without an ordering
+averages them. The average is the generic AI illustration the style block exists
+to rule out. `reference_preamble` now says it in as many words: *where the words
+and the images disagree, follow the images.* It also names the files, so the
+record beside a finished drawing says what governed it, and tells the model to
+answer with one illustration on one square canvas whatever the references are
+arranged as - an approved reference can perfectly reasonably be a strip of
+three.
+
+**The stored prompt was not the prompt that was sent.** The style prompt was
+recorded on the `GeneratedImage` and the reference preamble was added later,
+inside `_edit`. So the record described a request nobody made, which is exactly
+the thing you go and read when a picture comes back wrong. Built once now, before
+the endpoint is chosen, and a test asserts the recorded string is a substring of
+the body that went out.
+
+Two smaller ones while in there: the `/images/edits` request did not send
+`background=opaque` or `output_format=png`, both of which the generations path
+did. Transparent lets whatever is behind the image become the ivory, and the
+ivory is part of the product; a format other than PNG is undecodable on a
+deployment without Pillow, which is supported.
+
+`tests/test_visual_references.py` asserts all of it **on the wire** - a mock
+transport, the real provider, and the actual multipart body checked for the file
+bytes, the endpoint, the precedence sentence and the request parameters. "The
+provider was handed references" is the cheaper question, and it was already true
+while the bytes went nowhere.
+
+### Looking inside a drawing that came out badly
+
+A finished illustration that is worse than the artwork it came from has at
+least six possible causes - a dull brief, a weak prompt, a bad generation, a
+threshold that lost the line, a traversal that broke it, smoothing that rounded
+it off - and they are *indistinguishable from the finished picture*. They also
+have fixes in six different files.
+
+`tools/visual_trace.py` runs one real episode through the real path and writes
+every stage to a folder it never cleans up: the director's brief, the exact
+prompt, the artwork as it came back, the ink mask, the skeleton, the route
+before smoothing, the finished vector, and an overlay of the finished line on
+the ink it was traced from.
+
+The overlay is the frame worth building the tool for, and it needed one fix to
+be worth anything: `fit_to_canvas` crops the drawing to its own ink and rescales
+it into the safe margin, so laying the vector over the source raw produces two
+similar shapes at different sizes - which reads as a vectoriser that drifted and
+is actually just the frame. The same transform is applied to the ink, so a
+difference in that image is now a real difference.
+
+The instrumentation is off by default and provably neutral: `process(data)` and
+`process(data, trace=dir)` are asserted to return the same path.

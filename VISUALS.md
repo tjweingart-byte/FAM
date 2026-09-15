@@ -275,17 +275,40 @@ Where synthetic art does appear it is labelled `placeholder art` on the canvas,
 
 ---
 
-## `visual_references/` is the strongest lever, and it is empty
+## `visual_references/` is the strongest lever
 
 What `examples/` is to the writing, `visual_references/` is to the drawing.
 Rules describe a style loosely; a provider that supports reference conditioning
-matches an example closely. Two or three approved FAM illustrations in that
-folder will move the output further than any more prompt wording — and with
-references present, `gpt-image-1` requests go to `/images/edits` and are shown
-them.
+matches an example closely.
 
-Nobody has put one there yet. `/api/health` says so rather than letting it be
-invisible.
+With approved illustrations in that folder, a `gpt-image-1` request goes to
+`/images/edits` with the files attached instead of `/images/generations` with
+the style described in words. Three things about that are deliberate:
+
+* **The images outrank the words.** `visual_style.reference_preamble` says so
+  explicitly — "where the words and the images disagree, FOLLOW THE IMAGES".
+  A description and a demonstration of the same style never agree exactly; line
+  weight and the amount of negative space are the two that always differ, and
+  without an ordering the model averages them into the generic look the style
+  block exists to rule out.
+* **They are named in the prompt**, so the record beside a finished drawing
+  says which images governed it. "Why does this one look different" is only
+  answerable if the record knows what it was shown.
+* **They ship with the code.** The folder was briefly gitignored, which was
+  wrong in a way nobody would have caught: the references would have worked on
+  the machine they were added to and silently stopped working on every
+  deployment, which still draws, still reports healthy, and simply stops
+  looking like FAM.
+
+Three at most (`MAX_REFERENCES`) — a model given eight averages them into
+something that looks like none of them. Read from disk per request, so swapping
+one takes effect without a restart. `/api/health` names the ones in force, and
+says so loudly when there are none.
+
+`tests/test_visual_references.py` asserts all of this **on the wire**: the file
+bytes in the multipart body, the endpoint, the precedence sentence, and the
+same thing again through a whole episode. "The provider was handed references"
+is the cheaper question, and it was already true while the bytes went nowhere.
 
 ---
 
@@ -296,6 +319,25 @@ python -m pytest tests/test_line_processor.py tests/test_visuals.py \
                  tests/test_visual_director.py tests/test_visual_endpoints.py -q
 ./dev.sh check                       # includes the exploreFAM exclusion, in a browser
 ```
+
+**And the one for judging the pictures themselves**, which is a different
+question from whether the code works:
+
+```
+python tools/visual_trace.py "how do undersea cables get repaired"
+```
+
+One real episode — real EI, real research, the real director, the real image
+model — with every intermediate written to `visual-traces/<run>/` and never
+cleaned up: the director's brief, the exact prompt sent, the artwork as it came
+back, the ink mask, the skeleton, the route before smoothing, the finished
+vector, and an overlay of the finished line on the ink it was traced from. That
+last one is the frame that separates "the model drew something weak" from "the
+vectoriser lost it", which are indistinguishable from the finished picture and
+have fixes in completely different files. `--dry-run` proves the harness on the
+synthetic provider without spending anything.
+
+It costs one image per attempt (~$0.17 at `high`). Nothing about it is cached.
 
 And the one that needs a running server, because the reveal is a dash offset
 written by an animation frame from an audio clock and nothing in pytest can see
@@ -325,8 +367,14 @@ VISUAL_IMAGE_PROVIDER=synthetic ./dev.sh
   the store, the endpoints, the thumbnails and the reveal are all proven
   end to end; what is unproven is how `gpt-image-1`'s line art survives
   skeletonisation, and how often it survives at all. The first real key will
-  answer both, and `visual_processing_failed` / `visual_validation_failed` on
-  `/api/health` are where that answer appears.
+  answer both — run `tools/visual_trace.py` and look at the six stages — and
+  `visual_processing_failed` / `visual_validation_failed` on `/api/health` are
+  where the rate shows up.
+* **A reference that is a strip of several illustrations is untested.** The
+  prompt tells the model to answer with one illustration on one square canvas
+  whatever the references are arranged as, which is the right instruction and
+  not a guarantee. If the first trace comes back as a triptych, the fix is
+  three single-subject reference files rather than a prompt change.
 * **An attached episode has no illustration.** It is personal, so it is never
   drawn — the square stays ivory for the whole episode.
 * **A downloaded episode played offline has no illustration**, because
