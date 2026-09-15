@@ -24,6 +24,7 @@ every stage to a folder it does not clean up.
             director-brief.json what the illustration was to be OF
             prompt.txt          the exact text sent to the image model
             1-source.png        the artwork as the model returned it
+            source-screening.json  whether it was good enough to draw, and why
             2-ink-mask.png      what was judged to be line
             3-skeleton.png      thinned to a centreline
             4-route.png         the traversal, before any smoothing
@@ -241,6 +242,7 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
         ("visual brief", "attempt-1/director-brief.json"),
         ("exact prompt sent", "attempt-1/prompt.txt"),
         ("source image", "attempt-1/1-source.png"),
+        ("source screening", "attempt-1/source-screening.json"),
         ("ink mask", "attempt-1/2-ink-mask.png"),
         ("skeleton", "attempt-1/3-skeleton.png"),
         ("route", "attempt-1/4-route.png"),
@@ -263,6 +265,7 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
 
     say(f"\n{BOLD}Look at, in this order:{RESET}")
     say(f"  {folder}/attempt-1/1-source.png     did the model draw FAM's style?")
+    say(f"  {folder}/attempt-1/source-screening.json  was it an illustration or an icon?")
     say(f"  {folder}/attempt-1/6-overlay.png    did the vectoriser keep it?")
     say(f"  {folder}/attempt-1/3-skeleton.png   if not, was it thinning or the threshold?")
     say(f"  {folder}/attempt-1/director-brief.json   was it even the right subject?")

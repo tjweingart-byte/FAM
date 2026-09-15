@@ -348,10 +348,15 @@ class SyntheticProvider:
         seed = _seed_for(brief)
         # Attempt 3 asks for something simpler, and the synthetic provider can
         # honour that literally - fewer harmonics is a plainer figure.
-        complexity = {"low": 2, "medium": 3, "high": 4}.get(
-            getattr(brief, "complexity", "medium"), 3)
-        if attempt >= 3:
-            complexity = 2
+        complexity = {"low": 3, "medium": 4, "high": 5}.get(
+            getattr(brief, "complexity", "medium"), 4)
+        # Note what is deliberately absent: attempt 3 used to force
+        # `complexity = 2`, honouring an old third rung that asked for a
+        # simpler picture. That rung is gone (`visual_style`), and with it the
+        # idea that a structural failure is answered by drawing less. The
+        # placeholder now behaves like the real thing: the same richness every
+        # attempt, and the retries change how it is joined, not how much of it
+        # there is.
         points = await asyncio.to_thread(_figure, seed, complexity)
         data = await asyncio.to_thread(
             line_processor.rasterise_polyline, points,
@@ -375,8 +380,29 @@ def _seed_for(brief) -> int:
     return int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:8], 16)
 
 
+#: How many times the placeholder figure winds round. More than one, because
+#: a single closed loop is crossed exactly twice by almost every scan line -
+#: which is the signature of an icon, and `visual_validator.screen_source` now
+#: refuses one. The placeholder has to be able to pass the gate every real
+#: illustration has to pass, or the whole no-credential demo path is dead and
+#: the gate is only ever exercised in tests.
+FIGURE_TURNS = 5
+
+
 def _figure(seed: int, harmonics: int) -> list:
-    """A closed harmonic curve - one line, no lifts, a few crossings."""
+    """A wound harmonic curve - one line, no lifts, and plenty of crossings.
+
+    It used to be a single closed loop, which is one unbroken line and is also,
+    structurally, an icon: two marks per scan. The figure now winds
+    `FIGURE_TURNS` times at slowly changing radius, so a scan across it meets
+    eight or ten separate pieces of line - the density of a drawing rather than
+    of a symbol - while still being exactly what it was before in the ways that
+    matter: one path, deterministic in the brief, with real loops and
+    crossings for the skeletoniser and the traversal to work on.
+
+    It is still a placeholder and still says so everywhere it appears. What has
+    changed is that it is now a placeholder for an *illustration*.
+    """
     import math
     import random
 
@@ -384,15 +410,17 @@ def _figure(seed: int, harmonics: int) -> list:
     terms = []
     for _ in range(harmonics):
         terms.append((
-            rng.uniform(0.12, 0.42),          # amplitude, as a share of radius
+            rng.uniform(0.10, 0.34),          # amplitude, as a share of radius
             rng.choice((2, 3, 4, 5, 6, 7)),   # frequency
             rng.uniform(0, math.tau),         # phase
         ))
     points = []
-    steps = 1800
+    steps = 1800 * FIGURE_TURNS
     for i in range(steps + 1):
-        t = i / steps * math.tau
-        r = 1.0
+        t = i / steps * math.tau * FIGURE_TURNS
+        # The winding term: the radius drifts across the turns, so successive
+        # passes sit beside one another instead of on top of one another.
+        r = 1.0 + 0.55 * math.sin(i / steps * math.pi)
         for amp, freq, phase in terms:
             r += amp * math.sin(freq * t + phase)
         points.append((r * math.cos(t), r * math.sin(t)))

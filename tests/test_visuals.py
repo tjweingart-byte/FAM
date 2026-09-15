@@ -284,13 +284,19 @@ def test_art_that_cannot_be_drawn_as_one_line_is_retried_then_failed(
     record = drawn("a picture in two pieces", surface="search")
     assert record.status == "failed"
     assert record.attempts == settings.visual_max_retries
-    assert "one line" in record.error or "pieces" in record.error
+    # Two bars on a page is refused by the source gate before the vectoriser
+    # ever sees it - which is the gate doing its job, and is why the reason
+    # now reads as a judgement about the art rather than about the traversal.
+    assert ("one line" in record.error or "pieces" in record.error
+            or "icon" in record.error), record.error
 
 
 def test_the_ladder_escalates_rather_than_repeating(monkeypatch, synthetic):
-    """Attempt two insists on continuity; attempt three asks for something
-    simpler. Changing the house style on a structural failure would be
-    answering a question nobody asked."""
+    """Attempt two insists on continuity; attempt three asks for the same scene
+    composed so its parts touch. Changing the house style on a structural
+    failure would be answering a question nobody asked - and asking for a
+    *simpler picture*, which is what the third rung used to do, is the
+    engineering dictating the art."""
     import visual_style
 
     seen = []
@@ -304,7 +310,12 @@ def test_the_ladder_escalates_rather_than_repeating(monkeypatch, synthetic):
     assert len(seen) == 3
     assert visual_style.CONTINUITY_INSISTENCE not in seen[0]
     assert visual_style.CONTINUITY_INSISTENCE in seen[1]
-    assert visual_style.SIMPLIFY_INSISTENCE in seen[2]
+    assert visual_style.CONNECTED_RICHNESS_INSISTENCE in seen[2]
+    # The rung that used to be here is gone, not merely unused: a knob left
+    # behind is an invitation to turn it back on.
+    # Gone, not merely unused: a knob left behind is an invitation to turn it
+    # back on. tests/test_visual_director.py holds the whole of that rule.
+    assert not hasattr(visual_style, "SIMPLIFY_INSISTENCE")
 
 
 def test_the_feature_being_off_starts_nothing(monkeypatch):

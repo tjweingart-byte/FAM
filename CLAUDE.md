@@ -552,6 +552,34 @@ the rest of this list it needs taste rather than a key.
   answer to a picture in three pieces is a different picture; and
   **placeholder art is never a fallback** - `synthetic` is selected explicitly
   or not at all, which is §51 and §61 applied to pixels.
+  **Art first, engineering second** *(§86).* FAM is **not** one simple icon
+  drawn with one line; it is **one rich idea, interpreted as one beautiful
+  editorial illustration, revealed through one continuous line.** "Continuous
+  line" describes *how* it is drawn and never *how much*. The Visual
+  Director's job is the strongest editorial interpretation of the episode -
+  a scene, an environment, a relationship, a metaphor - and the line
+  processor's job is to **preserve that artwork and find a route through
+  it.** Never the other way round.
+  This needs writing down because nothing enforces it by default and
+  everything erodes it: skeletonising, routing and animating are all easier on
+  simpler art, so seven separate locally-reasonable decisions all pointed the
+  same way and the feed converged on pictograms with no bug anywhere. **Every
+  threshold in that pipeline was first calibrated against a single figure on
+  an empty page, so every one of them is a way to reject a drawing for being a
+  drawing** - when one starts refusing rich artwork, the threshold is what is
+  wrong. Two rules fall out and are load-bearing: **no rung of the retry
+  ladder may ask for a simpler picture** (the fix for "it will not route" is
+  forms that *touch*, not fewer forms - `SIMPLIFY_INSISTENCE` is deleted, not
+  disabled), and **a beautiful drawing that comes out ugly is a
+  line-processing failure** - `DETAIL_LADDER` redoes the vectorisation on the
+  same source, and `fidelity` is the number that says whether it worked.
+  `screen_source` asks the one question in front of the vectoriser - *would
+  this feel premium enough to be a finished myFAM thumbnail* - because the
+  line processor is good enough to rescue an icon into the feed, and the
+  measure that does the work is how many separate runs of ink a scan meets (a
+  circle scores 2, a scene scores 8). The approved references in
+  `visual_references/` are the source of truth; **where the words and the
+  references disagree, follow the references.**
   **And the pen never crosses blank canvas** *(§85).* Retracing existing line
   is invisible and allowed, duplicating existing edges is allowed, and a new
   long edge through negative space is not - a listener must never see a mark
@@ -563,6 +591,16 @@ the rest of this list it needs taste rather than a key.
   scale a drawing up. **Never relax this into a tuning parameter** - the
   failure is silent, because smoothing turns a gap in the data into a
   confident stroke that looks deliberate.
+  **Those limits are a safety net, never an artistic allowance** *(§86).*
+  18 units and 2% are maximum *rejection boundaries* - the point past which a
+  mark is provably a scar - and reading them as permission to bridge anything
+  shorter is backwards. The rule routing obeys is stricter: `BRIDGE_SHARE` is
+  1% of the working image, and `BRIDGE_ALIGNMENT` adds the half a distance
+  threshold cannot express - **the gap must point the way the pen was already
+  going**, which is what "endpoints that belong to the same intended stroke"
+  means as code. Retrace existing ink whenever possible; a synthetic bridge
+  repairs a genuinely tiny accidental gap and nothing else; otherwise reject
+  and regenerate.
 
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for

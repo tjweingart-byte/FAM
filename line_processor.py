@@ -119,6 +119,16 @@ class LineArt:
     #: is something a listener could see as a line across empty ivory.
     max_bridge: float = 0.0
     bridged_length: float = 0.0
+    #: How much of the source artwork the finished curve still passes near,
+    #: and how much of the finished curve passes nowhere near the artwork.
+    #: The answer to "did the beautiful drawing survive being vectorised",
+    #: measured rather than eyeballed. See `fidelity`.
+    fidelity: float = 1.0
+    invented: float = 0.0
+    #: Which rung of `DETAIL_LADDER` produced this. 0 is the default; anything
+    #: higher means the default lost detail and the processing was retried
+    #: gently rather than the artwork being redrawn simpler.
+    detail: int = 0
     ink_share: float = 0.0
     warnings: list = field(default_factory=list)
     timings_ms: dict = field(default_factory=dict)
@@ -132,6 +142,9 @@ class LineArt:
             "bridged": self.bridged,
             "max_bridge": round(self.max_bridge, 2),
             "bridged_length": round(self.bridged_length, 2),
+            "fidelity": round(self.fidelity, 4),
+            "invented": round(self.invented, 4),
+            "detail": self.detail,
             "retraced": round(self.retraced, 4),
             "ink_share": round(self.ink_share, 5),
             "warnings": list(self.warnings),
@@ -159,12 +172,39 @@ SPUR_PIXELS = 7
 #: How far apart two loose ends may be and still be called a gap, as a share of
 #: the canvas. Beyond this it is not a gap, it is two drawings.
 #:
-#: Tightened from 0.035. Rule 6 of the traversal policy says a gap may be
-#: bridged only when it is a *genuinely tiny accidental* one, and 3.5% of the
-#: canvas is a mark somebody can see. At 2% of a 720px working image this is
-#: about fourteen pixels - the width of a few strokes.
-BRIDGE_SHARE = 0.02
-#: The same limit again, in final viewBox units, and this one is authoritative.
+#: **This is the artistic limit, and it is deliberately far below what the
+#: validator will tolerate.** `visual_validator.MAX_BRIDGE_UNITS` is a
+#: rejection boundary - the point past which a mark is provably a scar - and
+#: reading it as permission to bridge anything shorter is exactly backwards.
+#: A bridge is only ever the repair of a *genuinely tiny accidental* gap
+#: between endpoints that visually belong to the same intended stroke. Everything
+#: else retraces existing ink, and art that needs more than that is regenerated.
+#:
+#: Tightened 0.035 -> 0.02 -> 0.01. At 1% of a 720px working image this is
+#: about seven pixels, which lands as ten units on the finished canvas: on the
+#: player that is under three screen pixels of travel, and on a tile it is
+#: under two. That is the scale at which a join reads as the artist having
+#: closed the line themselves rather than as a mark going somewhere.
+#:
+#: Note it is well inside `visual_validator.MAX_BRIDGE_UNITS` (18) and is meant
+#: to be. The backstop is where a mark becomes provably a scar; this is where a
+#: repair stops being invisible, and the second number is the one routing obeys.
+BRIDGE_SHARE = 0.01
+#: How nearly a gap must point the way the pen was already going, as a cosine.
+#:
+#: The distance test alone cannot tell a break in one stroke from two unrelated
+#: ends that happen to pass near each other, and those want opposite answers: the
+#: first is a repair, the second is a mark across the picture that is short
+#: enough to sneak through. So the loose end's own direction is measured, and a
+#: gap is only closed when the pen was heading at the thing it is being joined
+#: to. 0.5 is sixty degrees - generous enough for a curve that was interrupted
+#: mid-bend, tight enough to refuse a right-angled hop onto a passing line.
+BRIDGE_ALIGNMENT = 0.5
+#: The outer bound, in final viewBox units. Note the ordering: the *artistic*
+#: limit is `BRIDGE_SHARE` above and it is much tighter than this. This one
+#: exists because `fit_to_canvas` can rescale, so a gap that passed the tight
+#: test in source pixels still has to be re-checked in the units a listener
+#: sees; it is a second refusal, never a second allowance.
 #: `fit_to_canvas` rescales the drawing to fill the canvas, and it can scale
 #: *up*: a bridge that was small in a source image where the subject sat in one
 #: corner is not small once that corner fills the frame. Measured after the
@@ -178,9 +218,22 @@ MAX_BRIDGE_UNITS = 18.0
 #: policy, "least visual disruption".
 BRIDGE_RETRACE_PENALTY = 6.0
 #: How far apart two chains may be where they meet before the route is called
-#: broken, in working pixels. Not zero: a chain ends on an actual pixel of a
-#: junction cluster while the node it belongs to is that cluster's centroid, so
-#: consecutive chains legitimately meet a pixel or two apart.
+#: broken, in working pixels. **A floor, not the whole answer** - the real
+#: bound is computed per drawing by `node_tolerance`, because it depends on the
+#: artwork.
+#:
+#: Not zero, and the reason is structural rather than a fudge: a chain begins
+#: and ends on an actual *pixel* of a junction cluster, while the node it is
+#: attached to is that cluster's centroid. Two chains meeting at one node
+#: therefore meet a little apart by construction, bounded by the cluster's own
+#: size - and a cluster is bigger in a dense drawing, where several strokes
+#: pass close together, than in a sparse one.
+#:
+#: Which is why a constant here was wrong in the one direction that matters:
+#: four pixels is right for a single figure on an empty page and too tight for
+#: a scene, so rich artwork was being rejected for being rich. The engineering
+#: must serve the art; this is one of the places it was quietly doing the
+#: opposite.
 CONTIGUOUS_TOLERANCE = 4.0
 #: A component smaller than this share of the total may be dropped as debris.
 #: Anything bigger is the artwork being genuinely in pieces, which is a
@@ -215,6 +268,65 @@ def decode_image(data: bytes) -> np.ndarray:
     except Exception as exc:  # noqa: BLE001 - fall through to the built-in reader
         log.debug("Pillow could not read the image (%s); using the built-in reader", exc)
     return _decode_png(data)
+
+
+def colour_share(data: bytes) -> float | None:
+    """How much of the image is meaningfully coloured, or `None` if unknown.
+
+    FAM line art is charcoal on ivory: every pixel is a neutral, and anything
+    saturated is the model having ignored the style. Measured as the share of
+    pixels whose max and min channels differ by more than a hair.
+
+    Returns `None` rather than `0.0` when the colour cannot be read - the
+    built-in PNG reader below hands back luminance, so on a machine without
+    Pillow there is no colour to measure. Zero-because-neutral and
+    zero-because-we-did-not-look are different answers, and reporting the
+    second as the first is exactly the silent pass this project keeps paying
+    for.
+    """
+    try:
+        from PIL import Image  # type: ignore
+        import io
+
+        with Image.open(io.BytesIO(data)) as img:
+            rgb = np.asarray(img.convert("RGB"), dtype=np.int16)
+    except ImportError:
+        return None
+    except Exception as exc:  # noqa: BLE001
+        log.debug("could not read colour from the artwork (%s)", exc)
+        return None
+    if rgb.size == 0:
+        return None
+    spread = rgb.max(axis=2) - rgb.min(axis=2)
+    return float((spread > 24).mean())
+
+
+def line_crossings(mask: np.ndarray) -> float:
+    """How many separate runs of ink a straight scan meets, on average.
+
+    A cheap, honest measure of how much picture is on the page, and the one
+    that tells an icon from an illustration. A circle, a cloud or a lightbulb
+    is crossed twice by almost every scan line; a scene with a figure, a desk
+    and a window behind it is crossed six, eight, a dozen times. It costs one
+    array diff, which is what makes it usable as a gate in front of the work
+    rather than a measurement taken afterwards.
+
+    Averaged over the rows and columns that contain any ink at all, so a
+    drawing that leaves the top third of the canvas empty - which the house
+    style positively asks for - is not marked down for it.
+    """
+    if not mask.any():
+        return 0.0
+    totals = []
+    for axis_mask in (mask, mask.T):
+        padded = np.zeros((axis_mask.shape[0], axis_mask.shape[1] + 1), dtype=bool)
+        padded[:, :-1] = axis_mask
+        starts = padded[:, :-1] & ~np.concatenate(
+            [np.zeros((axis_mask.shape[0], 1), dtype=bool), padded[:, :-2]], axis=1)
+        per_line = starts.sum(axis=1)
+        live = per_line[per_line > 0]
+        totals.append(float(live.mean()) if live.size else 0.0)
+    return sum(totals) / 2.0
 
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -653,14 +765,62 @@ MAX_BRIDGES = 12
 ATTACH_STRIDE = 3
 
 
+def _end_direction(edges: list, node: int, positions: dict,
+                   look: int = 6) -> tuple:
+    """Which way the pen was travelling when it ran out of line at `node`.
+
+    Read a few pixels back along the loose end's own stroke rather than from
+    the chain's two endpoints, because the answer wanted is the *local*
+    heading: a long stroke that curls at the very end would otherwise report
+    the direction of its overall span, which is not where its tip is pointing.
+
+    Returns a unit vector in (row, column), or `(0.0, 0.0)` when the stroke is
+    too short to have a direction - which the caller must treat as "cannot
+    tell", never as "aligned".
+    """
+    here = positions[node]
+    for edge in edges:
+        if edge.u == node:
+            points = edge.points
+        elif edge.v == node:
+            points = list(reversed(edge.points))
+        else:
+            continue
+        back = points[min(look, len(points) - 1)]
+        dy, dx = here[0] - back[0], here[1] - back[1]
+        norm = math.hypot(dy, dx)
+        if norm > 1e-6:
+            return (dy / norm, dx / norm)
+    return (0.0, 0.0)
+
+
 def bridge_gaps(edges: list, positions: dict, span: float) -> tuple[list, int]:
     """Close what is obviously a gap, and nothing else.
 
-    A gap may be closed when one side is a **loose end** - a degree-one node,
-    where the pen would otherwise have to stop - and the other side is close
-    enough that the join is shorter than the drawing's own detail. Two ends far
-    apart are not a gap; they are two drawings, and joining them would draw the
-    straight scar across empty ivory this module exists to never draw.
+    **The artistic rule, which is stricter than any threshold in the
+    validator.** A synthetic bridge exists only to repair a genuinely tiny
+    accidental gap between endpoints that visually and semantically belong to
+    the same intended stroke. It is never chosen because it happens to be short
+    enough to pass a check. The routing preference, in order:
+
+    1. existing undrawn geometry;
+    2. existing drawn geometry, retraced - the pen travels back along a line it
+       already drew, which is invisible;
+    3. a tiny legitimate gap repair, and only if necessary;
+    4. otherwise reject the artwork and draw it again.
+
+    Only (3) is this function, and it is the last resort before (4).
+
+    Two tests, and both have to pass. One side must be a **loose end** - a
+    degree-one node, where the pen would otherwise have to stop - and the gap
+    must be shorter than `span`, which is `BRIDGE_SHARE` of the canvas and is
+    about six pixels. That much was always here. What is new is the second
+    test: **the gap must point the way the pen was already going**
+    (`BRIDGE_ALIGNMENT`). Distance alone cannot tell a stroke that was
+    interrupted from two unrelated ends that happen to pass near each other,
+    and the second is a mark across the picture that is merely short enough to
+    sneak through. A line that stops mid-curve is continued; a line that would
+    have to turn a corner to reach its neighbour is not.
 
     The other side may be another loose end **or a point part-way along another
     stroke**, and the second case is the one that matters in practice: the
@@ -689,14 +849,27 @@ def bridge_gaps(edges: list, positions: dict, span: float) -> tuple[list, int]:
         for node in ends:
             here = positions[node]
             root = union.find(node)
+            heading = _end_direction(edges, node, positions)
+            if heading == (0.0, 0.0):
+                # No readable direction is "cannot tell", and cannot tell is
+                # not permission: a stroke too short to have a heading is
+                # debris, and bridging off debris is inventing a line.
+                continue
             for index, edge in enumerate(edges):
                 if union.find(edge.u) == root:
                     continue
                 points = edge.points
                 for at in range(0, len(points), ATTACH_STRIDE):
                     point = points[at]
-                    distance = math.hypot(here[0] - point[0], here[1] - point[1])
-                    if distance <= span and (best is None or distance < best[0]):
+                    dy, dx = point[0] - here[0], point[1] - here[1]
+                    distance = math.hypot(dy, dx)
+                    if distance > span or distance < 1e-9:
+                        continue
+                    # Was the pen already going there? A break in one stroke
+                    # says yes; two strokes passing near each other says no.
+                    if (heading[0] * dy + heading[1] * dx) / distance < BRIDGE_ALIGNMENT:
+                        continue
+                    if best is None or distance < best[0]:
                         best = (distance, node, index, at)
         if best is None:
             break
@@ -1074,6 +1247,34 @@ def flatten(beziers: list, steps: int = FLATTEN_STEPS) -> list:
     return out
 
 
+def canvas_transform(points: list, size: int = visual_style.VIEWBOX,
+                     margin: int = visual_style.SAFE_MARGIN) -> tuple:
+    """The uniform scale-and-centre that puts these pixels on the square.
+
+    Split out of `fit_to_canvas` so the *same* transform can be applied to
+    something else - specifically the skeleton, which `fidelity` has to place
+    on the same canvas as the finished vector in order to compare them. Two
+    transforms computed separately from two point sets would differ by exactly
+    the detail being measured, which would make the measurement meaningless.
+    """
+    ys = [p[0] for p in points]
+    xs = [p[1] for p in points]
+    top, left = min(ys), min(xs)
+    height = max(1e-6, max(ys) - top)
+    width = max(1e-6, max(xs) - left)
+    usable = size - 2 * margin
+    scale = min(usable / width, usable / height)
+    return (scale, (size - width * scale) / 2.0, (size - height * scale) / 2.0,
+            left, top)
+
+
+def apply_transform(transform: tuple, points) -> list:
+    """Pixel (row, column) to canvas (x, y), under a transform from above."""
+    scale, offset_x, offset_y, left, top = transform
+    return [((x - left) * scale + offset_x, (y - top) * scale + offset_y)
+            for y, x in points]
+
+
 def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
                   margin: int = visual_style.SAFE_MARGIN) -> tuple:
     """Pixel coordinates (row, column) into viewBox coordinates (x, y).
@@ -1084,18 +1285,9 @@ def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
     """
     if not points:
         return [], 1.0
-    ys = [p[0] for p in points]
-    xs = [p[1] for p in points]
-    top, bottom = min(ys), max(ys)
-    left, right = min(xs), max(xs)
-    height = max(1e-6, bottom - top)
-    width = max(1e-6, right - left)
-    usable = size - 2 * margin
-    scale = min(usable / width, usable / height)
-    offset_x = (size - width * scale) / 2.0
-    offset_y = (size - height * scale) / 2.0
-    fitted = [((x - left) * scale + offset_x, (y - top) * scale + offset_y)
-              for y, x in points]
+    transform = canvas_transform(points, size, margin)
+    fitted = apply_transform(transform, points)
+    scale = transform[0]
     # The scale comes back with the points because a length measured in the
     # source is not a length anybody sees. A bridge is judged on what it looks
     # like on the finished canvas, and this is the only place that conversion
@@ -1103,7 +1295,141 @@ def fit_to_canvas(points: list, size: int = visual_style.VIEWBOX,
     return fitted, scale
 
 
-def _assemble(route: list) -> tuple:
+#: How far, in viewBox units, a drawn curve may sit from the artwork it came
+#: from and still count as the same line. Six on a 1000-wide canvas is 0.6% -
+#: under a stroke width at the size these are shown, so a difference inside it
+#: is invisible and a difference outside it is a change to the picture.
+FIDELITY_TOLERANCE = 6.0
+#: How much of the source artwork the finished vector must still contain.
+#:
+#: **This is the gate rule 5 asks for, and the direction it points matters.**
+#: If beautiful source artwork comes out of here simplified, distorted or
+#: missing detail, that is a LINE PROCESSING failure - the answer is to
+#: preserve the source and fix the processing, never to ask for simpler art.
+#: `DETAIL_LADDER` is that fix, applied automatically before this is judged.
+MIN_FIDELITY = 0.94
+#: Vectorisation settings, gentlest last. `process` walks this ladder on the
+#: *same* source artwork - the same decode, the same skeleton, the same route -
+#: and keeps the first pass that clears `MIN_FIDELITY`. It is cheap: only the
+#: smoothing, simplification and curve fitting are redone, which is a few
+#: milliseconds on a few thousand points, and not the skeletonisation.
+#:
+#: The first rung is what every drawing used to get unconditionally. The rest
+#: exist because "the vectoriser lost detail" now has a remedy that costs the
+#: artwork nothing, where before it had only two: ship it, or throw away good
+#: art and draw something simpler.
+DETAIL_LADDER = (
+    (3, SIMPLIFY_EPSILON),   # the default: smoothest, fewest points
+    (2, 0.6),                # keep more of the small stuff
+    (1, 0.25),               # near-verbatim; the staircase is barely touched
+)
+
+
+def _occupancy(points, size: int, cell: float, path: bool = True) -> np.ndarray:
+    """Which cells of a coarse grid the ink touches.
+
+    Quantised rather than rasterised with a stroke width: the question is
+    "was there line near here", and a grid whose cell is the tolerance answers
+    it in one array operation.
+
+    `path` says whether consecutive points are joined. True for a polyline, so
+    a long straight run cannot step over a cell it crosses; **False for a point
+    cloud** - the skeleton arrives as unordered pixels, and joining those in
+    array order would draw lines between unrelated parts of the picture and
+    then score the vector against them.
+    """
+    n = max(1, int(math.ceil(size / cell)))
+    grid = np.zeros((n, n), dtype=bool)
+    if not points:
+        return grid
+    xs: list = []
+    ys: list = []
+    previous = None
+    for x, y in points:
+        if path and previous is not None:
+            span = math.dist(previous, (x, y))
+            steps = int(span / (cell * 0.5))
+            for i in range(1, steps):
+                t = i / steps
+                xs.append(previous[0] + (x - previous[0]) * t)
+                ys.append(previous[1] + (y - previous[1]) * t)
+        xs.append(x)
+        ys.append(y)
+        previous = (x, y)
+    col = np.clip((np.asarray(xs) / cell).astype(int), 0, n - 1)
+    row = np.clip((np.asarray(ys) / cell).astype(int), 0, n - 1)
+    grid[row, col] = True
+    return grid
+
+
+def _dilate(grid: np.ndarray) -> np.ndarray:
+    """One cell in every direction, by shifted ORs."""
+    out = grid.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            out |= np.roll(np.roll(grid, dy, axis=0), dx, axis=1)
+    return out
+
+
+def fidelity(source_points, drawn_points,
+             tolerance: float = FIDELITY_TOLERANCE) -> tuple[float, float]:
+    """How much of the artwork survived vectorisation, and how much was added.
+
+    Returns `(kept, invented)`. `kept` is the share of the source artwork that
+    the finished curve still passes near; `invented` is the share of the
+    finished curve that passes nowhere near the artwork.
+
+    **Both directions, because they are different failures.** A vector that
+    lost a figure's hands scores badly on `kept` and perfectly on `invented`; a
+    vector that struck out across the page scores the reverse. One number
+    averaging them would hide either.
+
+    Both point sets are in the same canvas coordinates, placed by the same
+    `canvas_transform` - see the note there on why that has to be true.
+    """
+    if not source_points or not drawn_points:
+        return 0.0, 0.0
+    size = visual_style.VIEWBOX
+    # The source is a cloud of skeleton pixels, the drawing is a path. Getting
+    # that the wrong way round joins unrelated parts of the picture.
+    source = _occupancy(source_points, size, tolerance, path=False)
+    drawn = _occupancy(drawn_points, size, tolerance, path=True)
+    source_total = int(source.sum())
+    drawn_total = int(drawn.sum())
+    if not source_total or not drawn_total:
+        return 0.0, 0.0
+    kept = int((source & _dilate(drawn)).sum()) / source_total
+    invented = int((drawn & ~_dilate(source)).sum()) / drawn_total
+    return kept, invented
+
+
+def node_tolerance(edges: list, positions: dict) -> float:
+    """How far two chains at the same junction may legitimately meet apart.
+
+    Derived from this drawing rather than assumed. Every chain starts and ends
+    on a pixel of a junction cluster while its node is that cluster's centroid,
+    so the offset between the two is measurable directly - and the worst seam
+    the traversal can produce is two such offsets back to back, plus a pixel
+    for the diagonal step between neighbouring pixels.
+
+    The point of measuring it: a gap this size is **inside a junction cluster**,
+    which is inside ink. It is not a mark across the picture, which is what the
+    no-scars rule is actually about. A drawing with more line in it has larger
+    clusters and therefore a larger legitimate seam, and a constant tolerance
+    would refuse exactly the rich artwork this system exists to produce.
+    """
+    worst = 0.0
+    for edge in edges:
+        if edge.points:
+            for node, point in ((edge.u, edge.points[0]),
+                                (edge.v, edge.points[-1])):
+                at = positions.get(node)
+                if at is not None:
+                    worst = max(worst, math.dist(at, point))
+    return max(CONTIGUOUS_TOLERANCE, 2.0 * worst + 1.5)
+
+
+def _assemble(route: list, tolerance: float = CONTIGUOUS_TOLERANCE) -> tuple:
     """Oriented chains into one polyline, refusing to jump.
 
     **The hard rule this enforces: the pen never crosses blank canvas.** A
@@ -1115,11 +1441,13 @@ def _assemble(route: list) -> tuple:
     illustration, and it ruins an otherwise good animation.
 
     Every step is checked rather than assumed. Where two chains meet they must
-    actually meet - within `CONTIGUOUS_TOLERANCE`, which exists only because a
-    chain ends on a real pixel while its node is that cluster's centroid. A
-    larger gap is not something to draw through; it means the traversal is
-    wrong, and the honest answer is to fail and let the retry ladder produce
-    different art. It used to be concatenated in silence.
+    actually meet - within `tolerance`, which is this drawing's own junction
+    geometry (see `node_tolerance`) and exists only because a chain ends on a
+    real pixel while its node is that cluster's centroid. A gap that size is
+    inside a junction cluster, and therefore inside ink. A larger one is not
+    something to draw through; it means the traversal is wrong, and the honest
+    answer is to fail and let the retry ladder produce different art. It used
+    to be concatenated in silence.
 
     Returns the polyline and the length of each bridge crossed, so the scale of
     what *was* invented is measurable rather than a matter of trust.
@@ -1133,7 +1461,7 @@ def _assemble(route: list) -> tuple:
             pixels.extend(points)
         else:
             gap = math.dist(pixels[-1], points[0])
-            if gap > CONTIGUOUS_TOLERANCE:
+            if gap > tolerance:
                 raise LineProcessingError(
                     f"the route jumps {gap:.0f} pixels between strokes, which "
                     "would draw a line across empty canvas that is not in the "
@@ -1328,30 +1656,60 @@ def process(data: bytes, trace=None) -> LineArt:
     if not route:
         raise LineProcessingError("no route through the artwork", "no_route")
 
-    pixels, bridge_spans = _assemble(route)
+    pixels, bridge_spans = _assemble(route, node_tolerance(edges, positions))
 
     began = time.monotonic()
-    canvas_points, fit_scale = fit_to_canvas(pixels)
-    # Bridges measured where they will be seen. A gap that was fourteen pixels
-    # in a source image whose subject filled one corner is not fourteen pixels
-    # once that corner fills the canvas.
+    transform = canvas_transform(pixels)
+    fit_scale = transform[0]
+    canvas_points = apply_transform(transform, pixels)
+    # Bridges measured where they will be seen. A gap that was six pixels in a
+    # source image whose subject filled one corner is not six pixels once that
+    # corner fills the canvas.
     bridges = [span * fit_scale for span in bridge_spans]
     # The route as traversed, before any smoothing. Compared against the final
     # render this is the whole of what smoothing and simplification cost.
     stage.path("4-route", canvas_points)
     canvas_points = _dedupe(canvas_points)
+
+    # The artwork itself, on the same canvas, to measure the drawing against.
+    # The *skeleton* rather than the route, so that what is being checked is
+    # "does the finished curve still contain the picture" and not merely "does
+    # it still contain the path I chose through the picture".
+    artwork = apply_transform(
+        transform, [(int(y), int(x)) for y, x in zip(*np.nonzero(skeleton))])
+
     # Smooth, then simplify, then fit. In that order: simplifying first would
     # lock the pixel staircase into the points that survive, and no amount of
     # curve fitting afterwards can take it out again.
-    canvas_points = smooth(canvas_points)
-    canvas_points = simplify(canvas_points)
-    beziers = to_beziers(canvas_points)
-    d = path_d(beziers)
-    flat = flatten(beziers)
-    timings["vectorise"] = int((time.monotonic() - began) * 1000)
-    if not d:
+    #
+    # And walk `DETAIL_LADDER` until the result still contains the artwork.
+    # **This is rule five made mechanical**: when a beautiful drawing comes out
+    # of here simplified or distorted, that is a line-processing failure, and
+    # the answer is to preserve the source and redo the processing - never to
+    # ask for simpler art. Each rung is a few milliseconds, because only the
+    # smoothing and the curve fitting are repeated.
+    best = None
+    for detail, (passes, epsilon) in enumerate(DETAIL_LADDER):
+        points = simplify(smooth(canvas_points, passes), epsilon)
+        beziers = to_beziers(points)
+        d = path_d(beziers)
+        flat = flatten(beziers)
+        if not d:
+            continue
+        kept, invented = fidelity(artwork, flat)
+        if best is None or kept > best[0]:
+            best = (kept, invented, detail, d, flat, beziers)
+        if kept >= MIN_FIDELITY:
+            break
+    if best is None:
         raise LineProcessingError("the traced line was too short to draw",
                                   "too_short")
+    kept, invented, detail, d, flat, beziers = best
+    if detail:
+        warnings.append(
+            f"vectorised at detail level {detail} to keep the artwork "
+            f"({kept:.0%} of it survives)")
+    timings["vectorise"] = int((time.monotonic() - began) * 1000)
 
     stage.path("5-final", flat)
     # Against the mask rather than the source image: the mask is what the
@@ -1368,6 +1726,9 @@ def process(data: bytes, trace=None) -> LineArt:
         bridged=bridged,
         max_bridge=max(bridges) if bridges else 0.0,
         bridged_length=sum(bridges),
+        fidelity=kept,
+        invented=invented,
+        detail=detail,
         retraced=(duplicated / total_before) if total_before else 0.0,
         ink_share=ink_share,
         warnings=warnings,

@@ -16,9 +16,28 @@ separately because they fail for different reasons and want different answers:
   failures an image model actually produces, and they are the ones a retry can
   fix - which is why they are checked here rather than left to taste.
 
+And one job that happens in a *different* pass, before any of them:
+
+* **Worth drawing at all** - `screen_source` looks at the raster the image
+  model returned, before the vectoriser touches it, and asks the one question
+  that decides whether FAM looks premium: *would this feel premium enough to
+  appear as a finished myFAM episode thumbnail?* An icon, a piece of clip art,
+  a coloured image, a cluttered one or a small symbol floating in space is
+  regenerated rather than vectorised. It is a separate entry point because it
+  is a judgement about the **art**, and everything else here is a judgement
+  about the **vector** - the two fail for different reasons and only one of
+  them is the pipeline's fault.
+
 The verdict carries `reasons` rather than a boolean, because `visuals` uses
 them to choose the next rung of the retry ladder, and because "the visual
 failed" in a log is a sentence nobody can act on.
+
+**The direction of every fix here is fixed, and it is the rule the whole
+visual system is built on: the art comes first and the engineering preserves
+it.** A drawing that arrives beautiful and leaves ugly is a line-processing
+failure, and the answer is to preserve the source and fix the processing -
+never to ask for simpler artwork so the vectoriser has an easier time. Nothing
+in this module may be relaxed in the other direction.
 """
 from __future__ import annotations
 
@@ -45,9 +64,23 @@ MAX_EXTENT = 0.995
 #: How much of the path may sit in the outermost band of the canvas before the
 #: composition reads as a crop rather than a picture.
 MAX_EDGE_SHARE = 0.18
-#: Retracing is allowed - the pen goes back over its own line - but past this
-#: it stops being invisible.
-MAX_RETRACED = 0.35
+#: Retracing is allowed - the pen goes back over its own line - and it is the
+#: *preferred* way to keep the route continuous, because a retrace adds no mark
+#: to the picture at all where a bridge adds one that was never in the artwork.
+#:
+#: **Raised from 0.35, and the old number was the engineering dictating the
+#: art.** A rich editorial scene has far more loose ends than a single icon
+#: does, so route inspection has more of them to pair, and measured across two
+#: dozen figures the honest retrace for this style is about 30% with a spread
+#: that touched 37%. A 35% ceiling therefore rejected perfectly good
+#: illustrations for the crime of being illustrations, and the way to pass it
+#: was to draw something simpler.
+#:
+#: There is still a ceiling, because retracing does cost something - not ink,
+#: but *pace*: while the pen redraws, the reveal is not revealing. At 60% the
+#: pen still spends three fifths of its travel on line the listener has not
+#: seen, which reads as a drawing appearing rather than a pen fidgeting.
+MAX_RETRACED = 0.60
 #: The hard one. A bridge is the only mark in a finished drawing that was not
 #: in the artwork, and past this length it stops being an invisible repair of
 #: an accidental gap and becomes a line drawn across empty canvas - a scar.
@@ -58,13 +91,42 @@ MAX_RETRACED = 0.35
 #: negative space. The processor already refuses to *build* such a route; this
 #: refuses to *ship* one, because a drawing that got past the first gate by
 #: some path nobody anticipated must still not reach a player.
+#:
+#: **A SAFETY NET, NOT AN ARTISTIC ALLOWANCE.** This number and the one below
+#: are maximum *rejection boundaries*. They are not permission to bridge
+#: anything shorter, and a route must never prefer a synthetic bridge on the
+#: grounds that it would pass here. The artistic rule is stricter and lives in
+#: `line_processor.BRIDGE_SHARE` (0.8% of the canvas, about six working
+#: pixels) with `BRIDGE_ALIGNMENT` beside it: a bridge repairs a genuinely
+#: tiny accidental gap between endpoints that belong to the same intended
+#: stroke, and nothing else. Everything else retraces ink the artist drew.
 MAX_BRIDGE_UNITS = 18.0
 #: And all of them together, as a share of the whole drawing. Several bridges
 #: each under the limit still add up to a picture that is partly invention.
 MAX_BRIDGED_SHARE = 0.02
+#: How much of the accepted source artwork the finished vector must still
+#: contain. Below this the drawing that reaches a listener is not the drawing
+#: that was approved: detail has been smoothed away, a form has been rounded
+#: off, or a whole passage has gone.
+#:
+#: **A failure here is a LINE PROCESSING failure and is never answered by
+#: simplifying the art.** `line_processor.DETAIL_LADDER` already re-ran the
+#: vectorisation on the same source before this was measured; reaching here
+#: means even the gentlest pass could not keep the picture, which is a bug in
+#: the processing rather than a fact about the artwork.
+MIN_FIDELITY = 0.90
+#: How much of the finished vector may pass nowhere near the source artwork.
+#: Line the artist never drew, by another name - and a different failure from
+#: losing line, which is why it is a second number rather than an average.
+MAX_INVENTED = 0.04
 #: Fewer curves than this is not a drawing; more is detail nobody can see at
 #: the size these are shown, and a path the player has to reveal smoothly.
-MIN_CURVES = 12
+#:
+#: The floor was raised from 12 with the style: twelve curves is an icon, and
+#: a FAM illustration is a scene. It is a weak test of richness - a scribble
+#: has plenty of curves - but it is the one that catches the specific failure
+#: of an image model answering "one continuous line" with a pictogram.
+MIN_CURVES = 40
 MAX_CURVES = 6000
 
 #: Things an SVG can contain that this one never should.
@@ -232,6 +294,24 @@ def _check_quality(art, verdict: Verdict) -> None:
         verdict.fail(f"{retraced:.0%} of the route is drawn over line already "
                      "drawn; the artwork was too badly connected")
 
+    # Did the drawing survive being vectorised? Reported both ways, because
+    # losing the artwork and inventing line are different failures.
+    kept = float(getattr(art, "fidelity", 1.0))
+    invented = float(getattr(art, "invented", 0.0))
+    verdict.metrics["fidelity"] = round(kept, 4)
+    verdict.metrics["invented"] = round(invented, 4)
+    verdict.metrics["detail"] = int(getattr(art, "detail", 0))
+    if kept < MIN_FIDELITY:
+        verdict.fail(
+            f"the vector keeps only {kept:.0%} of the source artwork; the "
+            "drawing a listener would see is not the drawing that was "
+            "approved. This is a line-processing failure - preserve the source "
+            "and fix the processing, do not ask for simpler art")
+    if invented > MAX_INVENTED:
+        verdict.fail(
+            f"{invented:.0%} of the finished curve passes nowhere near the "
+            "source artwork; the vectoriser is drawing line the artist did not")
+
     # The no-scars rule. Everything else here is about whether the picture is
     # good; this is about whether it contains a mark FAM invented.
     max_bridge = float(getattr(art, "max_bridge", 0.0))
@@ -247,6 +327,121 @@ def _check_quality(art, verdict: Verdict) -> None:
         verdict.fail(
             f"{bridged_length / length:.1%} of the drawing is bridging rather "
             "than artwork; the illustration was too broken to repair invisibly")
+
+
+# --------------------------------------------------------------------------
+# Before the vectoriser: is this art worth drawing?
+# --------------------------------------------------------------------------
+#: How much of the source image may be ink. Below the floor there is nothing on
+#: the page; above the ceiling the negative space the house style asks for is
+#: gone and what arrived is a fill, a wash or a photograph.
+MIN_SOURCE_INK = 0.004
+MAX_SOURCE_INK = 0.16
+#: How much of the square the drawing must span. A rich editorial scene reaches
+#: across its canvas; a symbol sits small in the middle of one, and that is the
+#: composition this gate is mainly here to refuse.
+MIN_SOURCE_EXTENT = 0.45
+#: How many separate runs of ink a straight scan across the picture must meet,
+#: on average. **This is the icon test**, and it is the number that decides
+#: whether FAM's feed is illustrations or pictograms.
+#:
+#: Measured: a plain circle, the shape of every icon, scores 2.0 - almost every
+#: scan line crosses it exactly twice. A scene with a figure, a desk and a
+#: window behind it scores 8. Three is comfortably above anything that is one
+#: closed outline and comfortably below anything with a world in it.
+MIN_SOURCE_CROSSINGS = 3.0
+#: ...and the other end, which is clutter: a scan meeting two dozen separate
+#: marks is crossing hatching, pattern fill or scribble, none of which this
+#: style contains.
+MAX_SOURCE_CROSSINGS = 26.0
+#: How much of the image may be meaningfully coloured. FAM line art is charcoal
+#: on ivory; anything saturated is the model having ignored the style.
+MAX_SOURCE_COLOUR = 0.02
+
+
+def screen_source(data: bytes) -> Verdict:
+    """Is this artwork good enough to be a FAM episode's thumbnail?
+
+    Run on the raster the image model returned, **before** the vectoriser sees
+    it. The one question behind every threshold below is the one the product
+    actually cares about: *would this feel premium enough to appear as a
+    finished myFAM episode thumbnail?* If not, the answer is a different
+    picture, not a cleverer traversal - so this gate spends a few milliseconds
+    to save the retry ladder a whole vectorisation, and more importantly to
+    stop good engineering from rescuing bad art into the feed.
+
+    What it refuses, in the words of the rule it enforces: simplistic,
+    icon-like, generic, poorly composed, insufficiently detailed, cluttered,
+    coloured. Two of those - "generic" and "inconsistent with the approved
+    references" - are taste and cannot be measured here; they are the image
+    model's job, addressed in `visual_style` and the references, and this gate
+    deliberately does not pretend to cover them.
+
+    Never raises, for the same reason `validate` never does: a gate that can
+    throw can take the episode down with the picture.
+
+    It costs a decode and a threshold - the cheap end of what `process` does
+    anyway, about thirty milliseconds, and deliberately not the skeletonisation.
+    Repeating that much is the price of the gate being in front of the work
+    rather than inside it, and of it being testable on its own.
+    """
+    verdict = Verdict()
+    try:
+        import line_processor
+
+        grey = line_processor.decode_image(data)
+        mask, _ = line_processor.ink_mask(grey)
+        mask = line_processor._resize_mask(mask, line_processor.WORK_SIZE)
+        mask = line_processor.despeckle(mask)
+    except Exception as exc:  # noqa: BLE001
+        return verdict.fail(f"the artwork could not be read ({exc})")
+
+    if not mask.any():
+        return verdict.fail("the artwork is blank")
+
+    ink = float(mask.mean())
+    rows, cols = mask.nonzero()
+    extent = max(int(rows.max() - rows.min()),
+                 int(cols.max() - cols.min())) / float(max(mask.shape))
+    crossings = line_processor.line_crossings(mask)
+    verdict.metrics.update({"source_ink": round(ink, 5),
+                            "source_extent": round(extent, 4),
+                            "source_crossings": round(crossings, 2)})
+
+    if ink < MIN_SOURCE_INK:
+        verdict.fail(f"there is almost nothing drawn ({ink:.2%} of the canvas "
+                     "is line); this is a sketch, not an illustration")
+    if ink > MAX_SOURCE_INK:
+        verdict.fail(f"{ink:.0%} of the canvas is ink; the negative space FAM "
+                     "illustrations are built on is gone")
+    if extent < MIN_SOURCE_EXTENT:
+        verdict.fail(f"the drawing spans only {extent:.0%} of its square - a "
+                     "small symbol floating in space rather than a composition")
+    if crossings < MIN_SOURCE_CROSSINGS:
+        verdict.fail(
+            f"this is an icon, not an editorial illustration (a scan across it "
+            f"meets {crossings:.1f} marks on average; a FAM scene meets "
+            f"{MIN_SOURCE_CROSSINGS:.0f} or more). Continuous line describes "
+            "how it is drawn, never how much is drawn")
+    if crossings > MAX_SOURCE_CROSSINGS:
+        verdict.fail(f"this is cluttered (a scan across it meets "
+                     f"{crossings:.0f} separate marks); the detail has stopped "
+                     "meaning anything")
+
+    colour = line_processor.colour_share(data)
+    verdict.metrics["source_colour"] = colour
+    if colour is None:
+        # Said out loud rather than passed over. "We did not look" and "there
+        # was nothing to find" are different answers, and reporting the first
+        # as the second is the silent-success failure this project keeps
+        # paying for.
+        verdict.metrics["source_colour_note"] = (
+            "not measured - Pillow is not installed, so the image could only "
+            "be read as luminance")
+    elif colour > MAX_SOURCE_COLOUR:
+        verdict.fail(f"{colour:.0%} of the artwork is coloured; FAM line art "
+                     "is charcoal on ivory")
+    return verdict
 
 
 def _check_thumbnail(thumbnail: bytes, verdict: Verdict) -> None:
@@ -297,4 +492,15 @@ def report() -> dict:
         "max_retraced": MAX_RETRACED,
         "max_bridge_units": MAX_BRIDGE_UNITS,
         "max_bridged_share": MAX_BRIDGED_SHARE,
+        "min_fidelity": MIN_FIDELITY,
+        "max_invented": MAX_INVENTED,
+        "min_curves": MIN_CURVES,
+        "source_gate": {
+            "min_ink": MIN_SOURCE_INK,
+            "max_ink": MAX_SOURCE_INK,
+            "min_extent": MIN_SOURCE_EXTENT,
+            "min_crossings": MIN_SOURCE_CROSSINGS,
+            "max_crossings": MAX_SOURCE_CROSSINGS,
+            "max_colour": MAX_SOURCE_COLOUR,
+        },
     }

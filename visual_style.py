@@ -129,7 +129,16 @@ class StyleSpec:
     #: The house description, in the order an art director would say it.
     canvas: tuple[str, ...] = ()
     line: tuple[str, ...] = ()
+    #: What the drawing is *of*, as a class of picture. This is the block that
+    #: separates an editorial illustration from an icon, and it is part of the
+    #: house style rather than the per-episode brief because the answer is the
+    #: same for every episode: a scene, never a symbol.
+    subject_matter: tuple[str, ...] = ()
     composition: tuple[str, ...] = ()
+    #: How much is on the page. Named separately from composition because
+    #: "continuous line" is read as "simple drawing" by every image model
+    #: unless something says otherwise, and this is the something.
+    richness: tuple[str, ...] = ()
     behaviour: tuple[str, ...] = ()
     character: tuple[str, ...] = ()
     avoid: tuple[str, ...] = ()
@@ -150,7 +159,12 @@ STYLE = StyleSpec(
     # Bumped when the look changes. It is part of the visual key, so a bump
     # retires every stored illustration rather than leaving a feed that is half
     # one style and half another - which is worse than either style alone.
-    version=1,
+    #
+    # 2: art first. Version 1 described a look and left "how much is on the
+    # page" to the model, which reads "one continuous line" as "one simple
+    # icon" every time. This version says what a FAM illustration is *of* - a
+    # scene, a relationship, a metaphor - and how much is in it.
+    version=2,
     paper=PAPER,
     ink=INK,
     stroke_width=STROKE_WIDTH,
@@ -165,12 +179,40 @@ STYLE = StyleSpec(
         "rounded ends and rounded joins, as though drawn with a fine pen held flat",
         "the line is the only mark on the page",
     ),
+    subject_matter=(
+        "a SCENE, not a symbol: a place, a moment, a relationship between "
+        "things, with enough around the subject to say where and why",
+        "an environment the subject sits inside - a room, a street, a "
+        "landscape, a workspace, a horizon - rendered in the same fine line",
+        "people drawn as people: a real figure with posture and attention, "
+        "not a stick figure, not a silhouette, not a head-and-shoulders icon",
+        "a visual metaphor that carries the episode's idea, so that the "
+        "picture says what the development MEANS and not merely who was in it",
+        "relationships and consequences over labels: what changed, and what it "
+        "changed for, rather than the logos of the parties involved",
+    ),
     composition=(
-        "generous negative space; at least half the canvas is untouched ivory",
-        "one clear subject with a strong silhouette, given room to breathe",
+        "generous negative space; roughly half the canvas is untouched ivory, "
+        "and the drawn half is where the detail lives",
+        "a clear focal point with depth around it: foreground, subject, and "
+        "something receding behind",
         "asymmetry is welcome; dead-centre symmetry is not required",
-        "editorial, like the opening illustration of a long magazine piece",
+        "editorial, like the opening illustration of a long magazine piece - "
+        "the kind of drawing a reader stops on",
         "nothing touches the edge of the canvas",
+    ),
+    richness=(
+        "CONTINUOUS LINE DOES NOT MEAN SIMPLE DRAWING. One unbroken line is "
+        "how this is drawn, not how much is drawn.",
+        "rich but restrained: real, observed detail - the fall of a sleeve, "
+        "the pitch of a roofline, the set of a shoulder - and nothing "
+        "decorative on top of it",
+        "enough going on that watching the line arrive feels like discovery, "
+        "and there is something new to find on a second look",
+        "detail earns its place by meaning something; density for its own "
+        "sake is clutter and is worse than nothing",
+        "if it could be redrawn as a single icon without losing the idea, "
+        "it is not yet a FAM illustration",
     ),
     behaviour=(
         "long, flowing, unbroken paths that wander with intent",
@@ -181,17 +223,26 @@ STYLE = StyleSpec(
     ),
     character=(
         "sophisticated, restrained, human, timeless",
-        "confident enough to leave things out",
+        "confident enough to leave things out - and confident enough to draw "
+        "the thing properly rather than gesture at it",
         "intelligent rather than decorative",
+        "premium: this has to hold its own as the cover of a finished episode",
     ),
     avoid=(
         "thick or variable-width lines",
         "shading, hatching, cross-hatching, stippling",
         "fills of any kind, gradients, colour",
         "text, letters, numbers, labels, captions, watermarks, signatures",
-        "logos or brand marks",
+        "logos or brand marks, or a concept built around one",
         "cartoon or comic styling, mascots, faces with expressions",
-        "icon sets, pictograms, infographic furniture, arrows, charts",
+        "icons, pictograms, app-icon or sticker styling, clip art",
+        "generic corporate illustration - the lightbulb, the rocket, the "
+        "cloud, the gear, the head full of cogs",
+        "infographic furniture: arrows, charts, callouts, diagram layouts",
+        "an equation of symbols - 'this thing plus that thing', a handshake, "
+        "two marks meeting in the middle - standing in for an idea",
+        "poster design, title-card layouts, anything arranged around where "
+        "words would go",
         "photorealism and three-dimensional rendering",
         "clutter, busy detail, repeated pattern fill",
         "random scribble used to fill space",
@@ -215,6 +266,8 @@ def style_block() -> str:
         "FAM SINGLE-LINE ILLUSTRATION - house style\n\n"
         "CANVAS\n" + _bullets(STYLE.canvas) + "\n\n"
         "THE LINE\n" + _bullets(STYLE.line) + "\n\n"
+        "WHAT THE PICTURE IS OF\n" + _bullets(STYLE.subject_matter) + "\n\n"
+        "HOW MUCH IS IN IT\n" + _bullets(STYLE.richness) + "\n\n"
         "COMPOSITION\n" + _bullets(STYLE.composition) + "\n\n"
         "HOW THE LINE MOVES\n" + _bullets(STYLE.behaviour) + "\n\n"
         "CHARACTER\n" + _bullets(STYLE.character) + "\n\n"
@@ -234,15 +287,33 @@ CONTINUITY_INSISTENCE = (
     "detail cannot be reached without lifting the pen, leave it out."
 )
 
-#: Attempt 3. Structure failed twice, so the subject is the thing to change:
-#: fewer forms, larger, fewer crossings. A simpler picture is a picture that
-#: can be drawn in one stroke.
-SIMPLIFY_INSISTENCE = (
-    "Draw this as simply as it can possibly be drawn. ONE single unbroken "
-    "continuous line, one large central form, very few crossings, and a great "
-    "deal of empty ivory. Fewer elements drawn larger is better than more "
-    "elements drawn smaller. Leave out every detail that is not the idea "
-    "itself."
+#: Attempt 3. Structure failed twice, so the drawing's *connective tissue* is
+#: the thing to change - not how much is in it.
+#:
+#: **This replaced `SIMPLIFY_INSISTENCE`, and the replacement is the point.**
+#: The old rung told the model to "draw this as simply as it can possibly be
+#: drawn... leave out every detail that is not the idea itself", which is the
+#: engineering dictating the art: a structural failure in FAM's vectoriser was
+#: being answered by making the illustration worse. Two attempts in, it was
+#: also the rung most likely to produce the finished picture, so the feed's
+#: hardest subjects were systematically its most icon-like tiles.
+#:
+#: The failure it is answering is real, and it has an answer that costs the art
+#: nothing: the forms need to *touch*. A scene whose elements overlap and flow
+#: into one another is exactly as rich and is drawable in one stroke, where the
+#: same elements floating apart are not. So this rung asks for contact, not for
+#: less. It is deliberately not called SIMPLIFY anything - a knob left behind
+#: is an invitation to turn it back on.
+CONNECTED_RICHNESS_INSISTENCE = (
+    "The drawing keeps ALL of its richness - the scene, the figure, the "
+    "environment, the detail. Do not simplify it, do not reduce it to a "
+    "symbol, and do not leave elements out.\n\n"
+    "Change only how the parts are JOINED. Every element must physically "
+    "touch another: let the figure overlap the architecture, let the horizon "
+    "run into the object, let a fold of cloth carry on into the thing behind "
+    "it. Compose it so a single pen could travel the whole scene without "
+    "lifting - through contact and overlap, never by leaving things out. "
+    "Absolutely no floating marks, no detached details, no dots."
 )
 
 
@@ -273,6 +344,10 @@ def reference_preamble(references) -> str:
         "that style. Do not copy, trace, collage or reuse their subjects - only "
         "how they are drawn. Draw ONE illustration on ONE square canvas, "
         "whatever the reference images are arranged as.\n\n"
+        "Look at how much is IN them. They are illustrations, not icons: a "
+        "figure with real posture and weight, an environment around it, "
+        "observed detail that rewards a second look. Match that level of "
+        "richness as closely as you match the line weight.\n\n"
         "The written style notes below describe the same look in words. Where "
         "the words and the images disagree, FOLLOW THE IMAGES - they are the "
         "source of truth and the words are only an approximation of them."
@@ -293,6 +368,8 @@ def image_prompt(brief, attempt: int = 1) -> str:
     this only knows how to say each rung.
     """
     subject = (getattr(brief, "subject", "") or "").strip()
+    meaning = (getattr(brief, "deeper_idea", "") or "").strip()
+    scene = (getattr(brief, "scene", "") or "").strip()
     form = (getattr(brief, "primary_form", "") or "").strip()
     metaphor = (getattr(brief, "visual_metaphor", "") or "").strip()
     composition = (getattr(brief, "composition", "") or "").strip()
@@ -304,21 +381,30 @@ def image_prompt(brief, attempt: int = 1) -> str:
     lines = ["WHAT TO DRAW"]
     if subject:
         lines.append(f"- Subject: {subject}")
+    # Before the objects, because it is what the objects are for. A model given
+    # a list of things to draw draws the things; given what they mean first, it
+    # draws a picture about that and uses the things to say it.
+    if meaning:
+        lines.append(f"- What this is really about: {meaning}")
+    # The scene leads the drawing instructions. `primary_form` on its own is
+    # the line that produced icons: one object, named, on an empty page.
+    if scene:
+        lines.append(f"- The scene: {scene}")
     if form:
-        lines.append(f"- The main form on the page: {form}")
+        lines.append(f"- At the centre of it: {form}")
     if metaphor:
         lines.append(f"- The idea the drawing carries: {metaphor}")
     if composition:
         lines.append(f"- Composition: {composition}")
     if tone:
         lines.append(f"- Tone: {tone}")
-    lines.append(f"- Complexity: {COMPLEXITY_NOTE.get(complexity, COMPLEXITY_NOTE['medium'])}")
+    lines.append(f"- How much is in it: {COMPLEXITY_NOTE.get(complexity, COMPLEXITY_NOTE['medium'])}")
     if avoid:
         lines.append("- For this image in particular, avoid: " + ", ".join(avoid))
 
     parts = ["\n".join(lines), style_block()]
     if attempt >= 3:
-        parts.append(SIMPLIFY_INSISTENCE)
+        parts.append(CONNECTED_RICHNESS_INSISTENCE)
     elif attempt >= 2:
         parts.append(CONTINUITY_INSISTENCE)
     return "\n\n".join(parts)
@@ -327,13 +413,24 @@ def image_prompt(brief, attempt: int = 1) -> str:
 #: What each complexity band means as *drawing*, rather than as a number. The
 #: same reasoning as `DEPTH_BANDS` for duration: "medium" has to be a
 #: description of the picture or it becomes a stroke count to hit.
+#:
+#: **Rewritten so that the floor is still an illustration.** These used to run
+#: from "very few elements - one form, drawn large" upward, which made `low` a
+#: licence to draw an icon and made the band the director picked the thing that
+#: decided whether an episode got a picture or a pictogram. Every band now
+#: describes a scene; what changes across them is how much world is around the
+#: subject, not whether there is one.
 COMPLEXITY_NOTE = {
-    "low": "very few elements - one form, drawn large, with a great deal of "
-           "empty ivory around it",
-    "medium": "one dominant form with one or two supporting gestures; still "
-              "mostly empty ivory",
-    "high": "one dominant form with several supporting gestures, still "
-            "uncluttered and still with clear negative space",
+    "low": "an intimate scene - one figure or object rendered with real "
+           "observed detail, with just enough of its surroundings to say "
+           "where it is, and a great deal of empty ivory",
+    "medium": "a scene with depth - the subject, something it is acting on or "
+              "reacting to, and an environment receding behind them; still "
+              "roughly half empty ivory",
+    "high": "a fuller scene - the subject within a working environment, with "
+            "several supporting elements and a sense of a larger world beyond "
+            "the frame; detailed but never cluttered, and still with clear "
+            "negative space",
 }
 
 

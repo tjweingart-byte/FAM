@@ -83,12 +83,19 @@ PENDING_STATES = ("queued", "generating", "processing", "validating")
 STALE_CLAIM_SECONDS = 600.0
 
 #: What each attempt changes. Structural failures are answered by insisting on
-#: continuity, then by asking for a simpler picture - never by changing the
-#: house style, which is not what failed. See `visual_style.image_prompt`.
+#: continuity, then by asking for the same richness composed so that its parts
+#: touch - never by changing the house style, and **never by asking for a
+#: simpler picture**. See `visual_style.image_prompt`.
+#:
+#: The third rung used to read "a simpler visual metaphor", and it was the
+#: engineering dictating the art: a failure in FAM's vectoriser was answered by
+#: making the illustration worse, on exactly the subjects that had already
+#: failed twice. The forms needing to *touch* is a real constraint with an
+#: answer that costs the drawing nothing.
 RETRY_LADDER = (
     "standard FAM direction",
     "stronger continuous-line instructions",
-    "a simpler visual metaphor",
+    "the same scene, composed so its parts touch",
 )
 
 
@@ -778,6 +785,22 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         track("visual_generation_completed", id=record.id, attempt=attempt,
               ms=image.latency_ms, cost=round(image.cost_usd, 4))
 
+        # Is the artwork worth vectorising? Asked before any of the work,
+        # because the answer to art that is an icon, cluttered or coloured is
+        # a different picture - and because a pipeline good enough to rescue
+        # it would quietly fill the feed with pictograms. Art first.
+        screening = visual_validator.screen_source(image.data)
+        if trace is not None:
+            _write_trace(trace, "source-screening.json",
+                         json.dumps(screening.as_dict(), indent=2))
+        if not screening.ok:
+            last_error = "; ".join(screening.reasons)
+            track("visual_source_rejected", id=record.id, attempt=attempt,
+                  reasons=screening.reasons, metrics=screening.metrics)
+            record.metrics = {"source_screening": screening.as_dict()}
+            store().put(record)
+            continue
+
         store().mark(record, "processing")
         track("visual_processing_started", id=record.id, attempt=attempt)
         processing_started = time.monotonic()
@@ -820,6 +843,7 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         record.d = art.d
         record.view_box = art.view_box
         record.metrics = {**art.as_dict(), "validation": verdict.metrics,
+                          "source_screening": screening.metrics,
                           "provider": image.as_dict(),
                           "ladder": RETRY_LADDER[min(attempt, len(RETRY_LADDER)) - 1]}
         store().write_assets(record, source=image.data, svg=svg,
@@ -827,7 +851,8 @@ async def _draw(record: VisualRecord, *, brief=None, evidence: str = "",
         store().mark(record, "ready")
         track("visual_ready", id=record.id, attempt=attempt, query=record.query,
               curves=art.curves, retraced=round(art.retraced, 3),
-              bridged=art.bridged)
+              bridged=art.bridged, fidelity=round(art.fidelity, 3),
+              detail=art.detail)
         return
 
     store().mark(record, "failed",

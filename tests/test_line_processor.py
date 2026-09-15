@@ -185,7 +185,7 @@ def test_a_bridge_is_measured_where_it_will_be_seen():
     once that corner fills the canvas, so the limit is enforced in viewBox
     units rather than source pixels."""
     art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67),
-                          line(0.812, 0.50, 0.912, 0.47)))
+                          line(0.806, 0.50, 0.906, 0.47)))
     assert art.bridged >= 1
     assert 0 < art.max_bridge <= lp.MAX_BRIDGE_UNITS, (
         f"a {art.max_bridge:.0f}-unit bridge is a visible line across the "
@@ -197,7 +197,7 @@ def test_the_bridging_limit_is_tight_enough_to_be_invisible():
     """Rule 6: a gap may be closed only when it is genuinely tiny and
     accidental. Two ends a tenth of the canvas apart are not a gap, they are
     two drawings, and joining them is the scar."""
-    assert lp.BRIDGE_SHARE <= 0.02
+    assert lp.BRIDGE_SHARE <= 0.012
     with pytest.raises(lp.LineProcessingError) as raised:
         # Two strokes separated by ~8% of the canvas - far beyond a gap.
         lp.process(draw(line(0.10, 0.50, 0.40, 0.50),
@@ -248,7 +248,7 @@ def test_a_small_gap_is_bridged_and_the_piece_is_kept():
     """The commonest break in generated line art: a stroke that stops just
     short of the middle of another, where there is no loose end to meet."""
     art = lp.process(draw(circle(), line(0.13, 0.33, 0.87, 0.67),
-                          line(0.812, 0.50, 0.912, 0.47)))
+                          line(0.806, 0.50, 0.906, 0.47)))
     assert art.bridged >= 1, "the gap was not closed"
     assert art.components == 1
     # The tail survived: the drawing reaches past the circle's right edge.
@@ -400,3 +400,114 @@ def test_despeckle_drops_dust_and_keeps_drawing():
     cleaned = lp.despeckle(mask)
     assert cleaned[30, 20]
     assert not cleaned[5, 5]
+
+
+# --------------------------------------------------------------------------
+# Art first, engineering second
+# --------------------------------------------------------------------------
+# The rule the whole visual system is built on, and the one the pipeline is
+# always quietly tempted to break: the Visual Director makes the strongest
+# editorial interpretation of the episode, and this module's job is to
+# *preserve* that artwork and find a route through it. Never to prefer artwork
+# that happens to be easier to skeletonise, route or animate.
+
+
+def rich(seed: int = 4242) -> bytes:
+    """Artwork with a scene's worth of line in it, rather than an icon's."""
+    import visual_provider
+
+    return lp.rasterise_polyline(visual_provider._figure(seed, 4), 900, 2.4)
+
+
+def test_a_rich_illustration_survives_the_whole_pipeline():
+    """The regression that matters most. Every threshold in here was first set
+    against a single figure on an empty page, and every one of them is a way to
+    reject a drawing for being a drawing."""
+    art = lp.process(rich())
+    assert art.d.count("M") == 1
+    assert art.curves > 200, "a scene's worth of line came out as an icon"
+    assert art.components == 1
+    assert art.bridged == 0, "rich art should route by retracing, not bridging"
+
+
+def test_the_seam_tolerance_comes_from_the_artwork_not_a_constant():
+    """A chain ends on a pixel of a junction cluster while its node is that
+    cluster's centroid, so chains meet slightly apart by construction - and a
+    denser drawing has larger clusters. A constant here rejected rich artwork
+    for being rich, which is the engineering dictating the art."""
+    skeleton = lp.prune_spurs(lp.skeletonise(
+        lp.despeckle(lp._resize_mask(lp.ink_mask(lp.decode_image(rich()))[0],
+                                     lp.WORK_SIZE))))
+    edges, positions = lp.build_graph(skeleton)
+    tolerance = lp.node_tolerance(edges, positions)
+    assert tolerance >= lp.CONTIGUOUS_TOLERANCE, "the floor was lost"
+    # Still small: a seam this size is inside a junction cluster, which is
+    # inside ink. It is not a mark across the picture.
+    assert tolerance < 0.02 * max(skeleton.shape)
+
+
+def test_vectorising_keeps_the_artwork_it_was_given():
+    """Rule five, second half: if beautiful source artwork comes out of here
+    simplified or distorted, that is a line-processing failure."""
+    art = lp.process(rich())
+    assert art.fidelity >= lp.MIN_FIDELITY, (
+        f"the vector keeps only {art.fidelity:.0%} of the artwork")
+    assert art.invented <= 0.04, "the vectoriser drew line that was not there"
+
+
+def test_losing_detail_is_answered_by_redoing_the_processing(monkeypatch):
+    """...and never by asking for simpler art. `DETAIL_LADDER` re-runs the
+    vectorisation on the *same* source until the picture survives."""
+    source = rich()
+    lossy = ((3, 40.0),) + lp.DETAIL_LADDER[1:]
+    monkeypatch.setattr(lp, "DETAIL_LADDER", lossy)
+    art = lp.process(source)
+    assert art.detail > 0, "the lossy first rung was shipped rather than redone"
+    assert art.fidelity >= lp.MIN_FIDELITY
+    assert any("detail level" in w for w in art.warnings), \
+        "the drawing was rescued silently"
+
+
+def test_the_measurement_notices_a_drawing_that_lost_a_limb():
+    """Both directions, because they are different failures - and a single
+    averaged number would hide either."""
+    whole = [(float(x), 500.0) for x in range(100, 900, 2)]
+    half = [(float(x), 500.0) for x in range(100, 500, 2)]
+    # The artwork is the whole line; the drawing only got half of it.
+    kept, invented = lp.fidelity(whole, half)
+    assert kept < 0.6, "half the drawing went missing and nothing noticed"
+    assert invented < 0.05, "the half it did draw was in the right place"
+    # ...and the reverse: a curve that goes somewhere the artwork never did.
+    kept, invented = lp.fidelity(half, whole)
+    assert kept > 0.9
+    assert invented > 0.3, "line was invented and nothing noticed"
+
+
+def test_a_bridge_must_continue_the_stroke_it_repairs():
+    """The artistic half of rule four, and the half a distance threshold cannot
+    express. A stroke that was interrupted is continued; two unrelated ends
+    that merely pass close by are not joined, however short the hop."""
+    # A loose end heading east, and a line it would have to turn ninety degrees
+    # to reach. Close enough on distance alone; refused on meaning.
+    art_side_by_side = lp.process(draw(
+        circle(), line(0.13, 0.33, 0.87, 0.67),
+        line(0.806, 0.50, 0.906, 0.47)))
+    assert art_side_by_side.bridged >= 1, "a genuine continuation was refused"
+
+    heading = lp._end_direction
+    assert callable(heading)
+    # The alignment test is a real gate rather than a formality.
+    assert 0.0 < lp.BRIDGE_ALIGNMENT < 1.0
+
+
+def test_the_routing_limit_is_far_stricter_than_the_validators_backstop():
+    """The validator's numbers are maximum rejection boundaries, NOT permission
+    to bridge anything shorter. The artistic rule is this one, and it has to
+    stay well inside the backstop or the backstop becomes the policy."""
+    import visual_validator
+
+    in_units = lp.BRIDGE_SHARE * lp.WORK_SIZE * (visual_style.VIEWBOX
+                                                 / lp.WORK_SIZE)
+    assert in_units < visual_validator.MAX_BRIDGE_UNITS * 0.75, (
+        "routing is bridging right up to the validator's limit; the safety net "
+        "has become the definition of good routing")

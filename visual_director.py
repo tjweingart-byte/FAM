@@ -41,8 +41,22 @@ Two rules it inherits from EI, for the same reasons:
   merely be illustrated worse.
 * **It never asserts a fact.** A picture cannot be wrong about a scoreline,
   but it can be wrong about *what happened*, and the safest way to never draw
-  yesterday's result is to never be asked to. The brief describes forms and
+  yesterday's result is to never be asked to. The brief describes scenes and
   metaphors; it is explicitly told not to depict events, numbers or outcomes.
+
+**And its first job is interpretation, not description.** The brief is built
+in two halves, and the order is load-bearing: *what happened, why it matters,
+what changed, what the deeper idea is* - and only then *what scene expresses
+that*. A director that skips to the scene can only put the topic's nouns on a
+page, which is how an episode about two companies working together becomes a
+cloud, a head and a handshake. `deeper_idea` is the field the picture is really
+of; `scene`, `primary_form` and `visual_metaphor` are how it gets drawn.
+
+The constraint that follows, and which this module must never quietly break:
+**the art comes first and the engineering preserves it.** FAM's vectoriser
+needs a drawing it can travel in one stroke, and the correct way to give it one
+is a scene whose parts *touch* - not a scene with fewer parts. Nothing here may
+ask for a simpler picture in order to make the pipeline's job easier.
 """
 from __future__ import annotations
 
@@ -68,8 +82,10 @@ COMPLEXITIES = ("low", "medium", "high")
 #: What is never in a FAM illustration, whatever the subject. The per-episode
 #: `avoid` list the model returns is added to this, never substituted for it.
 BASELINE_AVOID = (
-    "text", "logos", "shading", "photorealism", "cartoon", "iconography",
-    "infographic", "clutter",
+    "text", "logos", "shading", "colour", "gradients", "photorealism",
+    "cartoon", "icons", "pictograms", "clip art",
+    "generic corporate illustration", "infographic", "poster design",
+    "handshake or two-symbols-meeting imagery", "clutter",
 )
 
 
@@ -89,8 +105,20 @@ class VisualBrief:
     #: The idea being illustrated, resolved. "AI infrastructure expansion",
     #: not "nvidia".
     subject: str = ""
-    #: The main object on the page. Concrete and drawable: "semiconductor
-    #: chip", not "growth".
+    #: What actually changed, in a clause. The step between the headline and
+    #: the picture: an episode is about a change, and a drawing that does not
+    #: know what changed can only identify the parties.
+    what_changed: str = ""
+    #: Why it matters - the human, business, cultural or technological idea
+    #: underneath the news. **This is the field the picture is really of.**
+    #: Everything below is how it gets drawn.
+    deeper_idea: str = ""
+    #: The scene that expresses that idea: a place, a moment, people, and what
+    #: is around them. A sentence or two of staging, not a list of objects.
+    scene: str = ""
+    #: The main object or figure within that scene. Concrete and drawable.
+    #: Deliberately no longer "the main form on an empty page" - that framing
+    #: is what produced icons.
     primary_form: str = ""
     #: What the line does with that form - the picture's one idea.
     visual_metaphor: str = ""
@@ -117,7 +145,8 @@ class VisualBrief:
     @property
     def usable(self) -> bool:
         """Enough to draw from. An empty subject and an empty form is not."""
-        return bool(self.subject.strip() or self.primary_form.strip())
+        return bool(self.subject.strip() or self.primary_form.strip()
+                    or self.scene.strip())
 
 
 DIRECTOR_SYSTEM = (
@@ -128,15 +157,42 @@ DIRECTOR_SYSTEM = (
     "You decide what the illustration is OF. You never draw it, and you never "
     "describe how it is drawn: the line weight, the colours and the drawing "
     "technique are fixed and are not yours to choose.\n\n"
-    "Three things matter.\n\n"
-    "1. DRAWABLE AS ONE LINE. Choose forms with clear silhouettes that connect "
-    "to each other. A skyline, a wave, a chip, a bridge, a hand, a horizon - "
-    "yes. A crowd, a page of text, a chart, a logo - no.\n\n"
-    "2. AN IDEA, NOT A LABEL. The picture should carry the episode's thought, "
-    "not illustrate its title. For an episode about a company's data-centre "
-    "spending, chip circuitry opening out into a city grid says something; a "
-    "picture of a building does not.\n\n"
-    "3. NEVER DEPICT AN EVENT OR AN OUTCOME. You are working before the facts "
+    "WORK OUT WHAT THE STORY MEANS BEFORE YOU DECIDE WHAT TO DRAW. In order:\n"
+    "- What happened?\n"
+    "- Why does it matter?\n"
+    "- What changed?\n"
+    "- What is the deeper human, business, cultural or technological idea "
+    "underneath it?\n"
+    "- What scene or visual metaphor expresses that idea best?\n\n"
+    "Only then describe the illustration. A picture made without those five "
+    "answers can identify the topic and nothing else, and identifying the "
+    "topic is what a logo does.\n\n"
+    "Four things matter.\n\n"
+    "1. A SCENE, NOT A SYMBOL. FAM illustrations are rich editorial drawings - "
+    "a place, a moment, people with posture and attention, an environment "
+    "around them, real observed detail. They are NOT icons, pictograms, clip "
+    "art, corporate stock illustration, infographics or logo arrangements. "
+    "'Continuous line' describes how it is drawn, never how much is drawn.\n\n"
+    "   For an episode about an enterprise-software company partnering with an "
+    "AI lab:\n"
+    "   BAD - a cloud, an AI head and a handshake.\n"
+    "   GOOD - a sophisticated enterprise workspace where a detailed human "
+    "professional and an intelligent AI collaborator work side by side, with "
+    "customer records, data structures and the wider business ecosystem "
+    "emerging in line around them.\n"
+    "   The picture must say what the development MEANS, not name who was in "
+    "it.\n\n"
+    "2. DRAWABLE AS ONE LINE - BY CONTACT, NOT BY SUBTRACTION. The whole scene "
+    "is drawn without the pen leaving the paper, so compose it as things that "
+    "TOUCH: the figure overlaps the desk, the desk runs into the window, the "
+    "window frames the skyline. Never answer this by removing detail or "
+    "shrinking the idea. Avoid only what genuinely cannot connect - a crowd of "
+    "separate small figures, a page of text, a chart.\n\n"
+    "3. AN IDEA, NOT A LABEL. The picture carries the episode's thought rather "
+    "than illustrating its title. For a company's data-centre spending, chip "
+    "circuitry opening out into a lived-in city grid says something; a picture "
+    "of a building does not.\n\n"
+    "4. NEVER DEPICT AN EVENT OR AN OUTCOME. You are working before the facts "
     "are settled, and a picture that shows a result can be wrong in a way "
     "nobody can correct later. Draw the subject and the idea, never the "
     "scoreline, the number, the winner or the verdict. No text of any kind.\n\n"
@@ -148,8 +204,19 @@ BRIEF_SCHEMA = {
     "properties": {
         "subject": {"type": "string",
                     "description": "The idea being illustrated, resolved, in a few words."},
+        "what_changed": {"type": "string",
+                         "description": "What actually changed, in one clause."},
+        "deeper_idea": {"type": "string",
+                        "description": "Why it matters - the human, business, cultural or "
+                                       "technological idea underneath it. One sentence. This "
+                                       "is what the picture is really of."},
+        "scene": {"type": "string",
+                  "description": "The scene that expresses that idea: the place, the moment, "
+                                 "who is in it and what is around them. Two or three "
+                                 "sentences of staging, rich enough to draw from. Not a list "
+                                 "of symbols."},
         "primary_form": {"type": "string",
-                         "description": "The concrete, drawable main object on the page."},
+                         "description": "The main figure or object within that scene."},
         "visual_metaphor": {"type": "string",
                             "description": "What the line does with that form - one sentence."},
         "composition": {"type": "string",
@@ -159,7 +226,8 @@ BRIEF_SCHEMA = {
         "avoid": {"type": "array", "items": {"type": "string"},
                   "description": "Things to keep out of THIS image in particular."},
     },
-    "required": ["subject", "primary_form", "visual_metaphor", "composition",
+    "required": ["subject", "what_changed", "deeper_idea", "scene",
+                 "primary_form", "visual_metaphor", "composition",
                  "tone", "complexity"],
     "additionalProperties": False,
 }
@@ -206,9 +274,14 @@ def build_director_prompt(query: str, *, context: str = "", brief=None,
                      "illustrate any specific event, number or outcome in it)\n"
                      + evidence[:EVIDENCE_CHARS])
     parts.append(
-        "Decide what the one continuous-line illustration for this episode "
-        "should be of. Remember it must be drawable without lifting the pen, "
-        "and it must carry the idea rather than label the topic."
+        "Work out what this story MEANS - what happened, why it matters, what "
+        "changed, and the deeper idea underneath it - and then decide what the "
+        "one continuous-line illustration for this episode should be of.\n\n"
+        "It must be a rich editorial scene rather than a symbol, it must carry "
+        "the idea rather than label the topic, and it must be composed so that "
+        "everything in it touches - because it is drawn without the pen "
+        "leaving the paper. Do not make it simpler in order to make it "
+        "drawable; make the parts of it touch."
     )
     return "\n\n".join(parts)
 
@@ -248,6 +321,12 @@ def fallback_visual_brief(query: str, reason: str, *, source: str = "") -> Visua
     it is exactly as art-directed as it was before this module existed - which
     is the floor this layer must never drop below.
 
+    **The floor still asks for a scene.** It used to say "the idea of X, drawn
+    as one continuous line", which names one thing on an empty page and is the
+    shape of an icon. A degraded brief buys a worse-*directed* picture; it must
+    not silently buy a different *kind* of picture, or an outage in this module
+    would turn the feed into pictograms and nothing would say so.
+
     Note what it does **not** do: it does not refuse. A director outage must
     cost picture quality and never the picture.
     """
@@ -258,9 +337,12 @@ def fallback_visual_brief(query: str, reason: str, *, source: str = "") -> Visua
     return VisualBrief(
         query=query,
         subject=subject,
+        scene=(f"an editorial scene about {subject}: a person or place caught "
+               "mid-action, with the environment it belongs to drawn around "
+               "them and room to breathe") if subject else "",
         primary_form="",
-        visual_metaphor=f"the idea of {subject}, drawn as one continuous line"
-                        if subject else "",
+        visual_metaphor=f"what {subject} means, told as a scene rather than "
+                        "named as a symbol" if subject else "",
         degraded=True,
         notes=[reason],
         source=source,
@@ -339,8 +421,8 @@ async def direct(query: str, *, context: str = "", brief=None,
             query, f"the director returned nothing readable: {exc}", source=source)
 
     result = from_payload(data, query=query, source=source)
-    log.info("visual direction %r -> form=%r metaphor=%r complexity=%s",
-             query, result.primary_form, result.visual_metaphor,
+    log.info("visual direction %r -> idea=%r scene=%r form=%r complexity=%s",
+             query, result.deeper_idea, result.scene[:80], result.primary_form,
              result.complexity)
     return result
 
@@ -366,6 +448,9 @@ def from_payload(data: dict, *, query: str = "", source: str = "") -> VisualBrie
     return VisualBrief(
         query=query,
         subject=str(data.get("subject", "") or "").strip(),
+        what_changed=str(data.get("what_changed", "") or "").strip(),
+        deeper_idea=str(data.get("deeper_idea", "") or "").strip(),
+        scene=str(data.get("scene", "") or "").strip(),
         primary_form=str(data.get("primary_form", "") or "").strip(),
         visual_metaphor=str(data.get("visual_metaphor", "") or "").strip(),
         composition=str(data.get("composition", "") or "").strip()

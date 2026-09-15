@@ -5369,3 +5369,169 @@ drawn, that chains meeting within a pixel or two are still fine, that a bridge
 is measured after the fit, that the limit is tight enough to be invisible, that
 retracing a bridge costs more than retracing artwork, and that a scar is
 rejected before the asset is marked ready.
+
+---
+
+## 86. The engineering had been quietly choosing the art
+
+The continuous-line system worked. Every stage did what it said: the director
+briefed, the model drew, the skeletoniser thinned, the traversal routed, the
+validator checked, the player revealed. What came out the end was an icon.
+
+Not because anything failed. **Because seven separate decisions, each locally
+reasonable, all pointed the same way** - toward artwork that is easier to
+skeletonise, route and animate - and nothing in the system was pointing the
+other way. A pipeline tuned for its own convenience converges on pictograms
+without anybody deciding that it should, and every step of the convergence
+looks like a bug fix.
+
+The seven, in the order they act:
+
+1. `DIRECTOR_SYSTEM` said "choose forms with clear silhouettes that connect to
+   each other" and listed a crowd, a page of text and a chart as things to
+   avoid. Read as written, that is an instruction to simplify.
+2. The brief's richest field was `primary_form`, "the concrete, drawable main
+   object **on the page**" - one object, named, on an empty page. That is the
+   shape of an icon, in a schema.
+3. `COMPLEXITY_NOTE["low"]` read "very few elements - one form, drawn large",
+   so the band the director happened to pick decided whether an episode got a
+   picture or a pictogram.
+4. `fallback_visual_brief` produced "the idea of X, drawn as one continuous
+   line" - so a director outage did not merely cost picture *quality*, it
+   silently changed the *kind* of picture, and nothing said so.
+5. `SIMPLIFY_INSISTENCE`, the third rung of the retry ladder: *"Draw this as
+   simply as it can possibly be drawn... leave out every detail that is not the
+   idea itself."* This is the clearest case. A structural failure in FAM's
+   vectoriser was being answered by making the illustration worse - and it was
+   the rung most likely to produce the finished picture, so the feed's hardest
+   subjects were systematically its most icon-like tiles.
+6. `CONTIGUOUS_TOLERANCE = 4.0`, a constant. A chain begins and ends on a pixel
+   of a junction cluster while its node is that cluster's *centroid*, so chains
+   meet slightly apart by construction - bounded by the cluster's size, and a
+   cluster is bigger in a dense drawing. Four pixels is right for one figure on
+   an empty page. On a scene it raised `discontinuous` and threw the art away.
+7. `MAX_RETRACED = 0.35`. A rich scene has far more loose ends than an icon, so
+   route inspection has more of them to pair. Measured across two dozen
+   figures, the honest retrace for this style is about 30% with a spread
+   touching 37% - so the ceiling rejected illustrations for being
+   illustrations, and the way to pass it was to draw something simpler.
+
+Note the shape 6 and 7 share, because it generalises: **every threshold in this
+pipeline was first calibrated against a single figure on an empty page, and
+every one of them is therefore a way to reject a drawing for being a drawing.**
+When a threshold starts refusing rich artwork, the threshold is what is wrong.
+
+**The rule that replaces all of it: the art comes first and the engineering
+preserves it.** FAM is not one simple icon drawn with one line; it is one rich
+idea, interpreted as one beautiful editorial illustration, revealed through one
+continuous line. "Continuous line" describes *how* it is drawn and never *how
+much*.
+
+What changed, against the seven:
+
+**The director interprets before it describes.** Five questions in order - what
+happened, why it matters, what changed, what the deeper human/business/cultural
+/technological idea is, and what scene expresses it - and only then a picture.
+`what_changed`, `deeper_idea` and `scene` are required schema fields, and
+`deeper_idea` is the one the picture is really of; `primary_form` demoted from
+"the main object on the page" to "the main figure within that scene". The
+worked example is in the prompt, because a rule describes and an example is
+matched: for an enterprise-software company partnering with an AI lab, a cloud
+plus an AI head plus a handshake is the failure, and a detailed workspace where
+a human professional and an AI collaborator work amid emerging data structures
+is the answer. The picture says what the development *means*, not who was in it.
+
+**The style says what a FAM illustration is, not only how it looks.** Two new
+blocks reach the image model: WHAT THE PICTURE IS OF (a scene, an environment,
+people as people, relationships over labels) and HOW MUCH IS IN IT, which opens
+"CONTINUOUS LINE DOES NOT MEAN SIMPLE DRAWING" and closes "if it could be
+redrawn as a single icon without losing the idea, it is not yet a FAM
+illustration". The never-list gained pictograms, clip art, generic corporate
+illustration, infographic layouts, poster design, and an equation of symbols
+standing in for an idea. Every complexity band now describes a scene. The style
+version went to 2, which retires every stored drawing - a feed half icons and
+half illustrations is worse than either.
+
+**The third rung asks for contact, not for less.**
+`CONNECTED_RICHNESS_INSISTENCE`: keep all of the richness, change only how the
+parts are *joined*, let the figure overlap the architecture and the horizon run
+into the object. The constraint being answered was real - it just never needed
+the art to shrink. `SIMPLIFY_INSISTENCE` is deleted rather than disabled, and
+two tests fail if it returns.
+
+**A gate in front of the vectoriser.** `visual_validator.screen_source` asks
+one question of the raster before anything is processed: would this feel
+premium enough to be a finished myFAM episode thumbnail? It is in front of the
+work for a product reason rather than a CPU one - **FAM's line processor is
+good enough to turn almost anything into one ordered path**, so a pipeline left
+to itself faithfully rescues an icon into the feed.
+
+The measure that does the real work is embarrassingly simple and separates the
+two cases cleanly: **how many separate runs of ink a straight scan across the
+picture meets, on average.** A plain circle - the shape of every pictogram -
+scores 2.0, because almost every scan line crosses it exactly twice. A scene
+with a figure, a desk and a window behind it scores 8. The floor is 3. Extent,
+ink share, clutter and colour are checked beside it. Two things it does *not*
+claim: "generic" and "inconsistent with the references" are taste and are not
+measurable here, and the colour check reports `None` rather than `0` where
+Pillow is absent, because "we did not look" and "there was nothing to find" are
+different answers.
+
+**And the drawing is compared with the artwork it came from.**
+`line_processor.fidelity` puts the skeleton and the finished curve on the same
+canvas through the same transform and returns two numbers - how much of the
+artwork survived, and how much of the curve was invented. Two rather than one
+average, because they are opposite failures and either would hide the other.
+
+The direction of the fix is the point. A beautiful drawing that comes out ugly
+is a **line-processing failure**, so `DETAIL_LADDER` re-runs the vectorisation
+on the *same* source - same decode, same skeleton, same route - with gentler
+smoothing and simplification, and keeps the first pass that holds the picture.
+It is cheap: only the curve fitting repeats. Reaching the validator with a
+fidelity failure now means even the gentlest pass could not hold it, which is a
+bug in this code rather than a fact about the artwork, and the failure message
+says so in as many words.
+
+**The two thresholds that were rejecting richness were rebuilt rather than
+loosened.** `CONTIGUOUS_TOLERANCE` is now a floor under `node_tolerance`, which
+measures the junction geometry of the drawing in hand - the offset between each
+chain's endpoint pixel and its cluster's centroid is right there in the graph,
+and the worst legitimate seam is two of them back to back. A gap that size is
+inside a junction cluster, and therefore inside ink; it was never a mark across
+the picture, which is what the no-scars rule is actually about. `MAX_RETRACED`
+went to 0.60, with the reasoning written beside it: retracing costs no ink at
+all, only *pace* - while the pen redraws, the reveal is not revealing - and at
+60% it still spends three fifths of its travel on line nobody has seen.
+
+**One thing deliberately got stricter, in the opposite direction.** §85's
+bridge limits are a safety net and were being read as an allowance. The
+routing rule is now its own, much tighter number - `BRIDGE_SHARE` 2% -> 1%,
+about seven working pixels - plus `BRIDGE_ALIGNMENT`, which is the half a
+distance threshold cannot express: **the gap must point the way the pen was
+already going.** Distance alone cannot tell a stroke interrupted mid-curve from
+two unrelated ends that happen to pass near each other, and the second is a
+mark across the picture that is merely short enough to sneak through. That is
+what "endpoints that belong to the same intended stroke" means as code. The
+validator's 18 units stay exactly where they were and are now documented as
+what they are: the point past which a mark is provably a scar, not the
+definition of good routing.
+
+**The placeholder had to move with it.** `SyntheticProvider` drew a single
+closed harmonic loop, which is one unbroken line and is also, structurally, an
+icon - two marks per scan, refused by the new gate. It now winds five times at
+drifting radius: same determinism, same real loops and crossings for the
+skeletoniser, and about nine marks per scan. Without that the no-credential
+demo path would be dead and the gate would only ever be exercised in tests,
+which is how a gate calibrated against nothing real gets shipped. Its
+attempt-three branch, which forced `complexity = 2`, is gone for the same
+reason the rung it honoured is gone.
+
+**What is still unverified, and cannot be verified here.** There is no image
+credential in this container, so every threshold above is calibrated against
+synthetic figures and against reasoning, not against `gpt-image-1` output. The
+crossing floor of 3 separates a circle from a grid by a factor of four, which
+is a wide margin - but whether a real FAM illustration of a real episode lands
+at 4 or at 14 is unknown, and so is how often the model's answer survives it.
+`tools/visual_trace.py` preserves every stage, and the source screening is now
+written into the trace as `source-screening.json`, so the first real run says
+what it measured rather than only whether it passed.

@@ -15,6 +15,57 @@ none of them needs a special case and none of them can drift out of step.
 
 ---
 
+## The north star
+
+FAM is **not** one simple icon drawn with one line.
+
+FAM is **one rich idea → interpreted as one beautiful editorial illustration →
+revealed through one continuous line.**
+
+**The art comes first. The engineering preserves it.** That ordering is the
+single most load-bearing sentence in this document, because every threshold in
+the pipeline is a way to quietly invert it: skeletonising, routing and
+animating are all *easier* on simpler artwork, so a system tuned for its own
+convenience converges on pictograms without anybody deciding that it should.
+
+Concretely, and in the order the work happens:
+
+* The **Visual Director's** job is the strongest editorial interpretation of the
+  episode. Not the most drawable one.
+* The **image prompt's** job is to ask for that at full richness.
+* The **source gate's** job is to refuse art that is not it.
+* The **line processor's** job is to *preserve* that artwork and find a route
+  through it — never to prefer artwork that happens to route easily.
+* The **validator's** job is to notice when the vector stopped being the
+  drawing.
+
+Two consequences that read as rules elsewhere in this file, and are really this
+one rule applied twice: no rung of the retry ladder may ask for a *simpler
+picture* (the fix for "it will not route" is forms that **touch**, not fewer
+forms), and a beautiful drawing that comes out ugly is a **line-processing
+failure** — preserve the source, fix the processing.
+
+### What a FAM illustration is
+
+Sophisticated editorial line illustration. Warm ivory ground, extremely fine
+charcoal line, generous negative space, rich but restrained detail, thoughtful
+composition, visual storytelling — and **enough detail that watching the image
+emerge feels like discovery.** Scenes, environments, relationships and visual
+metaphors, in preference to isolated symbols.
+
+Never: pictograms, generic corporate iconography, clip art, infographic
+layouts, logo-driven concepts, "A + B = partnership" imagery, text inside the
+artwork, colour, gradients, shading, photorealism, poster design.
+
+**The approved reference images in `visual_references/` are the visual source of
+truth. Where the written instructions and the references disagree, follow the
+references** — `visual_style.reference_preamble` says exactly that to the model,
+because a description and a demonstration of one style never agree, and an
+unranked pair gets averaged into the generic look all of this exists to rule
+out.
+
+---
+
 ## What happens, in order
 
 ```
@@ -79,6 +130,12 @@ state.**
 
 **5. Nothing personal is drawn.** An episode with attachments is that listener's
 alone; `pipeline` refuses to cache it, so this refuses to draw it.
+
+**6. The engineering never dictates the art.** No threshold here may be
+satisfied by making the illustration worse. When one of them starts rejecting
+rich artwork, the threshold is wrong — twice already: `CONTIGUOUS_TOLERANCE`
+was a constant that only suited a single figure on an empty page, and
+`MAX_RETRACED` was set at 35% when the honest figure for a scene is 30%.
 
 ---
 
@@ -195,7 +252,33 @@ and the rest of that drawing was good. So the pen's options, in order:
 7. Never draw a long straight or curved connector across negative space.
 
 In graph terms: retracing is allowed, duplicating existing edges is allowed,
-introducing a new long edge through blank canvas is not.
+introducing a new long edge through blank canvas is not. The route may
+therefore be a Chinese-postman traversal that duplicates existing edges as
+needed.
+
+**The validator's numbers are a safety net, not an artistic allowance.**
+`MAX_BRIDGE_UNITS` (18) and `MAX_BRIDGED_SHARE` (2%) are maximum *rejection
+boundaries* — the point past which a mark is provably a scar. They are not
+permission to bridge anything shorter, and a route must never prefer a
+synthetic bridge on the grounds that it would pass them. The rule routing
+actually obeys is stricter and lives beside the code that obeys it:
+
+* `BRIDGE_SHARE` is **1%** of the working image — about seven pixels, ten
+  viewBox units, under three screen pixels of travel on the player. Well inside
+  the backstop, and meant to be.
+* `BRIDGE_ALIGNMENT` is the half a distance threshold cannot express: **the gap
+  must point the way the pen was already going.** Distance alone cannot tell a
+  stroke that was interrupted mid-curve from two unrelated ends that happen to
+  pass near each other — and the second is a mark across the picture that is
+  merely short enough to sneak through. A line that stops mid-bend is
+  continued; a line that would have to turn a corner to reach its neighbour is
+  not. That is what "endpoints that belong to the same intended stroke" means
+  as code.
+
+So: **retrace existing ink whenever possible.** A synthetic bridge exists only
+to repair a genuinely tiny accidental gap between endpoints that visually and
+semantically belong to the same stroke. Never choose one because it passes the
+validator.
 
 **Three mechanisms enforce it, because one would be a single point of failure.**
 
@@ -206,9 +289,14 @@ introducing a new long edge through blank canvas is not.
   concatenation joined two non-adjacent chains, and smoothing turned the
   discontinuity into a graceful curve across blank ivory. It looked deliberate.
 * `_assemble` refuses to **build** a route whose consecutive strokes do not
-  meet within `CONTIGUOUS_TOLERANCE` (four working pixels — not zero, because a
-  chain ends on an actual junction pixel while its node is the cluster's
-  centroid). A jump is a `discontinuous` failure and a regeneration.
+  meet. The tolerance is not zero and is not a constant: a chain begins and
+  ends on an actual *pixel* of a junction cluster while its node is that
+  cluster's centroid, so chains meet slightly apart by construction, bounded by
+  the cluster's own size. `node_tolerance` measures that from the drawing in
+  hand, because **a denser picture has larger clusters** — and a constant four
+  pixels, calibrated on a single figure on an empty page, rejected rich artwork
+  for being rich. A gap that size is inside a junction cluster and therefore
+  inside ink; anything larger is a `discontinuous` failure and a regeneration.
 * `visual_validator` refuses to **ship** one. Bridges are measured *after*
   `fit_to_canvas`, in final viewBox units, because the fit can scale a drawing
   **up** and a bridge that was small in a cornered subject is not small once
@@ -260,6 +348,67 @@ the same way, or takes the PNG if it would rather have an image.
 
 ---
 
+## The source gate
+
+**Before the vectoriser touches it.** `visual_validator.screen_source` looks at
+the raster the image model returned and asks one question:
+
+> Would this feel premium enough to appear as a finished myFAM episode
+> thumbnail?
+
+If no, it is regenerated rather than vectorised. It is in front of the work
+rather than inside it for a reason that is about the product and not about CPU:
+**FAM's line processor is good enough to turn almost anything into one ordered
+path**, which means a pipeline left to itself will faithfully rescue an icon
+into the feed. The gate is where "is this art" gets asked while the answer
+still costs nothing.
+
+| measured | refused when | what it catches |
+|---|---|---|
+| **crossings** — separate runs of ink a straight scan meets, averaged | `< 3` | **the icon test.** A plain circle — the shape of every pictogram — scores 2.0: almost every scan line crosses it exactly twice. A scene with a figure, a desk and a window behind it scores 8 |
+| | `> 26` | clutter: hatching, pattern fill, scribble |
+| **extent** — how much of the square the drawing spans | `< 45%` | a small symbol floating in space rather than a composition |
+| **ink share** | `< 0.4%` | a sketch, not an illustration |
+| | `> 16%` | the negative space is gone; a fill, a wash or a photograph |
+| **colour** | `> 2%` saturated | the model ignored the style |
+
+Two honest limits, stated rather than papered over. **"Generic" and
+"inconsistent with the references" are taste** and are not measured here — they
+belong to the image model, the style block and `visual_references/`, and a gate
+that pretended to measure them would be worse than one that says it does not.
+And **the colour check reports `None` rather than `0` when Pillow is absent**,
+because the built-in PNG reader only returns luminance: "we did not look" and
+"there was nothing to find" are different answers.
+
+---
+
+## Vector fidelity
+
+**After vectorisation, the drawing is compared against the artwork it came
+from.** `line_processor.fidelity` places the skeleton and the finished curve on
+the same canvas, through the same transform, and returns two numbers:
+
+* **`fidelity`** — how much of the artwork the curve still passes near. Below
+  `MIN_FIDELITY` (90%) the picture a listener would see is not the picture that
+  was approved.
+* **`invented`** — how much of the curve passes nowhere near the artwork. Above
+  `MAX_INVENTED` (4%) the vectoriser is drawing line the artist did not.
+
+Two numbers rather than one average, because they are opposite failures: a
+vector that lost a figure's hands scores badly on the first and perfectly on
+the second, and a vector that struck out across the page scores the reverse.
+
+**And a failure here is answered by redoing the processing, never by
+simplifying the art.** `DETAIL_LADDER` re-runs the vectorisation on the *same*
+source artwork — the same decode, the same skeleton, the same route — with
+progressively gentler smoothing and simplification, and keeps the first pass
+that clears the bar. It is cheap, because only the curve fitting is repeated
+and not the skeletonisation. Reaching the validator with a fidelity failure
+means even the gentlest pass could not hold the picture, which is a bug in this
+code rather than a fact about the artwork.
+
+---
+
 ## Validation
 
 Before a listener is shown anything, three separate jobs:
@@ -271,14 +420,25 @@ Before a listener is shown anything, three separate jobs:
   itself, which is exactly the reasoning that would let a hole through
   unnoticed. The endpoint adds a `Content-Security-Policy` on top.
 * **Good enough to show** — not mostly blank, not a scribble, the subject is not
-  a speck, the line is not pressed against the edges, retracing is under a
-  third, **no single bridge is longer than 18 viewBox units and bridging is
-  under 2% of the drawing** (the no-scars rule above), the thumbnail decodes and
-  has both paper and ink in it.
+  a speck, the line is not pressed against the edges, retracing is under 60%,
+  **no single bridge is longer than 18 viewBox units and bridging is under 2%
+  of the drawing** (the no-scars rule above), **the vector still contains the
+  artwork** (fidelity above), the thumbnail decodes and has both paper and ink
+  in it.
 
 A failure is a regeneration, up the ladder: standard direction → insist on
-continuity → ask for a simpler picture. Three attempts, then `failed`, and the
-episode plays.
+continuity → **the same scene, composed so its parts touch**. Three attempts,
+then `failed`, and the episode plays.
+
+That third rung used to read "ask for a simpler picture", and it was the
+clearest example of the inversion this document warns about: a failure in FAM's
+vectoriser was answered by making the illustration worse, on exactly the
+subjects that had already failed twice — so the feed's hardest topics were
+systematically its most icon-like tiles. The constraint being answered is real
+and has a free answer: **the forms need to touch, not to be fewer.** A scene
+whose elements overlap and flow into one another is exactly as rich and is
+drawable in one stroke. `SIMPLIFY_INSISTENCE` is deleted rather than disabled,
+and a test fails if it comes back.
 
 ---
 

@@ -180,7 +180,23 @@ def test_the_ladder_escalates_structure_and_never_the_art_direction():
     assert visual_style.style_block() in third
     assert visual_style.CONTINUITY_INSISTENCE not in first
     assert visual_style.CONTINUITY_INSISTENCE in second
-    assert visual_style.SIMPLIFY_INSISTENCE in third
+    assert visual_style.CONNECTED_RICHNESS_INSISTENCE in third
+
+
+def test_no_rung_of_the_ladder_ever_asks_for_a_simpler_picture():
+    """Art first, engineering second. The third rung used to read "draw this as
+    simply as it can possibly be drawn... leave out every detail that is not
+    the idea itself" - a structural failure in FAM's vectoriser being answered
+    by making the illustration worse, on exactly the subjects that had already
+    failed twice. It is deleted rather than disabled."""
+    assert not hasattr(visual_style, "SIMPLIFY_INSISTENCE")
+    brief = director.from_payload({"subject": "a bridge"})
+    for attempt in (1, 2, 3, 4):
+        prompt = visual_style.image_prompt(brief, attempt)
+        assert "as simply as" not in prompt.lower()
+        assert "leave out every detail" not in prompt.lower()
+    # And the rung that replaced it says so in as many words.
+    assert "Do not simplify" in visual_style.CONNECTED_RICHNESS_INSISTENCE
 
 
 def test_the_style_says_the_things_that_make_it_this_style():
@@ -217,3 +233,101 @@ def test_a_reference_folder_is_read_when_it_exists(tmp_path, monkeypatch):
         [f"{stem}.png" for stem in visual_style.ACTIVE_REFERENCES]
     assert found[0].media_type == "image/png"
     assert found[0].data_b64
+
+
+# --------------------------------------------------------------------------
+# Art first, engineering second
+# --------------------------------------------------------------------------
+# FAM is not one simple icon drawn with one line. FAM is one rich idea,
+# interpreted as one beautiful editorial illustration, revealed through one
+# continuous line. These pin the half of that which lives in the prompt.
+
+
+def test_the_director_is_told_to_interpret_the_story_before_it_draws():
+    """Five questions, in order, and only then a picture. A director that skips
+    to the scene can only put the topic's nouns on a page - which is how an
+    episode about two companies working together becomes a cloud, a head and a
+    handshake."""
+    for question in ("What happened?", "Why does it matter?", "What changed?",
+                     "deeper human, business, cultural or technological idea",
+                     "What scene or visual metaphor expresses that idea best?"):
+        assert question in director.DIRECTOR_SYSTEM, question
+    assert "Only then describe the illustration" in director.DIRECTOR_SYSTEM
+
+
+def test_the_worked_example_is_in_the_prompt():
+    """The bad answer and the good one, side by side. A rule describes; an
+    example is matched - the same reasoning as `examples/` for the writing."""
+    system = director.DIRECTOR_SYSTEM
+    assert "BAD" in system and "GOOD" in system
+    assert "handshake" in system
+    assert "MEANS" in system
+
+
+def test_the_interpretation_is_required_not_optional():
+    """It is what the picture is really of, so a model that skipped it would be
+    describing a scene it had not thought about."""
+    for field in ("what_changed", "deeper_idea", "scene"):
+        assert field in director.BRIEF_SCHEMA["properties"]
+        assert field in director.BRIEF_SCHEMA["required"]
+
+
+def test_the_reading_reaches_the_image_prompt_and_leads_it():
+    """Before the objects, because it is what the objects are for."""
+    brief = director.from_payload({
+        "subject": "enterprise software", "what_changed": "they signed a deal",
+        "deeper_idea": "software stops being a tool and becomes a colleague",
+        "scene": "a working office where a person and an AI collaborate",
+        "primary_form": "a desk", "visual_metaphor": "m",
+        "composition": "c", "tone": "t", "complexity": "high"})
+    prompt = visual_style.image_prompt(brief)
+    assert "becomes a colleague" in prompt
+    assert "a working office" in prompt
+    assert prompt.index("becomes a colleague") < prompt.index("a desk"), \
+        "the objects were named before what they are for"
+
+
+def test_a_degraded_brief_still_asks_for_a_scene():
+    """An outage in this module must cost picture *quality*, never the kind of
+    picture. The old fallback said "the idea of X, drawn as one continuous
+    line", which names one thing on an empty page - the shape of an icon."""
+    brief = director.fallback_visual_brief("nvidia earnings", "no key")
+    assert brief.degraded
+    assert brief.usable
+    assert "scene" in brief.scene
+    prompt = visual_style.image_prompt(brief)
+    assert "The scene:" in prompt
+
+
+def test_the_style_says_a_scene_and_refuses_an_icon():
+    block = visual_style.style_block()
+    assert "CONTINUOUS LINE DOES NOT MEAN SIMPLE DRAWING" in block
+    assert "WHAT THE PICTURE IS OF" in block
+    assert "HOW MUCH IS IN IT" in block
+    for banned in ("pictograms", "clip art", "generic corporate illustration",
+                   "poster design", "handshake"):
+        assert banned in block, banned
+    assert "a SCENE, not a symbol" in block
+
+
+def test_every_complexity_band_is_still_an_illustration():
+    """`low` used to read "very few elements - one form, drawn large", which
+    made the band the director happened to pick decide whether an episode got a
+    picture or a pictogram."""
+    for band in director.COMPLEXITIES:
+        note = visual_style.COMPLEXITY_NOTE[band]
+        assert "scene" in note, band
+
+
+def test_the_baseline_avoid_keeps_the_new_bans_whatever_the_model_returns():
+    brief = director.from_payload({"subject": "x", "avoid": ["crowds"]})
+    for banned in ("pictograms", "clip art", "poster design", "colour",
+                   "handshake or two-symbols-meeting imagery"):
+        assert banned in brief.avoid, banned
+
+
+def test_the_style_version_moved_with_the_style():
+    """It is part of the visual key, so a bump retires every stored
+    illustration - which is the point: a feed half icons and half illustrations
+    is worse than either."""
+    assert visual_style.STYLE.version >= 2

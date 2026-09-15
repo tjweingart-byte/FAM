@@ -334,12 +334,12 @@ def test_a_real_episode_sends_the_references(approved, monkeypatch):
                                             visual_image_provider="openai"))
     monkeypatch.setattr(visual_provider, "_image_key", lambda: "sk-test-not-a-real-key")
 
-    # Real line art back from the "model", so the whole pipeline runs on it.
-    import math
-
-    ring = [(0.5 + 0.3 * math.cos(t / 400 * math.tau),
-             0.5 + 0.3 * math.sin(t / 400 * math.tau)) for t in range(401)]
-    reply = line_processor.rasterise_polyline(ring, 512, 2.2)
+    # Real line art back from the "model", so the whole pipeline runs on it -
+    # and rich enough to be art rather than an icon, because that is now a
+    # thing FAM checks before it vectorises anything (visual_validator.
+    # screen_source). A plain ring is exactly what that gate exists to refuse.
+    reply = line_processor.rasterise_polyline(
+        visual_provider._figure(4242, 4), 512, 2.2)
 
     recorder = Recorder()
     recorder.install(monkeypatch, reply_png=reply)
