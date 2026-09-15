@@ -12,8 +12,19 @@ is *shown* one matches it closely.
 
 The first three files in alphabetical order are used
 (`visual_style.MAX_REFERENCES`). More than three is not better — a model given
-eight references averages them into something that looks like none of them. If
-you want a specific three, name them so they sort first.
+many references averages them into something that looks like none of them.
+
+**So name them to choose.** `01-`, `02-`, `03-` for the three in force, and
+anything later for spares:
+
+    01-meditation.png     used
+    02-thinking.png       used
+    03-running.png        used
+    04-whale.png          in reserve — swap a number to bring it in
+
+A file that is present and not used is never silent: the server logs which are
+in force and which are not on every request, and `/api/health` carries
+`references_available` and `references_unused` beside `references`.
 
 They are read from disk on every request, so adding or swapping one takes
 effect without a restart.

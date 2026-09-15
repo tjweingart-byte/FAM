@@ -136,6 +136,52 @@ def test_the_folder_is_read_every_time_rather_than_cached(approved, tmp_path):
     assert len(visual_style.references()) == 1
 
 
+def test_a_reference_that_is_present_and_unused_says_so(tmp_path, monkeypatch,
+                                                        caplog):
+    """The cap is real, and a file silently ignored is not.
+
+    Four approved illustrations and a limit of three is a perfectly ordinary
+    thing to have. What is not ordinary is the fourth one disappearing without
+    a word: the folder looks right, the health page looks right, and one of the
+    pictures defining the house style is simply not in the room.
+    """
+    import logging
+
+    folder = tmp_path / "visual_references"
+    folder.mkdir()
+    for name in ("01-meditation.png", "02-thinking.png", "03-running.png",
+                 "04-whale.png"):
+        (folder / name).write_bytes(a_png(1))
+    monkeypatch.setattr(visual_style, "REFERENCE_DIR", folder)
+
+    with caplog.at_level(logging.WARNING):
+        found = visual_style.references()
+    assert [ref.name for ref in found] == ["01-meditation.png",
+                                           "02-thinking.png", "03-running.png"]
+    assert "04-whale.png" in caplog.text
+    assert "NOT using" in caplog.text
+
+    report = visual_style.report()
+    assert report["references_unused"] == ["04-whale.png"]
+    assert report["references_available"] == sorted(visual_style.available())
+    assert "04-whale.png" in report["reference_note"]
+
+
+def test_the_choice_of_which_three_is_controllable_by_name(tmp_path, monkeypatch):
+    """Alphabetical, which is the whole reason it is a choice rather than an
+    accident - rename to pick, and the picking is documented in the folder."""
+    folder = tmp_path / "visual_references"
+    folder.mkdir()
+    for name in ("aaa.png", "bbb.png", "ccc.png", "zzz.png"):
+        (folder / name).write_bytes(a_png(2))
+    monkeypatch.setattr(visual_style, "REFERENCE_DIR", folder)
+    assert [ref.name for ref in visual_style.references()] == \
+        ["aaa.png", "bbb.png", "ccc.png"]
+    (folder / "aaa.png").rename(folder / "yyy.png")
+    assert [ref.name for ref in visual_style.references()] == \
+        ["bbb.png", "ccc.png", "yyy.png"]
+
+
 def test_the_folder_ships_with_the_code():
     """It was gitignored, and that was wrong in a way nobody would have noticed.
 

@@ -312,30 +312,57 @@ class Reference:
     data_b64: str
 
 
-def references(limit: int = MAX_REFERENCES) -> list[Reference]:
-    """The approved FAM illustrations on this machine, if any.
+def available() -> list[str]:
+    """Every illustration in the folder, in the order they are considered.
 
-    Empty is the normal state today and is not a failure: a provider that is
-    given no reference falls back to the written style, which is exactly the
-    behaviour before this folder existed. It is read from disk on every call
-    rather than cached, because the folder being fillable without a restart is
-    most of what makes it a usable lever.
+    Separate from `references()` because "what is here" and "what is being
+    used" are different questions, and the gap between them is the thing worth
+    seeing. Alphabetical, which is what makes the selection controllable: name
+    the three you want `01-`, `02-`, `03-` and the rest sort after them.
     """
     if not REFERENCE_DIR.is_dir():
         return []
+    return [path.name for path in sorted(REFERENCE_DIR.iterdir())
+            if path.is_file() and path.suffix.lower() in REFERENCE_SUFFIXES]
+
+
+def references(limit: int = MAX_REFERENCES) -> list[Reference]:
+    """The approved FAM illustrations being shown to the image model.
+
+    Empty is not a failure: a provider that is given no reference falls back to
+    the written style, which is exactly the behaviour before this folder
+    existed. It is read from disk on every call rather than cached, because the
+    folder being fillable without a restart is most of what makes it a usable
+    lever.
+
+    **A file that is present and not used says so.** The cap is real - a model
+    given many references averages them into something that looks like none of
+    them - but a fourth illustration dropped in and silently ignored is the
+    quiet kind of wrong this project keeps paying for: the folder looks right,
+    the health page looks right, and one of the pictures defining the house
+    style is simply not in the room. Alphabetical order makes the choice
+    controllable; the log line makes it visible.
+    """
+    names = available()
+    if not names:
+        return []
+    if len(names) > limit:
+        log.warning(
+            "%d approved references in %s but only %d are shown to the image "
+            "model: using %s, NOT using %s. Rename to change the choice - they "
+            "are taken in alphabetical order.",
+            len(names), REFERENCE_DIR, limit,
+            ", ".join(names[:limit]), ", ".join(names[limit:]))
     found: list[Reference] = []
-    for path in sorted(REFERENCE_DIR.iterdir()):
-        if len(found) >= limit:
-            break
-        if path.suffix.lower() not in REFERENCE_SUFFIXES or not path.is_file():
-            continue
+    for name in names[:limit]:
+        path = REFERENCE_DIR / name
         try:
             raw = path.read_bytes()
         except OSError as exc:
-            log.warning("could not read visual reference %s: %s", path.name, exc)
+            log.warning("could not read visual reference %s: %s", name, exc)
             continue
-        media_type = mimetypes.guess_type(path.name)[0] or "image/png"
-        found.append(Reference(path.name, media_type,
+        media_type = mimetypes.guess_type(name)[0] or "image/png"
+        found.append(Reference(name, media_type,
                                base64.b64encode(raw).decode("ascii")))
     return found
 
@@ -348,6 +375,8 @@ def report() -> dict:
     merely matches the adjectives above.
     """
     names = [ref.name for ref in references()]
+    present = available()
+    unused = [name for name in present if name not in names]
     return {
         "style": STYLE.name,
         "version": STYLE.version,
@@ -355,11 +384,22 @@ def report() -> dict:
         "ink": STYLE.ink,
         "stroke_width": STYLE.stroke_width,
         "references": names,
+        # What is in the folder as well as what is in force. A file that is
+        # present and unused is invisible from the first list alone, and an
+        # illustration somebody added expecting it to count is exactly the
+        # thing worth being able to see from outside.
+        "references_available": present,
+        "references_unused": unused,
+        "max_references": MAX_REFERENCES,
         "reference_dir": str(REFERENCE_DIR),
         "reference_note": (
             "no approved references on this machine - the style is being "
             "described in words only. Drop two or three approved FAM "
             "illustrations into visual_references/ to show the model the "
             "house voice instead of describing it."
-        ) if not names else "",
+        ) if not names else (
+            f"{len(unused)} approved reference(s) in the folder are not being "
+            f"shown to the image model ({', '.join(unused)}); at most "
+            f"{MAX_REFERENCES} are used, in alphabetical order."
+        ) if unused else "",
     }
