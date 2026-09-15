@@ -300,10 +300,27 @@ the style described in words. Three things about that are deliberate:
   deployment, which still draws, still reports healthy, and simply stops
   looking like FAM.
 
-Three at most (`MAX_REFERENCES`) — a model given eight averages them into
-something that looks like none of them. Read from disk per request, so swapping
-one takes effect without a restart. `/api/health` names the ones in force, and
-says so loudly when there are none.
+**Which three is a manifest, not an accident.** `visual_style.ACTIVE_REFERENCES`
+names them, in order:
+
+    meditation             a figure, alone
+    profile-globe-city     a figure carrying an idea
+    runner                 a figure in motion
+
+with `whale` approved and held in `RESERVE_REFERENCES` — the densest of the
+four, and it would bias every episode toward more line than the style wants.
+
+Entries are stems, so `.png` or `.jpg` both resolve. A selection that depended
+on alphabetical order would move the moment somebody added a file or renamed
+one, silently, taking the product's whole look with it. Three at most
+(`MAX_REFERENCES`) — a model given many averages them into something that looks
+like none of them — so bringing the whale in means taking one out.
+
+Nothing about it is silent. A named reference that is not on disk warns on
+every request and appears in `references_missing` on `/api/health`, because FAM
+would otherwise draw in two-thirds of the style it was told to and report fine;
+a file present and not named is logged as held in reserve. Read from disk per
+request, so a swap takes effect without a restart.
 
 `tests/test_visual_references.py` asserts all of this **on the wire**: the file
 bytes in the multipart body, the endpoint, the precedence sentence, and the

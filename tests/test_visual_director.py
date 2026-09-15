@@ -201,10 +201,19 @@ def test_references_are_absent_and_said_to_be_absent():
 
 
 def test_a_reference_folder_is_read_when_it_exists(tmp_path, monkeypatch):
+    """Named, not scavenged. The house style is `ACTIVE_REFERENCES`; a file in
+    the folder that is not one of them is a reserve, and a stray `.txt` is not
+    an illustration. See tests/test_visual_references.py for the whole of it."""
     monkeypatch.setattr(visual_style, "REFERENCE_DIR", tmp_path)
     (tmp_path / "notes.txt").write_text("not an image")
     (tmp_path / "one.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    assert visual_style.references() == [], \
+        "a file nobody named was shown to the image model"
+
+    for stem in visual_style.ACTIVE_REFERENCES:
+        (tmp_path / f"{stem}.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
     found = visual_style.references()
-    assert [r.name for r in found] == ["one.png"]
+    assert [r.name for r in found] == \
+        [f"{stem}.png" for stem in visual_style.ACTIVE_REFERENCES]
     assert found[0].media_type == "image/png"
     assert found[0].data_b64

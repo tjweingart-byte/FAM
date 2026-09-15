@@ -97,14 +97,17 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
         return 1
 
     references = visual_style.references()
+    absent = visual_style.missing()
     if references:
-        say(f"  style      {len(references)} approved reference(s): "
+        say(f"  style      {len(references)} of "
+            f"{len(visual_style.ACTIVE_REFERENCES)} house-style reference(s): "
             + ", ".join(ref.name for ref in references))
     else:
         say(f"  style      {BOLD}NO REFERENCES{RESET} - the house style is "
             f"being described in words only.")
-        say(f"{DIM}             Drop the approved illustrations into "
-            f"{visual_style.REFERENCE_DIR} and run again.{RESET}")
+    if absent:
+        say(f"{DIM}             missing: {', '.join(absent)} - put them in "
+            f"{visual_style.REFERENCE_DIR}{RESET}")
     say(f"  writing    {'live' if credentials.active('ANTHROPIC_API_KEY') else 'NO KEY - the director and EI will degrade'}")
     say(f"  trace      {folder}")
 
@@ -122,17 +125,29 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
     understanding.clear()
 
     # --- the real episode -------------------------------------------------
-    # Exactly production's ordering: the drawing is asked for first and waits
-    # on the bus, then the writing path publishes what it worked out, then the
-    # director picks it up. Starting them the other way round would test a
-    # sequence the product never runs.
-    started = time.monotonic()
-    visual_id = visuals.request(query, minutes=minutes, surface="search",
-                                reason="visual_trace", live=True)
+    # Always a fresh drawing, which is the one thing this differs from an
+    # ordinary tap in. `visuals.request` is idempotent on the visual key - a
+    # second tap on an episode that already has a picture correctly does
+    # nothing - so running the trace twice on the same question produced a
+    # folder with no stages in it at all. `regenerate` is the sanctioned
+    # "draw it again" path: it forces past the claim, and it keeps the
+    # existing drawing if the new one fails.
+    visual_id = visuals.key_for(query)
     if not visual_id:
         say(f"\n{BOLD}Nothing was started.{RESET} That question is not "
-            f"eligible for an illustration, or VISUALS=0.\n")
+            f"eligible for an illustration.\n")
         return 1
+    existing = visuals.store().get(visual_id)
+    if existing is not None and existing.status == "ready":
+        say(f"{DIM}  an illustration for this question already exists; "
+            f"drawing a fresh one{RESET}")
+
+    started = time.monotonic()
+    # Started first and awaited last, so the ordering is production's: the
+    # drawing is running and waiting on the bus before the writing path
+    # publishes what it worked out.
+    drawing = asyncio.create_task(
+        visuals.regenerate(query, surface="search", reason="visual_trace"))
 
     plan = plan_episode(query, minutes, search=True)
     notes = ScriptNotes()
@@ -156,18 +171,15 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
 
     # --- wait for the drawing --------------------------------------------
     say(f"\n{DIM}  drawing…{RESET}")
-    record = None
     last = ""
-    for _ in range(1200):
+    while not drawing.done():
         await asyncio.sleep(0.5)
-        record = visuals.store().get(visual_id)
-        if record is None:
-            continue
-        if record.status != last:
-            last = record.status
-            say(f"{DIM}    {record.status}{RESET}")
-        if record.status in ("ready", "failed", "unconfigured"):
-            break
+        current = visuals.store().get(visual_id)
+        if current is not None and current.status != last:
+            last = current.status
+            say(f"{DIM}    {current.status}{RESET}")
+    await drawing
+    record = visuals.store().get(visual_id)
 
     elapsed = time.monotonic() - started
     if record is None:
@@ -220,6 +232,34 @@ async def run(query: str, minutes: int, folder: pathlib.Path,
         say(f"\n{DIM}  Every attempt's artwork and stages are still in the "
             f"trace folder - a failure is the most informative thing this "
             f"tool produces.{RESET}")
+
+    # Every artifact the run was asked to preserve, listed with its size, so
+    # "it is all there" is something the run says rather than something you go
+    # and check. A missing one is a stage that did not happen.
+    say(f"\n{BOLD}Artifacts kept{RESET}  {folder}")
+    wanted = [
+        ("visual brief", "attempt-1/director-brief.json"),
+        ("exact prompt sent", "attempt-1/prompt.txt"),
+        ("source image", "attempt-1/1-source.png"),
+        ("ink mask", "attempt-1/2-ink-mask.png"),
+        ("skeleton", "attempt-1/3-skeleton.png"),
+        ("route", "attempt-1/4-route.png"),
+        ("final vector render", "attempt-1/5-final.png"),
+        ("overlay", "attempt-1/6-overlay.png"),
+        ("final SVG", "visual.svg"),
+        ("thumbnail", "thumbnail.png"),
+        ("episode understanding", "episode.json"),
+        ("result", "result.json"),
+    ]
+    for label, name in wanted:
+        path = folder / name
+        if path.exists():
+            say(f"  {label:<22} {name:<32} {path.stat().st_size:>9,} bytes")
+        else:
+            say(f"  {BOLD}{label:<22} {name:<32}   not written{RESET}")
+    if record.attempts > 1:
+        say(f"{DIM}  attempts 2-{record.attempts} kept their own folders "
+            f"beside attempt-1{RESET}")
 
     say(f"\n{BOLD}Look at, in this order:{RESET}")
     say(f"  {folder}/attempt-1/1-source.png     did the model draw FAM's style?")

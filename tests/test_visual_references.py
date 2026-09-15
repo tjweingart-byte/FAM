@@ -53,8 +53,8 @@ def approved(tmp_path, monkeypatch):
     folder = tmp_path / "visual_references"
     folder.mkdir()
     written = {}
-    for index, name in enumerate(("01-meditation.png", "02-thinking.png",
-                                  "03-running.png")):
+    for index, stem in enumerate(visual_style.ACTIVE_REFERENCES):
+        name = f"{stem}.png"
         data = a_png(index + 1)
         (folder / name).write_bytes(data)
         written[name] = data
@@ -120,66 +120,82 @@ def provider() -> visual_provider.OpenAIImageProvider:
 # --------------------------------------------------------------------------
 def test_the_loader_finds_the_illustrations_and_skips_everything_else(approved):
     found = visual_style.references()
-    assert [ref.name for ref in found] == sorted(approved)
+    # The manifest's order, which is not alphabetical - that is the point.
+    assert [ref.name for ref in found] == \
+        [f"{stem}.png" for stem in visual_style.ACTIVE_REFERENCES]
     for ref in found:
         assert base64.b64decode(ref.data_b64) == approved[ref.name], \
             f"{ref.name} was loaded as different bytes than are on disk"
         assert ref.media_type == "image/png"
 
 
-def test_the_folder_is_read_every_time_rather_than_cached(approved, tmp_path):
-    """Adding a reference has to take effect without a restart - most of what
+def test_the_folder_is_read_every_time_rather_than_cached(approved):
+    """Swapping a reference has to take effect without a restart - most of what
     makes this folder a usable lever is being able to try one."""
     assert len(visual_style.references()) == 3
-    for path in sorted(visual_style.REFERENCE_DIR.glob("*.png"))[:2]:
-        path.unlink()
-    assert len(visual_style.references()) == 1
+    (visual_style.REFERENCE_DIR / f"{visual_style.ACTIVE_REFERENCES[0]}.png").unlink()
+    assert len(visual_style.references()) == 2
 
 
-def test_a_reference_that_is_present_and_unused_says_so(tmp_path, monkeypatch,
-                                                        caplog):
-    """The cap is real, and a file silently ignored is not.
+def test_the_active_set_is_named_rather_than_whichever_files_sort_first(approved):
+    """The whole change. A selection that depended on alphabetical order would
+    move the moment somebody added a file, renamed one, or copied the folder
+    onto a filesystem that sorts differently - silently, and taking the whole
+    product's look with it."""
+    assert visual_style.ACTIVE_REFERENCES == (
+        "meditation", "profile-globe-city", "runner")
+    assert len(visual_style.ACTIVE_REFERENCES) == visual_style.MAX_REFERENCES
 
-    Four approved illustrations and a limit of three is a perfectly ordinary
-    thing to have. What is not ordinary is the fourth one disappearing without
-    a word: the folder looks right, the health page looks right, and one of the
-    pictures defining the house style is simply not in the room.
-    """
+    # A file that sorts before every one of them is still not used.
+    (visual_style.REFERENCE_DIR / "0000-interloper.png").write_bytes(a_png(7))
+    found = [ref.name for ref in visual_style.references()]
+    assert "0000-interloper.png" not in found
+    assert found == [f"{stem}.png" for stem in visual_style.ACTIVE_REFERENCES]
+
+
+def test_the_whale_is_held_in_reserve(approved):
+    """Recorded as a decision rather than inferred from an absence: it is the
+    densest of the four and would bias every episode toward more line than the
+    style wants."""
+    assert "whale" in visual_style.RESERVE_REFERENCES
+    assert "whale" not in visual_style.ACTIVE_REFERENCES
+
+    (visual_style.REFERENCE_DIR / "whale.png").write_bytes(a_png(9))
+    found = [ref.name for ref in visual_style.references()]
+    assert "whale.png" not in found
+    report = visual_style.report()
+    assert report["references_reserve"] == ["whale.png"]
+    assert report["reference_note"] == "", "a reserve file is not a problem"
+
+
+def test_a_named_reference_that_is_not_on_disk_is_loud(approved, caplog):
+    """The failure that matters. FAM would otherwise draw in two thirds of the
+    style it was told to draw in, and report healthy while doing it."""
     import logging
 
-    folder = tmp_path / "visual_references"
-    folder.mkdir()
-    for name in ("01-meditation.png", "02-thinking.png", "03-running.png",
-                 "04-whale.png"):
-        (folder / name).write_bytes(a_png(1))
-    monkeypatch.setattr(visual_style, "REFERENCE_DIR", folder)
-
+    (visual_style.REFERENCE_DIR / "runner.png").unlink()
     with caplog.at_level(logging.WARNING):
         found = visual_style.references()
-    assert [ref.name for ref in found] == ["01-meditation.png",
-                                           "02-thinking.png", "03-running.png"]
-    assert "04-whale.png" in caplog.text
-    assert "NOT using" in caplog.text
+    assert len(found) == 2
+    assert "runner" in caplog.text
+    assert "partial style" in caplog.text
 
     report = visual_style.report()
-    assert report["references_unused"] == ["04-whale.png"]
-    assert report["references_available"] == sorted(visual_style.available())
-    assert "04-whale.png" in report["reference_note"]
+    assert report["references_missing"] == ["runner"]
+    assert "partial style" in report["reference_note"]
+    # And still drawable: a missing reference costs style, never the picture.
+    assert found
 
 
-def test_the_choice_of_which_three_is_controllable_by_name(tmp_path, monkeypatch):
-    """Alphabetical, which is the whole reason it is a choice rather than an
-    accident - rename to pick, and the picking is documented in the folder."""
-    folder = tmp_path / "visual_references"
-    folder.mkdir()
-    for name in ("aaa.png", "bbb.png", "ccc.png", "zzz.png"):
-        (folder / name).write_bytes(a_png(2))
-    monkeypatch.setattr(visual_style, "REFERENCE_DIR", folder)
-    assert [ref.name for ref in visual_style.references()] == \
-        ["aaa.png", "bbb.png", "ccc.png"]
-    (folder / "aaa.png").rename(folder / "yyy.png")
-    assert [ref.name for ref in visual_style.references()] == \
-        ["bbb.png", "ccc.png", "yyy.png"]
+def test_it_does_not_matter_which_format_they_were_saved_as(approved):
+    """The manifest names stems. Somebody saving a JPEG instead of a PNG is not
+    a configuration error."""
+    (visual_style.REFERENCE_DIR / "runner.png").unlink()
+    (visual_style.REFERENCE_DIR / "runner.jpg").write_bytes(a_png(3))
+    found = [ref.name for ref in visual_style.references()]
+    assert "runner.jpg" in found
+    assert len(found) == 3
+    assert visual_style.missing() == []
 
 
 def test_the_folder_ships_with_the_code():

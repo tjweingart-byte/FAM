@@ -75,6 +75,40 @@ REFERENCE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 #: eight references averages them into something that looks like none of them.
 MAX_REFERENCES = 3
 
+#: **The active set, named.** These three illustrations are FAM's house style,
+#: and they are listed here rather than being whichever files happen to sort
+#: first. The difference matters: a set that depends on alphabetical order is a
+#: set that changes when somebody adds a file, renames one, or copies the
+#: folder onto a filesystem that sorts differently - silently, and in the one
+#: place where silence is most expensive, because the whole product's look
+#: moves with it.
+#:
+#: Entries are **stems**, not filenames, so it does not matter whether they
+#: were saved as .png or .jpg; `REFERENCE_SUFFIXES` is tried in order.
+#:
+#: The three, and why these three: they cover what a FAM episode is usually
+#: about - a person, an idea, motion - and between them they demonstrate the
+#: full range of the line, from a pure figure through figure-with-architecture
+#: to figure-with-landscape.
+ACTIVE_REFERENCES = (
+    "meditation",
+    "profile-globe-city",
+    "runner",
+)
+
+#: Approved, kept, and deliberately not in the active set. Recorded here so the
+#: decision is written down rather than inferred from an absence.
+#:
+#: The whale is the most beautiful of the four and the least representative:
+#: the baleen striping and the wave curls are far denser than anything the
+#: style block asks for, and as a reference it would bias every episode toward
+#: more line than the style wants. To try it, move its stem into
+#: `ACTIVE_REFERENCES` and take one out - the set is capped at
+#: `MAX_REFERENCES`, and swapping is the point of keeping a reserve.
+RESERVE_REFERENCES = (
+    "whale",
+)
+
 
 @dataclass(frozen=True)
 class StyleSpec:
@@ -313,17 +347,46 @@ class Reference:
 
 
 def available() -> list[str]:
-    """Every illustration in the folder, in the order they are considered.
+    """Every illustration file in the folder, alphabetically.
 
-    Separate from `references()` because "what is here" and "what is being
-    used" are different questions, and the gap between them is the thing worth
-    seeing. Alphabetical, which is what makes the selection controllable: name
-    the three you want `01-`, `02-`, `03-` and the rest sort after them.
+    Separate from `references()` because "what is here" and "what is in force"
+    are different questions, and the gap between them is the thing worth
+    seeing. This one is *not* the selection - `ACTIVE_REFERENCES` is.
     """
     if not REFERENCE_DIR.is_dir():
         return []
     return [path.name for path in sorted(REFERENCE_DIR.iterdir())
             if path.is_file() and path.suffix.lower() in REFERENCE_SUFFIXES]
+
+
+def resolve(stem: str) -> Path | None:
+    """The file for one named reference, whatever it was saved as.
+
+    Tries `REFERENCE_SUFFIXES` in order, so `meditation` finds
+    `meditation.png` before `meditation.jpg`. Two files with the same stem and
+    different extensions is a muddle rather than an error: the first wins and
+    the log says which, because silently picking one of two files somebody
+    thought were the same file is exactly the kind of thing that is discovered
+    a month later.
+    """
+    if not REFERENCE_DIR.is_dir():
+        return None
+    found = [REFERENCE_DIR / f"{stem}{suffix}" for suffix in REFERENCE_SUFFIXES
+             if (REFERENCE_DIR / f"{stem}{suffix}").is_file()]
+    if len(found) > 1:
+        log.warning("reference %r exists as %s; using %s", stem,
+                    ", ".join(path.name for path in found), found[0].name)
+    return found[0] if found else None
+
+
+def missing() -> list[str]:
+    """Active references that are named and not on disk.
+
+    The failure that matters. The manifest says the house style is these three
+    illustrations; if one of them is not there, FAM is drawing in a style that
+    is two thirds of the one it was told to draw in, and nothing else notices.
+    """
+    return [stem for stem in ACTIVE_REFERENCES if resolve(stem) is None]
 
 
 def references(limit: int = MAX_REFERENCES) -> list[Reference]:
@@ -335,34 +398,40 @@ def references(limit: int = MAX_REFERENCES) -> list[Reference]:
     folder being fillable without a restart is most of what makes it a usable
     lever.
 
-    **A file that is present and not used says so.** The cap is real - a model
-    given many references averages them into something that looks like none of
-    them - but a fourth illustration dropped in and silently ignored is the
-    quiet kind of wrong this project keeps paying for: the folder looks right,
-    the health page looks right, and one of the pictures defining the house
-    style is simply not in the room. Alphabetical order makes the choice
-    controllable; the log line makes it visible.
+    **Which three is a decision, not an accident.** `ACTIVE_REFERENCES` names
+    them, in order, and nothing else in the folder is ever sent. A selection
+    that depended on alphabetical order would move the moment somebody added a
+    file or renamed one - silently, and taking the whole product's look with
+    it. Files that are present and not named are a reserve; a name that is not
+    present is a loud warning, because FAM would otherwise be drawing in
+    two-thirds of the style it was told to draw in and reporting healthy.
     """
-    names = available()
-    if not names:
-        return []
-    if len(names) > limit:
+    absent = missing()
+    if absent:
         log.warning(
-            "%d approved references in %s but only %d are shown to the image "
-            "model: using %s, NOT using %s. Rename to change the choice - they "
-            "are taken in alphabetical order.",
-            len(names), REFERENCE_DIR, limit,
-            ", ".join(names[:limit]), ", ".join(names[limit:]))
+            "%d of FAM's %d house-style references are missing from %s: %s. "
+            "Episodes will be drawn from a partial style. Put the files there, "
+            "or change ACTIVE_REFERENCES.",
+            len(absent), len(ACTIVE_REFERENCES), REFERENCE_DIR,
+            ", ".join(absent))
+    spare = [name for name in available()
+             if name.rsplit(".", 1)[0] not in ACTIVE_REFERENCES]
+    if spare:
+        log.info("%s held in reserve, not shown to the image model",
+                 ", ".join(spare))
+
     found: list[Reference] = []
-    for name in names[:limit]:
-        path = REFERENCE_DIR / name
+    for stem in ACTIVE_REFERENCES[:limit]:
+        path = resolve(stem)
+        if path is None:
+            continue
         try:
             raw = path.read_bytes()
         except OSError as exc:
-            log.warning("could not read visual reference %s: %s", name, exc)
+            log.warning("could not read visual reference %s: %s", path.name, exc)
             continue
-        media_type = mimetypes.guess_type(name)[0] or "image/png"
-        found.append(Reference(name, media_type,
+        media_type = mimetypes.guess_type(path.name)[0] or "image/png"
+        found.append(Reference(path.name, media_type,
                                base64.b64encode(raw).decode("ascii")))
     return found
 
@@ -376,7 +445,9 @@ def report() -> dict:
     """
     names = [ref.name for ref in references()]
     present = available()
-    unused = [name for name in present if name not in names]
+    absent = missing()
+    reserve = [name for name in present
+               if name.rsplit(".", 1)[0] not in ACTIVE_REFERENCES]
     return {
         "style": STYLE.name,
         "version": STYLE.version,
@@ -384,12 +455,16 @@ def report() -> dict:
         "ink": STYLE.ink,
         "stroke_width": STYLE.stroke_width,
         "references": names,
-        # What is in the folder as well as what is in force. A file that is
-        # present and unused is invisible from the first list alone, and an
-        # illustration somebody added expecting it to count is exactly the
-        # thing worth being able to see from outside.
+        # Four lists rather than one, because they answer four different
+        # questions and only the first is visible from the artwork: what is in
+        # force, what FAM was told to use, what is named and not on disk, and
+        # what is sitting in the folder unused. A deployment that lost one file
+        # is the case that matters, and `references` alone cannot show it -
+        # two names in that list looks exactly like a two-reference style.
+        "references_active": list(ACTIVE_REFERENCES),
+        "references_missing": absent,
+        "references_reserve": reserve,
         "references_available": present,
-        "references_unused": unused,
         "max_references": MAX_REFERENCES,
         "reference_dir": str(REFERENCE_DIR),
         "reference_note": (
@@ -398,8 +473,9 @@ def report() -> dict:
             "illustrations into visual_references/ to show the model the "
             "house voice instead of describing it."
         ) if not names else (
-            f"{len(unused)} approved reference(s) in the folder are not being "
-            f"shown to the image model ({', '.join(unused)}); at most "
-            f"{MAX_REFERENCES} are used, in alphabetical order."
-        ) if unused else "",
+            f"{len(absent)} of FAM's {len(ACTIVE_REFERENCES)} house-style "
+            f"references are missing ({', '.join(absent)}); episodes are being "
+            f"drawn from a partial style. Put the files in "
+            f"{REFERENCE_DIR}, or change ACTIVE_REFERENCES."
+        ) if absent else "",
     }

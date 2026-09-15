@@ -5221,3 +5221,36 @@ difference in that image is now a real difference.
 
 The instrumentation is off by default and provably neutral: `process(data)` and
 `process(data, trace=dir)` are asserted to return the same path.
+
+### The active reference set is named, and the trace tool was tracing nothing
+
+Two things, one of which the other found.
+
+**The three house-style references are now a manifest.** They were "the first
+three files alphabetically", which is a selection that moves the moment
+somebody adds a file, renames one, or copies the folder onto a filesystem that
+sorts differently - silently, and taking the whole product's look with it.
+`visual_style.ACTIVE_REFERENCES` names them in order; entries are stems, so it
+does not matter whether they were saved as PNG or JPEG. `RESERVE_REFERENCES`
+records the whale as approved and deliberately out: it is the densest of the
+four and would bias every episode toward more line than the style wants, and
+writing that down is better than leaving it to be inferred from an absence.
+
+The failure this makes loud is the one that matters. A named reference that is
+not on disk warns on every request and shows in `references_missing` on
+`/api/health` - without it, FAM draws in two thirds of the style it was told to
+draw in and reports perfectly healthy.
+
+**And the trace tool was producing empty folders.** `tools/visual_trace.py`
+called `visuals.request`, which is idempotent on the visual key - correctly, a
+second tap on an episode that already has a picture does nothing. So the second
+run of a trace on the same question reported "ready in 0.6s" and wrote not one
+processing stage. It used `visuals.regenerate` now, which is the sanctioned
+"draw it again" path and forces past the claim while keeping the existing
+drawing if the new one fails.
+
+It was found by a checklist added in the same change: the run now prints every
+artifact it was asked to preserve, with its size, and marks the ones that were
+not written. "It is all there" is something the run says rather than something
+somebody goes and checks - and the very first run with the checklist in place
+said, in bold, that eight of the twelve were missing.
