@@ -413,6 +413,10 @@ LIVE_SHIM = r"""
         });
       });
     }
+    // Every tile arrives with its picture already drawn - `_illustrate` on
+    // the server, and the browse surfaces' whole advantage over search: what
+    // might be tapped is known before it is tapped, so the tap pays nothing.
+    sections.forEach(function (s) { s.topics = FamPreviewArt.illustrate(s.topics); });
     return { sections: sections, personalised: f.personalised, algo: ALGO };
   }
 
@@ -599,7 +603,7 @@ LIVE_SHIM = r"""
         });
       });
     }
-    return { topics: picks, algo: ALGO };
+    return { topics: FamPreviewArt.illustrate(picks), algo: ALGO };
   }
 
   // topics.rank_might_like: adjacent to a taste rather than inside it. The
@@ -629,7 +633,7 @@ LIVE_SHIM = r"""
     }
     add(BANK);
     return {
-      topics: picks, personalised: keys.length > 0,
+      topics: FamPreviewArt.illustrate(picks), personalised: keys.length > 0,
       reason: keys.length
         ? "Next to what you already listen to, rather than more of it."
         : "A spread across the whole bank, until there is something to be next to.",
@@ -1120,6 +1124,12 @@ LIVE_SHIM = r"""
     var qs = new URLSearchParams(url.split("?")[1] || "");
     var body = {};
     try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+
+    // The episode's drawing. Ahead of the database routes because it needs
+    // none of it: the geometry comes from the question. What it is, and what
+    // it deliberately is not, is at the top of the drawing module.
+    var drawn = FamPreviewArt.handle(path, method, qs);
+    if (drawn) return drawn;
 
     if (path === "/api/audio") {
       var mins = Math.max(1, Number(qs.get("minutes") || 1));
@@ -1655,7 +1665,8 @@ def build() -> pathlib.Path:
             .replace("__STATIC_PATHS__", json.dumps(list(STATIC_PATHS))))
 
     at = html.index("<script>")
-    html = html[:at] + shim + html[at:]
+    # The drawing layer first: the shim's router calls into it.
+    html = html[:at] + bp.line_art_shim() + shim + html[at:]
 
     # The inspector is appended; the app's own nodes are gathered into a stage
     # column by the shim at load time rather than by wrapping them here. An
