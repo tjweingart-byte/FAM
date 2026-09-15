@@ -57,6 +57,8 @@ from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import preferences as prefs_mod
 import social as social_mod
+import understanding
+import visuals as visuals_mod
 import voice_store
 from tts import (
     TTSUnavailable,
@@ -869,6 +871,13 @@ async def health() -> dict:
         # much to prefetch, and a prefetcher nobody checks is a standing bill.
         "prefetch": prefetch.report(),
         "prefetch_sources": prefetch_sources.report(),
+        # Whether episodes are being illustrated, by whom, and how that is
+        # going. Here for the same reason as everything else on this page: a
+        # visual layer with no image credential looks identical from outside
+        # to one that is working - the players are merely blank - and "why is
+        # the square empty" is the question this answers in one line.
+        "visuals": visuals_mod.report(),
+        "understanding_bus": understanding.report(),
         # Which streaming architecture this process is actually running, and
         # whether that was chosen or inherited. A deployment that has been
         # rolled back to `legacy` by hand looks identical to one that has not
@@ -2079,8 +2088,23 @@ async def list_mixes(request: Request):
     """
     _read_limit(request)
     user = _require_account(request)
+    rows = [m.as_dict() for m in MIXES.list_for_user(user)]
+    # DailyFAM's advantage is the same as myFAM's and is spent the same way:
+    # a mix holds the subjects, so what the listener will hear tomorrow
+    # morning is known tonight, and the illustration can be finished before
+    # anybody opens the app.
+    #
+    # Bank members first and typed ones after, because that ordering is a cost
+    # design rather than a ranking one: a bank topic is the same tile for
+    # everybody, so one drawing serves every listener who has it in a mix,
+    # where a typed member is a drawing for one person. `visuals.warm` takes
+    # them in the order given.
+    for mix in rows:
+        _illustrate(sorted(mix["items"], key=lambda i: bool(i.get("custom"))),
+                    surface="dailyfam",
+                    shelf=f"in the {mix['name']!r} mix on DailyFAM")
     return {
-        "mixes": [m.as_dict() for m in MIXES.list_for_user(user)],
+        "mixes": rows,
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -2222,6 +2246,37 @@ async def recap_seen(request: Request):
     return {"ok": True}
 
 
+def _illustrate(rows: list, *, surface: str, shelf: str) -> list:
+    """Attach each tile's drawing, and draw the ones that have none yet.
+
+    This is the browse surfaces' whole advantage over search, spent: what
+    somebody might tap is known before they tap it, so the illustration is
+    finished and sitting on the tile, and the tap pays nothing at all. It is
+    the same "start earlier rather than fill the gap" argument the rest of this
+    project is built on, applied to the picture.
+
+    Two costs are deliberately bounded. Only `VISUAL_WARM_PER_CYCLE` tiles are
+    started per request, so opening a feed cannot fan out into a page of image
+    generations; and `live=False` inside `visuals.warm` means a listener
+    waiting on a real episode is never made to queue behind a guess.
+
+    Each candidate carries a reason in words, which survives to the record and
+    the report - because the only way to judge what is worth drawing ahead is
+    to see which kinds of guess got looked at.
+    """
+    if not settings.visuals:
+        return rows
+    candidates = []
+    for rank, row in enumerate(rows, start=1):
+        query = row.get("query") or row.get("title") or ""
+        row["visual"] = visuals_mod.describe(query)
+        if row["visual"].get("status") in ("none", ""):
+            candidates.append((query, "", f"#{rank} {shelf}"))
+    if candidates:
+        visuals_mod.warm(candidates, surface=surface)
+    return rows
+
+
 @app.get("/api/nextup")
 async def next_up(
     request: Request,
@@ -2246,7 +2301,9 @@ async def next_up(
     # picks nobody could account for afterwards.
     if user:
         EVENTS.record_impressions(user, [("next_up", t.id) for t in picks])
-    return {"topics": [t.as_dict() for t in picks], "algo": topics_mod.ALGO_VERSION}
+    return {"topics": _illustrate([t.as_dict() for t in picks], surface="myfam",
+                                  shelf="in the what-next popup"),
+            "algo": topics_mod.ALGO_VERSION}
 
 
 @app.get("/api/explorenew")
@@ -2265,6 +2322,8 @@ async def explore_new(request: Request, interests: str = Query("", max_length=20
     )
     if user:
         EVENTS.record_impressions(user, [("explore_new", t["id"]) for t in body["topics"]])
+    body["topics"] = _illustrate(body["topics"], surface="myfam",
+                                 shelf="on the Explore New shelf")
     body["algo"] = topics_mod.ALGO_VERSION
     return body
 
@@ -2301,6 +2360,9 @@ async def myfam(request: Request, interests: str = Query("", max_length=200)):
         [(section["key"], topic["id"])
          for section in feed["sections"] for topic in section["topics"]],
     )
+    for section in feed["sections"]:
+        _illustrate(section["topics"], surface="myfam",
+                    shelf=f"in the {section['key']} shelf on myFAM")
     feed["algo"] = topics_mod.ALGO_VERSION
     return feed
 
@@ -2466,6 +2528,125 @@ async def next_thread(
     return {"thread": await pipeline.thread_for(plan)}
 
 
+# --------------------------------------------------------------------------
+# The drawing
+# --------------------------------------------------------------------------
+# One episode, one continuous-line illustration, revealed by the audio as it
+# plays and kept afterwards as the episode's thumbnail. See VISUALS.md.
+#
+# Three endpoints and a telemetry sink, and the split between them is the
+# point: `/api/visual` answers "is there one yet, and what is it" in one round
+# trip including the geometry, because a player that has been waiting should
+# not then wait again for a file. The two file endpoints exist for everything
+# that wants an image rather than a path - an iOS client, an <img> tag, a share
+# card - and they are the reason this is an API before it is a screen.
+
+
+@app.get("/api/visual")
+async def visual(
+    request: Request,
+    q: str = Query(..., max_length=300, description="What the listener asked"),
+    context: str = Query("", max_length=300,
+                         description="The episode this follows, for a Go Deeper"),
+):
+    """This episode's drawing, in whatever state it is in.
+
+    Never generates. A client polling this cannot cause spend, which is what
+    makes it safe to poll from a player that is already running - the drawing
+    is started by the episode, on the audio path, and this only reports.
+    """
+    _read_limit(request)
+    return {"visual": visuals_mod.describe(q, context)}
+
+
+@app.get("/api/visual/{visual_id}.svg")
+async def visual_svg(visual_id: str):
+    """The canonical asset: one path, no script, nothing external.
+
+    Cached hard and immutably, which it can be because the id contains the
+    style version - a new style is a new id, so there is no such thing as a
+    stale one of these.
+    """
+    document = visuals_mod.svg(visual_id[:64])
+    if not document:
+        raise HTTPException(status_code=404, detail="No illustration there.")
+    return Response(
+        content=document, media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=31536000, immutable",
+                 # An SVG is a document; this one is served from the same
+                 # origin as the app, so it is worth saying out loud that it
+                 # may not fetch or run anything. The validator has already
+                 # refused a document that could, and a header is the belt to
+                 # its braces.
+                 "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                 "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.get("/api/visual/{visual_id}.png")
+async def visual_png(visual_id: str):
+    """The finished illustration as pixels, rendered from the vector.
+
+    Not from the artwork the image model produced: the player's last frame and
+    this have to be the same picture, and two renderers that merely agree today
+    are two renderers that will disagree later.
+    """
+    data = visuals_mod.thumbnail(visual_id[:64])
+    if not data:
+        raise HTTPException(status_code=404, detail="No illustration there.")
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable",
+                             "X-Content-Type-Options": "nosniff"})
+
+
+class VisualEventRequest(BaseModel):
+    #: One of visuals.TELEMETRY. Anything else is counted under its own name
+    #: rather than rejected - a client ahead of the server is not an error.
+    event: str = Field(..., max_length=48)
+    visual_id: str = Field("", max_length=64)
+    detail: str = Field("", max_length=200)
+
+
+@app.post("/api/visual/event")
+async def visual_event(req: VisualEventRequest, request: Request):
+    """What only the client knows: whether the picture actually arrived.
+
+    The server can say it produced a drawing; it cannot say the browser parsed
+    it, drew it, or fell over on it. Those four events - loaded, cache hit,
+    failed, parse failed - are the difference between "we generated 200
+    illustrations" and "listeners saw 200 illustrations", and this project has
+    been caught by exactly that gap before.
+    """
+    _read_limit(request)
+    name = req.event.strip()[:48]
+    if name.startswith("visual_"):
+        visuals_mod.track(name, id=req.visual_id[:64], detail=req.detail[:200])
+    return {"ok": True}
+
+
+class RegenerateVisualRequest(BaseModel):
+    q: str = Field(..., max_length=300)
+    context: str = Field("", max_length=300)
+
+
+@app.post("/api/visual/regenerate")
+async def visual_regenerate(req: RegenerateVisualRequest, request: Request):
+    """Draw it again. Admin only, and it spends.
+
+    Behind the same credential as the usage report, and 404 rather than 401
+    when there is no credential configured - this costs money per call, and an
+    endpoint that is protected only when somebody remembers to protect it is
+    not protected.
+
+    The current drawing survives a failed regeneration: `visuals.regenerate`
+    writes over it only on success, so this can never turn a good illustration
+    into a blank square.
+    """
+    _require_admin(request)
+    return await visuals_mod.regenerate(req.q, req.context, surface="search",
+                                        reason="regenerated by an administrator")
+
+
 @app.get("/api/audio")
 async def audio(
     request: Request,
@@ -2523,6 +2704,22 @@ async def audio(
     reserved = _reserve(request, "explore" if cached_only else "episode",
                         episode_key=_episode_key(plan),
                         surface=_surface(cached_only, topic_id, context))
+
+    # The drawing, started in parallel with everything below and never waited
+    # for. Here as well as in the pipeline because this is the only place that
+    # knows which surface the tap came from - and an Explore replay is refused
+    # by `visuals.eligible` either way, so the exclusion does not depend on
+    # this call being the one that ran.
+    #
+    # Idempotent on the visual key: the pipeline's own request a moment later
+    # finds this one already in flight and returns.
+    visuals_mod.request(
+        plan.query, context=context,
+        surface=_surface(cached_only, topic_id, context),
+        reason="tapped on " + _surface(cached_only, topic_id, context),
+        topic=(topics_mod.BANK_BY_ID[topic_id].title
+               if topic_id in topics_mod.BANK_BY_ID else ""),
+        cached_only=cached_only, attachments=plan.attachments, live=True)
 
     try:
         pipeline = _make_pipeline(voice or None)

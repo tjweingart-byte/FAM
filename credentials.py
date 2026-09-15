@@ -104,7 +104,16 @@ TTL_VAR = "FAM_SECRETS_TTL"
 DEFAULT_TTL = 0.0
 
 #: Credentials this module manages. A pool is the same name with an S.
-CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "EXA_API_KEY")
+#:
+#: The image credential is here rather than read straight from the environment
+#: so that a new machine gets it the same way it gets the other two -
+#: `FAM_SECRETS`, `~/.fam/env`, a project `.env` - and so `/api/health` can say
+#: where it came from. Two names for it because OpenAI issues it as
+#: `OPENAI_API_KEY` and asking somebody to rename a key is a step that gets
+#: skipped; `VISUAL_IMAGE_API_KEY` exists so the drawings can be billed to a
+#: different account from the writing.
+CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "EXA_API_KEY", "VISUAL_IMAGE_API_KEY",
+                   "OPENAI_API_KEY")
 
 #: A variable name, for telling `NAME=command` apart from a command that
 #: happens to begin with an assignment. Uppercase only, which every credential

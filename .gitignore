@@ -56,3 +56,27 @@ pod-results/
 # If genuinely new experiment source is ever written on this branch, this line
 # would hide it. Add it with `git add -f`, or reconsider the line.
 experiments/
+
+# Generated illustrations. The source artwork, the vector and the rendered
+# thumbnail for every episode drawn on this machine - content, not source, and
+# a deployment rebuilds what it needs from the API. `fam-visuals.db` is already
+# covered by *.db above; this is the folder beside it.
+episode-visuals/
+
+# visual_references/ is deliberately NOT ignored.
+#
+# It was, and that was wrong in a way nobody would have noticed until it
+# mattered. The approved illustrations are what the image model is *shown* as
+# the house style; a deployment without them falls back to describing the style
+# in words, produces visibly different art, and reports nothing louder than an
+# empty list on /api/health. Ignoring the folder meant the references worked on
+# the laptop they were added to and silently stopped working everywhere else -
+# which is this project's oldest failure wearing a new hat.
+#
+# They ship with the code, like the prompts do, because that is what they are.
+
+# Visual traces: one folder per real episode run through tools/visual_trace.py,
+# holding the artwork, every processing stage and the finished assets. Runtime
+# evidence rather than source, and deliberately never cleaned up - so it is
+# ignored rather than deleted.
+visual-traces/
