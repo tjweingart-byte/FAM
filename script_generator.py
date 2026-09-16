@@ -31,7 +31,6 @@ from cache import research_reason
 from config import settings
 
 import research as research_mod
-import understanding
 
 log = logging.getLogger(__name__)
 
@@ -829,22 +828,7 @@ class ScriptGenerator:
         """
         plan = await self.understand(plan, notes)
         plan = await self.live_lookup(plan)
-        plan = await self.research(plan, notes)
-        # The fork. Everything above is the episode's understanding, and the
-        # writer is not its only consumer: the Visual Director reads the same
-        # brief and the same packet to decide what the illustration is of. It
-        # is announced rather than returned because the drawing must never
-        # appear in the audio path's call graph - see `understanding`.
-        #
-        # Not on the cover half of an answer-first episode. That half is
-        # defined as the part written before anything is known, so publishing
-        # its empty understanding would hand the director exactly the nothing
-        # this fork exists to avoid, a few seconds before the real one arrives.
-        if plan.role != "opening":
-            understanding.publish_episode(
-                plan.query, plan.context, brief=plan.brief,
-                evidence=plan.evidence, minutes=plan.minutes)
-        return plan
+        return await self.research(plan, notes)
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

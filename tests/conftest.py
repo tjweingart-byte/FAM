@@ -62,18 +62,6 @@ FAM_ENVIRONMENT = (
     "PREFETCH", "PREFETCH_LEVEL", "PREFETCH_PER_CYCLE",
     "PREFETCH_DAILY_EPISODES", "PREFETCH_DAILY_DOLLARS",
     "PREFETCH_QUIET_SECONDS", "PREFETCH_BRIEF_TTL_SECONDS",
-    # The drawing. A developer with VISUAL_IMAGE_PROVIDER=openai and a real key
-    # in their shell must not run a suite that generates images - that is a
-    # test run with an invoice attached, and a result that depends on whether
-    # an image model happened to be up.
-    "VISUALS", "VISUAL_IMAGE_PROVIDER", "VISUAL_IMAGE_MODEL",
-    "VISUAL_IMAGE_QUALITY", "VISUAL_IMAGE_SIZE", "VISUAL_IMAGE_TIMEOUT_SECONDS",
-    "VISUAL_MAX_RETRIES", "VISUAL_CONCURRENCY", "VISUAL_DAILY_BUDGET_USD",
-    "VISUAL_UNDERSTANDING_WAIT_SECONDS", "VISUAL_DIRECTOR",
-    "VISUAL_DIRECTOR_MODEL", "VISUAL_DIRECTOR_EFFORT",
-    "VISUAL_DIRECTOR_MAX_TOKENS", "VISUAL_DIRECTOR_TIMEOUT_SECONDS",
-    "VISUAL_USE_REFERENCES", "VISUAL_THUMBNAIL_PIXELS", "VISUAL_SOURCE_PIXELS",
-    "VISUAL_WARM_PER_CYCLE", "VISUAL_QUIET_SECONDS",
     "FAM_ENV_FILE", "HOST", "MAX_OUTPUT_TOKENS", "MAX_WEB_SEARCHES",
     "MAX_WPM", "MIN_WPM", "MODEL", "PORT", "PREROLL_SECONDS",
     "RATE_LIMIT_BURST", "RATE_LIMIT_SECONDS", "READ_LIMIT_PER_WINDOW", "SAMPLE_RATE", "SAY_BIN",
@@ -107,10 +95,6 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
-    # Where the drawings and their metadata live. Isolated per test by
-    # `isolated_visuals` below; cleared here so a developer's real store can
-    # never be the one a test writes into.
-    "FAM_VISUAL_DB", "FAM_VISUAL_DIR",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -136,13 +120,7 @@ EMBED_ENVIRONMENT = ("FAM_EMBED_BACKEND", "FAM_EMBED_MODEL")
 #: EXA_API_KEY is read by research.py, and a developer who has one must not run
 #: a different suite from CI - a real retrieval in a test would cost money and
 #: reach the network.
-VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY",
-                     # The image credential, under both names it is accepted
-                     # under. Read by `credentials.py` rather than config.py,
-                     # so the guard's source scan cannot see it - and a real
-                     # one in a shell would make the suite draw pictures at
-                     # about seventeen cents each.
-                     "VISUAL_IMAGE_API_KEY", "OPENAI_API_KEY")
+VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY")
 
 #: Everything the suite clears, in one name so a new group cannot be added to
 #: the list above and forgotten at the two places that use it.
@@ -297,37 +275,3 @@ def isolated_quotas(tmp_path, monkeypatch):
     monkeypatch.setattr(
         appmod, "QUOTAS", quotas_mod.QuotaStore(str(tmp_path / "auth" / "quotas.db")))
     monkeypatch.setattr(quotas_mod, "settings_enforcing", lambda: False)
-
-
-@pytest.fixture(autouse=True)
-def isolated_visuals(tmp_path, monkeypatch):
-    """Every test gets its own illustrations, and none of them is drawn.
-
-    Two separate protections, for the same reason `isolated_quotas` has two.
-
-    **Its own store**, so a run does not leave `fam-visuals.db` and a folder of
-    `episode-visuals/` in the project root - which is what happened the first
-    time the suite ran with this feature wired in, because `/api/audio` and
-    `/api/myfam` both ask for drawings and the tests call them constantly.
-
-    **Nothing in flight from a previous test.** The in-process sets that make
-    a job idempotent would otherwise carry across tests: one test's key sitting
-    in `_INFLIGHT` makes the next test's identical request a silent no-op, and
-    a telemetry counter would accumulate across the whole suite.
-
-    Drawing is not disabled here, and deliberately: with no image credential
-    the provider reports unconfigured and every job ends there, which is the
-    path a test should be exercising anyway. A test that wants a real drawing
-    selects the synthetic provider explicitly, in its own body.
-    """
-    import visuals as visuals_mod
-
-    here = tmp_path / "visuals"
-    visuals_mod.reset(str(here / "visuals.db"), str(here / "assets"))
-    try:
-        yield
-    finally:
-        visuals_mod.reset()
-        import understanding
-
-        understanding.clear()

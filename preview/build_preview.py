@@ -562,21 +562,12 @@ SHIM = """
 def build() -> pathlib.Path:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     audio_js = (STATIC / "fam-audio.js").read_text(encoding="utf-8")
-    line_js = (STATIC / "fam-line.js").read_text(encoding="utf-8")
 
     # Inline the player: one file, so it can be opened from anywhere.
     html, n = re.subn(r'<script src="[^"]*fam-audio\.js"[^>]*></script>',
                       "<script>\n" + audio_js + "\n</script>", html)
     if n != 1:
         raise SystemExit("could not inline fam-audio.js - has the script tag changed?")
-
-    # The illustration renderer, inlined for the same reason: one file that
-    # opens from anywhere. Without it the preview's player throws on the first
-    # tap, which is a broken preview rather than a preview without pictures.
-    html, n = re.subn(r'<script src="[^"]*fam-line\.js"[^>]*></script>',
-                      "<script>\n" + line_js + "\n</script>", html)
-    if n != 1:
-        raise SystemExit("could not inline fam-line.js - has the script tag changed?")
 
     sys.path.insert(0, str(ROOT))
     import sharing
