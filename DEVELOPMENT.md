@@ -149,47 +149,6 @@ auto-advance, the demo-mode cache, the play button that resumed instead of
 pausing — were invisible to the Python tests and obvious in a browser.
 
 
-## Watching the line being drawn (`tools/visual_probe.py`)
-
-`./dev.sh check` cannot see the episode's illustration actually move. The reveal
-is a `stroke-dashoffset` written by an animation frame from a position derived
-from an audio clock, and every part of that sentence needs a browser *and* a
-server. So there is a second probe, which starts nothing itself:
-
-    ./dev.sh                              # one terminal
-    python tools/visual_probe.py          # another
-
-It asserts the square starts blank, the line advances with the audio, seeking
-moves it both ways, pausing freezes it, the path on screen is the path the
-server stores — so the thumbnail and the player's last frame are one picture —
-and exploreFAM has no canvas at all.
-
-With no image credential on the machine, run the server with
-`VISUAL_IMAGE_PROVIDER=synthetic` and the probe exercises the whole pipeline on
-clearly-labelled placeholder line art. `VISUALS.md` is the rest of it.
-
-
-## Judging the pictures (`tools/visual_trace.py`)
-
-The probe above answers "does the mechanism work". Whether the illustrations are
-any *good* is a different question, and it needs the real image model:
-
-    python tools/visual_trace.py "how do undersea cables get repaired"
-
-One real episode, every intermediate written to `visual-traces/<run>/` and never
-cleaned up — the director's brief, the exact prompt, the artwork as it came
-back, the ink mask, the skeleton, the route before smoothing, the finished
-vector, and an overlay of the line on the ink it was traced from.
-
-Look at them in that order. A weak illustration is a weak brief, a weak
-generation, or a good generation the vectoriser lost, and those are
-indistinguishable from the finished picture while having fixes in completely
-different files.
-
-It costs one image per attempt (about $0.17 at `VISUAL_IMAGE_QUALITY=high`).
-`--dry-run` proves the harness on the synthetic provider for nothing.
-
-
 ## Proving a change did not move anything (`tools/shots.py`)
 
 Everything above asks whether the app *works*. None of it can see a page that
