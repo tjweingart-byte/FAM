@@ -250,6 +250,11 @@ class Ledger:
     #: source name -> {"warmed": n, "taken": n, "dollars": f}
     by_source: dict = field(default_factory=dict)
     skipped_already_cached: int = 0
+    #: Warms that stopped at the brief because the answer is a result. Counted
+    #: separately from a failure: nothing went wrong, the guess was simply not
+    #: the kind of episode that keeps. A prefetcher whose refusals look like
+    #: faults cannot be tuned.
+    skipped_volatile: int = 0
     failures: int = 0
 
     def _row(self, source: str) -> dict:
@@ -290,6 +295,7 @@ class Ledger:
             # failing prefetcher and is actually no data at all.
             "hit_rate": round(taken / warmed, 3) if warmed else None,
             "skipped_already_cached": self.skipped_already_cached,
+            "skipped_volatile": self.skipped_volatile,
             "failures": self.failures,
             "by_source": {k: dict(v) for k, v in sorted(self.by_source.items())},
         }
@@ -506,8 +512,13 @@ class Prefetcher:
 
         # Contextual relevance, ahead of the tap. This is the half that costs
         # the listener seconds on search and can cost them nothing here.
+        #
+        # **No live lookup here, deliberately.** A warmed live fact is stale
+        # by the time it is tapped - that is what "live" means - so warming one
+        # would spend a provider call speculatively in order to bake a score
+        # into a script served hours later. The live state is fetched on the
+        # tap path or not at all. PROBLEMS.md §89.
         plan = await self.generator.understand(plan, notes)
-        plan = await self.generator.live_lookup(plan)
         if plan.brief is not None:
             self.briefs.put(candidate.query, candidate.minutes, plan.brief)
 
@@ -516,6 +527,20 @@ class Prefetcher:
             log.info("prefetch warmed a brief for %r (%s: %s)",
                      candidate.query, candidate.source, candidate.reason)
             return "brief"
+
+        # **A script may not be warmed for a question whose answer is a
+        # result.** The brief above is a claim about what is being asked and
+        # keeps; a script about a game is a claim about its state and does not.
+        # Warming one buys a stale episode at full price and then serves it as
+        # current, which is §88's failure with a cache in front of it. The
+        # brief is still kept, so the tap keeps the latency saving.
+        if getattr(plan.brief, "outcome_dependent", False):
+            self.budget.spend(_dollars(notes))
+            self.ledger.skipped_volatile += 1
+            log.info("prefetch kept only the brief for %r (%s): the answer is a "
+                     "result, so a warmed script would be stale on arrival",
+                     candidate.query, candidate.source)
+            return "volatile"
 
         sentences = [s async for s in self.generator.stream_sentences(plan, notes)]
         if not sentences:
@@ -527,7 +552,20 @@ class Prefetcher:
 
         if key and self.cache is not None:
             from cache import ttl_for
-            self.cache.put(key, sentences, ttl_for(candidate.query),
+
+            # The same one function the serving path uses, with the same
+            # inputs. Two implementations of "how long does this keep" drift,
+            # and a prefetcher that caches for longer than a tap would is a
+            # prefetcher that publishes staleness.
+            ttl = ttl_for(candidate.query, live_status=notes.live_status,
+                          outcome_dependent=notes.outcome_dependent,
+                          recency_days=notes.recency_days)
+            if ttl <= 0:
+                self.ledger.skipped_volatile += 1
+                log.info("prefetch wrote nothing for %r: it does not keep",
+                         candidate.query)
+                return "volatile"
+            self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
                            self._bucket(plan))
             self.ledger.note_warmed(key, candidate, spent)

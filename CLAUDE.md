@@ -236,7 +236,7 @@ good one, and those have fixes in different files. Read the EI block first.
 `--no-ei` runs the pre-EI path for comparison, and `tools/ei_eval.py` is the
 twenty-prompt milestone.
 
-**`examples/` is the strongest lever on the writing, and it is still empty.**
+**`examples/` is the strongest lever on the writing, and it now holds one.**
 Briefings dropped in there are shown to the model as the house voice. Rules
 describe a style loosely; examples are matched closely, so two or three good
 ones move the output more than any amount of further prompt wording. Prefer
@@ -495,18 +495,64 @@ the rest of this list it needs taste rather than a key.
   live game. Situating is different from orienting: it says where the listener
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
-- **An article index is the wrong instrument for a scoreboard, and the seam for
-  that is built and empty.** *(§82, `live_facts.py`.)* A game ends and the
-  scoreboard knows instantly; the recap saying so is written, published and
-  indexed later, so in between a search returns the *preview*. Same shape,
-  shorter fuse, for a price. Registering a real provider is one line —
-  `prepare` already asks and `build_prompt` already knows how to place the
-  answer, which outranks the packet and carries the timestamp it was true at.
-  **Nothing is configured, and that is deliberately not the same as nothing
-  being here**: both domains are declared, both report exactly what they would
-  need, and `/api/health` names them. A capability that is absent and quiet
-  gets shipped, and a scoreboard question answered from an index is wrong in a
-  way nobody sees until a listener hears it.
+- **An article index is the wrong instrument for a scoreboard, and the seam is
+  now built out.** *(§82, §89, `live_facts.py`, `live_sources.py`,
+  `LIVE_FACTS.md`.)* A game ends and the scoreboard knows instantly; the recap
+  saying so is written, published and indexed later, so in between a search
+  returns the *preview*. Same shape, shorter fuse, for a price; longer, for a
+  vote count.
+  **The rule the whole subsystem keeps, and the one that outranks every other
+  line in this file: FAM must never confidently invent a current or recent
+  fact it has no authoritative, sufficiently fresh evidence for.** With the
+  corollary almost every mechanism there is a form of — **never infer a
+  current-world fact from the absence of current-world evidence.** Our not
+  having a scores provider is not the game having no score; a search that
+  missed next week's fixture is not the fixture being unannounced; a provider
+  that timed out is not an event that did not happen.
+  Four things follow and are load-bearing. **Status is a closed vocabulary**
+  (`scheduled`/`in_progress`/`final`/`unknown`) mapped at the provider
+  boundary, because everything downstream switches on it and a free string
+  misses every comparison silently — and `unknown` is not "probably fine", it
+  is the state in which no result may be spoken. **Only evidence sets it**: EI
+  may say the *request* wants a result (`outcome_dependent`) and may never say
+  the *event* is under way or finished, which is why `BRIEF_SCHEMA` has no
+  status field and a test says it never will. **Resolution comes from the
+  provider's own catalogue, never from a model** — a hallucinated game id or
+  ticker does not fail, it returns somebody else's state, fresh and
+  authoritative and wrong, which nothing downstream can catch. And **a lookup
+  reports which of seven things happened**, because "no provider", "provider
+  broke" and "no such game" are three different sentences and
+  `Optional[LiveFacts]` made them one.
+  **Freshness is a check, not a label**: per-domain maximum ages, enforced in
+  code before the writer sees anything, and data past it is *withheld* rather
+  than annotated — a stale score is worse than none, since it arrives with a
+  timestamp and outranks the packet. `delayed` is separate and is about design
+  rather than age; a delayed feed says delayed and never "current".
+  **Still nothing real is configured**, and that is deliberately not the same
+  as nothing being here: three domains are declared, each reports exactly what
+  it would need, `/api/health` distinguishes *operational* from *configured but
+  unavailable* from *not configured*, and `python tools/verify_live.py` makes a
+  real request rather than confirming a credential exists. Do not say FAM
+  supports live scores until a real provider is returning them.
+- **How long a script keeps comes from what it was built on, never from the
+  words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
+  match, and `"Chiefs game"` — the reported case — contained no volatile word,
+  so an episode about a game in progress was cached for **twenty-four hours**
+  and, because `recent()` is the Explore feed, *published* as a finished one.
+  **Do not fix this class of bug by adding keywords.** §76 settled that: a
+  keyword list can always be widened by one more word, and "Chiefs", "game"
+  and "score" would each have missed "how is the match going". The precedence
+  is live status, then `outcome_dependent`, then the evidence window, then the
+  keyword list as the floor for paths that have none of those — and `0` means
+  do not cache, which is what `in_progress` returns, because no TTL is short
+  enough for a score. Ordinary static content is untouched.
+  The plumbing is the part that is not obvious: the pipeline holds the
+  **unprepared** plan at the write site, so the volatility facts come home on
+  `ScriptNotes` alongside `thread` and `research`.
+  **Prefetch obeys two extra rules**: it never calls `live_lookup` at all (a
+  warmed live fact is stale by definition, bought at full price), and it never
+  warms a *script* for an outcome-dependent question — the brief is kept,
+  because that is a claim about what is being asked and it keeps.
 - **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
   ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
   orientation, understanding, depth, the full arc — described as content and
@@ -833,8 +879,9 @@ most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
-and downloads, and `IOS_APP.md` for the app version this is now being written
-towards.
+and downloads, `LIVE_FACTS.md` for how FAM handles rapidly changing information
+and what it does when it has none, and `IOS_APP.md` for the app version this is
+now being written towards.
 
 A fresh container has none of the dependencies installed. Setup is two lines,
 and the second one is not optional:

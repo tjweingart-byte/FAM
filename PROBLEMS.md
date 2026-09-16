@@ -5136,3 +5136,120 @@ they produced.
 And still the real fix for the whole class: **register a scores provider.** Every
 change above makes FAM honest about not knowing the score. None of them makes it
 know the score.
+
+## 89. Not knowing is not the same as nothing having happened
+
+§88 stopped the writer inventing a result. It did not stop the *system* losing
+the difference between "we have no view of this" and "there is nothing to see",
+and that difference turns out to be the whole subsystem.
+
+Four things were wrong, and only the first was the one being looked for.
+
+### The cache was serving a game in progress for twenty-four hours
+
+`cache.ttl_for` took a query string and matched it against a keyword list.
+Measured on the exact reported case:
+
+    'Chiefs game'                    -> 86400s
+    'Tell me about the Chiefs game'  -> 86400s
+    'how is the match going'         -> 86400s
+
+Twenty-four hours, for an episode about a game being played. And `recent()` is
+the Explore feed, so such an episode is not merely re-served - it is
+**published** as a finished one, into a surface whose entire promise is that it
+replays episodes that already exist.
+
+**The fix is not another keyword, and this needs saying because it is the
+obvious move.** §76 already settled it for research: a keyword list can always
+be widened by one more word, and the next question it misses is already
+written. "Chiefs", "game" and "score" would every one of them have missed "how
+is the match going". The list is not under-tuned; it is answering the wrong
+question.
+
+So `ttl_for` now asks **how long what this episode says stays true**, which is
+answerable, because by the time anything is written we know what it was built
+from. Live status first (`in_progress` → uncacheable, `final` → the ordinary
+ceiling, since a result does not move again), then `outcome_dependent`, then
+the evidence window, then the keyword list as the floor for paths that have
+none of those. Ordinary static content returns exactly what it always did.
+
+### The information could not reach the decision
+
+This was the part that made it a real change rather than a one-liner.
+`pipeline.py` computes the TTL holding the **unprepared** plan:
+`stream_sentences` rebinds it (`plan = await self.prepare(plan, notes)`) and
+`_answer_first` derives two more the caller never sees. So `plan.brief` and
+`plan.live` are `None` at the write site and always would be.
+
+`ScriptNotes` is the channel that already crosses that boundary - it is how
+`thread` and `research` get home - so the cache policy rides back the same way.
+
+### Six different failures were being reported as one
+
+`live_facts.lookup` returned `Optional[LiveFacts]`. No provider configured, the
+provider broke, the provider timed out, the provider has no such game, the
+provider is reporting nothing, the data came back too old - all `None`, and the
+writer was told the same nothing by every one of them. In practice it was told
+nothing at all.
+
+`LiveLookup` replaces it with seven named outcomes, each rendering a different
+block. The one that matters most is `not_configured`, because it is the state
+FAM actually ships in, and the sentence it produces is the thesis of the whole
+subsystem: *what is missing here is our view of it, not the event.*
+
+### A stale score is worse than no score
+
+Nothing bounded age. `as_of` was rendered for the model to judge, and a
+timestamp a model is asked to judge is one it judges generously. A fifteen-
+minute-delayed market feed - which is what free tiers are - would have been
+rendered under a block that says *"this is what is true now"*.
+
+Freshness is now a deterministic check in code, per domain (sports 120s,
+markets 300s, elections 1800s - one threshold would be wrong for two of the
+three), and data past it is **withheld** rather than annotated. `delayed` is
+separate and is about design rather than age: nonzero means the prompt says
+delayed, never current.
+
+### What else came out of the audit
+
+**Prefetch was warming live facts.** `_warm` called `live_lookup`, so warming
+would spend a provider call speculatively *and* bake a score into a script
+served hours later. It no longer calls it at all, and a script is never warmed
+for an outcome-dependent question - the brief is kept, because that is a claim
+about what is being *asked* and it keeps.
+
+**The live lookup ran in series with research**, adding its whole latency in
+front of the first word. Its own docstring said "runs alongside retrieval",
+which was aspiration rather than description. They read the same brief and
+neither reads the other's output, so they are now gathered.
+
+**`examples/README.md` still taught the ending doctrine §48 reversed** - "don't
+conclude, widen; leave one thing unresolved and stop pointed at it". CLAUDE.md
+records that an example file has turned deleted behaviour back on in this
+project before, and this was the same shape waiting to happen: the rule was
+removed from the prompt and left in the file people copy.
+
+**The hermetic test caught the new settings in both directions**, which is what
+it is for - once for not clearing them, and once for listing a name `config.py`
+did not read, because `live_sources` was reading it from `os.environ` directly.
+Every knob belongs in `config.py`; one read elsewhere is one a developer's
+shell can leak into a suite.
+
+### The line this settles
+
+EI may decide that the **request** wants a result. It may not decide that the
+**event** is scheduled, under way or finished - it has retrieved nothing and
+its knowledge is months old. There is no `status` field in `BRIEF_SCHEMA`, and
+a test asserts there never is, because a field that does not exist cannot be
+filled in by a persuasive model. `in_progress` is likewise absent from the
+structures EI may pick, for the same reason pointing the other way.
+
+### What is still not true
+
+**No real provider is connected.** Everything above is the architecture for
+one, verified against a fake that is selected explicitly and names itself
+`NOT REAL DATA`. FAM does not have live scores; it now knows that it does not,
+says so to the writer on every live question, and refuses to cache an episode
+built in that state.
+
+`LIVE_FACTS.md` is the whole of it.

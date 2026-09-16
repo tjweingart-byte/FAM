@@ -56,6 +56,14 @@ FAM_ENVIRONMENT = (
     # that quietly skips every EI behaviour and still reports green.
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS",
+    # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
+    # a suite that quietly has a scoreboard in it - a test asserting FAM says
+    # "no live feed" would pass or fail on their shell rather than the code.
+    "LIVE_FACTS", "LIVE_SPORTS_PROVIDER", "LIVE_MARKETS_PROVIDER",
+    "LIVE_ELECTIONS_PROVIDER", "LIVE_TIMEOUT_SECONDS",
+    "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
+    "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
+    "LIVE_FAKE_SPORTS_STATUS",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.

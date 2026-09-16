@@ -46,6 +46,7 @@ from config import DEFAULT_PIPELINE, describe_key, key_source, settings
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
+import live_sources
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
@@ -223,6 +224,12 @@ async def lifespan(_: FastAPI):
     # PREFETCH says, because the *registry* is what /api/health reports and a
     # deploy with no sources installed looks identical to one with prefetch
     # switched off - two different problems with two different fixes.
+    # Which live providers this deployment asked for. Installed before
+    # prefetch for no reason other than reading order; nothing depends on it.
+    # Problems are logged and reported rather than raised: a typo in
+    # LIVE_SPORTS_PROVIDER must not stop the server, because every episode is
+    # still answerable and the writer is told there is no live feed.
+    live_sources.install()
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES)
     prefetch.prefetcher(
         generator=None if DEMO_MODE else ScriptGenerator(),
@@ -863,6 +870,10 @@ async def health() -> dict:
         # rather than silently absent, because a scoreboard question answered
         # from an index is wrong in a way nobody sees until a listener hears it.
         "live_facts": live_facts_report(),
+        # What configuration asked for, beside what actually registered. A
+        # provider name this build does not know is configured and absent, and
+        # that difference does not show in a source list.
+        "live_sources": live_sources.report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how

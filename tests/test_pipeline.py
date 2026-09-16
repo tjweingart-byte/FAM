@@ -326,6 +326,103 @@ def test_volatile_queries_get_a_short_ttl():
     assert ttl_for("today's scores") <= settings.cache_ttl_volatile
 
 
+# --------------------------------------------------------------------------
+# how long a script keeps, from what it was built on
+# --------------------------------------------------------------------------
+def test_a_live_event_query_cannot_get_a_day_long_ttl_from_its_wording():
+    """**The bug, exactly as it was found.** `"Chiefs game"` contains no word
+    in the volatile list, so an episode about a game in progress was cached for
+    twenty-four hours - and `recent()` is the Explore feed, so it was published
+    as well as re-served.
+
+    The fix is not another keyword. §76 already settled that a keyword list can
+    always be widened by one more word: "Chiefs", "game" and "score" would all
+    have missed "how is the match going". What changed is the question being
+    asked - not "do these words look volatile" but "how long does what this
+    episode says stay true", which is answerable because by write time we know
+    what it was built from."""
+    # The ones the keyword list misses, which is the bug. It catches
+    # "what's happening in the Chiefs game" on "happening" and misses these -
+    # which is the point: which side of the line a question lands on is an
+    # accident of phrasing, and a listener's phrasing is not evidence.
+    slips_through = ("Chiefs game", "Tell me about the Chiefs game",
+                     "how is the match going")
+    for query in slips_through:
+        assert ttl_for(query) == settings.cache_ttl_seconds, (
+            "the keyword floor is unchanged - it is not what fixes this")
+
+    # What fixes it is knowing the listener asked for a result, which is true
+    # of all four however they were worded.
+    for query in slips_through + ("what's happening in the Chiefs game",):
+        assert ttl_for(query, outcome_dependent=True) <= settings.cache_ttl_volatile, (
+            f"{query!r} asks for a result and must not keep for a day")
+
+
+def test_an_event_under_way_is_not_cacheable_at_all():
+    """No TTL is short enough for a score. Ten seconds still serves one
+    listener a state another listener already watched change, and the entry
+    would reach Explore, which replays episodes as finished ones."""
+    assert ttl_for("Chiefs game", live_status="in_progress") == 0
+    assert ttl_for("why is the sky blue", live_status="in_progress") == 0
+
+
+def test_a_finished_event_keeps_for_as_long_as_anything_else():
+    """`final` is established by evidence and does not move again. Shortening
+    it would throw away the shared-cache discount on exactly the episodes most
+    worth sharing - the fix must not make ordinary caching worse."""
+    assert ttl_for("Chiefs game", live_status="final",
+                   outcome_dependent=True) == settings.cache_ttl_seconds
+
+
+def test_a_scheduled_event_keeps_for_a_while_and_not_a_day():
+    """A preview written this morning is honest this afternoon and wrong once
+    it kicks off."""
+    ttl = ttl_for("Chiefs game", live_status="scheduled", outcome_dependent=True)
+    assert 0 < ttl < settings.cache_ttl_seconds
+
+
+def test_an_unestablished_status_never_reads_as_finished():
+    """`unknown` is the state a failed, stale or unconfigured lookup reports.
+    Treating it as `final` would make a provider outage into a day-long cache
+    entry about a game nobody looked at."""
+    assert ttl_for("Chiefs game", live_status="unknown",
+                   outcome_dependent=True) <= settings.cache_ttl_volatile
+
+
+def test_ordinary_static_content_is_completely_untouched():
+    """The fix must be invisible to everything that is not about a moment -
+    otherwise it trades a correctness bug for a cost one."""
+    for query in ("why is the sky blue", "how does a heat pump work",
+                  "the offside rule explained"):
+        assert ttl_for(query) == settings.cache_ttl_seconds
+        assert ttl_for(query, outcome_dependent=False,
+                       recency_days=0) == settings.cache_ttl_seconds
+
+
+def test_evidence_that_had_to_be_fresh_makes_the_episode_a_claim_about_today():
+    assert ttl_for("Nvidia", recency_days=1) <= settings.cache_ttl_volatile
+    assert ttl_for("Nvidia", recency_days=30) == settings.cache_ttl_seconds
+
+
+def test_both_write_sites_use_the_one_function_with_the_live_state():
+    """Same doctrine as `key_for`: two implementations of "how long does this
+    keep" drift, and a prefetcher caching for longer than a tap would is a
+    prefetcher that publishes staleness. Read from the source, because a rule
+    nothing enforces is a rule that lasts until the next refactor."""
+    import inspect
+
+    import prefetch as prefetch_mod
+
+    serving = inspect.getsource(PodcastPipeline.stream_pcm)
+    warming = inspect.getsource(prefetch_mod.Prefetcher._warm)
+    for name, source in (("the serving path", serving), ("prefetch", warming)):
+        assert "ttl_for(" in source, f"{name} does not compute a TTL"
+        assert "live_status=" in source, (
+            f"{name} computes a TTL without the live state")
+        assert "outcome_dependent=" in source, (
+            f"{name} computes a TTL without knowing if the answer is a result")
+
+
 def test_personal_queries_are_never_shared():
     assert not is_shareable("summarize my medical results")
     assert not is_shareable("what should I do about our mortgage")

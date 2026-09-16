@@ -1114,10 +1114,24 @@ class PodcastPipeline:
         stats.thread = notes.thread
 
         if self.cache and self.cache_writes and shareable and stats.script:
-            ttl = ttl_for(plan.query)
-            self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                           plan.minutes, bucket)
-            log.info("cached %d sentences for %r (ttl %ds)", len(stats.script), plan.query, ttl)
+            # How long this stays true, from what the episode was actually
+            # built from - carried home on `notes` because the plan this scope
+            # holds is the unprepared one. Zero means the episode describes
+            # something that is still moving and must not be written at all:
+            # `recent()` is the Explore feed, so a cached in-progress episode
+            # is not only re-served, it is published. PROBLEMS.md §89.
+            ttl = ttl_for(plan.query, live_status=notes.live_status,
+                          outcome_dependent=notes.outcome_dependent,
+                          recency_days=notes.recency_days)
+            if ttl > 0:
+                self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
+                               plan.minutes, bucket)
+                log.info("cached %d sentences for %r (ttl %ds)",
+                         len(stats.script), plan.query, ttl)
+            else:
+                log.info("not caching %r: the live state is %r, so this episode "
+                         "is stale the moment it is written",
+                         plan.query, notes.live_status or "unestablished")
 
         async for chunk in self._finish(pace, stats):
             yield chunk

@@ -443,6 +443,53 @@ class Settings:
     # evidence for "what happened last night".
     ei_default_recency_days: int = _env_int("EI_DEFAULT_RECENCY_DAYS", 14)
 
+    # --- live facts ------------------------------------------------------
+    # The route around the article index, for the questions an index is
+    # structurally too slow for. See `live_facts.py` and LIVE_FACTS.md.
+    #
+    # On by default because the *registry* is what matters: with no provider
+    # configured it costs one dictionary lookup and its whole effect is that
+    # the writer is told there is no live feed - which is the honest state and
+    # the one that stops a score being invented. `LIVE_FACTS=0` silences even
+    # that, and is for offline `write.py` runs rather than for production.
+    live_facts: bool = field(
+        default_factory=lambda: os.environ.get("LIVE_FACTS", "1")
+        not in ("0", "false", "False", ""))
+    # Which provider serves each domain. Empty means none, and none is
+    # reported rather than hidden. `fake` is a deterministic stand-in for
+    # tests and demos and must be selected explicitly - never a fallback,
+    # which is §51 and §61 applied to facts: a stand-in that can be
+    # reached by accident is one that reaches a listener.
+    live_sports_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_SPORTS_PROVIDER", "").strip())
+    live_markets_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_MARKETS_PROVIDER", "").strip())
+    live_elections_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_ELECTIONS_PROVIDER", "").strip())
+    # Per-provider and whole-lookup ceilings. Small on purpose: this sits in
+    # front of the first word, and the one-sentence spec was amended once for
+    # EI and not again. A provider that cannot answer in a second and a half
+    # is a provider the listener should not be waiting for.
+    live_timeout_seconds: float = _env_float("LIVE_TIMEOUT_SECONDS", 1.5)
+    live_total_timeout_seconds: float = _env_float("LIVE_TOTAL_TIMEOUT_SECONDS", 2.5)
+    # How long one entity's facts may be reused, by status. In-progress is
+    # short enough to only collapse a burst of simultaneous listeners; final
+    # does not move, so it is generous.
+    live_cache_in_progress_seconds: float = _env_float(
+        "LIVE_CACHE_IN_PROGRESS_SECONDS", 10.0)
+    live_cache_scheduled_seconds: float = _env_float(
+        "LIVE_CACHE_SCHEDULED_SECONDS", 300.0)
+    live_cache_final_seconds: float = _env_float(
+        "LIVE_CACHE_FINAL_SECONDS", 900.0)
+    # What the fake scoreboard pretends is happening: scheduled, in_progress
+    # or final. Here rather than read from the environment inside
+    # `live_sources`, because every knob this app has belongs in one place -
+    # a setting read somewhere else is a setting the hermetic test cannot see
+    # and a developer's shell can leak into a suite.
+    live_fake_sports_status: str = field(
+        default_factory=lambda: os.environ.get(
+            "LIVE_FAKE_SPORTS_STATUS", "in_progress").strip())
+
     # --- Prefetch ---------------------------------------------------------
     # Writing the episode before anybody asks for it - see `prefetch.py`.
     #

@@ -348,22 +348,67 @@ def test_the_writer_is_told_the_result_may_not_exist_yet():
 
 
 def test_a_live_question_with_no_feed_says_so_rather_than_going_quiet():
-    """`live_facts` declares sports and markets and has a provider for neither,
-    so today this fires on every such question. The lag is structural - a
+    """`live_facts` declares three domains and has a provider for none, so
+    today this fires on every such question. The lag is structural - a
     scoreboard changes instantly and the article saying so is written,
     published and indexed afterwards - and the writer cannot allow for it
     unless it is told."""
+    import live_facts
+
     brief = ei.Brief(query="chiefs game", search_query="chiefs game",
                      intent="recap", live_domain="sports")
-    plan = dataclasses.replace(plan_episode("chiefs game", 3),
-                               brief=brief, evidence="SOURCE 1\nTitle: x\n")
+    plan = dataclasses.replace(
+        plan_episode("chiefs game", 3), brief=brief,
+        evidence="SOURCE 1\nTitle: x\n",
+        live=live_facts.LiveLookup("sports", live_facts.NOT_CONFIGURED))
     prompt = build_prompt(plan)
-    assert "FAM has no" in prompt and "direct feed for it" in prompt
-    assert "never as licence to supply the state yourself" in prompt
+    assert "FAM has no live feed for this domain" in prompt
+    assert "Not knowing is not the same as nothing having happened" in prompt
 
     # And an episode that turns on nothing live is not told any of it.
-    quiet = dataclasses.replace(plan, brief=ei.Brief(query="x", intent="explainer"))
-    assert "direct feed for it" not in build_prompt(quiet)
+    quiet = dataclasses.replace(plan, brief=ei.Brief(query="x", intent="explainer"),
+                                live=None)
+    assert "turns on a live" not in build_prompt(quiet)
+
+
+# --------------------------------------------------------------------------
+# what EI may decide, and what only evidence may decide
+# --------------------------------------------------------------------------
+def test_ei_may_never_report_an_event_status():
+    """The line the whole of §88 and §89 turns on.
+
+    EI reads the *request* and may say it wants a result. It has retrieved
+    nothing and its knowledge is months old, so it may not say the event is
+    under way, finished or scheduled - that is a claim about the world, and
+    only evidence makes those. The schema is where this is enforced, because a
+    field that does not exist cannot be filled in by a persuasive model."""
+    assert "status" not in ei.BRIEF_SCHEMA["properties"]
+    assert "outcome_dependent" in ei.BRIEF_SCHEMA["properties"]
+    assert not hasattr(ei.Brief(), "status")
+    assert not hasattr(ei.Brief(), "live_status")
+
+    # And nothing in the module maps a brief onto a status.
+    import inspect
+    source = inspect.getsource(ei)
+    for word in ("in_progress\"", "\"final\"", "\"scheduled\""):
+        assert f"status = {word}" not in source, (
+            "episode intelligence is assigning an event status")
+
+
+def test_a_request_being_outcome_dependent_says_nothing_about_the_event():
+    """"Tell me how the Chiefs game is going" is outcome-dependent whether the
+    game finished an hour ago, is in its third quarter, or kicks off tonight.
+    The brief must carry the first and none of the rest."""
+    brief = ei.gate(ei.Brief(query="tell me how the chiefs game is going",
+                             search_query="chiefs game",
+                             intent="update", live_domain="sports"),
+                    "tell me how the chiefs game is going")
+    assert brief.outcome_dependent is True
+    assert not hasattr(brief, "status")
+    # The caution it carries is about not knowing, never about knowing.
+    joined = " ".join(brief.cautions)
+    assert "confirmed yet" in joined
+    assert "has started is not an event that has finished" in joined
 
 
 def test_ei_may_not_pick_the_in_progress_shape_itself():

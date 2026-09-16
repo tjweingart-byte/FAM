@@ -189,18 +189,73 @@ def needs_fresh_information(query: str) -> bool:
     return bool(research_reason(query))
 
 
-def ttl_for(query: str) -> int:
-    """How long a script for this query stays usable, in seconds.
+#: What a scheduled event's episode is good for. Shorter than the ordinary
+#: ceiling because the thing is coming: a preview written this morning is
+#: honest this afternoon and wrong once it kicks off.
+SCHEDULED_TTL_SECONDS = 1800
 
-    Freshness is the hard part of a shared cache. "Why is the sky blue" is good
-    for a month; "latest news on X" is stale in minutes, and serving it from
-    cache is worse than being slow. The heuristic below is intentionally
-    conservative - see the note in README about upgrading it to a classifier.
+
+def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = False,
+            recency_days: int = 0) -> int:
+    """How long a script stays usable, in seconds. **Zero means do not cache.**
+
+    **The question this asks changed, and that is the whole of PROBLEMS.md §89.**
+    It used to ask "do the words of this query *look* volatile", answered from
+    `_VOLATILE`. That is a guess made before anything is known, and it was
+    wrong in the most expensive possible direction: `"Chiefs game"` contains no
+    volatile word, so an episode about a game in progress was cached for
+    **twenty-four hours** and served to everyone who asked - and, because
+    `recent()` is the Explore feed, entered Explore as well.
+
+    Widening the keyword list is not the fix and must not be attempted. §76
+    already settled that for research: a keyword list can always be widened by
+    one more word, and the next query it misses is already written. "Chiefs",
+    "score" and "game" would have missed "how is the match going".
+
+    So it now asks **how long what this episode says will stay true**, which is
+    answerable, because by the time anything is written we know what it was
+    built from. In precedence order, most authoritative first:
+
+    1. **A live fact's status**, which is the only thing here established by
+       evidence rather than inferred. `in_progress` is uncacheable outright -
+       no TTL is short enough for a score, and a ten-second entry still serves
+       one listener the state another listener already saw change.
+       `final` does not move, so it keeps the ordinary ceiling.
+    2. **The brief's `outcome_dependent`**, which is EI's honest statement that
+       the listener wants a *result*. Volatile until one exists. This is the
+       half that works with no provider configured at all, and it is what
+       actually fixes the `"Chiefs game"` case today.
+    3. **The evidence window.** An episode written from evidence that had to be
+       a day old is a claim about that day.
+    4. **The keyword list**, unchanged, as the floor for the paths that have
+       none of the above - `EPISODE_INTELLIGENCE=0`, offline `write.py`,
+       `tools/seed_demo.py`. Never widened.
+
+    Ordinary static content is untouched: with no live fact, no brief and no
+    volatile word, this returns exactly what it always returned.
     """
     tokens = set(_SPACE.split(_PUNCT.sub(" ", query.lower())))
-    if tokens & _VOLATILE:
-        return settings.cache_ttl_volatile
-    return settings.cache_ttl_seconds
+    keyword_ttl = (settings.cache_ttl_volatile if tokens & _VOLATILE
+                   else settings.cache_ttl_seconds)
+
+    status = (live_status or "").strip().lower()
+    if status == "in_progress":
+        return 0
+    if status == "scheduled":
+        return min(keyword_ttl, SCHEDULED_TTL_SECONDS)
+    if status == "final":
+        # Settled by evidence and it does not move again. The ordinary ceiling
+        # is right, and shortening it here would throw away the shared-cache
+        # discount on exactly the episodes most worth sharing.
+        return keyword_ttl
+
+    # `unknown`, or no live fact at all. Fall through to what the request and
+    # the evidence say, never to a claim that the event is over.
+    if outcome_dependent:
+        return min(keyword_ttl, settings.cache_ttl_volatile)
+    if recency_days and int(recency_days) <= 1:
+        return min(keyword_ttl, settings.cache_ttl_volatile)
+    return keyword_ttl
 
 
 def cache_key(

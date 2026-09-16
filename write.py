@@ -115,14 +115,18 @@ async def main() -> int:
             print(f"    NOT FOUND   {'; '.join(plan.thin_on)}  <- one search "
                   "missed it; that is a fact about the search, not the world")
         if plan.live is not None:
-            print(f"    live facts  {plan.live.source} as of "
-                  f"{plan.live.age_phrase()}")
-        elif brief.live_domain:
-            # The seam §88 was written in. Printed because an episode about a
-            # thing that was still happening looks fine on the page and is the
-            # one this loop cannot otherwise catch.
-            print(f"    live facts  none - {brief.live_domain} questions are "
-                  "answered from indexed articles, which lag the real state")
+            # The outcome and the status, not just "we got something" - a
+            # provider that failed, one that has no such game and one that is
+            # not configured are three different reasons an episode is about
+            # to be written blind, and this loop is where a person catches it.
+            print(f"    live facts  {plan.live.outcome}"
+                  f"   ·   status {plan.live.status}   ·   {plan.live.detail}")
+            if plan.live.facts is not None:
+                for line in plan.live.facts.facts:
+                    print(f"                - {line}")
+            else:
+                print("                nothing live was established; the writer "
+                      "is told so and must not state a result")
         print()
     elif brief is not None:
         print(f"  EI degraded: {'; '.join(brief.notes)} - searching the raw "

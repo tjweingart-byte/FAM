@@ -282,6 +282,29 @@ class ScriptNotes:
     #: does most of the writing.
     usage: metering.Usage = dataclasses.field(default_factory=metering.Usage)
 
+    # --- how long what this episode says stays true -----------------------
+    #
+    # **Here rather than on the plan, and that is not tidiness.** The caller
+    # holds the *unprepared* plan: `stream_sentences` rebinds it
+    # (`plan = await self.prepare(plan, notes)`) and `_answer_first` derives
+    # two more that the pipeline never sees. So `plan.brief` and `plan.live`
+    # are `None` at the moment the pipeline writes to the cache, and always
+    # would be. `ScriptNotes` is the channel that already crosses that
+    # boundary - it is how `thread` and `research` get back - so the cache
+    # policy rides home the same way. PROBLEMS.md §89.
+
+    #: The event status *evidence* established, from `live_facts`. Never set
+    #: from EI, and empty when no live provider answered.
+    live_status: str = ""
+    #: Whether the listener asked for a result. EI's honest reading of the
+    #: request; see `episode_intelligence.Brief.outcome_dependent`.
+    outcome_dependent: bool = False
+    #: How fresh the evidence had to be, in days. 0 means evergreen.
+    recency_days: int = 0
+    #: What the live lookup actually did, for the log and `/api/health`. One of
+    #: `live_facts.LiveLookup.outcome`, or "" when nothing was asked.
+    live_outcome: str = ""
+
 
 def extract_thread(text: str) -> str:
     """Pull the predicted follow-up out of the model's trailing marker line."""
@@ -574,6 +597,11 @@ for the script.
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
+    # One block, every outcome. `LiveLookup.as_prompt_block` renders facts
+    # when there are facts and says exactly which way it came up empty when
+    # there are not - "no provider", "provider failed", "no such game" and
+    # "too old to be current" are four different things to tell a writer, and
+    # `Optional[LiveFacts]` told it the same nothing for all of them.
     live = ""
     if plan.live is not None:
         try:
@@ -582,30 +610,6 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
-    elif getattr(plan.brief, "live_domain", ""):
-        # The brief said this question turns on a live state and nothing could
-        # answer it - today that is every such question, because `live_facts`
-        # declares both domains and has a provider for neither.
-        #
-        # **Naming the blind spot is not the same as apologising for it.** The
-        # gap is structural rather than incidental: a scoreboard changes the
-        # instant a thing happens and the article saying so is written,
-        # published and indexed afterwards, so between those two moments an
-        # index returns the *preview* and looks exactly like evidence. The
-        # writer cannot compensate for that unless it is told the shape of it,
-        # and it was not told, and it wrote a final score for a game that was
-        # in its third quarter. PROBLEMS.md §88.
-        live = f"""
-This question turns on a live {plan.brief.live_domain} state - a score, a
-standing, a price, something that changes while you write - and FAM has no
-direct feed for it. Everything below is articles *about* the world, not the
-world, and articles are written after the fact and indexed after that.
-
-So the newest thing you have been given is older than the thing being asked
-about, and it may have been written before any of it happened. Treat the
-absence of a report as what it usually is - the report not existing yet - and
-never as licence to supply the state yourself.
-"""
 
     # What EI worked out, and the temporal discipline that depends on it.
     brief_block = ""
@@ -651,6 +655,12 @@ Time, and this is where these go wrong most often:
   result - you have something that has not finished. Take the smaller true
   reading every time. Inventing a reason the two can both be right is how a
   made-up fact gets past you.
+- **When two sources disagree, this is the order, and it is not a judgement
+  call.** A live state block, if you were given one, beats everything. A dated
+  article beats an older dated article. Any dated article beats your own
+  memory. Your own memory never establishes anything current. Where the top of
+  that order is silent on something, the answer is that we do not have it -
+  not that the one below it is promoted.
 - If something has not happened yet, it has no result. Do not name a winner,
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
@@ -881,16 +891,23 @@ class ScriptGenerator:
             plan.query, plan.minutes, plan.context, notes)
         return dataclasses.replace(plan, brief=brief)
 
-    async def live_lookup(self, plan: EpisodePlan) -> EpisodePlan:
+    async def live_lookup(self, plan: EpisodePlan,
+                          notes: ScriptNotes | None = None) -> EpisodePlan:
         """Ask for a live state when the brief says the answer turns on one.
 
-        Runs alongside retrieval rather than instead of it: a score settles what
-        happened, and the packet is still what explains it.
+        Runs alongside retrieval rather than before it - see `prepare`. A score
+        settles *what happened*; the packet is still what explains it, and
+        neither reads the other, so waiting for one to start the other was
+        latency nobody was buying anything with.
+
+        The result is a `LiveLookup` rather than facts-or-None, so the writer
+        can be told which of the seven things happened. `None` here means only
+        that the question does not turn on a live state at all.
         """
         if plan.brief is None or plan.live is not None:
             return plan
-        facts = await live_facts.lookup(plan.brief)
-        return plan if facts is None else dataclasses.replace(plan, live=facts)
+        result = await live_facts.lookup(plan.brief, notes)
+        return plan if result is None else dataclasses.replace(plan, live=result)
 
     async def prepare(self, plan: EpisodePlan,
                       notes: ScriptNotes | None = None) -> EpisodePlan:
@@ -905,8 +922,32 @@ class ScriptGenerator:
         pre-writing phase, the same reason `research` was split out.
         """
         plan = await self.understand(plan, notes)
-        plan = await self.live_lookup(plan)
-        return await self.research(plan, notes)
+
+        # **Concurrent, and verified independent before it was made so.** Both
+        # read `plan.brief` and neither reads the other's output: `live_lookup`
+        # takes `brief.live_domain` and `research` takes `brief.retrieval`,
+        # `recency_days` and `must_establish`. Sequentially the live call added
+        # its whole latency on top of retrieval, in front of the first word,
+        # for nothing. They are merged field-by-field rather than chained
+        # because each returns a copy derived from the *same* input plan.
+        live_plan, research_plan = await asyncio.gather(
+            self.live_lookup(plan, notes), self.research(plan, notes))
+        plan = dataclasses.replace(
+            plan, live=live_plan.live, evidence=research_plan.evidence,
+            thin_on=research_plan.thin_on)
+
+        # What the episode turned out to be built from, sent home on `notes`
+        # because the caller's plan is the unprepared one and cannot see any of
+        # this. The cache TTL is decided from these - see `cache.ttl_for` and
+        # PROBLEMS.md §89.
+        if notes is not None:
+            notes.outcome_dependent = bool(
+                getattr(plan.brief, "outcome_dependent", False))
+            notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
+            if plan.live is not None:
+                notes.live_status = plan.live.status
+                notes.live_outcome = plan.live.outcome
+        return plan
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

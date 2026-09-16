@@ -24,6 +24,20 @@ of the sources it was written from. A machine cannot tell you the episode said
 "last night" about a Wednesday game. Put side by side, a person can, in
 seconds, which is the whole point.
 
+**The in-progress group is the one to run deliberately.** It cannot be run on
+a schedule, because it needs something to actually be happening:
+
+    LIVE_SPORTS_PROVIDER=fake python tools/ei_eval.py --only in-progress --script
+    LIVE_FAKE_SPORTS_STATUS=final LIVE_SPORTS_PROVIDER=fake python tools/ei_eval.py --only in-progress --script
+    python tools/ei_eval.py --only in-progress --script    # no provider at all
+
+Those are the three states that matter and the three that were never checked.
+Read `live facts` on each row - `facts / status=in_progress` means the episode
+was told the game was on; anything else means it was told we do not know, and
+the script must not contain a result either way. With no provider the row says
+`not_configured`, and the script must say plainly that the current state is not
+something we have, without claiming the world has reported nothing.
+
 **Not touched.** Whether the story is any good. That is `write.py` and a
 judgement call, and no harness is going to make it otherwise.
 
@@ -86,6 +100,7 @@ PROMPTS = {
     # stands or tells you how it ended.
     "in-progress": [
         "Chiefs game",
+        "Tell me about the Chiefs game",
         "how is the match going",
         "what is happening in the election count",
     ],
@@ -166,7 +181,9 @@ async def one(generator: ScriptGenerator, query: str, minutes: int,
         "window": getattr(brief, "recency_days", 0),
         "must": list(getattr(brief, "must_establish", [])),
         "missing": list(plan.thin_on),
-        "live": plan.live.source if plan.live is not None else "",
+        "live": getattr(plan.live, "detail", "") if plan.live is not None else "",
+        "live_outcome": getattr(plan.live, "outcome", "") if plan.live is not None else "",
+        "live_status": getattr(plan.live, "status", "") if plan.live is not None else "",
         "research": notes.research,
         # The dates the episode had to reason from. Printed beside whatever
         # relative phrases the script used, because that comparison is the only
@@ -217,8 +234,13 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
     if row["missing"]:
         print(f"  NOT ESTABLISHED  {'; '.join(row['missing'])}"
               "   <- the episode must say so, not fill it in")
-    if row["live"]:
-        print(f"  live facts  {row['live']}")
+    if row["live_outcome"]:
+        # The whole point of the outcome vocabulary: "no provider", "provider
+        # broke" and "no such game" are three different things and a report
+        # that prints one word for all of them cannot be read.
+        mark = "" if row["live_outcome"] == "facts" else "   <- NO LIVE EVIDENCE"
+        print(f"  live facts  {row['live_outcome']} / status={row['live_status']}"
+              f"   ({row['live']}){mark}")
 
     if row["source_dates"]:
         ages = ", ".join(f"{stamp} ({age})" for stamp, age in row["source_dates"])
