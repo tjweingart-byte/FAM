@@ -546,6 +546,13 @@ class Settings:
     # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
     api_sports_key: str = field(
         default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
+    # API-Sports is one API per sport - different host, different response
+    # shape, different status codes - so a deployment says which one it mostly
+    # serves. An explicit sport word in the question still overrides it. See
+    # `live_sources.sport_for` for why team-name routing is not attempted.
+    api_sports_sport: str = field(
+        default_factory=lambda: os.environ.get(
+            "API_SPORTS_SPORT", "american-football").strip())
     sportsdataio_key: str = field(
         default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
     finnhub_key: str = field(

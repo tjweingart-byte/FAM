@@ -33,63 +33,159 @@ def entity(domain="sports", provider="p", id="1", label="KC v DEN"):
     return live_facts.Entity(domain=domain, provider=provider, id=id, label=label)
 
 
-FIXTURE = {
-    "fixture": {"id": 1, "status": {"short": "2H", "elapsed": 52}},
+#: American football: `/games`, `scores.home.total`. The motivating case.
+NFL_GAME = {
+    "game": {"id": 9, "status": {"short": "Q3", "long": "Third Quarter"}},
     "teams": {"home": {"name": "Kansas City"}, "away": {"name": "Denver"}},
-    "goals": {"home": 21, "away": 7},
+    "scores": {"home": {"total": 21}, "away": {"total": 7}},
+}
+#: Soccer: `/fixtures`, `goals`. A different host and a different shape.
+SOCCER_FIXTURE = {
+    "fixture": {"id": 3, "status": {"short": "2H", "elapsed": 67}},
+    "teams": {"home": {"name": "Arsenal"}, "away": {"name": "Chelsea"}},
+    "goals": {"home": 1, "away": 2},
 }
 
 
 # --------------------------------------------------------------------------
-# sports: the status vocabulary is mapped at the boundary
+# sports: one API per sport, and they are not interchangeable
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("short, expected", [
-    ("NS", live_facts.SCHEDULED),
-    ("1H", live_facts.IN_PROGRESS),
-    ("HT", live_facts.IN_PROGRESS),
-    ("FT", live_facts.FINAL),
-    ("AET", live_facts.FINAL),
-    ("WEIRD", live_facts.UNKNOWN),
-    ("", live_facts.UNKNOWN),
+@pytest.mark.parametrize("subject, expected", [
+    ("the Chiefs game", "american-football"),
+    ("who won the NFL game", "american-football"),
+    ("the NBA finals", "basketball"),
+    ("the Premier League match", "football"),
+    ("an MLB game tonight", "baseball"),
 ])
-def test_api_sports_status_codes_map_or_become_unknown(short, expected):
-    """A provider's own vocabulary is its own business and must be translated
-    where it arrives. An unmapped code silently missing every comparison
-    downstream is the failure the closed vocabulary exists to close - and
-    `unknown` is not "probably fine", it is the state in which no result may
-    be spoken."""
-    row = {**FIXTURE, "fixture": {**FIXTURE["fixture"], "status": {"short": short}}}
-    facts = ls.ApiSportsSource().to_facts(row, entity())
+def test_a_question_reaches_the_right_sport(subject, expected):
+    """API-Sports is four separate APIs wearing one brand - different hosts,
+    response shapes and status codes. Writing one adapter against the soccer
+    host and calling it "sports" is how the Chiefs get looked up on a football
+    endpoint, which is exactly the bug this routing exists to prevent."""
+    assert ls.sport_for(subject).key == expected
+
+
+def test_an_unnamed_sport_falls_to_the_configured_default():
+    """"Chiefs game" names no sport. Team-name routing would need a
+    maintained roster of every team in every league, and a stale one sends an
+    NFL question to a soccer endpoint - worse than a default a deployment
+    chose on purpose."""
+    assert ls.sport_for("the Chiefs game").key == ls.settings.api_sports_sport
+    assert ls.sport_for("").key == ls.settings.api_sports_sport
+
+
+def test_each_sport_has_its_own_host_and_status_vocabulary():
+    hosts = {s.host for s in ls.SPORTS.values()}
+    assert len(hosts) == len(ls.SPORTS), "two sports share a host"
+    assert ls.SPORTS["football"].path == "fixtures"
+    assert ls.SPORTS["american-football"].path == "games"
+    assert ls.SPORTS["american-football"].unit == "points"
+    assert ls.SPORTS["football"].unit == "goals"
+
+
+@pytest.mark.parametrize("sport_key, short, expected", [
+    ("american-football", "NS", live_facts.SCHEDULED),
+    ("american-football", "Q3", live_facts.IN_PROGRESS),
+    ("american-football", "FT", live_facts.FINAL),
+    ("american-football", "1H", live_facts.UNKNOWN),   # a soccer code
+    ("football", "1H", live_facts.IN_PROGRESS),
+    ("football", "AET", live_facts.FINAL),
+    ("football", "Q3", live_facts.UNKNOWN),            # a gridiron code
+    ("basketball", "Q4", live_facts.IN_PROGRESS),
+    ("baseball", "IN7", live_facts.IN_PROGRESS),
+    ("american-football", "WEIRD", live_facts.UNKNOWN),
+    ("american-football", "", live_facts.UNKNOWN),
+])
+def test_status_codes_map_per_sport_or_become_unknown(sport_key, short, expected):
+    """Each sport's vocabulary is its own, translated where it arrives. A code
+    borrowed from another sport must NOT map - that is the cross-wiring this
+    catches. And `unknown` is not "probably fine": it is the state in which no
+    result may be spoken."""
+    sport = ls.SPORTS[sport_key]
+    row = {"game": {"id": 1, "status": {"short": short}},
+           "teams": {"home": {"name": "A"}, "away": {"name": "B"}},
+           "scores": {"home": {"total": 3}, "away": {"total": 1}}}
+    facts = ls.ApiSportsSource().to_facts(row, entity(), sport)
     assert facts is not None
     assert facts.status == expected
 
 
+def test_both_score_shapes_are_read():
+    """`goals` for soccer, `scores.home.total` for everything else. One
+    adapter reading only one of them silently returns no score for the other."""
+    nfl = ls.ApiSportsSource().to_facts(
+        NFL_GAME, entity(), ls.SPORTS["american-football"])
+    soccer = ls.ApiSportsSource().to_facts(
+        SOCCER_FIXTURE, entity(), ls.SPORTS["football"])
+    assert "21 to 7" in nfl.facts[0]
+    assert "2 to 1" in soccer.facts[0]
+    assert "points" not in soccer.facts[0], "soccer does not score points"
+
+
+def test_the_entity_id_carries_its_sport():
+    """A bare game id is meaningless without knowing which API issued it, and
+    `fetch` receives only the entity."""
+    assert ls.ApiSportsSource()._game_id(NFL_GAME) == "9"
+    assert ls.ApiSportsSource()._game_id(SOCCER_FIXTURE) == "3"
+
+
 def test_a_game_in_progress_is_not_described_as_beaten():
-    facts = ls.ApiSportsSource().to_facts(FIXTURE, entity())
+    facts = ls.ApiSportsSource().to_facts(
+        NFL_GAME, entity(), ls.SPORTS["american-football"])
     assert facts.status == live_facts.IN_PROGRESS
     assert "lead" in facts.facts[0]
     assert "beat" not in facts.facts[0]
 
 
 def test_a_finished_game_may_say_beat():
-    row = {**FIXTURE, "fixture": {**FIXTURE["fixture"], "status": {"short": "FT"}}}
-    facts = ls.ApiSportsSource().to_facts(row, entity())
+    row = {**NFL_GAME, "game": {**NFL_GAME["game"], "status": {"short": "FT"}}}
+    facts = ls.ApiSportsSource().to_facts(
+        row, entity(), ls.SPORTS["american-football"])
     assert facts.status == live_facts.FINAL
     assert "beat" in facts.facts[0]
 
 
 def test_facts_are_spoken_sentences_rather_than_scorelines():
     """These reach a voice. "KC 21-7 DEN 3Q 10:04" is not a sentence."""
-    facts = ls.ApiSportsSource().to_facts(FIXTURE, entity())
+    facts = ls.ApiSportsSource().to_facts(
+        NFL_GAME, entity(), ls.SPORTS["american-football"])
     for line in facts.facts:
         assert line.endswith(".")
         assert "-" not in line
 
 
 def test_a_row_with_no_score_yields_nothing_rather_than_a_blank_fact():
-    row = {"fixture": {"id": 1, "status": {"short": "2H"}},
-           "teams": {"home": {"name": "A"}, "away": {"name": "B"}}, "goals": {}}
-    assert ls.ApiSportsSource().to_facts(row, entity()) is None
+    row = {"game": {"id": 1, "status": {"short": "Q1"}},
+           "teams": {"home": {"name": "A"}, "away": {"name": "B"}}, "scores": {}}
+    assert ls.ApiSportsSource().to_facts(
+        row, entity(), ls.SPORTS["american-football"]) is None
+
+
+def test_sportsdataio_reads_its_own_nfl_shape():
+    """A different vendor entirely - flat rows, PascalCase, its own statuses.
+    Subclassing the API-Sports adapter for it was wrong."""
+    row = {"GameKey": "1", "Status": "InProgress", "HomeTeam": "KC",
+           "AwayTeam": "DEN", "HomeScore": 21, "AwayScore": 7,
+           "Quarter": "3", "TimeRemaining": "10:04"}
+    facts = ls.SportsDataIOSource().to_facts(row, entity())
+    assert facts.status == live_facts.IN_PROGRESS
+    assert "KC lead DEN 21 to 7." == facts.facts[0]
+    assert "10:04" in facts.facts[1]
+
+
+def test_sportsdataio_warns_that_a_free_key_returns_scrambled_data(monkeypatch):
+    """A trap worth naming: a trial key looks like it works, and `verify`
+    cannot tell the difference - so the warning has to travel with the
+    configured state rather than waiting to be discovered."""
+    import dataclasses
+
+    import config
+
+    monkeypatch.setattr(ls, "settings", dataclasses.replace(
+        config.settings, sportsdataio_key="a-key"))
+    ok, why = ls.SportsDataIOSource().diagnose()
+    assert ok
+    assert "scrambled" in why
 
 
 # --------------------------------------------------------------------------

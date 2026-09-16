@@ -5462,3 +5462,87 @@ the only result it could have given and the right one.
 
 `PROVENANCE.md` is the panel; the provider table is in `LIVE_FACTS.md`; the
 GDELT notes are in `TRENDING.md`.
+
+## 92. The sports adapter was pointed at the wrong sport
+
+§91 shipped an API-Sports adapter with `BASE = "https://v3.football.api-sports.io"`.
+That is **soccer**. The motivating case for this entire line of work is an NFL
+game, which lives on `v1.american-football.api-sports.io` - a different host, a
+different response shape and a different status vocabulary.
+
+Nobody would have seen it from the tests, because the tests fed it a soccer
+payload and it read a soccer payload correctly.
+
+### API-Sports is four APIs wearing one brand
+
+| sport | host | path | score field |
+|---|---|---|---|
+| american-football | `v1.american-football.…` | `games` | `scores.home.total` |
+| football (soccer) | `v3.football.…` | `fixtures` | `goals.home` |
+| basketball | `v1.basketball.…` | `games` | `scores.home.total` |
+| baseball | `v1.baseball.…` | `games` | `scores.home.total` |
+
+So `live_sources.SPORTS` is a table rather than a constant, and the shape
+differences are **data rather than branching** - one `to_facts` that reads both
+score shapes, with the status vocabulary looked up per sport. A test asserts no
+two sports share a host, that both score shapes are read, and that a code
+borrowed from another sport does **not** map: `1H` is in-progress in soccer and
+`unknown` in gridiron, and cross-wiring those is the failure this catches.
+
+The entity id carries its sport (`american-football:9`), because a bare game id
+is meaningless without knowing which API issued it and `fetch` receives only
+the entity.
+
+### The limitation that is left, deliberately
+
+**"Chiefs game" names no sport.** It falls back to `API_SPORTS_SPORT`, which a
+deployment sets to whatever it mostly serves.
+
+Team-name routing was considered and rejected: it needs a maintained roster of
+every team in every league, and a stale roster sends an NFL question to a
+soccer endpoint - worse than a default somebody chose on purpose. Resolving
+sport from team properly wants the provider's own cross-sport team search,
+which is N requests rather than one. That is the next step and is written down
+rather than guessed at.
+
+### SportsDataIO was subclassing the wrong thing
+
+It inherited the API-Sports adapter for its sentence shaping, which meant it
+also inherited API-Sports' endpoints and status codes. It is a different vendor
+with flat PascalCase rows and its own vocabulary, so it now stands alone.
+
+Also named, because it is a trap: **its free key returns deliberately scrambled
+data**. A trial key looks like it works and `verify()` cannot tell the
+difference, so `diagnose()` carries the warning whenever a key is set.
+
+### Finnhub did not know whether the market was open
+
+A quote pulled at three in the morning is not what something "is trading at" -
+it is where it closed. Saying the first when you mean the second is a small lie
+a listener catches instantly, and it is exactly the class this project keeps
+paying for.
+
+One extra call to `/stock/market-status`, and the sentence follows the fact:
+
+    open     "is trading at"
+    closed   "closed at"
+    unknown  "was most recently at"
+
+`None` for an unknown session rather than a guess, reported as "most recently"
+rather than asserted either way.
+
+Its symbol resolution also now prefers ordinary common stock over the warrants,
+units and foreign listings sharing a prefix, so "Apple" finds `AAPL` rather
+than `AAPL.SW` - a wrong ticker does not fail, it returns somebody else's
+price.
+
+### The proxy, settled
+
+Every provider host is blocked from the build container, **including
+`api.exa.ai`, which FAM already uses in production**. That is what proves it is
+a blanket container egress policy rather than anything provider-specific, and
+the proxy README is explicit: a 403 on CONNECT is an organization policy denial
+and must be reported rather than routed around.
+
+`PROVIDER_ROLLOUT.md` is the runbook for turning each one on somewhere with
+network.

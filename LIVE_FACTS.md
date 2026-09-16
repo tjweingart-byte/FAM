@@ -297,9 +297,9 @@ recorded payloads in `tests/test_live_providers.py`. Run
 
 | domain | name | provider | credential | notes |
 |---|---|---|---|---|
-| sports | `api-sports` | API-Sports | `API_SPORTS_KEY` | self-serve, transparent pricing |
+| sports | `api-sports` | API-Sports | `API_SPORTS_KEY` + `API_SPORTS_SPORT` | self-serve; **one API per sport** |
 | sports | `sportsdataio` | SportsDataIO | `SPORTSDATAIO_KEY` | player-level stats; sales-gated |
-| markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed on the free tier |
+| markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
 | markets | `alpha-vantage` | Alpha Vantage | `ALPHA_VANTAGE_KEY` | ~15 min delayed |
 | elections | `polymarket` | Polymarket | none | **forecast, never a result** |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
@@ -342,3 +342,56 @@ wrong tense.
                    Final/F-OT -> final     anything else -> unknown
     Finnhub / AV   always unknown — a price is not an event
     Polymarket     always unknown — a forecast is not an event
+
+
+## API-Sports is four APIs, not one
+
+Different **host**, **response shape** and **status vocabulary** per sport:
+
+| sport | host | path | score field | unit |
+|---|---|---|---|---|
+| `american-football` | `v1.american-football.…` | `games` | `scores.home.total` | points |
+| `football` (soccer) | `v3.football.…` | `fixtures` | `goals.home` | goals |
+| `basketball` | `v1.basketball.…` | `games` | `scores.home.total` | points |
+| `baseball` | `v1.baseball.…` | `games` | `scores.home.total` | runs |
+
+Writing one adapter against `v3.football` and calling it "sports" is how the
+Chiefs get looked up on a soccer endpoint. `live_sources.SPORTS` is that table
+and a test asserts no two sports share a host, that both score shapes are read,
+and that a status code borrowed from another sport does **not** map.
+
+`sport_for()` routes on explicit sport words, falling back to
+`API_SPORTS_SPORT`. **"Chiefs game" names no sport**, so it falls back — team
+name routing would need a maintained roster of every league, and a stale one is
+worse than a default someone chose. Resolving sport from team wants the
+provider's own cross-sport team search; that is the next step, not guessed at.
+
+The entity id carries its sport (`american-football:9`) because a bare game id
+is meaningless without knowing which API issued it, and `fetch` gets only the
+entity.
+
+## Finnhub knows whether the market is open
+
+One extra call per lookup, and it changes the sentence because it changes the
+fact:
+
+| session | the episode says |
+|---|---|
+| open | "is trading at" |
+| closed | "closed at" |
+| unknown | "was most recently at" |
+
+A closing price described as "is trading at" is a small lie a listener catches
+immediately — and `None` for an unknown session is reported as "most recently"
+rather than asserted either way.
+
+Its symbol resolution prefers ordinary common stock over the warrants, units
+and foreign listings that share a prefix, so "Apple" finds `AAPL` and not
+`AAPL.SW`. Never a guessed ticker: a hallucinated symbol returns somebody
+else's price, fresh and confident and wrong.
+
+## SportsDataIO's free key returns scrambled data
+
+Worth naming because it is a trap: a trial key *looks* like it works, and
+`verify()` cannot tell the difference. `diagnose()` says so whenever the key is
+set. Do not run it in production on a trial key.

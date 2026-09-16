@@ -72,7 +72,7 @@ FAM_ENVIRONMENT = (
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
     "GDELT", "GDELT_TIMEOUT_SECONDS", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK",
-    "API_SPORTS_KEY", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
+    "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with

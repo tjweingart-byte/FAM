@@ -48,7 +48,9 @@ episode built on it is traceable to it from the log and `/api/health`.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -227,109 +229,264 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
         return response.json()
 
 
+@dataclass(frozen=True)
+class Sport:
+    """One API-Sports product. They are separate APIs wearing one brand.
+
+    Each sport has **its own host and its own response shape** - soccer returns
+    `goals: {home, away}` from `/fixtures`, American football returns
+    `scores: {home: {total}, away: {total}}` from `/games` - and each has its
+    own status vocabulary. Writing one adapter against `v3.football` and
+    calling it "sports" is how the Chiefs end up being looked up on a soccer
+    endpoint, which is the bug this table exists to prevent.
+    """
+
+    key: str
+    host: str
+    #: `fixtures` for soccer, `games` for everything else.
+    path: str
+    #: What a score is called out loud in this sport.
+    unit: str
+    #: Words in a subject that select this sport outright.
+    words: tuple
+    #: Provider short code -> FAM status. Anything unlisted becomes `unknown`.
+    statuses: dict
+
+
+#: The four with the clearest demand. Adding one is a row here plus its status
+#: codes - no new class, because the shape differences are data, not behaviour.
+SPORTS = {
+    "american-football": Sport(
+        key="american-football",
+        host="https://v1.american-football.api-sports.io",
+        path="games", unit="points",
+        words=("nfl", "american football", "touchdown", "quarterback",
+               "super bowl", "college football", "ncaaf"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "Q1": live_facts.IN_PROGRESS, "Q2": live_facts.IN_PROGRESS,
+            "Q3": live_facts.IN_PROGRESS, "Q4": live_facts.IN_PROGRESS,
+            "OT": live_facts.IN_PROGRESS, "HT": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
+        }),
+    "football": Sport(
+        key="football",
+        host="https://v3.football.api-sports.io",
+        path="fixtures", unit="goals",
+        words=("soccer", "premier league", "la liga", "serie a", "bundesliga",
+               "champions league", "world cup", "fifa"),
+        statuses={
+            "NS": live_facts.SCHEDULED, "TBD": live_facts.SCHEDULED,
+            "1H": live_facts.IN_PROGRESS, "2H": live_facts.IN_PROGRESS,
+            "HT": live_facts.IN_PROGRESS, "ET": live_facts.IN_PROGRESS,
+            "P": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL, "AET": live_facts.FINAL,
+            "PEN": live_facts.FINAL,
+        }),
+    "basketball": Sport(
+        key="basketball",
+        host="https://v1.basketball.api-sports.io",
+        path="games", unit="points",
+        words=("nba", "basketball", "wnba", "ncaab"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "Q1": live_facts.IN_PROGRESS, "Q2": live_facts.IN_PROGRESS,
+            "Q3": live_facts.IN_PROGRESS, "Q4": live_facts.IN_PROGRESS,
+            "OT": live_facts.IN_PROGRESS, "HT": live_facts.IN_PROGRESS,
+            "BT": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
+        }),
+    "baseball": Sport(
+        key="baseball",
+        host="https://v1.baseball.api-sports.io",
+        path="games", unit="runs",
+        words=("mlb", "baseball", "world series", "innings"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "IN1": live_facts.IN_PROGRESS, "IN2": live_facts.IN_PROGRESS,
+            "IN3": live_facts.IN_PROGRESS, "IN4": live_facts.IN_PROGRESS,
+            "IN5": live_facts.IN_PROGRESS, "IN6": live_facts.IN_PROGRESS,
+            "IN7": live_facts.IN_PROGRESS, "IN8": live_facts.IN_PROGRESS,
+            "IN9": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL,
+        }),
+}
+
+
+def sport_for(subject: str) -> Sport:
+    """Which API-Sports product answers this question.
+
+    A named sport wins; otherwise the deployment's configured default.
+
+    **The honest limitation**, and it is the motivating case: "Chiefs game"
+    contains no sport word. Team-name routing would need a maintained roster
+    of every team in every league, and a stale one sends an NFL question to a
+    soccer endpoint - worse than the default. So a deployment says what it
+    mostly serves (`API_SPORTS_SPORT`) and explicit words override it.
+
+    Resolving the sport from the team is the obvious next step and wants the
+    provider's own team search across sports, which is N requests rather than
+    one. Deliberately not guessed at here.
+    """
+    text = " ".join((subject or "").lower().split())
+    for sport in SPORTS.values():
+        if any(word in text for word in sport.words):
+            return sport
+    return SPORTS.get(settings.api_sports_sport, SPORTS["american-football"])
+
+
 class ApiSportsSource(LiveSource):
-    """API-Sports (api-football / api-american-football and siblings).
+    """API-Sports. Self-serve, transparently priced, one product per sport.
 
-    Self-serve and transparently priced, which is why it is the default sports
-    adapter: free 100 req/day to build against, then $19/mo for 7,500/day.
+    Free 100 req/day to build against; $19/mo for 7,500/day, $29 for 75,000,
+    $39 for 150,000. All endpoints on every tier, history limited on free.
 
-    `resolve` uses the provider's own fixtures endpoint rather than any
-    identifier a model produced - a hallucinated game id does not fail, it
-    returns somebody else's game, and nothing downstream can tell.
+    `resolve` uses the provider's own fixtures list rather than any identifier
+    a model produced - a hallucinated game id does not fail, it returns
+    somebody else's game, and nothing downstream can tell.
     """
 
     name = "API-Sports"
     domain = "sports"
     cost_per_call = 0.0  # flat-rate plan; the bill is not per call
     delayed_seconds = 0.0
-    BASE = "https://v3.football.api-sports.io"
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.api_sports_key:
             return False, "API_SPORTS_KEY is not set"
-        return True, "API_SPORTS_KEY present (not verified from this machine)"
+        if settings.api_sports_sport not in SPORTS:
+            return False, (f"API_SPORTS_SPORT={settings.api_sports_sport!r} is not "
+                           f"one of {', '.join(sorted(SPORTS))}")
+        return True, (f"API_SPORTS_KEY present, default sport "
+                      f"{settings.api_sports_sport} (not verified from this machine)")
 
     def _headers(self) -> dict:
         return {"x-apisports-key": settings.api_sports_key}
 
     async def verify(self) -> tuple[bool, str]:
+        sport = SPORTS[settings.api_sports_sport]
         try:
-            data = await _json(f"{self.BASE}/status", self._headers(), {},
+            data = await _json(f"{sport.host}/status", self._headers(), {},
                                settings.live_timeout_seconds)
         except Exception as exc:  # noqa: BLE001
             return False, f"API-Sports did not answer: {type(exc).__name__}: {exc}"
-        account = (data or {}).get("response", {})
+        account = (data or {}).get("response") or {}
         if not account:
-            return False, "API-Sports answered but the response was unreadable"
-        return True, f"API-Sports accepted the key: {account}"
+            errors = (data or {}).get("errors")
+            return False, f"API-Sports rejected the request: {errors or 'unreadable'}"
+        requests = (account.get("requests") or {})
+        return True, (f"API-Sports accepted the key on {sport.key}: "
+                      f"{requests.get('current', '?')}/{requests.get('limit_day', '?')} "
+                      f"requests used today")
 
     async def resolve(self, brief) -> Optional[Entity]:
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
         if not subject:
             return None
-        data = await _json(f"{self.BASE}/fixtures", self._headers(),
+        sport = sport_for(subject)
+        data = await _json(f"{sport.host}/{sport.path}", self._headers(),
                            {"live": "all"}, settings.live_timeout_seconds)
+
         wanted = {w for w in subject.lower().split() if len(w) > 3}
         for row in (data or {}).get("response", []) or []:
-            teams = (row.get("teams") or {})
-            names = " ".join(
-                str((teams.get(side) or {}).get("name", "")).lower()
-                for side in ("home", "away"))
+            names = " ".join(self._team_names(row)).lower()
             if wanted and any(word in names for word in wanted):
-                fixture = row.get("fixture") or {}
+                home, away = self._team_names(row)
                 return Entity(
                     domain="sports", provider=self.name,
-                    id=str(fixture.get("id", "")),
-                    label=" v ".join(
-                        str((teams.get(s) or {}).get("name", "")) for s in ("home", "away")))
+                    # The sport rides in the id, because a bare game id is
+                    # meaningless without knowing which API issued it - and
+                    # `fetch` gets only the entity.
+                    id=f"{sport.key}:{self._game_id(row)}",
+                    label=f"{home} v {away}")
         return None
 
-    #: API-Sports' own status short codes, mapped at the boundary. Anything
-    #: unlisted becomes `unknown`, which is the state in which no result may
-    #: be spoken - never a guess.
-    STATUS = {
-        "NS": live_facts.SCHEDULED, "TBD": live_facts.SCHEDULED,
-        "1H": live_facts.IN_PROGRESS, "2H": live_facts.IN_PROGRESS,
-        "HT": live_facts.IN_PROGRESS, "ET": live_facts.IN_PROGRESS,
-        "P": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
-        "FT": live_facts.FINAL, "AET": live_facts.FINAL, "PEN": live_facts.FINAL,
-    }
-
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        data = await _json(f"{self.BASE}/fixtures", self._headers(),
-                           {"id": entity.id}, settings.live_timeout_seconds)
+        sport_key, _, game_id = entity.id.partition(":")
+        sport = SPORTS.get(sport_key)
+        if sport is None or not game_id:
+            return None
+        data = await _json(f"{sport.host}/{sport.path}", self._headers(),
+                           {"id": game_id}, settings.live_timeout_seconds)
         rows = (data or {}).get("response", []) or []
         if not rows:
             return None
-        return self.to_facts(rows[0], entity)
+        return self.to_facts(rows[0], entity, sport)
 
-    def to_facts(self, row: dict, entity: Entity) -> Optional[LiveFacts]:
-        """One fixture row -> LiveFacts. Split out so tests can drive it."""
-        fixture = row.get("fixture") or {}
-        teams = row.get("teams") or {}
-        goals = row.get("goals") or {}
-        short = str(((fixture.get("status") or {}).get("short") or "")).upper()
-        status = self.STATUS.get(short, live_facts.UNKNOWN)
+    # --- shape readers ----------------------------------------------------
+    # Small and separate because this is where the sports genuinely differ,
+    # and a single branching `to_facts` is where that difference gets lost.
+    @staticmethod
+    def _team_names(row: dict) -> tuple:
+        teams = (row or {}).get("teams") or {}
+        return (str((teams.get("home") or {}).get("name", "")),
+                str((teams.get("away") or {}).get("name", "")))
 
-        home = str((teams.get("home") or {}).get("name", "")) or "the home side"
-        away = str((teams.get("away") or {}).get("name", "")) or "the away side"
+    @staticmethod
+    def _game_id(row: dict) -> str:
+        for holder in ("game", "fixture"):
+            block = (row or {}).get(holder) or {}
+            if block.get("id") is not None:
+                return str(block["id"])
+        return str((row or {}).get("id", ""))
+
+    @staticmethod
+    def _status_block(row: dict) -> dict:
+        for holder in ("game", "fixture"):
+            block = (row or {}).get(holder) or {}
+            if block.get("status"):
+                return block["status"] or {}
+        return (row or {}).get("status") or {}
+
+    @staticmethod
+    def _score(row: dict) -> tuple:
+        """Points for each side, whichever shape this sport uses."""
+        goals = (row or {}).get("goals")
+        if isinstance(goals, dict) and goals.get("home") is not None:
+            return goals.get("home"), goals.get("away")
+        scores = (row or {}).get("scores") or {}
+        home, away = scores.get("home"), scores.get("away")
+        if isinstance(home, dict):
+            home, away = home.get("total"), (away or {}).get("total")
+        return home, away
+
+    def to_facts(self, row: dict, entity: Entity,
+                 sport: Optional[Sport] = None) -> Optional[LiveFacts]:
+        """One game row -> LiveFacts. Split out so tests can drive it."""
+        sport = sport or SPORTS[settings.api_sports_sport]
+        status_block = self._status_block(row)
+        short = str(status_block.get("short") or "").upper()
+        # Mapped at the boundary. Unrecognised becomes `unknown`, never a
+        # guess - so a provider that changes its codes degrades to silence
+        # rather than to a confident wrong tense.
+        status = sport.statuses.get(short, live_facts.UNKNOWN)
+
+        home, away = self._team_names(row)
+        home = home or "the home side"
+        away = away or "the away side"
+        hs, as_ = self._score(row)
+
         said: list = []
-        # Spoken sentences, never a scoreline in a shape a voice cannot read.
-        if goals.get("home") is not None and goals.get("away") is not None:
-            verb = "beat" if status == live_facts.FINAL else "lead"
-            first, second = (home, away)
-            hs, as_ = goals["home"], goals["away"]
+        if hs is not None and as_ is not None:
+            first, second, lead, trail = home, away, hs, as_
             if as_ > hs:
-                first, second, hs, as_ = away, home, as_, hs
-            if hs == as_:
-                said.append(f"{home} and {away} are level at {hs} apiece.")
+                first, second, lead, trail = away, home, as_, hs
+            if lead == trail:
+                said.append(f"{home} and {away} are level at {lead} {sport.unit} each.")
+            elif status == live_facts.FINAL:
+                said.append(f"{first} beat {second} {lead} to {trail}.")
             else:
-                said.append(f"{first} {verb} {second} {hs} to {as_}.")
-        elapsed = (fixture.get("status") or {}).get("elapsed")
-        if status == live_facts.IN_PROGRESS and elapsed:
-            said.append(f"About {elapsed} minutes have been played.")
-        if status == live_facts.SCHEDULED:
-            said.append(f"{home} and {away} have not kicked off yet.")
+                said.append(f"{first} lead {second} {lead} to {trail}.")
+
+        if status == live_facts.IN_PROGRESS:
+            where = (status_block.get("long") or status_block.get("timer")
+                     or status_block.get("elapsed"))
+            if where:
+                said.append(f"They are in {where}." if isinstance(where, str)
+                            else f"About {where} minutes have been played.")
+        elif status == live_facts.SCHEDULED:
+            said.append(f"{home} and {away} have not started yet.")
+
         if not said:
             return None
         return LiveFacts(domain="sports", source=self.name,
@@ -337,30 +494,36 @@ class ApiSportsSource(LiveSource):
                          status=status, entity=entity)
 
 
-class SportsDataIOSource(ApiSportsSource):
+class SportsDataIOSource(LiveSource):
     """SportsDataIO. Deeper US coverage, including player-level statistics.
 
     The reason to reach for this over API-Sports is the motivating failure:
-    *"Mahomes had a great game"* needs player data, which API-Sports' football
-    endpoints do not carry for the NFL. Pricing is sales-gated above a
-    ~$99-149/mo "Discovery Lab" tier, so this is the upgrade rather than
-    the start.
+    *"Mahomes had a great game"* needs player data, and API-Sports does not
+    carry it for the NFL. Pricing is sales-gated above roughly a $99-149/mo
+    "Discovery Lab" tier, so this is the upgrade rather than the start.
 
-    Subclasses the API-Sports adapter only for the spoken-sentence shaping in
-    `to_facts`; the endpoints and the status vocabulary are its own.
+    **Its free key returns deliberately scrambled data**, which is a trap worth
+    naming: a free key looks like it works. `verify()` cannot tell the
+    difference, so a deployment on a trial key will produce confident nonsense.
+    Do not run this in production without a paid key.
     """
 
     name = "SportsDataIO"
+    domain = "sports"
+    cost_per_call = 0.0
+    delayed_seconds = 0.0
     BASE = "https://api.sportsdata.io/v3/nfl/scores/json"
     STATUS = {
         "Scheduled": live_facts.SCHEDULED, "InProgress": live_facts.IN_PROGRESS,
         "Final": live_facts.FINAL, "F/OT": live_facts.FINAL,
+        "Suspended": live_facts.IN_PROGRESS, "Halftime": live_facts.IN_PROGRESS,
     }
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.sportsdataio_key:
             return False, "SPORTSDATAIO_KEY is not set"
-        return True, "SPORTSDATAIO_KEY present (not verified from this machine)"
+        return True, ("SPORTSDATAIO_KEY present (not verified from this machine; "
+                      "note a free trial key returns scrambled data)")
 
     def _headers(self) -> dict:
         return {"Ocp-Apim-Subscription-Key": settings.sportsdataio_key}
@@ -371,17 +534,83 @@ class SportsDataIOSource(ApiSportsSource):
                         {}, settings.live_timeout_seconds)
         except Exception as exc:  # noqa: BLE001
             return False, f"SportsDataIO did not answer: {type(exc).__name__}: {exc}"
-        return True, "SportsDataIO accepted the key"
+        return True, ("SportsDataIO accepted the key - but this cannot tell a "
+                      "paid key from a trial key returning scrambled data")
+
+    async def resolve(self, brief) -> Optional[Entity]:
+        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+        if not subject:
+            return None
+        data = await _json(f"{self.BASE}/ScoresByWeek/{_nfl_season()}/current",
+                           self._headers(), {}, settings.live_timeout_seconds)
+        wanted = {w for w in subject.lower().split() if len(w) > 3}
+        for row in (data if isinstance(data, list) else []):
+            names = f"{row.get('HomeTeam', '')} {row.get('AwayTeam', '')}".lower()
+            if wanted and any(word in names for word in wanted):
+                return Entity(domain="sports", provider=self.name,
+                              id=str(row.get("GameKey") or row.get("ScoreID") or ""),
+                              label=f"{row.get('AwayTeam')} at {row.get('HomeTeam')}")
+        return None
+
+    async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
+        data = await _json(f"{self.BASE}/ScoresByWeek/{_nfl_season()}/current",
+                           self._headers(), {}, settings.live_timeout_seconds)
+        for row in (data if isinstance(data, list) else []):
+            if str(row.get("GameKey") or row.get("ScoreID") or "") == entity.id:
+                return self.to_facts(row, entity)
+        return None
+
+    def to_facts(self, row: dict, entity: Entity) -> Optional[LiveFacts]:
+        status = self.STATUS.get(str(row.get("Status") or ""), live_facts.UNKNOWN)
+        home, away = str(row.get("HomeTeam") or ""), str(row.get("AwayTeam") or "")
+        hs, as_ = row.get("HomeScore"), row.get("AwayScore")
+        said: list = []
+        if hs is not None and as_ is not None:
+            first, second, lead, trail = home, away, hs, as_
+            if as_ > hs:
+                first, second, lead, trail = away, home, as_, hs
+            if lead == trail:
+                said.append(f"{home} and {away} are level at {lead} points each.")
+            elif status == live_facts.FINAL:
+                said.append(f"{first} beat {second} {lead} to {trail}.")
+            else:
+                said.append(f"{first} lead {second} {lead} to {trail}.")
+        quarter, clock = row.get("Quarter"), row.get("TimeRemaining")
+        if status == live_facts.IN_PROGRESS and quarter:
+            said.append(f"It is the {quarter} quarter"
+                        + (f", {clock} left." if clock else "."))
+        if not said:
+            return None
+        return LiveFacts(domain="sports", source=self.name,
+                         as_of=datetime.now(timezone.utc), facts=said,
+                         status=status, entity=entity)
+
+
+def _nfl_season() -> str:
+    """The NFL season a date belongs to. A January game is last season's."""
+    now = datetime.now(timezone.utc)
+    return str(now.year if now.month >= 3 else now.year - 1)
 
 
 class FinnhubSource(LiveSource):
     """Finnhub quotes. The most generous free tier in market data.
 
-    60 requests a minute free, and **delayed by about twenty minutes** on that
-    tier - which is fine here and not fine elsewhere: `delayed_seconds` makes
-    the prompt say "delayed by twenty minutes" rather than "current". A
-    provider that is honestly late is usable; one that is quietly late is the
-    failure this whole subsystem exists to prevent.
+    60 requests a minute free against Alpha Vantage's 25 a *day*, and paid
+    starts at $11.99/mo against $49.99. The one catch is licensing rather than
+    engineering: the free tier is personal/non-commercial, so a monetised app
+    needs a paid plan - which is the only real argument for Alpha Vantage.
+
+    **Delayed by about twenty minutes on the free tier**, which is fine here
+    and not fine elsewhere: `delayed_seconds` makes the prompt say "delayed by
+    twenty minutes" rather than "current". A provider that is honestly late is
+    usable; one that is quietly late is the failure this subsystem exists to
+    prevent.
+
+    **And it knows whether the market is open**, which matters more than the
+    delay. A quote pulled at 3am is not what something "is trading at" - it is
+    where it closed. Saying the first when you mean the second is a small lie
+    that a listener catches immediately, and it is the kind this project keeps
+    paying for. One extra call per lookup, cached with the facts.
     """
 
     name = "Finnhub"
@@ -397,20 +626,24 @@ class FinnhubSource(LiveSource):
 
     async def verify(self) -> tuple[bool, str]:
         try:
-            data = await _json(f"{self.BASE}/quote",
-                               {}, {"symbol": "AAPL", "token": settings.finnhub_key},
+            data = await _json(f"{self.BASE}/quote", {},
+                               {"symbol": "AAPL", "token": settings.finnhub_key},
                                settings.live_timeout_seconds)
         except Exception as exc:  # noqa: BLE001
             return False, f"Finnhub did not answer: {type(exc).__name__}: {exc}"
         if not data or data.get("c") in (None, 0):
-            return False, "Finnhub answered but returned no price"
+            return False, f"Finnhub answered without a price: {str(data)[:120]}"
         return True, f"Finnhub accepted the key (AAPL at {data.get('c')})"
 
     async def resolve(self, brief) -> Optional[Entity]:
         """Symbol lookup through Finnhub's own search - never a guessed ticker.
 
-        A hallucinated symbol returns somebody else's price, fresh and
-        confident and wrong, which nothing downstream can catch.
+        A hallucinated symbol does not fail. It returns somebody else's price,
+        fresh and confident and wrong, and nothing downstream can catch it.
+
+        Ordinary common stock is preferred over the warrants, units and foreign
+        listings that share a prefix, because "Apple" should find AAPL and not
+        AAPL.SW.
         """
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
         if not subject:
@@ -418,40 +651,83 @@ class FinnhubSource(LiveSource):
         data = await _json(f"{self.BASE}/search", {},
                            {"q": subject, "token": settings.finnhub_key},
                            settings.live_timeout_seconds)
-        for row in (data or {}).get("result", []) or []:
+        rows = (data or {}).get("result", []) or []
+        best = None
+        for row in rows:
             symbol = str(row.get("symbol") or "").strip()
-            if symbol and "." not in symbol:
-                return Entity(domain="markets", provider=self.name, id=symbol,
-                              label=str(row.get("description") or symbol))
-        return None
+            if not symbol or "." in symbol:
+                continue
+            kind = str(row.get("type") or "")
+            if kind == "Common Stock" and best is None:
+                best = row
+            elif best is None and not kind:
+                best = row
+        best = best or (rows[0] if rows else None)
+        if not best:
+            return None
+        symbol = str(best.get("symbol") or "").strip()
+        if not symbol:
+            return None
+        return Entity(domain="markets", provider=self.name, id=symbol,
+                      label=str(best.get("description") or symbol).title())
+
+    async def market_open(self) -> Optional[bool]:
+        """Is the US market trading right now? `None` when it cannot be told.
+
+        `None` rather than a guess: an unknown session is reported as "most
+        recently" rather than asserted either way.
+        """
+        try:
+            data = await _json(f"{self.BASE}/stock/market-status", {},
+                               {"exchange": "US", "token": settings.finnhub_key},
+                               settings.live_timeout_seconds)
+        except Exception as exc:  # noqa: BLE001 - a missing session is not fatal
+            log.info("finnhub: market status unavailable (%s)", exc)
+            return None
+        value = (data or {}).get("isOpen")
+        return bool(value) if isinstance(value, bool) else None
 
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        data = await _json(f"{self.BASE}/quote", {},
-                           {"symbol": entity.id, "token": settings.finnhub_key},
-                           settings.live_timeout_seconds)
-        return self.to_facts(data, entity)
+        quote, is_open = await asyncio.gather(
+            _json(f"{self.BASE}/quote", {},
+                  {"symbol": entity.id, "token": settings.finnhub_key},
+                  settings.live_timeout_seconds),
+            self.market_open())
+        return self.to_facts(quote, entity, is_open)
 
-    def to_facts(self, data: dict, entity: Entity) -> Optional[LiveFacts]:
+    def to_facts(self, data: dict, entity: Entity,
+                 is_open: Optional[bool] = None) -> Optional[LiveFacts]:
         price = (data or {}).get("c")
         if price in (None, 0):
             return None
+
+        # The sentence changes with the session, because the fact does. A
+        # closing price described as "is trading at" is a small lie a listener
+        # catches instantly.
+        if is_open is True:
+            said = [f"{entity.label} is trading at {price:.2f}."]
+        elif is_open is False:
+            said = [f"{entity.label} closed at {price:.2f}."]
+        else:
+            said = [f"{entity.label} was most recently at {price:.2f}."]
+
         change = (data or {}).get("dp")
-        said = [f"{entity.label} is trading at {price:.2f}."]
         if change is not None:
             way = "up" if change >= 0 else "down"
             said.append(f"That is {way} about {abs(change):.1f} percent on the day.")
+
         stamp = (data or {}).get("t")
         when = (datetime.fromtimestamp(stamp, tz=timezone.utc)
                 if isinstance(stamp, (int, float)) and stamp
                 else datetime.now(timezone.utc))
-        # A quote is a price, not an event: `unknown` is the honest status,
-        # and it is what stops a market question being answered as a result.
+        # A quote is a price, not an event. `unknown` is the honest status and
+        # is what stops a market question being answered as a result.
         return LiveFacts(domain="markets", source=self.name, as_of=when,
                          facts=said, status=live_facts.UNKNOWN, entity=entity,
                          delayed_seconds=self.delayed_seconds)
 
 
-class AlphaVantageSource(FinnhubSource):
+class AlphaVantageSource(LiveSource):
     """Alpha Vantage. The alternative when Finnhub's terms do not fit.
 
     Free tier is 25 requests a *day* against Finnhub's 60 a minute, and paid
@@ -462,6 +738,7 @@ class AlphaVantageSource(FinnhubSource):
     """
 
     name = "Alpha Vantage"
+    domain = "markets"
     cost_per_call = 0.0
     delayed_seconds = 900.0
     BASE = "https://www.alphavantage.co"
