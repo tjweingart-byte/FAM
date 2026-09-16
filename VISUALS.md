@@ -574,20 +574,7 @@ oldest rule applied to pixels, and the same choice as a placeholder tone
 standing in for a voice rather than a lesser voice standing in for Chatterbox.
 
 Where synthetic art does appear it is labelled `placeholder art` on the canvas,
-`placeholder` on the tile, `placeholder: true` in the API and
-`[PLACEHOLDER ART]` on `/api/health`.
-
-**The phone preview draws under the same rule.** A published page has no image
-model, exactly as it has no Claude and no Chatterbox, so both preview builds
-carry a drawing layer of their own (`FamPreviewArt`, built in
-`preview/build_preview.py`) that answers `/api/visual` and puts a finished
-drawing on every browse tile. The figure is `visual_provider._figure` ported to
-the browser; `fam-line.js`, the reveal and the tile are the shipped ones and
-are not touched. Everything it produces carries `placeholder: true`, so the
-label is on the picture. It is there to check the interface — that the line is
-revealed by the audio, and that a tile carries the finished drawing — and it
-says nothing about how a real illustration looks. That still needs a server, a
-key, `tools/visual_trace.py` and `tools/visual_probe.py`.
+`placeholder: true` in the API and `[PLACEHOLDER ART]` on `/api/health`.
 
 ---
 
@@ -615,15 +602,6 @@ the style described in words. Three things about that are deliberate:
   the machine they were added to and silently stopped working on every
   deployment, which still draws, still reports healthy, and simply stops
   looking like FAM.
-
-  Un-ignoring it was not enough, and that is worth stating plainly, because
-  the failure it was meant to prevent happened anyway (PROBLEMS.md §88): the
-  three approved illustrations were in a working copy and in no commit, so a
-  Render container built from a clone had a README and nothing else and drew
-  every episode from words. `tests/test_reference_packaging.py` asks git
-  whether each named stem is **tracked** — present on the disk of the machine
-  running the suite is exactly the state that shipped words-only art — and
-  asserts that no ignore rule can quietly take the folder back.
 
 **Which three is a manifest, not an accident.** `visual_style.ACTIVE_REFERENCES`
 names them, in order:

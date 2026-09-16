@@ -65,16 +65,6 @@ A deployment without them describes the style in words instead, produces
 visibly different art, and says so only in a log line and a health field. They
 ship with the code for the same reason the prompts do.
 
-**That sentence was true as a rule and false as a fact**, which is the worst
-of the two states to be in: the folder was never ignored, the Dockerfile
-copies it, and the files were nonetheless in nobody's commit — so Render ran
-`gpt-image-1` against a words-only style and logged
-`no approved references in /app/visual_references` on every request.
-`tests/test_reference_packaging.py` asks git rather than the wording: a named
-reference that is not **tracked** fails the suite, whether or not it is
-sitting on the disk of the machine running it. Adding artwork to this folder
-is not done until it is committed.
-
 ## Seeing what they bought
 
     python tools/visual_trace.py "<question>"

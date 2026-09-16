@@ -487,17 +487,6 @@
      the tile shows the drawing whole and the player draws it again. */
   .seed-thumb .line-thumb{ width:100%; height:100%; display:block; background:#F8F4EA; }
   .seed-thumb.has-line{ background:#F8F4EA; }
-  /* Placeholder art says so on the tile as well as on the player. The
-     preflight has always claimed it is "labelled as such on every tile and
-     player"; until this existed only the player was true, and a stand-in that
-     is labelled in one of the two places it appears is the failure this
-     project keeps paying to relearn. */
-  .seed-thumb .seed-mark{
-    position:absolute; right:7px; top:7px;
-    font-family:'JetBrains Mono', monospace; font-size:7.5px; letter-spacing:0.08em;
-    text-transform:uppercase; color:#8A8478; background:rgba(248,244,234,0.9);
-    border:1px solid rgba(23,24,32,0.14); border-radius:999px; padding:2px 6px;
-  }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
@@ -4177,14 +4166,7 @@
       + '<path d="' + escapeHtml(v.d) + '" fill="none" stroke="'
       + escapeHtml(v.stroke_color || "#171820") + '" stroke-width="'
       + escapeHtml(String(v.stroke_width || 1.4))
-      + '" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      // Synthetic line art is not FAM artwork. The player carries the same
-      // label; a tile without one is a placeholder passing as the real thing
-      // on the surface a listener spends the most time looking at.
-      + (v.placeholder
-          ? '<span class="seed-mark" title="Drawn without an image model. '
-            + 'Not FAM artwork.">placeholder</span>'
-          : '');
+      + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
   // ---------------- myFAM feed ----------------
