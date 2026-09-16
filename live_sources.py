@@ -886,7 +886,7 @@ class PolymarketSource(LiveSource):
             # Always unknown. A market never establishes that anything
             # happened, and `unknown` is what structurally forbids a result.
             status=live_facts.UNKNOWN, entity=entity,
-            kind="prediction-market")
+            kind=live_facts.PREDICTION_MARKET)
 
 
 class _QuoteOnlyElections(LiveSource):
