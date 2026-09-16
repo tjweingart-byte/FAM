@@ -40,14 +40,18 @@ def load_fixtures() -> dict:
     import mixes as mixes_mod
     import preferences as prefs_mod
     import topics as topics_mod
+    import trending as trending_mod
     import sharing
 
     bank = [t.as_dict() for t in topics_mod.TOPIC_BANK]
     by_id = {t["id"]: t for t in bank}
 
     def section(key, title, ids):
-        return {"key": key, "title": title,
-                "topics": [by_id[i] for i in ids if i in by_id], "empty_reason": ""}
+        # `world_trending` is the one row whose tiles are not bank ids - it
+        # comes from an outside feed - so it passes dicts through directly.
+        topics = [t if isinstance(t, dict) else by_id[t]
+                  for t in ids if isinstance(t, dict) or t in by_id]
+        return {"key": key, "title": title, "topics": topics, "empty_reason": ""}
 
     # Keyed by section rather than zipped against SECTIONS in order. The zip
     # was silently truncating: a fourth section arrived and the fixture kept
@@ -59,8 +63,20 @@ def load_fixtures() -> dict:
         "might_like": ["hollywood-comebacks", "food-supply", "anxiety-loop",
                        "training-load", "pricing-psychology"],
         "followers": ["stadium-money", "sleep-science", "space-race", "longevity-claims"],
-        "trending": ["ai-agents", "fed-next-move", "housing-market", "operator-ceos",
-                     "habits-research", "transfer-window"],
+        "most_played": ["ai-agents", "fed-next-move", "housing-market",
+                        "operator-ceos", "habits-research", "transfer-window"],
+        # The world row. Built from the fake feed's subjects rather than the
+        # bank, because its whole point is that its inventory is not FAM's -
+        # and a fixture that drew it from the bank would preview a page the
+        # app cannot build. These are invented, like every other fixture here,
+        # and the preview's own badge says the page is running on fixtures.
+        "world_trending": [
+            {"id": item.id, "title": item.subject[:1].upper() + item.subject[1:],
+             "subtitle": item.why_now, "query": item.query,
+             "tags": list(topics_mod.tags_for_text(f"{item.subject} {item.query}")),
+             "icon": "world"}
+            for item in trending_mod.FakeTrendingSource.SUBJECTS_AS_ITEMS()
+        ],
     }
     missing = [k for k, _ in topics_mod.SECTIONS if k not in myfam_picks]
     if missing:

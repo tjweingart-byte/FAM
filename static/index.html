@@ -4042,11 +4042,17 @@
   }
 
   // ---------------- myFAM feed ----------------
-  // Four sections, four different signals, ranked server-side over a bank of
-  // topics that is the SAME for every listener. That is the cost design: a
-  // per-user bank would mean a per-user script for every tile, where a shared
-  // bank means the second person to tap a tile gets the first person's script
-  // for free. Personalisation is in the ordering, not the inventory.
+  // Five sections, five different signals, ranked server-side. Four of them
+  // run over a bank of topics that is the SAME for every listener. That is
+  // the cost design: a per-user bank would mean a per-user script for every
+  // tile, where a shared bank means the second person to tap a tile gets the
+  // first person's script for free. Personalisation is in the ordering, not
+  // the inventory.
+  //
+  // The fifth, "Trending", is the one whose inventory is not FAM's own: it
+  // comes from an outside world-news feed, refreshed once for everybody. Same
+  // economics, different source - see TRENDING.md. Rendering is generic, so
+  // nothing here knows which is which.
 
   // Identity used to be made up here - Math.random() into localStorage, then
   // sent as ?user= on every request - and the server believed whatever arrived.

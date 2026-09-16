@@ -490,6 +490,32 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "LIVE_FAKE_SPORTS_STATUS", "in_progress").strip())
 
+    # --- world trending --------------------------------------------------
+    # The myFAM row that says what the *world* is paying attention to, as
+    # opposed to "What FAM can't stop playing", which is this app's own play
+    # counts. A different subsystem from live facts on purpose - see
+    # `trending.py`: one changes what is offered, the other what is said.
+    #
+    # On by default for the same reason `live_facts` is: with no source
+    # configured its whole effect is that the row is honestly empty and says
+    # why, which is the state worth shipping.
+    trending: bool = field(
+        default_factory=lambda: os.environ.get("TRENDING", "1")
+        not in ("0", "false", "False", ""))
+    # Empty means none, and none is shipped. `fake` is a deterministic
+    # stand-in for tests and demos and must be asked for by name.
+    trending_source: str = field(
+        default_factory=lambda: os.environ.get("TRENDING_SOURCE", "").strip())
+    # How long one refresh serves. This is the row's whole economics: one
+    # upstream call per window, shared by every listener. Fifteen minutes
+    # matches how fast a global news index actually moves.
+    trending_ttl_seconds: float = _env_float("TRENDING_TTL_SECONDS", 900.0)
+    # Generous next to the live-facts ceiling, because this never sits in
+    # front of the first word - it refreshes in the background and myFAM
+    # renders from the cache.
+    trending_timeout_seconds: float = _env_float("TRENDING_TIMEOUT_SECONDS", 8.0)
+    trending_max_items: int = _env_int("TRENDING_MAX_ITEMS", 6)
+
     # --- Prefetch ---------------------------------------------------------
     # Writing the episode before anybody asks for it - see `prefetch.py`.
     #

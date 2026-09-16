@@ -47,6 +47,7 @@ import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
 import live_sources
+import trending as trending_mod
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
@@ -230,6 +231,10 @@ async def lifespan(_: FastAPI):
     # LIVE_SPORTS_PROVIDER must not stop the server, because every episode is
     # still answerable and the writer is told there is no live feed.
     live_sources.install()
+    # The world-trending row's source. Same shape as the others: whatever
+    # configuration asked for, with problems reported rather than raised, so a
+    # typo empties one row instead of stopping the server.
+    trending_mod.install()
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES)
     prefetch.prefetcher(
         generator=None if DEMO_MODE else ScriptGenerator(),
@@ -874,6 +879,10 @@ async def health() -> dict:
         # provider name this build does not know is configured and absent, and
         # that difference does not show in a source list.
         "live_sources": live_sources.report(),
+        # The other half of "live": what the world is paying attention to, as
+        # opposed to what one entity's state is. Reported separately because
+        # they fail separately and are fixed separately.
+        "trending": trending_mod.report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how
@@ -2291,7 +2300,7 @@ class EventRequest(BaseModel):
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200)):
-    """The four myFAM sections, ranked for this listener.
+    """The five myFAM sections, ranked for this listener.
 
     Costs no model call: the topic bank is fixed and this only orders it.
     A listener with no history still gets Trending and a starter set, with
@@ -2301,6 +2310,15 @@ async def myfam(request: Request, interests: str = Query("", max_length=200)):
     # reader's limit rather than the generation one.
     _read_limit(request)
     user = _listener(request)
+
+    # One refresh serves every listener, so this is scheduled rather than
+    # awaited: myFAM renders from whatever the shared cache holds and stays
+    # instant. The browse surfaces are the one place CLAUDE.md says the wait
+    # must be zero, and a news feed is not worth spending it on - the row is
+    # honestly empty on a cold first load and full on the next.
+    if trending_mod.is_stale():
+        asyncio.create_task(trending_mod.refresh())
+
     feed = topics_mod.build_feed(EVENTS, user, interests=_interests_for(request, interests))
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",

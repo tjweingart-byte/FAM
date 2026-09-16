@@ -64,6 +64,10 @@ FAM_ENVIRONMENT = (
     "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
+    # World trending. Same reasoning: a developer with TRENDING_SOURCE=fake
+    # set must not run a suite that quietly has a news feed in it.
+    "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",
+    "TRENDING_TIMEOUT_SECONDS", "TRENDING_MAX_ITEMS",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.

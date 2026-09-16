@@ -5253,3 +5253,102 @@ says so to the writer on every live question, and refuses to cache an episode
 built in that state.
 
 `LIVE_FACTS.md` is the whole of it.
+
+## 90. "Trending" meant two different things, and only one of them was built
+
+myFAM's crowd row was keyed `trending` and titled *"What FAM can't stop
+playing"*. Those are not the same claim. The key said the world; the title said
+this app; and what the code actually did was count FAM's own plays across a
+hand-written bank of twenty-eight topics - so on a young deployment it mostly
+ran its `filler` branch and showed a stable slice of the bank.
+
+Nobody was misled yet, because the title was the honest one. But asking for "a
+trending row" got the answer "you have one", and that was wrong.
+
+### Two rows, because they are two questions
+
+The crowd row keeps its title and becomes `most_played`, which is what it was
+always doing. `world_trending` is new, titled "Trending", and comes from
+outside.
+
+They can disagree - the world can be consumed by something nobody on FAM has
+played, and FAM can have a runaway hit the world has not heard of - and a
+listener reads them differently. Blending them into one ranking would lose both
+signals.
+
+### It is not the live-facts subsystem, and reusing it would have been wrong
+
+The obvious move was to route trending through `LiveSource.resolve/fetch`. It
+does not fit, and the misfit is informative:
+
+    live_facts   resolve an entity -> fetch its state
+                 seconds of freshness, a closed status vocabulary
+                 changes what an episode SAYS
+
+    trending     no entity to resolve, no status
+                 minutes of freshness
+                 changes what is OFFERED
+
+Reusing it would have meant inventing a fake entity for "the world" and
+bending a contract built around scoreboards around something that is not one.
+
+They compose instead, and better than they would have coupled: a trending tile
+about a game becomes an ordinary FAM question when tapped, EI marks it
+`live_domain=sports`, and `live_facts` answers it. **Trending feeds the bank;
+live facts feed the evidence.**
+
+### The cost design is the inverse of live facts', and that is the point
+
+`live_facts` costs per entity and per episode. Trending costs **one fetch for
+every listener** - one upstream call per window, one warmed script per tile,
+everybody. That makes it the cheapest place in FAM to add live data rather than
+the most expensive, and it is the same economics CLAUDE.md already relies on
+for the crowd row.
+
+Three things fall out of it rather than being chosen separately: the cache is
+global rather than per listener; `build_feed` reads it **synchronously**, so
+the ranker stays a pure function of the log plus the cache and is still
+callable in a test with no network; and `/api/myfam` **schedules** a refresh
+instead of awaiting one, because the browse surfaces are the one place the wait
+has to be zero and a news feed is not worth spending it on.
+
+### What a tile may carry
+
+**A question, never a headline.** "Chiefs 21 Broncos 7" has a shelf life of
+seconds and belongs to `live_facts`; "why the Chiefs' offensive line is
+suddenly the story of their season" keeps for hours and is what a tile is for.
+A tile whose query is a headline produces an episode that restates the
+headline.
+
+**`why_now` is a subtitle and never evidence.** Tapping a tile runs the
+ordinary pipeline, which researches from scratch - which is what stops a stale
+blurb becoming a stale episode. A test reads `build_prompt` and asserts it does
+not mention trending at all.
+
+**The id is hashed from the subject, not the query.** Impressions, fatigue and
+the already-seen set are all keyed on it, so an id that churned on every
+rephrasing would show one listener the same tile forever and fatigue could
+never damp it.
+
+### The empty state, which is §89 again on a different surface
+
+Four ways to come up empty - not configured, the source failed, it timed out,
+it had nothing - and four different sentences, because they are four different
+things to fix. **None of them says "nothing is trending".** An empty row is a
+fact about this deployment; reading it as a statement about the world is
+exactly the mistake §89 settles for live facts, and it is easier to make here
+because an empty row *looks* like a quiet day.
+
+### What is deliberately not decided
+
+**Connecting a source means the bank stops being entirely hand-written**, and
+CLAUDE.md treats "one bank for everyone" as settled. The twenty-eight topics
+have taste in them that a generated row will not.
+
+That is a change to a settled constraint, so the seam ships with no source and
+the decision is left where it can be made with a real row in front of you:
+`TRENDING_SOURCE=fake`, look at the page, and judge whether generated tiles
+belong beside the written ones.
+
+`TRENDING.md` is the whole of it, including the candidate feeds and why
+NewsAPI is ruled out.

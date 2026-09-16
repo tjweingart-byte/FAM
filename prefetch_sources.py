@@ -58,7 +58,7 @@ DEFAULT_MINUTES = 3
 class TrendingSource:
     """What everyone is playing. The cheapest thing in the app to warm.
 
-    Identical for every listener by construction (`topics.rank_trending`), so
+    Identical for every listener by construction (`topics.rank_most_played`), so
     one warmed script is taken by everybody who taps that tile - the hit rate
     here is per *tile*, not per person, and it is the only source worth running
     on an empty server with nobody signed in.
@@ -74,12 +74,13 @@ class TrendingSource:
         import topics
 
         out: list = []
-        for rank, topic in enumerate(topics.rank_trending(self.store)[:limit]):
+        for rank, topic in enumerate(topics.rank_most_played(self.store)[:limit]):
             out.append(Candidate(
                 query=topic.query,
                 minutes=self.minutes,
                 source=self.name,
-                reason=f"#{rank + 1} in trending, the same tile for everyone",
+                reason=(f"#{rank + 1} in what FAM can't stop playing, the same "
+                        f"tile for everyone"),
                 topic_id=topic.id,
                 weight=float(limit - rank),
                 # Deliberately blank: this guess is not about one listener, and

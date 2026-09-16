@@ -52,6 +52,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
+import trending
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -386,7 +387,10 @@ BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
 #: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The two
 #: personal sections have the fewest eligible topics, so they choose first;
 #: trending can fall back to the whole bank and therefore chooses last.
-FILL_ORDER = ("from_history", "followers", "might_like", "trending")
+#: `world_trending` is not filled from the bank, so it takes no part in the
+#: mutual exclusion the others do - it neither claims topics from them nor is
+#: starved by them.
+FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
 
 #: Display order: personal first, global last. Someone opening myFAM is more
 #: likely to want what was chosen for them than what is popular, and the page
@@ -403,7 +407,13 @@ SECTIONS = (
     # the only one that widens a taste rather than confirming it.
     ("might_like", "Explore New"),
     ("followers", "Your circle is on this"),
-    ("trending", "What FAM can't stop playing"),
+    ("most_played", "What FAM can't stop playing"),
+    # What the *world* is paying attention to, which is a different question
+    # from what this app's listeners are playing and comes from a different
+    # place: `trending.py`, refreshed once for everybody. Last because it is
+    # the only row not chosen for the listener at all - and honestly empty,
+    # with a reason, until a source is configured.
+    ("world_trending", "Trending"),
 )
 
 #: How much each kind of interaction says about taste. Finishing an episode is
@@ -448,7 +458,7 @@ ALGO_VERSION = "2026-09-14.1"
 #: it does raises anything. The bubble the EVENT_WEIGHT note guards against
 #: needs a positive feedback loop, and this is strictly negative.
 #:
-#: Applied to the personalised rankings only. `rank_trending` is deliberately
+#: Applied to the personalised rankings only. `rank_most_played` is deliberately
 #: identical for everyone - that is what makes it the cheapest section to
 #: serve - and per-listener damping would quietly end that.
 FATIGUE_WEIGHT = 0.35
@@ -836,11 +846,18 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
     return {e.topic_id for e in events if e.topic_id and e.kind in ("play", "complete")}
 
 
-def rank_trending(
+def rank_most_played(
     store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None
 ) -> list[Topic]:
-    """Global play counts. Deliberately identical for everyone, which is what
-    makes it the cheapest section to serve: one script, every listener."""
+    """Global play counts *inside FAM*. Deliberately identical for everyone,
+    which is what makes it the cheapest section to serve: one script, every
+    listener.
+
+    Renamed from `rank_trending`: this was always FAM's own popularity, and
+    "trending" now means the world - a separate row on a separate source. The
+    two answer different questions and a listener reads them differently, so
+    they are two rows rather than one blended ranking.
+    """
     now = time.time() if now is None else now
     exclude = exclude or set()
     counts: dict[str, int] = {}
@@ -1008,6 +1025,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # generic ones can fall back to the whole bank, so they claim the very
     # topics the personal ones needed and those arrive empty - which is
     # exactly backwards, since the personal sections are the point.
+    # Built from the shared world feed rather than the bank, so it takes no
+    # part in the fill loop's mutual exclusion below. Read synchronously from
+    # a cache somebody else refreshed: `build_feed` stays a pure function of
+    # the log plus that cache, which is what keeps it callable in a test with
+    # no network. See `trending.py` for why the cache is global.
+    world = topics_from_trending(trending.cached().items)
+
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; trending stays globally *ranked*, it
@@ -1020,15 +1044,17 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         elif key == "might_like":
             picks = rank_might_like(profile, seen, damp)
         else:
-            # Not damped, deliberately: trending is the same list for
+            # Not damped, deliberately: this row is the same list for
             # everyone, which is what makes it the cheapest section to serve.
-            picks = rank_trending(store, now, seen)
+            picks = rank_most_played(store, now, seen)
         picked[key] = picks
         used |= {t.id for t in picks}
 
     # An empty section is honest, not broken: a new listener genuinely has no
     # history and no co-listeners. The interface says so rather than padding
     # it with picks that pretend to be personal.
+    picked["world_trending"] = world
+
     sections = [
         {
             "key": key,
@@ -1039,6 +1065,41 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         for key, title in SECTIONS
     ]
     return {"sections": sections, "personalised": bool(profile)}
+
+
+def topics_from_trending(items) -> list:
+    """Turn world-trending subjects into tiles.
+
+    Tags are derived from the question with the same keyword map the bank
+    uses, so a trending tile is legible to the rest of the feed's machinery -
+    fatigue, impressions, `facets_only` - without needing a second vocabulary.
+
+    The subtitle is the source's `why_now`. It is shown and never spoken, and
+    nothing downstream treats it as evidence: tapping the tile runs the
+    ordinary pipeline, which researches the question from scratch. That is
+    what stops a stale blurb becoming a stale episode.
+    """
+    tiles = []
+    for item in items:
+        tags = tuple(item.tags) or tags_for_text(f"{item.subject} {item.query}")
+        tiles.append(Topic(
+            id=item.id,
+            title=item.subject[:1].upper() + item.subject[1:],
+            subtitle=item.why_now,
+            query=item.query,
+            tags=tags,
+            icon=_icon_for_tags(tags),
+        ))
+    return tiles[:SECTION_SIZE]
+
+
+def _icon_for_tags(tags) -> str:
+    """Reuse the bank's icon vocabulary rather than inventing one."""
+    for tag in tags:
+        for topic in TOPIC_BANK:
+            if tag in topic.tags:
+                return topic.icon
+    return "world"
 
 
 def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dict:
@@ -1066,7 +1127,13 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
 
 def _empty_reason(key: str) -> str:
     return {
-        "trending": "Nothing has been played yet today.",
+        "most_played": "Nothing has been played yet today.",
+        # Deliberately not "nothing is trending". An empty row here is a fact
+        # about this deployment, never a claim about the world - the browse
+        # surface's version of PROBLEMS.md §89. The live text comes from
+        # `trending.TrendingFeed.empty_reason`, which knows *which* way it
+        # came up empty; this is the fallback when nothing has been asked yet.
+        "world_trending": "FAM isn't connected to a world news feed yet.",
         "followers": "Nobody you overlap with has listened yet.",
         "from_history": "Your first episode starts this one off.",
         # Never actually empty in practice - with no profile at all this falls
@@ -1158,7 +1225,7 @@ def rank_next_up(
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:
-        add(rank_trending(store, now, taken))
+        add(rank_most_played(store, now, taken))
     # A listener who has played most of the bank would otherwise get a short
     # grid. Four tiles is the layout, so the last resort drops the "not already
     # played" rule rather than the shape - re-hearing something is a far

@@ -534,6 +534,40 @@ the rest of this list it needs taste rather than a key.
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+- **Two rows on myFAM, two questions, and they are not blended.** *(§90,
+  `trending.py`, `TRENDING.md`.)* **"What FAM can't stop playing"** is this
+  app's own play counts over its own bank — it already existed under the key
+  `trending`, which is why that key is now `most_played`: it was always FAM's
+  popularity, never the world's. **"Trending"** is what the world is paying
+  attention to, from an outside feed. They can disagree, and a listener reads
+  them differently, so blending them into one ranking would lose both signals.
+  **It is a different subsystem from live facts on purpose.** `live_facts`
+  resolves an entity and fetches its state, in seconds, with a status
+  vocabulary; trending has no entity and no status and moves in minutes. One
+  changes what an episode *says*, the other what is *offered*. They compose
+  without coupling: a trending tile about a game becomes an ordinary question
+  when tapped, and `live_facts` answers it. **Trending feeds the bank; live
+  facts feed the evidence.**
+  The cost design is why it is worth having, and it is the inverse of live
+  facts': **one fetch serves every listener**, so this is the cheapest place in
+  FAM to add live data rather than the most expensive. That dictates the rest —
+  the cache is global rather than per listener, `build_feed` reads it
+  *synchronously* so the ranker stays a pure function of the log plus the cache
+  (one that fetched could not be tested offline), and `/api/myfam` *schedules* a
+  refresh rather than awaiting one, because the browse surfaces are where the
+  wait must be zero.
+  Three rules on what a source may return. A tile carries **a question worth an
+  episode, never a headline** — a headline query produces an episode that
+  restates the headline, and a score belongs to `live_facts` anyway. `why_now`
+  is **a subtitle and never evidence**: tapping a tile researches the question
+  from scratch, which is what stops a stale blurb becoming a stale episode, and
+  a test asserts `build_prompt` never mentions trending. And an item's id is
+  hashed from the **subject** rather than the query, so a rephrasing between
+  refreshes does not mint a new tile that fatigue can never damp.
+  **An empty row is a fact about this deployment and never a claim about the
+  world** — the browse-surface form of §89, with a different sentence for each
+  of the four ways it can come up empty, and a test that none of them says
+  "nothing is trending". Nothing real is connected yet.
 - **How long a script keeps comes from what it was built on, never from the
   words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
   match, and `"Chiefs game"` — the reported case — contained no volatile word,
@@ -880,7 +914,8 @@ machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
 and downloads, `LIVE_FACTS.md` for how FAM handles rapidly changing information
-and what it does when it has none, and `IOS_APP.md` for the app version this is
+and what it does when it has none, `TRENDING.md` for the myFAM row that says
+what the world is talking about, and `IOS_APP.md` for the app version this is
 now being written towards.
 
 A fresh container has none of the dependencies installed. Setup is two lines,

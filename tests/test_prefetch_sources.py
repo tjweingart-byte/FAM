@@ -73,7 +73,7 @@ def test_trending_candidates_are_the_bank_queries_a_tap_would_send(store):
 
 def test_trending_says_where_in_the_ranking_each_guess_came_from(store):
     first = prefetch_sources.TrendingSource(store).candidates()[0]
-    assert "#1 in trending" in first.reason
+    assert "#1 in what FAM can't stop playing" in first.reason
     assert "everyone" in first.reason
 
 

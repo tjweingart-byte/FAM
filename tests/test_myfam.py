@@ -101,12 +101,12 @@ def test_trending_ignores_the_listener_entirely(store):
     for _ in range(3):
         play(store, "someone", "fed-next-move")
     play(store, "other", "golf-evolution")
-    ranked = T.rank_trending(store)
+    ranked = T.rank_most_played(store)
     assert ranked[0].id == "fed-next-move"
 
 
 def test_trending_is_not_empty_on_a_cold_start(store):
-    assert len(T.rank_trending(store)) == T.SECTION_SIZE
+    assert len(T.rank_most_played(store)) == T.SECTION_SIZE
 
 
 def test_history_recommends_what_they_already_like(store):
@@ -180,7 +180,7 @@ def test_no_topic_appears_in_two_sections(store):
 def test_a_new_listener_gets_an_honest_page_not_a_fake_one(store):
     feed = T.build_feed(store, "brand-new")
     by_key = {s["key"]: s for s in feed["sections"]}
-    assert by_key["trending"]["topics"], "trending works with no history at all"
+    assert by_key["most_played"]["topics"], "the crowd row works with no history at all"
     assert not feed["personalised"]
     for key in ("followers", "from_history"):
         assert by_key[key]["empty_reason"], f"{key} must say why it is empty"
@@ -211,7 +211,7 @@ def test_explore_new_sits_between_the_personal_shelf_and_the_crowd(store):
     least-confident shelf at the top. Not last either: below the crowd is where
     a shelf goes to be ignored."""
     keys = [k for k, _ in T.SECTIONS]
-    assert keys.index("from_history") < keys.index("might_like") < keys.index("trending")
+    assert keys.index("from_history") < keys.index("might_like") < keys.index("most_played")
 
 
 def test_explore_new_offers_something_outside_an_established_taste(store):
@@ -233,9 +233,9 @@ def test_explore_new_offers_something_outside_an_established_taste(store):
 def test_the_personal_section_comes_before_the_popular_one(store):
     """Someone opening myFAM should not scroll past the crowd to reach it."""
     keys = [k for k, _ in T.SECTIONS]
-    assert keys.index("from_history") < keys.index("trending")
+    assert keys.index("from_history") < keys.index("most_played")
     # Fill order is the opposite on purpose: the constrained sections pick first.
-    assert T.FILL_ORDER.index("from_history") < T.FILL_ORDER.index("trending")
+    assert T.FILL_ORDER.index("from_history") < T.FILL_ORDER.index("most_played")
 
 
 # --- the API --------------------------------------------------------------
@@ -270,8 +270,8 @@ def test_a_broken_event_store_never_breaks_the_feed(client, monkeypatch):
             raise RuntimeError("disk gone")
     monkeypatch.setattr(appmod, "EVENTS", Broken())
     body = client.get("/api/myfam?user=u1").json()
-    trending = [s for s in body["sections"] if s["key"] == "trending"][0]
-    assert trending["topics"], "trending should still fall back to the bank"
+    most_played = [s for s in body["sections"] if s["key"] == "most_played"][0]
+    assert most_played["topics"], "the crowd row should still fall back to the bank"
 
 
 def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
@@ -292,12 +292,15 @@ def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
     assert by_key["followers"]["topics"], "co-listener section was starved"
     assert "sleep-science" in [t["id"] for t in by_key["followers"]["topics"]]
     # And the generic section still fills, because the bank is big enough.
-    assert by_key["trending"]["topics"]
+    assert by_key["most_played"]["topics"]
 
 
 def test_the_bank_can_fill_every_section_without_repeating(store):
     """Every section must fill from the shared bank without reusing a topic."""
-    assert len(T.TOPIC_BANK) >= len(T.SECTIONS) * T.SECTION_SIZE
+    # `world_trending` is not filled from the bank - it comes from
+    # `trending.py` - so the bank only has to cover the other four.
+    from_bank = [k for k, _ in T.SECTIONS if k != "world_trending"]
+    assert len(T.TOPIC_BANK) >= len(from_bank) * T.SECTION_SIZE
 
 
 def test_no_section_offers_back_something_already_played(store):
@@ -476,7 +479,7 @@ def test_refreshing_the_page_is_not_a_rejection(store):
     """A feed load writes a row per tile; opening myFAM twice is not evidence."""
     now = time.time()
     for i in range(12):
-        store.record_impressions("u", [("trending", "ai-agents")], at=now + i)
+        store.record_impressions("u", [("most_played", "ai-agents")], at=now + i)
     assert store.impression_occasions("u")["ai-agents"] == 1, (
         "impressions inside one bucket must collapse to a single occasion")
     assert T.fatigue(store.impression_occasions("u")) == {}
@@ -485,7 +488,7 @@ def test_refreshing_the_page_is_not_a_rejection(store):
 def test_fatigue_never_buries_a_tile_for_good(store):
     now = time.time()
     for i in range(400):
-        store.record_impressions("u", [("trending", "ai-agents")], at=now - i * 7200)
+        store.record_impressions("u", [("most_played", "ai-agents")], at=now - i * 7200)
     damp = T.fatigue(store.impression_occasions("u"))
     assert damp["ai-agents"] >= T.FATIGUE_FLOOR > 0
 
@@ -505,7 +508,7 @@ def test_impressions_still_say_nothing_about_taste(store):
     """Fatigue is per-topic and negative. It must never become a tag score."""
     now = time.time()
     for i in range(20):
-        store.record_impressions("u", [("trending", "ai-agents")], at=now - i * 7200)
+        store.record_impressions("u", [("most_played", "ai-agents")], at=now - i * 7200)
     assert T.taste(store.for_user("u"), now) == {}, (
         "being shown a tile taught the feed a preference")
     assert T.IMPRESSION not in T.EVENT_WEIGHT
