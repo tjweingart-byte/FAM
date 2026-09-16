@@ -4931,3 +4931,618 @@ the page actually draws and does not warm trending a second time. A thread
 source whose store falls over returns nothing rather than taking the cycle
 down. Every candidate has a reason and the length the cache key expects. And,
 last, the module is read to prove no source reaches for a model or the network.
+
+> **§84 to §87 are not missing — they were reverted.** They recorded the
+> continuous-line illustration subsystem, which was removed from `Main` in
+> its entirety. The numbering keeps the gap rather than closing it, so that
+> the code comments referring to §88 and §89 stay correct and so that
+> restoring the visual work would not collide with these.
+
+## 88. It wrote a final score for a game that was in its third quarter
+
+Someone asked FAM "Chiefs game" on a Monday night in week 1, with about ten
+minutes left in the third quarter and Denver trailing 21-7. The episode opened
+on the 2017 draft, said *"Kansas City beat Denver 27-16"*, spent its middle
+explaining how well Mahomes had played, and finished by saying it did not know
+who the Chiefs play in week 2 - a fixture that had been public since May.
+
+The same question asked twelve hours later produced a good episode. That is the
+most useful fact in the report, because it rules out almost everything: the
+prompt was fine, the model was fine, the retrieval worked. What failed was
+confined to **the window between an event starting and a report about it
+existing**, and in that window FAM had no way to say what was happening and
+several reasons to say something that was not.
+
+### Five separate faults, and only one of them is a prompt
+
+**1. EI asserted that the game had finished, using a label.** `INTENTS` read:
+
+    "recap",  # something finished; tell me what happened
+
+That is a claim about the world, made by the one layer in FAM whose own module
+docstring says it *never asserts a fact*, about the one thing it cannot possibly
+know: nothing has been retrieved when EI runs and its own knowledge is months
+old. The label looked like a classification of the request and was in fact a
+statement that the event was over, and everything downstream read it as one.
+
+The fix is not a better guess. It is to ask a question EI can actually answer.
+"Has the game finished" is about the world; **"is the answer they want a
+result"** is about the request, and is decidable with no evidence at all - "who
+won" has no answer until something concludes, whether it concluded an hour ago
+or is still going. That is `Brief.outcome_dependent`, and `recap` now reads
+"tell me what happened, if it has happened".
+
+**2. The story shape required a result, so the writer produced one.**
+`sports_recap` is *"what was at stake, then the turns the game actually hinged
+on, **then the result**, then who decided it, then what it changes"*.
+
+`build_structure_note` already says a beat with nothing behind it is dropped
+rather than filled, and that was written for exactly this class of failure (§82,
+the golf recap invented "the main debate" to fill a slot). It was not enough
+here, and the reason generalises: **dropping the result from a recap leaves
+nothing**. It is not a beat of the shape, it is what the shape is for. A rule
+that says "drop it" is asking the model to delete the episode, so it filled it
+instead.
+
+So the alternative has to be *named*, not deduced. `in_progress` is a new shape
+- what is at stake, how it stands now, what has already been settled, what is
+still open - and when a brief is outcome-dependent the structure note points at
+it explicitly: if the evidence does not report the result as final, this is not
+the shape, write that one. **It is a real episode, not a consolation.** What is
+at stake and what has happened so far is most of what someone asking mid-event
+actually wants, which is the part the whole failure obscures.
+
+**3. The temporal block had two states and the world has three.** It covered
+*not started* ("if something has not happened yet, it has no result") and
+*finished but unclear* ("if the sources do not establish how something ended").
+A game in its third quarter is neither, and there was no sentence anywhere in
+FAM for it.
+
+Worse, the packet was **entirely pregame** and read as evidence for a recap. The
+script's own sentences give it away: "the favorite side of a spread that had
+them at two and a half points", "his *projected* starting left tackle", a pass
+rush "*expected to be* one of the tougher tests". Those are preview sentences,
+retrieved because the recency window was correct and the recap did not exist
+yet. Nobody had ever told the writer what a packet of previews *means*: it is
+not thin evidence of an outcome, it is evidence that there is no outcome.
+
+**4. It read a contradiction and talked itself out of it.** This is the tell
+that it knew:
+
+> "That result puts Kansas City at one win, no losses, though the standing
+> snapshot from right after the game still shows them listed second in the AFC
+> West. That's just a rounding artifact of how early it is in the season, not a
+> sign anything's wrong."
+
+The packet contained a standings source that its own invented result would have
+changed. Given direct evidence against the fabrication, the episode **invented a
+second fact to reconcile the first**. So the temporal block now says that a
+contradiction is information rather than a problem: if something you believe
+implies a result and a standing, record or table says otherwise, you do not have
+a result - you have something that has not finished - and the smaller true
+reading wins every time.
+
+**5. A missing search result was reported as the world being silent.** The week
+2 line came from `thin_on`. `packet_covers` found the brief's "next opponent"
+missing, and `build_prompt` said:
+
+    Say plainly that that part is not yet reported
+
+One search missing something is a fact about *the search*. "Not yet reported" is
+a claim about *the world*. For a volatile fact the two nearly coincide, and that
+is why the wording survived. For a settled one they do not coincide at all:
+nobody writes a news story about a fixture that has not changed since May, so
+the search misses it and the instruction converts that into a false claim - and
+then puts it in the last line, which also broke three separate system-prompt
+rules about not narrating sourcing, not forecasting, and never ending on an open
+thread. **The block was fighting the prompt it lives in.**
+
+It now splits the two cases by hand, because they genuinely differ: something
+that *changes* is not supplied from memory (a search that missed it is real
+evidence it is unsettled), something *already settled* may be, and if you are
+not sure enough to say it plainly you leave it out of the episode entirely.
+Either way the gap is never announced and is never the last thing heard.
+
+### The smallest bug, and the most expensive
+
+    if brief.intent in ("recap", "update") and not brief.cautions:
+        brief.cautions.append("nothing has been confirmed yet: ...")
+
+The single most important caution in FAM was appended **only when the model
+produced none of its own**. A model that has just been asked for cautions
+produces some, so in production this fired almost never - while the source read
+as though the guard were present, and the test that covered it passed, because
+it was written with an empty list.
+
+That shape is worth naming because nothing about it looks wrong on the page: a
+guard whose precondition is *"nothing else happened"* is off exactly when the
+system is working normally. It is now appended unconditionally and **prepended**,
+which also puts it out of reach of the `[:6]` truncation two lines below that
+could otherwise have dropped it. And its wording gained the state it had no
+words for: *"an event that has started is not an event that has finished"*.
+
+### The seam this lands on, which was predicted and is still empty
+
+§82 wrote down exactly this failure in advance:
+
+> A game ends and the scoreboard knows instantly; the recap saying so is
+> written, published and indexed later, so in between a search returns the
+> *preview*.
+
+`live_facts.py` is the seam for it and has a provider for neither of its two
+declared domains, so `lookup` returns `None` and the episode was written as
+though nothing were missing. A capability that is absent and quiet gets shipped.
+
+Registering a real scores provider is still one line and still the actual fix.
+Until somebody does it, `build_prompt` now says the gap out loud whenever a
+brief names a live domain and nothing answered: articles are written after the
+fact and indexed after that, so the newest thing you have is older than the
+thing being asked about, and the absence of a report is the report not existing
+yet - never licence to supply the state yourself.
+
+### The opening was vague, and it was following the rules
+
+The episode opened on a 2017 draft decision. That is what "start inside
+something already in motion", "no orienting", and "do not state your conclusion
+in sentence one" produce when taken literally: a vivid concrete detail that
+could have opened any Mahomes episode from any of eight seasons, and which left
+the listener thirty seconds from knowing what they were listening to.
+
+Nothing in the prompt said the opening has to be about **this** episode. It does
+now, and the distinction it turns on is worth keeping straight because the two
+sound alike:
+
+* **Orienting** is telling someone why a subject matters or what they are about
+  to hear. Still banned, for the reason it always was.
+* **Situating** is telling them where they are standing. Who, what, when, in
+  particulars - "the Chiefs play Denver tonight to open the season, and Mahomes
+  is nine months off a torn ACL". Required, inside two sentences.
+
+With the corollary that history earns its place by explaining the present rather
+than preceding it. A cold open years back reads as stalling, because it is.
+
+### What this cost the prompt budget, and how
+
+`test_the_prompt_stays_lean` caught the addition at 8,407 characters against a
+7,600 bound, which is the test doing its job. The two new rules were then cut to
+about a third of their first draft and paid for by a dedup pass in the same
+change - the `<<NEXT:>>` mechanics no longer explained in both prompts, the
+orienting contrast folded into the bullet it restates. The bound moved 7,600 ->
+7,800, by the residue rather than by the addition. Creep is addition with no
+pass for duplication; the way past that test is to do the pass.
+
+### What is fixed, and what is not
+
+Fixed: EI no longer asserts that anything finished; a question whose answer is a
+result is marked as one and cannot lose its caution; there is a story shape for
+an event under way and the writer is told when to switch to it; pregame evidence
+is named as evidence of no result; a contradiction is not to be reconciled by
+invention; a thin packet is no longer reported as the world being silent; the
+missing live feed is stated rather than absent; and the opening has to land the
+listener in the actual situation.
+
+Not fixed, and not fixable here: **none of this has been heard.** There is no
+API key in the build container, so every one of these is a prompt and a code
+path proven by tests rather than by an episode. The thing that would actually
+settle it is one run of
+
+    python write.py "chiefs game" --minutes 3
+
+during a game, with a key, reading the EI block above the script - which is
+precisely the split `write.py` prints for, and which now shows
+`answer is a RESULT` and the missing live feed on the same screen as the words
+they produced.
+
+And still the real fix for the whole class: **register a scores provider.** Every
+change above makes FAM honest about not knowing the score. None of them makes it
+know the score.
+
+## 89. Not knowing is not the same as nothing having happened
+
+§88 stopped the writer inventing a result. It did not stop the *system* losing
+the difference between "we have no view of this" and "there is nothing to see",
+and that difference turns out to be the whole subsystem.
+
+Four things were wrong, and only the first was the one being looked for.
+
+### The cache was serving a game in progress for twenty-four hours
+
+`cache.ttl_for` took a query string and matched it against a keyword list.
+Measured on the exact reported case:
+
+    'Chiefs game'                    -> 86400s
+    'Tell me about the Chiefs game'  -> 86400s
+    'how is the match going'         -> 86400s
+
+Twenty-four hours, for an episode about a game being played. And `recent()` is
+the Explore feed, so such an episode is not merely re-served - it is
+**published** as a finished one, into a surface whose entire promise is that it
+replays episodes that already exist.
+
+**The fix is not another keyword, and this needs saying because it is the
+obvious move.** §76 already settled it for research: a keyword list can always
+be widened by one more word, and the next question it misses is already
+written. "Chiefs", "game" and "score" would every one of them have missed "how
+is the match going". The list is not under-tuned; it is answering the wrong
+question.
+
+So `ttl_for` now asks **how long what this episode says stays true**, which is
+answerable, because by the time anything is written we know what it was built
+from. Live status first (`in_progress` → uncacheable, `final` → the ordinary
+ceiling, since a result does not move again), then `outcome_dependent`, then
+the evidence window, then the keyword list as the floor for paths that have
+none of those. Ordinary static content returns exactly what it always did.
+
+### The information could not reach the decision
+
+This was the part that made it a real change rather than a one-liner.
+`pipeline.py` computes the TTL holding the **unprepared** plan:
+`stream_sentences` rebinds it (`plan = await self.prepare(plan, notes)`) and
+`_answer_first` derives two more the caller never sees. So `plan.brief` and
+`plan.live` are `None` at the write site and always would be.
+
+`ScriptNotes` is the channel that already crosses that boundary - it is how
+`thread` and `research` get home - so the cache policy rides back the same way.
+
+### Six different failures were being reported as one
+
+`live_facts.lookup` returned `Optional[LiveFacts]`. No provider configured, the
+provider broke, the provider timed out, the provider has no such game, the
+provider is reporting nothing, the data came back too old - all `None`, and the
+writer was told the same nothing by every one of them. In practice it was told
+nothing at all.
+
+`LiveLookup` replaces it with seven named outcomes, each rendering a different
+block. The one that matters most is `not_configured`, because it is the state
+FAM actually ships in, and the sentence it produces is the thesis of the whole
+subsystem: *what is missing here is our view of it, not the event.*
+
+### A stale score is worse than no score
+
+Nothing bounded age. `as_of` was rendered for the model to judge, and a
+timestamp a model is asked to judge is one it judges generously. A fifteen-
+minute-delayed market feed - which is what free tiers are - would have been
+rendered under a block that says *"this is what is true now"*.
+
+Freshness is now a deterministic check in code, per domain (sports 120s,
+markets 300s, elections 1800s - one threshold would be wrong for two of the
+three), and data past it is **withheld** rather than annotated. `delayed` is
+separate and is about design rather than age: nonzero means the prompt says
+delayed, never current.
+
+### What else came out of the audit
+
+**Prefetch was warming live facts.** `_warm` called `live_lookup`, so warming
+would spend a provider call speculatively *and* bake a score into a script
+served hours later. It no longer calls it at all, and a script is never warmed
+for an outcome-dependent question - the brief is kept, because that is a claim
+about what is being *asked* and it keeps.
+
+**The live lookup ran in series with research**, adding its whole latency in
+front of the first word. Its own docstring said "runs alongside retrieval",
+which was aspiration rather than description. They read the same brief and
+neither reads the other's output, so they are now gathered.
+
+**`examples/README.md` still taught the ending doctrine §48 reversed** - "don't
+conclude, widen; leave one thing unresolved and stop pointed at it". CLAUDE.md
+records that an example file has turned deleted behaviour back on in this
+project before, and this was the same shape waiting to happen: the rule was
+removed from the prompt and left in the file people copy.
+
+**The hermetic test caught the new settings in both directions**, which is what
+it is for - once for not clearing them, and once for listing a name `config.py`
+did not read, because `live_sources` was reading it from `os.environ` directly.
+Every knob belongs in `config.py`; one read elsewhere is one a developer's
+shell can leak into a suite.
+
+### The line this settles
+
+EI may decide that the **request** wants a result. It may not decide that the
+**event** is scheduled, under way or finished - it has retrieved nothing and
+its knowledge is months old. There is no `status` field in `BRIEF_SCHEMA`, and
+a test asserts there never is, because a field that does not exist cannot be
+filled in by a persuasive model. `in_progress` is likewise absent from the
+structures EI may pick, for the same reason pointing the other way.
+
+### What is still not true
+
+**No real provider is connected.** Everything above is the architecture for
+one, verified against a fake that is selected explicitly and names itself
+`NOT REAL DATA`. FAM does not have live scores; it now knows that it does not,
+says so to the writer on every live question, and refuses to cache an episode
+built in that state.
+
+`LIVE_FACTS.md` is the whole of it.
+
+## 90. "Trending" meant two different things, and only one of them was built
+
+myFAM's crowd row was keyed `trending` and titled *"What FAM can't stop
+playing"*. Those are not the same claim. The key said the world; the title said
+this app; and what the code actually did was count FAM's own plays across a
+hand-written bank of twenty-eight topics - so on a young deployment it mostly
+ran its `filler` branch and showed a stable slice of the bank.
+
+Nobody was misled yet, because the title was the honest one. But asking for "a
+trending row" got the answer "you have one", and that was wrong.
+
+### Two rows, because they are two questions
+
+The crowd row keeps its title and becomes `most_played`, which is what it was
+always doing. `world_trending` is new, titled "Trending", and comes from
+outside.
+
+They can disagree - the world can be consumed by something nobody on FAM has
+played, and FAM can have a runaway hit the world has not heard of - and a
+listener reads them differently. Blending them into one ranking would lose both
+signals.
+
+### It is not the live-facts subsystem, and reusing it would have been wrong
+
+The obvious move was to route trending through `LiveSource.resolve/fetch`. It
+does not fit, and the misfit is informative:
+
+    live_facts   resolve an entity -> fetch its state
+                 seconds of freshness, a closed status vocabulary
+                 changes what an episode SAYS
+
+    trending     no entity to resolve, no status
+                 minutes of freshness
+                 changes what is OFFERED
+
+Reusing it would have meant inventing a fake entity for "the world" and
+bending a contract built around scoreboards around something that is not one.
+
+They compose instead, and better than they would have coupled: a trending tile
+about a game becomes an ordinary FAM question when tapped, EI marks it
+`live_domain=sports`, and `live_facts` answers it. **Trending feeds the bank;
+live facts feed the evidence.**
+
+### The cost design is the inverse of live facts', and that is the point
+
+`live_facts` costs per entity and per episode. Trending costs **one fetch for
+every listener** - one upstream call per window, one warmed script per tile,
+everybody. That makes it the cheapest place in FAM to add live data rather than
+the most expensive, and it is the same economics CLAUDE.md already relies on
+for the crowd row.
+
+Three things fall out of it rather than being chosen separately: the cache is
+global rather than per listener; `build_feed` reads it **synchronously**, so
+the ranker stays a pure function of the log plus the cache and is still
+callable in a test with no network; and `/api/myfam` **schedules** a refresh
+instead of awaiting one, because the browse surfaces are the one place the wait
+has to be zero and a news feed is not worth spending it on.
+
+### What a tile may carry
+
+**A question, never a headline.** "Chiefs 21 Broncos 7" has a shelf life of
+seconds and belongs to `live_facts`; "why the Chiefs' offensive line is
+suddenly the story of their season" keeps for hours and is what a tile is for.
+A tile whose query is a headline produces an episode that restates the
+headline.
+
+**`why_now` is a subtitle and never evidence.** Tapping a tile runs the
+ordinary pipeline, which researches from scratch - which is what stops a stale
+blurb becoming a stale episode. A test reads `build_prompt` and asserts it does
+not mention trending at all.
+
+**The id is hashed from the subject, not the query.** Impressions, fatigue and
+the already-seen set are all keyed on it, so an id that churned on every
+rephrasing would show one listener the same tile forever and fatigue could
+never damp it.
+
+### The empty state, which is §89 again on a different surface
+
+Four ways to come up empty - not configured, the source failed, it timed out,
+it had nothing - and four different sentences, because they are four different
+things to fix. **None of them says "nothing is trending".** An empty row is a
+fact about this deployment; reading it as a statement about the world is
+exactly the mistake §89 settles for live facts, and it is easier to make here
+because an empty row *looks* like a quiet day.
+
+### What is deliberately not decided
+
+**Connecting a source means the bank stops being entirely hand-written**, and
+CLAUDE.md treats "one bank for everyone" as settled. The twenty-eight topics
+have taste in them that a generated row will not.
+
+That is a change to a settled constraint, so the seam ships with no source and
+the decision is left where it can be made with a real row in front of you:
+`TRENDING_SOURCE=fake`, look at the page, and judge whether generated tiles
+belong beside the written ones.
+
+`TRENDING.md` is the whole of it, including the candidate feeds and why
+NewsAPI is ruled out.
+
+## 91. Sources were collected on every episode and thrown away
+
+FAM extracted every publisher, graded it, dated it and stored it on
+`notes.research` - and nothing ever read it back. `ScriptNotes` said so in its
+own docstring: *"Written to and never read back by the writing path."*
+
+So the first half of this was not a feature, it was reconnecting a wire that
+had never been plugged in at the far end.
+
+### The rule that makes displaying it safe
+
+CLAUDE.md is emphatic that the evidence packet carries source **grades** and
+never hostnames - a domain in the packet is a domain the voice can read out,
+and the model needs to know it is reading a wire service in order to weigh it,
+not a way to say "reuters dot com" aloud.
+
+**That rule is about the prompt. The panel is a different channel.** Nothing in
+the provenance path reaches a prompt, and `research.domains()` has always
+existed "for a person to judge". What this adds is somewhere for that output to
+go.
+
+The obvious next step is the one to refuse: *"we show sources now, so let the
+model cite them"* would put hostnames back in front of the voice. A test reads
+`build_prompt` and asserts it mentions neither provenance nor hostnames,
+because a rule nothing enforces lasts until the next refactor.
+
+### Two things that would have gone wrong quietly
+
+**A cache hit had no sources.** A replayed episode has no `notes` to rebuild
+them from, so a shared or Explore episode would have shown an empty panel while
+a freshly generated one showed a full list. Same shape as the problem the
+`thread` column already solved, fixed the same way - a `sources` column by
+additive migration, and an accessor on both backends.
+
+**An attachment title is the listener's own document.** The script cache is
+shared and feeds Explore, so a cached title would have shown one listener the
+name of another listener's file. `Provenance.shareable` drops anything private
+before storage. An attached episode is already uncacheable, so this is belt and
+braces - but the belt is the one that would have been noticed too late.
+
+### Credit only where something contributed
+
+A live provider is credited **only on `facts`**. One that failed, timed out,
+found no matching entity or returned data too stale to use did not contribute,
+and listing it would claim corroboration that did not happen. Likewise only the
+articles that reached the packet are credited, not everything retrieval
+returned - the writer never saw the rest.
+
+And `known` on the API response separates *"we recorded no sources"* from
+*"there were none"*, because an episode answered from knowledge is a real case
+and rendering it as "no sources" is §89's mistake on a third surface.
+
+### GDELT, in two jobs on two clocks
+
+A second retrieval index beside Exa (per episode, `GDELT_CROSS_CHECK`) and the
+Trending row's feed (shared 15-minute clock, `TRENDING_SOURCE=gdelt`). One
+upstream, two adapters, because the two clocks want different things from it.
+
+Keyless, so a cross-check costs nothing per episode - which is what makes "not
+from only one source" affordable rather than aspirational. Additive only: it
+never replaces the primary packet and `gdelt.retrieve` returns `[]` on any
+failure by contract, because a cross-check that could break an episode would be
+worse than no cross-check.
+
+The results are **duck-typed to the Exa shape** so `rank_results`,
+`credibility`, `published_at` and `provenance.from_results` all work unchanged.
+A second retriever needing its own branch in each would be four places to
+forget.
+
+**The limitation worth writing down**: GDELT's DOC API is query-driven. It
+measures coverage of a query you *name*; it does not hand back a ranked list of
+everything hot. So the Trending source sweeps a fixed theme vocabulary and
+ranks by measured volume - real measurement over a fixed list, not open-ended
+discovery. Open-ended needs the bulk GKG exports, deliberately not taken.
+
+### The providers, and the one that is a trap
+
+API-Sports and SportsDataIO for sports, Finnhub and Alpha Vantage for markets,
+Polymarket for forecasts. AP Elections and Decision Desk HQ are **declared and
+unimplemented**: both are sales-gated with no public pricing and no open
+endpoint, so there is nothing to write against and guessing would be worse than
+nothing. Naming the gap with what it would take to close it is the point.
+
+**Polymarket is the trap.** A prediction market returns what people are
+*betting*, and a live in-game win-probability line moves with the score - so it
+reads like the score. *"Chiefs at 94%, so they must be winning"* is §88 coming
+back through a side door. Every fact it produces carries
+`kind="prediction-market"` and `status=UNKNOWN`, always, and `unknown` is the
+status in which no result may be spoken. Structural, not a request.
+
+Every adapter maps its vendor's status vocabulary at the boundary, and anything
+unrecognised becomes `unknown` rather than a guess - so a provider that changes
+its codes degrades to silence rather than to a confident wrong tense.
+
+### What this build cannot prove
+
+**Not one of these has made a live request.** The container's egress proxy
+blocks `api.gdeltproject.org`, `gamma-api.polymarket.com`, the API-Sports
+hosts, `sportsdata.io`, `finnhub.io` and `alphavantage.co`. Every shape is
+written from vendor documentation and pinned against recorded payloads.
+
+That is the §52 gap exactly, and it is open: the tests prove the parsing and
+prove nothing about whether the endpoints still answer in that shape.
+`tools/gdelt_probe.py` and `tools/verify_live.py` are what close it, somewhere
+with network. The probe was run here and failed honestly with 403s, which is
+the only result it could have given and the right one.
+
+`PROVENANCE.md` is the panel; the provider table is in `LIVE_FACTS.md`; the
+GDELT notes are in `TRENDING.md`.
+
+## 92. The sports adapter was pointed at the wrong sport
+
+§91 shipped an API-Sports adapter with `BASE = "https://v3.football.api-sports.io"`.
+That is **soccer**. The motivating case for this entire line of work is an NFL
+game, which lives on `v1.american-football.api-sports.io` - a different host, a
+different response shape and a different status vocabulary.
+
+Nobody would have seen it from the tests, because the tests fed it a soccer
+payload and it read a soccer payload correctly.
+
+### API-Sports is four APIs wearing one brand
+
+| sport | host | path | score field |
+|---|---|---|---|
+| american-football | `v1.american-football.…` | `games` | `scores.home.total` |
+| football (soccer) | `v3.football.…` | `fixtures` | `goals.home` |
+| basketball | `v1.basketball.…` | `games` | `scores.home.total` |
+| baseball | `v1.baseball.…` | `games` | `scores.home.total` |
+
+So `live_sources.SPORTS` is a table rather than a constant, and the shape
+differences are **data rather than branching** - one `to_facts` that reads both
+score shapes, with the status vocabulary looked up per sport. A test asserts no
+two sports share a host, that both score shapes are read, and that a code
+borrowed from another sport does **not** map: `1H` is in-progress in soccer and
+`unknown` in gridiron, and cross-wiring those is the failure this catches.
+
+The entity id carries its sport (`american-football:9`), because a bare game id
+is meaningless without knowing which API issued it and `fetch` receives only
+the entity.
+
+### The limitation that is left, deliberately
+
+**"Chiefs game" names no sport.** It falls back to `API_SPORTS_SPORT`, which a
+deployment sets to whatever it mostly serves.
+
+Team-name routing was considered and rejected: it needs a maintained roster of
+every team in every league, and a stale roster sends an NFL question to a
+soccer endpoint - worse than a default somebody chose on purpose. Resolving
+sport from team properly wants the provider's own cross-sport team search,
+which is N requests rather than one. That is the next step and is written down
+rather than guessed at.
+
+### SportsDataIO was subclassing the wrong thing
+
+It inherited the API-Sports adapter for its sentence shaping, which meant it
+also inherited API-Sports' endpoints and status codes. It is a different vendor
+with flat PascalCase rows and its own vocabulary, so it now stands alone.
+
+Also named, because it is a trap: **its free key returns deliberately scrambled
+data**. A trial key looks like it works and `verify()` cannot tell the
+difference, so `diagnose()` carries the warning whenever a key is set.
+
+### Finnhub did not know whether the market was open
+
+A quote pulled at three in the morning is not what something "is trading at" -
+it is where it closed. Saying the first when you mean the second is a small lie
+a listener catches instantly, and it is exactly the class this project keeps
+paying for.
+
+One extra call to `/stock/market-status`, and the sentence follows the fact:
+
+    open     "is trading at"
+    closed   "closed at"
+    unknown  "was most recently at"
+
+`None` for an unknown session rather than a guess, reported as "most recently"
+rather than asserted either way.
+
+Its symbol resolution also now prefers ordinary common stock over the warrants,
+units and foreign listings sharing a prefix, so "Apple" finds `AAPL` rather
+than `AAPL.SW` - a wrong ticker does not fail, it returns somebody else's
+price.
+
+### The proxy, settled
+
+Every provider host is blocked from the build container, **including
+`api.exa.ai`, which FAM already uses in production**. That is what proves it is
+a blanket container egress policy rather than anything provider-specific, and
+the proxy README is explicit: a 403 on CONNECT is an organization policy denial
+and must be reported rather than routed around.
+
+`PROVIDER_ROLLOUT.md` is the runbook for turning each one on somewhere with
+network.

@@ -489,6 +489,36 @@
   .captions-panel.on .cc-text{ font-size:12px; color:var(--paper); line-height:1.55; }
   .captions-panel.on .cc-text mark{ background:var(--copper); color:var(--ink); border-radius:3px; padding:0 3px; }
 
+  /* Where this episode's facts came from. Collapsed by default: it is a thing
+     a listener reaches for when they want to check, not something to read
+     while listening. Empty and unknown are different states and say so - an
+     episode with no stored provenance is not an episode with no sources. */
+  .src-panel{ margin:8px 18px 0; flex:none; }
+  /* Required by tools/check_css.py: a class that sets display must say what
+     [hidden] means, or the attribute stops working. Deleting CSS from this
+     file has broken the app twice; the checker is not optional. */
+  .src-panel[hidden]{ display:none; }
+  .src-toggle{ width:100%; display:flex; align-items:center; justify-content:space-between;
+    gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:9px 13px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;
+    font-size:9px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; }
+  .src-toggle:active{ transform:scale(0.99); }
+  .src-toggle .src-count{ color:var(--copper); font-weight:700; }
+  .src-list{ display:none; margin-top:7px; background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:4px 13px 10px; }
+  .src-panel.open .src-list{ display:block; }
+  .src-row{ padding:9px 0; border-bottom:1px solid var(--border); }
+  .src-row:last-child{ border-bottom:none; }
+  .src-name{ font-size:12px; color:var(--text); font-weight:600; word-break:break-word; }
+  .src-title{ font-size:10.5px; color:var(--text-muted); line-height:1.35; margin-top:3px; }
+  .src-meta{ font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--text-faint); margin-top:4px; }
+  /* A live feed and your own attachment are different kinds of claim from a
+     news article, so they read differently rather than sitting in one list. */
+  .src-row.live .src-name{ color:var(--sage); }
+  .src-row.attachment .src-name{ color:var(--copper); }
+  .src-note{ font-size:10px; color:var(--text-faint); line-height:1.45; padding:9px 0 2px; }
+
   .progress-wrap{ flex:none; padding:12px 20px 4px; }
   .progress-bar{ height:4px; border-radius:4px; background:rgba(244,239,228,0.12); position:relative; margin-bottom:6px;
     /* Draggable. touch-action:none so the browser does not claim the gesture
@@ -1443,6 +1473,13 @@
         <div class="captions-panel off" id="ccPanel">
           <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="toast('Transcript copied ✓')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
           <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
+        </div>
+        <div class="src-panel" id="srcPanel" hidden>
+          <div class="src-toggle" onclick="toggleSources()">
+            <span>Sources</span>
+            <span class="src-count" id="srcCount">—</span>
+          </div>
+          <div class="src-list" id="srcList"></div>
         </div>
         <div class="progress-wrap">
           <div class="progress-bar"><div class="buffered"></div><div class="fill"></div><div class="knob"></div></div>
@@ -2884,6 +2921,7 @@
         stopProgress();
         setPlayState(false);
         fetchEpisodeThread();
+        fetchEpisodeSources();
         // Finishing is the strongest taste signal there is, and only the
         // client knows it happened.
         if(!reportedOutcome){
@@ -2966,6 +3004,7 @@
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
     document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
+    clearSources();
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
     // reset play state to "playing"
@@ -3054,6 +3093,8 @@
     if(on){
       panel.classList.remove("on"); panel.classList.add("off");
       document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
+    clearSources();
+      clearSources();
       icon.classList.remove("on");
     } else {
       var key = panel.dataset.key;
@@ -3361,6 +3402,7 @@
     document.getElementById("goDeeperInput").value = "";
     showThreadSuggestion();
     fetchEpisodeThread();   // still generating? fill the chip when it lands
+    fetchEpisodeSources();  // and say what it was built on, once it exists
     document.getElementById("goDeeperOverlay").classList.add("active");
     setTimeout(function(){ document.getElementById("goDeeperInput").focus(); }, 60);
   }
@@ -4042,11 +4084,17 @@
   }
 
   // ---------------- myFAM feed ----------------
-  // Four sections, four different signals, ranked server-side over a bank of
-  // topics that is the SAME for every listener. That is the cost design: a
-  // per-user bank would mean a per-user script for every tile, where a shared
-  // bank means the second person to tap a tile gets the first person's script
-  // for free. Personalisation is in the ordering, not the inventory.
+  // Five sections, five different signals, ranked server-side. Four of them
+  // run over a bank of topics that is the SAME for every listener. That is
+  // the cost design: a per-user bank would mean a per-user script for every
+  // tile, where a shared bank means the second person to tap a tile gets the
+  // first person's script for free. Personalisation is in the ordering, not
+  // the inventory.
+  //
+  // The fifth, "Trending", is the one whose inventory is not FAM's own: it
+  // comes from an outside world-news feed, refreshed once for everybody. Same
+  // economics, different source - see TRENDING.md. Rendering is generic, so
+  // nothing here knows which is which.
 
   // Identity used to be made up here - Math.random() into localStorage, then
   // sent as ?user= on every request - and the server believed whatever arrived.
@@ -4165,6 +4213,91 @@
     if(seconds < 20 || seconds > total - 30){ delete map[query]; }
     else { map[query] = { minutes: minutes, at: seconds, saved: Date.now() }; }
     saveResume(map);
+  }
+
+  // ---------------- sources ----------------
+  // Where this episode's facts came from. Fetched after the audio starts, not
+  // before: provenance is only known once the script has been written, which
+  // is after the first word is already playing. The same reason /api/next is
+  // a separate call rather than a header.
+  //
+  // NOTE, and it matters: nothing shown here has ever been in a prompt. The
+  // evidence packet carries source *grades* and deliberately never hostnames,
+  // because a domain in the packet is a domain the voice can read out. This is
+  // the display channel. Showing sources in the app is not a reason to let the
+  // model cite them aloud.
+  function toggleSources(){
+    var panel = document.getElementById("srcPanel");
+    if (panel) panel.classList.toggle("open");
+  }
+
+  function renderSources(data){
+    var panel = document.getElementById("srcPanel");
+    var list = document.getElementById("srcList");
+    var count = document.getElementById("srcCount");
+    if (!panel || !list || !count) return;
+
+    var items = (data && data.items) || [];
+    if (!items.length){
+      // "We did not record any" and "there were none" are different, and an
+      // episode answered from knowledge is a real case. Say which.
+      if (data && data.known){
+        panel.hidden = false;
+        count.textContent = "none";
+        list.innerHTML = '<div class="src-note">This episode was written without '
+          + 'retrieved sources.</div>';
+      } else {
+        panel.hidden = true;
+      }
+      return;
+    }
+
+    panel.hidden = false;
+    count.textContent = String(items.length);
+    var rows = items.map(function(item){
+      var meta = [];
+      if (item.tier) meta.push(item.tier);
+      if (item.at) meta.push(item.at);
+      return '<div class="src-row ' + escapeHtml(item.kind || "article") + '">'
+        + '<div class="src-name">' + escapeHtml(item.label || "") + '</div>'
+        + (item.title ? '<div class="src-title">' + escapeHtml(item.title) + '</div>' : '')
+        + (meta.length ? '<div class="src-meta">' + escapeHtml(meta.join(" · ")) + '</div>' : '')
+        + '</div>';
+    }).join("");
+
+    // Which indexes were consulted, as opposed to which outlets published.
+    // "Two indexes agreed" is a different claim from "two newspapers agreed",
+    // and collapsing them would overstate the corroboration.
+    var retrievers = (data && data.retrievers) || [];
+    if (retrievers.length > 1){
+      rows += '<div class="src-note">Cross-checked across '
+        + escapeHtml(retrievers.join(" and ")) + '.</div>';
+    }
+    list.innerHTML = rows;
+  }
+
+  function clearSources(){
+    var panel = document.getElementById("srcPanel");
+    if (panel){ panel.hidden = true; panel.classList.remove("open"); }
+    var list = document.getElementById("srcList");
+    if (list) list.innerHTML = "";
+  }
+
+  function fetchEpisodeSources(){
+    if (!episodeStamp) return;
+    var parts = episodeStamp.split("|");
+    var stamp = episodeStamp;
+    fetch("/api/sources?q=" + encodeURIComponent(parts[0]) +
+          "&minutes=" + encodeURIComponent(parts[1]) +
+          "&context=" + encodeURIComponent(parts[2] || ""))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        // The listener may have moved on while this was in flight.
+        if (!data || stamp !== episodeStamp) return;
+        renderSources(data);
+      })
+      // A provenance panel that fails to load must never disturb playback.
+      .catch(function(){});
   }
 
   function loadGoDeeper(){

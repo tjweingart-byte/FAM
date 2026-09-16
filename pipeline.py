@@ -979,6 +979,20 @@ class PodcastPipeline:
             return ""
         return self.cache.thread(await self._cache_key(plan))
 
+    async def sources_for(self, plan: EpisodePlan) -> str:
+        """Provenance JSON for an episode already generated, or "".
+
+        Mirrors `thread_for` exactly, and for the same reason: what an episode
+        drew on is only known once the script has been written, which is after
+        the audio response headers have gone out.
+        """
+        if not self.cache or not is_shareable(plan.query):
+            return ""
+        reader = getattr(self.cache, "sources", None)
+        if reader is None:
+            return ""
+        return reader(await self._cache_key(plan))
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:
@@ -1114,10 +1128,30 @@ class PodcastPipeline:
         stats.thread = notes.thread
 
         if self.cache and self.cache_writes and shareable and stats.script:
-            ttl = ttl_for(plan.query)
-            self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                           plan.minutes, bucket)
-            log.info("cached %d sentences for %r (ttl %ds)", len(stats.script), plan.query, ttl)
+            # How long this stays true, from what the episode was actually
+            # built from - carried home on `notes` because the plan this scope
+            # holds is the unprepared one. Zero means the episode describes
+            # something that is still moving and must not be written at all:
+            # `recent()` is the Explore feed, so a cached in-progress episode
+            # is not only re-served, it is published. PROBLEMS.md §89.
+            ttl = ttl_for(plan.query, live_status=notes.live_status,
+                          outcome_dependent=notes.outcome_dependent,
+                          recency_days=notes.recency_days)
+            if ttl > 0:
+                # The shareable half only: an attachment's title is the
+                # listener's own document, and the script cache is shared and
+                # feeds Explore. `Provenance.shareable` drops anything private.
+                sources = ""
+                if notes.provenance is not None:
+                    sources = notes.provenance.to_json()
+                self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
+                               plan.minutes, bucket, sources)
+                log.info("cached %d sentences for %r (ttl %ds)",
+                         len(stats.script), plan.query, ttl)
+            else:
+                log.info("not caching %r: the live state is %r, so this episode "
+                         "is stale the moment it is written",
+                         plan.query, notes.live_status or "unestablished")
 
         async for chunk in self._finish(pace, stats):
             yield chunk

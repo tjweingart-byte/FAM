@@ -139,11 +139,19 @@ The opening:
 - Start inside something already in motion - a process running, a moment \
 happening, a number moving. Concrete enough to picture, specific enough that \
 it could not open a different episode.
+- **Land them in the actual situation inside two sentences** - who or what, \
+what is happening, when, in particulars rather than as a topic. "The Chiefs \
+play Denver tonight to open the season, and Mahomes is nine months off a torn \
+ACL" is an opening. A vivid detail from an adjacent year is a different \
+episode's first line, and they spend thirty seconds working out what this is. \
+That is where they are standing, not why it matters.
 - Open a small "wait, why?" with that first line, then spend the piece \
 answering it. Do not state your conclusion in sentence one; you have nowhere \
 to go after that. Do not delay it either.
 - No scene-setting for its own sake. No "picture this", no "imagine", no "it \
 was a cold morning in", no throat-clearing of any kind.
+- **History explains the present; it never precedes it.** Background belongs at \
+the point where it makes now make sense. Opening years back reads as stalling.
 - Banned outright: "Here's what I can tell you about...", "Let's talk \
 about...", "This is a fascinating topic...", "There's a lot to unpack \
 here...".
@@ -200,7 +208,9 @@ is the shape of the delivery, never a delay before it.
 Accuracy is part of being worth listening to:
 - Never invent a statistic, quote, name, date or result. A story built on a \
 made-up detail is worthless.
-- If you do not know, say the short true thing and keep moving.
+- If you do not know, say the short true thing and keep moving. **A result you \
+have not read does not exist** - under way is not over, and the most confident \
+guess about how it ends is still a guess. Say where it stands.
 - If sources disagree, say so, and say which is better supported. Disagreement \
 is usually the most interesting part anyway.
 - Never fill a gap with something that merely sounds plausible. That is the \
@@ -234,9 +244,8 @@ mechanism you explained that has an obvious next step, the figure that invites \
 the most obscure follow-up, the most likely one.
 
 Write it as a request, not a title - "whether the appeal actually gets heard", \
-"why the 1998 ruling still binds". Six to twelve words. The app strips this \
-line before anything is spoken and offers it as a suggestion afterwards, so it \
-costs the listener nothing if you guess wrong; write nothing after it.
+"why the 1998 ruling still binds". Six to twelve words. It is stripped before \
+anything is spoken, so a wrong guess costs nothing; write nothing after it.
 """
 
 
@@ -272,6 +281,33 @@ class ScriptNotes:
     #: per-call copy would report the cover as free, which is the half that
     #: does most of the writing.
     usage: metering.Usage = dataclasses.field(default_factory=metering.Usage)
+
+    # --- how long what this episode says stays true -----------------------
+    #
+    # **Here rather than on the plan, and that is not tidiness.** The caller
+    # holds the *unprepared* plan: `stream_sentences` rebinds it
+    # (`plan = await self.prepare(plan, notes)`) and `_answer_first` derives
+    # two more that the pipeline never sees. So `plan.brief` and `plan.live`
+    # are `None` at the moment the pipeline writes to the cache, and always
+    # would be. `ScriptNotes` is the channel that already crosses that
+    # boundary - it is how `thread` and `research` get back - so the cache
+    # policy rides home the same way. PROBLEMS.md §89.
+
+    #: The event status *evidence* established, from `live_facts`. Never set
+    #: from EI, and empty when no live provider answered.
+    live_status: str = ""
+    #: Whether the listener asked for a result. EI's honest reading of the
+    #: request; see `episode_intelligence.Brief.outcome_dependent`.
+    outcome_dependent: bool = False
+    #: How fresh the evidence had to be, in days. 0 means evergreen.
+    recency_days: int = 0
+    #: What the live lookup actually did, for the log and `/api/health`. One of
+    #: `live_facts.LiveLookup.outcome`, or "" when nothing was asked.
+    live_outcome: str = ""
+    #: Who this episode's facts came from - `provenance.Provenance`. Read back
+    #: by the pipeline, cached beside the script and shown in the app. FAM
+    #: already collected all of this and discarded it; see `provenance.py`.
+    provenance: object = None
 
 
 def extract_thread(text: str) -> str:
@@ -501,13 +537,40 @@ and do not claim anything about a document beyond what is in it.
     if plan.evidence:
         thin = ""
         if plan.thin_on:
+            # **What this block may and may not conclude**, which is the whole
+            # of it and which it got wrong for as long as it existed. It used
+            # to say "say plainly that that part is not yet reported", and
+            # "not reported" is a claim about the world made from a fact about
+            # one search. On a volatile thing the two nearly coincide. On a
+            # settled one they do not coincide at all: FAM told a listener that
+            # next week's fixture "hasn't been pinned down" when the schedule
+            # had been public since May, and ended the episode on it - which
+            # also broke three separate rules in the system prompt about not
+            # narrating sourcing and not ending on an open thread.
+            # PROBLEMS.md §88.
             thin = (
-                "\nThese sources look thin on: "
+                "\nOne search did not turn up much on: "
                 + "; ".join(plan.thin_on)
-                + ". Say plainly that that part is not yet reported rather than "
-                "answering it from memory in the same confident voice as the "
-                "rest - a listener cannot tell the two apart, which is what "
-                "makes it the worst thing you can do here.\n")
+                + ". That is a fact about the search, not about the world, and "
+                "the two come apart differently depending on what it is.\n"
+                "- If it is something that **changes** - a result, a score, a "
+                "current figure, who is in charge today - then a search that "
+                "missed it is real evidence it is not settled yet. Do not "
+                "supply it from memory: what you remember is months old and "
+                "arrives in the same confident voice as the researched half, "
+                "and a listener cannot tell the two apart. Say the short true "
+                "thing in passing and keep going.\n"
+                "- If it is something **already settled** - a scheduled date, a "
+                "fixture, a rule, a figure that was fixed some time ago - then "
+                "the search missing it proves nothing, because nobody has "
+                "written a news story about a thing that has not changed. Use "
+                "what you know. If you are not sure enough to say it plainly, "
+                "leave it out of the episode entirely.\n"
+                "- Either way, **never announce the gap**. Do not say it is not "
+                "reported, not confirmed, not available, or worth checking "
+                "later. Do not narrate what you did or did not find, and never "
+                "end the episode on one of these - the last line is the "
+                "strongest thing you have, and a missing fact is never it.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -521,9 +584,11 @@ sounds. Where sources disagree, the better-sourced and more recent one wins,
 and say so in passing rather than presenting both.
 
 Where they contradict what you recall, they win and you say so plainly and in
-passing - "that figure has since moved to X" - and carry on. Where they are
-thin or silent on part of the question, answer that part from what you know and
-do not stretch a source to cover it.
+passing - "that figure has since moved to X" - and carry on. Never stretch a
+source to cover something it does not say. Where they are silent on part of the
+question, be strict about what that permits: something that **changes** - a
+result, a score, a figure that moves - is never supplied from memory. Something
+long settled may be.
 
 Never read a source's title, number, date or URL aloud. This is someone
 listening, not reading a citation list - the dates are for your reasoning, not
@@ -536,6 +601,11 @@ for the script.
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
+    # One block, every outcome. `LiveLookup.as_prompt_block` renders facts
+    # when there are facts and says exactly which way it came up empty when
+    # there are not - "no provider", "provider failed", "no such game" and
+    # "too old to be current" are four different things to tell a writer, and
+    # `Optional[LiveFacts]` told it the same nothing for all of them.
     live = ""
     if plan.live is not None:
         try:
@@ -570,12 +640,34 @@ Time, and this is where these go wrong most often:
 - Work out **when** each thing happened from the dates you were given, then say
   it in the words a person would use. "Last night" only if it was last night.
   Two days ago is "two days ago", not "last night".
+- **Three states, not two: not started, under way, finished.** Decide which one
+  from the evidence before you write a sentence about it. Most of these go
+  wrong by skipping this step, because "finished" is the only state the usual
+  shape of the story has a place for.
+- **A result exists only where a source reports it as a result.** Previews,
+  odds and betting lines, projected line-ups, "how to watch", "expected to",
+  "will face" - those are written *before* a thing happens. A packet made only
+  of them is not thin evidence of an outcome; it is evidence that there is no
+  outcome yet. Read it that way.
+- If something is under way, **say so and say where it stands**. What is at
+  stake, what has happened so far, what is still open. That is the episode. Do
+  not resolve it, do not project how it ends, and do not describe anyone's
+  performance in it as settled.
+- **A contradiction is information; never explain it away.** If one thing you
+  believe implies a result and another source shows a standing, a record, a
+  position or a table that the result would have changed, you do not have a
+  result - you have something that has not finished. Take the smaller true
+  reading every time. Inventing a reason the two can both be right is how a
+  made-up fact gets past you.
+- **When two sources disagree, this is the order, and it is not a judgement
+  call.** A live state block, if you were given one, beats everything. A dated
+  article beats an older dated article. Any dated article beats your own
+  memory. Your own memory never establishes anything current. Where the top of
+  that order is silent on something, the answer is that we do not have it -
+  not that the one below it is promoted.
 - If something has not happened yet, it has no result. Do not name a winner,
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
-- If the sources do not establish how something ended, say that it is not yet
-  reported and carry on. That is a true sentence and it takes two seconds; an
-  invented result is the one failure a listener never forgives.
 - An undated source cannot date anything. Do not use it to decide when.
 """
 
@@ -764,6 +856,8 @@ class ScriptGenerator:
             # searches after all rather than being handed an empty packet and
             # told it is research.
             return plan
+        if notes is not None and packet.provenance is not None:
+            notes.provenance = packet.provenance
         return dataclasses.replace(plan, evidence=packet.context,
                                    thin_on=tuple(packet.missing))
 
@@ -803,16 +897,23 @@ class ScriptGenerator:
             plan.query, plan.minutes, plan.context, notes)
         return dataclasses.replace(plan, brief=brief)
 
-    async def live_lookup(self, plan: EpisodePlan) -> EpisodePlan:
+    async def live_lookup(self, plan: EpisodePlan,
+                          notes: ScriptNotes | None = None) -> EpisodePlan:
         """Ask for a live state when the brief says the answer turns on one.
 
-        Runs alongside retrieval rather than instead of it: a score settles what
-        happened, and the packet is still what explains it.
+        Runs alongside retrieval rather than before it - see `prepare`. A score
+        settles *what happened*; the packet is still what explains it, and
+        neither reads the other, so waiting for one to start the other was
+        latency nobody was buying anything with.
+
+        The result is a `LiveLookup` rather than facts-or-None, so the writer
+        can be told which of the seven things happened. `None` here means only
+        that the question does not turn on a live state at all.
         """
         if plan.brief is None or plan.live is not None:
             return plan
-        facts = await live_facts.lookup(plan.brief)
-        return plan if facts is None else dataclasses.replace(plan, live=facts)
+        result = await live_facts.lookup(plan.brief, notes)
+        return plan if result is None else dataclasses.replace(plan, live=result)
 
     async def prepare(self, plan: EpisodePlan,
                       notes: ScriptNotes | None = None) -> EpisodePlan:
@@ -827,8 +928,47 @@ class ScriptGenerator:
         pre-writing phase, the same reason `research` was split out.
         """
         plan = await self.understand(plan, notes)
-        plan = await self.live_lookup(plan)
-        return await self.research(plan, notes)
+
+        # **Concurrent, and verified independent before it was made so.** Both
+        # read `plan.brief` and neither reads the other's output: `live_lookup`
+        # takes `brief.live_domain` and `research` takes `brief.retrieval`,
+        # `recency_days` and `must_establish`. Sequentially the live call added
+        # its whole latency on top of retrieval, in front of the first word,
+        # for nothing. They are merged field-by-field rather than chained
+        # because each returns a copy derived from the *same* input plan.
+        live_plan, research_plan = await asyncio.gather(
+            self.live_lookup(plan, notes), self.research(plan, notes))
+        plan = dataclasses.replace(
+            plan, live=live_plan.live, evidence=research_plan.evidence,
+            thin_on=research_plan.thin_on)
+
+        # What the episode turned out to be built from, sent home on `notes`
+        # because the caller's plan is the unprepared one and cannot see any of
+        # this. The cache TTL is decided from these - see `cache.ttl_for` and
+        # PROBLEMS.md §89.
+        if notes is not None:
+            notes.outcome_dependent = bool(
+                getattr(plan.brief, "outcome_dependent", False))
+            notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
+            if plan.live is not None:
+                notes.live_status = plan.live.status
+                notes.live_outcome = plan.live.outcome
+
+            # Everything that contributed, gathered in one place for the app.
+            # The live provider is credited only when it actually answered -
+            # one that failed or returned something too stale to use did not
+            # contribute, and listing it would claim corroboration that never
+            # happened.
+            import provenance as provenance_mod
+
+            if notes.provenance is None:
+                notes.provenance = provenance_mod.Provenance()
+            live_source = provenance_mod.from_live(plan.live)
+            if live_source is not None:
+                notes.provenance.add(live_source)
+            for attached in provenance_mod.from_attachments(plan.attachments):
+                notes.provenance.add(attached)
+        return plan
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

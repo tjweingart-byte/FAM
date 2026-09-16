@@ -43,12 +43,32 @@ and the second-last defender at the moment a teammate plays it forward...
   should know it. An example that is beautifully told and leaves you unsatisfied
   teaches exactly the wrong lesson.
 - **End the way you want it to end.** Endings get copied hardest, and this is
-  the next most valuable thing an example can teach. Don't conclude - widen.
-  Leave one specific thing unresolved that you set up earlier in the piece — but
-  never the thing they asked about — and stop pointed at it. No summary, no "and that's the story of", no question
-  asked of the listener.
-- **Write it as if they're already here.** No orienting, no explaining why the
-  topic is worth their time. Begin mid-conversation.
+  the next most valuable thing an example can teach. **Land it and stop.** The
+  last line is the most concrete thing in the piece, and then it ends,
+  mid-stride. No summary, no "and that's the story of", no question asked of
+  the listener — and **no hook**: no dangling thread, no "but that raises
+  another question", no pointing at what you are not covering.
+
+  > **This section used to say the opposite** — "don't conclude, widen; leave
+  > one thing unresolved and stop pointed at it" — and that rule was reversed
+  > in PROBLEMS.md §48. Heard back to back, a thread left open at the end of
+  > every episode is a hook at the end of every episode, which is a tease, and
+  > it was asked to be removed twice. It survived here after it was removed
+  > from the prompt, which is precisely the failure CLAUDE.md warns about: a
+  > setting is settled only where it is copied, and an example file has turned
+  > deleted behaviour back on in this project before. Anything genuinely
+  > unresolved is said *inside* the piece, plainly, and then the piece carries
+  > on.
+- **Situate them in the first two sentences.** Who, what, when, in
+  particulars — enough that they know what they are listening to before the
+  third sentence. That is not the same as orienting them: never explain why
+  the topic is worth their time, never say "as you may know", never open on
+  background. History earns its place by explaining the present, not by
+  preceding it.
+- **Never state a current fact the piece has not established.** An example
+  that confidently asserts a score, a price or a result teaches the model that
+  confidence is the house voice, and that is the one lesson this project
+  cannot afford. Prefer topics whose facts do not move.
 - You do **not** need to add the `<<NEXT: ...>>` line to an example. That is
   machine metadata the app strips; examples are about how the writing sounds.
 - **Don't over-polish.** Write what you'd genuinely want in your ears on a walk.

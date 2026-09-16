@@ -1,0 +1,15 @@
+why do flights get cancelled for weather that isn't where I am
+
+Your plane is in Denver. You're in Atlanta, the sky is clear, and the board says cancelled — and the reason is that the aircraft you were going to fly on is a physical object that has to get here, and right now it isn't moving.
+
+Airlines don't keep spare planes sitting at airports. A single airframe might fly Denver to Atlanta to Boston and back to Atlanta in one day, and every one of those legs is scheduled on the assumption that the leg before it landed on time. That chain is called a rotation, and it's deliberately tight, because an aircraft parked at a gate earns nothing.
+
+So a thunderstorm over Denver at six in the morning doesn't cancel one flight. It cancels the fourth flight that airframe was supposed to make, eleven hours later, in a city with perfect weather.
+
+Then there's the second chain, and this is the one that actually does the damage. Pilots and cabin crew run on a legal clock — a hard ceiling on how many hours they can be on duty, set by the regulator, not by the airline. When a crew runs out of hours they stop, wherever they happen to be standing. They can't be asked to fly one more leg. There's no discretion in it and no arguing with it.
+
+That's what puts a cliff edge in the middle of a delay. An hour of weather gets absorbed. Three hours of weather pushes a crew past their limit, and now the airline doesn't need a plane — it needs a plane and four rested humans in the same place at the same time, at nine at night, when nobody else is starting a shift.
+
+Which is why the cancellation so often lands after the weather has cleared. You're watching the sky. The airline is watching a spreadsheet of where its aircraft and its crews physically are, and the moment those two things can't be made to meet, the flight is gone, whatever it looks like out of the window.
+
+The tell is the timing. A cancellation hours before departure on a clear day is almost always a rotation problem somewhere upstream. A cancellation forty minutes before boarding, with the plane sitting right there at the gate, is usually crew — somebody timed out, and their replacement is in another state.

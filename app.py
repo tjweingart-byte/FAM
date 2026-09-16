@@ -46,6 +46,10 @@ from config import DEFAULT_PIPELINE, describe_key, key_source, settings
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
+import live_sources
+from gdelt import report as gdelt_report
+import provenance as provenance_mod
+import trending as trending_mod
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
@@ -223,6 +227,16 @@ async def lifespan(_: FastAPI):
     # PREFETCH says, because the *registry* is what /api/health reports and a
     # deploy with no sources installed looks identical to one with prefetch
     # switched off - two different problems with two different fixes.
+    # Which live providers this deployment asked for. Installed before
+    # prefetch for no reason other than reading order; nothing depends on it.
+    # Problems are logged and reported rather than raised: a typo in
+    # LIVE_SPORTS_PROVIDER must not stop the server, because every episode is
+    # still answerable and the writer is told there is no live feed.
+    live_sources.install()
+    # The world-trending row's source. Same shape as the others: whatever
+    # configuration asked for, with problems reported rather than raised, so a
+    # typo empties one row instead of stopping the server.
+    trending_mod.install()
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES)
     prefetch.prefetcher(
         generator=None if DEMO_MODE else ScriptGenerator(),
@@ -863,6 +877,18 @@ async def health() -> dict:
         # rather than silently absent, because a scoreboard question answered
         # from an index is wrong in a way nobody sees until a listener hears it.
         "live_facts": live_facts_report(),
+        # What configuration asked for, beside what actually registered. A
+        # provider name this build does not know is configured and absent, and
+        # that difference does not show in a source list.
+        "live_sources": live_sources.report(),
+        # The other half of "live": what the world is paying attention to, as
+        # opposed to what one entity's state is. Reported separately because
+        # they fail separately and are fixed separately.
+        "trending": trending_mod.report(),
+        # The second retrieval index, and the Trending row's feed. Reported
+        # separately from `research` because they fail separately: Exa can be
+        # healthy while this is off, and vice versa.
+        "gdelt": gdelt_report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how
@@ -2280,7 +2306,7 @@ class EventRequest(BaseModel):
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200)):
-    """The four myFAM sections, ranked for this listener.
+    """The five myFAM sections, ranked for this listener.
 
     Costs no model call: the topic bank is fixed and this only orders it.
     A listener with no history still gets Trending and a starter set, with
@@ -2290,6 +2316,15 @@ async def myfam(request: Request, interests: str = Query("", max_length=200)):
     # reader's limit rather than the generation one.
     _read_limit(request)
     user = _listener(request)
+
+    # One refresh serves every listener, so this is scheduled rather than
+    # awaited: myFAM renders from whatever the shared cache holds and stays
+    # instant. The browse surfaces are the one place CLAUDE.md says the wait
+    # must be zero, and a news feed is not worth spending it on - the row is
+    # honestly empty on a cold first load and full on the next.
+    if trending_mod.is_stale():
+        asyncio.create_task(trending_mod.refresh())
+
     feed = topics_mod.build_feed(EVENTS, user, interests=_interests_for(request, interests))
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
@@ -2435,6 +2470,43 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # An echoed episode leads, because someone chose to send it.
     episodes.sort(key=lambda e: (not e["echoed_by"], e["age_seconds"]))
     return {"episodes": episodes}
+
+
+@app.get("/api/sources")
+async def episode_sources(
+    request: Request,
+    q: str = Query(..., description="What the listener asked"),
+    minutes: int = Query(3, ge=1, le=10),
+    context: str = Query("", description="Topic the listener just heard"),
+    search: bool = Query(True),
+):
+    """Who this episode's facts came from.
+
+    Read from the cache under the same key the script is stored under, which
+    is why it works on a replay: a cached episode has no `notes` to rebuild
+    provenance from, so it is stored beside the sentences like `thread` is.
+
+    **Nothing here has ever been in a prompt.** The evidence packet carries
+    grades and never hostnames, deliberately - a domain in the packet is a
+    domain the voice can read out. This is the display channel, and it must
+    stay separate: showing sources in the app is not a reason to let the model
+    cite them aloud. See `provenance.py`.
+    """
+    _read_limit(request)
+    plan = _validated_plan(q, minutes, context, search)
+    try:
+        pipeline = _make_pipeline()
+    except TTSUnavailable:
+        return {"items": [], "retrievers": [], "count": 0, "known": False}
+    raw = await pipeline.sources_for(plan)
+    found = provenance_mod.Provenance.from_json(raw)
+    body = found.as_dict()
+    # An episode with no stored provenance is not an episode with no sources -
+    # it may simply predate this, or have been answered from knowledge. Said
+    # in words so the interface can tell the difference rather than rendering
+    # an empty list as "no sources".
+    body["known"] = bool(raw)
+    return body
 
 
 @app.get("/api/next")

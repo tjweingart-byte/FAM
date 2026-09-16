@@ -189,18 +189,73 @@ def needs_fresh_information(query: str) -> bool:
     return bool(research_reason(query))
 
 
-def ttl_for(query: str) -> int:
-    """How long a script for this query stays usable, in seconds.
+#: What a scheduled event's episode is good for. Shorter than the ordinary
+#: ceiling because the thing is coming: a preview written this morning is
+#: honest this afternoon and wrong once it kicks off.
+SCHEDULED_TTL_SECONDS = 1800
 
-    Freshness is the hard part of a shared cache. "Why is the sky blue" is good
-    for a month; "latest news on X" is stale in minutes, and serving it from
-    cache is worse than being slow. The heuristic below is intentionally
-    conservative - see the note in README about upgrading it to a classifier.
+
+def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = False,
+            recency_days: int = 0) -> int:
+    """How long a script stays usable, in seconds. **Zero means do not cache.**
+
+    **The question this asks changed, and that is the whole of PROBLEMS.md §89.**
+    It used to ask "do the words of this query *look* volatile", answered from
+    `_VOLATILE`. That is a guess made before anything is known, and it was
+    wrong in the most expensive possible direction: `"Chiefs game"` contains no
+    volatile word, so an episode about a game in progress was cached for
+    **twenty-four hours** and served to everyone who asked - and, because
+    `recent()` is the Explore feed, entered Explore as well.
+
+    Widening the keyword list is not the fix and must not be attempted. §76
+    already settled that for research: a keyword list can always be widened by
+    one more word, and the next query it misses is already written. "Chiefs",
+    "score" and "game" would have missed "how is the match going".
+
+    So it now asks **how long what this episode says will stay true**, which is
+    answerable, because by the time anything is written we know what it was
+    built from. In precedence order, most authoritative first:
+
+    1. **A live fact's status**, which is the only thing here established by
+       evidence rather than inferred. `in_progress` is uncacheable outright -
+       no TTL is short enough for a score, and a ten-second entry still serves
+       one listener the state another listener already saw change.
+       `final` does not move, so it keeps the ordinary ceiling.
+    2. **The brief's `outcome_dependent`**, which is EI's honest statement that
+       the listener wants a *result*. Volatile until one exists. This is the
+       half that works with no provider configured at all, and it is what
+       actually fixes the `"Chiefs game"` case today.
+    3. **The evidence window.** An episode written from evidence that had to be
+       a day old is a claim about that day.
+    4. **The keyword list**, unchanged, as the floor for the paths that have
+       none of the above - `EPISODE_INTELLIGENCE=0`, offline `write.py`,
+       `tools/seed_demo.py`. Never widened.
+
+    Ordinary static content is untouched: with no live fact, no brief and no
+    volatile word, this returns exactly what it always returned.
     """
     tokens = set(_SPACE.split(_PUNCT.sub(" ", query.lower())))
-    if tokens & _VOLATILE:
-        return settings.cache_ttl_volatile
-    return settings.cache_ttl_seconds
+    keyword_ttl = (settings.cache_ttl_volatile if tokens & _VOLATILE
+                   else settings.cache_ttl_seconds)
+
+    status = (live_status or "").strip().lower()
+    if status == "in_progress":
+        return 0
+    if status == "scheduled":
+        return min(keyword_ttl, SCHEDULED_TTL_SECONDS)
+    if status == "final":
+        # Settled by evidence and it does not move again. The ordinary ceiling
+        # is right, and shortening it here would throw away the shared-cache
+        # discount on exactly the episodes most worth sharing.
+        return keyword_ttl
+
+    # `unknown`, or no live fact at all. Fall through to what the request and
+    # the evidence say, never to a claim that the event is over.
+    if outcome_dependent:
+        return min(keyword_ttl, settings.cache_ttl_volatile)
+    if recency_days and int(recency_days) <= 1:
+        return min(keyword_ttl, settings.cache_ttl_volatile)
+    return keyword_ttl
 
 
 def cache_key(
@@ -347,12 +402,19 @@ def best_match(
 class ScriptCache(Protocol):
     def get(self, key: str) -> Optional[list[str]]: ...
     def put(
-        self, key: str, sentences: list[str], ttl: int, query: str, thread: str = ""
+        self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
+        minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
     #: can never speak it by accident.
     def thread(self, key: str) -> str: ...
+    #: Who the cached episode's facts came from, as stored JSON. Kept beside
+    #: the script for the same reason `thread` is: a cache hit replays
+    #: sentences and has no `notes`, so without this a shared or Explore
+    #: episode would show an empty sources panel while a freshly generated one
+    #: showed a full list. See `provenance.py`.
+    def sources(self, key: str) -> str: ...
     #: Live entries, newest first. Explore replays these and never generates.
     def recent(self, limit: int = 40) -> list[dict]: ...
     #: The closest *near* match in the same bucket, or None. Only consulted
@@ -365,6 +427,9 @@ class MemoryScriptCache:
 
     def __init__(self) -> None:
         self._data: dict[str, tuple[float, list[str], str, str, int]] = {}
+        #: key -> provenance JSON. Beside the tuple rather than in it, so the
+        #: shape the existing tests assert on is unchanged.
+        self._sources: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
@@ -381,9 +446,11 @@ class MemoryScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None:
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
+        if sources:
+            self._sources[key] = sources
         if bucket and query:
             self._vectors[key] = (bucket, embeddings.pack(embeddings.embed(normalize_query(query))))
 
@@ -413,6 +480,12 @@ class MemoryScriptCache:
         if not entry or entry[0] < time.time():
             return ""
         return entry[2]
+
+    def sources(self, key: str) -> str:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return ""
+        return self._sources.get(key, "")
 
     def stats(self) -> dict:
         return {"backend": "memory", "entries": len(self._data), "hits": self.hits, "misses": self.misses}
@@ -459,6 +532,9 @@ class SqliteScriptCache:
                 # to near matching - they still serve exact hits.
                 ("bucket", "ALTER TABLE scripts ADD COLUMN bucket TEXT NOT NULL DEFAULT ''"),
                 ("vector", "ALTER TABLE scripts ADD COLUMN vector BLOB"),
+                # Provenance, beside the script for the same reason `thread`
+                # is: a replayed episode has no `notes` to rebuild it from.
+                ("sources", "ALTER TABLE scripts ADD COLUMN sources TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -498,7 +574,7 @@ class SqliteScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -519,10 +595,10 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT OR REPLACE INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
+                "  bucket, vector, sources)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
-                 thread[:200], int(minutes), bucket, vector),
+                 thread[:200], int(minutes), bucket, vector, sources or ""),
             )
         except Exception:
             log.exception("script cache write failed; continuing")
@@ -553,6 +629,24 @@ class SqliteScriptCache:
             log.exception("near-match scan failed; treating as a miss")
             return None
         return best_match(query, rows)
+
+    def sources(self, key: str) -> str:
+        """Provenance JSON for a cached episode, or "" if there is none.
+
+        Same shape as `thread` and for the same reason - a replayed episode
+        has no `notes` to rebuild it from, so without this a cache hit would
+        show an empty sources panel where a fresh generation showed a full one.
+        """
+        try:
+            row = self._conn().execute(
+                "SELECT sources, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return ""
+            return row[0] or ""
+        except Exception:
+            log.exception("script cache sources read failed; continuing")
+            return ""
 
     def thread(self, key: str) -> str:
         try:

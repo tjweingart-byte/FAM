@@ -64,7 +64,13 @@ log = logging.getLogger(__name__)
 #: What job the listener is asking FAM to do. A closed set on purpose: an open
 #: one gives a different label every run and nothing downstream can switch on it.
 INTENTS = (
-    "recap",       # something finished; tell me what happened
+    # "recap" says what the *listener* wants, never what the world has done.
+    # It used to read "something finished; tell me what happened", and that was
+    # a claim - made by the one layer in FAM that is forbidden to make claims,
+    # about the one thing it cannot possibly know. Nothing has been retrieved
+    # when this is chosen, so whether the thing has finished is unknown here by
+    # construction; the evidence settles it downstream. See PROBLEMS.md §88.
+    "recap",       # tell me what happened, if it has happened
     "preview",     # something is coming; tell me what to expect
     "causal",      # why did X do Y
     "update",      # where does X stand now
@@ -101,6 +107,19 @@ STRUCTURES = {
         "what is at stake, then where both sides currently stand, then the "
         "matchup that decides it, then what to watch for, then when it happens"
     ),
+    #: The shape the vocabulary had no word for, and whose absence produced
+    #: PROBLEMS.md §88. Between the start of an event and the existence of a
+    #: report about it, every other shape here demands an outcome - and a shape
+    #: that demands one is a shape that will be given one, invented, because
+    #: dropping the beat leaves nothing. This is the episode that is genuinely
+    #: available in that window, and it is a real episode rather than a
+    #: consolation: what is at stake and what has happened so far is most of
+    #: what a listener asking mid-event actually wants.
+    "in_progress": (
+        "what is at stake, then how it stands right now, then what has already "
+        "been settled and what that has changed, then what is still open - and "
+        "it ends there, because it has not finished"
+    ),
     "explainer": (
         "the intuition first, then the mechanism underneath it, then one "
         "concrete case of it working, then what follows from it, then the way "
@@ -116,6 +135,16 @@ STRUCTURES = {
     ),
     "general": "",  # no imposed shape; the house voice carries it
 }
+
+#: The shapes EI is allowed to *pick*, which is not all of them.
+#:
+#: `in_progress` is deliberately absent. Choosing it would be EI asserting that
+#: the event is under way - the same claim about the world that `recap` used to
+#: smuggle in, in the opposite direction, and equally unknowable from a layer
+#: that has retrieved nothing. It is reached only downstream, by the writer,
+#: from evidence: `build_structure_note` names it as the alternative when the
+#: outcome a shape needs is not in the packet. See PROBLEMS.md §88.
+PICKABLE_STRUCTURES = tuple(s for s in STRUCTURES if s != "in_progress")
 
 #: Which structure an intent reaches for when the model does not name one.
 INTENT_STRUCTURE = {
@@ -208,6 +237,17 @@ class Brief:
     #: Which live-fact domain this belongs to, if any - see `live_facts`. An
     #: article index lags a scoreboard, and this is what routes around it.
     live_domain: str = ""
+    #: True when what the listener wants *is* a result - a final score, a
+    #: winner, a verdict, a closing price - which does not exist until the thing
+    #: it comes from concludes.
+    #:
+    #: **This is a property of the question, never of the world**, which is what
+    #: makes it askable here. EI cannot know whether the game has finished; it
+    #: can know perfectly well that "who won" has no answer until one has. The
+    #: distinction is the whole of PROBLEMS.md §88: the old `recap` label
+    #: answered the second question while pretending to answer the first, and
+    #: every stage downstream then took a finished event as given.
+    outcome_dependent: bool = False
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -322,6 +362,9 @@ def gate(brief: Brief, query: str) -> Brief:
     * **A request about a specific moment must be researched against a
       window.** An episode asking what happened does not want an article from
       eighteen months ago ranked first because it is well linked.
+    * **A question whose answer is a result must say so, and must carry the
+      caution that nothing is confirmed yet.** Unconditionally - see the
+      comment on it below, which is the bug that made PROBLEMS.md §88 possible.
     """
     problems: list = []
 
@@ -329,8 +372,8 @@ def gate(brief: Brief, query: str) -> Brief:
         problems.append(f"intent {brief.intent!r} is not one of {', '.join(INTENTS)}")
         brief.intent = "explainer"
 
-    if brief.structure not in STRUCTURES:
-        problems.append(f"structure {brief.structure!r} is unknown")
+    if brief.structure not in PICKABLE_STRUCTURES:
+        problems.append(f"structure {brief.structure!r} is not one EI may pick")
         brief.structure = INTENT_STRUCTURE.get(brief.intent, "general")
 
     if brief.why_now_confidence not in ("high", "medium", "low"):
@@ -368,12 +411,32 @@ def gate(brief: Brief, query: str) -> Brief:
             f"{settings.ei_default_recency_days} days")
         brief.recency_days = settings.ei_default_recency_days
 
+    # A question whose answer is a result is outcome-dependent whether or not
+    # the model said so. Both of these are asking for something that does not
+    # exist until the thing concludes, and a live domain is the case where the
+    # gap between concluding and being reported is longest.
+    brief.outcome_dependent = (bool(brief.outcome_dependent)
+                               or brief.intent in ("recap", "update")
+                               or bool(brief.live_domain))
+
     # Nothing has been retrieved, so the result of anything recent is unknown
     # here by construction. Saying so is what stops the writer inventing one.
-    if brief.intent in ("recap", "update") and not brief.cautions:
-        brief.cautions.append(
-            "nothing has been confirmed yet: state a result only if the "
-            "evidence below actually reports it")
+    #
+    # **Unconditionally, and first in the list.** It used to be added only
+    # `if not brief.cautions` - so the single most important caution in FAM was
+    # suppressed by the presence of any other caution at all, which is to say
+    # it was suppressed on most recaps, because a model asked for cautions
+    # produces some. That is PROBLEMS.md §88's smallest and most expensive bug:
+    # a guard that looks present in the source, passes a test written with an
+    # empty list, and is absent in production. Prepending also puts it out of
+    # reach of the `[:6]` truncation below, which could otherwise drop it.
+    if brief.outcome_dependent:
+        mandatory = (
+            "nothing has been confirmed yet, and an event that has started is "
+            "not an event that has finished: state a result only if the "
+            "evidence actually reports it as final")
+        if not any("confirmed yet" in c for c in brief.cautions):
+            brief.cautions.insert(0, mandatory)
 
     brief.must_establish = [str(q).strip() for q in (brief.must_establish or [])
                             if str(q).strip()][:6]
@@ -401,13 +464,14 @@ BRIEF_SCHEMA = {
         "search_query": {"type": "string"},
         "must_establish": {"type": "array", "items": {"type": "string"}},
         "recency_days": {"type": "integer"},
-        "structure": {"type": "string", "enum": list(STRUCTURES)},
+        "structure": {"type": "string", "enum": list(PICKABLE_STRUCTURES)},
         "cautions": {"type": "array", "items": {"type": "string"}},
         "live_domain": {"type": "string", "enum": ["", "sports", "markets"]},
+        "outcome_dependent": {"type": "boolean"},
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
                  "search_query", "must_establish", "recency_days", "structure",
-                 "cautions", "live_domain"],
+                 "cautions", "live_domain", "outcome_dependent"],
     "additionalProperties": False,
 }
 
@@ -429,7 +493,13 @@ Judge the "why now" honestly. If a dominant recent event plausibly explains the 
 question, say so and mark it high. If several might, say the most likely one \
 and mark it medium. If nothing does, leave it empty and mark it low - an \
 invented reason for asking is worse than none, because the episode will be \
-built around it."""
+built around it.
+
+You do not know whether anything has happened, finished, or even started. That \
+is not something to work around - it is the one thing you are certain of. Ask \
+instead whether the answer they want is a *result*, which is a question about \
+their request and not about the world, and say so. Then write cautions that \
+hold whichever way it turns out."""
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",
@@ -475,7 +545,13 @@ Work out:
   something may not have happened yet, or may have happened days rather than
   hours ago, say so here. This is where a wrong tense gets caught.
 - **live_domain** - `sports` if this turns on a score, fixture or standing;
-  `markets` if it turns on a price, index or rate; empty otherwise."""
+  `markets` if it turns on a price, index or rate; empty otherwise.
+- **outcome_dependent** - true if what they want is a result that only exists
+  once something concludes: a final score, a winner, a verdict, a closing
+  price, a vote count. This is about their question, not about the world - you
+  have no idea whether the thing has finished, and "who won" is
+  outcome-dependent whether it finished an hour ago or is still going. False
+  for how something works, what someone is like, or what is at stake."""
 
 
 async def understand(query: str, minutes: int = 3, context: str = "",
@@ -550,12 +626,13 @@ async def understand(query: str, minutes: int = 3, context: str = "",
         structure=str(data.get("structure", "")),
         cautions=list(data.get("cautions") or []),
         live_domain=str(data.get("live_domain", "")),
+        outcome_dependent=bool(data.get("outcome_dependent", False)),
     )
     brief = gate(brief, query)
-    log.info("EI %r -> intent=%s structure=%s recency=%dd why_now=%s(%s) "
-             "search=%r", query, brief.intent, brief.structure,
-             brief.recency_days, brief.why_now or "-", brief.why_now_confidence,
-             brief.retrieval)
+    log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
+             "why_now=%s(%s) search=%r", query, brief.intent, brief.structure,
+             brief.recency_days, "pending" if brief.outcome_dependent else "n/a",
+             brief.why_now or "-", brief.why_now_confidence, brief.retrieval)
     return brief
 
 
@@ -573,13 +650,27 @@ def build_structure_note(brief: Brief) -> str:
     shape = STRUCTURES.get(brief.structure, "")
     if not shape:
         return ""
-    return (
+    note = (
         f"\nA {brief.structure.replace('_', ' ')} story usually goes: {shape}.\n"
         "That is the shape it takes when the material supports it, not a set of "
         "boxes. Drop any part you have nothing real for and spend the time on "
         "the parts you do - a beat filled with something invented to occupy it "
         "is the worst thing in the episode.\n"
     )
+    # The one beat that cannot simply be dropped, because dropping it leaves
+    # the shape with nothing in it - which is why "drop what you have nothing
+    # for" was not enough on its own, and why the alternative has to be named
+    # rather than left to be worked out. See PROBLEMS.md §88.
+    if brief.outcome_dependent and brief.structure != "in_progress":
+        note += (
+            "\nThat shape turns on an outcome, and you do not yet know there is "
+            "one. If the evidence does not report the result as final, this is "
+            "not the shape - write the in-progress one instead: "
+            f"{STRUCTURES['in_progress']}. Do not keep the shape and fill the "
+            "missing beat; that is the single failure this note exists to "
+            "prevent.\n"
+        )
+    return note
 
 
 def build_brief_block(brief: Brief, minutes: int) -> str:
@@ -622,6 +713,17 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
         f"{depth_name}: {depth_mix}. More time buys more of that, never more "
         "words about the same thing.")
 
+    # Said before the cautions, because it is the one that changes what the
+    # episode *is* rather than how a sentence is worded.
+    if brief.outcome_dependent:
+        lines.append(
+            "What they are asking for is a result, and a result only exists "
+            "once the thing it comes from has finished. Nothing here knows "
+            "whether it has - that is settled by the evidence you were given "
+            "and by nothing else. So: find the outcome reported as an outcome, or "
+            "write the episode about something that has not finished yet. "
+            "Both are real episodes. Choosing between them by guessing is not.")
+
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "
                      "own recollection every time: "
@@ -645,5 +747,9 @@ def report() -> dict:
         "timeout_seconds": settings.ei_timeout_seconds,
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
-        "structures": [s for s in STRUCTURES if s != "general"],
+        "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],
+        # Reported because its absence is what produced §88, and a deploy
+        # running a build without it looks identical from outside to one that
+        # has it - right up until a listener asks about a game in progress.
+        "outcome_status_checked": "in_progress" in STRUCTURES,
     }

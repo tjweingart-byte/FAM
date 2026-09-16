@@ -385,7 +385,13 @@ LIVE_SHIM = r"""
     // a taste. Filled here, in FILL_ORDER position, so the personal sections
     // still choose before it and trending still chooses last.
     out.might_like = take(exploreNewBody(myPrefs().interests).topics, 6);
-    out.trending = take(byCount.concat(BANK), 6);
+    out.most_played = take(byCount.concat(BANK), 6);
+    // The world row. Empty in the browser by construction: its inventory is
+    // not FAM's, it comes from an outside news feed the server refreshes, and
+    // a published page has no server. The honest empty state is exactly what
+    // the app shows with no source configured - which is the shipped state -
+    // so this previews the real thing rather than faking a feed.
+    out.world_trending = [];
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
 
@@ -393,7 +399,8 @@ LIVE_SHIM = r"""
     ["from_history", "Made for you", "Your first episode starts this one off."],
     ["might_like", "Explore New", "Listen to a few episodes and this fills in."],
     ["followers", "Your circle is on this", "Nobody you overlap with has listened yet."],
-    ["trending", "What FAM can't stop playing", "Nothing has been played yet."]
+    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."],
+    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."]
   ];
 
   function myfamBody() {

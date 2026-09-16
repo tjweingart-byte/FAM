@@ -56,6 +56,24 @@ FAM_ENVIRONMENT = (
     # that quietly skips every EI behaviour and still reports green.
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS",
+    # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
+    # a suite that quietly has a scoreboard in it - a test asserting FAM says
+    # "no live feed" would pass or fail on their shell rather than the code.
+    "LIVE_FACTS", "LIVE_SPORTS_PROVIDER", "LIVE_MARKETS_PROVIDER",
+    "LIVE_ELECTIONS_PROVIDER", "LIVE_TIMEOUT_SECONDS",
+    "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
+    "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
+    "LIVE_FAKE_SPORTS_STATUS",
+    # World trending. Same reasoning: a developer with TRENDING_SOURCE=fake
+    # set must not run a suite that quietly has a news feed in it.
+    "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",
+    "TRENDING_TIMEOUT_SECONDS", "TRENDING_MAX_ITEMS",
+    # GDELT and the live provider credentials. A developer with any of these
+    # set must not run a suite that quietly has a real provider in it - a test
+    # asserting FAM says "no live feed" would then pass or fail on their shell.
+    "GDELT", "GDELT_TIMEOUT_SECONDS", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK",
+    "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
+    "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.

@@ -65,7 +65,8 @@ class FakeGenerator:
                                        search_query=plan.query)
         return dataclasses.replace(plan, brief=brief)
 
-    async def live_lookup(self, plan):
+    async def live_lookup(self, plan, notes=None):
+        self.live_lookups = getattr(self, "live_lookups", 0) + 1
         return plan
 
     async def stream_sentences(self, plan, notes=None):
@@ -527,3 +528,53 @@ def test_an_unknown_warm_level_is_refused_rather_than_guessed():
     """One that quietly meant `script` would spend a full episode per guess."""
     with pytest.raises(ValueError):
         dataclasses.replace(config.settings, prefetch_level="everything")
+
+
+# --------------------------------------------------------------------------
+# what must never be warmed
+# --------------------------------------------------------------------------
+def test_prefetch_never_spends_a_provider_call_on_a_guess():
+    """A warmed live fact is stale by the time it is tapped - that is what
+    "live" means - so warming one buys a score at full price in order to bake
+    it into a script served hours later. The live state is fetched on the tap
+    path or not at all. PROBLEMS.md §89."""
+    import inspect
+
+    source = inspect.getsource(prefetch.Prefetcher._warm)
+    assert "live_lookup" not in source, (
+        "prefetch is calling live_lookup; a warmed live fact is a stale one "
+        "paid for in advance")
+
+
+def test_a_question_whose_answer_is_a_result_keeps_its_brief_and_not_its_script(on):
+    """The brief is a claim about what is being *asked* and keeps. A script
+    about a game is a claim about its state and does not. Warming the second
+    is §88 with a cache in front of it - so the latency saving is kept and the
+    staleness is not."""
+    brief = ei.Brief(query="chiefs game", subject="the Chiefs game",
+                     search_query="chiefs game", intent="recap",
+                     live_domain="sports", outcome_dependent=True)
+    generator = FakeGenerator(brief=brief)
+    pf = prefetch.Prefetcher(generator=generator,
+                             cache=cache_mod.MemoryScriptCache())
+
+    outcome = asyncio.run(pf.warm(candidate("chiefs game", "trending"),
+                                  level="script"))
+
+    assert outcome == "volatile"
+    assert generator.wrote == [], "a volatile episode was written speculatively"
+    assert pf.ledger.skipped_volatile == 1
+    assert pf.briefs.get("chiefs game", 3) is not None, (
+        "the brief should still be warmed - it is the half that keeps")
+
+
+def test_an_ordinary_question_is_still_warmed_as_a_script(on):
+    """The guard must be narrow. If it stopped warming everything it would
+    have traded a correctness bug for the whole feature."""
+    generator = FakeGenerator()
+    pf = prefetch.Prefetcher(generator=generator,
+                             cache=cache_mod.MemoryScriptCache())
+    outcome = asyncio.run(pf.warm(candidate("how does a heat pump work", "trending"),
+                                  level="script"))
+    assert outcome == "script"
+    assert generator.wrote == ["how does a heat pump work"]

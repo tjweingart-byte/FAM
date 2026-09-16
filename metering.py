@@ -139,6 +139,13 @@ class Usage:
     cache_write_tokens: int = 0
     exa_searches: int = 0
     exa_cost: float = 0.0
+    #: Calls to a live-data provider, and what they cost. A third category
+    #: rather than a line in `exa_*`, because they are a different supplier
+    #: with a different failure mode and a report that blends them cannot
+    #: answer "what would turning on live scores cost". A cache hit is never
+    #: counted here - `live_facts._ask` counts at the fetch, not at the ask.
+    live_calls: int = 0
+    live_cost: float = 0.0
     audio_seconds: float = 0.0
     cache_hit: bool = False
 
@@ -159,6 +166,11 @@ class Usage:
     def add_research(self, searches: int, cost: float) -> None:
         self.exa_searches += int(searches or 0)
         self.exa_cost += float(cost or 0.0)
+
+    def add_live_call(self, calls: int, cost: float) -> None:
+        """One provider request that actually went out. Never a cache hit."""
+        self.live_calls += int(calls or 0)
+        self.live_cost += float(cost or 0.0)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -190,13 +202,15 @@ class Cost:
     cache_read: float = 0.0
     cache_write: float = 0.0
     exa: float = 0.0
+    live: float = 0.0
     gpu_marginal: float = 0.0
     priced: bool = True
 
     @property
     def total(self) -> float:
         return round(self.claude_input + self.claude_output + self.cache_read
-                     + self.cache_write + self.exa + self.gpu_marginal, 6)
+                     + self.cache_write + self.exa + self.live
+                     + self.gpu_marginal, 6)
 
     def as_dict(self) -> dict:
         out = {k: round(v, 6) for k, v in asdict(self).items() if k != "priced"}
@@ -226,6 +240,8 @@ def price_of(usage: Usage) -> Cost:
         cost.cache_write = (usage.cache_write_tokens / 1_000_000
                             * per_in * CACHE_WRITE_MULTIPLIER)
     cost.exa = float(usage.exa_cost or 0.0)
+    # Billed, like Exa: the provider's own figure, recorded when it was spent.
+    cost.live = float(usage.live_cost or 0.0)
     cost.gpu_marginal = gpu_cost(usage.audio_seconds)
     return cost
 
@@ -291,6 +307,8 @@ class MeterStore:
                        cache_write_tokens INTEGER NOT NULL DEFAULT 0,
                        exa_searches      INTEGER NOT NULL DEFAULT 0,
                        exa_cost          REAL NOT NULL DEFAULT 0,
+                       live_calls        INTEGER NOT NULL DEFAULT 0,
+                       live_cost         REAL NOT NULL DEFAULT 0,
                        audio_seconds     REAL NOT NULL DEFAULT 0,
                        cache_hit         INTEGER NOT NULL DEFAULT 0,
                        cost_usd          REAL NOT NULL DEFAULT 0,
@@ -300,6 +318,22 @@ class MeterStore:
                        priced            INTEGER NOT NULL DEFAULT 1
                    )"""
             )
+            # A deployment that already has rows gets the new columns added
+            # rather than a schema it does not match. Same shape as the
+            # migrations in `cache.py`: named, guarded, and additive only, so
+            # an older row simply reads zero live calls - which is true.
+            existing = {row["name"] for row in
+                        conn.execute("PRAGMA table_info(usage)")}
+            for column, ddl in (
+                ("live_calls",
+                 "ALTER TABLE usage ADD COLUMN live_calls INTEGER NOT NULL DEFAULT 0"),
+                ("live_cost",
+                 "ALTER TABLE usage ADD COLUMN live_cost REAL NOT NULL DEFAULT 0"),
+                ("live_usd",
+                 "ALTER TABLE usage ADD COLUMN live_usd REAL NOT NULL DEFAULT 0"),
+            ):
+                if column not in existing:
+                    conn.execute(ddl)
             conn.execute("CREATE INDEX IF NOT EXISTS usage_at ON usage(at)")
             conn.execute("CREATE INDEX IF NOT EXISTS usage_user ON usage(user_id, at)")
 
@@ -331,18 +365,22 @@ class MeterStore:
             surface, usage.model, int(minutes or 0), usage.model_calls,
             usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
             usage.cache_write_tokens, usage.exa_searches, round(usage.exa_cost, 6),
+            usage.live_calls, round(usage.live_cost, 6),
             round(usage.audio_seconds, 3), 1 if usage.cache_hit else 0,
             cost.total, round(claude_usd, 6), round(cost.exa, 6),
-            round(cost.gpu_marginal, 8), 1 if cost.priced else 0,
+            round(cost.live, 6), round(cost.gpu_marginal, 8),
+            1 if cost.priced else 0,
         )
         try:
             with self._conn() as conn:
                 cur = conn.execute(
                     """INSERT INTO usage (at, user_id, plan, surface, model, minutes,
                            model_calls, input_tokens, output_tokens, cache_read_tokens,
-                           cache_write_tokens, exa_searches, exa_cost, audio_seconds,
-                           cache_hit, cost_usd, claude_usd, exa_usd, gpu_usd, priced)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
+                           cache_write_tokens, exa_searches, exa_cost,
+                           live_calls, live_cost, audio_seconds,
+                           cache_hit, cost_usd, claude_usd, exa_usd, live_usd,
+                           gpu_usd, priced)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", row)
         except sqlite3.Error:
             # Loud, because an unrecorded episode is an unbillable one and a
             # gap in the ledger is invisible by construction - but not fatal,

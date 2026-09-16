@@ -243,6 +243,11 @@ class Packet:
     missing: list = field(default_factory=list)
     #: Whether the one permitted second search happened.
     retried: bool = False
+    #: Who published what this packet is made of - see `provenance.py`.
+    #: Carried out of band from `context`, because the packet the model reads
+    #: deliberately contains grades and never hostnames, and this deliberately
+    #: contains hostnames and never reaches a prompt.
+    provenance: object = None
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -458,9 +463,16 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
     results = rank_results(list(getattr(reply, "results", []) or []))
     cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
+    import provenance as provenance_mod
+
     return Packet(
         context=build_packet(results, packet_sources, highlights_per_source),
         sources=domains(results),
+        # Only the sources that actually made it into the packet are credited.
+        # Listing everything the search returned would claim corroboration
+        # from passages the writer never saw.
+        provenance=provenance_mod.from_results(
+            list(results)[:packet_sources], retriever="exa"),
         searches=1,
         seconds=elapsed,
         cost=float(cost) if cost is not None else COST_PER_SEARCH,
@@ -580,6 +592,40 @@ async def retrieve(query: str, backend: Optional[str] = None,
                 packet.cost += second.cost
                 packet.seconds += second.seconds
             packet.retried = True
+
+    # **The second opinion.** One vendor's index is one vendor's blind spots,
+    # and a question Exa covers poorly currently produces a thin episode with
+    # nothing to show that another index would have done better. GDELT is
+    # keyless and free, so a cross-check costs nothing per episode - and it
+    # adds corroboration a listener can *see*, because both retrievers reach
+    # the provenance panel.
+    #
+    # Additive only: it never replaces the primary packet and never fails an
+    # episode. `gdelt.retrieve` returns [] on any error by contract.
+    if settings.gdelt_cross_check:
+        import gdelt
+        import provenance as provenance_mod
+
+        second = await gdelt.retrieve(query, recency_days=recency_days)
+        if second:
+            ranked = rank_results(second)[:packet_sources]
+            extra = build_packet(ranked, packet_sources, highlights_per_source)
+            if extra.strip():
+                packet.context = (packet.context or "") + "\n" + extra
+                packet.searches += 1
+                for host in domains(ranked):
+                    if host not in packet.sources:
+                        packet.sources.append(host)
+                found = provenance_mod.from_results(ranked, retriever="gdelt")
+                if packet.provenance is None:
+                    packet.provenance = found
+                else:
+                    for item in found.items:
+                        packet.provenance.add(item)
+                    if "gdelt" not in packet.provenance.retrievers:
+                        packet.provenance.retrievers.append("gdelt")
+                log.info("gdelt cross-check added %d source(s) for %r",
+                         len(ranked), query)
 
     if not packet:
         # Retrieval succeeded and found nothing usable. Not an exception - the

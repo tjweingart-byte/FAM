@@ -443,6 +443,131 @@ class Settings:
     # evidence for "what happened last night".
     ei_default_recency_days: int = _env_int("EI_DEFAULT_RECENCY_DAYS", 14)
 
+    # --- live facts ------------------------------------------------------
+    # The route around the article index, for the questions an index is
+    # structurally too slow for. See `live_facts.py` and LIVE_FACTS.md.
+    #
+    # On by default because the *registry* is what matters: with no provider
+    # configured it costs one dictionary lookup and its whole effect is that
+    # the writer is told there is no live feed - which is the honest state and
+    # the one that stops a score being invented. `LIVE_FACTS=0` silences even
+    # that, and is for offline `write.py` runs rather than for production.
+    live_facts: bool = field(
+        default_factory=lambda: os.environ.get("LIVE_FACTS", "1")
+        not in ("0", "false", "False", ""))
+    # Which provider serves each domain. Empty means none, and none is
+    # reported rather than hidden. `fake` is a deterministic stand-in for
+    # tests and demos and must be selected explicitly - never a fallback,
+    # which is §51 and §61 applied to facts: a stand-in that can be
+    # reached by accident is one that reaches a listener.
+    live_sports_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_SPORTS_PROVIDER", "").strip())
+    live_markets_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_MARKETS_PROVIDER", "").strip())
+    live_elections_provider: str = field(
+        default_factory=lambda: os.environ.get("LIVE_ELECTIONS_PROVIDER", "").strip())
+    # Per-provider and whole-lookup ceilings. Small on purpose: this sits in
+    # front of the first word, and the one-sentence spec was amended once for
+    # EI and not again. A provider that cannot answer in a second and a half
+    # is a provider the listener should not be waiting for.
+    live_timeout_seconds: float = _env_float("LIVE_TIMEOUT_SECONDS", 1.5)
+    live_total_timeout_seconds: float = _env_float("LIVE_TOTAL_TIMEOUT_SECONDS", 2.5)
+    # How long one entity's facts may be reused, by status. In-progress is
+    # short enough to only collapse a burst of simultaneous listeners; final
+    # does not move, so it is generous.
+    live_cache_in_progress_seconds: float = _env_float(
+        "LIVE_CACHE_IN_PROGRESS_SECONDS", 10.0)
+    live_cache_scheduled_seconds: float = _env_float(
+        "LIVE_CACHE_SCHEDULED_SECONDS", 300.0)
+    live_cache_final_seconds: float = _env_float(
+        "LIVE_CACHE_FINAL_SECONDS", 900.0)
+    # What the fake scoreboard pretends is happening: scheduled, in_progress
+    # or final. Here rather than read from the environment inside
+    # `live_sources`, because every knob this app has belongs in one place -
+    # a setting read somewhere else is a setting the hermetic test cannot see
+    # and a developer's shell can leak into a suite.
+    live_fake_sports_status: str = field(
+        default_factory=lambda: os.environ.get(
+            "LIVE_FAKE_SPORTS_STATUS", "in_progress").strip())
+
+    # --- world trending --------------------------------------------------
+    # The myFAM row that says what the *world* is paying attention to, as
+    # opposed to "What FAM can't stop playing", which is this app's own play
+    # counts. A different subsystem from live facts on purpose - see
+    # `trending.py`: one changes what is offered, the other what is said.
+    #
+    # On by default for the same reason `live_facts` is: with no source
+    # configured its whole effect is that the row is honestly empty and says
+    # why, which is the state worth shipping.
+    trending: bool = field(
+        default_factory=lambda: os.environ.get("TRENDING", "1")
+        not in ("0", "false", "False", ""))
+    # Empty means none, and none is shipped. `fake` is a deterministic
+    # stand-in for tests and demos and must be asked for by name.
+    trending_source: str = field(
+        default_factory=lambda: os.environ.get("TRENDING_SOURCE", "").strip())
+    # How long one refresh serves. This is the row's whole economics: one
+    # upstream call per window, shared by every listener. Fifteen minutes
+    # matches how fast a global news index actually moves.
+    trending_ttl_seconds: float = _env_float("TRENDING_TTL_SECONDS", 900.0)
+    # Generous next to the live-facts ceiling, because this never sits in
+    # front of the first word - it refreshes in the background and myFAM
+    # renders from the cache.
+    trending_timeout_seconds: float = _env_float("TRENDING_TIMEOUT_SECONDS", 8.0)
+    trending_max_items: int = _env_int("TRENDING_MAX_ITEMS", 6)
+
+    # --- GDELT -----------------------------------------------------------
+    # A second retrieval index beside Exa, and the source behind the Trending
+    # row. Keyless - GDELT DOC 2.0 needs no credential - so the only switch
+    # that matters is this one.
+    #
+    # Ships OFF. Not because it costs anything, but because nothing in this
+    # build has ever made a real request to it: the container's egress proxy
+    # blocks it, so every shape in `gdelt.py` is written from the docs and
+    # tested against recorded payloads. Turn it on somewhere with network,
+    # run `python tools/gdelt_probe.py`, and leave it on once that passes.
+    gdelt: bool = field(
+        default_factory=lambda: os.environ.get("GDELT", "0")
+        not in ("0", "false", "False", ""))
+    gdelt_timeout_seconds: float = _env_float("GDELT_TIMEOUT_SECONDS", 6.0)
+    gdelt_max_records: int = _env_int("GDELT_MAX_RECORDS", 20)
+    # Whether a researched episode asks GDELT as well as Exa. Separate from
+    # `gdelt` so the Trending row can run without adding a second call to
+    # every episode - they are different clocks and different budgets.
+    gdelt_cross_check: bool = field(
+        default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
+        not in ("0", "false", "False", ""))
+
+    # --- live provider credentials ---------------------------------------
+    # One per vendor. Empty means that vendor is not configured, which
+    # `/api/health` reports as its own state - never as "there is no live
+    # information in the world". Keys are never written into source; these
+    # come through the same chain as every other credential (process env >
+    # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
+    api_sports_key: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
+    # API-Sports is one API per sport - different host, different response
+    # shape, different status codes - so a deployment says which one it mostly
+    # serves. An explicit sport word in the question still overrides it. See
+    # `live_sources.sport_for` for why team-name routing is not attempted.
+    api_sports_sport: str = field(
+        default_factory=lambda: os.environ.get(
+            "API_SPORTS_SPORT", "american-football").strip())
+    sportsdataio_key: str = field(
+        default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
+    finnhub_key: str = field(
+        default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
+    alpha_vantage_key: str = field(
+        default_factory=lambda: os.environ.get("ALPHA_VANTAGE_KEY", "").strip())
+    ap_elections_key: str = field(
+        default_factory=lambda: os.environ.get("AP_ELECTIONS_KEY", "").strip())
+    ddhq_key: str = field(
+        default_factory=lambda: os.environ.get("DDHQ_KEY", "").strip())
+    # Polymarket's public read API needs no credential.
+    polymarket_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "POLYMARKET_BASE", "https://gamma-api.polymarket.com").strip())
+
     # --- Prefetch ---------------------------------------------------------
     # Writing the episode before anybody asks for it - see `prefetch.py`.
     #
