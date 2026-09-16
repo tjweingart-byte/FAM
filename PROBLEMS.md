@@ -5546,3 +5546,90 @@ and must be reported rather than routed around.
 
 `PROVIDER_ROLLOUT.md` is the runbook for turning each one on somewhere with
 network.
+
+## 93. Polymarket was configured, healthy and never once asked anything
+
+Connecting the four live providers to production turned up a provider that
+could be switched on completely and still do nothing. `LIVE_ELECTIONS_PROVIDER=polymarket`
+registers the source, `/api/health` reports it registered, `diagnose()` passes,
+`tools/verify_live.py --domain elections` resolves a market and fetches a price.
+Every check said yes. No episode ever reached it.
+
+### The cause: one vocabulary kept in two places
+
+`live_facts.LIVE_DOMAINS` is the routing vocabulary — a source declares one of
+those and `lookup` dispatches on `brief.live_domain`. `BRIEF_SCHEMA` held a
+second, hand-written copy:
+
+    "live_domain": {"type": "string", "enum": ["", "sports", "markets"]},
+
+`elections` was added to the tuple and never to the enum. The schema is passed
+as a strict `json_schema` output format, so this was not a model that tended not
+to say `elections` — it was a model that **could not**. `lookup` returns `None`
+for any domain the brief does not name, so the elections branch was dead code
+reachable only from the verification tool.
+
+Nothing failed. There was no error, no log line, no degraded flag. The
+difference between "configured and serving" and "configured and structurally
+unreachable" was invisible from every surface built to make exactly that
+difference visible — because those surfaces all report on the registry, and the
+registry was fine. §89 built `LiveLookup` so the writer could tell "no provider"
+from "provider broke"; this was a third thing, "provider that is never asked",
+and it looked like neither.
+
+**The general rule: two vocabularies that must agree are one vocabulary.** This
+is §83's `key_for` argument arriving in a different file — there the failure was
+two cache-key implementations drifting and every prefetched script being paid
+for and never read, silently and totally. Same shape here. So the schema now
+reads the tuple:
+
+    "live_domain": {"type": "string",
+                    "enum": [""] + list(live_facts.LIVE_DOMAINS)},
+
+and a test asserts the *reading* rather than the values, because a test listing
+the domains would be the third copy.
+
+### The half a schema fix does not cover
+
+An enum value with no instruction behind it is one the model never picks. The
+EI prompt described `sports` and `markets` and stopped, so adding `elections` to
+the enum alone would have left it technically selectable and practically unused.
+A second test walks `LIVE_DOMAINS` and fails if any domain is routable but never
+explained to the model.
+
+### And a live bug that the blocker was hiding
+
+`LiveFacts.as_prompt_block` ended every block with:
+
+> This is the most authoritative thing you have been given. Where it and the
+> articles below disagree, this is what is true and the articles are older.
+
+That is earned for every other source here: a scoreboard was *observed*, and the
+article about the game was written later and from further away. A prediction
+market was observed too, but what it observed is what people **expect** — so it
+is the newest thing in the prompt and the least authoritative thing in it, a
+combination nothing else in this module has.
+
+Handing a forecast that paragraph is §88's side door standing open with a
+welcome mat: an article reporting the actual result would be explicitly
+overruled by a price, and "trading at 94 percent" would be written up as the
+outcome. `status=unknown` forbids *stating* a result; it says nothing about
+which source wins a disagreement.
+
+So `PREDICTION_MARKET` is now a named constant — a closed vocabulary, for the
+same reason `STATUSES` is one, because `as_prompt_block` switches on it and a
+switch on a free string misses silently — and that one kind is told the
+opposite: it is a forecast, it is not evidence of an outcome, and **where it
+and the articles disagree the articles win**. A market that has not caught up
+with a reported result is a market that is wrong.
+
+The bug was unreachable while the schema blocked elections, which is the part
+worth noticing: unblocking a path is also unblocking whatever was wrong on it.
+
+### Still true
+
+Nothing here has made a real request to `gamma-api.polymarket.com` — the
+container's egress blocks it, as it blocks every provider host including Exa's.
+`python tools/verify_live.py --domain elections` on a machine with network is
+what closes that, and the offline proof is that routing now reaches the source
+with the network stubbed.

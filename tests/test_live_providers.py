@@ -227,8 +227,43 @@ def test_a_prediction_market_never_reports_a_result():
         {"bestBid": 0.94, "volume": "2.1M"},
         entity(domain="elections", label="a close race"))
     assert facts.status == live_facts.UNKNOWN
-    assert facts.kind == "prediction-market"
+    assert facts.kind == live_facts.PREDICTION_MARKET
     assert any("not a reported result" in line for line in facts.facts)
+
+
+def test_a_forecast_does_not_outrank_the_articles_it_is_fresher_than():
+    """The half that `unknown` alone does not cover.
+
+    Every other live fact earns the line "where this and the articles
+    disagree, this is true": a scoreboard was observed, and the article about
+    it was written later and from further away. A market was observed too, but
+    what it observed is what people *expect* - so it is the newest thing in
+    the prompt and the least authoritative thing in it, which is a combination
+    no other source here has. Handing it the standard authority paragraph
+    would let a price overrule an article reporting the actual result."""
+    facts = ls.PolymarketSource().to_facts(
+        {"bestBid": 0.94}, entity(domain="elections", label="a close race"))
+    block = facts.as_prompt_block()
+
+    assert "THE ARTICLES WIN" in block
+    assert "FORECAST" in block
+    assert "not evidence of an outcome" in block
+    # The sentence that is true of a scoreboard and false of a market.
+    assert "most authoritative thing you have been given" not in block
+
+
+def test_an_observed_state_keeps_the_authority_it_has_earned():
+    """The other side of the same branch: withdrawing the authority paragraph
+    from everything would leave a live final score arguing with a stale
+    article on equal terms, which is the failure §89 built this to fix."""
+    facts = live_facts.LiveFacts(
+        domain="sports", source="API-Sports",
+        as_of=datetime.now(timezone.utc), facts=["Kansas City won 31-17."],
+        status=live_facts.FINAL, entity=entity())
+    block = facts.as_prompt_block()
+
+    assert "most authoritative thing you have been given" in block
+    assert "THE ARTICLES WIN" not in block
 
 
 def test_a_market_price_is_spoken_as_a_percentage_a_person_would_say():

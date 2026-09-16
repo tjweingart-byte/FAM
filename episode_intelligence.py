@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import credentials
+import live_facts
 import metering
 from anthropic_client import build_async_client
 from config import settings
@@ -466,7 +467,17 @@ BRIEF_SCHEMA = {
         "recency_days": {"type": "integer"},
         "structure": {"type": "string", "enum": list(PICKABLE_STRUCTURES)},
         "cautions": {"type": "array", "items": {"type": "string"}},
-        "live_domain": {"type": "string", "enum": ["", "sports", "markets"]},
+        # **Read from `live_facts.LIVE_DOMAINS` rather than written out
+        # again.** This was a hand-kept second copy of that tuple and it
+        # drifted: `elections` was added there, never here, and because this
+        # schema is enforced strictly the model *could not* emit it. So a
+        # configured, healthy, keyless Polymarket sat registered and was never
+        # once asked anything - the registry said yes and the router could
+        # never say `elections`. Two vocabularies that must agree are one
+        # vocabulary; `test_live_domain_enum_is_the_routing_vocabulary` keeps
+        # it that way.
+        "live_domain": {"type": "string",
+                        "enum": [""] + list(live_facts.LIVE_DOMAINS)},
         "outcome_dependent": {"type": "boolean"},
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
@@ -545,7 +556,11 @@ Work out:
   something may not have happened yet, or may have happened days rather than
   hours ago, say so here. This is where a wrong tense gets caught.
 - **live_domain** - `sports` if this turns on a score, fixture or standing;
-  `markets` if it turns on a price, index or rate; empty otherwise.
+  `markets` if it turns on a price, index or rate; `elections` if it turns on
+  a vote, a race, a referendum or the odds on one; empty otherwise. Pick the
+  thing the answer *turns on*, not the subject area: "how does the electoral
+  college work" is an explainer and empty, "who is ahead in the Senate race"
+  is `elections`.
 - **outcome_dependent** - true if what they want is a result that only exists
   once something concludes: a final score, a winner, a verdict, a closing
   price, a vote count. This is about their question, not about the world - you

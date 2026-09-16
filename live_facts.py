@@ -75,6 +75,13 @@ FINAL = "final"
 UNKNOWN = "unknown"
 STATUSES = (SCHEDULED, IN_PROGRESS, FINAL, UNKNOWN)
 
+#: A `LiveFacts.kind` that means "this is what people are betting will happen",
+#: never "this is what happened". It exists as a constant because
+#: `as_prompt_block` withdraws the authority paragraph for it: a forecast is
+#: fresher than an article and less authoritative than one, which is the exact
+#: combination every other live fact does not have.
+PREDICTION_MARKET = "prediction-market"
+
 
 def normalise_status(value: object) -> str:
     """Map whatever a provider said onto the closed vocabulary.
@@ -174,6 +181,9 @@ class LiveFacts:
     #: Elections especially: a prediction-market price, a poll, a reported
     #: count and a certified result are four different things and only the
     #: last two are results. Empty where the domain has only one kind.
+    #:
+    #: `PREDICTION_MARKET` is the one `as_prompt_block` switches on, so it is
+    #: a named constant rather than a string each provider spells for itself.
     kind: str = ""
     url: str = ""
 
@@ -260,15 +270,41 @@ class LiveFacts:
 
         kind = f"\nThese are {self.kind} figures." if self.kind else ""
 
+        # **Freshness is not authority, and a forecast is the one live fact
+        # where they come apart.** Every other source here reports a state
+        # that was observed: a scoreboard outranks an article about the game
+        # because the article is older than the state it describes. A
+        # prediction market reports what people are *betting*, so it is
+        # fresher than the articles and less authoritative than them - and
+        # telling the writer it wins on disagreement is §88's side door
+        # standing open: an article reporting the actual result would be
+        # overruled by a price, and "trading at 94 percent" would be written
+        # up as the outcome. So this one kind is told the opposite.
+        if self.kind == PREDICTION_MARKET:
+            standing = (
+                "This is a FORECAST and it is not evidence of an outcome. It "
+                "is the newest thing you have been given and the least "
+                "authoritative: a price says what people expect, and the "
+                "articles below say what has been reported. Where they "
+                "disagree, THE ARTICLES WIN - a market that has not caught up "
+                "with a reported result is a market that is wrong. Never "
+                "settle the question with a number from here, never round one "
+                "up into a certainty, and never describe a percentage as a "
+                "lead, a win or a result.")
+        else:
+            standing = (
+                "This is the most authoritative thing you have been given. "
+                "Where it and the articles below disagree, this is what is "
+                "true and the articles are older - say so in passing if it "
+                "matters and carry on.")
+
         return f"""
 This came from {self.source}, which reports the state directly rather than an
 article about it. {freshness}{kind}
 
 {rule}
 
-This is the most authoritative thing you have been given. Where it and the
-articles below disagree, this is what is true and the articles are older - say
-so in passing if it matters and carry on.
+{standing}
 
 <live_facts>
 {lines}

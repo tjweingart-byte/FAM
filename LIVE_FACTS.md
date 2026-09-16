@@ -318,6 +318,36 @@ temptation: a live in-game win-probability line moves with the score, so it
 PROBLEMS.md §88 returning through a side door. A market may colour an episode;
 it may never close one.
 
+**And `unknown` is only half of it** (§93). Every other live fact ends its
+block with "this is the most authoritative thing you have been given; where it
+and the articles disagree, this is true" — earned, because a scoreboard was
+*observed* and the article about it was written later. A market was observed
+too, but what it observed is what people **expect**, so it is the newest thing
+in the prompt and the least authoritative thing in it. That combination is
+unique to forecasts, and handing one the standard paragraph would let a price
+overrule an article reporting the actual result. `PREDICTION_MARKET` is a named
+constant precisely because `as_prompt_block` switches on it, and that one kind
+is told the opposite: **where it and the articles disagree, the articles win.**
+`status` forbids *speaking* a result; this decides who wins a disagreement, and
+they are different questions.
+
+## The routing vocabulary lives in exactly one place
+
+`LIVE_DOMAINS` is it. A source declares one of those, `Brief.live_domain` names
+one of those, and `BRIEF_SCHEMA` builds its enum by *reading the tuple* rather
+than repeating it.
+
+That is not tidiness. It was a copy, it drifted, and the result was a provider
+that could be configured, registered, diagnosed, verified and reported healthy
+while being structurally unable to receive a single question — `elections` was
+in the tuple and not in the enum, and the enum is enforced strictly. Nothing
+failed; it silently did not happen. PROBLEMS.md §93 has the whole of it.
+
+Adding a domain is therefore two edits and no more: the tuple, and a sentence
+in the EI prompt saying when to choose it. A test walks `LIVE_DOMAINS` and
+fails if a domain is routable but never explained to the model, because an enum
+value with no instruction behind it is one that never gets picked.
+
 ## Why the election providers are empty
 
 Neither AP Elections nor Decision Desk HQ publishes API pricing, and neither
