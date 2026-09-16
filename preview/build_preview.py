@@ -278,231 +278,6 @@ def load_fixtures() -> dict:
     }
 
 
-LINE_ART = r"""
-<script>
-/* ---- The episode's drawing, in a preview ---------------------------------
-   The server draws each episode with an image model and vectorises the result
-   (visuals.py, line_processor.py). A published page has neither, exactly as it
-   has no Claude and no Chatterbox - so this stands in for that layer the same
-   way `silence()` below stands in for the voice: it produces a real
-   continuous path, at a real size, with real crossings, so that everything
-   downstream of the asset does its own work. `fam-line.js` is untouched, the
-   reveal is the shipped one, and the tile is the shipped one.
-
-   The figure is the same family as `visual_provider.SyntheticProvider` - the
-   wound harmonic curve it draws without a credential - ported here because a
-   preview cannot run Python. It is a PLACEHOLDER and says so: every record
-   carries `placeholder: true`, which puts the same label on the player and on
-   the tile that a synthetic-provider server puts there. Nothing in here is
-   FAM artwork, and nothing about how good a drawing looks can be judged from
-   this page. That needs the server, a key, and `tools/visual_probe.py`.
-
-   Two behaviours are modelled rather than faked flat, because they are the
-   feature:
-
-   * A tile's drawing is **already finished** when the feed arrives - the
-     browse surfaces know what might be tapped before it is tapped, so they
-     pay nothing at the tap.
-   * A typed search's drawing **arrives late** and joins the episode wherever
-     the audio has got to, which is the case `fam-line.js` exists to handle.
-  ------------------------------------------------------------------------ */
-window.FamPreviewArt = (function () {
-  "use strict";
-
-  var STYLE = __LINE_STYLE__;        // visual_style, at build time
-  /* How long a typed question waits for its picture. Seconds rather than the
-     server's tens of seconds: this is a preview, and the point is to see the
-     line join an episode already in progress, not to sit through the wait. */
-  var PENDING_MS = 3400;
-  var TURNS = __FIGURE_TURNS__;      // visual_provider.FIGURE_TURNS
-  /* The server draws 1800 steps a turn because a rasteriser wants them. This
-     one is read straight as geometry, so it wants enough points to be smooth
-     on a phone and no more. */
-  var STEPS_PER_TURN = 200;
-  var HARMONICS = 4;                 // the "medium" rung, as the provider has it
-
-  var asked = {};     // key -> when this episode's drawing was first asked for
-  var warm = {};      // key -> the tile already carries it, so the tap is free
-  var paths = {};     // key -> the geometry, built once
-
-  function normalise(query) {
-    return String(query || "").trim().toLowerCase().replace(/\s+/g, " ");
-  }
-
-  function hex(n) { return ("0000000" + (n >>> 0).toString(16)).slice(-8); }
-
-  /* Where this episode's drawing lives. One function, for the same reason
-     `visuals.key_for` is one function: the tile and the player have to compute
-     the same string or the tap draws a second picture. */
-  function keyFor(query, context) {
-    var subject = normalise(query);
-    if (!subject) return "";
-    var text = subject + "|" + String(context || "").trim();
-    var a = 2166136261, b = 5381;
-    for (var i = 0; i < text.length; i++) {
-      a = Math.imul(a ^ text.charCodeAt(i), 16777619);
-      b = (Math.imul(b, 33) ^ text.charCodeAt(i)) >>> 0;
-    }
-    return hex(a) + hex(b);
-  }
-
-  /* Deterministic in the question, so an episode always draws the same figure.
-     A placeholder that changed every time would be one nobody could recognise
-     as a placeholder. */
-  function random(seed) {
-    var t = seed >>> 0;
-    return function () {
-      t = (t + 0x6D2B79F5) >>> 0;
-      var x = Math.imul(t ^ (t >>> 15), 1 | t);
-      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  /* visual_provider._figure, in the browser: a harmonic curve wound several
-     times at a drifting radius. One line, no lifts, and enough crossings that
-     a scan across it meets a drawing rather than a symbol. */
-  function figure(seed) {
-    var rand = random(seed), terms = [], i, k;
-    var freqs = [2, 3, 4, 5, 6, 7];
-    for (i = 0; i < HARMONICS; i++) {
-      terms.push([0.10 + rand() * 0.24,
-                  freqs[Math.floor(rand() * freqs.length)],
-                  rand() * Math.PI * 2]);
-    }
-    var steps = STEPS_PER_TURN * TURNS, points = [];
-    for (i = 0; i <= steps; i++) {
-      var t = i / steps * Math.PI * 2 * TURNS;
-      var r = 1 + 0.55 * Math.sin(i / steps * Math.PI);
-      for (k = 0; k < terms.length; k++) {
-        r += terms[k][0] * Math.sin(terms[k][1] * t + terms[k][2]);
-      }
-      points.push([r * Math.cos(t), r * Math.sin(t)]);
-    }
-    // Fitted to the square rather than trusted to land on it, exactly as the
-    // provider does: a harmonic sum can put the radius anywhere, and a figure
-    // drawn off the edge is a drawing with a piece missing.
-    var xs = [], ys = [];
-    for (i = 0; i < points.length; i++) { xs.push(points[i][0]); ys.push(points[i][1]); }
-    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-    var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-    var span = Math.max(maxX - minX, maxY - minY) || 1;
-    var scale = 0.84 * STYLE.viewbox / span;
-    var ox = STYLE.viewbox / 2 - (minX + maxX) / 2 * scale;
-    var oy = STYLE.viewbox / 2 - (minY + maxY) / 2 * scale;
-    var out = [];
-    for (i = 0; i < points.length; i++) {
-      out.push([points[i][0] * scale + ox, points[i][1] * scale + oy]);
-    }
-    return out;
-  }
-
-  function pathFor(key) {
-    if (paths[key]) return paths[key];
-    var points = figure(parseInt(key.slice(0, 8), 16) || 1);
-    var d = "M" + points[0][0].toFixed(2) + " " + points[0][1].toFixed(2);
-    for (var i = 1; i < points.length; i++) {
-      d += " L" + points[i][0].toFixed(2) + " " + points[i][1].toFixed(2);
-    }
-    paths[key] = d;
-    return d;
-  }
-
-  /* The same payload `visuals.describe` returns, field for field, so
-     static/index.html cannot tell which one answered.
-     `thumbnail_url` is the one field deliberately left out: the server renders
-     that PNG from the vector and a browser cannot, so publishing a URL that
-     404s would be a picture this page claims to have and does not. */
-  function describe(query, context, warming) {
-    var key = keyFor(query, context);
-    var record = {
-      status: "none", version: STYLE.version, id: key,
-      background_color: STYLE.paper, stroke_color: STYLE.ink,
-      stroke_width: STYLE.stroke_width, provider: "preview",
-      placeholder: true
-    };
-    if (!key) return record;
-    if (warming) warm[key] = true;
-    if (asked[key] === undefined) asked[key] = Date.now();
-    if (!warm[key] && Date.now() - asked[key] < PENDING_MS) {
-      record.status = "queued";
-      return record;
-    }
-    record.status = "ready";
-    record.d = pathFor(key);
-    record.view_box = "0 0 " + STYLE.viewbox + " " + STYLE.viewbox;
-    record.vector_url = "/api/visual/" + key + ".svg";
-    record.subject = String(query || "");
-    return record;
-  }
-
-  /* What `_illustrate` does on the server: every tile carries its finished
-     drawing when the feed arrives. Explore is never passed through here -
-     it replays episodes and generates nothing, which is the one hard
-     exclusion in this feature.
-
-     Returns copies rather than writing into the rows it was handed. Both
-     shims rank over one shared bank of topic objects, and attaching to those
-     in place would put a drawing on every surface that ever returns a bank
-     row - including ones the server draws nothing for. */
-  function illustrate(rows) {
-    return (rows || []).filter(Boolean).map(function (row) {
-      var copy = {};
-      Object.keys(row).forEach(function (k) { copy[k] = row[k]; });
-      copy.visual = describe(row.query || row.title || "", "", true);
-      return copy;
-    });
-  }
-
-  function illustrateSections(body) {
-    ((body || {}).sections || []).forEach(function (section) {
-      section.topics = illustrate(section.topics);
-    });
-    return body;
-  }
-
-  function svgDocument(d) {
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + STYLE.viewbox
-      + ' ' + STYLE.viewbox + '" width="1000" height="1000" role="img">'
-      + '<rect width="100%" height="100%" fill="' + STYLE.paper + '"/>'
-      + '<path id="fam-line" d="' + d + '" fill="none" stroke="' + STYLE.ink
-      + '" stroke-width="' + STYLE.stroke_width
-      + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
-
-  /* The three visual routes, answered here rather than by either shim's
-     fixture table. Returns null for anything else, so the caller falls
-     through to its own routing. */
-  function handle(path, method, qs) {
-    if (path === "/api/visual") {
-      return Promise.resolve(new Response(JSON.stringify({
-        visual: describe(qs.get("q") || "", qs.get("context") || "", false)
-      }), { status: 200, headers: { "Content-Type": "application/json" } }));
-    }
-    // The client's own telemetry. Accepted and dropped: the server counts
-    // these to close the gap between "generated" and "seen", and there is
-    // nothing here to count them into.
-    if (path === "/api/visual/event") {
-      return Promise.resolve(new Response(JSON.stringify({ ok: true }),
-        { status: 200, headers: { "Content-Type": "application/json" } }));
-    }
-    var vector = /^\/api\/visual\/([0-9a-f]+)\.svg$/.exec(path);
-    if (vector) {
-      return Promise.resolve(new Response(svgDocument(pathFor(vector[1])), {
-        status: 200, headers: { "Content-Type": "image/svg+xml" }
-      }));
-    }
-    return null;
-  }
-
-  return { describe: describe, illustrate: illustrate,
-           illustrateSections: illustrateSections, handle: handle,
-           keyFor: keyFor };
-})();
-</script>
-"""
-
-
 SHIM = """
 <script>
 /* ---- Preview shim -------------------------------------------------------
@@ -516,18 +291,6 @@ SHIM = """
   var SAMPLE_RATE = 22050;
   var realFetch = window.fetch.bind(window);
   var mixes = JSON.parse(JSON.stringify(FIXTURES["/api/mixes"]));
-
-  // Every tile arrives with its picture already drawn, which is what
-  // `_illustrate` does on the server and is the browse surfaces' whole
-  // advantage: what might be tapped is known before the tap. Done once, here,
-  // because these fixtures are handed back by reference.
-  //
-  // /api/explore is deliberately absent. Explore replays finished episodes and
-  // generates nothing, and a drawing there would be a promise broken.
-  FamPreviewArt.illustrateSections(FIXTURES["/api/myfam"]);
-  FIXTURES["/api/nextup"].topics = FamPreviewArt.illustrate(FIXTURES["/api/nextup"].topics);
-  FIXTURES["/api/explorenew"].topics =
-    FamPreviewArt.illustrate(FIXTURES["/api/explorenew"].topics);
   var nextMixId = 100;
 
   function json(body, status, extraHeaders) {
@@ -736,11 +499,6 @@ SHIM = """
       return json({ share: { id: "preview" }, url: link, public: false,
                     card: "/api/share/card?share=preview", targets: made });
     }
-    // The episode's drawing. Answered before the fixture table, because
-    // there is no fixture that could hold it: the geometry is generated from
-    // the question. See the module above for what it is and is not.
-    var drawn = FamPreviewArt.handle(path, method, qs);
-    if (drawn) return drawn;
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in the preview build." }, 404);
   };
@@ -801,29 +559,6 @@ SHIM = """
 """
 
 
-def line_art_shim() -> str:
-    """The drawing layer, with the house style read out of the code that owns it.
-
-    The colours, the stroke and the size of the canvas are `visual_style`'s to
-    decide, and the winding of the placeholder figure is `visual_provider`'s.
-    Copied here at build time rather than typed into the JavaScript, for the
-    same reason the share wording and the tag vocabulary are: a preview that
-    draws in a different ink from the app is a preview of a different app.
-    """
-    sys.path.insert(0, str(ROOT))
-    import visual_provider
-    import visual_style
-    import visuals
-
-    return LINE_ART.replace("__LINE_STYLE__", json.dumps({
-        "paper": visual_style.PAPER,
-        "ink": visual_style.INK,
-        "stroke_width": visual_style.STROKE_WIDTH,
-        "viewbox": visual_style.VIEWBOX,
-        "version": visuals.VISUAL_VERSION,
-    })).replace("__FIGURE_TURNS__", json.dumps(visual_provider.FIGURE_TURNS))
-
-
 def build() -> pathlib.Path:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     audio_js = (STATIC / "fam-audio.js").read_text(encoding="utf-8")
@@ -853,9 +588,8 @@ def build() -> pathlib.Path:
                    for t in sharing.TARGETS])))
     # The shim has to be installed before the first line of app code runs, so
     # it goes immediately before the first inline <script> in the document.
-    # The drawing layer goes in ahead of it, because the shim's router calls it.
     at = html.index("<script>")
-    html = html[:at] + line_art_shim() + shim + html[at:]
+    html = html[:at] + shim + html[at:]
 
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html, encoding="utf-8")

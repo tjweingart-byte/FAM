@@ -590,56 +590,6 @@ def main() -> int:
             assert page.evaluate("FamLine.isShowing()") is False, \
                 "a drawing is being driven on exploreFAM"
 
-        def the_audio_draws_the_line_and_the_tiles_carry_it():
-            """The picture, not the frame around it.
-
-            The ivory square passing its own check is what this preview shipped
-            with, and it is the one thing a missing drawing layer still gets
-            right: the canvas mounts client-side and then polls a `/api/visual`
-            nothing answered. So both halves are asserted here - a tile that
-            arrives with its drawing finished, and a player whose line fills in
-            as the audio moves - because the square alone proved neither.
-            """
-            page.evaluate("setTab('myfam')")
-            page.wait_for_timeout(1200)
-            tiles = page.eval_on_selector_all(
-                "#screen-myfam .line-thumb", "e => e.length")
-            assert tiles >= 4, (
-                f"only {tiles} myFAM tile(s) carry a drawing - the feed is "
-                f"answering without one")
-            # Placeholder art is labelled wherever it appears, tiles included.
-            marks = page.eval_on_selector_all("#screen-myfam .seed-mark", "e => e.length")
-            assert marks == tiles, (
-                f"{tiles} placeholder drawing(s) on tiles, {marks} labelled")
-
-            page.evaluate("setTab('home')")
-            page.wait_for_timeout(300)
-            page.fill("#searchInput", "how do undersea cables actually get repaired")
-            page.evaluate("runSearch()")
-            page.wait_for_selector("#playerLine", state="visible", timeout=20000)
-            assert page.eval_on_selector(
-                "#playerLine", "e => e.classList.contains('blank')"), \
-                "the canvas did not start blank"
-            # The drawing arrives after the episode has started, which is the
-            # case the reveal exists to handle: it joins where the audio is.
-            page.wait_for_function(
-                "() => { var p = document.querySelector('#playerLine .line-path');"
-                " return p && (p.getAttribute('d') || '').length > 40; }",
-                timeout=30000)
-            first = page.eval_on_selector(
-                "#playerLine .line-path",
-                "e => ({ off: parseFloat(e.style.strokeDashoffset || '0'),"
-                "        len: e.getTotalLength() })")
-            page.wait_for_timeout(2500)
-            later = page.eval_on_selector(
-                "#playerLine .line-path",
-                "e => parseFloat(e.style.strokeDashoffset || '0')")
-            assert first["len"] > 0, "the path has no length"
-            assert later < first["off"] - 1, (
-                f"the reveal did not advance with the audio "
-                f"({first['off']:.0f} -> {later:.0f})")
-            page.evaluate("stopSpeech()")
-
         def echo_state_reaches_every_player():
             """One echo must light up all of them, not just the one tapped."""
             page.evaluate("setEchoed(true)")
@@ -869,8 +819,6 @@ def main() -> int:
         check("Echo state reaches every player", echo_state_reaches_every_player)
         check("The ivory canvas is on the player, never on Explore",
               the_ivory_canvas_is_on_the_player_and_never_on_explore)
-        check("The audio draws the line, and the tiles carry it",
-              the_audio_draws_the_line_and_the_tiles_carry_it)
 
         if errors:
             failures.append(f"page errors: {errors}")
