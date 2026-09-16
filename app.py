@@ -47,6 +47,8 @@ import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
 import live_sources
+from gdelt import report as gdelt_report
+import provenance as provenance_mod
 import trending as trending_mod
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
@@ -883,6 +885,10 @@ async def health() -> dict:
         # opposed to what one entity's state is. Reported separately because
         # they fail separately and are fixed separately.
         "trending": trending_mod.report(),
+        # The second retrieval index, and the Trending row's feed. Reported
+        # separately from `research` because they fail separately: Exa can be
+        # healthy while this is off, and vice versa.
+        "gdelt": gdelt_report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how
@@ -2464,6 +2470,43 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # An echoed episode leads, because someone chose to send it.
     episodes.sort(key=lambda e: (not e["echoed_by"], e["age_seconds"]))
     return {"episodes": episodes}
+
+
+@app.get("/api/sources")
+async def episode_sources(
+    request: Request,
+    q: str = Query(..., description="What the listener asked"),
+    minutes: int = Query(3, ge=1, le=10),
+    context: str = Query("", description="Topic the listener just heard"),
+    search: bool = Query(True),
+):
+    """Who this episode's facts came from.
+
+    Read from the cache under the same key the script is stored under, which
+    is why it works on a replay: a cached episode has no `notes` to rebuild
+    provenance from, so it is stored beside the sentences like `thread` is.
+
+    **Nothing here has ever been in a prompt.** The evidence packet carries
+    grades and never hostnames, deliberately - a domain in the packet is a
+    domain the voice can read out. This is the display channel, and it must
+    stay separate: showing sources in the app is not a reason to let the model
+    cite them aloud. See `provenance.py`.
+    """
+    _read_limit(request)
+    plan = _validated_plan(q, minutes, context, search)
+    try:
+        pipeline = _make_pipeline()
+    except TTSUnavailable:
+        return {"items": [], "retrievers": [], "count": 0, "known": False}
+    raw = await pipeline.sources_for(plan)
+    found = provenance_mod.Provenance.from_json(raw)
+    body = found.as_dict()
+    # An episode with no stored provenance is not an episode with no sources -
+    # it may simply predate this, or have been answered from knowledge. Said
+    # in words so the interface can tell the difference rather than rendering
+    # an empty list as "no sources".
+    body["known"] = bool(raw)
+    return body
 
 
 @app.get("/api/next")

@@ -304,6 +304,10 @@ class ScriptNotes:
     #: What the live lookup actually did, for the log and `/api/health`. One of
     #: `live_facts.LiveLookup.outcome`, or "" when nothing was asked.
     live_outcome: str = ""
+    #: Who this episode's facts came from - `provenance.Provenance`. Read back
+    #: by the pipeline, cached beside the script and shown in the app. FAM
+    #: already collected all of this and discarded it; see `provenance.py`.
+    provenance: object = None
 
 
 def extract_thread(text: str) -> str:
@@ -852,6 +856,8 @@ class ScriptGenerator:
             # searches after all rather than being handed an empty packet and
             # told it is research.
             return plan
+        if notes is not None and packet.provenance is not None:
+            notes.provenance = packet.provenance
         return dataclasses.replace(plan, evidence=packet.context,
                                    thin_on=tuple(packet.missing))
 
@@ -947,6 +953,21 @@ class ScriptGenerator:
             if plan.live is not None:
                 notes.live_status = plan.live.status
                 notes.live_outcome = plan.live.outcome
+
+            # Everything that contributed, gathered in one place for the app.
+            # The live provider is credited only when it actually answered -
+            # one that failed or returned something too stale to use did not
+            # contribute, and listing it would claim corroboration that never
+            # happened.
+            import provenance as provenance_mod
+
+            if notes.provenance is None:
+                notes.provenance = provenance_mod.Provenance()
+            live_source = provenance_mod.from_live(plan.live)
+            if live_source is not None:
+                notes.provenance.add(live_source)
+            for attached in provenance_mod.from_attachments(plan.attachments):
+                notes.provenance.add(attached)
         return plan
 
     async def stream_sentences(

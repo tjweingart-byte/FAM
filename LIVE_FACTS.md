@@ -284,3 +284,61 @@ says so, and the writer is told so on every live question.
 
 Do not describe FAM as supporting live scores until a real provider is
 configured and returning them.
+
+---
+
+# Configured providers
+
+Added in PROBLEMS.md §91. **None has been verified against its live service
+from this build** — the container's egress proxy blocks every host below, so
+each adapter is written from the vendor's documented shapes and pinned against
+recorded payloads in `tests/test_live_providers.py`. Run
+`python tools/verify_live.py` somewhere with network before trusting any.
+
+| domain | name | provider | credential | notes |
+|---|---|---|---|---|
+| sports | `api-sports` | API-Sports | `API_SPORTS_KEY` | self-serve, transparent pricing |
+| sports | `sportsdataio` | SportsDataIO | `SPORTSDATAIO_KEY` | player-level stats; sales-gated |
+| markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed on the free tier |
+| markets | `alpha-vantage` | Alpha Vantage | `ALPHA_VANTAGE_KEY` | ~15 min delayed |
+| elections | `polymarket` | Polymarket | none | **forecast, never a result** |
+| elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
+| elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |
+
+## The rule that keeps Polymarket safe
+
+A prediction market returns what people are **betting**, not what is true. So
+every fact it produces carries `kind="prediction-market"` and
+`status=UNKNOWN`, always — and `unknown` is the status in which no result may
+be spoken.
+
+That is structural rather than a request, and it matters because of a specific
+temptation: a live in-game win-probability line moves with the score, so it
+*reads* like the score. *"Chiefs at 94%, so they must be winning"* is
+PROBLEMS.md §88 returning through a side door. A market may colour an episode;
+it may never close one.
+
+## Why the election providers are empty
+
+Neither AP Elections nor Decision Desk HQ publishes API pricing, and neither
+has an open endpoint — both are sales-gated. There is nothing to write an
+adapter against, and guessing an endpoint would be worse than nothing. They
+are declared so the gap is visible with the thing a person would have to do to
+close it, rather than elections looking like a domain nobody considered.
+
+Polymarket covers election *interest* at zero cost in the meantime. It does not
+cover election *results*, and the `kind` field is what keeps those apart.
+
+## Status mapping is done at the boundary
+
+Each adapter translates its vendor's vocabulary into `live_facts.STATUSES` in
+its own `fetch`. Anything unrecognised becomes `unknown` — never a guess — so a
+provider that changes its codes degrades to silence rather than to a confident
+wrong tense.
+
+    API-Sports     NS/TBD -> scheduled   1H/2H/HT/ET/P/LIVE -> in_progress
+                   FT/AET/PEN -> final   anything else -> unknown
+    SportsDataIO   Scheduled -> scheduled  InProgress -> in_progress
+                   Final/F-OT -> final     anything else -> unknown
+    Finnhub / AV   always unknown — a price is not an event
+    Polymarket     always unknown — a forecast is not an event

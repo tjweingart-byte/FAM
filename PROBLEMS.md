@@ -5352,3 +5352,113 @@ belong beside the written ones.
 
 `TRENDING.md` is the whole of it, including the candidate feeds and why
 NewsAPI is ruled out.
+
+## 91. Sources were collected on every episode and thrown away
+
+FAM extracted every publisher, graded it, dated it and stored it on
+`notes.research` - and nothing ever read it back. `ScriptNotes` said so in its
+own docstring: *"Written to and never read back by the writing path."*
+
+So the first half of this was not a feature, it was reconnecting a wire that
+had never been plugged in at the far end.
+
+### The rule that makes displaying it safe
+
+CLAUDE.md is emphatic that the evidence packet carries source **grades** and
+never hostnames - a domain in the packet is a domain the voice can read out,
+and the model needs to know it is reading a wire service in order to weigh it,
+not a way to say "reuters dot com" aloud.
+
+**That rule is about the prompt. The panel is a different channel.** Nothing in
+the provenance path reaches a prompt, and `research.domains()` has always
+existed "for a person to judge". What this adds is somewhere for that output to
+go.
+
+The obvious next step is the one to refuse: *"we show sources now, so let the
+model cite them"* would put hostnames back in front of the voice. A test reads
+`build_prompt` and asserts it mentions neither provenance nor hostnames,
+because a rule nothing enforces lasts until the next refactor.
+
+### Two things that would have gone wrong quietly
+
+**A cache hit had no sources.** A replayed episode has no `notes` to rebuild
+them from, so a shared or Explore episode would have shown an empty panel while
+a freshly generated one showed a full list. Same shape as the problem the
+`thread` column already solved, fixed the same way - a `sources` column by
+additive migration, and an accessor on both backends.
+
+**An attachment title is the listener's own document.** The script cache is
+shared and feeds Explore, so a cached title would have shown one listener the
+name of another listener's file. `Provenance.shareable` drops anything private
+before storage. An attached episode is already uncacheable, so this is belt and
+braces - but the belt is the one that would have been noticed too late.
+
+### Credit only where something contributed
+
+A live provider is credited **only on `facts`**. One that failed, timed out,
+found no matching entity or returned data too stale to use did not contribute,
+and listing it would claim corroboration that did not happen. Likewise only the
+articles that reached the packet are credited, not everything retrieval
+returned - the writer never saw the rest.
+
+And `known` on the API response separates *"we recorded no sources"* from
+*"there were none"*, because an episode answered from knowledge is a real case
+and rendering it as "no sources" is §89's mistake on a third surface.
+
+### GDELT, in two jobs on two clocks
+
+A second retrieval index beside Exa (per episode, `GDELT_CROSS_CHECK`) and the
+Trending row's feed (shared 15-minute clock, `TRENDING_SOURCE=gdelt`). One
+upstream, two adapters, because the two clocks want different things from it.
+
+Keyless, so a cross-check costs nothing per episode - which is what makes "not
+from only one source" affordable rather than aspirational. Additive only: it
+never replaces the primary packet and `gdelt.retrieve` returns `[]` on any
+failure by contract, because a cross-check that could break an episode would be
+worse than no cross-check.
+
+The results are **duck-typed to the Exa shape** so `rank_results`,
+`credibility`, `published_at` and `provenance.from_results` all work unchanged.
+A second retriever needing its own branch in each would be four places to
+forget.
+
+**The limitation worth writing down**: GDELT's DOC API is query-driven. It
+measures coverage of a query you *name*; it does not hand back a ranked list of
+everything hot. So the Trending source sweeps a fixed theme vocabulary and
+ranks by measured volume - real measurement over a fixed list, not open-ended
+discovery. Open-ended needs the bulk GKG exports, deliberately not taken.
+
+### The providers, and the one that is a trap
+
+API-Sports and SportsDataIO for sports, Finnhub and Alpha Vantage for markets,
+Polymarket for forecasts. AP Elections and Decision Desk HQ are **declared and
+unimplemented**: both are sales-gated with no public pricing and no open
+endpoint, so there is nothing to write against and guessing would be worse than
+nothing. Naming the gap with what it would take to close it is the point.
+
+**Polymarket is the trap.** A prediction market returns what people are
+*betting*, and a live in-game win-probability line moves with the score - so it
+reads like the score. *"Chiefs at 94%, so they must be winning"* is §88 coming
+back through a side door. Every fact it produces carries
+`kind="prediction-market"` and `status=UNKNOWN`, always, and `unknown` is the
+status in which no result may be spoken. Structural, not a request.
+
+Every adapter maps its vendor's status vocabulary at the boundary, and anything
+unrecognised becomes `unknown` rather than a guess - so a provider that changes
+its codes degrades to silence rather than to a confident wrong tense.
+
+### What this build cannot prove
+
+**Not one of these has made a live request.** The container's egress proxy
+blocks `api.gdeltproject.org`, `gamma-api.polymarket.com`, the API-Sports
+hosts, `sportsdata.io`, `finnhub.io` and `alphavantage.co`. Every shape is
+written from vendor documentation and pinned against recorded payloads.
+
+That is the §52 gap exactly, and it is open: the tests prove the parsing and
+prove nothing about whether the endpoints still answer in that shape.
+`tools/gdelt_probe.py` and `tools/verify_live.py` are what close it, somewhere
+with network. The probe was run here and failed honestly with 403s, which is
+the only result it could have given and the right one.
+
+`PROVENANCE.md` is the panel; the provider table is in `LIVE_FACTS.md`; the
+GDELT notes are in `TRENDING.md`.

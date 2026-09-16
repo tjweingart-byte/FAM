@@ -979,6 +979,20 @@ class PodcastPipeline:
             return ""
         return self.cache.thread(await self._cache_key(plan))
 
+    async def sources_for(self, plan: EpisodePlan) -> str:
+        """Provenance JSON for an episode already generated, or "".
+
+        Mirrors `thread_for` exactly, and for the same reason: what an episode
+        drew on is only known once the script has been written, which is after
+        the audio response headers have gone out.
+        """
+        if not self.cache or not is_shareable(plan.query):
+            return ""
+        reader = getattr(self.cache, "sources", None)
+        if reader is None:
+            return ""
+        return reader(await self._cache_key(plan))
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:
@@ -1124,8 +1138,14 @@ class PodcastPipeline:
                           outcome_dependent=notes.outcome_dependent,
                           recency_days=notes.recency_days)
             if ttl > 0:
+                # The shareable half only: an attachment's title is the
+                # listener's own document, and the script cache is shared and
+                # feeds Explore. `Provenance.shareable` drops anything private.
+                sources = ""
+                if notes.provenance is not None:
+                    sources = notes.provenance.to_json()
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                               plan.minutes, bucket)
+                               plan.minutes, bucket, sources)
                 log.info("cached %d sentences for %r (ttl %ds)",
                          len(stats.script), plan.query, ttl)
             else:

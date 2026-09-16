@@ -516,6 +516,51 @@ class Settings:
     trending_timeout_seconds: float = _env_float("TRENDING_TIMEOUT_SECONDS", 8.0)
     trending_max_items: int = _env_int("TRENDING_MAX_ITEMS", 6)
 
+    # --- GDELT -----------------------------------------------------------
+    # A second retrieval index beside Exa, and the source behind the Trending
+    # row. Keyless - GDELT DOC 2.0 needs no credential - so the only switch
+    # that matters is this one.
+    #
+    # Ships OFF. Not because it costs anything, but because nothing in this
+    # build has ever made a real request to it: the container's egress proxy
+    # blocks it, so every shape in `gdelt.py` is written from the docs and
+    # tested against recorded payloads. Turn it on somewhere with network,
+    # run `python tools/gdelt_probe.py`, and leave it on once that passes.
+    gdelt: bool = field(
+        default_factory=lambda: os.environ.get("GDELT", "0")
+        not in ("0", "false", "False", ""))
+    gdelt_timeout_seconds: float = _env_float("GDELT_TIMEOUT_SECONDS", 6.0)
+    gdelt_max_records: int = _env_int("GDELT_MAX_RECORDS", 20)
+    # Whether a researched episode asks GDELT as well as Exa. Separate from
+    # `gdelt` so the Trending row can run without adding a second call to
+    # every episode - they are different clocks and different budgets.
+    gdelt_cross_check: bool = field(
+        default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
+        not in ("0", "false", "False", ""))
+
+    # --- live provider credentials ---------------------------------------
+    # One per vendor. Empty means that vendor is not configured, which
+    # `/api/health` reports as its own state - never as "there is no live
+    # information in the world". Keys are never written into source; these
+    # come through the same chain as every other credential (process env >
+    # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
+    api_sports_key: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
+    sportsdataio_key: str = field(
+        default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
+    finnhub_key: str = field(
+        default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
+    alpha_vantage_key: str = field(
+        default_factory=lambda: os.environ.get("ALPHA_VANTAGE_KEY", "").strip())
+    ap_elections_key: str = field(
+        default_factory=lambda: os.environ.get("AP_ELECTIONS_KEY", "").strip())
+    ddhq_key: str = field(
+        default_factory=lambda: os.environ.get("DDHQ_KEY", "").strip())
+    # Polymarket's public read API needs no credential.
+    polymarket_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "POLYMARKET_BASE", "https://gamma-api.polymarket.com").strip())
+
     # --- Prefetch ---------------------------------------------------------
     # Writing the episode before anybody asks for it - see `prefetch.py`.
     #

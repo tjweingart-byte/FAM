@@ -402,12 +402,19 @@ def best_match(
 class ScriptCache(Protocol):
     def get(self, key: str) -> Optional[list[str]]: ...
     def put(
-        self, key: str, sentences: list[str], ttl: int, query: str, thread: str = ""
+        self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
+        minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
     #: can never speak it by accident.
     def thread(self, key: str) -> str: ...
+    #: Who the cached episode's facts came from, as stored JSON. Kept beside
+    #: the script for the same reason `thread` is: a cache hit replays
+    #: sentences and has no `notes`, so without this a shared or Explore
+    #: episode would show an empty sources panel while a freshly generated one
+    #: showed a full list. See `provenance.py`.
+    def sources(self, key: str) -> str: ...
     #: Live entries, newest first. Explore replays these and never generates.
     def recent(self, limit: int = 40) -> list[dict]: ...
     #: The closest *near* match in the same bucket, or None. Only consulted
@@ -420,6 +427,9 @@ class MemoryScriptCache:
 
     def __init__(self) -> None:
         self._data: dict[str, tuple[float, list[str], str, str, int]] = {}
+        #: key -> provenance JSON. Beside the tuple rather than in it, so the
+        #: shape the existing tests assert on is unchanged.
+        self._sources: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
@@ -436,9 +446,11 @@ class MemoryScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None:
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
+        if sources:
+            self._sources[key] = sources
         if bucket and query:
             self._vectors[key] = (bucket, embeddings.pack(embeddings.embed(normalize_query(query))))
 
@@ -468,6 +480,12 @@ class MemoryScriptCache:
         if not entry or entry[0] < time.time():
             return ""
         return entry[2]
+
+    def sources(self, key: str) -> str:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return ""
+        return self._sources.get(key, "")
 
     def stats(self) -> dict:
         return {"backend": "memory", "entries": len(self._data), "hits": self.hits, "misses": self.misses}
@@ -514,6 +532,9 @@ class SqliteScriptCache:
                 # to near matching - they still serve exact hits.
                 ("bucket", "ALTER TABLE scripts ADD COLUMN bucket TEXT NOT NULL DEFAULT ''"),
                 ("vector", "ALTER TABLE scripts ADD COLUMN vector BLOB"),
+                # Provenance, beside the script for the same reason `thread`
+                # is: a replayed episode has no `notes` to rebuild it from.
+                ("sources", "ALTER TABLE scripts ADD COLUMN sources TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -553,7 +574,7 @@ class SqliteScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -574,10 +595,10 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT OR REPLACE INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
+                "  bucket, vector, sources)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
-                 thread[:200], int(minutes), bucket, vector),
+                 thread[:200], int(minutes), bucket, vector, sources or ""),
             )
         except Exception:
             log.exception("script cache write failed; continuing")
@@ -608,6 +629,24 @@ class SqliteScriptCache:
             log.exception("near-match scan failed; treating as a miss")
             return None
         return best_match(query, rows)
+
+    def sources(self, key: str) -> str:
+        """Provenance JSON for a cached episode, or "" if there is none.
+
+        Same shape as `thread` and for the same reason - a replayed episode
+        has no `notes` to rebuild it from, so without this a cache hit would
+        show an empty sources panel where a fresh generation showed a full one.
+        """
+        try:
+            row = self._conn().execute(
+                "SELECT sources, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return ""
+            return row[0] or ""
+        except Exception:
+            log.exception("script cache sources read failed; continuing")
+            return ""
 
     def thread(self, key: str) -> str:
         try:

@@ -166,3 +166,48 @@ judge whether generated tiles belong beside the hand-written ones.
 
 **No real source is connected.** The row is empty and says so. That is not a
 statement about the world.
+
+---
+
+# GDELT
+
+Added in §91. `TRENDING_SOURCE=gdelt`, and `GDELT=1`.
+
+## What it does here
+
+Sweeps a fixed list of GKG themes (`gdelt.THEMES`), measures each one's
+coverage volume via `mode=timelinevolraw`, ranks by volume, and turns the top
+few into tiles. Concurrent, on the shared clock, so nobody waits on it.
+
+## The honest limitation
+
+**GDELT's DOC API is query-driven.** It tells you how much coverage *a query
+you name* is getting; it does not hand back a ranked list of everything hot
+right now. So this is real measurement over a **fixed vocabulary**, not
+open-ended discovery.
+
+Open-ended discovery needs the bulk GKG exports — a heavier path, deliberately
+not taken. If the fixed vocabulary proves too narrow, that is the next step,
+not a bug in this one.
+
+## What is still templated
+
+The tile's question is currently a template:
+
+    what is actually driving the news about {subject} right now
+
+That is only just on the right side of `TRENDING.md`'s rule that a tile carries
+a question rather than a headline. The better version is **one model call per
+refresh window** turning the top themes and their leading headlines into real
+questions — one call for everybody, which the shared clock makes affordable.
+
+Left as the next step rather than guessed at, because it is a writing-quality
+decision and nothing in this build can test writing quality.
+
+## Not verified
+
+`api.gdeltproject.org` is blocked from the build container. Every shape in
+`gdelt.py` is written from the documented API and tested against recorded
+payloads. Run `python tools/gdelt_probe.py` somewhere with network first — it
+checks both modes FAM uses and warns on the two things most likely to be
+silently wrong (dates not parsing, URLs not arriving).

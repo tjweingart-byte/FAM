@@ -395,9 +395,17 @@ class FakeTrendingSource(TrendingSource):
         return self.SUBJECTS_AS_ITEMS(limit)
 
 
+def _gdelt_source():
+    """Imported lazily: `gdelt` imports this module, so a top-level import
+    here would be a cycle."""
+    import gdelt
+
+    return gdelt.GdeltTrendingSource()
+
+
 #: Source name -> builder. A name not here is a configuration error, reported
 #: rather than silently serving nothing.
-BUILDERS = {"fake": FakeTrendingSource}
+BUILDERS = {"fake": FakeTrendingSource, "gdelt": _gdelt_source}
 
 
 def install() -> dict:
