@@ -495,6 +495,30 @@ the rest of this list it needs taste rather than a key.
   live game. Situating is different from orienting: it says where the listener
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
+- **The opening is written before the facts land, and it must not say so.**
+  *(PROBLEMS.md §94.)* A researched episode's first words are produced while
+  the sources are still being read - by `_answer_first`'s cover half, which
+  has no packet by construction, or by a model that has not yet called the
+  search tool. Asked what happened last night while holding nothing about last
+  night, a lone answerer should say so; **it is not a lone answerer**, and
+  nothing had told it that. So the opening brief now says plainly that the
+  specifics are already on their way and its job is the runway they land on,
+  and it is given the thing to write instead - the situation, which is true
+  whatever the result was. A ban with no alternative is what produced the
+  disclaimer: there is no "what this is and how it works" under `Dodgers game
+  last night`.
+  The line the ban must respect, because §88 was paid for in a wrong final
+  score: **where something stands in the world is the episode - "the game is in
+  the seventh" - and where it stands in our notes never is.** Not having
+  something is a fact about our own reading.
+  And `OpeningGuard` enforces it in code, because this rule was already in the
+  prompt when the Dodgers episode broke it. It looks only at the head of a
+  stream, switches off permanently once one real sentence is through, takes a
+  dangling justification with the disclaimer it belongs to, ignores quoted
+  speech, and **speaks a half that is nothing but disclaimer rather than
+  leaving silence**. Every drop is logged, carried on
+  `ScriptNotes.meta_openings` and printed by `write.py`: the guard firing means
+  the prompt did not hold, which is a thing to fix rather than to absorb.
 - **An article index is the wrong instrument for a scoreboard, and the seam is
   now built out.** *(§82, §89, `live_facts.py`, `live_sources.py`,
   `LIVE_FACTS.md`.)* A game ends and the scoreboard knows instantly; the recap
