@@ -5633,3 +5633,140 @@ container's egress blocks it, as it blocks every provider host including Exa's.
 `python tools/verify_live.py --domain elections` on a machine with network is
 what closes that, and the offline proof is that routing now reaches the source
 with the network stubbed.
+
+## 94. A perfect episode that opened by apologising for itself
+
+`"Dodgers game last night"`, three minutes, researched, generated at 3:15 the
+following afternoon. From its fifth sentence on it is the best episode this
+project has produced: seven innings and one hit for Yamamoto, the two home
+runs and who they came off, Freeman's three hits, the twelfth shutout, the
+magic number down to two and what closes it out, Cincinnati shut out a league
+high seventeen times. Every word of it checks out.
+
+It opened like this:
+
+> I don't have anything reliable on last night's specific Dodgers score or box
+> score to hand you, and I'm not going to guess a result and dress it up as
+> fact. That would be worse than useless if you're about to repeat it to a
+> friend. Here's what's actually true and worth knowing, regardless of which
+> game you mean.
+
+Four sentences later it gave the score.
+
+**Nobody hears the fifth sentence.** The first ten seconds are the whole
+audition, and this one spends them saying the episode cannot do the thing the
+episode then does. The reported verdict is the right one: as good as it was,
+it was all for nothing.
+
+### It is not a prompt lapse, it is the order of events
+
+The system prompt already said "never narrate your own process, sourcing or
+uncertainty". The opening role brief already said "no hedging about not having
+looked anything up". Both were in the prompt that wrote that paragraph.
+
+They lost because the model was not being unreasonable. On a researched
+episode the opening words are written **before the sources land**:
+
+* `_answer_first` starts two calls at once. The cover half runs with
+  `search=False`, no packet, no brief (`understand` skips `role == "opening"`
+  by design), and it is the half that is *spoken first*.
+* The `research_now` path attaches the `web_search` tool with no packet, and a
+  model can emit text before it calls a tool.
+
+In both, something is asked "what happened last night" while holding nothing
+about last night. A lone answerer in that position should say so - it is the
+honest move, and §88 and §89 are two whole sections of this log insisting on
+it. **It is not a lone answerer.** The rest of the episode is already being
+retrieved underneath it. Nothing had ever told it that.
+
+So the diagnosis in the report is exactly right: it needs to know, and trust,
+that the information is coming, and that its job is the runway.
+
+### Three changes, in the order they act
+
+**1. Tell it the shape of the system.** `ROLE_BRIEFS["opening"]` now says that
+a second half of this same episode is reading sources right now, will take
+over mid-flow within seconds, and will give the listener the specifics - so
+write as the first minute of a piece that is about to have everything, not as
+the whole of a piece that is missing something.
+
+**2. Give it something to write instead**, which is the part a ban alone could
+never supply. "Cover what this is, why it works and the history that explains
+it" is fine for a heat pump and useless for `Dodgers game last night`: there is
+no durable explainer under it, which is *why* it reached for a disclaimer. The
+brief now names the alternative for exactly that case - put them in the
+situation: who, where it sits, what was at stake going in, what the run-up
+was, what a result either way would mean. All of it is true whatever the
+result was, and it is precisely what the specifics need in front of them. That
+is §88's "situate, never orient", applied to the half that cannot yet know.
+
+**3. Draw the line the ban has to respect.** "Never hedge" cannot be allowed
+to become "never say a game is still going" - §88 bought that rule at the cost
+of a final score for a game in its third quarter. So the house rules now state
+both halves in one place: **where something stands in the world is the episode
+("the game is in the seventh"); where it stands in your notes never is.**
+
+### And a guard, because a prompt rule that fails silently is not a fix
+
+This rule *was already written* when the Dodgers episode broke it. Writing it
+more forcefully is worth doing and is not worth trusting, so `OpeningGuard`
+holds a disclaimer back before it can reach the voice, in `stream_sentences` -
+the one path the pipeline, the cover half and `write.py` all go through.
+
+What keeps it safe is how little it is allowed to do:
+
+* It looks only at the **head** of a stream, and switches off for good the
+  moment one real sentence gets through. A piece naming something unresolved
+  in the world halfway down is untouched.
+* It is bounded by sentence count as well, so it can never reach a body.
+* It drops a sentence about **our own access** - and then any sentence
+  immediately after it that cannot stand alone ("That would be worse than
+  useless...", "Here's what's actually true...", "Because it's the stuff
+  that..."). Dropping the disclaimer and leaving its justification behind is
+  worse than leaving both.
+* Quoted speech is stripped before matching, so a manager saying "I don't know
+  yet" is reporting rather than FAM disclaiming.
+* If a half turns out to be **nothing but** disclaimer, the text is released
+  rather than replaced with silence. An ugly opening is recoverable; dead air
+  is the one failure this product never accepts.
+* It is visible: a warning per drop, the sentences on `ScriptNotes.meta_openings`,
+  and `write.py` printing them under the script. The guard firing means the
+  prompt did not hold, which is a thing to fix rather than a thing to absorb.
+
+### Considered and not done: skipping the cover on a result question
+
+The cleanest-sounding fix is to not run the from-knowledge half at all when
+the question turns on an outcome - it has, by construction, nothing to say
+about the only thing being asked. It is not the fix, for two reasons. The
+cover only runs where research is slow (`SLOW_RESEARCH_BACKENDS`; on Exa it is
+already off), so it is not what the production path does most of the time. And
+it would leave the `research_now` path - which has no cover at all - opening
+exactly the same way. The thing to fix was the writing before the facts, not
+the second call.
+
+### The house rules paid for it themselves
+
+`test_the_prompt_stays_lean` caught the addition at 8,736 characters against a
+7,800 bound, and its own docstring says the way past it is the dedup pass
+rather than a higher number. The pass found four rules stated twice: "never
+narrate your own process" and "do not announce your own currency" are both
+what the new rule says; the banned-openings list was split across two bullets;
+"never survey many perspectives" and "neutral survey reads as generated" are
+one rule; and the episode-closes paragraph restated "Never tease" in full. The
+`<<NEXT:>>` block also kept a second worked example that `build_prompt` makes
+unnecessary.
+
+One sentence of the new rule moved rather than shrank, and that was a
+correctness fix as much as a size one: "other parts of this episode may be
+written from sources you cannot see" is *true of the cover half and false of a
+single-call episode*, so it belongs in the role brief that only the cover half
+reads, not in the rules every call is sent.
+
+Net: **7,767 characters, below the bound it was already under**, with a rule
+added. Which is what the bound is for.
+
+**Still unheard.** There is no API key in the build container, so as with every
+prompt change in this log, what is verified here is that the instructions and
+the guard are in the prompt and the path. Whether the new opening *sounds*
+right on "Dodgers game last night" needs a key and a listen - `python write.py
+"dodgers game last night" --minutes 3` prints it in seconds.
