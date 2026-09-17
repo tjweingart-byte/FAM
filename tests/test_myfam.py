@@ -191,27 +191,33 @@ def test_the_four_sections_are_always_present_and_in_order(store):
     assert [s["key"] for s in feed["sections"]] == [k for k, _ in T.SECTIONS]
 
 
-def test_explore_new_is_on_the_feed(store):
-    """It has been taken off this page once already.
+def test_explore_new_is_off_the_page_but_still_ranked(store):
+    """It has now been taken off this page twice, and the second time was a
+    decision rather than an accident - Trending took its slot.
 
-    `rank_might_like` is the only signal that offers anything *outside* an
-    established taste. Without it myFAM is history, co-listeners and the crowd
-    - three ways of being told what you already like - so its absence is not a
-    missing shelf, it is the page losing the only thing that widens a taste.
+    What that costs is worth keeping written down: `rank_might_like` is the
+    only signal that offers anything *outside* an established taste, so
+    without its rail myFAM is history, co-listeners and the crowd - three
+    ways of being told what you already like.
+
+    So the ranker stays filled and reachable. `UNSHELVED` is what says the
+    absence is deliberate, and keeping it in `FILL_ORDER` is what keeps
+    putting the rail back a one-line change.
     """
     keys = [k for k, _ in T.SECTIONS]
-    assert "might_like" in keys, "Explore New is not on myFAM"
+    assert "might_like" not in keys, "Explore New is back on myFAM"
+    assert "might_like" in T.UNSHELVED
     assert "might_like" in T.FILL_ORDER, \
-        "Explore New is displayed but never filled, so its rail is always empty"
+        "Explore New is not filled, so /api/explorenew would rank the leftovers"
 
 
-def test_explore_new_sits_between_the_personal_shelf_and_the_crowd(store):
-    """Not first: a returning listener most wants what was chosen *from* their
-    taste, and leading with the rail deliberately outside it puts the
-    least-confident shelf at the top. Not last either: below the crowd is where
-    a shelf goes to be ignored."""
+def test_trending_took_the_slot(store):
+    """Second, not last. Last is where a row nobody scrolls to goes, and this
+    is the one rail on the page with a reason to be looked at today."""
     keys = [k for k, _ in T.SECTIONS]
-    assert keys.index("from_history") < keys.index("might_like") < keys.index("most_played")
+    assert keys[1] == "world_trending", keys
+    assert keys.index("from_history") < keys.index("world_trending") \
+        < keys.index("most_played")
 
 
 def test_explore_new_offers_something_outside_an_established_taste(store):
@@ -223,8 +229,8 @@ def test_explore_new_offers_something_outside_an_established_taste(store):
     """
     for _ in range(4):
         store.record(T.Event("u", "complete", "chip-supply", "", ("tech",)))
-    by_key = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
-    picks = by_key["might_like"]["topics"]
+    # Through its own surface, since it is not a section on the page.
+    picks = T.build_explore_new(store, "u")["topics"]
     assert picks, "Explore New came back empty for a listener with a clear taste"
     assert not all("tech" in (t.get("tags") or []) for t in picks), \
         "Explore New returned only the tag this listener already plays"
@@ -565,4 +571,88 @@ def test_opening_a_section_costs_no_model_call(client, monkeypatch):
         raise AssertionError("a browse screen tried to build a pipeline")
 
     monkeypatch.setattr(appmod, "_make_pipeline", explode)
-    assert client.get("/api/myfam/section?key=might_like").status_code == 200
+    assert client.get("/api/myfam/section?key=from_history").status_code == 200
+
+
+# --- the page's shape -----------------------------------------------------
+
+
+def test_trending_is_second_and_explore_new_is_not_a_rail(client):
+    """Trending was last, where a row nobody scrolls to is a row nobody
+    reads. It is second now, at the owner's direction, in the slot Explore
+    New held."""
+    import topics as topics_mod
+
+    keys = [k for k, _ in topics_mod.SECTIONS]
+    assert keys[1] == "world_trending", keys
+    assert "might_like" not in keys, "Explore New is back on myFAM"
+
+    body = client.get("/api/myfam").json()
+    assert [s["key"] for s in body["sections"]] == keys
+
+
+def test_explore_new_is_still_ranked_and_still_reachable(client):
+    """Off the page is not gone. `rank_might_like` is the only ranking in FAM
+    that offers anything *outside* an established taste, so the ranker, the
+    endpoint and the screen all stay - which is what makes putting the rail
+    back a one-line change to SECTIONS rather than a rebuild."""
+    import topics as topics_mod
+
+    assert "might_like" in topics_mod.FILL_ORDER
+    assert "might_like" in topics_mod.UNSHELVED
+    body = client.get("/api/explorenew").json()
+    assert body["topics"], "Explore New ranks nothing"
+    assert body["reason"].strip()
+    # And it can still be asked for by name as a full section.
+    full = client.get("/api/myfam/section?key=might_like")
+    assert full.status_code == 404, \
+        "a section that is not on the page should not be openable as one"
+
+
+# --- the first run's interest catalogue -----------------------------------
+
+
+def test_the_catalogue_is_offered_and_every_tag_in_it_is_real(client):
+    """Interests, not tags. The eight facets are still the only *pickable
+    tag* vocabulary - these are named subjects, and the tags ride along."""
+    import topics as topics_mod
+
+    body = client.get("/api/preferences").json()
+    catalogue = body["catalogue"]
+    assert len(catalogue) > 50, f"only {len(catalogue)} interests offered"
+    assert len({i["id"] for i in catalogue}) == len(catalogue), "duplicate ids"
+
+    known = set(topics_mod.TAG_LABELS) | set(topics_mod.TAG_PARENT)
+    for item in catalogue:
+        assert item["label"] and item["icon"], item
+        assert item["tags"], f"{item['id']} means nothing to the ranker"
+        for tag in item["tags"]:
+            assert tag in known, f"{item['id']} carries unknown tag {tag!r}"
+        # Every entry reaches a facet, so it can never rank nothing.
+        assert any(topics_mod.facet_of(t) in topics_mod.TAG_LABELS
+                   for t in item["tags"]), item
+
+
+def test_the_chips_above_it_are_still_only_the_eight_facets(client):
+    """The catalogue being seventy-odd entries must not widen the vocabulary
+    the ranker reasons in. If this ever fails, read CLAUDE.md before fixing."""
+    import topics as topics_mod
+
+    body = client.get("/api/preferences").json()
+    assert [i["id"] for i in body["interests_available"]] == \
+        list(topics_mod.TAG_LABELS)
+
+
+def test_picking_an_interest_teaches_the_ranker_its_tags(client):
+    """The whole point of the catalogue: "Formula 1" is not something the
+    eight facets can say, and this is how it reaches the taste model."""
+    import topics as topics_mod
+
+    assert client.post("/api/event",
+                       json={"kind": "pick", "topic_id": "formula1"}).status_code == 200
+    me = client.get("/api/auth/me").json()["user_id"]
+    events = topics_mod.EventStore().for_user(me) if False else None
+    import app as appmod
+    logged = [e for e in appmod.EVENTS.for_user(me) if e.kind == "pick"]
+    assert logged, "the pick was not recorded"
+    assert set(logged[0].tags) >= set(topics_mod.CATALOGUE_BY_ID["formula1"].tags)

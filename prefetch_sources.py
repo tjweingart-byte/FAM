@@ -145,11 +145,16 @@ class FeedSource:
     name = "feed"
 
     def __init__(self, store, minutes: int = DEFAULT_MINUTES,
-                 sections: Iterable[str] = ("from_history", "might_like")) -> None:
+                 sections: Iterable[str] = ("from_history", "followers")) -> None:
         self.store = store
         self.minutes = minutes
         #: Which rails are worth warming. Not trending - `TrendingSource`
         #: already has it and warming it twice would double-count its hits.
+        #:
+        #: It was `from_history` and `might_like`; Explore New came off the
+        #: page, and warming a rail nobody is shown is spending money on a
+        #: tile that cannot be tapped. `followers` is the next most personal
+        #: thing the page actually draws.
         self.sections = tuple(sections)
 
     def candidates(self, listener: str = "", limit: int = 4,

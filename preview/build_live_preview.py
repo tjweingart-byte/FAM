@@ -381,9 +381,12 @@ LIVE_SHIM = r"""
     out.from_history = take(scored.map(function (x) { return x.t; }), 6);
     out.followers = take(byCount, 6);
     // Exploration, from the same ranking the Explore New screen uses - so the
-    // rail and the surface it opens cannot disagree about what is adjacent to
-    // a taste. Filled here, in FILL_ORDER position, so the personal sections
-    // still choose before it and trending still chooses last.
+    // screen and anything that shows this ranking cannot disagree about what
+    // is adjacent to a taste. Still filled here, in FILL_ORDER position, so
+    // the personal sections still choose before it and it still takes tiles
+    // out of the bank before the crowd rows see them - but it is in
+    // `topics.UNSHELVED` and has no rail of its own, so nothing below draws
+    // it. Deleting the fill would change what the *other* rails contain.
     out.might_like = take(exploreNewBody(myPrefs().interests).topics, 6);
     out.most_played = take(byCount.concat(BANK), 6);
     // The world row. Empty in the browser by construction: its inventory is
@@ -395,12 +398,17 @@ LIVE_SHIM = r"""
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
 
+  // `topics.SECTIONS`, in order. Trending sits second, where Explore New used
+  // to - the row about today was under two rows about what the listener
+  // already likes, which is the worst place on the page for it. Explore New
+  // is `topics.UNSHELVED`: ranked, reachable from its own screen, and not a
+  // rail. Keep this list and `topics.SECTIONS` in step or the preview shows a
+  // page the app does not.
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
-    ["might_like", "Explore New", "Listen to a few episodes and this fills in."],
+    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."],
     ["followers", "Your circle is on this", "Nobody you overlap with has listened yet."],
-    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."],
-    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."]
+    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."]
   ];
 
   function myfamBody() {
@@ -741,6 +749,8 @@ LIVE_SHIM = r"""
   // The share wording, from sharing.py at build time, so the preview and the
   // server cannot show different copy for the same button.
   var SHARE_TEMPLATES = __SHARE_TEMPLATES__;
+  /* The first run's interest catalogue, from topics.py at build time. */
+  var CATALOGUE = __CATALOGUE__;
   function silence(seconds) {
     var total = Math.round(seconds * SAMPLE_RATE), sent = 0;
     return Promise.resolve(new Response(new ReadableStream({
@@ -937,6 +947,7 @@ LIVE_SHIM = r"""
         interests_available: Object.keys(TAG_LABELS).map(function (g) {
           return { id: g, label: TAG_LABELS[g] };
         }),
+        catalogue: CATALOGUE,
         languages: LANGUAGES, max_interests: MAX_INTERESTS,
         language_active: false,
         account: !!EMAIL, saved: !!EMAIL,
@@ -1730,6 +1741,10 @@ def build() -> pathlib.Path:
             # here it would drift, and a picker offering a facet the ranker
             # does not score is the drift that matters.
             .replace("__TAG_LABELS__", json.dumps(topics.TAG_LABELS))
+            # The first run's catalogue, from the module that owns it, for the
+            # same reason as the vocabulary above.
+            .replace("__CATALOGUE__", json.dumps(
+                [i.as_dict() for i in topics.INTEREST_CATALOGUE]))
             # Subtag -> facet. The preview reimplements tags_for_text in JS,
             # so without this it would match subtags and never fold them up,
             # and the preview would rank differently from the server it is

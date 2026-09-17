@@ -115,7 +115,12 @@ def test_the_world_row_never_steals_tiles_from_the_personal_rows():
     feed = T.build_feed(store, "u1")
     by_key = {s["key"]: s for s in feed["sections"]}
     world_ids = {t["id"] for t in by_key["world_trending"]["topics"]}
+    # Every bank-filled rail, which is `FILL_ORDER` minus the ones that are
+    # ranked but not shown - `might_like` is filled and has no section on the
+    # page, so looking it up here would be a KeyError rather than a finding.
     for key in T.FILL_ORDER:
+        if key in T.UNSHELVED:
+            continue
         assert not world_ids & {t["id"] for t in by_key[key]["topics"]}
 
 

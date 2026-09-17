@@ -147,6 +147,10 @@ TARGETS: tuple[Target, ...] = (
     Target("x", "X", "link", 240, False,
            "{question}\n\nFAM made me a {minutes}-minute episode on it. {url}",
            destination="https://x.com/intent/post?text={text}"),
+    # Facebook's sharer takes the URL and builds its own preview from the
+    # page; `quote` has not been honoured for years. So, like LinkedIn below,
+    # the composed words go to the clipboard alongside rather than into a
+    # query string that drops them without saying so.
     Target("facebook", "Facebook", "link", 0, False,
            "I asked FAM \"{question}\" - here is the {minutes}-minute answer. {url}",
            destination="https://www.facebook.com/sharer/sharer.php?u={url}"),
@@ -232,14 +236,35 @@ def destination_for(chosen: Target, *, text: str, subject: str,
     `sms:` bodies: a question with an `&` in it truncates the body everywhere
     it is not, and a share that arrives half-written reads as a broken app
     rather than as a punctuation problem.
+
+    **A link that is not public produces no hand-off at all.** Without
+    `PUBLIC_BASE_URL` the share link comes back relative - `/s/abc123` - and
+    handing that to Facebook or LinkedIn opens their composer around a URL
+    they cannot resolve. The listener then finds out on somebody else's site
+    that FAM's link is broken, which is the worst possible place to learn it.
+    The sheet already says the link is not public; this stops it opening a
+    door onto that. The clipboard still works, so a deploy being tested is not
+    blocked, it just never pretends.
     """
     if not chosen.destination:
+        return ""
+    if not is_public_link(url):
         return ""
     return chosen.destination.format(
         text=quote(text, safe=""),
         subject=quote(subject, safe=""),
         url=quote(url, safe=""),
     )
+
+
+def is_public_link(url: str) -> bool:
+    """Whether this URL means anything to somebody who is not on this network.
+
+    Absolute and http(s). A relative path is the shape `share_url` returns
+    when `PUBLIC_BASE_URL` is unset, and it is exactly what must never be
+    posted anywhere.
+    """
+    return str(url or "").lower().startswith(("http://", "https://"))
 
 
 # --- the story card -------------------------------------------------------

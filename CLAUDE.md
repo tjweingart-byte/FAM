@@ -321,14 +321,30 @@ the rest of this list it needs taste rather than a key.
    itself its own preferences. Fatigue is per-topic, never per-tag, and can
    only push a tile down, which is what makes it safe. Trending is exempt: it
    is the same list for everyone, which is what makes it cheapest to serve.
-   `rank_might_like` (adjacent to your
-   taste) is **back on myFAM as the Explore New rail**, and serves the Explore
-   New screen behind it from the same ranking - one ranking, two views, so the
-   rail and the surface it opens cannot disagree. It sits second, between
-   "Made for you" and the crowd: it is the only signal offering anything
-   *outside* an established taste, and without it the page is three ways of
-   being told what you already like. The intro's chosen interests now seed `taste`, so "Made for you" is no
-   longer honestly empty on a listener's first open. The cost design is the load-bearing part: **one bank for
+   **The second slot is now "Trending", and Explore New came off the page**
+   *(PROBLEMS.md §96).* `rank_might_like` is still computed, still takes its
+   turn in `FILL_ORDER`, and still serves the Explore New *screen* - it is in
+   `topics.UNSHELVED`, which is the difference between a ranking that is not
+   drawn and a ranking that was deleted. What moved is what the second rail
+   *says*: the world row was at the bottom of four, under two forms of "what
+   you already like", which is the worst place on the page for the one row
+   that is about today. myFAM's four rails are now **Made for you /
+   Trending / Your circle is on this / What FAM can't stop playing**.
+   The cost of it, stated so it is a known trade: adjacency is no longer
+   offered unprompted, so the page is now two personal rows and two crowd
+   rows, and nothing on it reaches outside an established taste until the
+   listener opens Explore New themselves. `UNSHELVED` exists so putting it
+   back is one tuple entry. Anything that iterates `FILL_ORDER` and then looks
+   the key up in the drawn sections must skip `UNSHELVED`, or it is a
+   `KeyError` rather than a finding.
+   The intro's chosen interests now seed `taste`, so "Made for you" is no
+   longer honestly empty on a listener's first open, and
+   `INTEREST_CATALOGUE` is the long list behind "View more" - **73 named
+   subjects, not 73 new tags.** Each carries facets from the same eight, so
+   the settled constraint above is untouched: an interest is something a
+   listener recognises, a tag is what the ranker scores, and the picker is
+   still built from `TAG_LABELS`.
+   The cost design is the load-bearing part: **one bank for
    everyone, personalisation in the ordering, not the inventory** - so two
    people tapping a tile share one script through `cache.py`.
 5. **playFAM is built as its own tab.** `mixes.py` stores named daily mixes -
@@ -362,7 +378,10 @@ the rest of this list it needs taste rather than a key.
    actually hold - started, finished, open threads, subjects, vibes, and a
    friend count that is real because the graph is built. The page is a hub
    over four shelves the listener owns (Save for Later, Downloads, My Vibe,
-   Friends), a picture they can set, and a **Settings** screen that gathers
+   Friends), a picture they can set **and then crop** - move-and-scale, with
+   the preview and the export computed from the same three numbers, because a
+   crop the listener cannot see is a guess about where a face is (§96) - and a
+   **Settings** screen that gathers
    everything changeable in one place - it was spread across a modal, the
    first-run screens nobody sees twice, and an action sheet inside the player,
    so "where do I change that" had three answers and two of them were wrong.
@@ -743,11 +762,17 @@ the rest of this list it needs taste rather than a key.
   anonymous session can be thrown away and a fresh allowance started, which is
   the price of not putting a login in front of the first word.
 - **Save for later and download are different things, and stay different.**
-  *(SHARING.md.)* Saving is a **pointer** - question, length, folder - and
+  *(SHARING.md.)* Saving is a **pointer** - question, length, title - and
   playing one needs the network like any other episode. Downloading is **the
   audio on the device** and plays with the network off. A download is an
   upgrade to a saved item rather than a second list, which is why saving asks
-  the question and why one row carries both states. The limit is per tier and
+  the question and why one row carries both states - and why Downloads is now
+  a **switch inside Save for Later** rather than a screen of its own
+  (PROBLEMS.md §96). The folder chips came off both shelves in the same
+  change: nobody had ever made a folder, so every listener was shown a fixture
+  named "Commute" as though it were theirs, and **a control with nothing
+  behind it is worse than no control**. `saved.py`'s filing is untouched, so
+  putting folders back costs nothing anybody filed. The limit is per tier and
   is a **standing capacity, not a rate** - a windowed counter would hand out a
   fresh download allowance every morning and never require anybody to delete
   anything. A full shelf is a 409 that **names what to clear**, least recently
@@ -997,7 +1022,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §68-73 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §94-96 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

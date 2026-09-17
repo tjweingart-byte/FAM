@@ -232,6 +232,9 @@ def load_fixtures() -> dict:
         "/api/preferences": {
             "interests_available": [{"id": tag, "label": label}
                                     for tag, label in topics_mod.TAG_LABELS.items()],
+            # Imported rather than copied, like every other fixture here, so
+            # the catalogue the preview shows cannot drift from the real one.
+            "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
             "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
             "max_interests": prefs_mod.MAX_INTERESTS,
             "language_active": prefs_mod.LANGUAGE_ACTIVE,

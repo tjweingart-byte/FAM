@@ -149,13 +149,21 @@ def main() -> int:
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
-            assert any("Explore New" in t for t in titles), \
-                f"Explore New is not on myFAM: {titles}"
-            # The heading is the way through to the full surface. Without a
-            # visible affordance nobody finds it, which is how Explore New
-            # became unreachable the first time.
-            assert page.eval_on_selector_all(".feed-see", "e => e.length") >= 1, \
-                "the Explore New rail offers no way through to the full surface"
+            # Trending is second, in the slot Explore New used to hold. It was
+            # last, where a row nobody scrolls to is a row nobody reads, and it
+            # is the one rail here with a reason to be looked at *today*.
+            assert any("Trending" in t for t in titles), \
+                f"Trending is not on myFAM: {titles}"
+            assert not any("Explore New" in t for t in titles), \
+                f"Explore New is back on myFAM: {titles}"
+            assert titles[1].strip() == "Trending", \
+                f"Trending is not in the second slot: {titles}"
+            # Every rail now opens its own full-length view from the card at
+            # the end of it. Without a visible way through nobody finds those
+            # screens, which is how Explore New became unreachable the first
+            # time it came off this page.
+            assert page.eval_on_selector_all(".feed-more", "e => e.length") >= 1, \
+                "no rail offers a way through to its full surface"
 
         def go_deeper_titles_fit():
             """A clipped title is invisible to every other check.
@@ -293,9 +301,10 @@ def main() -> int:
             page.wait_for_timeout(600)
             tiles = page.eval_on_selector_all(".yf-tile-name", "e => e.map(x => x.textContent)")
             assert tiles == ["Weekly Recap", "Save for Later"], f"saw {tiles}"
-            # Explore New gave up this tile to Save for Later and now lives on
-            # myFAM as a rail of its own - which is where it can be found
-            # rather than remembered. The screen behind it is checked here.
+            # Explore New is off myFAM at the owner's direction, but the
+            # ranking, the endpoint and the screen are all still here - which
+            # is what makes putting the rail back a one-line change rather
+            # than a rebuild. Driven directly, because nothing links to it.
             page.evaluate("openExploreNew()")
             page.wait_for_selector("#screen-explorenew.active .xn-card",
                                    timeout=10000, state="attached")
@@ -305,10 +314,10 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def save_for_later_lists_the_shelf_and_its_folders():
+        def save_for_later_lists_the_shelf_and_reaches_downloads():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
-            page.evaluate("openSaved()")
+            page.evaluate("openSavedAll()")
             page.wait_for_selector("#screen-saved.active .sv-row",
                                    timeout=10000, state="attached")
             rows = page.eval_on_selector_all(".sv-row", "e => e.length")
@@ -321,8 +330,40 @@ def main() -> int:
             bar = page.text_content("#svDownloadBar")
             assert "OF" in bar and "FREE" in bar, \
                 f"the shelf did not say how much offline room was left: {bar!r}"
-            chips = page.eval_on_selector_all(".sv-chip", "e => e.map(x => x.textContent)")
-            assert any("Commute" in c for c in chips), f"no folders: {chips}"
+            # Downloads is inside this shelf rather than beside it, because a
+            # download is a *state* of a saved episode. The folder chips that
+            # used to be here are gone: a shelf of a dozen things does not
+            # need filing, and the one folder in it was a fixture.
+            assert not page.query_selector(".sv-chip"), \
+                "the folder chips came back"
+            switch = page.text_content("#svSwitch")
+            assert "Downloads" in switch, f"no way through to downloads: {switch!r}"
+            page.click("#svSwitch")
+            page.wait_for_timeout(500)
+            assert page.text_content("#screen-saved .back-row h2").strip() == "Downloads", \
+                "the Downloads view did not open"
+            assert "All saved" in page.text_content("#svSwitch"), \
+                "no way back to the whole shelf"
+            page.click("#svSwitch")
+            page.wait_for_timeout(400)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_shelf_comes_back_to_where_it_was_opened_from():
+            """Opening it from the profile and pressing back landed on search,
+            because `openSaved` unwound the Your FAM sheet whether or not that
+            sheet was open - and a `goBack()` on the profile takes the profile
+            off the stack."""
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+                                   timeout=10000, state="attached")
+            page.evaluate("openSavedAll()")
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-saved"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile", \
+                "back from the shelf did not return to the profile"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -338,14 +379,108 @@ def main() -> int:
                           " title: 'Bonds', minutes: 3}")
             page.evaluate("saveForLater()")
             page.wait_for_selector("#downloadOverlay.active", timeout=8000)
-            assert "Download" in page.text_content("#dlTitle")
+            # The save has already happened, so the popup says so: the only
+            # question left is the download, and the old "Download?" left it
+            # ambiguous whether anything had been kept at all.
+            title = page.text_content("#dlTitle")
+            assert "Saved" in title, f"the popup did not say the save landed: {title!r}"
             size = page.text_content("#dlSize")
-            assert "MB" in size and "NO SIGNAL" in size, \
-                f"the popup did not say the size or what downloading buys: {size!r}"
-            page.evaluate("closeDownloadModal()")
-            page.wait_for_timeout(300)
+            assert "MB" in size, f"the popup did not say the size: {size!r}"
+            assert "no signal" in page.text_content("#dlSub").lower(), \
+                "the popup did not say what downloading buys"
+            # Both buttons are commitments, so there has to be a way out of
+            # the question that is not the backdrop.
+            assert page.query_selector("#downloadOverlay .dl-x"), \
+                "the popup cannot be dismissed without choosing"
+            page.click("#downloadOverlay .dl-x")
+            page.wait_for_timeout(400)
+            assert not page.query_selector("#downloadOverlay.active"), \
+                "the X did not close the popup"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
+
+        def the_photo_editor_crops_what_it_shows():
+            """The crop used to be a silent centre crop - a guess made on
+            somebody's behalf about where their face is. What matters here is
+            that the export reads the same numbers the preview is painted
+            from: a preview computed one way and an export computed another is
+            a crop that lies, and nobody finds out until afterwards.
+
+            Driven with a synthetic image, because a file picker cannot be."""
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(600)
+            # A 400x200 image: wider than tall, so the crop has a real choice
+            # to make and the clamp has something to clamp.
+            page.evaluate(
+                """() => {
+                    var c = document.createElement('canvas');
+                    c.width = 400; c.height = 200;
+                    var x = c.getContext('2d');
+                    x.fillStyle = '#123456'; x.fillRect(0, 0, 400, 200);
+                    x.fillStyle = '#e0b563'; x.fillRect(0, 0, 40, 200);
+                    window.__testPhoto = c.toDataURL('image/jpeg', 0.9);
+                }""")
+            page.evaluate("openPhotoEditor(window.__testPhoto)")
+            page.wait_for_selector("#photoOverlay.active", timeout=8000)
+            page.wait_for_timeout(500)
+            state = page.evaluate(
+                """() => ({ stage: photo.stage, base: photo.base,
+                            ox: photo.ox, oy: photo.oy, w: photo.img.width })""")
+            assert state["stage"] > 0, "the stage was measured before it had a size"
+            # Covering, always: the image can never be dragged off the square.
+            assert state["ox"] <= 0.01 and state["oy"] <= 0.01, state
+            assert state["ox"] >= state["stage"] - state["w"] * state["base"] - 0.01, state
+            # Dragged hard left, the clamp holds rather than letting the crop
+            # run off the edge of the picture.
+            page.evaluate("photo.ox = -99999; paintPhoto();")
+            after = page.evaluate("() => photo.ox")
+            assert after >= state["stage"] - state["w"] * state["base"] - 0.01, after
+            # Zooming keeps the middle of the crop where it was.
+            page.evaluate(
+                """() => { document.getElementById('photoZoom').value = 220;
+                           photoZoomed(); }""")
+            zoomed = page.evaluate("() => photo.zoom")
+            assert abs(zoomed - 2.2) < 0.01, zoomed
+            page.evaluate("closePhotoEditor()")
+            page.wait_for_timeout(300)
+            assert not page.query_selector("#photoOverlay.active")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_interest_catalogue_is_the_whole_list():
+            """The first run's "View more". Seventy-odd named subjects, each
+            with an icon - and the chips above it are still only the eight
+            facets, which is the line CLAUDE.md draws and this keeps."""
+            page.evaluate(
+                "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
+            page.wait_for_timeout(600)
+            page.evaluate("skipAccount()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
+            assert chips == 8, f"the pickable chips are not the eight facets: {chips}"
+            assert page.query_selector(".intro-more"), "no way into the catalogue"
+            page.evaluate("openTopicCatalog()")
+            page.wait_for_selector("#screen-catalog.active .cat-row",
+                                   timeout=10000, state="attached")
+            rows = page.eval_on_selector_all(".cat-row", "e => e.length")
+            assert rows > 50, f"the catalogue offered {rows} interests"
+            names = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
+            for wanted in ("Soccer", "Formula 1", "K-pop", "Personal Finance"):
+                assert wanted in names, f"{wanted} is missing from the catalogue"
+            # Every row draws an icon. A row with none is a row that looks
+            # broken next to the ones that have them.
+            icons = page.eval_on_selector_all(".cat-art svg", "e => e.length")
+            assert icons == rows, f"{rows - icons} rows had no icon"
+            # And the search narrows it rather than decorating it.
+            page.fill("#catalogSearch", "hockey")
+            page.wait_for_timeout(400)
+            found = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
+            assert found == ["Ice Hockey"], found
+            page.evaluate("closeTopicCatalog()")
+            page.wait_for_timeout(400)
+            page.evaluate("finishIntro()")
+            page.wait_for_timeout(700)
 
         def an_episode_can_be_shared_outside_fam():
             """FAM posts nothing: the server writes the link and the wording,
@@ -560,7 +695,7 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile"
             assert page.query_selector(".pf-name"), "no identity block"
             assert page.eval_on_selector_all(".pf-echo", "e => e.length") > 0, "no echoes"
-            assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no folders"
+            assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no public mixes"
             assert page.query_selector(".pf-headline"), "no my-FAM-is-your-FAM headline"
 
         def mix_visibility():
@@ -803,8 +938,12 @@ def main() -> int:
         check("One tap sends one request", one_tap_is_one_request)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
-        check("Save for Later lists the shelf and its folders",
-              save_for_later_lists_the_shelf_and_its_folders)
+        check("Save for Later lists the shelf and reaches Downloads",
+              save_for_later_lists_the_shelf_and_reaches_downloads)
+        check("The shelf comes back to where it was opened from",
+              the_shelf_comes_back_to_where_it_was_opened_from)
+        check("The photo editor crops what it shows",
+              the_photo_editor_crops_what_it_shows)
         check("Saving asks about downloading",
               saving_from_the_player_asks_about_downloading)
         check("An episode can be shared outside FAM",
@@ -820,8 +959,10 @@ def main() -> int:
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)
-        check("Profile renders identity, folders and echoes", profile)
+        check("Profile renders identity, mixes and echoes", profile)
         check("Mix visibility can be toggled", mix_visibility)
+        check("The interest catalogue is the whole list",
+              the_interest_catalogue_is_the_whole_list)
         check("VIBE! is on every player", echo_button)
         check("VIBE! state reaches every player", echo_state_reaches_every_player)
 

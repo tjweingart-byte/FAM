@@ -190,3 +190,52 @@ def test_an_ampersand_in_the_question_does_not_truncate_the_message():
     for key in ("sms", "email"):
         link = sharing.render(key, **episode)["destination"]
         assert "%26" in link or "&" not in link.split("body=", 1)[1]
+
+
+# --- every destination, end to end ---------------------------------------
+
+
+def test_every_target_renders_words_a_person_could_send():
+    """All nine, with the wording actually filled in. The templates are the
+    product here: a share nobody would send is a share button nobody uses."""
+    for target in sharing.TARGETS:
+        rendered = sharing.render(target.key, **EPISODE)
+        assert rendered["text"].strip(), f"{target.key} rendered nothing"
+        assert "{" not in rendered["text"], \
+            f"{target.key} left a placeholder in: {rendered['text']!r}"
+        assert rendered["label"], target.key
+        assert rendered["kind"] in ("copy", "message", "link", "story")
+
+
+def test_a_link_that_is_not_public_opens_nothing_anywhere():
+    """Without PUBLIC_BASE_URL the link is relative - `/s/abc` - and handing
+    that to Facebook opens their composer around a URL nobody can resolve.
+    The listener then finds out on somebody else's site that FAM is broken,
+    which is the worst place to learn it."""
+    local = dict(EPISODE, url="/s/abc123")
+    for target in sharing.TARGETS:
+        rendered = sharing.render(target.key, **local)
+        assert rendered["destination"] == "", \
+            f"{target.key} offered to open {rendered['destination']!r}"
+        # The words are still there: the clipboard works, so a deployment
+        # being tested is not blocked - it just never pretends.
+        assert rendered["text"].strip()
+
+
+def test_the_two_that_drop_our_words_are_the_two_we_say_so_about():
+    """Facebook and LinkedIn build their own preview from the page and ignore
+    everything else. The interface copies the wording alongside and says so;
+    this pins which two that is, so a third joining them is noticed."""
+    drops_text = {"facebook", "linkedin"}
+    for target in sharing.TARGETS:
+        if not target.destination:
+            continue
+        rendered = sharing.render(target.key, **EPISODE)
+        carries_words = "text=" in target.destination or "body=" in target.destination
+        if target.key in drops_text:
+            assert not carries_words, \
+                f"{target.key} can carry our words after all - stop apologising for it"
+        else:
+            assert carries_words, \
+                f"{target.key} silently drops the wording and nothing says so"
+        assert rendered["destination"]

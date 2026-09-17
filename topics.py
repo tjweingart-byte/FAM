@@ -137,6 +137,125 @@ TAG_LABELS: dict[str, str] = {
 #: between "a tag" and "a tag somebody can choose".
 FACETS: frozenset[str] = frozenset(TAG_LABELS)
 
+
+@dataclass(frozen=True)
+class Interest:
+    """One named thing a listener can say they are interested in."""
+
+    id: str
+    label: str
+    #: A key into the interface's own small icon set. Named rather than drawn
+    #: here: this module knows nothing about SVG, and several interests share
+    #: one glyph on purpose (every music genre is a note, as the design has
+    #: it).
+    icon: str
+    #: What choosing it means to the ranker. The facet first, then any subtag
+    #: the interest genuinely carries.
+    tags: tuple[str, ...]
+
+    def as_dict(self) -> dict:
+        return {"id": self.id, "label": self.label, "icon": self.icon,
+                "tags": list(self.tags)}
+
+
+#: The catalogue behind "View more" on the first run.
+#:
+#: **These are interests, not tags, and that distinction is the whole reason
+#: this can exist.** CLAUDE.md is emphatic that the eight facets are the only
+#: *pickable tag* vocabulary, and they still are - the chips above this
+#: catalogue are `TAG_LABELS` and nothing else. What somebody picks here is a
+#: named subject; the tags come along with it, and a listener never reads one.
+#:
+#: That is what lets the list be this long and this specific. "Formula 1" is
+#: not a tag anybody could have been offered - `sports` is - but it is a
+#: perfectly good thing to say about yourself, and it lands on the ranker as
+#: `sports` plus whatever subtag it really carries. Eight buttons cannot
+#: express it; seventy-three named subjects can, without adding one word to
+#: the vocabulary the ranker reasons in.
+#:
+#: The list and its order come from the reference designs. One entry is worth
+#: flagging rather than quietly keeping: `Iran Conflict` is a live news event
+#: rather than a durable interest, so unlike everything else here it will go
+#: stale. It is in the designs, so it is in the list.
+INTEREST_CATALOGUE: tuple[Interest, ...] = (
+    # id, label, icon, tags (facet first, then any subtag it carries)
+    Interest("soccer",        "Soccer",                  "ball",      ("sports",)),
+    Interest("stocks",        "Stocks & Economy",        "chart",     ("money", "macro")),
+    Interest("politics",      "Politics",                "ballot",    ("world",)),
+    Interest("iran",          "Iran Conflict",           "news",      ("world", "geopolitics")),
+    Interest("sports",        "Sports",                  "tennis",    ("sports",)),
+    Interest("business",      "Business & Finance",      "briefcase", ("business",)),
+    Interest("science",       "Science",                 "atom",      ("science",)),
+    Interest("technology",    "Technology",              "chip",      ("tech",)),
+    Interest("art",           "Art",                     "palette",   ("culture",)),
+    Interest("movies-tv",     "Movies & TV",             "film",      ("culture", "film-tv")),
+    Interest("ai",            "Artificial Intelligence", "sparkle",   ("tech", "ai")),
+    Interest("gaming",        "Gaming",                  "gamepad",   ("culture", "internet-culture")),
+    Interest("crypto",        "Cryptocurrency",          "coin",      ("money",)),
+    Interest("nfl",           "NFL",                     "shield",    ("sports",)),
+    Interest("anime",         "Anime",                   "anime",     ("culture", "film-tv")),
+    Interest("travel",        "Travel",                  "plane",     ("culture",)),
+    Interest("food-drink",    "Food & Drink",            "chef",      ("culture", "food")),
+    Interest("baseball",      "Baseball",                "baseball",  ("sports",)),
+    Interest("basketball",    "Basketball",              "basketball",("sports",)),
+    Interest("beauty",        "Beauty",                  "beauty",    ("culture",)),
+    Interest("boxing",        "Boxing",                  "glove",     ("sports",)),
+    Interest("career",        "Career",                  "cap",       ("business",)),
+    Interest("cars",          "Cars",                    "car",       ("tech",)),
+    Interest("pets",          "Pets",                    "paw",       ("culture",)),
+    Interest("celebs",        "Celebs",                  "star",      ("culture",)),
+    Interest("music",         "Music",                   "note",      ("culture", "music")),
+    Interest("country-music", "Country Music",           "note",      ("culture", "music")),
+    Interest("news",          "News",                    "news",      ("world",)),
+    Interest("dance",         "Dance",                   "disco",     ("culture",)),
+    Interest("dating",        "Dating & Relationships",  "hearts",    ("health", "mind")),
+    Interest("design",        "Design",                  "design",    ("culture",)),
+    Interest("education",     "Education",               "cap",       ("science",)),
+    Interest("electronic",    "Electronic Music",        "note",      ("culture", "music")),
+    Interest("startups",      "Startups",                "briefcase", ("business", "founders")),
+    Interest("esports",       "Esports",                 "gamepad",   ("culture", "internet-culture")),
+    Interest("family",        "Marriage & Family",       "people",    ("health", "mind")),
+    Interest("fashion",       "Fashion",                 "shirt",     ("culture",)),
+    Interest("pop",           "Pop",                     "note",      ("culture", "music")),
+    Interest("golf",          "Golf",                    "golf",      ("sports",)),
+    Interest("kpop",          "K-pop",                   "note",      ("culture", "music")),
+    Interest("memes",         "Memes",                   "meme",      ("culture", "internet-culture")),
+    Interest("health",        "Health & Fitness",        "pulse",     ("health", "fitness")),
+    Interest("mma",           "MMA & Wrestling",         "glove",     ("sports",)),
+    Interest("motorsport",    "Racing & Motorsports",    "car",       ("sports",)),
+    Interest("motorcycles",   "Motorcycles",             "bike",      ("sports",)),
+    Interest("nature",        "Nature & Outdoors",       "tree",      ("science",)),
+    Interest("hockey",        "Ice Hockey",              "hockey",    ("sports",)),
+    Interest("olympics",      "Olympics",                "tennis",    ("sports",)),
+    Interest("personal-fin",  "Personal Finance",        "doc",       ("money",)),
+    Interest("photography",   "Photography",             "camera",    ("culture",)),
+    Interest("podcasts",      "Podcasts",                "mic",       ("culture", "media-business")),
+    Interest("real-estate",   "Real Estate",             "thumb",     ("money", "housing")),
+    Interest("robotics",      "Robotics",                "chip",      ("tech",)),
+    Interest("rock",          "Rock",                    "note",      ("culture", "music")),
+    Interest("rugby",         "Rugby",                   "rugby",     ("sports",)),
+    Interest("shopping",      "Shopping",                "bag",       ("money", "consumer-prices")),
+    Interest("snow-sports",   "Snow Sports",             "snow",      ("sports",)),
+    Interest("software",      "Software Development",    "laptop",    ("tech", "platforms")),
+    Interest("space",         "Space",                   "rocket",    ("science", "space")),
+    Interest("tennis",        "Tennis",                  "tennis",    ("sports",)),
+    Interest("home-garden",   "Home & Garden",           "home",      ("money", "housing")),
+    Interest("cricket",       "Cricket",                 "cricket",   ("sports",)),
+    Interest("formula1",      "Formula 1",               "car",       ("sports",)),
+    Interest("cycling",       "Cycling",                 "bike",      ("sports", "fitness")),
+    Interest("jpop",          "J-pop",                   "note",      ("culture", "music")),
+    Interest("concerts",      "Concerts",                "note",      ("culture", "music")),
+    Interest("hiphop",        "Hip Hop",                 "note",      ("culture", "music")),
+    Interest("jazz",          "Jazz",                    "note",      ("culture", "music")),
+    Interest("crime",         "Crime",                   "news",      ("world",)),
+    Interest("elections",     "Elections",               "ballot",    ("world", "elections")),
+    Interest("biotech",       "Biotech",                 "atom",      ("science", "body-science")),
+    Interest("mental-health", "Mental Health",           "pulse",     ("health", "mind")),
+    Interest("digital-art",   "Digital Art",             "palette",   ("culture",)),
+)
+
+CATALOGUE_BY_ID: dict[str, Interest] = {i.id: i for i in INTEREST_CATALOGUE}
+
 #: Every subtag, and the facet it lives under.
 #:
 #: **Why this exists.** Eight tags over a twenty-eight topic bank cannot
@@ -391,6 +510,11 @@ BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
 #: mutual exclusion the others do - it neither claims topics from them nor is
 #: starved by them.
 FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
+#: `might_like` stays in the fill order even though it is no longer displayed.
+#: That is deliberate: it claims its picks before the generic sections do, so
+#: the topics it would have shown are still held back from them - which keeps
+#: `/api/explorenew` showing something other than the rest of the page, and
+#: keeps putting the rail back a one-line change.
 
 #: Display order: personal first, global last. Someone opening myFAM is more
 #: likely to want what was chosen for them than what is popular, and the page
@@ -399,22 +523,28 @@ FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
 #: choose their topics first.)
 SECTIONS = (
     ("from_history", "Made for you"),
-    # Exploration, immediately after exploitation. Deliberately not first: a
-    # returning listener opening myFAM most wants what was chosen *from* their
-    # taste, and leading with the rail that is deliberately outside it puts the
-    # least-confident shelf at the top of the page. Deliberately not last
-    # either - below the crowd is where a shelf goes to be ignored, and this is
-    # the only one that widens a taste rather than confirming it.
-    ("might_like", "Explore New"),
+    # What the *world* is paying attention to, in the slot Explore New used
+    # to hold. A different question from what this app's listeners are
+    # playing, and from a different place: `trending.py`, refreshed once for
+    # everybody. It is second at the owner's direction - it was last, where a
+    # row nobody scrolls to is a row nobody reads, and it is the one rail on
+    # this page with a reason to be looked at today rather than eventually.
+    ("world_trending", "Trending"),
     ("followers", "Your circle is on this"),
     ("most_played", "What FAM can't stop playing"),
-    # What the *world* is paying attention to, which is a different question
-    # from what this app's listeners are playing and comes from a different
-    # place: `trending.py`, refreshed once for everybody. Last because it is
-    # the only row not chosen for the listener at all - and honestly empty,
-    # with a reason, until a source is configured.
-    ("world_trending", "Trending"),
 )
+
+#: Ranked, reachable by API, and **not on myFAM** - removed from the page at
+#: the owner's direction, with Trending taking its slot.
+#:
+#: This is the second time this rail has come off, so it is worth writing
+#: down what that costs rather than just doing it: `rank_might_like` is the
+#: only ranking in FAM that offers anything *outside* an established taste,
+#: and without a shelf the page is three ways of being told what you already
+#: like. The ranker, `build_explore_new` and `/api/explorenew` are all kept
+#: and tested, so putting it back is a one-line change to SECTIONS rather
+#: than a rebuild.
+UNSHELVED = ("might_like",)
 
 #: How much each kind of interaction says about taste. Finishing an episode is
 #: the strongest signal there is; a skip is real evidence in the other

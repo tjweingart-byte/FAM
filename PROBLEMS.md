@@ -5895,3 +5895,137 @@ log: there is no API key and no GPU here, so what is verified is that the
 checks pass, the twenty-six smoke behaviours pass, and the surfaces photograph
 correctly. Whether the pitch-preserved 1.5x *sounds* right needs a machine that
 can speak.
+
+---
+
+## 96. The second pass: a crop that guessed, a back button that lied, and a folder nobody made
+
+A round of notes on what §95 shipped. Most of it is wording and layout. Four
+were real, and three of those had the same shape: **the interface presenting a
+guess, or a fixture, as if it were the listener's own.**
+
+### The crop was a decision made silently, on the one photo where it matters
+
+A picture went through `avatarChosen`, got centre-cropped to a square, and was
+uploaded. A centre crop is a guess about where the subject is, and the subject
+of a profile picture is a person's face - which is very often not in the
+middle. There was no way to say otherwise, and no sign that a choice had been
+made at all.
+
+There is a **move-and-scale step** now: drag to reposition, a slider to zoom,
+a circle showing exactly what will be kept.
+
+The load-bearing part is not the UI, it is that **the preview and the export
+read the same numbers**. `base` is the scale at which the image just covers
+the square, `zoom` is what the slider adds, and `ox,oy` is the top-left, always
+clamped so the square is never uncovered. `paintPhoto` and `savePhotoCrop`
+both compute from those three. A preview derived one way and an export derived
+another is a crop that lies, and nobody finds out until afterwards - which is
+precisely the failure this replaced.
+
+Two smaller decisions:
+
+* **The original is kept on the device**, downscaled to 1024px, in
+  localStorage. The server still only ever holds the 256px crop - which is
+  what everyone else sees - and the device holds what is being edited. So
+  "Move and scale" works on a photo set here, and a photo set on *another*
+  device offers "choose a different one" instead and says why, rather than
+  showing a menu item that quietly does nothing.
+* **Clamping uses `Math.min(0, minX)` on the lower bound.** An image smaller
+  than the stage cannot cover it, and without that the clamp inverts and the
+  picture snaps to a corner.
+
+### Back from the shelf went to search
+
+Opening Save for Later from the profile and pressing back landed on SearchFAM.
+`openSaved` called `closeMessages()` unconditionally - and `closeMessages` is a
+`goBack()`. From the profile that popped the profile off the stack *before*
+pushing the shelf, so back had nothing to return to and fell through to home.
+
+It now unwinds the Your FAM sheet only when that sheet is the active screen.
+One line, and the kind of bug that only ever appears on one of the two routes
+into a screen.
+
+### "Commute" was a fixture on a real screen
+
+The shelf had a folder chip row, and the folder in it was a demo fixture. On a
+real deployment it showed a folder nobody had made; in the preview it looked
+like something the listener had.
+
+The chips are gone. A shelf of a dozen episodes does not need filing, and
+Downloads is a **switch inside Save for Later** rather than a second list -
+because a download is a *state* of a saved episode, and two lists would put
+the same row in two places and make removing it from one of them ambiguous.
+`/api/saved/folders` and `saved.py`'s filing are untouched, so nothing anybody
+filed is lost; what went is the row of chips.
+
+### Every share opened a door onto a broken link
+
+`§95` gave each destination a hand-off URL. Testing all nine end to end - which
+is what the notes asked for - found that without `PUBLIC_BASE_URL` the share
+link is **relative** (`/s/abc123`), and Facebook and LinkedIn were being handed
+`?u=%2Fs%2Fabc123`. The composer opens, and fails there.
+
+A link that is not absolute now produces **no hand-off at all**, for any
+target. The sheet already says the link is not public; this stops it opening a
+door onto that. The clipboard still works, so a deployment being tested is not
+blocked - it just never pretends. `is_public_link` is the whole check and a
+test walks every target through it.
+
+Also found by testing them: **Facebook drops the composed wording**, exactly as
+LinkedIn does - its `quote` parameter has not been honoured for years. It now
+gets the same treatment: the words go to the clipboard alongside, with one
+sentence saying so. A test pins *which two* destinations that is, so a third
+joining them is noticed rather than silently losing its wording.
+
+### And the rest
+
+**Trending is second, in the slot Explore New held**; Explore New is off the
+page. That is the second time that rail has come off, so `topics.UNSHELVED`
+names it and a test asserts the absence is deliberate - the ranker, the
+endpoint and the screen all stay, which keeps putting it back a one-line
+change. `FeedSource` stopped warming it in the same breath: warming a rail
+nobody is shown is paying for a tile that cannot be tapped.
+
+**The first run's catalogue is the designs' list** - seventy-three named
+interests with their own icon set. The distinction that lets it exist is in
+`topics.INTEREST_CATALOGUE`: these are *interests*, not tags. The eight facets
+are still the only pickable tag vocabulary and the chips above the catalogue
+are still exactly `TAG_LABELS`; "Formula 1" is not something those eight can
+say, and it reaches the ranker as `sports` plus whatever subtag it really
+carries, without a listener ever reading a tag name. One entry is flagged in
+the source rather than quietly kept: `Iran Conflict` is a live news event and
+will go stale, and it is in the designs.
+
+The download popup says **"Saved. Keep it on this phone?"** - the save already
+happened, on the tap that opened it, and "Download?" left that ambiguous enough
+that both buttons had to carry the word "save" to make up for it. It has an X,
+because both buttons were commitments and the only way out was a backdrop
+nothing said was tappable. Explore's actions are centred over its transport.
+The 15-second arrows have solid heads, because at 24px a hairline chevron beside
+a hairline arc read as a stray tick rather than as one arrow.
+
+### The live preview keeps its own copy of the page, and it disagreed
+
+Moving the rails passed every test and every fixture-preview behaviour, then
+failed the *live* preview's smoke run: `expected 4 sections, saw 5`.
+`build_live_preview.py` reimplements the feed in JavaScript, because the
+published page has no server - so `topics.SECTIONS` exists twice, and only one
+of them had been edited.
+
+That is the same failure `pipeline.key_for` is written the way it is to avoid,
+and it is worth naming because the preview is the thing the phone actually
+opens: a second implementation drifts the first time one side gains a field.
+The smoke run is what catches it, which is the argument for those behaviours
+being *behaviours* rather than assertions about markup. The JS list now carries
+a comment pointing at `topics.SECTIONS`, and `might_like` is still *filled*
+there even though nothing draws it - it takes tiles out of the bank in
+`FILL_ORDER` position, so deleting the fill would quietly change what the other
+three rails contain.
+
+**And "DailyFAM folders" is now "DailyFAM mixes".** The note asked what a
+folder was; the shelves were the answer, but the profile was calling public
+mixes folders too, which is the same word for a third thing.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs.

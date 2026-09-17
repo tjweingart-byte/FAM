@@ -2221,6 +2221,11 @@ async def read_preferences(request: Request):
     body = {
         "interests_available": [{"id": tag, "label": label}
                                 for tag, label in topics_mod.TAG_LABELS.items()],
+        # The long list behind "View more". Named subjects rather than tags -
+        # see `topics.INTEREST_CATALOGUE` for why that distinction is what
+        # lets it be seventy-odd entries without widening the vocabulary the
+        # ranker reasons in by a single word.
+        "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
         "max_interests": prefs_mod.MAX_INTERESTS,
         # False until per-language generation exists. Printed under the picker
@@ -2430,6 +2435,12 @@ async def record_event(req: EventRequest, request: Request):
     tags = ()
     if req.topic_id and req.topic_id in topics_mod.BANK_BY_ID:
         tags = topics_mod.BANK_BY_ID[req.topic_id].tags
+    elif req.topic_id and req.topic_id in topics_mod.CATALOGUE_BY_ID:
+        # An interest chosen from the first-run catalogue. It carries its own
+        # tags, which is the whole point of it: "Formula 1" is not something
+        # the eight pickable facets can say, and this is how it reaches the
+        # ranker without anybody being shown a tag name.
+        tags = topics_mod.CATALOGUE_BY_ID[req.topic_id].tags
     elif req.text:
         tags = topics_mod.tags_for_text(req.text)
     EVENTS.record(
