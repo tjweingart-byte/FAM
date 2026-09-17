@@ -314,6 +314,18 @@ the rest of this list it needs taste rather than a key.
    `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
+   **The first run is a wheel** *(§99).* Six discs orbiting "View more",
+   turning slowly counter-clockwise, selectable while they move. The ring
+   rotates and each disc counter-rotates by exactly as much, so positions
+   orbit while labels stay upright - both CSS animations on `transform`, which
+   is what keeps them in lockstep with no code running per frame and lets a
+   disc be redrawn on a tap without losing its place. `prefers-reduced-motion`
+   stops the turning and keeps the wheel. **And there is no cap on how many
+   interests somebody has** - it was six, it made a listener with seven pick
+   which to lie about, and nothing counts them now. No cap is not no
+   validation: every value must be a facet and duplicates collapse, so eight
+   is the ceiling, as a fact about the vocabulary rather than a rule anybody
+   is told.
    **The picker shows six of the eight, and they are the six being played**
    *(§98, `topics.popular_facets`).* Global play counts, like
    `rank_most_played` and for the same reason: the first run asks this of
@@ -351,8 +363,8 @@ the rest of this list it needs taste rather than a key.
    `KeyError` rather than a finding.
    The intro's chosen interests now seed `taste`, so "Made for you" is no
    longer honestly empty on a listener's first open, and
-   `INTEREST_CATALOGUE` is the long list behind "View more" - **73 named
-   subjects, not 73 new tags.** Each carries facets from the same eight, so
+   `INTEREST_CATALOGUE` is the long list behind "View more", which is the
+   wheel's hub - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
    the settled constraint above is untouched: an interest is something a
    listener recognises, a tag is what the ranker scores, and the picker is
    still built from `TAG_LABELS`.
@@ -1068,7 +1080,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §96-98 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §97-99 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

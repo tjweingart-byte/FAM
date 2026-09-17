@@ -235,7 +235,8 @@ def load_fixtures() -> dict:
             # measurement, which is exactly what a fresh deployment gets and
             # what `interests_source` is here to say.
             "interests_available": [
-                {"id": tag, "label": topics_mod.TAG_LABELS[tag]}
+                {"id": tag, "label": topics_mod.TAG_LABELS[tag],
+                 "short": topics_mod.TAG_SHORT[tag]}
                 for tag in topics_mod.PICKER_DEFAULT_ORDER[:topics_mod.PICKER_SIZE]],
             "interests_all": [{"id": tag, "label": label}
                               for tag, label in topics_mod.TAG_LABELS.items()],
@@ -244,7 +245,6 @@ def load_fixtures() -> dict:
             # the catalogue the preview shows cannot drift from the real one.
             "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
             "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
-            "max_interests": prefs_mod.MAX_INTERESTS,
             "language_active": prefs_mod.LANGUAGE_ACTIVE,
             "account": True, "saved": True,
             "account_required": "You need an account for this.",

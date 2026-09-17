@@ -72,7 +72,7 @@ LIVE_SHIM = r"""
   var TAG_LABELS = __TAG_LABELS__; // topics.TAG_LABELS, verbatim
   var TAG_PARENT = __TAG_PARENT__; // topics.TAG_PARENT, verbatim
   var LANGUAGES = __LANGUAGES__;   // preferences.LANGUAGES, verbatim
-  var MAX_INTERESTS = __MAX_INTERESTS__;
+  var TAG_SHORT = __TAG_SHORT__;   // topics.TAG_SHORT, verbatim
   var PICKER_SIZE = __PICKER_SIZE__;          // topics.PICKER_SIZE
   var PICKER_ORDER = __PICKER_ORDER__;        // topics.PICKER_DEFAULT_ORDER
   var INTEREST_WEIGHT = __INTEREST_WEIGHT__;
@@ -547,9 +547,9 @@ LIVE_SHIM = r"""
 
   function hintedInterests(qs) {
     if (EMAIL) return myPrefs().interests;
+    // No cap - the vocabulary is the only bound, as on the server (§99).
     return String(qs.get("interests") || "").split(",")
-      .filter(function (g) { return TAG_LABELS[g]; })
-      .slice(0, MAX_INTERESTS);
+      .filter(function (g) { return TAG_LABELS[g]; });
   }
 
   // The Sunday that started the week `t` falls in, in UTC - preferences.week_start.
@@ -973,14 +973,14 @@ LIVE_SHIM = r"""
         // Six of eight: the picker narrows, the vocabulary does not, which is
         // why `interests_all` is here beside it.
         interests_available: popularFacets().map(function (g) {
-          return { id: g, label: TAG_LABELS[g] };
+          return { id: g, label: TAG_LABELS[g], short: TAG_SHORT[g] };
         }),
         interests_all: Object.keys(TAG_LABELS).map(function (g) {
           return { id: g, label: TAG_LABELS[g] };
         }),
         interests_source: facetPlayCounted ? "played" : "default",
         catalogue: CATALOGUE,
-        languages: LANGUAGES, max_interests: MAX_INTERESTS,
+        languages: LANGUAGES,
         language_active: false,
         account: !!EMAIL, saved: !!EMAIL,
         account_required: ACCOUNT_REQUIRED,
@@ -996,9 +996,6 @@ LIVE_SHIM = r"""
       var chosen = (body.interests !== undefined && body.interests !== null)
         ? body.interests.filter(function (g) { return TAG_LABELS[g]; })
         : was.interests;
-      if (chosen.length > MAX_INTERESTS) {
-        return json({ error: "Choose at most " + MAX_INTERESTS + " interests." }, 400);
-      }
       return put("prefs", UID, {
         interests: chosen.join(","),
         language: body.language !== undefined && body.language !== null
@@ -1783,7 +1780,7 @@ def build() -> pathlib.Path:
             # supposed to be showing.
             .replace("__TAG_PARENT__", json.dumps(topics.TAG_PARENT))
             .replace("__LANGUAGES__", json.dumps([dict(l) for l in prefs_mod.LANGUAGES]))
-            .replace("__MAX_INTERESTS__", json.dumps(prefs_mod.MAX_INTERESTS))
+            .replace("__TAG_SHORT__", json.dumps(topics.TAG_SHORT))
             # How many facets the picker shows, and the order to show them in
             # when nothing has been played. From the module that owns them, so
             # the preview cannot draw a different first run from the server.

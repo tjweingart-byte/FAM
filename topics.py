@@ -137,6 +137,24 @@ TAG_LABELS: dict[str, str] = {
 #: between "a tag" and "a tag somebody can choose".
 FACETS: frozenset[str] = frozenset(TAG_LABELS)
 
+#: The same eight, short enough to sit inside a circle.
+#:
+#: The first run draws them on a wheel and "Money & markets" does not fit in a
+#: 78px disc at a readable size. This is a *shortening*, never a second name:
+#: every entry is a prefix or the whole of its `TAG_LABELS` value, so nothing
+#: in the app calls one facet two things. Settings, the recap and the
+#: catalogue all still read the full label.
+TAG_SHORT: dict[str, str] = {
+    "sports": "Sport",
+    "business": "Business",
+    "money": "Money",
+    "tech": "Tech",
+    "science": "Science",
+    "health": "Health",
+    "culture": "Culture",
+    "world": "World",
+}
+
 #: How many of them the first-run picker actually shows.
 #:
 #: The eight are still the whole pickable vocabulary; this is how many are put

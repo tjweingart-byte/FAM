@@ -66,13 +66,22 @@ def test_saving_one_page_does_not_clear_the_other(store):
     assert prefs.interests == ("tech", "money") and prefs.language == "es"
 
 
-def test_the_six_cap_is_enforced_on_the_way_in(store):
-    """The interface disables the seventh chip. That is not the rule; this is."""
-    seven = list(T.TAG_LABELS)[:7]
-    assert len(seven) == 7
-    with pytest.raises(P.PreferenceError):
-        store.save("u", interests=seven)
-    assert store.get("u").interests == ()
+def test_there_is_no_cap_on_how_many_interests_somebody_has(store):
+    """There used to be six, and the number was never doing anything a
+    listener wanted: it made somebody with seven interests choose which one to
+    lie about, and the ranker is perfectly happy to weigh eight (§99)."""
+    every = list(T.TAG_LABELS)
+    assert len(every) == 8
+    store.save("u", interests=every)
+    assert store.get("u").interests == tuple(every)
+
+
+def test_unbounded_is_still_bounded_by_the_vocabulary(store):
+    """No cap is not no validation. Every value has to be a facet and
+    duplicates collapse, so eight is the most this can ever hold - a fact
+    about the vocabulary rather than a rule anybody is told."""
+    store.save("u", interests=list(T.TAG_LABELS) * 5)
+    assert store.get("u").interests == tuple(T.TAG_LABELS)
 
 
 def test_an_invented_interest_is_refused(store):
@@ -177,7 +186,12 @@ def test_the_choices_are_public_but_the_answers_are_not(client):
     assert len(body["interests_available"]) == T.PICKER_SIZE
     assert len(body["interests_all"]) == len(T.TAG_LABELS)
     assert body["interests_source"] in ("played", "default")
-    assert body["languages"] and body["max_interests"] == 6
+    assert body["languages"]
+    # No cap is served, because there is none to serve.
+    assert "max_interests" not in body
+    # And every offered interest carries the short name the wheel draws.
+    assert all(i["short"] and i["label"].startswith(i["short"])
+               for i in body["interests_available"])
     assert body["account"] is False and body["saved"] is False
 
 
@@ -203,12 +217,20 @@ def test_an_account_stores_and_returns_them(client):
     assert body["saved"] is True and body["intro_done"] is True
 
 
-def test_a_seventh_interest_is_a_message_not_a_stack_trace(client):
+def test_every_interest_at_once_is_accepted(client):
+    """All eight, over the API, with no cap anywhere between here and the
+    store. The refusal this replaces named a number nobody had asked for."""
     sign_up(client)
-    res = client.post("/api/preferences",
-                      json={"interests": list(T.TAG_LABELS)[:7]})
+    res = client.post("/api/preferences", json={"interests": list(T.TAG_LABELS)})
+    assert res.status_code == 200
+    assert res.json()["interests"] == list(T.TAG_LABELS)
+
+
+def test_an_invented_interest_is_still_a_message_not_a_stack_trace(client):
+    sign_up(client)
+    res = client.post("/api/preferences", json={"interests": ["astrology"]})
     assert res.status_code == 400
-    assert "6" in res.json()["error"] or "six" in res.json()["error"].lower()
+    assert "astrology" in res.json()["error"]
 
 
 def test_stored_interests_rank_myfam_without_being_asked_for(client):

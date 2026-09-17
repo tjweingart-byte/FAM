@@ -105,22 +105,25 @@ def main() -> int:
             page.evaluate("submitAuthForm()")
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
-            # Six, as the designs draw them - three across and two down.
+            # Six discs on the wheel, as the designs draw them.
             chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips == 6, f"the picker offered {chips} interests, not six"
+            assert chips == 6, f"the wheel offered {chips} interests, not six"
             # And no paragraph between the heading and them.
             assert not page.query_selector("#introPageInterests .entry-lede"), \
                 "the lede is back under Your interests"
+            # Every one of them selectable, with nothing counting them and
+            # nothing refusing the last one. There is no cap any more, so
+            # there must be no trace of one either.
             for i in range(6):
                 page.evaluate(f"var c=document.querySelectorAll('.intro-chip')[{i}];"
                               " if(c) c.click();")
             chosen = page.eval_on_selector_all(".intro-chip.on", "e => e.length")
-            assert chosen == 6, f"only {chosen} of six chips took a tap"
-            # The cap is still enforced and still said out loud. It can no
-            # longer be shown as a dimmed seventh chip, because the picker is
-            # exactly six - which is the honest consequence of the grid.
-            assert "limit" in page.eval_on_selector("#introCount", "e => e.textContent"), \
-                "nothing said the six-interest cap had been reached"
+            assert chosen == 6, f"only {chosen} of six discs took a tap"
+            assert not page.query_selector("#introCount"), \
+                "the interest counter is back, and there is no number to show"
+            body = page.text_content("#introPageInterests") or ""
+            for word in ("limit", "up to six", "at most"):
+                assert word not in body.lower(), f"the page still mentions a cap: {word!r}"
             page.evaluate("introNext()")
             page.wait_for_selector("#introPageLanguage .intro-lang",
                                    timeout=10000, state="attached")
@@ -465,16 +468,18 @@ def main() -> int:
                                    timeout=10000, state="attached")
             chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
             assert chips == topics_mod.PICKER_SIZE, (
-                f"the picker drew {chips} chips, not {topics_mod.PICKER_SIZE}")
+                f"the wheel drew {chips} discs, not {topics_mod.PICKER_SIZE}")
             # Six of the eight are *shown*; the eight are still the whole
             # pickable vocabulary, and every one of them is reachable through
-            # the catalogue below - which is what makes narrowing the grid a
-            # screen decision rather than a vocabulary one.
+            # the catalogue in the middle - which is what makes narrowing the
+            # wheel a screen decision rather than a vocabulary one. The discs
+            # carry `TAG_SHORT`, because "Money & markets" does not fit in one.
             ids = page.eval_on_selector_all(
                 ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            assert set(ids) <= set(topics_mod.TAG_LABELS.values()), (
-                f"the picker drew something that is not a facet: {ids}")
-            assert page.query_selector(".intro-more"), "no way into the catalogue"
+            assert set(ids) <= set(topics_mod.TAG_SHORT.values()), (
+                f"the wheel drew something that is not a facet: {ids}")
+            # The way in is the hub of the wheel.
+            assert page.query_selector(".orbit-more"), "no way into the catalogue"
             page.evaluate("openTopicCatalog()")
             page.wait_for_selector("#screen-catalog.active .cat-row",
                                    timeout=10000, state="attached")
@@ -778,6 +783,79 @@ def main() -> int:
             page.wait_for_timeout(300)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-settings", "closing the name modal left Settings"
+
+        def the_interests_wheel_turns_and_stays_tappable():
+            """The first run's wheel: six discs orbiting "View more".
+
+            Three things have to hold at once, and the third is the one a
+            static screenshot cannot see. The discs have to *move*; their
+            labels have to stay upright while they do (the ring rotates, each
+            disc counter-rotates by exactly as much); and every disc has to
+            stay hit-testable at its own centre the whole way round, because a
+            control that moves and cannot be tapped is worse than one that
+            does not move.
+
+            `elementFromPoint` rather than `page.click`, deliberately:
+            Playwright waits for an element to stop moving before it will
+            click, and this one never does. That is a fact about the harness
+            rather than about the interface, and asking the browser what is
+            under the point answers the real question.
+            """
+            probe = """() => {
+              var chips = Array.from(document.querySelectorAll('.intro-chip'));
+              var ring = document.getElementById('orbitRing');
+              var rm = new DOMMatrix(getComputedStyle(ring).transform);
+              return {
+                ring: Math.round(Math.atan2(rm.b, rm.a) * 180 / Math.PI),
+                chips: chips.map(function(c){
+                  var r = c.getBoundingClientRect();
+                  var x = Math.round(r.left + r.width / 2);
+                  var y = Math.round(r.top + r.height / 2);
+                  var hit = document.elementFromPoint(x, y);
+                  var m = new DOMMatrix(getComputedStyle(c).transform);
+                  return { x: x, y: y,
+                           spin: Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI),
+                           hit: !!hit && (hit === c || c.contains(hit)) };
+                })
+              };
+            }"""
+            page.evaluate(
+                "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
+            page.wait_for_timeout(600)
+            page.evaluate("skipAccount()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            before = page.evaluate(probe)
+            assert len(before["chips"]) == 6, "the wheel is not six discs"
+            assert all(c["hit"] for c in before["chips"]), \
+                "a disc was not hit-testable at its own centre"
+            # The hub is reachable too - the ring must not lie on top of it.
+            hub = page.evaluate(
+                """() => { var b = document.querySelector('.orbit-more')
+                             .getBoundingClientRect();
+                           var el = document.elementFromPoint(
+                             Math.round(b.left + b.width/2),
+                             Math.round(b.top + b.height/2));
+                           return !!el && el.classList.contains('orbit-more'); }""")
+            assert hub, "the ring is swallowing taps meant for View more"
+
+            page.wait_for_timeout(4000)
+            after = page.evaluate(probe)
+            moved = [((after["chips"][i]["x"] - before["chips"][i]["x"]) ** 2
+                      + (after["chips"][i]["y"] - before["chips"][i]["y"]) ** 2) ** 0.5
+                     for i in range(6)]
+            assert min(moved) > 8, f"the wheel is not turning: {moved}"
+            # Counter-clockwise, following the arrows in the design.
+            assert after["ring"] != before["ring"], "the ring did not rotate"
+            # And still tappable, and still upright: each disc's own spin is
+            # the exact inverse of the ring's, so the two cancel.
+            assert all(c["hit"] for c in after["chips"]), \
+                "a disc stopped being hit-testable once it had moved"
+            for c in after["chips"]:
+                assert abs(c["spin"] + after["ring"]) <= 1, (
+                    f"a label is rotating with the ring: disc {c['spin']}deg "
+                    f"against ring {after['ring']}deg")
 
         def mix_visibility():
             # Public/private has to be reachable, not buried in a menu.
@@ -1087,6 +1165,8 @@ def main() -> int:
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)
         check("Profile renders identity, mixes and echoes", profile)
+        check("The interests wheel turns and stays tappable",
+              the_interests_wheel_turns_and_stays_tappable)
         check("Mix visibility can be toggled", mix_visibility)
         check("Every settings screen comes back to Settings",
               every_settings_screen_comes_back_to_settings)

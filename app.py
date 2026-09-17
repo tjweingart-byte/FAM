@@ -2224,7 +2224,12 @@ async def read_preferences(request: Request):
     # *reads* a stored interest (settings, the recap) needs every label.
     picker, picker_source = topics_mod.popular_facets(EVENTS)
     body = {
-        "interests_available": [{"id": tag, "label": topics_mod.TAG_LABELS[tag]}
+        # `short` is what fits inside the first run's circles; `label` is what
+        # everything that *reads* an interest back shows. A shortening, never a
+        # second name - see `topics.TAG_SHORT`.
+        "interests_available": [{"id": tag,
+                                 "label": topics_mod.TAG_LABELS[tag],
+                                 "short": topics_mod.TAG_SHORT[tag]}
                                 for tag in picker],
         "interests_all": [{"id": tag, "label": label}
                           for tag, label in topics_mod.TAG_LABELS.items()],
@@ -2239,7 +2244,6 @@ async def read_preferences(request: Request):
         # ranker reasons in by a single word.
         "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
-        "max_interests": prefs_mod.MAX_INTERESTS,
         # False until per-language generation exists. Printed under the picker
         # rather than left implicit: a setting that silently changes nothing is
         # the failure mode this project has paid for most often.

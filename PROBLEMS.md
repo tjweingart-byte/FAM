@@ -6226,3 +6226,84 @@ unequal rows, because `1fr` is `minmax(auto, 1fr)` and a long label grows its
 column past the equal share. `minmax(0, 1fr)` and `grid-auto-rows: 1fr` are
 what make six pills actually six of the same pill.
 
+## 99. The interests wheel, and a cap that was never buying anything
+
+Two things: a first run that turns, and a number that goes away.
+
+### Six discs orbiting a hub
+
+The design is a wheel - six circles going slowly counter-clockwise around
+"View more", which sits still in the middle. They are still selectable while
+they move, which is the whole trick.
+
+**How the turning works, because it is the part that breaks if it is touched
+carelessly.** The ring rotates; each disc counter-rotates by exactly the same
+amount over exactly the same duration, so positions orbit while labels stay
+upright. Each disc's *placement* is one static transform - centre on the hub,
+swing out to the radius, turn back upright - set once when the wheel is drawn
+and never again.
+
+Both halves are CSS animations on `transform`, and that is a decision rather
+than a default:
+
+* they run on the compositor, so the whole first run costs nothing per frame;
+* they stay in lockstep with no code, because they are the same duration and
+  the same easing started at the same moment - two `requestAnimationFrame`
+  loops would drift, and one loop driving both would stop dead every time the
+  main thread went off to fetch something;
+* and redrawing a disc on every tap is therefore safe. The rotation lives on
+  the ring, which is untouched, so a replaced disc reappears exactly where its
+  slot already was.
+
+**`prefers-reduced-motion` stops it.** The wheel stays a wheel - the discs keep
+their positions - it simply stops turning. Continuous motion on a *selection*
+control is the case that rule exists for.
+
+Three things this got wrong first and a screenshot caught:
+
+* **`vw` is the window, not the app.** The first version sized the radius with
+  `clamp(86px, 29vw, 112px)` and overflowed the moment the app was not the
+  whole window - which is exactly what the phone preview is, and what a
+  desktop browser is. It is `cqw` now, a percentage of the wheel's own
+  container, so it is correct at every width the app is ever drawn at.
+* **The ring was swallowing taps meant for the hub.** It is `inset:0`, so its
+  empty middle sits on top of "View more". `pointer-events:none` on the ring,
+  put back on the discs.
+* **"Money & markets" does not fit in a 78px circle.** `topics.TAG_SHORT` is
+  the eight facets short enough to sit inside one - and every entry is a
+  *prefix* of its `TAG_LABELS` value, so this is a shortening rather than a
+  second name for the same thing. Settings, the recap and the catalogue all
+  still read the full label.
+
+**The smoke behaviour asks `elementFromPoint`, not `page.click`.** Playwright
+waits for an element to stop moving before it will click one, and this one
+never stops. That is a fact about the harness rather than about the interface;
+asking the browser what is under the disc's centre answers the real question,
+which is whether a thumb landing there hits it. It checks the same thing again
+four seconds later, after everything has moved.
+
+### The six-interest cap is gone, and is not replaced
+
+"Remove the whole six topic limit - don't acknowledge that at all."
+
+It is out of `preferences.clean_interests`, out of `/api/preferences`, out of
+the interface, out of the preview's shim, and there is no counter on the page
+saying how many have been chosen. The number was never doing anything a
+listener wanted: it made somebody with seven interests pick which one to lie
+about, and the ranker is perfectly happy to weigh eight.
+
+**No cap is not no validation**, and the distinction is worth keeping straight
+because unbounded input reaching a store is how this kind of removal usually
+goes wrong. Every value still has to be one of the eight facets and duplicates
+still collapse, so eight is the most that can ever be stored - a fact about
+the vocabulary rather than a rule anybody is told about. A test says so.
+
+The smoke behaviour now asserts the *absence*: no counter element, and the
+words "limit", "up to six" and "at most" do not appear on the page. A cap is
+the kind of thing that grows back as a helpful sentence.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs - and the wheel is
+the first thing in this log that a photograph genuinely cannot check, which is
+why the behaviour above measures it instead.
+
