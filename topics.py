@@ -137,6 +137,62 @@ TAG_LABELS: dict[str, str] = {
 #: between "a tag" and "a tag somebody can choose".
 FACETS: frozenset[str] = frozenset(TAG_LABELS)
 
+#: How many of them the first-run picker actually shows.
+#:
+#: The eight are still the whole pickable vocabulary; this is how many are put
+#: in front of somebody at once. Eight was every facet there is, in dictionary
+#: order, which is not an answer to "what are people listening to" - it is the
+#: order the file happens to be written in. Six is the designs' grid, and the
+#: two that do not make it are reachable through "View more", which carries
+#: every facet on its interests. So this narrows the *screen* and not the
+#: vocabulary, which is the line CLAUDE.md draws.
+PICKER_SIZE = 6
+
+#: The order to offer them in when nothing has been played yet.
+#:
+#: A fresh deployment has an empty log, which is the normal state on the run
+#: this screen exists for - so there has to be a declared answer rather than
+#: whichever six `dict` iteration puts first. Written down, in one place, so
+#: it is a decision somebody made and can be argued with.
+PICKER_DEFAULT_ORDER: tuple[str, ...] = (
+    "world", "tech", "sports", "business", "money", "science",
+    "health", "culture",
+)
+
+
+def popular_facets(
+    store: "EventStore", limit: int = PICKER_SIZE, now: Optional[float] = None
+) -> tuple[list[str], str]:
+    """The facets to put in the picker, most played across FAM first.
+
+    Global, like `rank_most_played` and for the same reason: this is asked on
+    the first run, when the listener has no history of their own and the only
+    honest signal is everybody else's. One count serves every listener.
+
+    Returns the ids *and where they came from* - `"played"` or `"default"`.
+    The two look identical on screen and the difference matters, because a
+    deployment whose log is empty is showing a declared order rather than a
+    measurement, and saying which is the difference between a fact and a
+    claim about what people like.
+    """
+    now = time.time() if now is None else now
+    by_id = {t.id: t for t in TOPIC_BANK}
+    counts: dict[str, int] = {}
+    for _user, topic_id in store.plays_since(now - TRENDING_WINDOW):
+        topic = by_id.get(topic_id)
+        if topic is None:
+            continue
+        for facet in facets_only(topic.tags):
+            counts[facet] = counts.get(facet, 0) + 1
+
+    if not counts:
+        return list(PICKER_DEFAULT_ORDER[:limit]), "default"
+    # Ties break on the declared order rather than on `dict` insertion, so two
+    # equally played facets do not swap places between requests.
+    rank = {tag: i for i, tag in enumerate(PICKER_DEFAULT_ORDER)}
+    ordered = sorted(TAG_LABELS, key=lambda t: (-counts.get(t, 0), rank.get(t, 99)))
+    return ordered[:limit], "played"
+
 
 @dataclass(frozen=True)
 class Interest:

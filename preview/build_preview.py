@@ -230,8 +230,16 @@ def load_fixtures() -> dict:
         # list typed out here: a picker offering a facet the ranker does not
         # score is the exact drift this module refuses to introduce.
         "/api/preferences": {
-            "interests_available": [{"id": tag, "label": label}
-                                    for tag, label in topics_mod.TAG_LABELS.items()],
+            # Six of the eight, as the picker shows them. An empty fixture log
+            # means this is `popular_facets`' declared order rather than a
+            # measurement, which is exactly what a fresh deployment gets and
+            # what `interests_source` is here to say.
+            "interests_available": [
+                {"id": tag, "label": topics_mod.TAG_LABELS[tag]}
+                for tag in topics_mod.PICKER_DEFAULT_ORDER[:topics_mod.PICKER_SIZE]],
+            "interests_all": [{"id": tag, "label": label}
+                              for tag, label in topics_mod.TAG_LABELS.items()],
+            "interests_source": "default",
             # Imported rather than copied, like every other fixture here, so
             # the catalogue the preview shows cannot drift from the real one.
             "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],

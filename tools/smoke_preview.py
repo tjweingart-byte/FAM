@@ -105,16 +105,22 @@ def main() -> int:
             page.evaluate("submitAuthForm()")
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
+            # Six, as the designs draw them - three across and two down.
             chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips >= 6, f"only {chips} interests offered"
-            # The cap is a disabled chip, not a message after the fact.
-            for i in range(7):
+            assert chips == 6, f"the picker offered {chips} interests, not six"
+            # And no paragraph between the heading and them.
+            assert not page.query_selector("#introPageInterests .entry-lede"), \
+                "the lede is back under Your interests"
+            for i in range(6):
                 page.evaluate(f"var c=document.querySelectorAll('.intro-chip')[{i}];"
                               " if(c) c.click();")
             chosen = page.eval_on_selector_all(".intro-chip.on", "e => e.length")
-            assert chosen == 6, f"the six-interest cap let {chosen} through"
-            assert page.query_selector(".intro-chip.full"), \
-                "the seventh chip was still selectable"
+            assert chosen == 6, f"only {chosen} of six chips took a tap"
+            # The cap is still enforced and still said out loud. It can no
+            # longer be shown as a dimmed seventh chip, because the picker is
+            # exactly six - which is the honest consequence of the grid.
+            assert "limit" in page.eval_on_selector("#introCount", "e => e.textContent"), \
+                "nothing said the six-interest cap had been reached"
             page.evaluate("introNext()")
             page.wait_for_selector("#introPageLanguage .intro-lang",
                                    timeout=10000, state="attached")
@@ -458,7 +464,16 @@ def main() -> int:
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
             chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips == 8, f"the pickable chips are not the eight facets: {chips}"
+            assert chips == topics_mod.PICKER_SIZE, (
+                f"the picker drew {chips} chips, not {topics_mod.PICKER_SIZE}")
+            # Six of the eight are *shown*; the eight are still the whole
+            # pickable vocabulary, and every one of them is reachable through
+            # the catalogue below - which is what makes narrowing the grid a
+            # screen decision rather than a vocabulary one.
+            ids = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            assert set(ids) <= set(topics_mod.TAG_LABELS.values()), (
+                f"the picker drew something that is not a facet: {ids}")
             assert page.query_selector(".intro-more"), "no way into the catalogue"
             page.evaluate("openTopicCatalog()")
             page.wait_for_selector("#screen-catalog.active .cat-row",
@@ -711,6 +726,58 @@ def main() -> int:
             assert page.eval_on_selector_all(".pf-echo", "e => e.length") > 0, "no echoes"
             assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no public mixes"
             assert page.query_selector(".pf-headline"), "no my-FAM-is-your-FAM headline"
+
+        def every_settings_screen_comes_back_to_settings():
+            """A settings row is an editor, not the first run happening again.
+
+            Interests and Language reuse the intro screen, and reusing the
+            screen meant reusing the flow: Next chained on to the language page
+            and "Start listening" ran `finishIntro`, which writes `intro: done`
+            and drops the listener on myFAM. From Settings there has to be an X
+            that goes back, and a Save that goes back.
+            """
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(700)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+
+            for opener in ("openInterestsFromSettings()", "openLanguageFromSettings()"):
+                page.evaluate(opener)
+                page.wait_for_selector("#screen-intro.active", timeout=10000)
+                assert not page.eval_on_selector("#introTop", "e => e.hidden"), (
+                    f"{opener} gave no way out")
+                assert page.query_selector("#introTop .sheet-close"), \
+                    f"{opener} has no X at the top right"
+                # The docked button is a save here, not a step in a setup.
+                label = page.eval_on_selector(
+                    "#introDockInterests[hidden] ~ .entry-dock:not([hidden])"
+                    " .entry-btn, #introDockInterests:not([hidden]) .entry-btn",
+                    "e => e.textContent.trim()")
+                assert label == "Save", f"{opener} still says {label!r}"
+                # The X comes back to Settings.
+                page.evaluate("closeIntroToSettings()")
+                page.wait_for_timeout(400)
+                assert page.eval_on_selector(".screen.active", "e => e.id") \
+                    == "screen-settings", f"the X after {opener} did not return"
+
+            # And so does Save - the case the note is actually about, because
+            # this is the one that used to end up on myFAM.
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active", timeout=10000)
+            page.evaluate("introPrimary()")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "saving interests left Settings behind"
+
+            # Every modal a settings row opens closes the same way.
+            page.evaluate("editIdentity()")
+            page.wait_for_timeout(400)
+            assert page.query_selector("#modalOverlay.active .modal-x"), \
+                "the name modal has no X"
+            page.evaluate("closeModal()")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "closing the name modal left Settings"
 
         def mix_visibility():
             # Public/private has to be reachable, not buried in a menu.
@@ -1021,6 +1088,8 @@ def main() -> int:
         check("Messages opens and closes", messages_sheet)
         check("Profile renders identity, mixes and echoes", profile)
         check("Mix visibility can be toggled", mix_visibility)
+        check("Every settings screen comes back to Settings",
+              every_settings_screen_comes_back_to_settings)
         check("The interest catalogue is the whole list",
               the_interest_catalogue_is_the_whole_list)
         check("VIBE! is on every real player", echo_button)

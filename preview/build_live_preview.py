@@ -73,6 +73,8 @@ LIVE_SHIM = r"""
   var TAG_PARENT = __TAG_PARENT__; // topics.TAG_PARENT, verbatim
   var LANGUAGES = __LANGUAGES__;   // preferences.LANGUAGES, verbatim
   var MAX_INTERESTS = __MAX_INTERESTS__;
+  var PICKER_SIZE = __PICKER_SIZE__;          // topics.PICKER_SIZE
+  var PICKER_ORDER = __PICKER_ORDER__;        // topics.PICKER_DEFAULT_ORDER
   var INTEREST_WEIGHT = __INTEREST_WEIGHT__;
   var VOLATILE = __VOLATILE__;     // cache.research_words(), verbatim
   var NEAR = __NEAR__;             // the shipped CACHE_VECTOR thresholds
@@ -410,6 +412,28 @@ LIVE_SHIM = r"""
     ["followers", "Your circle is on this", "Nobody you overlap with has listened yet."],
     ["most_played", "What FAM can't stop playing", "Nothing has been played yet."]
   ];
+
+  // `topics.popular_facets`, in the browser and over the same event rows.
+  // Global on purpose: the first run asks this of somebody with no history of
+  // their own, so the only honest signal is what everybody else plays.
+  var facetPlayCounted = false;
+  function popularFacets() {
+    var counts = {}, seen = false;
+    rows("events").forEach(function (e) {
+      if (!e.topic_id || (e.kind !== "play" && e.kind !== "complete")) return;
+      var t = BY_ID[e.topic_id];
+      if (!t) return;
+      facetsOnly(t.tags || []).forEach(function (f) {
+        counts[f] = (counts[f] || 0) + 1; seen = true;
+      });
+    });
+    facetPlayCounted = seen;
+    if (!seen) return PICKER_ORDER.slice(0, PICKER_SIZE);
+    return Object.keys(TAG_LABELS).sort(function (a, b) {
+      var d = (counts[b] || 0) - (counts[a] || 0);
+      return d || (PICKER_ORDER.indexOf(a) - PICKER_ORDER.indexOf(b));
+    }).slice(0, PICKER_SIZE);
+  }
 
   function myfamBody() {
     var f = feed(), shown = [];
@@ -944,9 +968,17 @@ LIVE_SHIM = r"""
     if (path === "/api/preferences" && method === "GET") {
       var stored = myPrefs();
       return json({
-        interests_available: Object.keys(TAG_LABELS).map(function (g) {
+        // The six the picker draws, most played across this store first -
+        // `topics.popular_facets` in the browser, over the same event rows.
+        // Six of eight: the picker narrows, the vocabulary does not, which is
+        // why `interests_all` is here beside it.
+        interests_available: popularFacets().map(function (g) {
           return { id: g, label: TAG_LABELS[g] };
         }),
+        interests_all: Object.keys(TAG_LABELS).map(function (g) {
+          return { id: g, label: TAG_LABELS[g] };
+        }),
+        interests_source: facetPlayCounted ? "played" : "default",
         catalogue: CATALOGUE,
         languages: LANGUAGES, max_interests: MAX_INTERESTS,
         language_active: false,
@@ -1752,6 +1784,12 @@ def build() -> pathlib.Path:
             .replace("__TAG_PARENT__", json.dumps(topics.TAG_PARENT))
             .replace("__LANGUAGES__", json.dumps([dict(l) for l in prefs_mod.LANGUAGES]))
             .replace("__MAX_INTERESTS__", json.dumps(prefs_mod.MAX_INTERESTS))
+            # How many facets the picker shows, and the order to show them in
+            # when nothing has been played. From the module that owns them, so
+            # the preview cannot draw a different first run from the server.
+            .replace("__PICKER_SIZE__", json.dumps(topics.PICKER_SIZE))
+            .replace("__PICKER_ORDER__", json.dumps(
+                list(topics.PICKER_DEFAULT_ORDER)))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))
             .replace("__VOLATILE__", json.dumps(sorted(cache.research_words())))
             .replace("__NEAR__", json.dumps({

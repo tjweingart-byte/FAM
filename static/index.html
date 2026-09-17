@@ -1195,12 +1195,22 @@
   .auth-optional{ color:var(--text-faint); }
 
   /* ============ INTRO: interests, then language ============ */
+  .intro-top{ flex:none; display:flex; justify-content:flex-end;
+    padding:14px 16px 0; }
+  .intro-top[hidden]{ display:none; }
   .intro-count{ font-family:'JetBrains Mono', monospace; font-size:10px;
     letter-spacing:0.06em; text-transform:uppercase; color:var(--copper);
     margin:2px 0 14px; }
-  .intro-grid{ display:flex; flex-wrap:wrap; gap:9px; }
-  .intro-chip{ padding:10px 15px; border-radius:999px; background:var(--surface);
-    border:1px solid var(--border-strong); color:var(--text); font-size:12.5px;
+  /* Three across, two down, as the designs draw it - and every pill the same
+     size, which a wrapping flex row cannot promise. Two of the labels run to
+     two words, so the cell wraps and the row stretches rather than the long
+     ones being clipped or the short ones shrinking. */
+  .intro-grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    grid-auto-rows:1fr; gap:9px; }
+  .intro-chip{ display:flex; align-items:center; justify-content:center;
+    text-align:center; min-height:42px; padding:8px 6px; border-radius:999px;
+    background:var(--surface); line-height:1.2;
+    border:1px solid var(--border-strong); color:var(--text); font-size:11.5px;
     font-weight:600; cursor:pointer; }
   .intro-chip.on{ background:var(--copper); border-color:var(--copper);
     color:var(--ink); }
@@ -1220,15 +1230,15 @@
     background:linear-gradient(to top, var(--bg) 62%, rgba(42,39,51,0)); }
   .entry-dock[hidden]{ display:none; }
 
-  /* "View more": the catalogue of named interests behind the eight buttons.
-     Centred, and its own row - left-aligned under a wrapped chip grid it
-     read as one more chip that happened to be dashed. */
-  .intro-more{ display:flex; align-items:center; justify-content:center; gap:7px;
-    margin:18px auto 0; padding:11px 20px; border-radius:999px; background:none;
-    border:1px dashed var(--border-strong); color:var(--copper);
-    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.08em;
-    text-transform:uppercase; font-weight:700; cursor:pointer; }
-  .intro-more:active{ border-style:solid; }
+  /* "View more": the catalogue of named interests behind the six buttons.
+     A plain underlined link, centred under the grid, as the designs draw it.
+     It was a dashed pill, which put a seventh chip-shaped thing under six
+     chips and made the grid read as uneven. */
+  .intro-more{ display:block; margin:20px auto 0; padding:6px 4px;
+    background:none; border:none; color:var(--copper);
+    font-family:'Fraunces', serif; font-size:13.5px; font-weight:500;
+    text-decoration:underline; text-underline-offset:4px; cursor:pointer; }
+  .intro-more:active{ opacity:0.6; }
   .intro-picked{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
     letter-spacing:0.05em; color:var(--copper); margin-top:10px;
     text-align:center; }
@@ -1432,10 +1442,11 @@
      thinking about it - and answered in one tap either way. */
   /* The way out of the question. Both buttons are commitments, so without
      this the only exit was the backdrop - which nothing says is tappable. */
-  .dl-x{ position:absolute; top:12px; right:12px; width:28px; height:28px;
-    border-radius:50%; background:none; border:none; color:var(--text-muted);
-    display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .dl-x:active{ color:var(--text); }
+  .dl-x, .modal-x{ position:absolute; top:12px; right:12px; width:28px;
+    height:28px; border-radius:50%; background:none; border:none;
+    color:var(--text-muted); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .dl-x:active, .modal-x:active{ color:var(--text); }
   .dl-sub{ font-size:11.5px; line-height:1.5; color:var(--text-muted);
     margin:8px 0 2px; }
   .dl-size{ font-family:'JetBrains Mono', monospace; font-size:9px;
@@ -1587,22 +1598,33 @@
            A primary action you have to go looking for is not a primary
            action. -->
       <section class="screen" id="screen-intro">
+        <!-- Opened from Settings, this screen is an editor rather than the
+             first run, and an editor needs a way out that goes back where it
+             came from. Hidden during the actual first run, which has Next and
+             "Skip for now" instead. The same `.sheet-close` as the catalogue
+             and the sources panel, because an X that is drawn differently on
+             each screen is an X the thumb has to find again each time. -->
+        <div class="intro-top" id="introTop" hidden>
+          <button class="sheet-close" onclick="closeIntroToSettings()"
+                  aria-label="Back to Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0; padding-bottom:6px;">
             <div id="introPageInterests">
               <div class="entry-h">Your interests</div>
-              <p class="entry-lede">Pick up to six. They decide what your feed
-                opens on — and they stop mattering as soon as you have actually
-                listened to something.</p>
+              <!-- No paragraph under the heading. Six buttons and a way to see
+                   the rest is a question that answers itself; the three lines
+                   explaining the cap and when interests stop mattering were
+                   read before anything had been chosen, which is the one
+                   moment none of it is useful yet. -->
               <div class="intro-count" id="introCount">Nothing chosen yet</div>
               <div class="intro-grid" id="introGrid"></div>
-              <!-- Eight buttons is the whole of the pickable vocabulary, on
-                   purpose. This opens the catalogue of real subjects behind
-                   them, where choosing one says more than any tag can. -->
-              <button class="intro-more" onclick="openTopicCatalog()">
-                <span>View more</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              </button>
+              <!-- Six of the eight facets, most played across FAM first. The
+                   eight are still the whole pickable vocabulary - this opens
+                   the catalogue of real subjects behind them, which carries
+                   every facet, so the two that did not make the grid are a
+                   tap away rather than gone. -->
+              <button class="intro-more" onclick="openTopicCatalog()">View more</button>
               <div class="intro-picked" id="introPicked"></div>
               <p class="entry-note" id="introSaveNote"></p>
             </div>
@@ -1615,13 +1637,17 @@
           </div>
         </div>
         <div class="entry-dock" id="introDockInterests">
-          <button class="entry-btn primary" onclick="introNext()">Next</button>
+          <button class="entry-btn primary" id="introNextBtn"
+                  onclick="introPrimary()">Next</button>
           <!-- Underneath Next, as the packet asks. Choosing nothing is a real
-               answer: the feed is ranked from what gets played either way. -->
-          <div class="entry-skip" onclick="skipInterests()">Skip for now</div>
+               answer: the feed is ranked from what gets played either way.
+               Hidden when Settings opened this: there is no next step to skip,
+               and "skip" over an existing choice would read as discarding it. -->
+          <div class="entry-skip" id="introSkip" onclick="skipInterests()">Skip for now</div>
         </div>
         <div class="entry-dock" id="introDockLanguage" hidden>
-          <button class="entry-btn primary" onclick="finishIntro()">Start listening</button>
+          <button class="entry-btn primary" id="introFinishBtn"
+                  onclick="introFinishPrimary()">Start listening</button>
         </div>
       </section>
 
@@ -2115,6 +2141,10 @@
 
       <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
         <div class="modal-card">
+          <!-- Cancel is already here, and an X is still worth having: it is
+               where a thumb goes to leave something, and the backdrop tap
+               that used to be the only other way out is undocumented. -->
+          <button class="modal-x" onclick="closeModal()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="modal-title" id="modalTitle">Title</div>
           <input class="modal-input" id="modalInput" type="text" placeholder="">
           <div class="modal-btns">
@@ -2248,6 +2278,7 @@
       <div class="modal-overlay" id="photoOverlay"
            onclick="if(event.target===this) closePhotoEditor()">
         <div class="modal-card photo-card">
+          <button class="modal-x" onclick="closePhotoEditor()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="modal-title">Move and scale</div>
           <div class="photo-stage" id="photoStage">
             <img class="photo-img" id="photoImg" alt="" draggable="false">
@@ -6077,7 +6108,10 @@
     var chosen = (localPrefs().interests || []);
     if(AUTH.authenticated && PREF_CHOICES.saved) chosen = PREF_CHOICES.interests || chosen;
     var labels = {};
-    (PREF_CHOICES.interests_available || []).forEach(function(i){ labels[i.id] = i.label; });
+    // Every facet, not the six the picker shows: a stored interest that did
+    // not make this week's grid still has to be readable here.
+    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
+      .forEach(function(i){ labels[i.id] = i.label; });
     var langs = {};
     (PREF_CHOICES.languages || []).forEach(function(l){ langs[l.code] = l.label; });
     var lang = (AUTH.authenticated && PREF_CHOICES.language)
@@ -6143,13 +6177,22 @@
   // editors these two settings have, and they were previously shown once and
   // then unreachable for the life of the install.
   function openInterestsFromSettings(){
-    renderIntro();
-    showScreen("intro");
+    introMode = "settings";
+    // Re-read rather than trusting what was loaded at entry: this is an
+    // editor, and saving what the screen last happened to hold would quietly
+    // overwrite a change made on another device.
+    loadPrefChoices().then(function(){
+      renderIntro();
+      showScreen("intro");
+    });
   }
   function openLanguageFromSettings(){
-    renderIntro();
-    introNext();
-    showScreen("intro");
+    introMode = "settings";
+    loadPrefChoices().then(function(){
+      renderIntro();
+      introNext();
+      showScreen("intro");
+    });
   }
 
   function toggleWeeklyRecap(){
@@ -7540,8 +7583,8 @@
   // their own browser and is passed to the ranker as a hint on the request,
   // never written down. The interface says which of the two happened rather
   // than letting "Saved" mean two different things.
-  var PREF_CHOICES = { interests_available: [], languages: [], max_interests: 6,
-                       language_active: false };
+  var PREF_CHOICES = { interests_available: [], interests_all: [], languages: [],
+                       max_interests: 6, language_active: false };
   var introSelection = [];
   var introLanguage = "en";
   var authMode = "signup";
@@ -7596,6 +7639,7 @@
   // in the app to look at twice. This is how.
   function restartFirstRun(){
     try { localStorage.removeItem("fam.prefs"); } catch(e){}
+    introMode = "first-run";
     introSelection = [];
     introLanguage = "en";
     showSplash();
@@ -7693,13 +7737,32 @@
         finishEntry();
         return;
       }
+      introMode = "first-run";
       renderIntro();
       showScreen("intro");
     });
   }
 
   // --- intro ---------------------------------------------------------------
+  //
+  // "first-run" or "settings". The intro's two pages are the only editors
+  // Interests and Language have, so Settings reuses this screen - and reusing
+  // the screen meant reusing the whole *flow*: Next chained on to the language
+  // page and "Start listening" ran `finishIntro`, which writes `intro: done`
+  // and drops the listener on myFAM. Opened from Settings that is not a save,
+  // it is the first run happening again to somebody who has already done it.
+  //
+  // So the mode decides three things and nothing else: whether there is an X,
+  // what the docked button says, and where saving goes back to.
+  var introMode = "first-run";
+
   function renderIntro(){
+    var fromSettings = introMode === "settings";
+    document.getElementById("introTop").hidden = !fromSettings;
+    document.getElementById("introSkip").hidden = fromSettings;
+    document.getElementById("introNextBtn").textContent = fromSettings ? "Save" : "Next";
+    document.getElementById("introFinishBtn").textContent =
+      fromSettings ? "Save" : "Start listening";
     document.getElementById("introPageInterests").hidden = false;
     document.getElementById("introPageLanguage").hidden = true;
     document.getElementById("introDockInterests").hidden = false;
@@ -7755,6 +7818,42 @@
       }).join("");
   }
   function chooseLanguage(code){ introLanguage = code; renderLanguageList(); }
+
+  // The interests page's button: "Next" on the first run, "Save" from
+  // Settings - where there is no next page to go to, because Language is its
+  // own row with its own way in.
+  function introPrimary(){
+    if(introMode === "settings"){ saveIntroFromSettings(); return; }
+    introNext();
+  }
+
+  // The language page's button, same rule.
+  function introFinishPrimary(){
+    if(introMode === "settings"){ saveIntroFromSettings(); return; }
+    finishIntro();
+  }
+
+  // Save and go back to Settings. Deliberately *not* `finishIntro`: that
+  // writes `intro: "done"` and calls `finishEntry`, which is the first run
+  // ending. Editing a setting is not the first run ending.
+  function saveIntroFromSettings(){
+    saveLocalPrefs({ interests: introSelection.slice(), language: introLanguage });
+    if(AUTH.authenticated){
+      savePreferences({ interests: introSelection, language: introLanguage });
+    }
+    toast("Saved");
+    closeIntroToSettings();
+  }
+
+  // The X, and where every save lands. By name rather than `goBack()`: the
+  // intro is drawn with `showScreen` and never joins the stack, so popping
+  // would land on whatever is underneath Settings. Same reasoning as
+  // `closeTopicCatalog`, and the same trap.
+  function closeIntroToSettings(){
+    introMode = "first-run";
+    showScreen("settings");
+    renderSettings();
+  }
 
   function introNext(){
     document.getElementById("introPageInterests").hidden = true;

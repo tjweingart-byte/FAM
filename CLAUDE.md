@@ -314,6 +314,18 @@ the rest of this list it needs taste rather than a key.
    `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
+   **The picker shows six of the eight, and they are the six being played**
+   *(§98, `topics.popular_facets`).* Global play counts, like
+   `rank_most_played` and for the same reason: the first run asks this of
+   somebody with no history, so the only honest signal is everybody else's,
+   and one count serves every listener. This narrows the *screen* and not the
+   vocabulary - the two that miss out are carried by the catalogue's
+   interests, and `interests_all` is served beside `interests_available` so
+   Settings can still read back a stored interest that did not make the grid.
+   `PICKER_DEFAULT_ORDER` is what an empty log gets, and `interests_source`
+   says `"default"` rather than `"played"` when it does, because a declared
+   order and a measurement look identical on screen and calling the first one
+   "most popular" would be inventing a number.
    **Impressions now feed the ranking, in exactly one direction.** A tile
    shown on several separate occasions and never played is damped
    (`FATIGUE_WEIGHT`). The existing rule stands and is enforced: an impression
@@ -391,6 +403,15 @@ the rest of this list it needs taste rather than a key.
    everything changeable in one place - it was spread across a modal, the
    first-run screens nobody sees twice, and an action sheet inside the player,
    so "where do I change that" had three answers and two of them were wrong.
+   **A settings row is an editor, never the first run happening again**
+   *(§98).* Interests and Language have no editor of their own and reuse the
+   intro screen, and reusing the screen meant reusing the flow: Next chained
+   on to the other setting and "Start listening" wrote `intro: "done"` and
+   dropped the listener on myFAM. `introMode` decides three things and nothing
+   else - whether there is an X, whether the docked button says Save, and
+   where saving returns to. Everything a settings row opens closes back to
+   Settings, by an X drawn the same way on all of them
+   (`.sheet-close` on a screen, `.modal-x` on a modal).
    The rule it was built under is unchanged: a profile page is the easiest
    place in an app to invent a number, and every invented one is a promise to
    keep later.
@@ -836,6 +857,15 @@ the rest of this list it needs taste rather than a key.
   `index.html`: a social surface that fabricates people is a profile
   fabricating numbers with a worse failure mode, because it says a message was
   sent when none was.
+- **The intro screen is not on the navigation stack, and `goBack()` cannot
+  reach it.** *(§96, §97, §98 - the same trap three times.)* It is drawn with
+  `showScreen("intro")` by `afterAccount`, `restartFirstRun` and both settings
+  entry points, and never pushed. So anything opened *on top* of it - the
+  catalogue, a shelf - pops to whatever was underneath, which is SearchFAM,
+  and the first run silently loses its remaining steps. Every one of those
+  returns by *name* now, recorded when the screen was opened. If a fourth
+  screen is ever shown that way, this is the line to read before wiring its
+  back button.
 - **A listener id is never accepted from the client.** It arrives from an
   HttpOnly session cookie the server minted, and `?user=` is ignored wherever
   it still appears. This replaced `famUserId()`, which made an id up with
@@ -1038,7 +1068,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §95-97 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §96-98 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

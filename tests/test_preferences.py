@@ -174,7 +174,9 @@ def test_the_choices_are_public_but_the_answers_are_not(client):
     """The intro runs before anyone has an account, so it must be able to list
     what is on offer - and must not claim an anonymous answer was saved."""
     body = client.get("/api/preferences").json()
-    assert len(body["interests_available"]) == len(T.TAG_LABELS)
+    assert len(body["interests_available"]) == T.PICKER_SIZE
+    assert len(body["interests_all"]) == len(T.TAG_LABELS)
+    assert body["interests_source"] in ("played", "default")
     assert body["languages"] and body["max_interests"] == 6
     assert body["account"] is False and body["saved"] is False
 

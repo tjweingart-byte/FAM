@@ -635,12 +635,48 @@ def test_the_catalogue_is_offered_and_every_tag_in_it_is_real(client):
 
 def test_the_chips_above_it_are_still_only_the_eight_facets(client):
     """The catalogue being seventy-odd entries must not widen the vocabulary
-    the ranker reasons in. If this ever fails, read CLAUDE.md before fixing."""
+    the ranker reasons in. If this ever fails, read CLAUDE.md before fixing.
+
+    The picker now *shows* six of the eight, which narrows the screen and not
+    the vocabulary - so the thing to assert is that everything it offers is a
+    facet, and that every facet is still reachable.
+    """
     import topics as topics_mod
 
     body = client.get("/api/preferences").json()
-    assert [i["id"] for i in body["interests_available"]] == \
-        list(topics_mod.TAG_LABELS)
+    shown = [i["id"] for i in body["interests_available"]]
+    assert len(shown) == topics_mod.PICKER_SIZE
+    assert set(shown) <= set(topics_mod.TAG_LABELS), "the picker invented a tag"
+    assert [i["id"] for i in body["interests_all"]] == list(topics_mod.TAG_LABELS)
+
+
+def test_the_picker_shows_the_six_most_played(client):
+    """Not the first six of a dict. `popular_facets` counts what FAM's
+    listeners actually play, globally - the only honest signal on a run where
+    this listener has no history at all."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    culture = [t for t in topics_mod.TOPIC_BANK
+               if "culture" in topics_mod.facets_only(t.tags)][0]
+    for listener in ("a", "b", "c", "d", "e"):
+        store.record(topics_mod.Event(listener, "play", culture.id, "", culture.tags))
+
+    shown, source = topics_mod.popular_facets(store)
+    assert source == "played"
+    assert shown[0] == "culture", shown
+    assert len(shown) == topics_mod.PICKER_SIZE
+
+
+def test_an_empty_log_says_it_is_showing_a_default_rather_than_a_ranking(client):
+    """A declared order and a measurement look identical on screen. On a fresh
+    deployment - which is exactly when this screen is shown - it is the former,
+    and calling that "most popular" would be inventing a number."""
+    import topics as topics_mod
+
+    shown, source = topics_mod.popular_facets(topics_mod.EventStore(":memory:"))
+    assert source == "default"
+    assert shown == list(topics_mod.PICKER_DEFAULT_ORDER[:topics_mod.PICKER_SIZE])
 
 
 def test_picking_an_interest_teaches_the_ranker_its_tags(client):

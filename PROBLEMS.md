@@ -6131,3 +6131,98 @@ here, so this is checks, smoke behaviours and photographs - and this round the
 photographs earned their place twice, once for the escaped "15" and once for
 the lopsided gear.
 
+## 98. A settings row that ran the first run again
+
+Three notes. Two are the interests page; one is a routing bug with a shape
+this log has now seen three times.
+
+### The picker shows six, and they are the six being played
+
+"Remove the paragraph after 'Your interests'. Then pick the six most popular
+topics and display them as shown."
+
+The paragraph is gone. It explained the cap and said interests stop mattering
+once somebody has listened to something - both true, both read at the one
+moment neither is useful yet, above a grid with nothing chosen in it.
+
+The grid is six, three across and two down, and the six are **the most played
+facets across FAM** (`topics.popular_facets`) rather than the first six of a
+`dict`. Global, like `rank_most_played` and for the same reason: this is asked
+on the first run, when this listener has no history and the only honest signal
+is everybody else's. One count serves every listener.
+
+Two things that had to be got right rather than assumed:
+
+* **`PICKER_DEFAULT_ORDER`, and `interests_source` saying which is in use.** A
+  fresh deployment has an empty log, which is the normal state on the screen
+  this exists for - so there is a declared order, written down in one place,
+  and the response says `"default"` rather than `"played"`. A declared order
+  and a measurement look identical on screen, and calling the first one "most
+  popular" would be inventing a number.
+* **The picker narrowed; the vocabulary did not.** CLAUDE.md's constraint is
+  that the eight facets are the only *pickable* vocabulary, and six of eight
+  does not widen anything - but two facets would have become unreachable if
+  the catalogue did not carry every one of them on its interests, which it
+  does. `interests_all` is served beside `interests_available` because
+  Settings has to be able to *read back* a stored interest that did not make
+  this week's grid.
+
+One honest consequence, recorded rather than papered over: `MAX_INTERESTS` is
+six and the picker is now six, so the cap can no longer be shown as a dimmed
+seventh chip. It is still enforced and still said out loud in the count line;
+the smoke behaviour asserts that sentence instead of the dimming.
+
+"View more" is a plain centred underlined link. It was a dashed pill, which
+put a seventh chip-shaped thing under six chips and made the grid read as
+uneven.
+
+### Clicking a settings row ran the first run again
+
+"When you click on one of those Settings tabs and then hit save, I want it to
+go back to the Settings page. Right now when you click on some of them, it
+reroutes it to perform like the initial setup."
+
+Exactly right, and literally so. Interests and Language have no editor of
+their own - they reuse the intro screen - and reusing the *screen* meant
+reusing the *flow*:
+
+    openInterestsFromSettings() -> showScreen("intro")
+    Next -> introNext()   -> the language page
+    Start listening -> finishIntro() -> intro: "done" -> finishEntry() -> myFAM
+
+So editing one setting walked the listener through the other one and then put
+them on myFAM. There was no way back and no X.
+
+`introMode` is `"first-run"` or `"settings"`, and it decides three things:
+whether there is an X, what the docked button says (Next / Start listening
+versus **Save**), and where saving goes. `saveIntroFromSettings` writes the
+preference and returns; it is deliberately not `finishIntro`, which is the
+first run *ending* and has no business running when somebody changed their
+language.
+
+This is **the third time** the same trap has been paid for (§96 the shelf,
+§97 the catalogue, now this): **the intro is drawn with `showScreen` and never
+joins the navigation stack**, so `goBack()` from anything opened on top of it
+pops to whatever was underneath. Every one of these returns by *name* now. If
+a fourth screen is ever shown that way, this is the paragraph to read first.
+
+### And an X on everything a settings row opens
+
+The note asks for one on "every single one". The intro gets `.sheet-close`,
+the same X as the catalogue and the sources panel; the shared modal (Name and
+handle, Change password) and the photo editor get `.modal-x`, which is the
+`.dl-x` rule from §96 generalised rather than a second X drawn a pixel
+differently. The action sheets keep their Cancel row, which is already an
+explicit way out.
+
+Cancel was already on both modals, and an X is still worth having: it is
+where a thumb goes to leave something, and the only other way out was a
+backdrop tap nothing documents.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs. The photographs
+earned their place again - the first grid had three unequal columns and two
+unequal rows, because `1fr` is `minmax(auto, 1fr)` and a long label grows its
+column past the equal share. `minmax(0, 1fr)` and `grid-auto-rows: 1fr` are
+what make six pills actually six of the same pill.
+

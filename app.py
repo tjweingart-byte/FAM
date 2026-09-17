@@ -2218,9 +2218,21 @@ async def read_preferences(request: Request):
     authed = bool(listener is not None and listener.is_authenticated)
     stored = (PREFS.get(listener.user_id) if authed
               else prefs_mod.Preferences(_listener(request)))
+    # The six the picker shows, most played across FAM first. `interests_all`
+    # is still every facet, because the picker narrowing is a screen decision
+    # and the eight remain the whole pickable vocabulary - anything that
+    # *reads* a stored interest (settings, the recap) needs every label.
+    picker, picker_source = topics_mod.popular_facets(EVENTS)
     body = {
-        "interests_available": [{"id": tag, "label": label}
-                                for tag, label in topics_mod.TAG_LABELS.items()],
+        "interests_available": [{"id": tag, "label": topics_mod.TAG_LABELS[tag]}
+                                for tag in picker],
+        "interests_all": [{"id": tag, "label": label}
+                          for tag, label in topics_mod.TAG_LABELS.items()],
+        # "played" or "default". A deployment with an empty log is showing a
+        # declared order rather than a measurement, and the two look identical
+        # on screen - so it says which, here and on /api/health, rather than
+        # letting anybody read a default as a popularity ranking.
+        "interests_source": picker_source,
         # The long list behind "View more". Named subjects rather than tags -
         # see `topics.INTEREST_CATALOGUE` for why that distinction is what
         # lets it be seventy-odd entries without widening the vocabulary the
