@@ -6401,3 +6401,63 @@ therefore drives `renderIntro` in each mode rather than restarting the run,
 which is also the more direct question: that function is the thing that
 decides which list is drawn.
 
+## 101. Getting the branch ready to merge
+
+Not a bug report - an audit before handing six commits to `Main`. Recorded
+because two of the four findings were things a merge would have shipped
+quietly, and both are the same shape: **a check that exists is not a check
+that runs.**
+
+### The branch itself
+
+Six commits, `origin/Main` is an ancestor, so it fast-forwards: no conflicts
+are possible and no merge commit is needed. Working tree clean, no untracked
+files, nothing secret-shaped in the diff, no `console.log`, no `pdb`, no
+hardcoded hosts, no model identifiers in anything pushed.
+
+### The two schema migrations were proved rather than read
+
+The branch adds `scripts.author` and `people.avatar`. Both follow the existing
+idempotent `ALTER TABLE ... ADD COLUMN ... DEFAULT` pattern, which is easy to
+*read* as correct and is exactly the sort of thing that is wrong in
+production. So each was run against a database built by the **pre-branch
+code**: the old module writes rows, the new module opens the same file.
+
+Both widen in place. A script written before the migration still serves, and
+still appears in everybody's Explore because it has no author - which is what
+it was already doing. The follow graph survives the `people` widening. This is
+"verify, do not inspect" applied to the one part of a merge that cannot be
+undone by reverting a commit.
+
+### CI was setting up node and never using it
+
+`dev.sh` gained `tools/check_stretch.js` in §95 - the check that says changing
+speed still leaves the pitch alone, which guards a settled constraint. CI
+installs node 20 and then never runs it, so that guard was enforced only on
+machines that happened to have node locally. Added to `.github/workflows/ci.yml`.
+
+The general form, and it is worth keeping: **a check added to the local loop
+is not added to the gate.** `dev.sh` and `ci.yml` are two lists of the same
+intentions and nothing keeps them in step.
+
+### A count written in prose does not fail
+
+CLAUDE.md told a new session that a complete run ends with "twenty-six named
+smoke behaviours; anything less means something was skipped". There are
+thirty-four. The number was right when it was written and no longer is,
+because a sentence cannot fail when somebody adds a behaviour - and it is
+load-bearing advice, since it is what a fresh session compares against to
+decide whether its baseline is honest. Corrected, and it now says where to get
+the number (`grep -c '^        check(' tools/smoke_preview.py`) rather than
+asking anybody to trust the prose.
+
+### Known and deliberately not fixed here
+
+**The preview build is not reproducible.** `preview/build_preview.py` bakes
+`time.time()` into the profile fixture's `since` and `joined`, so a rebuild
+with no source change still rewrites `preview/fam-live.html`. That makes the
+committed build artifact impossible to verify against its source, and it
+pre-dates this branch (it is the same on `Main`). Left alone rather than
+widened into an interface branch; the fix is to freeze those two fields to a
+fixed timestamp.
+

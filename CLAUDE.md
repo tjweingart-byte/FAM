@@ -1103,7 +1103,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §98-100 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §99-101 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1122,9 +1122,13 @@ and the second one is not optional:
     pip install playwright        # or the browser smoke test skips itself
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
-green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-six named smoke behaviours; anything less means something was skipped, and
-`dev.sh` now says so out loud (PROBLEMS.md §49).
+green rather than assuming it. A complete run ends with `all checks passed`
+**twice** - once per preview build - and **thirty-four** named smoke
+behaviours each time; anything less means something was skipped, and `dev.sh`
+now says so out loud (PROBLEMS.md §49). The number is
+`grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
+trusting this sentence: it has been wrong before, because a count written in
+prose does not fail when somebody adds a behaviour.
 
 What is true but not obvious from the code:
 
