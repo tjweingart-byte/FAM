@@ -221,9 +221,34 @@ def main() -> int:
             rails = page.eval_on_selector_all(".seed-card-title", "e => e.map(x => x.textContent)")
             repeated = sorted(set(titles) & set(rails))
             assert not repeated, f"Go Deeper repeats what the rails show: {repeated}"
-            label = page.text_content(".gd-count")
+            # The heading, not the right-hand slot: that slot is the length
+            # control now, and the sentence about the tiles moved into the
+            # kicker. The rule it protects is unchanged - a listener on their
+            # first run has not left anything off.
+            label = page.text_content(".gd-kicker")
             assert "left off" not in label.lower(), \
                 f"told a first-run listener they left something off: {label!r}"
+            # And the control that replaced it is real and independent of
+            # search's. Changing it here must not move the search player's.
+            before = page.eval_on_selector("#lengthVal", "e => e.textContent")
+            assert page.query_selector(".gd-len"), \
+                "myFAM has no episode-length control"
+            page.evaluate("openMyFamLengthMenu()")
+            page.wait_for_timeout(250)
+            page.evaluate(
+                """() => {
+                    var rows = document.querySelectorAll('.sheet-item');
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i].textContent.indexOf('7 min') === 0) {
+                            rows[i].click(); return;
+                        }
+                    }
+                }""")
+            page.wait_for_timeout(350)
+            assert "7 min" in page.text_content(".gd-len"), \
+                "myFAM's length control did not take"
+            assert page.eval_on_selector("#lengthVal", "e => e.textContent") == before, \
+                "changing myFAM's length also changed the search player's"
             page.reload()
             page.wait_for_timeout(1200)
 
@@ -338,8 +363,19 @@ def main() -> int:
                 assert wanted in names, f"{wanted} was not offered: {names}"
             # Sharing inside FAM did not go away to make room for it: one
             # sheet, two halves, because "share this" is one intent.
-            assert page.eval_on_selector_all(".share-contact", "e => e.length") > 0, \
-                "the sheet lost the option to send it to somebody in FAM"
+            #
+            # The people are the real follow graph now, so "how many" is a
+            # fact about the database this preview is running on - the live
+            # one has exactly one listener in it. What must never happen is
+            # the half going *silent*: either it lists people or it says why
+            # it cannot, and an empty space that explains nothing is the
+            # failure. Which is also why this reads the section rather than
+            # counting rows.
+            inside = page.eval_on_selector(
+                "#shareContacts", "e => e.textContent.trim()")
+            people = page.eval_on_selector_all(".share-contact", "e => e.length")
+            assert people > 0 or inside, \
+                "the sheet's in-FAM half was empty and said nothing"
             assert not page.eval_on_selector("#shareNote", "e => e.hidden"), \
                 "the preview link is not public and the sheet did not say so"
             page.evaluate("closeShareModal()")
@@ -542,10 +578,12 @@ def main() -> int:
             after = "on" in (page.query_selector(".mix-switch").get_attribute("class") or "")
             assert after != before, "the visibility switch did not move"
 
-        #: Every screen a listener can control playback from. Echo belongs on
+        #: Every screen a listener can control playback from. VIBE! belongs on
         #: all of them - checking two ids by name is what let the main player
-        #: ship without one.
-        PLAYERS = ["screen-player", "screen-playall", "screen-explore"]
+        #: ship without one. The mini player is in this list because the packet
+        #: asks for the button on *every* player and that is the one most often
+        #: still on screen when an episode has finished.
+        PLAYERS = ["screen-player", "screen-playall", "screen-explore", "nowBar"]
 
         def echo_button():
             page.evaluate("openExplore()")
@@ -557,10 +595,10 @@ def main() -> int:
                    })""",
                 PLAYERS,
             )
-            assert not missing, f"no echo control on: {missing}"
+            assert not missing, f"no VIBE! control on: {missing}"
 
         def echo_state_reaches_every_player():
-            """One echo must light up all of them, not just the one tapped."""
+            """One vibe must light up all of them, not just the one tapped."""
             page.evaluate("setEchoed(true)")
             lit = page.evaluate(
                 """() => Array.from(document.querySelectorAll("[data-echo]"))
@@ -784,8 +822,8 @@ def main() -> int:
         check("Messages opens and closes", messages_sheet)
         check("Profile renders identity, folders and echoes", profile)
         check("Mix visibility can be toggled", mix_visibility)
-        check("Echo control is on every player", echo_button)
-        check("Echo state reaches every player", echo_state_reaches_every_player)
+        check("VIBE! is on every player", echo_button)
+        check("VIBE! state reaches every player", echo_state_reaches_every_player)
 
         if errors:
             failures.append(f"page errors: {errors}")

@@ -284,7 +284,7 @@ def test_the_marks_reach_the_response_headers(monkeypatch):
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: PodcastPipeline(generator=FakeGenerator(1.0),
+        lambda voice=None, author="": PodcastPipeline(generator=FakeGenerator(1.0),
                                            engine=ENGINE, cache=None,
                                            voice=voice))
     client = TestClient(appmod.app)

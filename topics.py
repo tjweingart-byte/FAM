@@ -419,7 +419,17 @@ SECTIONS = (
 #: How much each kind of interaction says about taste. Finishing an episode is
 #: the strongest signal there is; a skip is real evidence in the other
 #: direction and must not be treated as a weak play.
-EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5}
+#:
+#: `pick` is somebody saying "this one" from the intro's topic catalogue,
+#: before they have played anything. It is weighted *between* a search and a
+#: completion: stronger than a search, because they chose it off a list rather
+#: than typing a passing thought, and weaker than finishing an episode,
+#: because they have not actually heard one yet. It is the only signal a
+#: listener can give on their first run that has a whole topic behind it - and
+#: therefore the topic's subtags, which the eight pickable facets cannot
+#: express. It costs nothing and generates nothing: a row in the log.
+EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
+                "pick": 1.6}
 
 #: An **impression** is one tile put in front of one listener by one version of
 #: the ranking. It is recorded so "why did we show this?" has an answer, and it
@@ -847,7 +857,8 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
 
 
 def rank_most_played(
-    store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None
+    store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None,
+    limit: int = SECTION_SIZE
 ) -> list[Topic]:
     """Global play counts *inside FAM*. Deliberately identical for everyone,
     which is what makes it the cheapest section to serve: one script, every
@@ -871,11 +882,12 @@ def rank_most_played(
     # beats a random one - random means the tile a listener saw this morning is
     # gone this afternoon, and it defeats the shared script cache.
     filler = [t for t in TOPIC_BANK if t.id not in counts and t.id not in exclude]
-    return (ranked + filler)[:SECTION_SIZE]
+    return (ranked + filler)[:limit]
 
 
 def rank_from_history(profile: dict[str, float], exclude: set[str],
-                      damp: Optional[dict[str, float]] = None) -> list[Topic]:
+                      damp: Optional[dict[str, float]] = None,
+                      limit: int = SECTION_SIZE) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
@@ -888,11 +900,12 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     ]
     scored = [(s, t) for s, t in scored if s > 0]
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
-    return [t for _s, t in scored[:SECTION_SIZE]]
+    return [t for _s, t in scored[:limit]]
 
 
 def rank_might_like(profile: dict[str, float], exclude: set[str],
-                    damp: Optional[dict[str, float]] = None) -> list[Topic]:
+                    damp: Optional[dict[str, float]] = None,
+                    limit: int = SECTION_SIZE) -> list[Topic]:
     """Adjacent, not identical. Exploration.
 
     Serves two surfaces from one ranking: the Explore New rail on myFAM and
@@ -912,7 +925,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     """
     damp = damp or {}
     if not profile:
-        return [t for t in TOPIC_BANK if t.id not in exclude][:SECTION_SIZE]
+        return [t for t in TOPIC_BANK if t.id not in exclude][:limit]
 
     # The strongest tag's whole *family* is muted, not just the tag. With two
     # levels, muting `sports-performance` on its own leaves `sports` at full
@@ -929,7 +942,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     def add(candidates: list[tuple[float, Topic]]) -> None:
         candidates.sort(key=lambda pair: (-pair[0], pair[1].id))
         for _score, topic in candidates:
-            if len(picks) >= SECTION_SIZE:
+            if len(picks) >= limit:
                 return
             if topic.id not in taken:
                 picks.append(topic)
@@ -951,7 +964,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
     # 2. Bridges out of the tag they already have: keep the familiar tag, but
     #    only where it is paired with something new, so it leads somewhere.
-    if len(picks) < SECTION_SIZE:
+    if len(picks) < limit:
         add([
             (float(sum(1 for tag in t.tags if tag not in profile)), t)
             for t in TOPIC_BANK
@@ -961,7 +974,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
     # 3. Anything genuinely unseen. An empty shelf helps nobody, and a narrow
     #    listener is the one who most needs a way out of the bubble.
-    if len(picks) < SECTION_SIZE:
+    if len(picks) < limit:
         add([
             (float(sum(1 for tag in t.tags if tag not in profile)), t)
             for t in TOPIC_BANK if t.id not in taken
@@ -972,7 +985,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
 def rank_followers(
     store: EventStore, user_id: str, mine: set[str], exclude: set[str],
-    damp: Optional[dict[str, float]] = None
+    damp: Optional[dict[str, float]] = None, limit: int = SECTION_SIZE
 ) -> list[Topic]:
     """Co-listener overlap: people who played what you played also played this.
 
@@ -997,7 +1010,7 @@ def rank_followers(
         if overlap:
             scored.append((overlap * damp.get(topic.id, 1.0), topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
-    return [t for _s, t in scored[:SECTION_SIZE]]
+    return [t for _s, t in scored[:limit]]
 
 
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
@@ -1067,7 +1080,57 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     return {"sections": sections, "personalised": bool(profile)}
 
 
-def topics_from_trending(items) -> list:
+#: How many tiles a full-screen section shows. The bank is ~28 topics, so
+#: this is "all of it, in this section's order" rather than a page size -
+#: there is no second page to fetch and nothing new to generate to fill one.
+FULL_SECTION_SIZE = 40
+
+
+def build_section(store: EventStore, user_id: str, key: str,
+                  now: Optional[float] = None,
+                  interests: Iterable[str] = ()) -> dict:
+    """One myFAM section, at full length, in the same order the rail used.
+
+    The rail shows six and the screen behind it shows the rest **of the same
+    ranking**. One ranker, two views - the rule Explore New already follows,
+    for the same reason: a rail and the surface it opens must not give a
+    listener two different answers to one question.
+
+    Nothing here generates anything. It reorders a fixed bank, exactly as
+    `build_feed` does, which is what makes "view more" free.
+    """
+    if key not in dict(SECTIONS):
+        raise KeyError(key)
+    events = store.for_user(user_id) if user_id else []
+    profile = taste(events, now, interests)
+    mine = _played_ids(events)
+    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    limit = FULL_SECTION_SIZE
+    # `exclude` is what they have already played, and *not* the other
+    # sections' picks. On the page the sections take turns so no tile appears
+    # twice; here there is only one section, and hiding its best tiles because
+    # a different rail happened to claim them would make "view more" show
+    # less.
+    if key == "from_history":
+        picks = rank_from_history(profile, mine, damp, limit=limit)
+    elif key == "might_like":
+        picks = rank_might_like(profile, mine, damp, limit=limit)
+    elif key == "followers":
+        picks = rank_followers(store, user_id, mine, mine, damp, limit=limit)
+    elif key == "world_trending":
+        picks = topics_from_trending(trending.cached().items, limit=limit)
+    else:
+        picks = rank_most_played(store, now, mine, limit=limit)
+    return {
+        "key": key,
+        "title": dict(SECTIONS)[key],
+        "topics": [t.as_dict() for t in picks],
+        "empty_reason": _empty_reason(key) if not picks else "",
+        "personalised": bool(profile),
+    }
+
+
+def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:
     """Turn world-trending subjects into tiles.
 
     Tags are derived from the question with the same keyword map the bank
@@ -1090,7 +1153,7 @@ def topics_from_trending(items) -> list:
             tags=tags,
             icon=_icon_for_tags(tags),
         ))
-    return tiles[:SECTION_SIZE]
+    return tiles[:limit]
 
 
 def _icon_for_tags(tags) -> str:

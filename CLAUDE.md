@@ -17,7 +17,11 @@ Three surfaces, all backed by generated audio:
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
    have already generated*. It never writes a script: cards come from the
    shared cache and playing one sends `cached_only`, which the pipeline
-   refuses to satisfy by generating.
+   refuses to satisfy by generating. **And other listeners' only** — the cache
+   records who first generated each entry (`scripts.author`, stamped from
+   `_listener(request)`) and `recent(exclude_author=...)` keeps a listener's
+   own episodes off their own feed. See the settled constraint below for why
+   that id is nowhere near the cache key.
 
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
@@ -286,6 +290,17 @@ the rest of this list it needs taste rather than a key.
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
 4. **myFAM is built; the taste model is crude, and less crude than it was.**
+   *(Two things on the surface changed in §95. The header's right-hand slot is
+   now an **episode-length control of its own**, deliberately separate from the
+   search player's: the length you want for a question you have just typed and
+   the length you want for a tile you are scrolling past are different
+   appetites, and one shared number meant setting either silently reset the
+   other. And each rail ends in a chevron only while there is something left
+   to scroll - at the end it becomes **View more**, which opens the whole of
+   that section. That screen is the same ranking at full length, with the
+   tiles whose script is already written marked and sorted to the front; it
+   generates nothing, because the rail was showing six of something that
+   already had twenty-eight.)*
    `topics.py` ranks a *shared* bank of ~28 topics **four** ways (history /
    exploration / co-listener / trending) from an append-only event log. Tags
    still come from keyword matching, not a classifier - but there are now
@@ -329,17 +344,31 @@ the rest of this list it needs taste rather than a key.
    making deliberately - a new listener follows nobody, so a rail backed only
    by follows would be empty on the day it matters most.
 7. **The social layer generates nothing, and now there is more of it.**
-   `social.py` stores an echo as a row pointing at a query whose script already
-   exists. `messages.py` does the same for a *directed* share - one person, one
+   `social.py` stores a **vibe** as a row pointing at a query whose script
+   already exists. *(The product's word is VIBE!; the codebase's is `echo`,
+   and they are the same row. `/api/vibe` and `/api/echo` are one handler over
+   one table, because a phone that has not updated is still calling the old
+   one - a rename that breaks it turns a copy change into an outage. The
+   `data-echo` attribute and the `echoed` class keep their names for the same
+   reason: a hook renamed for a copy change is a button that quietly stops
+   being found.)* `messages.py` does the same for a *directed* share - one person, one
    episode - and `sharing.py` for a link posted outside FAM. All three cost one
    row: sending an episode to ten people costs ten rows and not ten episodes,
    because their taps are what synthesise audio, from one cached script,
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
-8. **Profile is a scaffold, deliberately.** `/api/profile` returns only what
-   the event log actually holds - started, finished, open threads, subjects -
-   because a profile page is the easiest place in an app to invent numbers,
-   and every invented one is a promise to keep later.
+8. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
+   `/api/profile` returns only what the event log and the follow graph
+   actually hold - started, finished, open threads, subjects, vibes, and a
+   friend count that is real because the graph is built. The page is a hub
+   over four shelves the listener owns (Save for Later, Downloads, My Vibe,
+   Friends), a picture they can set, and a **Settings** screen that gathers
+   everything changeable in one place - it was spread across a modal, the
+   first-run screens nobody sees twice, and an action sheet inside the player,
+   so "where do I change that" had three answers and two of them were wrong.
+   The rule it was built under is unchanged: a profile page is the easiest
+   place in an app to invent a number, and every invented one is a promise to
+   keep later.
 9. **Attachments are built** (`attachments.py`, PROBLEMS.md §47). A search can
    carry documents, photos and links. Extraction happens when the thing is
    attached, never on the generation path, because a round-trip in front of the
@@ -730,6 +759,42 @@ the rest of this list it needs taste rather than a key.
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+- **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
+  shared cache records who first generated each script, so Explore can leave a
+  listener's own episodes off their own feed - and that is the *only* thing it
+  is for. It is stamped by `PodcastPipeline.author`, set per request from
+  `_listener(request)`, and deliberately **not** a field on `EpisodePlan`: the
+  plan is what an episode *is*, `pipeline.key_for` is built from it, and a
+  listener id one field away from the key is one refactor away from being in
+  it. At that point every listener has their own cache, the shared-cost design
+  the whole app rests on is gone, and nothing fails - so a test reads
+  `key_for`'s own body and fails if the word appears there.
+  Two more rules keep it honest. **The first writer keeps it**: a re-write that
+  extends a TTL must not hand authorship to whoever triggered it, so the
+  upsert only fills an empty one. And **prefetch writes none at all** - a
+  warmed script was nobody's tap, so it belongs to everybody, which is also
+  what rows written before the column existed do.
+- **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
+  `playbackRate` on a buffer source resamples, so 1.5x came back a fifth
+  higher - the wrong trade on a voice this project spent a year choosing. The
+  samples are time-stretched instead (WSOLA), and the buffer handed to Web
+  Audio is already the right length, so the node plays at 1.
+  The accounting above it is untouched, and that is the point: WSOLA advances
+  its read pointer by exactly `rate * sampleRate` per second of output, so
+  `positionSamples`, seek, the scrub bar and `TAIL_MARGIN` all keep working
+  without knowing it exists. **At exactly 1x it is bypassed**, so the default
+  costs nothing, and `setPitchLock(false)` restores the old behaviour for a
+  device that cannot keep up with it.
+  The default speed is **1x**, not 1.2x. A speed chosen on somebody's behalf,
+  for a voice they have not heard yet, is a decision the product should not be
+  making; once they change it, it follows them to the next episode.
+- **A control with nothing behind it is worse than no control.** Two were
+  deleted rather than repaired in §95 - a share sheet's Audio/Transcript
+  toggle that only changed a word in a toast, and a "search messages" bar that
+  toasted "demo only". The same rule took the three invented contacts out of
+  `index.html`: a social surface that fabricates people is a profile
+  fabricating numbers with a worse failure mode, because it says a message was
+  sent when none was.
 - **A listener id is never accepted from the client.** It arrives from an
   HttpOnly session cookie the server minted, and `?user=` is ignored wherever
   it still appears. This replaced `famUserId()`, which made an id up with

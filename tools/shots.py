@@ -43,6 +43,28 @@ SURFACES = [
     ("auth", "openAuth('signup'); showAuthForm()"),
     ("intro", "renderIntro(); showScreen('intro')"),
     ("explorenew", "openExploreNew()"),
+    # The screen behind a rail's "View more", and the topic catalogue behind
+    # the intro's. Both are new surfaces, and a surface nobody photographs is
+    # one nobody notices has broken.
+    ("section", "openSection('most_played')"),
+    ("settings", "openProfile(); setTimeout(function(){ openSettings(); }, 400)"),
+    ("myvibe", "openProfile(); setTimeout(function(){ openMyVibe(); }, 400)"),
+    ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
+    # The sources popup, which only exists when an episode has some.
+    ("sources",
+     "setTab('myfam'); document.querySelectorAll('.gd-card')[0].click();"
+     " setTimeout(function(){ renderSources({items:["
+     "   {label:'reuters.com', kind:'article', tier:'wire service',"
+     "    at:'2026-09-16', title:'Fed holds rates steady for a third meeting',"
+     "    url:'https://reuters.com/a'},"
+     "   {label:'ft.com', kind:'article', tier:'national paper',"
+     "    at:'2026-09-15', title:'What the hold means for mortgages',"
+     "    url:'https://ft.com/b'},"
+     "   {label:'bls.gov', kind:'article', tier:'official source',"
+     "    at:'2026-09-12', title:'Consumer Price Index summary',"
+     "    url:'https://bls.gov/c'}"
+     " ], retrievers:['Exa'], known:true}); openSources(); }, 900)"),
+    ("catalog", "renderIntro(); showScreen('intro'); openTopicCatalog()"),
     ("nextup", "showScreen('player'); "
                "maybeOfferNextUp('what the fed did to interest rates', '')"),
     ("recap", "openRecapFromTile()"),

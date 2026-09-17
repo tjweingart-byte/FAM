@@ -147,3 +147,46 @@ def test_forget_erases_a_listeners_shares(store):
     store.create("them", "q", 3)
     assert store.forget("u") == 1
     assert store.get(store.create("them", "q", 3)["id"]) is not None
+
+
+# --- where a share actually goes ------------------------------------------
+#
+# The templates were always right and reached nothing: the interface put them
+# on the clipboard and left the listener to find the app themselves. These
+# pin the hand-off, which is the half that makes the feature work.
+
+
+def test_every_destination_that_has_one_is_a_usable_url():
+    for target in sharing.TARGETS:
+        rendered = sharing.render(target.key, **EPISODE)
+        link = rendered["destination"]
+        if not link:
+            continue
+        assert link.startswith(("https://", "mailto:", "sms:")), \
+            f"{target.key} points somewhere a phone cannot open: {link}"
+        assert " " not in link, f"{target.key} left a raw space in {link}"
+
+
+def test_the_platforms_the_packet_named_can_all_be_reached():
+    """iMessage, Gmail, LinkedIn, Instagram and Snapchat, by name.
+
+    The first three open with the wording already in them. The two story
+    formats deliberately have no URL - they are an image handed to the
+    platform's SDK - so what is asserted there is that they say so.
+    """
+    by_key = {t.key: t for t in sharing.TARGETS}
+    for key in ("sms", "email", "linkedin"):
+        assert sharing.render(key, **EPISODE)["destination"], \
+            f"{key} has no way to open the app it is for"
+    for key in ("instagram_story", "snapchat_story"):
+        assert by_key[key].needs_image, f"{key} must ask for the card"
+        assert not sharing.render(key, **EPISODE)["destination"]
+
+
+def test_an_ampersand_in_the_question_does_not_truncate_the_message():
+    """`sms:` and `mailto:` split their parameters on `&`. A question with one
+    in it used to arrive as half a sentence."""
+    episode = dict(EPISODE, question="tariffs & inflation, what changed?")
+    for key in ("sms", "email"):
+        link = sharing.render(key, **episode)["destination"]
+        assert "%26" in link or "&" not in link.split("body=", 1)[1]

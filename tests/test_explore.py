@@ -166,7 +166,7 @@ def test_tapping_an_expired_card_is_a_409_not_a_generation(client, monkeypatch):
     monkeypatch.setattr(appmod, "DEMO_MODE", False)
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: PodcastPipeline(
+        lambda voice=None, author="": PodcastPipeline(
             generator=gen, engine=DebugEngine(), cache=appmod.SCRIPT_CACHE, voice=voice
         ),
     )
@@ -183,3 +183,57 @@ def test_demo_mode_can_still_replay_explore(monkeypatch, tmp_path):
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", SqliteScriptCache(str(tmp_path / "d.db")))
     pipeline = appmod._make_pipeline()
     assert pipeline.cache is not None, "demo mode disabled the cache Explore is built on"
+
+
+# --- your own episodes are not your own Explore feed ----------------------
+#
+# The feed's premise is that these are questions *other people* asked. Before
+# authorship was recorded the cache could not tell whose was whose, so a
+# listener's own searches came back at them in a feed built entirely on the
+# promise that they would not.
+
+
+def test_an_episode_is_dropped_from_its_own_authors_feed(client):
+    # The id is not in the page's reach - it comes from the session cookie -
+    # so this is how a client finds out which listener it is.
+    me = client.get("/api/auth/me").json()["user_id"]
+    assert me, "the test client was not given a session"
+    appmod.SCRIPT_CACHE.put("mine", ["A sentence."], 600, "what I asked", "", 3,
+                            "", "", me)
+    appmod.SCRIPT_CACHE.put("theirs", ["A sentence."], 600, "what they asked",
+                            "", 3, "", "", "someone-else")
+
+    queries = [e["query"] for e in client.get("/api/explore").json()["episodes"]]
+    assert "what they asked" in queries
+    assert "what I asked" not in queries, \
+        "Explore showed a listener their own episode"
+
+
+def test_an_unattributed_episode_is_still_shown_to_everybody(client):
+    """Prefetch writes with no author, and so does every entry made before
+    authorship existed. Neither is anybody's, so both stay on every feed."""
+    appmod.SCRIPT_CACHE.put("warm", ["A sentence."], 600, "warmed for nobody",
+                            "", 3)
+    queries = [e["query"] for e in client.get("/api/explore").json()["episodes"]]
+    assert "warmed for nobody" in queries
+
+
+def test_the_author_is_not_part_of_the_cache_key(client):
+    """Two listeners asking the same question must still share one script.
+
+    Authorship is provenance, not identity. If it ever reached `key_for` the
+    cache would split per listener and the shared-cost design - one script,
+    many listeners - would be gone, silently and expensively.
+    """
+    import pipeline as pipeline_mod
+    from script_generator import plan_episode as plan
+
+    # The body, not the docstring: the docstring is where the reasoning for
+    # this rule is written down, so it necessarily mentions both words.
+    source = __import__("inspect").getsource(pipeline_mod.key_for)
+    body = source.split('"""')[-1]
+    assert "author" not in body
+    assert "listener" not in body
+    key_one = asyncio.run(pipeline_mod.key_for(plan("same question", 3)))
+    key_two = asyncio.run(pipeline_mod.key_for(plan("same question", 3)))
+    assert key_one == key_two

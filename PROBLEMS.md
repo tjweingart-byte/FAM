@@ -5770,3 +5770,128 @@ prompt change in this log, what is verified here is that the instructions and
 the guard are in the prompt and the path. Whether the new opening *sounds*
 right on "Dodgers game last night" needs a key and a listen - `python write.py
 "dodgers game last night" --minutes 3` prints it in seconds.
+
+---
+
+## 95. The interface packet: nine surfaces, and three real bugs underneath them
+
+A packet of action items arrived covering every surface of the app — the
+player, myFAM, Explore, the profile, the first run. Most of it was interface
+work. Three items were not, and those are the ones worth writing down, because
+each was a place where the *interface* was fine and the thing underneath it was
+wrong.
+
+### Explore was showing people their own episodes
+
+`/api/explore` reads `cache.recent()`, and the shared script cache had no idea
+who had generated anything. So the feed whose entire premise is *other
+people's questions* was handing a listener back their own, and there was no
+way to tell — a question you asked yesterday looks exactly like a question
+somebody else asked yesterday.
+
+The fix is one nullable column, `scripts.author`, written at the one moment the
+answer is knowable: `/api/audio` knows whose tap paid for the episode, so
+`_make_pipeline` takes an `author` and the pipeline stamps it on anything it
+writes. `recent(exclude_author=...)` drops them from that listener's own feed
+and nobody else's.
+
+Three things are load-bearing about where it lives.
+
+**It is not on `EpisodePlan`.** The plan is what an episode *is*, and
+`pipeline.key_for` is built from it. A listener id one field away from the key
+is a listener id one careless refactor away from *being* in the key — at which
+point every listener has their own cache, the shared-cost design the whole app
+rests on is gone, and nothing fails. `test_the_author_is_not_part_of_the_cache_key`
+reads `key_for`'s own source and fails if either word appears in its body.
+
+**It is the first writer, never the most recent.** A second listener asking the
+same question is served from the entry and never rewrites it; a re-write that
+extends a TTL uses `CASE WHEN scripts.author != ''` so it cannot hand
+authorship to whoever happened to trigger it. Authorship means "who paid for
+this", not "who asked last".
+
+**Prefetch writes no author at all**, and that is right: a speculatively warmed
+script was nobody's tap, so it belongs to everybody. Rows written before the
+migration have none either, and are shown to everyone — which is exactly what
+they were already doing.
+
+### Every share ended on the clipboard
+
+`sharing.py` has written per-destination wording since it shipped — a LinkedIn
+post and a text message are not the same message, and it knew that. What
+nothing had was a *destination*. `shareTo` put the text on the clipboard and
+left the listener to go and find the app themselves, which is not a share
+sheet; it is a note saying the share sheet was not built.
+
+Each target now carries a URL template (`sms:&body=`, `mailto:`,
+`wa.me`, the intent URLs), rendered with every value percent-encoded —
+including into the `sms:` and `mailto:` bodies, because those split their
+parameters on `&` and a question containing one arrived as half a sentence.
+
+Two details are deliberate. **LinkedIn takes only the URL** and reads the page
+for its own preview, so the composed words go to the clipboard alongside with
+one sentence saying so, rather than into a query string that drops them in
+silence. And **the two story formats still have no URL**, which is not an
+omission: a story is an image handed to the platform's SDK, `needs_image` is
+what says so, and the web build can only open the card.
+
+It lives in `sharing.py` rather than in the web app for IOS_APP.md's first
+rule: every feature is an API before it is a screen, and a share sheet written
+twice is a share sheet that behaves differently on two clients.
+
+### Attaching two files told you to slow down
+
+`/api/attach` was paced with `_rate_limit`, the generation limiter. A search
+can carry several attachments and the interface invites them — so the second
+file was answered with *"Slow down a moment, then try again"*, from a button
+that had just asked for another one.
+
+This file already has the rule: pace what can spend a model call, and nothing
+else (`/api/audio` asks the cache before pacing at all). A document or a photo
+is read locally and spends nothing, so it takes the reader's limit. A **link**
+is an outbound fetch of whatever address was typed — the one thing on this
+endpoint somebody else pays for — and stays paced.
+
+### The interface work, and what was removed rather than fixed
+
+Two controls were deleted instead of repaired, on the standing rule that a
+control with nothing behind it is worse than no control:
+
+* **The Audio / Transcript toggle** in the share sheet only ever changed a word
+  in a toast. With sending made real — one row pointing at a question whose
+  script already exists — there is nothing behind "transcript" at all.
+* **Three invented contacts** with invented replies lived in `index.html`, and
+  "sent" was a toast over a push into a local variable. Messaging and the share
+  sheet's people row now read `/api/friends` and `/api/messages`, which have
+  existed and been tested since SHARING.md was written and were shown nowhere.
+  A social surface that fabricates people is the same failure as a profile that
+  fabricates numbers, and worse, because it says a message was sent when none
+  was.
+
+The rest, briefly: speed defaults to **1x** and is remembered across episodes,
+with 0.5x and 0.8x added — and `fam-audio.js` now **time-stretches** rather
+than resampling, so changing speed leaves the voice's pitch alone. The
+accounting above the stretcher is untouched, which is the point: WSOLA advances
+its read pointer by exactly `rate * sampleRate` per second of output, so
+`positionSamples`, seek, the scrub bar and `TAIL_MARGIN` all keep working
+without knowing it exists, and at exactly 1x it is bypassed entirely.
+
+`ECHO` is **VIBE!** in the interface, and an alias on the server: `/api/vibe`
+and `/api/echo` are one handler over one table, because a phone that has not
+updated is still calling the old one and a rename that breaks it turns a copy
+change into an outage. `data-echo` and the `echoed` class keep their names for
+the same reason — a hook renamed for a copy change is a button that quietly
+stops being found, which is the bug the attribute was introduced to fix.
+
+myFAM's rails end in a chevron until there is nothing left to scroll, and then
+in **View more**, which opens the whole of that section: the same ranking, at
+full length, with the tiles whose script is already written marked *ready* and
+sorted to the front. It generates nothing — the rail was showing six of
+something that already had twenty-eight — and `test_opening_a_section_costs_no_model_call`
+fails if that ever stops being true.
+
+**Still unheard and unseen on a real machine.** As with every entry in this
+log: there is no API key and no GPU here, so what is verified is that the
+checks pass, the twenty-six smoke behaviours pass, and the surfaces photograph
+correctly. Whether the pitch-preserved 1.5x *sounds* right needs a machine that
+can speak.

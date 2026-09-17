@@ -442,6 +442,10 @@ LIVE_SHIM = r"""
       name: person.name || "", handle: person.handle || "",
       joined: person.joined || 0, last_seen: person.last_seen || 0,
       known: !!person.id,
+      avatar: person.avatar || "",
+      // Nobody else is in this database, so the graph is honestly empty
+      // rather than seeded with people who do not exist.
+      follows: { following: 0, followers: 0, friends: 0 },
       echo_count: myEchoes.length,
       mixes: rows("mixes").filter(function (m) { return m.user_id === UID && m.public; })
         .map(shapeMix),
@@ -651,7 +655,12 @@ LIVE_SHIM = r"""
       var p = rows("people").filter(function (x) { return x.id === e.user_id; })[0];
       labels[e.query] = (p && p.name) || "Someone";
     });
-    var eps = rows("scripts").filter(function (s) { return s.expires > now(); })
+    var eps = rows("scripts")
+      // Other people's, and only other people's. An episode this listener
+      // generated is dropped from their own feed; one with no author - a
+      // warmed script, or a row written before this existed - belongs to
+      // everybody and stays.
+      .filter(function (s) { return s.expires > now() && s.author !== UID; })
       .sort(function (a, b) { return b.created - a.created; })
       .slice(0, limit || 30)
       .map(function (s) {
@@ -821,9 +830,19 @@ LIVE_SHIM = r"""
         return json({ error: "@" + hd + " is taken." }, 400);
       }
       var was = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
+      // `undefined` leaves the picture alone, "" removes it - the same two
+      // requests the real endpoint distinguishes, because a client that does
+      // not know about pictures must not delete one by renaming.
+      var pic = (body.avatar === undefined || body.avatar === null)
+        ? (was.avatar || "") : String(body.avatar);
+      if (pic && pic.slice(0, 11) !== "data:image/") {
+        return json({ error: "A profile picture has to be an image from your device." }, 400);
+      }
       return put("people", UID, {
-        name: nm, handle: hd, joined: was.joined || now(), last_seen: now()
-      }).then(function () { paint(); return json({ user_id: UID, name: nm, handle: hd }); });
+        name: nm, handle: hd, avatar: pic,
+        joined: was.joined || now(), last_seen: now()
+      }).then(function () { paint(); return json({ user_id: UID, name: nm,
+                                                   handle: hd, avatar: pic }); });
     }
 
     if (path === "/api/echo" && method === "DELETE") {
@@ -843,6 +862,72 @@ LIVE_SHIM = r"""
         user_id: UID, query: body.query, title: body.title || "",
         minutes: body.minutes || 3, thread: body.thread || "", at: now()
       }).then(function () { paint(); return json({ id: id, query: body.query, at: now() }); });
+    }
+
+    // `/api/vibe` is `/api/echo` under the product's name - one store, two
+    // paths, exactly as the server does it.
+    if (path === "/api/vibe") return handle("/api/echo", method, qs, body);
+    if (path === "/api/vibes") {
+      var mine = rows("echoes").filter(function (e) { return e.user_id === UID; })
+        .sort(function (a, b) { return b.at - a.at; });
+      var who = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
+      return json({ count: mine.length, vibes: mine.map(function (e) {
+        return { id: e.id, query: e.query, title: e.title, minutes: e.minutes,
+                 thread: e.thread || "", at: e.at,
+                 by: who.name || "", handle: who.handle || "" };
+      }) });
+    }
+
+    // ---- the follow graph and messages
+    //
+    // This database has exactly one listener in it - itself - so every one of
+    // these is honestly empty rather than seeded with people who do not
+    // exist. An empty friends list is a fact about this deployment; three
+    // invented contacts would be a claim about the world.
+    if (path === "/api/friends") {
+      return json({ following: [], followers: [], friends: [],
+                    counts: { following: 0, followers: 0, friends: 0 } });
+    }
+    if (path === "/api/people") return json({ people: [] });
+    if (path === "/api/friends/follow") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
+    }
+    if (path === "/api/messages" && method === "GET") {
+      return json({ threads: [], unread: 0 });
+    }
+    if (path === "/api/messages/thread") {
+      return json({ with: { user_id: qs.get("with") || "", name: "", handle: "" },
+                    messages: [] });
+    }
+    if (path === "/api/messages" && method === "POST") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
+    }
+
+    // ---- "View more": one rail, at full length
+    if (path === "/api/myfam/section") {
+      var wantKey = qs.get("key") || "most_played";
+      var sect = myfamBody().sections.filter(function (x) {
+        return x.key === wantKey; })[0];
+      if (!sect) return json({ error: "No such section." }, 404);
+      var taken = {};
+      sect.topics.forEach(function (x) { taken[x.id] = true; });
+      var mins = Number(qs.get("minutes") || 3);
+      // Genuinely cached, from this database's own script table - which is
+      // the point of the live preview: the badge means something here.
+      var all = sect.topics.concat(BANK.filter(function (x) { return !taken[x.id]; }))
+        .map(function (x) {
+          var copy = {}; for (var k in x) copy[k] = x[k];
+          copy.cached = rows("scripts").some(function (row) {
+            return row.query === x.query && row.minutes === mins
+                && row.expires > now();
+          });
+          return copy;
+        });
+      all.sort(function (a, b) { return (a.cached === b.cached) ? 0 : (a.cached ? -1 : 1); });
+      return json({ key: wantKey, title: sect.title, topics: all,
+                    ready: all.filter(function (x) { return x.cached; }).length,
+                    minutes: mins, empty_reason: "", personalised: true,
+                    algo: "live" });
     }
 
     // ---- preferences, the recap, and what plays next
@@ -1074,6 +1159,9 @@ LIVE_SHIM = r"""
       sentences: "(no model call in this build)",
       created: now(), expires: now() + 86400, hits: 1,
       thread: "what that changes next",
+      // Stamped on the write, from the listener whose tap paid for it - the
+      // same place the server does it. See cache.recent.
+      author: UID,
       // The two columns the near-match cache added. The vector is written
       // here, on the write, for the reason the whole design turns on: doing
       // it on the read would put work in front of the first word.
@@ -1427,6 +1515,11 @@ LIVE_SHIM = r"""
           query: t.query, minutes: 3, sentences: "(seeded — no model call)",
           created: now() - 3600 * (1 + j), expires: now() + 86400,
           hits: 1 + ((i + j) % 4), thread: "what that changes next",
+          // Whose episode it is. The seeded ones belong to the seeded
+          // listeners, which is what lets this preview show the real rule:
+          // Explore is *other people's*, so an episode generated here drops
+          // off this listener's own feed and the seeded ones stay.
+          author: p[0],
           bucket: "m3:hashing:" + DIMS, vector: embed(normalize(t.query))
         }));
       });

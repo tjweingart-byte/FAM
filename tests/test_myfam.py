@@ -512,3 +512,57 @@ def test_impressions_still_say_nothing_about_taste(store):
     assert T.taste(store.for_user("u"), now) == {}, (
         "being shown a tile taught the feed a preference")
     assert T.IMPRESSION not in T.EVENT_WEIGHT
+
+
+# --- "View more": one rail, in full ---------------------------------------
+#
+# The rail shows six of a bank that holds ~28. The screen behind it shows the
+# rest of the same ranking, and generates nothing to do it - which is the
+# whole answer to "fill a screen without making episodes nobody asked for".
+
+
+def test_a_section_opens_at_full_length_in_the_rails_own_order(client):
+    rail = [t["id"] for s in client.get("/api/myfam").json()["sections"]
+            if s["key"] == "most_played" for t in s["topics"]]
+    full = client.get("/api/myfam/section?key=most_played").json()
+    assert len(full["topics"]) > len(rail), "view more showed no more"
+    # Everything the rail offered is still on the screen behind it. Order is
+    # not asserted: the screen leads with what is already written.
+    assert set(rail) <= {t["id"] for t in full["topics"]}
+
+
+def test_an_unknown_section_is_a_404_not_an_empty_screen(client):
+    assert client.get("/api/myfam/section?key=nonsense").status_code == 404
+
+
+def test_the_ready_ones_come_first_and_are_counted(client):
+    import app as appmod
+    import topics as topics_mod
+
+    # Write the script for one bank topic, as another listener, at the length
+    # the screen is asking for.
+    topic = topics_mod.TOPIC_BANK[3]
+    plan = appmod._validated_plan(topic.query, 3)
+    appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
+                            topic.query, "", 3, "", "", "someone-else")
+
+    body = client.get("/api/myfam/section?key=most_played&minutes=3").json()
+    ready = [t for t in body["topics"] if t["cached"]]
+    assert [t["id"] for t in ready] == [topic.id]
+    assert body["ready"] == 1
+    assert body["topics"][0]["id"] == topic.id, "a ready tile was not put first"
+    # And at a length nothing was written for, nothing claims to be ready.
+    other = client.get("/api/myfam/section?key=most_played&minutes=7").json()
+    assert other["ready"] == 0
+
+
+def test_opening_a_section_costs_no_model_call(client, monkeypatch):
+    """It reorders a fixed bank. If this ever needs a generator, the "view
+    more" screen has stopped being free and the rail should say so."""
+    import app as appmod
+
+    def explode(*args, **kwargs):
+        raise AssertionError("a browse screen tried to build a pipeline")
+
+    monkeypatch.setattr(appmod, "_make_pipeline", explode)
+    assert client.get("/api/myfam/section?key=might_like").status_code == 200

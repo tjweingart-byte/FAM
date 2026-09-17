@@ -33,7 +33,7 @@ def metered(tmp_path, monkeypatch):
     monkeypatch.setattr(appmod, "DEMO_MODE", False)
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=FakeGenerator(), engine=DebugEngine(), cache=None, voice=voice))
     return TestClient(appmod.app), store
 
@@ -160,7 +160,7 @@ def test_a_failed_episode_is_still_recorded(metered, monkeypatch):
 
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=DiesAfterResearch(), engine=DebugEngine(), cache=None))
     assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm").status_code == 502
     rows = store.rows()

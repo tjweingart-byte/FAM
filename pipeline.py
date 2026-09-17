@@ -282,6 +282,7 @@ class PodcastPipeline:
         cache: ScriptCache | None | str = AUTO,
         voice: Optional[str] = None,
         cache_writes: bool = True,
+        author: str = "",
     ):
         """`cache` takes a store, or AUTO to build the configured one, or None
         to disable caching.
@@ -306,6 +307,16 @@ class PodcastPipeline:
         #: Passed to the engine on every sentence. The script is unaffected by
         #: it, which is why the script cache deliberately ignores voice.
         self.voice = voice
+        #: Who is paying for this episode, stamped on anything written to the
+        #: shared cache so Explore can leave them out of their own feed.
+        #:
+        #: **Deliberately not on `EpisodePlan`.** The plan is what an episode
+        #: *is*, and `key_for` is built from it: a listener id there would be
+        #: one field away from becoming part of the key, which would give
+        #: every listener their own cache and throw away the shared-cost
+        #: design the whole app rests on. It is a property of the request, so
+        #: it lives on the thing built per request.
+        self.author = author
 
     def _start(self, sentences: AsyncIterator[str],
                marks: Optional[EpisodeMarks] = None,
@@ -1145,7 +1156,7 @@ class PodcastPipeline:
                 if notes.provenance is not None:
                     sources = notes.provenance.to_json()
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                               plan.minutes, bucket, sources)
+                               plan.minutes, bucket, sources, self.author)
                 log.info("cached %d sentences for %r (ttl %ds)",
                          len(stats.script), plan.query, ttl)
             else:

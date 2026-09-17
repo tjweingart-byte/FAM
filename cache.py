@@ -403,7 +403,7 @@ class ScriptCache(Protocol):
     def get(self, key: str) -> Optional[list[str]]: ...
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
-        minutes: int = 0, bucket: str = "", sources: str = ""
+        minutes: int = 0, bucket: str = "", sources: str = "", author: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -416,7 +416,10 @@ class ScriptCache(Protocol):
     #: showed a full list. See `provenance.py`.
     def sources(self, key: str) -> str: ...
     #: Live entries, newest first. Explore replays these and never generates.
-    def recent(self, limit: int = 40) -> list[dict]: ...
+    #: `exclude_author` drops entries this listener generated themselves -
+    #: Explore is other people's episodes, and your own coming back at you
+    #: reads as the app having nothing rather than as a feature.
+    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]: ...
     #: The closest *near* match in the same bucket, or None. Only consulted
     #: after an exact lookup has already missed.
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
@@ -427,6 +430,11 @@ class MemoryScriptCache:
 
     def __init__(self) -> None:
         self._data: dict[str, tuple[float, list[str], str, str, int]] = {}
+        #: key -> the listener who first generated it. Beside the tuple for
+        #: the same reason `_sources` is: the shape the tests assert on stays
+        #: unchanged. "" for anything written with no listener behind it -
+        #: prefetch, a tool, a test - which is shown to everybody.
+        self._authors: dict[str, str] = {}
         #: key -> provenance JSON. Beside the tuple rather than in it, so the
         #: shape the existing tests assert on is unchanged.
         self._sources: dict[str, str] = {}
@@ -446,11 +454,16 @@ class MemoryScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
+        author: str = ""
     ) -> None:
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
         if sources:
             self._sources[key] = sources
+        # First writer only. A second listener asking the same question is
+        # served from this entry and never rewrites it, so authorship stays
+        # "who paid for this" rather than "who asked most recently".
+        self._authors.setdefault(key, author or "")
         if bucket and query:
             self._vectors[key] = (bucket, embeddings.pack(embeddings.embed(normalize_query(query))))
 
@@ -465,12 +478,13 @@ class MemoryScriptCache:
         ]
         return best_match(query, rows)
 
-    def recent(self, limit: int = 40) -> list[dict]:
+    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
             {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
              "plays": 0, "thread": v[2]}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
+            and not (exclude_author and self._authors.get(k) == exclude_author)
         ]
         live.sort(key=lambda e: -e["created"])
         return live[:limit]
@@ -535,6 +549,17 @@ class SqliteScriptCache:
                 # Provenance, beside the script for the same reason `thread`
                 # is: a replayed episode has no `notes` to rebuild it from.
                 ("sources", "ALTER TABLE scripts ADD COLUMN sources TEXT NOT NULL DEFAULT ''"),
+                # Who generated it first. Explore is *other people's*
+                # episodes, and without this the shared cache cannot tell
+                # whose is whose - so a listener's own questions came back to
+                # them in a feed whose whole premise is that they did not.
+                #
+                # It is provenance, never identity: nothing about the key or
+                # the bucket reads it, so two listeners asking the same
+                # question still share one script and one cost. Rows written
+                # before this migration have no author and are shown to
+                # everybody, which is what they were already doing.
+                ("author", "ALTER TABLE scripts ADD COLUMN author TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -574,7 +599,8 @@ class SqliteScriptCache:
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
-        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = ""
+        thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
+        author: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -592,13 +618,26 @@ class SqliteScriptCache:
             vector = None
             if bucket and query:
                 vector = embeddings.pack(embeddings.embed(normalize_query(query)))
+            # `COALESCE` on the existing author rather than the new one:
+            # a re-write of a live entry (a longer TTL, fresher sources) must
+            # not hand authorship to whoever happened to trigger it. Only a
+            # row that has none takes one.
             self._conn().execute(
-                "INSERT OR REPLACE INTO scripts"
+                "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector, sources)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+                "  bucket, vector, sources, author)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET"
+                "  expires = excluded.expires, created = excluded.created,"
+                "  query = excluded.query, sentences = excluded.sentences,"
+                "  thread = excluded.thread, minutes = excluded.minutes,"
+                "  bucket = excluded.bucket, vector = excluded.vector,"
+                "  sources = excluded.sources,"
+                "  author = CASE WHEN scripts.author != '' THEN scripts.author"
+                "                ELSE excluded.author END",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
-                 thread[:200], int(minutes), bucket, vector, sources or ""),
+                 thread[:200], int(minutes), bucket, vector, sources or "",
+                 (author or "")[:64]),
             )
         except Exception:
             log.exception("script cache write failed; continuing")
@@ -660,7 +699,7 @@ class SqliteScriptCache:
             log.exception("script cache thread read failed")
             return ""
 
-    def recent(self, limit: int = 40) -> list[dict]:
+    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         """Live cache entries, newest first - the raw material for Explore.
 
         Only *shareable* queries are ever written here (see `is_shareable`),
@@ -671,13 +710,21 @@ class SqliteScriptCache:
         Entries with no recorded duration are skipped rather than guessed at: a
         script written for one minute replayed as a five-minute episode would
         be padded with silence.
+
+        `exclude_author` is the Explore rule: the feed is what *other people*
+        have already generated, so a listener's own episodes are dropped from
+        their own. It is a filter on display and never on storage - the entry
+        stays in the shared cache, still serves them an instant replay, and
+        still appears on everybody else's feed.
         """
         try:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, hits, thread FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
+                "   AND (? = '' OR author != ?)"
                 " ORDER BY created DESC LIMIT ?",
-                (time.time(), int(limit)),
+                (time.time(), exclude_author or "", exclude_author or "",
+                 int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read recent scripts")

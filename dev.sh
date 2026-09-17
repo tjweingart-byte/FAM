@@ -36,6 +36,17 @@ if [ "$MODE" != "preview" ]; then
 
   step "Interface is styled"
   $PY tools/check_css.py
+
+  # Speed without pitch. Needs node, and announces itself when it is missing
+  # rather than passing in silence - the two properties it checks are exactly
+  # the two that fail without anything erroring.
+  step "Speed leaves the voice alone"
+  if command -v node >/dev/null 2>&1; then
+    node tools/check_stretch.js
+  else
+    printf '  \033[1mSKIPPED: node is missing, so the time-stretcher was not checked.\033[0m\n'
+    printf '  Nothing verified that changing speed still leaves the pitch alone.\n'
+  fi
 fi
 
 step "Phone preview"

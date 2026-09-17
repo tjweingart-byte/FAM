@@ -565,6 +565,10 @@ class Prefetcher:
                 log.info("prefetch wrote nothing for %r: it does not keep",
                          candidate.query)
                 return "volatile"
+            # No author, deliberately. A warmed script was nobody's tap, so
+            # it belongs to everybody: stamping the listener it was guessed
+            # for would hide it from the one Explore feed most likely to want
+            # it. See `cache.recent`.
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
                            self._bucket(plan))

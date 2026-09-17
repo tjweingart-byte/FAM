@@ -51,9 +51,14 @@
      how long - the line underneath does that honestly. */
   .fam-loading{
     position:absolute; inset:0; z-index:60; border-radius:34px;
+    /* `--bg`, not the near-black the phone shell is drawn in. This screen
+       covers the app, so anything other than the app's own background makes
+       the whole interface appear to change colour for the length of the wait
+       - which is exactly what it looked like. The copper wash and the darker
+       edge keep it distinct without leaving the palette. */
     background:
-      radial-gradient(420px 300px at 50% 42%, rgba(224,181,99,0.10), transparent 70%),
-      #0A0912;
+      radial-gradient(420px 300px at 50% 42%, rgba(224,181,99,0.14), transparent 70%),
+      radial-gradient(150% 100% at 50% 50%, var(--bg) 40%, var(--page-bg) 100%);
     display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px;
     padding:0 32px; text-align:center;
   }

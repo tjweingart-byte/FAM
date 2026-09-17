@@ -59,6 +59,7 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import quote
 
 from paths import data_path
 
@@ -97,6 +98,20 @@ class Target:
     template: str
     #: Only used where the platform has a subject line of its own.
     subject: str = ""
+    #: Where to actually send the person, with `{text}`, `{subject}` and
+    #: `{url}` substituted and percent-encoded.
+    #:
+    #: **This is a hand-off, not a post.** Every one of these opens the
+    #: platform - its app on a phone, its web composer otherwise - with the
+    #: wording already filled in and a human looking at it. FAM still holds no
+    #: token and still posts nothing; see the module docstring.
+    #:
+    #: It lives here rather than in the web app because IOS_APP.md's first
+    #: rule is that every feature is an API before it is a screen: a share
+    #: sheet written twice is a share sheet that behaves differently on two
+    #: clients. Empty means the destination has no URL that works - the two
+    #: stories, which take the card, and `copy`, which is the clipboard.
+    destination: str = ""
 
 
 #: The house voice for a share, per destination. These are **defaults the
@@ -110,25 +125,45 @@ class Target:
 TARGETS: tuple[Target, ...] = (
     Target("copy", "Copy link", "copy", 0, False,
            "{title} - a {minutes}-minute FAM episode: {url}"),
-    Target("sms", "Message", "message", 0, False,
-           "Listen to this - {title}. About {minutes} minutes: {url}"),
+    # `sms:` with a body is what opens Messages - iMessage on an iPhone, the
+    # SMS app anywhere else. The `&` after the empty recipient is not a typo:
+    # iOS only parses the body parameter in that form.
+    Target("sms", "iMessage", "message", 0, False,
+           "Listen to this - {title}. About {minutes} minutes: {url}",
+           destination="sms:&body={text}"),
+    # `mailto:` rather than a Gmail web URL. It reaches whichever mail app the
+    # person actually uses - Gmail included - where mail.google.com/compose
+    # would send an Outlook user somewhere they cannot send from.
     Target("email", "Email", "message", 0, False,
            "I asked FAM \"{question}\" and it made a {minutes}-minute episode "
            "answering it.\n\nHave a listen: {url}",
-           subject="{title}"),
+           subject="{title}",
+           destination="mailto:?subject={subject}&body={text}"),
     Target("whatsapp", "WhatsApp", "message", 0, False,
-           "Listen to this - {title}. About {minutes} minutes: {url}"),
+           "Listen to this - {title}. About {minutes} minutes: {url}",
+           destination="https://wa.me/?text={text}"),
     # 280 including the URL, which platforms shorten to a fixed length; the
     # template is kept well under so an edited version still fits.
     Target("x", "X", "link", 240, False,
-           "{question}\n\nFAM made me a {minutes}-minute episode on it. {url}"),
+           "{question}\n\nFAM made me a {minutes}-minute episode on it. {url}",
+           destination="https://x.com/intent/post?text={text}"),
     Target("facebook", "Facebook", "link", 0, False,
-           "I asked FAM \"{question}\" - here is the {minutes}-minute answer. {url}"),
+           "I asked FAM \"{question}\" - here is the {minutes}-minute answer. {url}",
+           destination="https://www.facebook.com/sharer/sharer.php?u={url}"),
     # Long-form by convention, and the one place a share reads as a post rather
     # than a message, so the template leaves an obvious place to add a thought.
+    # LinkedIn takes only the URL and then reads the page for its own preview,
+    # so the composed text goes to the clipboard alongside rather than into
+    # the query string, where it would be dropped in silence.
     Target("linkedin", "LinkedIn", "link", 2800, False,
            "\"{question}\"\n\nFAM turned that into a {minutes}-minute briefing. "
-           "Worth a listen if you have been wondering the same thing.\n\n{url}"),
+           "Worth a listen if you have been wondering the same thing.\n\n{url}",
+           destination="https://www.linkedin.com/feed/?shareActive=true&shareUrl={url}"),
+    # No `destination` for either, and that is not an omission. A story is an
+    # image handed to the platform's own SDK - `instagram-stories://share` and
+    # Snapchat's Creative Kit - which takes the picture and the sticker link
+    # as data, not as a URL. A web build can only open the card; the iOS app
+    # does the hand-off. `needs_image` is what tells a client which it is.
     Target("instagram_story", "Instagram story", "story", 0, True,
            "{title}"),
     Target("snapchat_story", "Snapchat story", "story", 0, True,
@@ -173,15 +208,38 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
         else:
             keep = keep.rsplit(" ", 1)[0] + "…"
         text = keep
+    subject = chosen.subject.format(**values) if chosen.subject else ""
     return {
         "target": chosen.key,
         "label": chosen.label,
         "kind": chosen.kind,
         "needs_image": chosen.needs_image,
         "text": text,
-        "subject": chosen.subject.format(**values) if chosen.subject else "",
+        "subject": subject,
         "url": values["url"],
+        # Where to send them. Composed here so both clients open the same
+        # place with the same wording - see `Target.destination`.
+        "destination": destination_for(chosen, text=text, subject=subject,
+                                       url=values["url"]),
     }
+
+
+def destination_for(chosen: Target, *, text: str, subject: str,
+                    url: str) -> str:
+    """The hand-off URL for one rendered share, or "" where there is none.
+
+    Every substituted value is percent-encoded, including into `mailto:` and
+    `sms:` bodies: a question with an `&` in it truncates the body everywhere
+    it is not, and a share that arrives half-written reads as a broken app
+    rather than as a punctuation problem.
+    """
+    if not chosen.destination:
+        return ""
+    return chosen.destination.format(
+        text=quote(text, safe=""),
+        subject=quote(subject, safe=""),
+        url=quote(url, safe=""),
+    )
 
 
 # --- the story card -------------------------------------------------------

@@ -192,6 +192,10 @@ def load_fixtures() -> dict:
             "name": "Ian Solomon", "handle": "iansolomon",
             "joined": _time.time() - 63 * 86400,
             "echo_count": 7,
+            # The picture and the follow graph the profile now draws. Both
+            # come from the server in the real app - see social.py.
+            "avatar": "",
+            "follows": {"following": 3, "followers": 2, "friends": 2},
             "mixes": [
                 {"id": "m1", "name": "Morning Run", "public": True,
                  "items": [{"id": "x"}] * 14, "topics": [], "topic_ids": [],
@@ -342,6 +346,77 @@ SHIM = """
     }));
   }
 
+  /* The people this preview knows. Three of them, and they are *labelled* as
+     a preview rather than presented as a contact list: the real app reads
+     `/api/friends`, and this stands in for it so the flow can be walked on a
+     phone. */
+  var PEOPLE = {
+    all: [
+      { user_id: "u_beth", name: "Beth Solomon", handle: "beth" },
+      { user_id: "u_mike", name: "Mike Solomon", handle: "mike" },
+      { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" }
+    ],
+    following: ["u_beth", "u_mike", "u_rachel"],
+    followers: ["u_beth", "u_rachel"],
+    vibes: [
+      { id: 1, query: "why the strait of hormuz moves the oil price",
+        title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
+        thread: "", at: 0, by: "You", handle: "you" },
+      { id: 2, query: "what the Federal Reserve is likely to do about interest rates",
+        title: "The Fed's Next Move, Explained", minutes: 3,
+        thread: "", at: 0, by: "You", handle: "you" }
+    ],
+    threads: {
+      u_beth: [
+        { id: 1, thread: "u_beth", mine: true, kind: "episode", text: "",
+          query: "how reusable rockets changed the economics of spaceflight",
+          minutes: 5, title: "Inside the New Space Race", at: 0 },
+        { id: 2, thread: "u_beth", mine: false, kind: "text",
+          text: "didn't realize they scrubbed this launch twice before it flew",
+          query: "", minutes: 0, title: "", at: 0 }
+      ],
+      u_mike: [
+        { id: 3, thread: "u_mike", mine: true, kind: "episode", text: "",
+          query: "who actually makes the world's chips", minutes: 3,
+          title: "Who Actually Makes the World's Chips", at: 0 },
+        { id: 4, thread: "u_mike", mine: false, kind: "text",
+          text: "Just listened — explains a lot about why the stock moved",
+          query: "", minutes: 0, title: "", at: 0 }
+      ]
+    },
+    byId: function (id) {
+      return this.all.filter(function (p) { return p.user_id === id; })[0];
+    },
+    graph: function () {
+      var self = this;
+      var pick = function (ids) {
+        return ids.map(function (id) { return self.byId(id); })
+                  .filter(Boolean)
+                  .map(function (p) {
+                    return { user_id: p.user_id, name: p.name,
+                             handle: p.handle, avatar: "", at: 0 };
+                  });
+      };
+      var friends = this.following.filter(function (id) {
+        return self.followers.indexOf(id) !== -1; });
+      return { following: pick(this.following), followers: pick(this.followers),
+               friends: pick(friends),
+               counts: { following: this.following.length,
+                         followers: this.followers.length,
+                         friends: friends.length } };
+    },
+    inbox: function () {
+      var self = this;
+      var rows = Object.keys(this.threads).map(function (id) {
+        var msgs = self.threads[id];
+        var who = self.byId(id) || { name: "Someone", handle: "" };
+        return { thread: id, with: id, name: who.name, handle: who.handle,
+                 last: msgs[msgs.length - 1], unread: 0 };
+      });
+      return { threads: rows, unread: 0 };
+    }
+  };
+
   window.fetch = function (input, init) {
     var url = typeof input === "string" ? input : (input && input.url) || "";
     if (url.indexOf("/api/") === -1) return realFetch(input, init);
@@ -398,6 +473,107 @@ SHIM = """
     if (path === "/api/recap/seen") {
       FIXTURES["/api/recap"].due = false;
       return json({ ok: true });
+    }
+    // --- people, messages and vibes -----------------------------------
+    // The prototype used to hold three invented contacts in the page itself.
+    // They are server data now, so the preview has to stand in for the
+    // server - the flow being looked at on a phone is "find someone, send
+    // them an episode, see it in the thread", and a fixture that never
+    // changed would show the first frame of it and stop.
+    if (path === "/api/me" && method === "POST") {
+      var who = JSON.parse((init && init.body) || "{}");
+      var mine = FIXTURES["/api/profile"];
+      if (who.name) mine.name = who.name;
+      if (who.handle) mine.handle = who.handle;
+      if (who.avatar !== undefined && who.avatar !== null) mine.avatar = who.avatar;
+      return json(mine);
+    }
+    if (path === "/api/friends") return json(PEOPLE.graph());
+    if (path === "/api/people") {
+      var term = (qs.get("q") || "").toLowerCase();
+      return json({ people: PEOPLE.all.filter(function (p) {
+        return term.length >= 2 &&
+          (p.handle.indexOf(term) === 0 || p.name.toLowerCase().indexOf(term) !== -1);
+      }).map(function (p) {
+        return { user_id: p.user_id, name: p.name, handle: p.handle,
+                 avatar: "", following: PEOPLE.following.indexOf(p.user_id) !== -1 };
+      }) });
+    }
+    if (path === "/api/friends/follow" && method === "POST") {
+      var who = JSON.parse((init && init.body) || "{}").user_id;
+      if (who && PEOPLE.following.indexOf(who) === -1) PEOPLE.following.push(who);
+      return json({ ok: true, counts: PEOPLE.graph().counts });
+    }
+    if (path === "/api/friends/follow" && method === "DELETE") {
+      var drop = PEOPLE.following.indexOf(qs.get("user_id"));
+      if (drop !== -1) PEOPLE.following.splice(drop, 1);
+      return json({ ok: true, counts: PEOPLE.graph().counts });
+    }
+    if (path === "/api/messages" && method === "GET") return json(PEOPLE.inbox());
+    if (path === "/api/messages/thread") {
+      var withId = qs.get("with") || "";
+      return json({
+        with: PEOPLE.byId(withId) || { user_id: withId, name: "Someone", handle: "" },
+        messages: (PEOPLE.threads[withId] || []).slice()
+      });
+    }
+    if (path === "/api/messages" && method === "POST") {
+      var sent = JSON.parse((init && init.body) || "{}");
+      var to = sent.to || "";
+      if (!PEOPLE.threads[to]) PEOPLE.threads[to] = [];
+      PEOPLE.threads[to].push({
+        id: PEOPLE.threads[to].length + 1, thread: to, mine: true,
+        kind: sent.query ? "episode" : "text", text: sent.text || "",
+        query: sent.query || "", minutes: sent.minutes || 3,
+        title: sent.title || "", at: Date.now() / 1000
+      });
+      return json({ ok: true });
+    }
+    if (path === "/api/vibes") {
+      return json({ vibes: PEOPLE.vibes, count: PEOPLE.vibes.length });
+    }
+    if (path === "/api/vibe" || path === "/api/echo") {
+      var vibeBody = method === "POST"
+        ? JSON.parse((init && init.body) || "{}")
+        : { query: qs.get("q"), minutes: Number(qs.get("minutes") || 3) };
+      if (method === "DELETE") {
+        PEOPLE.vibes = PEOPLE.vibes.filter(function (v) {
+          return v.query !== vibeBody.query; });
+        return json({ ok: true });
+      }
+      PEOPLE.vibes.unshift({
+        id: PEOPLE.vibes.length + 1, query: vibeBody.query,
+        title: vibeBody.title || vibeBody.query, minutes: vibeBody.minutes || 3,
+        thread: "", at: Date.now() / 1000, by: "You", handle: "you"
+      });
+      return json(PEOPLE.vibes[0]);
+    }
+    // "View more" on a rail. The real endpoint reorders the same bank the
+    // feed does and marks what is already written; here the bank is the
+    // fixture, and a few are marked ready so the ordering and the badge can
+    // be looked at on a phone.
+    if (path === "/api/myfam/section") {
+      var wantKey = qs.get("key") || "most_played";
+      var section = FIXTURES["/api/myfam"].sections.filter(function (s) {
+        return s.key === wantKey; })[0];
+      if (!section) return json({ error: "No such section." }, 404);
+      var seen = {};
+      section.topics.forEach(function (t) { seen[t.id] = true; });
+      var rest = FIXTURES["/api/topics"].topics.filter(function (t) {
+        return !seen[t.id]; });
+      var all = section.topics.concat(rest).map(function (t, i) {
+        var copy = {}; for (var k in t) copy[k] = t[k];
+        copy.cached = (i % 3 === 0);
+        return copy;
+      });
+      all.sort(function (a, b) { return (a.cached === b.cached) ? 0 : (a.cached ? -1 : 1); });
+      return json({
+        key: wantKey, title: section.title, topics: all,
+        ready: all.filter(function (t) { return t.cached; }).length,
+        minutes: Number(qs.get("minutes") || 3),
+        empty_reason: "", personalised: true,
+        algo: "preview"
+      });
     }
     if (path === "/api/mixes" && method === "GET") return json(mixes);
     if (path === "/api/mixes" && method === "POST") {

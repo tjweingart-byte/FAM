@@ -23,7 +23,7 @@ asserts it mentions neither provenance nor hostnames.
 
 ## The shape
 
-    Attribution(label, kind, tier, at, title, private)
+    Attribution(label, kind, tier, at, title, private, url)
     Provenance(items, retrievers)
 
 `kind` is `article`, `live` or `attachment` — they are different claims and a
@@ -31,6 +31,29 @@ listener weighs them differently. `retrievers` is which *indexes* were
 consulted, carried separately from which *outlets* published, because "two
 indexes agreed" is a different claim from "two newspapers agreed" and
 collapsing them would overstate the corroboration.
+
+`url` is where to read it, and only an article ever has one — a live provider
+is a feed rather than a page, and an attachment is a file on the listener's own
+device. It is the same fact `label` already carries, made tappable: `label`
+stays a hostname because that is what gets *shown*. It changes nothing about
+the rule above — nothing here reaches `build_prompt`, and the test that reads
+it is unchanged.
+
+## In the interface: a strip, then a popup
+
+Under the player is a strip of publisher marks and a count. Tapping it opens
+the list: the headline, the outlet, its grade and date, and a way to open it.
+
+**The marks are drawn, not fetched.** An episode's source list is a list of
+what somebody just listened to, so pinging five publishers to decorate it
+would tell each of them that — for every episode, whether or not anyone ever
+looked. The mark is two letters of the hostname on a colour hashed from it, so
+one publisher is the same colour every time and nothing leaves the device.
+
+The publisher's own icon is loaded **inside the popup only**, which opens when
+the listener has asked to see the sources, and with `referrerpolicy="no-referrer"`
+so the request says nothing about which episode it was for. A failure leaves
+the drawn mark it was laid over, so a row is never a broken image.
 
 ## What is private
 

@@ -17,6 +17,7 @@
  *   FamAudio.skip(seconds)          - relative, negative to go back
  *   FamAudio.seek(seconds)          - absolute
  *   FamAudio.setRate(multiplier)    - 1 = normal, 1.5 = half again as fast
+ *   FamAudio.setPitchLock(bool)     - keep the voice's pitch when speed changes
  *   FamAudio.position() / duration() / isActive()
  */
 window.FamAudio = (function () {
@@ -49,6 +50,59 @@ window.FamAudio = (function () {
   var ended = false;
   var active = false;
 
+  /* ---- Speed without pitch -------------------------------------------
+   *
+   * `playbackRate` on a buffer source resamples: 1.5x speech comes back a
+   * fifth higher, which on a voice this app spent a year choosing is the
+   * wrong trade. So above 1x and below it, the samples are time-stretched
+   * instead - WSOLA, the standard overlap-add with the next frame nudged to
+   * wherever it correlates best, which is what keeps a vowel from doubling
+   * and a consonant from stuttering.
+   *
+   * It is switchable, and 1x costs nothing: at exactly normal speed the
+   * stretcher is bypassed and the samples are scheduled as they always were.
+   *
+   * The accounting below is unchanged and that is the point. One second of
+   * wall clock still consumes `rate * sampleRate` source samples - WSOLA
+   * advances its read pointer by exactly that - so `positionSamples`, seek,
+   * the scrub bar and TAIL_MARGIN all keep working without knowing this
+   * exists. The only difference is that the buffer handed to Web Audio is
+   * already the right length, so the node itself plays at 1.
+   */
+  var pitchLock = true;
+  //: Analysis/synthesis frame, about 46ms at 22.05kHz. Long enough to hold a
+  //: pitch period of any adult voice, short enough not to smear a plosive.
+  var FRAME = 1024;
+  var HOP = FRAME >> 1;
+  //: How far WSOLA may slide a frame to find the best splice, and how coarse
+  //: the search is. Both are a deliberate quality-for-CPU trade: a full
+  //: sample-by-sample search over the whole overlap is ~20x this work for a
+  //: difference nobody has reported hearing, and this runs on a phone on the
+  //: main thread while an episode is still downloading.
+  var SEEK_RADIUS = 160;
+  var SEEK_STEP = 4;
+  var CORR_STEP = 4;
+  //: Hann window, built once. Rebuilt never: FRAME is a constant.
+  var WINDOW = (function () {
+    var w = new Float32Array(FRAME);
+    for (var i = 0; i < FRAME; i++) {
+      w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FRAME);
+    }
+    return w;
+  })();
+  //: The half-frame carried from the last overlap-add, the fractional read
+  //: position, and where the previous frame was actually taken from. Cleared
+  //: on every seek and every rate change, because both invalidate the splice.
+  var olaTail = null;
+  var olaRead = 0;
+  var olaPrev = 0;
+
+  function resetStretch(fromSample) {
+    olaTail = null;
+    olaRead = fromSample;
+    olaPrev = fromSample;
+  }
+
   function reset() {
     if (timer) { clearInterval(timer); timer = null; }
     if (controller) { try { controller.abort(); } catch (e) {} controller = null; }
@@ -56,6 +110,7 @@ window.FamAudio = (function () {
     if (ctx) { var c = ctx; ctx = null; c.close().catch(function () {}); }
     pcm = null; totalSamples = 0; cursor = 0; playHead = 0;
     streamDone = false; ended = false; active = false; rate = 1;
+    resetStretch(0);
   }
 
   function stopSources() {
@@ -84,23 +139,106 @@ window.FamAudio = (function () {
     return Math.max(0, cursor - aheadSeconds * rate * sampleRate);
   }
 
+  /* Whether the stretcher is doing anything. At 1x it is not, and the old
+     path runs exactly as it did - which is also what makes this safe to
+     switch off. */
+  function stretching() {
+    return pitchLock && Math.abs(rate - 1) > 0.01;
+  }
+
+  /* Where the next frame reads best from, within SEEK_RADIUS of where the
+     clock says it should. The template is the source that would have followed
+     the previous frame had we not skipped ahead, so the splice is chosen to
+     continue the waveform rather than to land on a grid. */
+  function bestOffset(want) {
+    var template = olaPrev + HOP;
+    var best = want, bestScore = -Infinity;
+    var lo = Math.max(0, want - SEEK_RADIUS);
+    var hi = Math.min(totalSamples - FRAME, want + SEEK_RADIUS);
+    if (template + HOP > totalSamples || hi < lo) return Math.max(0, Math.min(want, hi));
+    for (var at = lo; at <= hi; at += SEEK_STEP) {
+      var score = 0;
+      for (var i = 0; i < HOP; i += CORR_STEP) {
+        score += pcm[template + i] * pcm[at + i];
+      }
+      if (score > bestScore) { bestScore = score; best = at; }
+    }
+    return best;
+  }
+
+  /* One block of time-stretched output, or null when there is not enough
+     source to make one yet. Advances `cursor` by the source it consumed, so
+     everything above this function keeps counting in source samples. */
+  function stretchedBlock() {
+    var frames = Math.max(1, Math.round(SLICE * sampleRate / HOP));
+    var out = new Float32Array(frames * HOP);
+    var step = HOP * rate;          // source consumed per synthesis hop
+    var wrote = 0;
+
+    for (var f = 0; f < frames; f++) {
+      var want = Math.round(olaRead);
+      var take = want, pad = false;
+      if (want + FRAME > totalSamples) {
+        // Not enough source for a whole frame. Mid-stream that means wait;
+        // at the end of the episode it means finish on what is left, zero
+        // padded, rather than clipping the last word.
+        if (!streamDone) break;
+        if (want >= totalSamples) break;
+        pad = true;
+      } else {
+        take = bestOffset(want);
+      }
+
+      var head = olaTail || new Float32Array(HOP);
+      var tail = new Float32Array(HOP);
+      for (var i = 0; i < FRAME; i++) {
+        var at = take + i;
+        var sample = at < totalSamples ? (pcm[at] / 32768) * WINDOW[i] : 0;
+        if (i < HOP) { head[i] += sample; } else { tail[i - HOP] = sample; }
+      }
+      out.set(head, wrote);
+      wrote += HOP;
+      olaTail = tail;
+      olaPrev = take;
+      olaRead += step;
+      if (pad) { olaRead = totalSamples; break; }
+    }
+
+    if (!wrote) return null;
+    var buf = ctx.createBuffer(1, wrote, sampleRate);
+    buf.getChannelData(0).set(out.subarray(0, wrote));
+    cursor = Math.max(cursor, Math.min(totalSamples, Math.round(olaRead)));
+    return buf;
+  }
+
+  /* One block of plain output: the samples as they are, played by the node at
+     `rate`. What this did before the stretcher existed. */
+  function plainBlock() {
+    var end = Math.min(cursor + Math.floor(SLICE * sampleRate), totalSamples);
+    var length = end - cursor;
+    if (length <= 0) return null;
+    var buf = ctx.createBuffer(1, length, sampleRate);
+    var out = buf.getChannelData(0);
+    for (var i = 0; i < length; i++) out[i] = pcm[cursor + i] / 32768;
+    cursor = end;
+    return buf;
+  }
+
   /* Keep the clock fed. Runs on a timer so it also picks up newly arrived
      audio after the buffer has run dry. */
   function tick() {
     if (!ctx || !active) return;
 
     while (playHead - ctx.currentTime < LOOKAHEAD && cursor < totalSamples) {
-      var end = Math.min(cursor + Math.floor(SLICE * sampleRate), totalSamples);
-      var length = end - cursor;
-      if (length <= 0) break;
-
-      var buf = ctx.createBuffer(1, length, sampleRate);
-      var out = buf.getChannelData(0);
-      for (var i = 0; i < length; i++) out[i] = pcm[cursor + i] / 32768;
+      var stretch = stretching();
+      var buf = stretch ? stretchedBlock() : plainBlock();
+      if (!buf) break;
 
       var src = ctx.createBufferSource();
       src.buffer = buf;
-      src.playbackRate.value = rate;
+      // Already the right length when stretched, so the node plays it
+      // straight; resampled by the node otherwise.
+      src.playbackRate.value = stretch ? 1 : rate;
       src.connect(ctx.destination);
 
       var when = Math.max(playHead, ctx.currentTime + 0.02);
@@ -113,8 +251,7 @@ window.FamAudio = (function () {
         };
       })(src);
 
-      playHead = when + buf.duration / rate;
-      cursor = end;
+      playHead = when + buf.duration / (stretch ? 1 : rate);
     }
 
     if (!ended && streamDone && cursor >= totalSamples && ctx.currentTime >= playHead - 0.05) {
@@ -130,6 +267,10 @@ window.FamAudio = (function () {
     if (!ctx) return;
     stopSources();
     cursor = Math.max(0, Math.min(Math.floor(sample), totalSamples));
+    // The carried half-frame belongs to audio that is no longer going to be
+    // heard. Keeping it would overlap-add the old position onto the new one,
+    // which is a click on every seek and every speed change.
+    resetStretch(cursor);
     playHead = ctx.currentTime;
     ended = false;
     tick();
@@ -144,6 +285,7 @@ window.FamAudio = (function () {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     controller = new AbortController();
     timer = setInterval(tick, 80);
+    resetStretch(0);
 
     var url = "/api/audio?q=" + encodeURIComponent(query) +
               "&minutes=" + encodeURIComponent(minutes) + "&fmt=pcm" +
@@ -243,6 +385,7 @@ window.FamAudio = (function () {
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     timer = setInterval(tick, 80);
+    resetStretch(0);
     sampleRate = Number(rate) || 22050;
     pcm = samples;
     totalSamples = samples.length;
@@ -326,6 +469,18 @@ window.FamAudio = (function () {
     rescheduleFrom(here);
   }
 
+  /* Speed with the voice left alone, or speed the cheap way. On by default.
+     Kept switchable rather than assumed: WSOLA is a very good approximation
+     and not a free one, and a listener who prefers the resampled sound - or a
+     device that cannot keep up with it - has somewhere to go. */
+  function setPitchLock(on) {
+    var want = !!on;
+    if (want === pitchLock) return;
+    pitchLock = want;
+    if (!ctx) return;
+    rescheduleFrom(positionSamples());
+  }
+
   return {
     play: play,
     // Offline playback, from samples already on this device.
@@ -338,6 +493,9 @@ window.FamAudio = (function () {
     skip: skip,
     seek: seek,
     setRate: setRate,
+    // Speed without changing the pitch of the voice. On by default.
+    setPitchLock: setPitchLock,
+    isPitchLocked: function () { return pitchLock; },
     // How far the listener may currently skip to, in seconds.
     seekLimit: seekLimit,
     getRate: function () { return rate; },
