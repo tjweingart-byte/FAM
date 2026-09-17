@@ -120,13 +120,40 @@ def test_mixes_produce_nothing_without_a_listener(mix_store):
 def test_the_feed_source_warms_the_rails_the_page_actually_draws(store):
     """The same ranking the page draws itself from, so a warmed tile and a
     shown tile cannot disagree. A second implementation of "what next" is what
-    CLAUDE.md already refused once for `rank_next_up`."""
+    CLAUDE.md already refused once for `rank_next_up`.
+
+    Seeded, because this source is the personal one: the rails it warms are
+    "Made for you" and "Your circle is on this", and both are honestly empty
+    for a listener the app has never seen. That case is the next test.
+    """
+    topic = topics_mod.TOPIC_BANK[0]
+    for _ in range(3):
+        store.record(topics_mod.Event(
+            user_id="listener-1", kind="complete", topic_id=topic.id,
+            text=topic.title, tags=topic.tags))
+
     candidates = prefetch_sources.FeedSource(store).candidates("listener-1")
     feed = topics_mod.build_feed(store, "listener-1")
     shown = {t["query"] for s in feed["sections"] for t in s["topics"]}
     assert candidates, "the feed source produced nothing"
     assert all(c.query in shown for c in candidates)
     assert all(c.listener == "listener-1" for c in candidates)
+
+
+def test_the_feed_source_warms_nothing_for_a_listener_it_knows_nothing_about(store):
+    """Not a gap. This is the *personal* source, and guessing for somebody
+    with no history is paying for a random tile - `TrendingSource` already
+    covers the shared case, and it covers it for everybody at once."""
+    assert prefetch_sources.FeedSource(store).candidates("brand-new") == []
+
+
+def test_the_feed_source_warms_no_rail_the_page_does_not_draw(store):
+    """Warming a rail nobody is shown spends money on a tile that cannot be
+    tapped. Explore New came off the page, and this is what notices if
+    anything else does."""
+    shown = {k for k, _ in topics_mod.SECTIONS}
+    unshown = set(prefetch_sources.FeedSource(store).sections) - shown
+    assert not unshown, f"warming rails that are not on myFAM: {unshown}"
 
 
 def test_the_feed_source_does_not_warm_trending_a_second_time(store):

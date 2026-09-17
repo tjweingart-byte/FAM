@@ -36,7 +36,7 @@ def _use(monkeypatch, generator):
     monkeypatch.setattr(
         appmod,
         "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=generator, engine=DebugEngine(), cache=None, voice=voice
         ),
     )
@@ -104,7 +104,7 @@ def test_demo_mode_serves_playable_audio_without_credentials(client, monkeypatch
     monkeypatch.setattr(
         appmod,
         "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=DemoGenerator(), engine=DebugEngine(), cache=None, voice=voice
         ),
     )
@@ -202,7 +202,7 @@ def test_the_thread_endpoint_serves_what_the_episode_left_open(client, monkeypat
     monkeypatch.setattr(
         appmod,
         "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=Threaded(), engine=DebugEngine(), cache=shared, voice=voice
         ),
     )

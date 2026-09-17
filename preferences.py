@@ -45,12 +45,6 @@ from paths import data_path
 
 log = logging.getLogger(__name__)
 
-#: How many interests the intro accepts. The interface disables further
-#: selection at this number rather than validating after the fact, and this is
-#: the same rule enforced on the way in - a cap only the client applies is not
-#: a cap.
-MAX_INTERESTS = 6
-
 #: The facets an interest can be. Deliberately the *tag* vocabulary from
 #: topics.py and not the 28-topic bank: a tag is what `taste` scores and what
 #: `tags_for_text` maps a free search onto, so choosing tags feeds the ranker
@@ -58,12 +52,17 @@ MAX_INTERESTS = 6
 #: teach the feed nothing.
 INTERESTS = tuple(topics.TAG_LABELS)
 
-#: Offered in the intro and stored. **Not wired to generation**: every episode
-#: is still written and spoken in English, whatever is chosen here. That is the
-#: scope this pass was given, and saying so is the point - a language picker
-#: that silently changes nothing is the "silent success" failure this project
-#: has lost the most time to, so `/api/preferences` returns `language_active`
-#: false and the interface prints it under the picker.
+#: The vocabulary a stored language is validated against. **Nothing in the app
+#: offers a choice from it any more** (§100): the picker was a page of the
+#: first run, it was never wired to generation, and every episode was written
+#: and spoken in English whatever was chosen - so the only honest thing on that
+#: screen was a note saying it would not be acted on. A question in front of
+#: the product that answers to nothing is worse than no question.
+#:
+#: The *field* stays: it is still stored, still accepted on `/api/preferences`,
+#: and still validated against this list. Deleting a column is a migration with
+#: a real cost and no benefit, and this is the vocabulary that per-language
+#: generation will read on the day it exists. What went is the screen.
 LANGUAGES = (
     {"code": "en", "label": "English", "endonym": "English"},
     {"code": "es", "label": "Spanish", "endonym": "Español"},
@@ -80,8 +79,10 @@ LANGUAGES = (
 LANGUAGE_CODES = frozenset(lang["code"] for lang in LANGUAGES)
 DEFAULT_LANGUAGE = "en"
 
-#: True once per-language generation actually exists. Read by /api/preferences
-#: and printed in the interface, so the day it flips the claim flips with it.
+#: True once per-language generation actually exists. Still served on
+#: `/api/preferences`, and no longer printed anywhere, because the picker it
+#: used to caveat is gone - it is now a fact about the API rather than a
+#: sentence under a control.
 LANGUAGE_ACTIVE = False
 
 
@@ -104,7 +105,19 @@ def week_start(now: Optional[float] = None) -> str:
 
 
 def clean_interests(values: Iterable[str]) -> tuple[str, ...]:
-    """Known facets, de-duplicated, order preserved, capped."""
+    """Known facets, de-duplicated, order preserved.
+
+    **There is no cap, and there is nothing to add one back to** (§99). It used
+    to be six, disabled in the interface at the sixth chip and refused here at
+    the seventh - and the number was never doing anything a listener wanted. It
+    made somebody with seven interests choose which to lie about, and the
+    ranker is perfectly happy to weigh eight.
+
+    Unbounded input is still bounded, by the only thing that was ever load
+    bearing here: every value has to be one of the facets, and duplicates
+    collapse. Eight is therefore the most this can return, and that is a fact
+    about the vocabulary rather than a rule anybody is told.
+    """
     seen: list[str] = []
     for raw in values or ():
         tag = str(raw).strip().lower()
@@ -114,8 +127,6 @@ def clean_interests(values: Iterable[str]) -> tuple[str, ...]:
             raise PreferenceError(f"{tag!r} is not one of the interests on offer.")
         if tag not in seen:
             seen.append(tag)
-    if len(seen) > MAX_INTERESTS:
-        raise PreferenceError(f"Choose at most {MAX_INTERESTS} interests.")
     return tuple(seen)
 
 

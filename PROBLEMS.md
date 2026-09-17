@@ -5770,3 +5770,694 @@ prompt change in this log, what is verified here is that the instructions and
 the guard are in the prompt and the path. Whether the new opening *sounds*
 right on "Dodgers game last night" needs a key and a listen - `python write.py
 "dodgers game last night" --minutes 3` prints it in seconds.
+
+---
+
+## 95. The interface packet: nine surfaces, and three real bugs underneath them
+
+A packet of action items arrived covering every surface of the app — the
+player, myFAM, Explore, the profile, the first run. Most of it was interface
+work. Three items were not, and those are the ones worth writing down, because
+each was a place where the *interface* was fine and the thing underneath it was
+wrong.
+
+### Explore was showing people their own episodes
+
+`/api/explore` reads `cache.recent()`, and the shared script cache had no idea
+who had generated anything. So the feed whose entire premise is *other
+people's questions* was handing a listener back their own, and there was no
+way to tell — a question you asked yesterday looks exactly like a question
+somebody else asked yesterday.
+
+The fix is one nullable column, `scripts.author`, written at the one moment the
+answer is knowable: `/api/audio` knows whose tap paid for the episode, so
+`_make_pipeline` takes an `author` and the pipeline stamps it on anything it
+writes. `recent(exclude_author=...)` drops them from that listener's own feed
+and nobody else's.
+
+Three things are load-bearing about where it lives.
+
+**It is not on `EpisodePlan`.** The plan is what an episode *is*, and
+`pipeline.key_for` is built from it. A listener id one field away from the key
+is a listener id one careless refactor away from *being* in the key — at which
+point every listener has their own cache, the shared-cost design the whole app
+rests on is gone, and nothing fails. `test_the_author_is_not_part_of_the_cache_key`
+reads `key_for`'s own source and fails if either word appears in its body.
+
+**It is the first writer, never the most recent.** A second listener asking the
+same question is served from the entry and never rewrites it; a re-write that
+extends a TTL uses `CASE WHEN scripts.author != ''` so it cannot hand
+authorship to whoever happened to trigger it. Authorship means "who paid for
+this", not "who asked last".
+
+**Prefetch writes no author at all**, and that is right: a speculatively warmed
+script was nobody's tap, so it belongs to everybody. Rows written before the
+migration have none either, and are shown to everyone — which is exactly what
+they were already doing.
+
+### Every share ended on the clipboard
+
+`sharing.py` has written per-destination wording since it shipped — a LinkedIn
+post and a text message are not the same message, and it knew that. What
+nothing had was a *destination*. `shareTo` put the text on the clipboard and
+left the listener to go and find the app themselves, which is not a share
+sheet; it is a note saying the share sheet was not built.
+
+Each target now carries a URL template (`sms:&body=`, `mailto:`,
+`wa.me`, the intent URLs), rendered with every value percent-encoded —
+including into the `sms:` and `mailto:` bodies, because those split their
+parameters on `&` and a question containing one arrived as half a sentence.
+
+Two details are deliberate. **LinkedIn takes only the URL** and reads the page
+for its own preview, so the composed words go to the clipboard alongside with
+one sentence saying so, rather than into a query string that drops them in
+silence. And **the two story formats still have no URL**, which is not an
+omission: a story is an image handed to the platform's SDK, `needs_image` is
+what says so, and the web build can only open the card.
+
+It lives in `sharing.py` rather than in the web app for IOS_APP.md's first
+rule: every feature is an API before it is a screen, and a share sheet written
+twice is a share sheet that behaves differently on two clients.
+
+### Attaching two files told you to slow down
+
+`/api/attach` was paced with `_rate_limit`, the generation limiter. A search
+can carry several attachments and the interface invites them — so the second
+file was answered with *"Slow down a moment, then try again"*, from a button
+that had just asked for another one.
+
+This file already has the rule: pace what can spend a model call, and nothing
+else (`/api/audio` asks the cache before pacing at all). A document or a photo
+is read locally and spends nothing, so it takes the reader's limit. A **link**
+is an outbound fetch of whatever address was typed — the one thing on this
+endpoint somebody else pays for — and stays paced.
+
+### The interface work, and what was removed rather than fixed
+
+Two controls were deleted instead of repaired, on the standing rule that a
+control with nothing behind it is worse than no control:
+
+* **The Audio / Transcript toggle** in the share sheet only ever changed a word
+  in a toast. With sending made real — one row pointing at a question whose
+  script already exists — there is nothing behind "transcript" at all.
+* **Three invented contacts** with invented replies lived in `index.html`, and
+  "sent" was a toast over a push into a local variable. Messaging and the share
+  sheet's people row now read `/api/friends` and `/api/messages`, which have
+  existed and been tested since SHARING.md was written and were shown nowhere.
+  A social surface that fabricates people is the same failure as a profile that
+  fabricates numbers, and worse, because it says a message was sent when none
+  was.
+
+The rest, briefly: speed defaults to **1x** and is remembered across episodes,
+with 0.5x and 0.8x added — and `fam-audio.js` now **time-stretches** rather
+than resampling, so changing speed leaves the voice's pitch alone. The
+accounting above the stretcher is untouched, which is the point: WSOLA advances
+its read pointer by exactly `rate * sampleRate` per second of output, so
+`positionSamples`, seek, the scrub bar and `TAIL_MARGIN` all keep working
+without knowing it exists, and at exactly 1x it is bypassed entirely.
+
+`ECHO` is **VIBE!** in the interface, and an alias on the server: `/api/vibe`
+and `/api/echo` are one handler over one table, because a phone that has not
+updated is still calling the old one and a rename that breaks it turns a copy
+change into an outage. `data-echo` and the `echoed` class keep their names for
+the same reason — a hook renamed for a copy change is a button that quietly
+stops being found, which is the bug the attribute was introduced to fix.
+
+myFAM's rails end in a chevron until there is nothing left to scroll, and then
+in **View more**, which opens the whole of that section: the same ranking, at
+full length, with the tiles whose script is already written marked *ready* and
+sorted to the front. It generates nothing — the rail was showing six of
+something that already had twenty-eight — and `test_opening_a_section_costs_no_model_call`
+fails if that ever stops being true.
+
+**Still unheard and unseen on a real machine.** As with every entry in this
+log: there is no API key and no GPU here, so what is verified is that the
+checks pass, the twenty-six smoke behaviours pass, and the surfaces photograph
+correctly. Whether the pitch-preserved 1.5x *sounds* right needs a machine that
+can speak.
+
+---
+
+## 96. The second pass: a crop that guessed, a back button that lied, and a folder nobody made
+
+A round of notes on what §95 shipped. Most of it is wording and layout. Four
+were real, and three of those had the same shape: **the interface presenting a
+guess, or a fixture, as if it were the listener's own.**
+
+### The crop was a decision made silently, on the one photo where it matters
+
+A picture went through `avatarChosen`, got centre-cropped to a square, and was
+uploaded. A centre crop is a guess about where the subject is, and the subject
+of a profile picture is a person's face - which is very often not in the
+middle. There was no way to say otherwise, and no sign that a choice had been
+made at all.
+
+There is a **move-and-scale step** now: drag to reposition, a slider to zoom,
+a circle showing exactly what will be kept.
+
+The load-bearing part is not the UI, it is that **the preview and the export
+read the same numbers**. `base` is the scale at which the image just covers
+the square, `zoom` is what the slider adds, and `ox,oy` is the top-left, always
+clamped so the square is never uncovered. `paintPhoto` and `savePhotoCrop`
+both compute from those three. A preview derived one way and an export derived
+another is a crop that lies, and nobody finds out until afterwards - which is
+precisely the failure this replaced.
+
+Two smaller decisions:
+
+* **The original is kept on the device**, downscaled to 1024px, in
+  localStorage. The server still only ever holds the 256px crop - which is
+  what everyone else sees - and the device holds what is being edited. So
+  "Move and scale" works on a photo set here, and a photo set on *another*
+  device offers "choose a different one" instead and says why, rather than
+  showing a menu item that quietly does nothing.
+* **Clamping uses `Math.min(0, minX)` on the lower bound.** An image smaller
+  than the stage cannot cover it, and without that the clamp inverts and the
+  picture snaps to a corner.
+
+### Back from the shelf went to search
+
+Opening Save for Later from the profile and pressing back landed on SearchFAM.
+`openSaved` called `closeMessages()` unconditionally - and `closeMessages` is a
+`goBack()`. From the profile that popped the profile off the stack *before*
+pushing the shelf, so back had nothing to return to and fell through to home.
+
+It now unwinds the Your FAM sheet only when that sheet is the active screen.
+One line, and the kind of bug that only ever appears on one of the two routes
+into a screen.
+
+### "Commute" was a fixture on a real screen
+
+The shelf had a folder chip row, and the folder in it was a demo fixture. On a
+real deployment it showed a folder nobody had made; in the preview it looked
+like something the listener had.
+
+The chips are gone. A shelf of a dozen episodes does not need filing, and
+Downloads is a **switch inside Save for Later** rather than a second list -
+because a download is a *state* of a saved episode, and two lists would put
+the same row in two places and make removing it from one of them ambiguous.
+`/api/saved/folders` and `saved.py`'s filing are untouched, so nothing anybody
+filed is lost; what went is the row of chips.
+
+### Every share opened a door onto a broken link
+
+`§95` gave each destination a hand-off URL. Testing all nine end to end - which
+is what the notes asked for - found that without `PUBLIC_BASE_URL` the share
+link is **relative** (`/s/abc123`), and Facebook and LinkedIn were being handed
+`?u=%2Fs%2Fabc123`. The composer opens, and fails there.
+
+A link that is not absolute now produces **no hand-off at all**, for any
+target. The sheet already says the link is not public; this stops it opening a
+door onto that. The clipboard still works, so a deployment being tested is not
+blocked - it just never pretends. `is_public_link` is the whole check and a
+test walks every target through it.
+
+Also found by testing them: **Facebook drops the composed wording**, exactly as
+LinkedIn does - its `quote` parameter has not been honoured for years. It now
+gets the same treatment: the words go to the clipboard alongside, with one
+sentence saying so. A test pins *which two* destinations that is, so a third
+joining them is noticed rather than silently losing its wording.
+
+### And the rest
+
+**Trending is second, in the slot Explore New held**; Explore New is off the
+page. That is the second time that rail has come off, so `topics.UNSHELVED`
+names it and a test asserts the absence is deliberate - the ranker, the
+endpoint and the screen all stay, which keeps putting it back a one-line
+change. `FeedSource` stopped warming it in the same breath: warming a rail
+nobody is shown is paying for a tile that cannot be tapped.
+
+**The first run's catalogue is the designs' list** - seventy-three named
+interests with their own icon set. The distinction that lets it exist is in
+`topics.INTEREST_CATALOGUE`: these are *interests*, not tags. The eight facets
+are still the only pickable tag vocabulary and the chips above the catalogue
+are still exactly `TAG_LABELS`; "Formula 1" is not something those eight can
+say, and it reaches the ranker as `sports` plus whatever subtag it really
+carries, without a listener ever reading a tag name. One entry is flagged in
+the source rather than quietly kept: `Iran Conflict` is a live news event and
+will go stale, and it is in the designs.
+
+The download popup says **"Saved. Keep it on this phone?"** - the save already
+happened, on the tap that opened it, and "Download?" left that ambiguous enough
+that both buttons had to carry the word "save" to make up for it. It has an X,
+because both buttons were commitments and the only way out was a backdrop
+nothing said was tappable. Explore's actions are centred over its transport.
+The 15-second arrows have solid heads, because at 24px a hairline chevron beside
+a hairline arc read as a stray tick rather than as one arrow.
+
+### The live preview keeps its own copy of the page, and it disagreed
+
+Moving the rails passed every test and every fixture-preview behaviour, then
+failed the *live* preview's smoke run: `expected 4 sections, saw 5`.
+`build_live_preview.py` reimplements the feed in JavaScript, because the
+published page has no server - so `topics.SECTIONS` exists twice, and only one
+of them had been edited.
+
+That is the same failure `pipeline.key_for` is written the way it is to avoid,
+and it is worth naming because the preview is the thing the phone actually
+opens: a second implementation drifts the first time one side gains a field.
+The smoke run is what catches it, which is the argument for those behaviours
+being *behaviours* rather than assertions about markup. The JS list now carries
+a comment pointing at `topics.SECTIONS`, and `might_like` is still *filled*
+there even though nothing draws it - it takes tiles out of the bank in
+`FILL_ORDER` position, so deleting the fill would quietly change what the other
+three rails contain.
+
+**And "DailyFAM folders" is now "DailyFAM mixes".** The note asked what a
+folder was; the shelves were the answer, but the profile was calling public
+mixes folders too, which is the same word for a third thing.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs.
+
+## 97. Four players, four ideas of whether it was playing
+
+The third pass. Four notes, and the one underneath two of them is the same
+bug: **the same episode had four transports and no shared state.**
+
+### The mini bar's button was dead exactly when it was the only one on screen
+
+"On mini player, be able to pause/play with the button there." It had a
+button, wired to `toggleNowBar`, which opened with:
+
+    if(!FamAudio.isActive()) return;
+
+`active` goes false when the stream finishes - and a finished episode is the
+state that bar is in most often, sitting above the tabs after the listener has
+wandered off to another tab. So the one control still on screen did nothing at
+all, silently.
+
+Behind it was the larger version: the search player, DailyFAM's play-all,
+Explore's reel and the mini bar each kept **their own boolean** (`isPlaying`,
+`paIsPlaying`, and two derived from `FamAudio.isPaused()`) and each redrew
+**only its own icon** over one shared `FamAudio`. Pause on the reel, open the
+player, and the player showed a pause button over stopped audio.
+
+`setPlayState` is now the only thing that moves the audio. It sets the state,
+redraws all four, and every other entry point delegates to it - `paTogglePlay`,
+`reelTogglePlay` (after its one genuinely different case: nothing loaded yet,
+where the button *starts* the card rather than resuming it) and
+`toggleNowBar`. A smoke behaviour pauses through one and reads all four.
+
+The rule this is a case of, and it is the same one `pipeline.key_for` is
+written for: **one fact, one place.** Four copies of "is it playing" is four
+copies that agree until they don't, and nothing fails when they stop.
+
+### VIBE comes off the mini bar, reversing an earlier rule
+
+§95 put VIBE! on *every* player, the mini bar included, and the smoke check
+listed `nowBar` by name so nobody could quietly drop it. The note reverses
+that, and the reason holds up: the bar is a strip with three things competing
+for one thumb - open, pause, close - and the only irreversible one of them was
+the one that posts to your friends. It is still on all three real players,
+where there is room to see what is being vibed before vibing it.
+
+The check now asserts the *absence*, so this is a decision rather than a
+regression waiting to be "fixed".
+
+### The arrowheads were on the top of the ring; they belong on the side
+
+Drawn at the top, over the "15", a hairline head reads as a stray tick - which
+is what §96 had already tried to fix by making it solid. The note says plainly
+where it goes: the ring opens **at the side**, and the head sits in the gap.
+Both arcs are now ~280° with the gap centred on 9 and 3 o'clock.
+
+One CSS trap on the way: `.skip-num` centres itself with `left/top:50%` plus a
+`translate(-50%,-50%)`, and Explore's more specific rule replaces the offsets
+with `inset:0` and centres by flex. It had been overriding the transform with
+a `translateY(6%)` nudge, which existed only because the old gap was at the
+top. Removing the nudge left the translate in force against a full-size box,
+and the number walked out of the circle. `transform:none` is the fix, and the
+lesson is that `inset` and `transform` are two centring mechanisms and using
+one does not switch the other off.
+
+### The play triangle was centred by its bounding box
+
+"Increase arrow size and pause size - also center it on the circle." A play
+arrow centred by its **bounding box** reads as sitting to the right, because
+the eye weights the mass and the mass is on the flat side. It is positioned by
+its **centroid** now, a shade left of the geometric middle, and both glyphs
+are larger. The same triangle is used everywhere, including the small tile
+glyphs, because two shapes for one idea is how the transports drifted in the
+first place.
+
+### The settings icon was a sun
+
+Spokes around a circle is brightness on every phone this will run on. It is a
+gear now. The first hand-drawn gear path was not symmetric about (12,12) and
+the render showed it: the hub sat low and right of the teeth. Replaced with a
+known-good one.
+
+### Closing the topic catalogue ended the first run
+
+"When setting up topics and clicked X, it should go back to topics setup page.
+Right now it goes to SearchFAM, skipping the language selection step."
+
+`closeTopicCatalog` called `goBack()`, which pops `stack`. But **the intro is
+drawn with `showScreen` and never joins the stack** - `afterAccount` and both
+settings entry points call `showScreen("intro")` directly. So from the intro,
+`navigate("catalog")` pushed onto a stack whose top was still `home`, and
+popping landed on SearchFAM with the language page never shown.
+
+It returns by *name* now, recorded at open time, which also answers the other
+route in (Settings → More topics). And not via `goBack`, which stops the
+audio: closing a list of topics is not a reason to end an episode. The smoke
+behaviour follows the close with `introNext()` and asserts the language page
+is reachable, because the symptom the note describes is a missing *step*
+rather than a wrong screen.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs - and this round the
+photographs earned their place twice, once for the escaped "15" and once for
+the lopsided gear.
+
+## 98. A settings row that ran the first run again
+
+Three notes. Two are the interests page; one is a routing bug with a shape
+this log has now seen three times.
+
+### The picker shows six, and they are the six being played
+
+"Remove the paragraph after 'Your interests'. Then pick the six most popular
+topics and display them as shown."
+
+The paragraph is gone. It explained the cap and said interests stop mattering
+once somebody has listened to something - both true, both read at the one
+moment neither is useful yet, above a grid with nothing chosen in it.
+
+The grid is six, three across and two down, and the six are **the most played
+facets across FAM** (`topics.popular_facets`) rather than the first six of a
+`dict`. Global, like `rank_most_played` and for the same reason: this is asked
+on the first run, when this listener has no history and the only honest signal
+is everybody else's. One count serves every listener.
+
+Two things that had to be got right rather than assumed:
+
+* **`PICKER_DEFAULT_ORDER`, and `interests_source` saying which is in use.** A
+  fresh deployment has an empty log, which is the normal state on the screen
+  this exists for - so there is a declared order, written down in one place,
+  and the response says `"default"` rather than `"played"`. A declared order
+  and a measurement look identical on screen, and calling the first one "most
+  popular" would be inventing a number.
+* **The picker narrowed; the vocabulary did not.** CLAUDE.md's constraint is
+  that the eight facets are the only *pickable* vocabulary, and six of eight
+  does not widen anything - but two facets would have become unreachable if
+  the catalogue did not carry every one of them on its interests, which it
+  does. `interests_all` is served beside `interests_available` because
+  Settings has to be able to *read back* a stored interest that did not make
+  this week's grid.
+
+One honest consequence, recorded rather than papered over: `MAX_INTERESTS` is
+six and the picker is now six, so the cap can no longer be shown as a dimmed
+seventh chip. It is still enforced and still said out loud in the count line;
+the smoke behaviour asserts that sentence instead of the dimming.
+
+"View more" is a plain centred underlined link. It was a dashed pill, which
+put a seventh chip-shaped thing under six chips and made the grid read as
+uneven.
+
+### Clicking a settings row ran the first run again
+
+"When you click on one of those Settings tabs and then hit save, I want it to
+go back to the Settings page. Right now when you click on some of them, it
+reroutes it to perform like the initial setup."
+
+Exactly right, and literally so. Interests and Language have no editor of
+their own - they reuse the intro screen - and reusing the *screen* meant
+reusing the *flow*:
+
+    openInterestsFromSettings() -> showScreen("intro")
+    Next -> introNext()   -> the language page
+    Start listening -> finishIntro() -> intro: "done" -> finishEntry() -> myFAM
+
+So editing one setting walked the listener through the other one and then put
+them on myFAM. There was no way back and no X.
+
+`introMode` is `"first-run"` or `"settings"`, and it decides three things:
+whether there is an X, what the docked button says (Next / Start listening
+versus **Save**), and where saving goes. `saveIntroFromSettings` writes the
+preference and returns; it is deliberately not `finishIntro`, which is the
+first run *ending* and has no business running when somebody changed their
+language.
+
+This is **the third time** the same trap has been paid for (§96 the shelf,
+§97 the catalogue, now this): **the intro is drawn with `showScreen` and never
+joins the navigation stack**, so `goBack()` from anything opened on top of it
+pops to whatever was underneath. Every one of these returns by *name* now. If
+a fourth screen is ever shown that way, this is the paragraph to read first.
+
+### And an X on everything a settings row opens
+
+The note asks for one on "every single one". The intro gets `.sheet-close`,
+the same X as the catalogue and the sources panel; the shared modal (Name and
+handle, Change password) and the photo editor get `.modal-x`, which is the
+`.dl-x` rule from §96 generalised rather than a second X drawn a pixel
+differently. The action sheets keep their Cancel row, which is already an
+explicit way out.
+
+Cancel was already on both modals, and an X is still worth having: it is
+where a thumb goes to leave something, and the only other way out was a
+backdrop tap nothing documents.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs. The photographs
+earned their place again - the first grid had three unequal columns and two
+unequal rows, because `1fr` is `minmax(auto, 1fr)` and a long label grows its
+column past the equal share. `minmax(0, 1fr)` and `grid-auto-rows: 1fr` are
+what make six pills actually six of the same pill.
+
+## 99. The interests wheel, and a cap that was never buying anything
+
+Two things: a first run that turns, and a number that goes away.
+
+### Six discs orbiting a hub
+
+The design is a wheel - six circles going slowly counter-clockwise around
+"View more", which sits still in the middle. They are still selectable while
+they move, which is the whole trick.
+
+**How the turning works, because it is the part that breaks if it is touched
+carelessly.** The ring rotates; each disc counter-rotates by exactly the same
+amount over exactly the same duration, so positions orbit while labels stay
+upright. Each disc's *placement* is one static transform - centre on the hub,
+swing out to the radius, turn back upright - set once when the wheel is drawn
+and never again.
+
+Both halves are CSS animations on `transform`, and that is a decision rather
+than a default:
+
+* they run on the compositor, so the whole first run costs nothing per frame;
+* they stay in lockstep with no code, because they are the same duration and
+  the same easing started at the same moment - two `requestAnimationFrame`
+  loops would drift, and one loop driving both would stop dead every time the
+  main thread went off to fetch something;
+* and redrawing a disc on every tap is therefore safe. The rotation lives on
+  the ring, which is untouched, so a replaced disc reappears exactly where its
+  slot already was.
+
+**`prefers-reduced-motion` stops it.** The wheel stays a wheel - the discs keep
+their positions - it simply stops turning. Continuous motion on a *selection*
+control is the case that rule exists for.
+
+Three things this got wrong first and a screenshot caught:
+
+* **`vw` is the window, not the app.** The first version sized the radius with
+  `clamp(86px, 29vw, 112px)` and overflowed the moment the app was not the
+  whole window - which is exactly what the phone preview is, and what a
+  desktop browser is. It is `cqw` now, a percentage of the wheel's own
+  container, so it is correct at every width the app is ever drawn at.
+* **The ring was swallowing taps meant for the hub.** It is `inset:0`, so its
+  empty middle sits on top of "View more". `pointer-events:none` on the ring,
+  put back on the discs.
+* **"Money & markets" does not fit in a 78px circle.** `topics.TAG_SHORT` is
+  the eight facets short enough to sit inside one - and every entry is a
+  *prefix* of its `TAG_LABELS` value, so this is a shortening rather than a
+  second name for the same thing. Settings, the recap and the catalogue all
+  still read the full label.
+
+**The smoke behaviour asks `elementFromPoint`, not `page.click`.** Playwright
+waits for an element to stop moving before it will click one, and this one
+never stops. That is a fact about the harness rather than about the interface;
+asking the browser what is under the disc's centre answers the real question,
+which is whether a thumb landing there hits it. It checks the same thing again
+four seconds later, after everything has moved.
+
+### The six-interest cap is gone, and is not replaced
+
+"Remove the whole six topic limit - don't acknowledge that at all."
+
+It is out of `preferences.clean_interests`, out of `/api/preferences`, out of
+the interface, out of the preview's shim, and there is no counter on the page
+saying how many have been chosen. The number was never doing anything a
+listener wanted: it made somebody with seven interests pick which one to lie
+about, and the ranker is perfectly happy to weigh eight.
+
+**No cap is not no validation**, and the distinction is worth keeping straight
+because unbounded input reaching a store is how this kind of removal usually
+goes wrong. Every value still has to be one of the eight facets and duplicates
+still collapse, so eight is the most that can ever be stored - a fact about
+the vocabulary rather than a rule anybody is told about. A test says so.
+
+The smoke behaviour now asserts the *absence*: no counter element, and the
+words "limit", "up to six" and "at most" do not appear on the page. A cap is
+the kind of thing that grows back as a helpful sentence.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs - and the wheel is
+the first thing in this log that a photograph genuinely cannot check, which is
+why the behaviour above measures it instead.
+
+## 100. The wheel tilted when you tapped it, and the language page goes
+
+Three things, and the first is a bug I wrote a comment claiming was impossible
+one section ago.
+
+### Tapping a disc tilted every label
+
+§99 said, in the source:
+
+> Redrawing on every tap is safe [...] the rotation lives in a CSS animation on
+> the ring, which is untouched, so a chip that is replaced mid-revolution
+> reappears exactly where its slot already was.
+
+The *position* claim was right and the *orientation* claim was wrong, and they
+are not the same claim. The ring keeps its animation when its children are
+replaced - but a **new element's animation starts at zero**. The two
+animations only cancel while they are at the same point in their cycle, so a
+disc drawn eight seconds into a sixty-second revolution counter-rotated from
+the wrong place and sat at 48 degrees for the rest of the turn. Every tap
+rebuilt all six, so one tap tilted all six.
+
+Two fixes, because they cover different halves:
+
+* **`toggleInterest` no longer rebuilds.** Selecting is a class on a button,
+  not a reason to redraw the other five. This is the tap path and the reported
+  symptom.
+* **`syncWheelPhase` re-phases any rebuild that does happen**, by reading the
+  ring's `Animation.currentTime` and writing it onto each disc's. That covers
+  every *other* way the wheel can be redrawn - opening it from Settings, the
+  preferences fetch landing late - which the first fix alone would not.
+
+Where `getAnimations` is missing the wheel simply turns un-rephased, which is
+the behaviour that shipped in §99 rather than a broken one.
+
+**The lesson is about the comment, not the code.** "Nothing here runs per
+frame" was true and I let it stand in for "nothing here can desynchronise",
+which is a different sentence. The smoke behaviour now taps a disc four
+seconds in and reads every label's net angle, so the claim is measured rather
+than asserted.
+
+### The language page is gone
+
+It was the second page of the first run, and it was never wired to anything -
+every episode is written and spoken in English whatever is chosen, which is
+why the only other thing on that screen was a note saying so. A question in
+front of the product that answers to nothing is worse than no question, and
+this one was between a new listener and their first episode.
+
+Out: the page, its dock, the Settings row, `openLanguageFromSettings`,
+`renderLanguageList`, `chooseLanguage`, `introLanguage`, `introNext`, the
+`.intro-lang` styling and the "stored and not yet acted on" notes in both
+places. Interests is now the last step, so its one button says **Start
+listening** and finishes the run.
+
+**The stored field stays**, and the distinction is the point: `LANGUAGES` is
+still the vocabulary `clean_language` validates against, the field is still
+accepted on `/api/preferences`, and nothing anybody saved is dropped. Deleting
+a column is a migration with a real cost and no benefit, and this is what
+per-language generation reads on the day it exists. What went is the screen.
+
+### Settings' wheel is the listener's own, and keeps changing
+
+"The page for Your interests in the settings page should be different than the
+one they see when they are first setting up their account."
+
+Two wheels, two questions, and `topics.my_facets` is the second one. The first
+run asks somebody with **no history** what they like, so the only honest
+answer is what everybody plays (`popular_facets`, §98). Settings is opened by
+somebody who **has been using the app**, where their own listening is the
+better answer and keeps changing - which is what makes that wheel worth
+opening twice.
+
+Three sources, in order, and the order is the design: what they played, then
+what they chose, then `PICKER_DEFAULT_ORDER` as filler. The filler is not
+decoration - **a wheel is six discs or it is a broken wheel** - and
+`interests_yours_source` says which of the three actually decided it, for the
+same reason `interests_source` does: a declared order and a measurement look
+identical on a screen full of circles.
+
+One line of copy, only in Settings: *"What you listen to most, kept up to date
+as you listen."* The first run's page has no such line and does not need one,
+but a wheel whose contents change on their own without a word reads as the app
+having lost somebody's answer.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs.
+
+One harness note worth keeping, because it cost a cycle: the first-run flow
+can be walked **once** per smoke session - a second `startEntry()` lands on
+myFAM - and the catalogue behaviour already spends it. The new two-wheel check
+therefore drives `renderIntro` in each mode rather than restarting the run,
+which is also the more direct question: that function is the thing that
+decides which list is drawn.
+
+## 101. Getting the branch ready to merge
+
+Not a bug report - an audit before handing six commits to `Main`. Recorded
+because two of the four findings were things a merge would have shipped
+quietly, and both are the same shape: **a check that exists is not a check
+that runs.**
+
+### The branch itself
+
+Six commits, `origin/Main` is an ancestor, so it fast-forwards: no conflicts
+are possible and no merge commit is needed. Working tree clean, no untracked
+files, nothing secret-shaped in the diff, no `console.log`, no `pdb`, no
+hardcoded hosts, no model identifiers in anything pushed.
+
+### The two schema migrations were proved rather than read
+
+The branch adds `scripts.author` and `people.avatar`. Both follow the existing
+idempotent `ALTER TABLE ... ADD COLUMN ... DEFAULT` pattern, which is easy to
+*read* as correct and is exactly the sort of thing that is wrong in
+production. So each was run against a database built by the **pre-branch
+code**: the old module writes rows, the new module opens the same file.
+
+Both widen in place. A script written before the migration still serves, and
+still appears in everybody's Explore because it has no author - which is what
+it was already doing. The follow graph survives the `people` widening. This is
+"verify, do not inspect" applied to the one part of a merge that cannot be
+undone by reverting a commit.
+
+### CI was setting up node and never using it
+
+`dev.sh` gained `tools/check_stretch.js` in §95 - the check that says changing
+speed still leaves the pitch alone, which guards a settled constraint. CI
+installs node 20 and then never runs it, so that guard was enforced only on
+machines that happened to have node locally. Added to `.github/workflows/ci.yml`.
+
+The general form, and it is worth keeping: **a check added to the local loop
+is not added to the gate.** `dev.sh` and `ci.yml` are two lists of the same
+intentions and nothing keeps them in step.
+
+### A count written in prose does not fail
+
+CLAUDE.md told a new session that a complete run ends with "twenty-six named
+smoke behaviours; anything less means something was skipped". There are
+thirty-four. The number was right when it was written and no longer is,
+because a sentence cannot fail when somebody adds a behaviour - and it is
+load-bearing advice, since it is what a fresh session compares against to
+decide whether its baseline is honest. Corrected, and it now says where to get
+the number (`grep -c '^        check(' tools/smoke_preview.py`) rather than
+asking anybody to trust the prose.
+
+### Known and deliberately not fixed here
+
+**The preview build is not reproducible.** `preview/build_preview.py` bakes
+`time.time()` into the profile fixture's `since` and `joined`, so a rebuild
+with no source change still rewrites `preview/fam-live.html`. That makes the
+committed build artifact impossible to verify against its source, and it
+pre-dates this branch (it is the same on `Main`). Left alone rather than
+widened into an interface branch; the fix is to freeze those two fields to a
+fixed timestamp.
+

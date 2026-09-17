@@ -100,7 +100,7 @@ outside:
 
 |  | Save for later | Download |
 |---|---|---|
-| what it is | a pointer: question, length, title, folder | the audio, on the device |
+| what it is | a pointer: question, length, title | the audio, on the device |
 | costs | one row | a slot, and the phone's storage |
 | plays offline | **no** | **yes** |
 | limit | none worth having | per tier, and it bites |
@@ -158,16 +158,77 @@ in. The client confirms the real figure afterwards.
 Deleting a folder **unfiles its episodes rather than deleting them**. Losing
 somebody's saved episodes because they tidied up is the kind of surprise that
 stops people using a feature — and a download inside it would become bytes on
-their phone held against their limit with nothing pointing at them.
+their phone held against their limit with nothing pointing at them. *(No
+interface exposes folders any more — see "In the interface" below. The rule
+stands for whatever puts them back.)*
+
+## Where a share actually goes
+
+Every destination now carries a **hand-off URL** as well as its wording, and
+`render` returns it as `destination`. `sms:` and `mailto:` open whichever
+Messages and mail app the phone actually uses — iMessage and Gmail included —
+with the text already in them; `wa.me` and the intent URLs do the same for the
+platforms that have web composers.
+
+Three things about it are deliberate:
+
+* **Every substituted value is percent-encoded**, including into the `sms:` and
+  `mailto:` bodies. Those split their parameters on `&`, so a question with one
+  in it used to arrive as half a sentence — which reads as a broken app rather
+  than as a punctuation problem.
+* **LinkedIn and Facebook take only the URL.** Both read the page for their
+  own preview and drop anything else, so the composed words go to the clipboard
+  alongside with one sentence saying so, rather than into a query string that
+  discards them in silence. Facebook was found doing it by running all nine
+  hand-offs end to end (PROBLEMS.md §96) - it had been silently dropping the
+  wording for as long as it has existed, which is exactly the shape of failure
+  reading the code cannot catch and pressing the button can.
+* **A destination is only produced for a link the platform can actually
+  open.** `sharing.is_public_link` requires `http://` or `https://`, and
+  `destination_for` returns `""` otherwise - so a deployment with no public
+  base URL hands the phone nothing rather than handing it a relative path that
+  opens a composer pointing at `/s/abc`. The wording and the card still come
+  back; what is withheld is the one part that would be wrong.
+* **The two story formats still have no URL, and that is not a gap.** A story
+  is an image handed to Instagram's or Snapchat's own SDK, which takes the
+  picture and the sticker link as data. `needs_image` is what tells a client
+  which kind of hand-off it is looking at; a web build can only open the card.
+
+It lives here rather than in the web app for IOS_APP.md's first rule — every
+feature is an API before it is a screen. A share sheet written twice is a share
+sheet that behaves differently on two clients.
+
+And it changes nothing about the rule above it: **FAM still posts nothing and
+holds no token.** A hand-off opens the platform with a human looking at it.
+That is the whole difference between a share sheet and an integration.
 
 ## In the interface
 
+* **Messages are real.** The inbox, the threads and the people row in the share
+  sheet read `/api/messages` and `/api/friends`. They used to be three invented
+  contacts in `index.html` with invented replies, and "sent" was a toast over a
+  push into a local variable — a social surface that fabricates people is the
+  same failure as a profile that fabricates numbers, and worse, because it says
+  a message was sent when none was.
+* **The Audio / Transcript toggle is gone.** It only ever changed a word in a
+  toast, and with sending made real there is nothing behind "transcript": a
+  message carries the question, and the recipient's tap makes the audio.
 * **Messages**: the Explore New tile became **Save for Later**, as asked.
-  Explore New moved to **myFAM**, where it is now a rail of its own between
-  "Made for you" and the crowd — found rather than remembered. That is a better
-  home than the tile it lost: it is the only surface offering anything outside
-  an established taste, and the interim row under the tiles that kept it
-  reachable is gone now that it has a real place.
+  Explore New then moved to **myFAM** as a rail, and has since come off the
+  page again (PROBLEMS.md §96) — "Trending" took that slot, because the row
+  about today was sitting under two rows about what the listener already
+  likes. The ranking is still computed and still serves the Explore New
+  screen; it just has no rail of its own.
+* **Save for Later has no folders, and neither does Downloads.** Both shelves
+  shipped with a folder chip row and a "New folder" button, and nobody had
+  ever made a folder — so every listener saw "Commute" (a fixture name) as
+  though it were theirs. A control with nothing behind it is worse than no
+  control. What replaced it is the thing the two shelves actually needed from
+  each other: a **Saved / Downloads switch** inside Save for Later, so a
+  download is visibly a subset of what is saved rather than a second list
+  somewhere else. `saved.py` still stores a folder, unused, because unfiling
+  everybody's episodes to delete a column is a migration with a real cost and
+  no benefit.
 * **Every player** — search, play-all and Explore — has **share** and **save**.
   Explore included, so the surface where people find things is not the one
   where they cannot keep them.

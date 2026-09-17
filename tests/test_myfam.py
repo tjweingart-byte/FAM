@@ -191,27 +191,33 @@ def test_the_four_sections_are_always_present_and_in_order(store):
     assert [s["key"] for s in feed["sections"]] == [k for k, _ in T.SECTIONS]
 
 
-def test_explore_new_is_on_the_feed(store):
-    """It has been taken off this page once already.
+def test_explore_new_is_off_the_page_but_still_ranked(store):
+    """It has now been taken off this page twice, and the second time was a
+    decision rather than an accident - Trending took its slot.
 
-    `rank_might_like` is the only signal that offers anything *outside* an
-    established taste. Without it myFAM is history, co-listeners and the crowd
-    - three ways of being told what you already like - so its absence is not a
-    missing shelf, it is the page losing the only thing that widens a taste.
+    What that costs is worth keeping written down: `rank_might_like` is the
+    only signal that offers anything *outside* an established taste, so
+    without its rail myFAM is history, co-listeners and the crowd - three
+    ways of being told what you already like.
+
+    So the ranker stays filled and reachable. `UNSHELVED` is what says the
+    absence is deliberate, and keeping it in `FILL_ORDER` is what keeps
+    putting the rail back a one-line change.
     """
     keys = [k for k, _ in T.SECTIONS]
-    assert "might_like" in keys, "Explore New is not on myFAM"
+    assert "might_like" not in keys, "Explore New is back on myFAM"
+    assert "might_like" in T.UNSHELVED
     assert "might_like" in T.FILL_ORDER, \
-        "Explore New is displayed but never filled, so its rail is always empty"
+        "Explore New is not filled, so /api/explorenew would rank the leftovers"
 
 
-def test_explore_new_sits_between_the_personal_shelf_and_the_crowd(store):
-    """Not first: a returning listener most wants what was chosen *from* their
-    taste, and leading with the rail deliberately outside it puts the
-    least-confident shelf at the top. Not last either: below the crowd is where
-    a shelf goes to be ignored."""
+def test_trending_took_the_slot(store):
+    """Second, not last. Last is where a row nobody scrolls to goes, and this
+    is the one rail on the page with a reason to be looked at today."""
     keys = [k for k, _ in T.SECTIONS]
-    assert keys.index("from_history") < keys.index("might_like") < keys.index("most_played")
+    assert keys[1] == "world_trending", keys
+    assert keys.index("from_history") < keys.index("world_trending") \
+        < keys.index("most_played")
 
 
 def test_explore_new_offers_something_outside_an_established_taste(store):
@@ -223,8 +229,8 @@ def test_explore_new_offers_something_outside_an_established_taste(store):
     """
     for _ in range(4):
         store.record(T.Event("u", "complete", "chip-supply", "", ("tech",)))
-    by_key = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
-    picks = by_key["might_like"]["topics"]
+    # Through its own surface, since it is not a section on the page.
+    picks = T.build_explore_new(store, "u")["topics"]
     assert picks, "Explore New came back empty for a listener with a clear taste"
     assert not all("tech" in (t.get("tags") or []) for t in picks), \
         "Explore New returned only the tag this listener already plays"
@@ -512,3 +518,233 @@ def test_impressions_still_say_nothing_about_taste(store):
     assert T.taste(store.for_user("u"), now) == {}, (
         "being shown a tile taught the feed a preference")
     assert T.IMPRESSION not in T.EVENT_WEIGHT
+
+
+# --- "View more": one rail, in full ---------------------------------------
+#
+# The rail shows six of a bank that holds ~28. The screen behind it shows the
+# rest of the same ranking, and generates nothing to do it - which is the
+# whole answer to "fill a screen without making episodes nobody asked for".
+
+
+def test_a_section_opens_at_full_length_in_the_rails_own_order(client):
+    rail = [t["id"] for s in client.get("/api/myfam").json()["sections"]
+            if s["key"] == "most_played" for t in s["topics"]]
+    full = client.get("/api/myfam/section?key=most_played").json()
+    assert len(full["topics"]) > len(rail), "view more showed no more"
+    # Everything the rail offered is still on the screen behind it. Order is
+    # not asserted: the screen leads with what is already written.
+    assert set(rail) <= {t["id"] for t in full["topics"]}
+
+
+def test_an_unknown_section_is_a_404_not_an_empty_screen(client):
+    assert client.get("/api/myfam/section?key=nonsense").status_code == 404
+
+
+def test_the_ready_ones_come_first_and_are_counted(client):
+    import app as appmod
+    import topics as topics_mod
+
+    # Write the script for one bank topic, as another listener, at the length
+    # the screen is asking for.
+    topic = topics_mod.TOPIC_BANK[3]
+    plan = appmod._validated_plan(topic.query, 3)
+    appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
+                            topic.query, "", 3, "", "", "someone-else")
+
+    body = client.get("/api/myfam/section?key=most_played&minutes=3").json()
+    ready = [t for t in body["topics"] if t["cached"]]
+    assert [t["id"] for t in ready] == [topic.id]
+    assert body["ready"] == 1
+    assert body["topics"][0]["id"] == topic.id, "a ready tile was not put first"
+    # And at a length nothing was written for, nothing claims to be ready.
+    other = client.get("/api/myfam/section?key=most_played&minutes=7").json()
+    assert other["ready"] == 0
+
+
+def test_opening_a_section_costs_no_model_call(client, monkeypatch):
+    """It reorders a fixed bank. If this ever needs a generator, the "view
+    more" screen has stopped being free and the rail should say so."""
+    import app as appmod
+
+    def explode(*args, **kwargs):
+        raise AssertionError("a browse screen tried to build a pipeline")
+
+    monkeypatch.setattr(appmod, "_make_pipeline", explode)
+    assert client.get("/api/myfam/section?key=from_history").status_code == 200
+
+
+# --- the page's shape -----------------------------------------------------
+
+
+def test_trending_is_second_and_explore_new_is_not_a_rail(client):
+    """Trending was last, where a row nobody scrolls to is a row nobody
+    reads. It is second now, at the owner's direction, in the slot Explore
+    New held."""
+    import topics as topics_mod
+
+    keys = [k for k, _ in topics_mod.SECTIONS]
+    assert keys[1] == "world_trending", keys
+    assert "might_like" not in keys, "Explore New is back on myFAM"
+
+    body = client.get("/api/myfam").json()
+    assert [s["key"] for s in body["sections"]] == keys
+
+
+def test_explore_new_is_still_ranked_and_still_reachable(client):
+    """Off the page is not gone. `rank_might_like` is the only ranking in FAM
+    that offers anything *outside* an established taste, so the ranker, the
+    endpoint and the screen all stay - which is what makes putting the rail
+    back a one-line change to SECTIONS rather than a rebuild."""
+    import topics as topics_mod
+
+    assert "might_like" in topics_mod.FILL_ORDER
+    assert "might_like" in topics_mod.UNSHELVED
+    body = client.get("/api/explorenew").json()
+    assert body["topics"], "Explore New ranks nothing"
+    assert body["reason"].strip()
+    # And it can still be asked for by name as a full section.
+    full = client.get("/api/myfam/section?key=might_like")
+    assert full.status_code == 404, \
+        "a section that is not on the page should not be openable as one"
+
+
+# --- the first run's interest catalogue -----------------------------------
+
+
+def test_the_catalogue_is_offered_and_every_tag_in_it_is_real(client):
+    """Interests, not tags. The eight facets are still the only *pickable
+    tag* vocabulary - these are named subjects, and the tags ride along."""
+    import topics as topics_mod
+
+    body = client.get("/api/preferences").json()
+    catalogue = body["catalogue"]
+    assert len(catalogue) > 50, f"only {len(catalogue)} interests offered"
+    assert len({i["id"] for i in catalogue}) == len(catalogue), "duplicate ids"
+
+    known = set(topics_mod.TAG_LABELS) | set(topics_mod.TAG_PARENT)
+    for item in catalogue:
+        assert item["label"] and item["icon"], item
+        assert item["tags"], f"{item['id']} means nothing to the ranker"
+        for tag in item["tags"]:
+            assert tag in known, f"{item['id']} carries unknown tag {tag!r}"
+        # Every entry reaches a facet, so it can never rank nothing.
+        assert any(topics_mod.facet_of(t) in topics_mod.TAG_LABELS
+                   for t in item["tags"]), item
+
+
+def test_the_chips_above_it_are_still_only_the_eight_facets(client):
+    """The catalogue being seventy-odd entries must not widen the vocabulary
+    the ranker reasons in. If this ever fails, read CLAUDE.md before fixing.
+
+    The picker now *shows* six of the eight, which narrows the screen and not
+    the vocabulary - so the thing to assert is that everything it offers is a
+    facet, and that every facet is still reachable.
+    """
+    import topics as topics_mod
+
+    body = client.get("/api/preferences").json()
+    shown = [i["id"] for i in body["interests_available"]]
+    assert len(shown) == topics_mod.PICKER_SIZE
+    assert set(shown) <= set(topics_mod.TAG_LABELS), "the picker invented a tag"
+    assert [i["id"] for i in body["interests_all"]] == list(topics_mod.TAG_LABELS)
+
+
+def test_the_picker_shows_the_six_most_played(client):
+    """Not the first six of a dict. `popular_facets` counts what FAM's
+    listeners actually play, globally - the only honest signal on a run where
+    this listener has no history at all."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    culture = [t for t in topics_mod.TOPIC_BANK
+               if "culture" in topics_mod.facets_only(t.tags)][0]
+    for listener in ("a", "b", "c", "d", "e"):
+        store.record(topics_mod.Event(listener, "play", culture.id, "", culture.tags))
+
+    shown, source = topics_mod.popular_facets(store)
+    assert source == "played"
+    assert shown[0] == "culture", shown
+    assert len(shown) == topics_mod.PICKER_SIZE
+
+
+def test_the_settings_wheel_is_this_listener_rather_than_the_crowd(client):
+    """Two wheels, two questions (§100). The first run asks somebody with no
+    history, so the honest answer is what everybody plays. Settings is opened
+    by somebody who has been using the app."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    culture = [t for t in topics_mod.TOPIC_BANK
+               if "culture" in topics_mod.facets_only(t.tags)][0]
+    for _ in range(4):
+        store.record(topics_mod.Event("me", "complete", culture.id, "", culture.tags))
+    # Somebody else plays something else, loudly. It must not reach my wheel.
+    health = [t for t in topics_mod.TOPIC_BANK
+              if "health" in topics_mod.facets_only(t.tags)][0]
+    for _ in range(40):
+        store.record(topics_mod.Event("them", "play", health.id, "", health.tags))
+
+    mine, source = topics_mod.my_facets(store, "me")
+    assert source == "listened"
+    assert mine[0] == "culture", mine
+    crowd, _ = topics_mod.popular_facets(store)
+    assert crowd[0] == "health", "the crowd wheel stopped being the crowd"
+
+
+def test_a_listener_with_no_plays_falls_back_to_what_they_chose(client):
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    mine, source = topics_mod.my_facets(store, "new", chosen=["science", "money"])
+    assert source == "chosen"
+    assert mine[:2] == ["science", "money"]
+
+
+def test_the_settings_wheel_is_always_six_discs(client):
+    """A wheel is six or it is a broken wheel. Somebody who has played one
+    thing and chosen nothing still gets six, and `source` is what says the
+    other five are filler rather than a measurement."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    topic = topics_mod.TOPIC_BANK[0]
+    store.record(topics_mod.Event("me", "play", topic.id, "", topic.tags))
+    mine, source = topics_mod.my_facets(store, "me")
+    assert len(mine) == topics_mod.PICKER_SIZE
+    assert len(set(mine)) == topics_mod.PICKER_SIZE, "a facet was drawn twice"
+    assert source == "listened"
+
+
+def test_both_wheels_reach_the_interface(client):
+    body = client.get("/api/preferences").json()
+    for key in ("interests_available", "interests_yours"):
+        assert len(body[key]) == 6, key
+        assert all(i["short"] and i["label"].startswith(i["short"]) for i in body[key])
+    assert body["interests_yours_source"] in ("listened", "chosen", "default")
+
+
+def test_an_empty_log_says_it_is_showing_a_default_rather_than_a_ranking(client):
+    """A declared order and a measurement look identical on screen. On a fresh
+    deployment - which is exactly when this screen is shown - it is the former,
+    and calling that "most popular" would be inventing a number."""
+    import topics as topics_mod
+
+    shown, source = topics_mod.popular_facets(topics_mod.EventStore(":memory:"))
+    assert source == "default"
+    assert shown == list(topics_mod.PICKER_DEFAULT_ORDER[:topics_mod.PICKER_SIZE])
+
+
+def test_picking_an_interest_teaches_the_ranker_its_tags(client):
+    """The whole point of the catalogue: "Formula 1" is not something the
+    eight facets can say, and this is how it reaches the taste model."""
+    import topics as topics_mod
+
+    assert client.post("/api/event",
+                       json={"kind": "pick", "topic_id": "formula1"}).status_code == 200
+    me = client.get("/api/auth/me").json()["user_id"]
+    events = topics_mod.EventStore().for_user(me) if False else None
+    import app as appmod
+    logged = [e for e in appmod.EVENTS.for_user(me) if e.kind == "pick"]
+    assert logged, "the pick was not recorded"
+    assert set(logged[0].tags) >= set(topics_mod.CATALOGUE_BY_ID["formula1"].tags)

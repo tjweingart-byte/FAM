@@ -72,7 +72,9 @@ LIVE_SHIM = r"""
   var TAG_LABELS = __TAG_LABELS__; // topics.TAG_LABELS, verbatim
   var TAG_PARENT = __TAG_PARENT__; // topics.TAG_PARENT, verbatim
   var LANGUAGES = __LANGUAGES__;   // preferences.LANGUAGES, verbatim
-  var MAX_INTERESTS = __MAX_INTERESTS__;
+  var TAG_SHORT = __TAG_SHORT__;   // topics.TAG_SHORT, verbatim
+  var PICKER_SIZE = __PICKER_SIZE__;          // topics.PICKER_SIZE
+  var PICKER_ORDER = __PICKER_ORDER__;        // topics.PICKER_DEFAULT_ORDER
   var INTEREST_WEIGHT = __INTEREST_WEIGHT__;
   var VOLATILE = __VOLATILE__;     // cache.research_words(), verbatim
   var NEAR = __NEAR__;             // the shipped CACHE_VECTOR thresholds
@@ -381,9 +383,12 @@ LIVE_SHIM = r"""
     out.from_history = take(scored.map(function (x) { return x.t; }), 6);
     out.followers = take(byCount, 6);
     // Exploration, from the same ranking the Explore New screen uses - so the
-    // rail and the surface it opens cannot disagree about what is adjacent to
-    // a taste. Filled here, in FILL_ORDER position, so the personal sections
-    // still choose before it and trending still chooses last.
+    // screen and anything that shows this ranking cannot disagree about what
+    // is adjacent to a taste. Still filled here, in FILL_ORDER position, so
+    // the personal sections still choose before it and it still takes tiles
+    // out of the bank before the crowd rows see them - but it is in
+    // `topics.UNSHELVED` and has no rail of its own, so nothing below draws
+    // it. Deleting the fill would change what the *other* rails contain.
     out.might_like = take(exploreNewBody(myPrefs().interests).topics, 6);
     out.most_played = take(byCount.concat(BANK), 6);
     // The world row. Empty in the browser by construction: its inventory is
@@ -395,13 +400,74 @@ LIVE_SHIM = r"""
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
 
+  // `topics.SECTIONS`, in order. Trending sits second, where Explore New used
+  // to - the row about today was under two rows about what the listener
+  // already likes, which is the worst place on the page for it. Explore New
+  // is `topics.UNSHELVED`: ranked, reachable from its own screen, and not a
+  // rail. Keep this list and `topics.SECTIONS` in step or the preview shows a
+  // page the app does not.
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
-    ["might_like", "Explore New", "Listen to a few episodes and this fills in."],
+    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."],
     ["followers", "Your circle is on this", "Nobody you overlap with has listened yet."],
-    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."],
-    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."]
+    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."]
   ];
+
+  // `topics.popular_facets`, in the browser and over the same event rows.
+  // Global on purpose: the first run asks this of somebody with no history of
+  // their own, so the only honest signal is what everybody else plays.
+  var facetPlayCounted = false;
+  function popularFacets() {
+    var counts = {}, seen = false;
+    rows("events").forEach(function (e) {
+      if (!e.topic_id || (e.kind !== "play" && e.kind !== "complete")) return;
+      var t = BY_ID[e.topic_id];
+      if (!t) return;
+      facetsOnly(t.tags || []).forEach(function (f) {
+        counts[f] = (counts[f] || 0) + 1; seen = true;
+      });
+    });
+    facetPlayCounted = seen;
+    if (!seen) return PICKER_ORDER.slice(0, PICKER_SIZE);
+    return Object.keys(TAG_LABELS).sort(function (a, b) {
+      var d = (counts[b] || 0) - (counts[a] || 0);
+      return d || (PICKER_ORDER.indexOf(a) - PICKER_ORDER.indexOf(b));
+    }).slice(0, PICKER_SIZE);
+  }
+
+  // `topics.my_facets`, in the browser and over *this* listener's rows.
+  // The sibling of `popularFacets` and a different question: the first run
+  // asks somebody with no history, Settings asks somebody who has been using
+  // the app. Three sources in order - what they played, what they chose, then
+  // the declared order as filler - because a wheel is six discs or it is a
+  // broken wheel.
+  function myFacets() {
+    var counts = {}, out = [], seen = {}, source = "";
+    rows("events").forEach(function (e) {
+      if (e.user_id !== UID || !e.topic_id) return;
+      if (e.kind !== "play" && e.kind !== "complete") return;
+      var t = BY_ID[e.topic_id];
+      if (!t) return;
+      facetsOnly(t.tags || []).forEach(function (f) {
+        counts[f] = (counts[f] || 0) + 1;
+      });
+    });
+    Object.keys(counts).filter(function (f) { return TAG_LABELS[f]; })
+      .sort(function (a, b) {
+        return (counts[b] - counts[a])
+          || (PICKER_ORDER.indexOf(a) - PICKER_ORDER.indexOf(b));
+      }).forEach(function (f) { out.push(f); seen[f] = 1; });
+    if (out.length) source = "listened";
+    (myPrefs().interests || []).forEach(function (f) {
+      if (TAG_LABELS[f] && !seen[f]) { out.push(f); seen[f] = 1;
+                                       source = source || "chosen"; }
+    });
+    PICKER_ORDER.forEach(function (f) {
+      if (out.length >= PICKER_SIZE || seen[f]) return;
+      out.push(f); seen[f] = 1; source = source || "default";
+    });
+    return { ids: out.slice(0, PICKER_SIZE), source: source || "default" };
+  }
 
   function myfamBody() {
     var f = feed(), shown = [];
@@ -442,6 +508,10 @@ LIVE_SHIM = r"""
       name: person.name || "", handle: person.handle || "",
       joined: person.joined || 0, last_seen: person.last_seen || 0,
       known: !!person.id,
+      avatar: person.avatar || "",
+      // Nobody else is in this database, so the graph is honestly empty
+      // rather than seeded with people who do not exist.
+      follows: { following: 0, followers: 0, friends: 0 },
       echo_count: myEchoes.length,
       mixes: rows("mixes").filter(function (m) { return m.user_id === UID && m.public; })
         .map(shapeMix),
@@ -511,9 +581,9 @@ LIVE_SHIM = r"""
 
   function hintedInterests(qs) {
     if (EMAIL) return myPrefs().interests;
+    // No cap - the vocabulary is the only bound, as on the server (§99).
     return String(qs.get("interests") || "").split(",")
-      .filter(function (g) { return TAG_LABELS[g]; })
-      .slice(0, MAX_INTERESTS);
+      .filter(function (g) { return TAG_LABELS[g]; });
   }
 
   // The Sunday that started the week `t` falls in, in UTC - preferences.week_start.
@@ -651,7 +721,12 @@ LIVE_SHIM = r"""
       var p = rows("people").filter(function (x) { return x.id === e.user_id; })[0];
       labels[e.query] = (p && p.name) || "Someone";
     });
-    var eps = rows("scripts").filter(function (s) { return s.expires > now(); })
+    var eps = rows("scripts")
+      // Other people's, and only other people's. An episode this listener
+      // generated is dropped from their own feed; one with no author - a
+      // warmed script, or a row written before this existed - belongs to
+      // everybody and stays.
+      .filter(function (s) { return s.expires > now() && s.author !== UID; })
       .sort(function (a, b) { return b.created - a.created; })
       .slice(0, limit || 30)
       .map(function (s) {
@@ -732,6 +807,8 @@ LIVE_SHIM = r"""
   // The share wording, from sharing.py at build time, so the preview and the
   // server cannot show different copy for the same button.
   var SHARE_TEMPLATES = __SHARE_TEMPLATES__;
+  /* The first run's interest catalogue, from topics.py at build time. */
+  var CATALOGUE = __CATALOGUE__;
   function silence(seconds) {
     var total = Math.round(seconds * SAMPLE_RATE), sent = 0;
     return Promise.resolve(new Response(new ReadableStream({
@@ -821,9 +898,19 @@ LIVE_SHIM = r"""
         return json({ error: "@" + hd + " is taken." }, 400);
       }
       var was = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
+      // `undefined` leaves the picture alone, "" removes it - the same two
+      // requests the real endpoint distinguishes, because a client that does
+      // not know about pictures must not delete one by renaming.
+      var pic = (body.avatar === undefined || body.avatar === null)
+        ? (was.avatar || "") : String(body.avatar);
+      if (pic && pic.slice(0, 11) !== "data:image/") {
+        return json({ error: "A profile picture has to be an image from your device." }, 400);
+      }
       return put("people", UID, {
-        name: nm, handle: hd, joined: was.joined || now(), last_seen: now()
-      }).then(function () { paint(); return json({ user_id: UID, name: nm, handle: hd }); });
+        name: nm, handle: hd, avatar: pic,
+        joined: was.joined || now(), last_seen: now()
+      }).then(function () { paint(); return json({ user_id: UID, name: nm,
+                                                   handle: hd, avatar: pic }); });
     }
 
     if (path === "/api/echo" && method === "DELETE") {
@@ -845,14 +932,94 @@ LIVE_SHIM = r"""
       }).then(function () { paint(); return json({ id: id, query: body.query, at: now() }); });
     }
 
+    // `/api/vibe` is `/api/echo` under the product's name - one store, two
+    // paths, exactly as the server does it.
+    if (path === "/api/vibe") return handle("/api/echo", method, qs, body);
+    if (path === "/api/vibes") {
+      var mine = rows("echoes").filter(function (e) { return e.user_id === UID; })
+        .sort(function (a, b) { return b.at - a.at; });
+      var who = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
+      return json({ count: mine.length, vibes: mine.map(function (e) {
+        return { id: e.id, query: e.query, title: e.title, minutes: e.minutes,
+                 thread: e.thread || "", at: e.at,
+                 by: who.name || "", handle: who.handle || "" };
+      }) });
+    }
+
+    // ---- the follow graph and messages
+    //
+    // This database has exactly one listener in it - itself - so every one of
+    // these is honestly empty rather than seeded with people who do not
+    // exist. An empty friends list is a fact about this deployment; three
+    // invented contacts would be a claim about the world.
+    if (path === "/api/friends") {
+      return json({ following: [], followers: [], friends: [],
+                    counts: { following: 0, followers: 0, friends: 0 } });
+    }
+    if (path === "/api/people") return json({ people: [] });
+    if (path === "/api/friends/follow") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
+    }
+    if (path === "/api/messages" && method === "GET") {
+      return json({ threads: [], unread: 0 });
+    }
+    if (path === "/api/messages/thread") {
+      return json({ with: { user_id: qs.get("with") || "", name: "", handle: "" },
+                    messages: [] });
+    }
+    if (path === "/api/messages" && method === "POST") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
+    }
+
+    // ---- "View more": one rail, at full length
+    if (path === "/api/myfam/section") {
+      var wantKey = qs.get("key") || "most_played";
+      var sect = myfamBody().sections.filter(function (x) {
+        return x.key === wantKey; })[0];
+      if (!sect) return json({ error: "No such section." }, 404);
+      var taken = {};
+      sect.topics.forEach(function (x) { taken[x.id] = true; });
+      var mins = Number(qs.get("minutes") || 3);
+      // Genuinely cached, from this database's own script table - which is
+      // the point of the live preview: the badge means something here.
+      var all = sect.topics.concat(BANK.filter(function (x) { return !taken[x.id]; }))
+        .map(function (x) {
+          var copy = {}; for (var k in x) copy[k] = x[k];
+          copy.cached = rows("scripts").some(function (row) {
+            return row.query === x.query && row.minutes === mins
+                && row.expires > now();
+          });
+          return copy;
+        });
+      all.sort(function (a, b) { return (a.cached === b.cached) ? 0 : (a.cached ? -1 : 1); });
+      return json({ key: wantKey, title: sect.title, topics: all,
+                    ready: all.filter(function (x) { return x.cached; }).length,
+                    minutes: mins, empty_reason: "", personalised: true,
+                    algo: "live" });
+    }
+
     // ---- preferences, the recap, and what plays next
     if (path === "/api/preferences" && method === "GET") {
       var stored = myPrefs();
+      var mineNow = myFacets();
       return json({
-        interests_available: Object.keys(TAG_LABELS).map(function (g) {
+        // The six the picker draws, most played across this store first -
+        // `topics.popular_facets` in the browser, over the same event rows.
+        // Six of eight: the picker narrows, the vocabulary does not, which is
+        // why `interests_all` is here beside it.
+        interests_available: popularFacets().map(function (g) {
+          return { id: g, label: TAG_LABELS[g], short: TAG_SHORT[g] };
+        }),
+        interests_all: Object.keys(TAG_LABELS).map(function (g) {
           return { id: g, label: TAG_LABELS[g] };
         }),
-        languages: LANGUAGES, max_interests: MAX_INTERESTS,
+        interests_source: facetPlayCounted ? "played" : "default",
+        interests_yours: mineNow.ids.map(function (g) {
+          return { id: g, label: TAG_LABELS[g], short: TAG_SHORT[g] };
+        }),
+        interests_yours_source: mineNow.source,
+        catalogue: CATALOGUE,
+        languages: LANGUAGES,
         language_active: false,
         account: !!EMAIL, saved: !!EMAIL,
         account_required: ACCOUNT_REQUIRED,
@@ -868,9 +1035,6 @@ LIVE_SHIM = r"""
       var chosen = (body.interests !== undefined && body.interests !== null)
         ? body.interests.filter(function (g) { return TAG_LABELS[g]; })
         : was.interests;
-      if (chosen.length > MAX_INTERESTS) {
-        return json({ error: "Choose at most " + MAX_INTERESTS + " interests." }, 400);
-      }
       return put("prefs", UID, {
         interests: chosen.join(","),
         language: body.language !== undefined && body.language !== null
@@ -1074,6 +1238,9 @@ LIVE_SHIM = r"""
       sentences: "(no model call in this build)",
       created: now(), expires: now() + 86400, hits: 1,
       thread: "what that changes next",
+      // Stamped on the write, from the listener whose tap paid for it - the
+      // same place the server does it. See cache.recent.
+      author: UID,
       // The two columns the near-match cache added. The vector is written
       // here, on the write, for the reason the whole design turns on: doing
       // it on the read would put work in front of the first word.
@@ -1427,6 +1594,11 @@ LIVE_SHIM = r"""
           query: t.query, minutes: 3, sentences: "(seeded — no model call)",
           created: now() - 3600 * (1 + j), expires: now() + 86400,
           hits: 1 + ((i + j) % 4), thread: "what that changes next",
+          // Whose episode it is. The seeded ones belong to the seeded
+          // listeners, which is what lets this preview show the real rule:
+          // Explore is *other people's*, so an episode generated here drops
+          // off this listener's own feed and the seeded ones stay.
+          author: p[0],
           bucket: "m3:hashing:" + DIMS, vector: embed(normalize(t.query))
         }));
       });
@@ -1637,13 +1809,23 @@ def build() -> pathlib.Path:
             # here it would drift, and a picker offering a facet the ranker
             # does not score is the drift that matters.
             .replace("__TAG_LABELS__", json.dumps(topics.TAG_LABELS))
+            # The first run's catalogue, from the module that owns it, for the
+            # same reason as the vocabulary above.
+            .replace("__CATALOGUE__", json.dumps(
+                [i.as_dict() for i in topics.INTEREST_CATALOGUE]))
             # Subtag -> facet. The preview reimplements tags_for_text in JS,
             # so without this it would match subtags and never fold them up,
             # and the preview would rank differently from the server it is
             # supposed to be showing.
             .replace("__TAG_PARENT__", json.dumps(topics.TAG_PARENT))
             .replace("__LANGUAGES__", json.dumps([dict(l) for l in prefs_mod.LANGUAGES]))
-            .replace("__MAX_INTERESTS__", json.dumps(prefs_mod.MAX_INTERESTS))
+            .replace("__TAG_SHORT__", json.dumps(topics.TAG_SHORT))
+            # How many facets the picker shows, and the order to show them in
+            # when nothing has been played. From the module that owns them, so
+            # the preview cannot draw a different first run from the server.
+            .replace("__PICKER_SIZE__", json.dumps(topics.PICKER_SIZE))
+            .replace("__PICKER_ORDER__", json.dumps(
+                list(topics.PICKER_DEFAULT_ORDER)))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))
             .replace("__VOLATILE__", json.dumps(sorted(cache.research_words())))
             .replace("__NEAR__", json.dumps({

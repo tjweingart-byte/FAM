@@ -182,3 +182,63 @@ def test_a_taken_handle_is_a_readable_refusal(client):
     somebody_else = TestClient(appmod.app)
     res = somebody_else.post("/api/me", json={"name": "Other", "handle": "ian"})
     assert res.status_code == 400 and "taken" in res.json()["error"]
+
+
+# --- vibe -----------------------------------------------------------------
+#
+# "Vibe" is the product's name for an echo. The rename is copy plus an alias,
+# and these pin the part that matters: one row, two paths, so a phone that has
+# not updated is not cut off by a word change.
+
+
+def test_vibing_and_echoing_are_the_same_row(client):
+    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3)
+    client.post("/api/me", json={"name": "Ada", "handle": "ada"})
+    made = client.post("/api/vibe", json={"query": "why tides turn",
+                                          "title": "Why tides turn",
+                                          "minutes": 3})
+    assert made.status_code == 200
+    # The same episode through the old name is the same row, not a second one:
+    # one store under two paths is the whole of the alias.
+    again = client.post("/api/echo", json={"query": "why tides turn",
+                                           "title": "Why tides turn",
+                                           "minutes": 3})
+    assert again.status_code == 200
+    assert again.json()["id"] == made.json()["id"]
+    assert client.get("/api/profile").json()["echo_count"] == 1
+
+
+def test_my_vibe_lists_what_this_listener_vibed(client):
+    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3)
+    client.post("/api/me", json={"name": "Ada", "handle": "ada"})
+    client.post("/api/vibe", json={"query": "why tides turn",
+                                   "title": "Why tides turn", "minutes": 3})
+    body = client.get("/api/vibes").json()
+    assert [v["query"] for v in body["vibes"]] == ["why tides turn"]
+    assert body["count"] == 1
+    # And taking it back empties the shelf, through either name.
+    client.delete("/api/vibe?q=why+tides+turn&minutes=3")
+    assert client.get("/api/vibes").json()["vibes"] == []
+
+
+# --- the profile picture --------------------------------------------------
+
+
+def test_a_picture_is_kept_and_a_rename_does_not_delete_it(client):
+    tiny = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+    client.post("/api/me", json={"name": "Ada", "handle": "ada", "avatar": tiny})
+    assert client.get("/api/profile").json()["avatar"] == tiny
+    # A client that does not know about pictures renames without one.
+    client.post("/api/me", json={"name": "Ada L", "handle": "ada"})
+    assert client.get("/api/profile").json()["avatar"] == tiny
+    # "" is how you actually remove it.
+    client.post("/api/me", json={"name": "Ada L", "handle": "ada", "avatar": ""})
+    assert client.get("/api/profile").json()["avatar"] == ""
+
+
+def test_a_picture_from_somewhere_else_is_refused(client):
+    """A remote URL is a request every viewer's device makes to a third party."""
+    res = client.post("/api/me", json={"name": "Ada", "handle": "ada",
+                                       "avatar": "https://example.com/me.jpg"})
+    assert res.status_code == 400
+    assert "from your device" in res.json()["error"]

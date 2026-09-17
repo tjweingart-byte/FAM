@@ -56,3 +56,10 @@ pod-results/
 # If genuinely new experiment source is ever written on this branch, this line
 # would hide it. Add it with `git add -f`, or reconsider the line.
 experiments/
+
+# Screenshots from tools/shots.py. They are a before/after comparison made
+# during one change, never a thing to keep - the point is the difference, and
+# the difference is gone as soon as the change is.
+shots/
+before/
+after/

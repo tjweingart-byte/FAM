@@ -191,3 +191,44 @@ def test_a_photo_becomes_an_image_block_before_the_instructions():
 def test_no_attachments_leaves_the_prompt_untouched():
     plain = build_prompt(plan_episode("why is the sky blue", 3))
     assert "attached" not in plain.lower()
+
+
+# --- pacing ---------------------------------------------------------------
+#
+# A search can carry several attachments, and the interface invites them. It
+# used to answer the second one with the generation limiter's "Slow down a
+# moment" - from a button that had just asked for another file.
+
+
+@pytest.fixture()
+def client():
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    # The generation limiter's buckets are module state; emptied so a previous
+    # test's requests cannot decide this one's.
+    appmod._gen_tokens.clear()
+    appmod._read_hits.clear()
+    return TestClient(appmod.app)
+
+
+def test_two_documents_in_a_row_are_both_accepted(client):
+    doc = base64.b64encode(b"The quarterly numbers were up eleven per cent.").decode()
+    first = client.post("/api/attach", json={"kind": "document",
+                                             "name": "q3.txt", "data": doc})
+    second = client.post("/api/attach", json={"kind": "document",
+                                              "name": "q4.txt", "data": doc})
+    assert first.status_code == 200
+    assert second.status_code == 200, second.json()
+
+
+def test_a_link_is_still_paced_as_a_spend(client, monkeypatch):
+    """A link is an outbound fetch of whatever address was typed - the one
+    thing on this endpoint somebody else pays for."""
+    import app as appmod
+
+    called = []
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: called.append(1))
+    client.post("/api/attach", json={"kind": "link", "url": "https://example.com/a"})
+    assert called, "a link was not paced"

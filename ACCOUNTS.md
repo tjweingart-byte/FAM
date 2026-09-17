@@ -198,7 +198,7 @@ one that silently stops covering the seventh.
 
 | | what happens |
 |---|---|
-| events, mixes, echoes, profile, preferences, attachments, quota counters | deleted |
+| events, mixes, vibes (`echoes`), profile, preferences, attachments, quota counters | deleted |
 | credentials, identities, sessions | deleted |
 | **cost ledger** | **anonymised, not deleted** |
 | **shared script cache** | **untouched, and needs no decision** |

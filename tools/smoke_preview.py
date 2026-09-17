@@ -105,19 +105,30 @@ def main() -> int:
             page.evaluate("submitAuthForm()")
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
+            # Six discs on the wheel, as the designs draw them.
             chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips >= 6, f"only {chips} interests offered"
-            # The cap is a disabled chip, not a message after the fact.
-            for i in range(7):
+            assert chips == 6, f"the wheel offered {chips} interests, not six"
+            # And no paragraph between the heading and them.
+            assert not page.query_selector("#introPageInterests .entry-lede"), \
+                "the lede is back under Your interests"
+            # Every one of them selectable, with nothing counting them and
+            # nothing refusing the last one. There is no cap any more, so
+            # there must be no trace of one either.
+            for i in range(6):
                 page.evaluate(f"var c=document.querySelectorAll('.intro-chip')[{i}];"
                               " if(c) c.click();")
             chosen = page.eval_on_selector_all(".intro-chip.on", "e => e.length")
-            assert chosen == 6, f"the six-interest cap let {chosen} through"
-            assert page.query_selector(".intro-chip.full"), \
-                "the seventh chip was still selectable"
-            page.evaluate("introNext()")
-            page.wait_for_selector("#introPageLanguage .intro-lang",
-                                   timeout=10000, state="attached")
+            assert chosen == 6, f"only {chosen} of six discs took a tap"
+            assert not page.query_selector("#introCount"), \
+                "the interest counter is back, and there is no number to show"
+            body = page.text_content("#introPageInterests") or ""
+            for word in ("limit", "up to six", "at most"):
+                assert word not in body.lower(), f"the page still mentions a cap: {word!r}"
+            # Interests is the last step now - the language page is gone
+            # (§100), so this button finishes the run rather than chaining on
+            # to a question that was never wired to anything.
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Start listening", "the first run still has a second step"
             page.evaluate("finishIntro()")
             page.wait_for_timeout(900)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
@@ -149,13 +160,21 @@ def main() -> int:
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
-            assert any("Explore New" in t for t in titles), \
-                f"Explore New is not on myFAM: {titles}"
-            # The heading is the way through to the full surface. Without a
-            # visible affordance nobody finds it, which is how Explore New
-            # became unreachable the first time.
-            assert page.eval_on_selector_all(".feed-see", "e => e.length") >= 1, \
-                "the Explore New rail offers no way through to the full surface"
+            # Trending is second, in the slot Explore New used to hold. It was
+            # last, where a row nobody scrolls to is a row nobody reads, and it
+            # is the one rail here with a reason to be looked at *today*.
+            assert any("Trending" in t for t in titles), \
+                f"Trending is not on myFAM: {titles}"
+            assert not any("Explore New" in t for t in titles), \
+                f"Explore New is back on myFAM: {titles}"
+            assert titles[1].strip() == "Trending", \
+                f"Trending is not in the second slot: {titles}"
+            # Every rail now opens its own full-length view from the card at
+            # the end of it. Without a visible way through nobody finds those
+            # screens, which is how Explore New became unreachable the first
+            # time it came off this page.
+            assert page.eval_on_selector_all(".feed-more", "e => e.length") >= 1, \
+                "no rail offers a way through to its full surface"
 
         def go_deeper_titles_fit():
             """A clipped title is invisible to every other check.
@@ -221,9 +240,34 @@ def main() -> int:
             rails = page.eval_on_selector_all(".seed-card-title", "e => e.map(x => x.textContent)")
             repeated = sorted(set(titles) & set(rails))
             assert not repeated, f"Go Deeper repeats what the rails show: {repeated}"
-            label = page.text_content(".gd-count")
+            # The heading, not the right-hand slot: that slot is the length
+            # control now, and the sentence about the tiles moved into the
+            # kicker. The rule it protects is unchanged - a listener on their
+            # first run has not left anything off.
+            label = page.text_content(".gd-kicker")
             assert "left off" not in label.lower(), \
                 f"told a first-run listener they left something off: {label!r}"
+            # And the control that replaced it is real and independent of
+            # search's. Changing it here must not move the search player's.
+            before = page.eval_on_selector("#lengthVal", "e => e.textContent")
+            assert page.query_selector(".gd-len"), \
+                "myFAM has no episode-length control"
+            page.evaluate("openMyFamLengthMenu()")
+            page.wait_for_timeout(250)
+            page.evaluate(
+                """() => {
+                    var rows = document.querySelectorAll('.sheet-item');
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i].textContent.indexOf('7 min') === 0) {
+                            rows[i].click(); return;
+                        }
+                    }
+                }""")
+            page.wait_for_timeout(350)
+            assert "7 min" in page.text_content(".gd-len"), \
+                "myFAM's length control did not take"
+            assert page.eval_on_selector("#lengthVal", "e => e.textContent") == before, \
+                "changing myFAM's length also changed the search player's"
             page.reload()
             page.wait_for_timeout(1200)
 
@@ -268,9 +312,10 @@ def main() -> int:
             page.wait_for_timeout(600)
             tiles = page.eval_on_selector_all(".yf-tile-name", "e => e.map(x => x.textContent)")
             assert tiles == ["Weekly Recap", "Save for Later"], f"saw {tiles}"
-            # Explore New gave up this tile to Save for Later and now lives on
-            # myFAM as a rail of its own - which is where it can be found
-            # rather than remembered. The screen behind it is checked here.
+            # Explore New is off myFAM at the owner's direction, but the
+            # ranking, the endpoint and the screen are all still here - which
+            # is what makes putting the rail back a one-line change rather
+            # than a rebuild. Driven directly, because nothing links to it.
             page.evaluate("openExploreNew()")
             page.wait_for_selector("#screen-explorenew.active .xn-card",
                                    timeout=10000, state="attached")
@@ -280,10 +325,10 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def save_for_later_lists_the_shelf_and_its_folders():
+        def save_for_later_lists_the_shelf_and_reaches_downloads():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
-            page.evaluate("openSaved()")
+            page.evaluate("openSavedAll()")
             page.wait_for_selector("#screen-saved.active .sv-row",
                                    timeout=10000, state="attached")
             rows = page.eval_on_selector_all(".sv-row", "e => e.length")
@@ -296,8 +341,40 @@ def main() -> int:
             bar = page.text_content("#svDownloadBar")
             assert "OF" in bar and "FREE" in bar, \
                 f"the shelf did not say how much offline room was left: {bar!r}"
-            chips = page.eval_on_selector_all(".sv-chip", "e => e.map(x => x.textContent)")
-            assert any("Commute" in c for c in chips), f"no folders: {chips}"
+            # Downloads is inside this shelf rather than beside it, because a
+            # download is a *state* of a saved episode. The folder chips that
+            # used to be here are gone: a shelf of a dozen things does not
+            # need filing, and the one folder in it was a fixture.
+            assert not page.query_selector(".sv-chip"), \
+                "the folder chips came back"
+            switch = page.text_content("#svSwitch")
+            assert "Downloads" in switch, f"no way through to downloads: {switch!r}"
+            page.click("#svSwitch")
+            page.wait_for_timeout(500)
+            assert page.text_content("#screen-saved .back-row h2").strip() == "Downloads", \
+                "the Downloads view did not open"
+            assert "All saved" in page.text_content("#svSwitch"), \
+                "no way back to the whole shelf"
+            page.click("#svSwitch")
+            page.wait_for_timeout(400)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_shelf_comes_back_to_where_it_was_opened_from():
+            """Opening it from the profile and pressing back landed on search,
+            because `openSaved` unwound the Your FAM sheet whether or not that
+            sheet was open - and a `goBack()` on the profile takes the profile
+            off the stack."""
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+                                   timeout=10000, state="attached")
+            page.evaluate("openSavedAll()")
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-saved"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile", \
+                "back from the shelf did not return to the profile"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -313,14 +390,128 @@ def main() -> int:
                           " title: 'Bonds', minutes: 3}")
             page.evaluate("saveForLater()")
             page.wait_for_selector("#downloadOverlay.active", timeout=8000)
-            assert "Download" in page.text_content("#dlTitle")
+            # The save has already happened, so the popup says so: the only
+            # question left is the download, and the old "Download?" left it
+            # ambiguous whether anything had been kept at all.
+            title = page.text_content("#dlTitle")
+            assert "Saved" in title, f"the popup did not say the save landed: {title!r}"
             size = page.text_content("#dlSize")
-            assert "MB" in size and "NO SIGNAL" in size, \
-                f"the popup did not say the size or what downloading buys: {size!r}"
-            page.evaluate("closeDownloadModal()")
-            page.wait_for_timeout(300)
+            assert "MB" in size, f"the popup did not say the size: {size!r}"
+            assert "no signal" in page.text_content("#dlSub").lower(), \
+                "the popup did not say what downloading buys"
+            # Both buttons are commitments, so there has to be a way out of
+            # the question that is not the backdrop.
+            assert page.query_selector("#downloadOverlay .dl-x"), \
+                "the popup cannot be dismissed without choosing"
+            page.click("#downloadOverlay .dl-x")
+            page.wait_for_timeout(400)
+            assert not page.query_selector("#downloadOverlay.active"), \
+                "the X did not close the popup"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
+
+        def the_photo_editor_crops_what_it_shows():
+            """The crop used to be a silent centre crop - a guess made on
+            somebody's behalf about where their face is. What matters here is
+            that the export reads the same numbers the preview is painted
+            from: a preview computed one way and an export computed another is
+            a crop that lies, and nobody finds out until afterwards.
+
+            Driven with a synthetic image, because a file picker cannot be."""
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(600)
+            # A 400x200 image: wider than tall, so the crop has a real choice
+            # to make and the clamp has something to clamp.
+            page.evaluate(
+                """() => {
+                    var c = document.createElement('canvas');
+                    c.width = 400; c.height = 200;
+                    var x = c.getContext('2d');
+                    x.fillStyle = '#123456'; x.fillRect(0, 0, 400, 200);
+                    x.fillStyle = '#e0b563'; x.fillRect(0, 0, 40, 200);
+                    window.__testPhoto = c.toDataURL('image/jpeg', 0.9);
+                }""")
+            page.evaluate("openPhotoEditor(window.__testPhoto)")
+            page.wait_for_selector("#photoOverlay.active", timeout=8000)
+            page.wait_for_timeout(500)
+            state = page.evaluate(
+                """() => ({ stage: photo.stage, base: photo.base,
+                            ox: photo.ox, oy: photo.oy, w: photo.img.width })""")
+            assert state["stage"] > 0, "the stage was measured before it had a size"
+            # Covering, always: the image can never be dragged off the square.
+            assert state["ox"] <= 0.01 and state["oy"] <= 0.01, state
+            assert state["ox"] >= state["stage"] - state["w"] * state["base"] - 0.01, state
+            # Dragged hard left, the clamp holds rather than letting the crop
+            # run off the edge of the picture.
+            page.evaluate("photo.ox = -99999; paintPhoto();")
+            after = page.evaluate("() => photo.ox")
+            assert after >= state["stage"] - state["w"] * state["base"] - 0.01, after
+            # Zooming keeps the middle of the crop where it was.
+            page.evaluate(
+                """() => { document.getElementById('photoZoom').value = 220;
+                           photoZoomed(); }""")
+            zoomed = page.evaluate("() => photo.zoom")
+            assert abs(zoomed - 2.2) < 0.01, zoomed
+            page.evaluate("closePhotoEditor()")
+            page.wait_for_timeout(300)
+            assert not page.query_selector("#photoOverlay.active")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_interest_catalogue_is_the_whole_list():
+            """The first run's "View more". Seventy-odd named subjects, each
+            with an icon - and the chips above it are still only the eight
+            facets, which is the line CLAUDE.md draws and this keeps."""
+            page.evaluate(
+                "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
+            page.wait_for_timeout(600)
+            page.evaluate("skipAccount()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
+            assert chips == topics_mod.PICKER_SIZE, (
+                f"the wheel drew {chips} discs, not {topics_mod.PICKER_SIZE}")
+            # Six of the eight are *shown*; the eight are still the whole
+            # pickable vocabulary, and every one of them is reachable through
+            # the catalogue in the middle - which is what makes narrowing the
+            # wheel a screen decision rather than a vocabulary one. The discs
+            # carry `TAG_SHORT`, because "Money & markets" does not fit in one.
+            ids = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            assert set(ids) <= set(topics_mod.TAG_SHORT.values()), (
+                f"the wheel drew something that is not a facet: {ids}")
+            # The way in is the hub of the wheel.
+            assert page.query_selector(".orbit-more"), "no way into the catalogue"
+            page.evaluate("openTopicCatalog()")
+            page.wait_for_selector("#screen-catalog.active .cat-row",
+                                   timeout=10000, state="attached")
+            rows = page.eval_on_selector_all(".cat-row", "e => e.length")
+            assert rows > 50, f"the catalogue offered {rows} interests"
+            names = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
+            for wanted in ("Soccer", "Formula 1", "K-pop", "Personal Finance"):
+                assert wanted in names, f"{wanted} is missing from the catalogue"
+            # Every row draws an icon. A row with none is a row that looks
+            # broken next to the ones that have them.
+            icons = page.eval_on_selector_all(".cat-art svg", "e => e.length")
+            assert icons == rows, f"{rows - icons} rows had no icon"
+            # And the search narrows it rather than decorating it.
+            page.fill("#catalogSearch", "hockey")
+            page.wait_for_timeout(400)
+            found = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
+            assert found == ["Ice Hockey"], found
+            # Closing it must come back to the step it was opened from. It
+            # used to `goBack()`, and the intro is drawn with `showScreen` and
+            # never joins the stack - so the pop landed on SearchFAM and the
+            # first run fell out of the intro on the way out.
+            page.evaluate("closeTopicCatalog()")
+            page.wait_for_timeout(400)
+            active = page.eval_on_selector(".screen.active", "e => e.id")
+            assert active == "screen-intro", (
+                f"closing the catalogue left the first run at {active}")
+            assert not page.eval_on_selector("#introPageInterests", "e => e.hidden"), (
+                "closing the catalogue skipped past the interests step")
+            page.evaluate("finishIntro()")
+            page.wait_for_timeout(700)
 
         def an_episode_can_be_shared_outside_fam():
             """FAM posts nothing: the server writes the link and the wording,
@@ -338,8 +529,19 @@ def main() -> int:
                 assert wanted in names, f"{wanted} was not offered: {names}"
             # Sharing inside FAM did not go away to make room for it: one
             # sheet, two halves, because "share this" is one intent.
-            assert page.eval_on_selector_all(".share-contact", "e => e.length") > 0, \
-                "the sheet lost the option to send it to somebody in FAM"
+            #
+            # The people are the real follow graph now, so "how many" is a
+            # fact about the database this preview is running on - the live
+            # one has exactly one listener in it. What must never happen is
+            # the half going *silent*: either it lists people or it says why
+            # it cannot, and an empty space that explains nothing is the
+            # failure. Which is also why this reads the section rather than
+            # counting rows.
+            inside = page.eval_on_selector(
+                "#shareContacts", "e => e.textContent.trim()")
+            people = page.eval_on_selector_all(".share-contact", "e => e.length")
+            assert people > 0 or inside, \
+                "the sheet's in-FAM half was empty and said nothing"
             assert not page.eval_on_selector("#shareNote", "e => e.hidden"), \
                 "the preview link is not public and the sheet did not say so"
             page.evaluate("closeShareModal()")
@@ -524,8 +726,212 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile"
             assert page.query_selector(".pf-name"), "no identity block"
             assert page.eval_on_selector_all(".pf-echo", "e => e.length") > 0, "no echoes"
-            assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no folders"
+            assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no public mixes"
             assert page.query_selector(".pf-headline"), "no my-FAM-is-your-FAM headline"
+
+        def every_settings_screen_comes_back_to_settings():
+            """A settings row is an editor, not the first run happening again.
+
+            Interests and Language reuse the intro screen, and reusing the
+            screen meant reusing the flow: Next chained on to the language page
+            and "Start listening" ran `finishIntro`, which writes `intro: done`
+            and drops the listener on myFAM. From Settings there has to be an X
+            that goes back, and a Save that goes back.
+            """
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(700)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+
+            # One opener now: Language had no editor of its own worth having
+            # and the page it opened is gone (§100).
+            for opener in ("openInterestsFromSettings()",):
+                page.evaluate(opener)
+                page.wait_for_selector("#screen-intro.active", timeout=10000)
+                assert not page.eval_on_selector("#introTop", "e => e.hidden"), (
+                    f"{opener} gave no way out")
+                assert page.query_selector("#introTop .sheet-close"), \
+                    f"{opener} has no X at the top right"
+                # The docked button is a save here, not a step in a setup.
+                label = page.eval_on_selector(
+                    "#introDockInterests[hidden] ~ .entry-dock:not([hidden])"
+                    " .entry-btn, #introDockInterests:not([hidden]) .entry-btn",
+                    "e => e.textContent.trim()")
+                assert label == "Save", f"{opener} still says {label!r}"
+                # The X comes back to Settings.
+                page.evaluate("closeIntroToSettings()")
+                page.wait_for_timeout(400)
+                assert page.eval_on_selector(".screen.active", "e => e.id") \
+                    == "screen-settings", f"the X after {opener} did not return"
+
+            # And so does Save - the case the note is actually about, because
+            # this is the one that used to end up on myFAM.
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active", timeout=10000)
+            page.evaluate("introPrimary()")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "saving interests left Settings behind"
+
+            # Every modal a settings row opens closes the same way.
+            page.evaluate("editIdentity()")
+            page.wait_for_timeout(400)
+            assert page.query_selector("#modalOverlay.active .modal-x"), \
+                "the name modal has no X"
+            page.evaluate("closeModal()")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "closing the name modal left Settings"
+
+        def the_interests_wheel_turns_and_stays_tappable():
+            """The first run's wheel: six discs orbiting "View more".
+
+            Three things have to hold at once, and the third is the one a
+            static screenshot cannot see. The discs have to *move*; their
+            labels have to stay upright while they do (the ring rotates, each
+            disc counter-rotates by exactly as much); and every disc has to
+            stay hit-testable at its own centre the whole way round, because a
+            control that moves and cannot be tapped is worse than one that
+            does not move.
+
+            `elementFromPoint` rather than `page.click`, deliberately:
+            Playwright waits for an element to stop moving before it will
+            click, and this one never does. That is a fact about the harness
+            rather than about the interface, and asking the browser what is
+            under the point answers the real question.
+            """
+            probe = """() => {
+              var chips = Array.from(document.querySelectorAll('.intro-chip'));
+              var ring = document.getElementById('orbitRing');
+              var rm = new DOMMatrix(getComputedStyle(ring).transform);
+              return {
+                ring: Math.round(Math.atan2(rm.b, rm.a) * 180 / Math.PI),
+                chips: chips.map(function(c){
+                  var r = c.getBoundingClientRect();
+                  var x = Math.round(r.left + r.width / 2);
+                  var y = Math.round(r.top + r.height / 2);
+                  var hit = document.elementFromPoint(x, y);
+                  var m = new DOMMatrix(getComputedStyle(c).transform);
+                  return { x: x, y: y,
+                           spin: Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI),
+                           hit: !!hit && (hit === c || c.contains(hit)) };
+                })
+              };
+            }"""
+            page.evaluate(
+                "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
+            page.wait_for_timeout(600)
+            page.evaluate("skipAccount()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            before = page.evaluate(probe)
+            assert len(before["chips"]) == 6, "the wheel is not six discs"
+            assert all(c["hit"] for c in before["chips"]), \
+                "a disc was not hit-testable at its own centre"
+            # The hub is reachable too - the ring must not lie on top of it.
+            hub = page.evaluate(
+                """() => { var b = document.querySelector('.orbit-more')
+                             .getBoundingClientRect();
+                           var el = document.elementFromPoint(
+                             Math.round(b.left + b.width/2),
+                             Math.round(b.top + b.height/2));
+                           return !!el && el.classList.contains('orbit-more'); }""")
+            assert hub, "the ring is swallowing taps meant for View more"
+
+            page.wait_for_timeout(4000)
+            after = page.evaluate(probe)
+            moved = [((after["chips"][i]["x"] - before["chips"][i]["x"]) ** 2
+                      + (after["chips"][i]["y"] - before["chips"][i]["y"]) ** 2) ** 0.5
+                     for i in range(6)]
+            assert min(moved) > 8, f"the wheel is not turning: {moved}"
+            # Counter-clockwise, following the arrows in the design.
+            assert after["ring"] != before["ring"], "the ring did not rotate"
+            # And still tappable, and still upright: each disc's own spin is
+            # the exact inverse of the ring's, so the two cancel.
+            assert all(c["hit"] for c in after["chips"]), \
+                "a disc stopped being hit-testable once it had moved"
+            for c in after["chips"]:
+                assert abs(c["spin"] + after["ring"]) <= 1, (
+                    f"a label is rotating with the ring: disc {c['spin']}deg "
+                    f"against ring {after['ring']}deg")
+
+            # And a tap must not tilt it. This is the bug §100 fixes: the tap
+            # used to rebuild the ring, and a *new* element's animation starts
+            # at zero - so a disc drawn mid-revolution counter-rotated from the
+            # wrong place and sat at an angle for the rest of the turn. Four
+            # seconds in is exactly when it showed.
+            page.evaluate("document.querySelectorAll('.intro-chip')[0].click()")
+            page.wait_for_timeout(250)
+            tapped = page.evaluate(probe)
+            assert len(tapped["chips"]) == 6, "the tap lost a disc"
+            for c in tapped["chips"]:
+                assert abs(c["spin"] + tapped["ring"]) <= 2, (
+                    f"tapping tilted a label: disc {c['spin']}deg against ring "
+                    f"{tapped['ring']}deg")
+            assert page.eval_on_selector_all(".intro-chip.on", "e => e.length") == 1, \
+                "the tap did not select anything"
+
+            # A rebuild has to survive it too, not just a tap.
+            page.evaluate("renderInterestWheel()")
+            page.wait_for_timeout(250)
+            rebuilt = page.evaluate(probe)
+            for c in rebuilt["chips"]:
+                assert abs(c["spin"] + rebuilt["ring"]) <= 2, (
+                    f"a rebuilt disc came back tilted: {c['spin']}deg against "
+                    f"ring {rebuilt['ring']}deg")
+
+        def the_settings_wheel_is_the_listeners_own():
+            """Two wheels, two questions (§100). Settings shows what this
+            listener listens to, and says so; the first run shows what
+            everybody plays, and says nothing because there is nothing yet to
+            say. The language page is gone from both.
+
+            Both halves are checked through `renderIntro`, which is the thing
+            that decides, rather than by restarting the first run - that flow
+            runs once per session here and the catalogue behaviour needs it.
+            """
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(600)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+            rows = page.eval_on_selector_all(
+                ".set-row", "e => e.map(x => x.textContent)")
+            assert not any("Language" in r for r in rows), \
+                f"the Language row is back in Settings: {rows}"
+
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            assert not page.eval_on_selector("#introSub", "e => e.hidden"), \
+                "the settings wheel does not say what it is showing"
+            assert page.eval_on_selector_all(".intro-chip", "e => e.length") == 6
+            shown = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            yours = page.evaluate(
+                """() => (PREF_CHOICES.interests_yours || [])
+                       .map(function(i){ return i.short || i.label; })""")
+            assert shown == yours, f"settings drew {shown}, not {yours}"
+
+            # The same screen in the other mode draws the other list, and
+            # stops explaining itself.
+            page.evaluate("introMode = 'first-run'; renderIntro();")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#introSub", "e => e.hidden"), \
+                "the first run is explaining a wheel that needs no explaining"
+            first = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            crowd = page.evaluate(
+                """() => (PREF_CHOICES.interests_available || [])
+                       .map(function(i){ return i.short || i.label; })""")
+            assert first == crowd, f"the first run drew {first}, not {crowd}"
+            # And its one button finishes the run rather than chaining on to a
+            # second page, because there is no second page.
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Start listening"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
 
         def mix_visibility():
             # Public/private has to be reachable, not buried in a menu.
@@ -542,10 +948,58 @@ def main() -> int:
             after = "on" in (page.query_selector(".mix-switch").get_attribute("class") or "")
             assert after != before, "the visibility switch did not move"
 
-        #: Every screen a listener can control playback from. Echo belongs on
+        #: Every screen a listener can control playback from. VIBE! belongs on
         #: all of them - checking two ids by name is what let the main player
         #: ship without one.
+        #:
+        #: `nowBar` is deliberately not here, and was: the mini bar had a VIBE
+        #: button and it was taken off. It is a strip with three things
+        #: competing for a thumb, and the only irreversible one of them was
+        #: the one that posts to your friends.
         PLAYERS = ["screen-player", "screen-playall", "screen-explore"]
+
+        def the_mini_bar_offers_no_vibe():
+            """Removed on purpose, so an absence is a decision and not a gap."""
+            assert page.query_selector("#nowBar"), "no mini bar to check"
+            assert not page.eval_on_selector_all(
+                "#nowBar [data-echo]", "e => e.length"), (
+                "VIBE! is back on the mini bar - see PLAYERS above")
+
+        def one_transport_for_one_episode():
+            """Pause anywhere and every control agrees, including the mini bar.
+
+            Four surfaces pause the same audio. They used to keep four
+            booleans, so the mini bar could draw a pause button over a stopped
+            episode - and its own button returned early the moment the episode
+            finished, which is when that bar is most often the only thing on
+            screen.
+            """
+            page.evaluate("setPlayState(false)")
+            paused = page.evaluate(
+                """() => ({
+                     player: document.getElementById("playIcon2").innerHTML,
+                     playall: document.getElementById("paPlayIcon2").innerHTML,
+                     reel: document.getElementById("reelPlay").innerHTML,
+                     bar: document.getElementById("nowPlay").innerHTML
+                   })""")
+            page.evaluate("setPlayState(true)")
+            playing = page.evaluate(
+                """() => ({
+                     player: document.getElementById("playIcon2").innerHTML,
+                     playall: document.getElementById("paPlayIcon2").innerHTML,
+                     reel: document.getElementById("reelPlay").innerHTML,
+                     bar: document.getElementById("nowPlay").innerHTML
+                   })""")
+            for key in ("player", "playall", "reel", "bar"):
+                assert paused[key] != playing[key], (
+                    f"{key} drew the same thing paused and playing")
+            # The mini bar's button must route through the same state rather
+            # than moving the audio behind everyone else's back.
+            page.evaluate("toggleNowBar()")
+            after = page.evaluate("""() => document.getElementById("playIcon2").innerHTML""")
+            page.evaluate("setPlayState(true)")
+            assert after == paused["player"], (
+                "the mini bar paused without telling the player")
 
         def echo_button():
             page.evaluate("openExplore()")
@@ -557,10 +1011,10 @@ def main() -> int:
                    })""",
                 PLAYERS,
             )
-            assert not missing, f"no echo control on: {missing}"
+            assert not missing, f"no VIBE! control on: {missing}"
 
         def echo_state_reaches_every_player():
-            """One echo must light up all of them, not just the one tapped."""
+            """One vibe must light up all of them, not just the one tapped."""
             page.evaluate("setEchoed(true)")
             lit = page.evaluate(
                 """() => Array.from(document.querySelectorAll("[data-echo]"))
@@ -765,8 +1219,12 @@ def main() -> int:
         check("One tap sends one request", one_tap_is_one_request)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
-        check("Save for Later lists the shelf and its folders",
-              save_for_later_lists_the_shelf_and_its_folders)
+        check("Save for Later lists the shelf and reaches Downloads",
+              save_for_later_lists_the_shelf_and_reaches_downloads)
+        check("The shelf comes back to where it was opened from",
+              the_shelf_comes_back_to_where_it_was_opened_from)
+        check("The photo editor crops what it shows",
+              the_photo_editor_crops_what_it_shows)
         check("Saving asks about downloading",
               saving_from_the_player_asks_about_downloading)
         check("An episode can be shared outside FAM",
@@ -782,10 +1240,20 @@ def main() -> int:
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)
-        check("Profile renders identity, folders and echoes", profile)
+        check("Profile renders identity, mixes and echoes", profile)
+        check("The interests wheel turns and stays tappable",
+              the_interests_wheel_turns_and_stays_tappable)
+        check("The settings wheel is the listener's own",
+              the_settings_wheel_is_the_listeners_own)
         check("Mix visibility can be toggled", mix_visibility)
-        check("Echo control is on every player", echo_button)
-        check("Echo state reaches every player", echo_state_reaches_every_player)
+        check("Every settings screen comes back to Settings",
+              every_settings_screen_comes_back_to_settings)
+        check("The interest catalogue is the whole list",
+              the_interest_catalogue_is_the_whole_list)
+        check("VIBE! is on every real player", echo_button)
+        check("The mini bar offers no VIBE", the_mini_bar_offers_no_vibe)
+        check("One transport for one episode", one_transport_for_one_episode)
+        check("VIBE! state reaches every player", echo_state_reaches_every_player)
 
         if errors:
             failures.append(f"page errors: {errors}")

@@ -38,6 +38,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 from paths import data_path
 
@@ -45,6 +46,17 @@ log = logging.getLogger(__name__)
 
 MAX_NAME = 40
 MAX_HANDLE = 24
+#: How big a profile picture may be, as a `data:` URL.
+#:
+#: Stored inline rather than as a file, because a file means a writable media
+#: directory, a URL that serves it, a cache header and a deletion path - four
+#: new things to get wrong for one small square. At 256x256 JPEG a picture is
+#: comfortably under this; a client that sends the original off a phone camera
+#: is refused with a sentence telling it to downscale, rather than quietly
+#: filling the database.
+MAX_AVATAR = 96_000
+_AVATAR_PREFIX = ("data:image/jpeg;base64,", "data:image/png;base64,",
+                  "data:image/webp;base64,")
 _HANDLE_OK = re.compile(r"^[a-z0-9_.]{2,24}$")
 
 
@@ -68,6 +80,24 @@ class Echo:
             "minutes": self.minutes, "thread": self.thread, "at": self.at,
             "by": name, "handle": handle,
         }
+
+
+def clean_avatar(avatar: str) -> str:
+    """The picture as it will be stored, or "" for none.
+
+    Only a base64 `data:` URL of an image type every browser and iOS can
+    decode. A remote URL is refused on purpose: a profile picture fetched from
+    somewhere else is a request every viewer's device makes to a third party,
+    which is a tracking pixel wearing a face.
+    """
+    avatar = str(avatar or "").strip()
+    if not avatar:
+        return ""
+    if not avatar.startswith(_AVATAR_PREFIX):
+        raise SocialError("A profile picture has to be an image from your device.")
+    if len(avatar) > MAX_AVATAR:
+        raise SocialError("That picture is too big — try a smaller one.")
+    return avatar
 
 
 def clean_handle(handle: str) -> str:
@@ -102,6 +132,14 @@ class SocialStore:
                 pass  # already there
             conn.execute("CREATE INDEX IF NOT EXISTS people_last_seen"
                          " ON people(last_seen)")
+            # The profile picture, added after the table shipped, for the same
+            # reason as `last_seen`: widened rather than recreated, because a
+            # rebuild would drop the follow graph to gain one column.
+            try:
+                conn.execute("ALTER TABLE people ADD COLUMN"
+                             " avatar TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS echoes (
                        id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,7 +193,8 @@ class SocialStore:
         row = None
         try:
             row = self._conn().execute(
-                "SELECT name, handle, joined, last_seen FROM people WHERE user_id = ?",
+                "SELECT name, handle, joined, last_seen, avatar FROM people"
+                " WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -166,6 +205,7 @@ class SocialStore:
             "handle": row[1] if row else "",
             "joined": row[2] if row else 0.0,
             "last_seen": row[3] if row else 0.0,
+            "avatar": (row[4] if row else "") or "",
             # Whether the app has ever seen this id before, as opposed to
             # whether they got around to naming themselves. The profile page
             # needs to tell those apart; before `seen()` it could not.
@@ -215,13 +255,22 @@ class SocialStore:
             return []
         return [r[0] for r in rows]
 
-    def set_person(self, user_id: str, name: str, handle: str) -> dict:
+    def set_person(self, user_id: str, name: str, handle: str,
+                   avatar: Optional[str] = None) -> dict:
+        """Name, handle and optionally the picture.
+
+        `avatar=None` leaves whatever is there alone; `avatar=""` removes it.
+        Two different requests, and collapsing them would mean any client that
+        does not know about pictures deletes one every time somebody renames
+        themselves.
+        """
         if not user_id:
             raise SocialError("No listener id.")
         name = " ".join(str(name).split())[:MAX_NAME]
         if not name:
             raise SocialError("Give yourself a name.")
         handle = clean_handle(handle)
+        picture = None if avatar is None else clean_avatar(avatar)
         taken = self._conn().execute(
             "SELECT user_id FROM people WHERE handle = ? AND user_id != ?",
             (handle, user_id),
@@ -234,12 +283,13 @@ class SocialStore:
         # observations the server made and naming yourself is not new evidence
         # about either, so an update must not quietly reset them.
         self._conn().execute(
-            "INSERT INTO people (user_id, name, handle, joined, last_seen)"
-            " VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO people (user_id, name, handle, joined, last_seen, avatar)"
+            " VALUES (?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(user_id) DO UPDATE SET name = excluded.name,"
-            " handle = excluded.handle",
+            " handle = excluded.handle, avatar = excluded.avatar",
             (user_id, name, handle, existing["joined"] or now,
-             existing["last_seen"] or now),
+             existing["last_seen"] or now,
+             existing["avatar"] if picture is None else picture),
         )
         return self.person(user_id)
 
@@ -359,14 +409,14 @@ class SocialStore:
     def following(self, user_id: str, limit: int = 500) -> list[dict]:
         """Who this listener follows, newest first, with their details."""
         return self._graph(
-            "SELECT f.followee, p.name, p.handle, f.at FROM follows f"
+            "SELECT f.followee, p.name, p.handle, f.at, p.avatar FROM follows f"
             " LEFT JOIN people p ON p.user_id = f.followee"
             " WHERE f.follower = ? ORDER BY f.at DESC LIMIT ?",
             user_id, limit)
 
     def followers(self, user_id: str, limit: int = 500) -> list[dict]:
         return self._graph(
-            "SELECT f.follower, p.name, p.handle, f.at FROM follows f"
+            "SELECT f.follower, p.name, p.handle, f.at, p.avatar FROM follows f"
             " LEFT JOIN people p ON p.user_id = f.follower"
             " WHERE f.followee = ? ORDER BY f.at DESC LIMIT ?",
             user_id, limit)
@@ -378,7 +428,8 @@ class SocialStore:
             log.exception("could not read the follow graph")
             return []
         return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-                 "at": r[3]} for r in rows]
+                 "at": r[3], "avatar": (r[4] if len(r) > 4 else "") or ""}
+                for r in rows]
 
     def friends(self, user_id: str, limit: int = 500) -> list[dict]:
         """Mutual follows. Derived, never stored - see the schema note.
@@ -421,7 +472,7 @@ class SocialStore:
         like = term.replace("%", "").replace("_", "") + "%"
         try:
             rows = self._conn().execute(
-                "SELECT user_id, name, handle FROM people"
+                "SELECT user_id, name, handle, avatar FROM people"
                 " WHERE handle != '' AND (handle LIKE ? OR LOWER(name) LIKE ?)"
                 " ORDER BY (handle LIKE ?) DESC, handle LIMIT ?",
                 (like, "%" + like, like, int(limit)),
@@ -429,7 +480,8 @@ class SocialStore:
         except Exception:
             log.exception("could not search people")
             return []
-        return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or ""}
+        return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
+                 "avatar": r[3] or ""}
                 for r in rows if r[0] != exclude_user]
 
     def forget(self, user_id: str) -> int:

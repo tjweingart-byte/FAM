@@ -43,6 +43,12 @@ jobs:
       - name: Check the interface parses
         run: python tools/check_js.py
 
+      # Changing speed must not change the voice. `dev.sh` runs this locally;
+      # without it here the guard is only enforced on machines that happen to
+      # have node, which is the sort of check that is quietly not running.
+      - name: Check speed leaves the voice alone
+        run: node tools/check_stretch.js
+
       # Deleting a block of CSS breaks nothing that fails - the page just
       # looks wrong. This has happened twice; it now fails here instead.
       - name: Check the interface is styled

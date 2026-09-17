@@ -54,7 +54,7 @@ def serve(monkeypatch):
         monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
         monkeypatch.setattr(
             appmod, "_make_pipeline",
-            lambda voice=None: pipeline_mod.PodcastPipeline(
+            lambda voice=None, author="": pipeline_mod.PodcastPipeline(
                 generator=Opening(first), engine=DebugEngine(), cache=None,
                 voice=voice))
         return TestClient(appmod.app)
@@ -172,7 +172,7 @@ def test_a_failed_generation_is_still_an_error_not_a_silent_episode(serve, fmt,
     client = serve("anything", preroll=0.1)
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=Failing(), engine=DebugEngine(), cache=None, voice=voice))
     response = client.get(f"/api/audio?q=x&minutes=1&fmt={fmt}")
     assert response.status_code == 502
@@ -194,7 +194,7 @@ def test_an_empty_episode_is_still_an_error_at_a_low_preroll(serve, fmt,
     client = serve("anything", preroll=0.1)
     monkeypatch.setattr(
         appmod, "_make_pipeline",
-        lambda voice=None: pipeline_mod.PodcastPipeline(
+        lambda voice=None, author="": pipeline_mod.PodcastPipeline(
             generator=Silent(), engine=DebugEngine(), cache=None, voice=voice))
     response = client.get(f"/api/audio?q=x&minutes=1&fmt={fmt}")
     assert response.status_code == 502

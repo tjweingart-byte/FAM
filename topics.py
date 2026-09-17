@@ -137,6 +137,252 @@ TAG_LABELS: dict[str, str] = {
 #: between "a tag" and "a tag somebody can choose".
 FACETS: frozenset[str] = frozenset(TAG_LABELS)
 
+#: The same eight, short enough to sit inside a circle.
+#:
+#: The first run draws them on a wheel and "Money & markets" does not fit in a
+#: 78px disc at a readable size. This is a *shortening*, never a second name:
+#: every entry is a prefix or the whole of its `TAG_LABELS` value, so nothing
+#: in the app calls one facet two things. Settings, the recap and the
+#: catalogue all still read the full label.
+TAG_SHORT: dict[str, str] = {
+    "sports": "Sport",
+    "business": "Business",
+    "money": "Money",
+    "tech": "Tech",
+    "science": "Science",
+    "health": "Health",
+    "culture": "Culture",
+    "world": "World",
+}
+
+#: How many of them the first-run picker actually shows.
+#:
+#: The eight are still the whole pickable vocabulary; this is how many are put
+#: in front of somebody at once. Eight was every facet there is, in dictionary
+#: order, which is not an answer to "what are people listening to" - it is the
+#: order the file happens to be written in. Six is the designs' grid, and the
+#: two that do not make it are reachable through "View more", which carries
+#: every facet on its interests. So this narrows the *screen* and not the
+#: vocabulary, which is the line CLAUDE.md draws.
+PICKER_SIZE = 6
+
+#: The order to offer them in when nothing has been played yet.
+#:
+#: A fresh deployment has an empty log, which is the normal state on the run
+#: this screen exists for - so there has to be a declared answer rather than
+#: whichever six `dict` iteration puts first. Written down, in one place, so
+#: it is a decision somebody made and can be argued with.
+PICKER_DEFAULT_ORDER: tuple[str, ...] = (
+    "world", "tech", "sports", "business", "money", "science",
+    "health", "culture",
+)
+
+
+def popular_facets(
+    store: "EventStore", limit: int = PICKER_SIZE, now: Optional[float] = None
+) -> tuple[list[str], str]:
+    """The facets to put in the picker, most played across FAM first.
+
+    Global, like `rank_most_played` and for the same reason: this is asked on
+    the first run, when the listener has no history of their own and the only
+    honest signal is everybody else's. One count serves every listener.
+
+    Returns the ids *and where they came from* - `"played"` or `"default"`.
+    The two look identical on screen and the difference matters, because a
+    deployment whose log is empty is showing a declared order rather than a
+    measurement, and saying which is the difference between a fact and a
+    claim about what people like.
+    """
+    now = time.time() if now is None else now
+    by_id = {t.id: t for t in TOPIC_BANK}
+    counts: dict[str, int] = {}
+    for _user, topic_id in store.plays_since(now - TRENDING_WINDOW):
+        topic = by_id.get(topic_id)
+        if topic is None:
+            continue
+        for facet in facets_only(topic.tags):
+            counts[facet] = counts.get(facet, 0) + 1
+
+    if not counts:
+        return list(PICKER_DEFAULT_ORDER[:limit]), "default"
+    # Ties break on the declared order rather than on `dict` insertion, so two
+    # equally played facets do not swap places between requests.
+    rank = {tag: i for i, tag in enumerate(PICKER_DEFAULT_ORDER)}
+    ordered = sorted(TAG_LABELS, key=lambda t: (-counts.get(t, 0), rank.get(t, 99)))
+    return ordered[:limit], "played"
+
+
+def my_facets(
+    store: "EventStore", user_id: str, chosen: Iterable[str] = (),
+    limit: int = PICKER_SIZE,
+) -> tuple[list[str], str]:
+    """The facets *this* listener has actually listened to, most first.
+
+    The sibling of `popular_facets` and deliberately a different question.
+    That one is asked on the first run, of somebody with no history, so the
+    only honest signal is everybody else's. This one is asked from Settings by
+    somebody who has been using the app, where their own listening is a better
+    answer than the crowd's - and it keeps answering differently as they use
+    it, which is the point.
+
+    Three sources, in order, and the order is the whole design:
+
+    1. **what they played**, which is the live half;
+    2. **what they chose**, which is what they said before they had played
+       anything, kept in their stored order;
+    3. **`PICKER_DEFAULT_ORDER`**, as filler.
+
+    The filler is not decoration. A wheel is six discs or it is a broken
+    wheel, and a listener who has played two facets and chosen none would
+    otherwise get two - so the shape stays and `source` says which of the
+    three actually decided it. A declared order and a measurement look
+    identical on a screen full of circles.
+    """
+    counts: dict[str, int] = {}
+    for event in store.for_user(user_id):
+        if event.kind not in ("play", "complete"):
+            continue
+        for facet in facets_only(event.tags):
+            counts[facet] = counts.get(facet, 0) + 1
+
+    rank = {tag: i for i, tag in enumerate(PICKER_DEFAULT_ORDER)}
+    out: list[str] = sorted(
+        (t for t in counts if t in TAG_LABELS),
+        key=lambda t: (-counts[t], rank.get(t, 99)),
+    )
+    source = "listened" if out else ""
+
+    for tag in chosen or ():
+        if tag in TAG_LABELS and tag not in out:
+            out.append(tag)
+            source = source or "chosen"
+    for tag in PICKER_DEFAULT_ORDER:
+        if len(out) >= limit:
+            break
+        if tag not in out:
+            out.append(tag)
+            source = source or "default"
+    return out[:limit], source or "default"
+
+
+@dataclass(frozen=True)
+class Interest:
+    """One named thing a listener can say they are interested in."""
+
+    id: str
+    label: str
+    #: A key into the interface's own small icon set. Named rather than drawn
+    #: here: this module knows nothing about SVG, and several interests share
+    #: one glyph on purpose (every music genre is a note, as the design has
+    #: it).
+    icon: str
+    #: What choosing it means to the ranker. The facet first, then any subtag
+    #: the interest genuinely carries.
+    tags: tuple[str, ...]
+
+    def as_dict(self) -> dict:
+        return {"id": self.id, "label": self.label, "icon": self.icon,
+                "tags": list(self.tags)}
+
+
+#: The catalogue behind "View more" on the first run.
+#:
+#: **These are interests, not tags, and that distinction is the whole reason
+#: this can exist.** CLAUDE.md is emphatic that the eight facets are the only
+#: *pickable tag* vocabulary, and they still are - the chips above this
+#: catalogue are `TAG_LABELS` and nothing else. What somebody picks here is a
+#: named subject; the tags come along with it, and a listener never reads one.
+#:
+#: That is what lets the list be this long and this specific. "Formula 1" is
+#: not a tag anybody could have been offered - `sports` is - but it is a
+#: perfectly good thing to say about yourself, and it lands on the ranker as
+#: `sports` plus whatever subtag it really carries. Eight buttons cannot
+#: express it; seventy-three named subjects can, without adding one word to
+#: the vocabulary the ranker reasons in.
+#:
+#: The list and its order come from the reference designs. One entry is worth
+#: flagging rather than quietly keeping: `Iran Conflict` is a live news event
+#: rather than a durable interest, so unlike everything else here it will go
+#: stale. It is in the designs, so it is in the list.
+INTEREST_CATALOGUE: tuple[Interest, ...] = (
+    # id, label, icon, tags (facet first, then any subtag it carries)
+    Interest("soccer",        "Soccer",                  "ball",      ("sports",)),
+    Interest("stocks",        "Stocks & Economy",        "chart",     ("money", "macro")),
+    Interest("politics",      "Politics",                "ballot",    ("world",)),
+    Interest("iran",          "Iran Conflict",           "news",      ("world", "geopolitics")),
+    Interest("sports",        "Sports",                  "tennis",    ("sports",)),
+    Interest("business",      "Business & Finance",      "briefcase", ("business",)),
+    Interest("science",       "Science",                 "atom",      ("science",)),
+    Interest("technology",    "Technology",              "chip",      ("tech",)),
+    Interest("art",           "Art",                     "palette",   ("culture",)),
+    Interest("movies-tv",     "Movies & TV",             "film",      ("culture", "film-tv")),
+    Interest("ai",            "Artificial Intelligence", "sparkle",   ("tech", "ai")),
+    Interest("gaming",        "Gaming",                  "gamepad",   ("culture", "internet-culture")),
+    Interest("crypto",        "Cryptocurrency",          "coin",      ("money",)),
+    Interest("nfl",           "NFL",                     "shield",    ("sports",)),
+    Interest("anime",         "Anime",                   "anime",     ("culture", "film-tv")),
+    Interest("travel",        "Travel",                  "plane",     ("culture",)),
+    Interest("food-drink",    "Food & Drink",            "chef",      ("culture", "food")),
+    Interest("baseball",      "Baseball",                "baseball",  ("sports",)),
+    Interest("basketball",    "Basketball",              "basketball",("sports",)),
+    Interest("beauty",        "Beauty",                  "beauty",    ("culture",)),
+    Interest("boxing",        "Boxing",                  "glove",     ("sports",)),
+    Interest("career",        "Career",                  "cap",       ("business",)),
+    Interest("cars",          "Cars",                    "car",       ("tech",)),
+    Interest("pets",          "Pets",                    "paw",       ("culture",)),
+    Interest("celebs",        "Celebs",                  "star",      ("culture",)),
+    Interest("music",         "Music",                   "note",      ("culture", "music")),
+    Interest("country-music", "Country Music",           "note",      ("culture", "music")),
+    Interest("news",          "News",                    "news",      ("world",)),
+    Interest("dance",         "Dance",                   "disco",     ("culture",)),
+    Interest("dating",        "Dating & Relationships",  "hearts",    ("health", "mind")),
+    Interest("design",        "Design",                  "design",    ("culture",)),
+    Interest("education",     "Education",               "cap",       ("science",)),
+    Interest("electronic",    "Electronic Music",        "note",      ("culture", "music")),
+    Interest("startups",      "Startups",                "briefcase", ("business", "founders")),
+    Interest("esports",       "Esports",                 "gamepad",   ("culture", "internet-culture")),
+    Interest("family",        "Marriage & Family",       "people",    ("health", "mind")),
+    Interest("fashion",       "Fashion",                 "shirt",     ("culture",)),
+    Interest("pop",           "Pop",                     "note",      ("culture", "music")),
+    Interest("golf",          "Golf",                    "golf",      ("sports",)),
+    Interest("kpop",          "K-pop",                   "note",      ("culture", "music")),
+    Interest("memes",         "Memes",                   "meme",      ("culture", "internet-culture")),
+    Interest("health",        "Health & Fitness",        "pulse",     ("health", "fitness")),
+    Interest("mma",           "MMA & Wrestling",         "glove",     ("sports",)),
+    Interest("motorsport",    "Racing & Motorsports",    "car",       ("sports",)),
+    Interest("motorcycles",   "Motorcycles",             "bike",      ("sports",)),
+    Interest("nature",        "Nature & Outdoors",       "tree",      ("science",)),
+    Interest("hockey",        "Ice Hockey",              "hockey",    ("sports",)),
+    Interest("olympics",      "Olympics",                "tennis",    ("sports",)),
+    Interest("personal-fin",  "Personal Finance",        "doc",       ("money",)),
+    Interest("photography",   "Photography",             "camera",    ("culture",)),
+    Interest("podcasts",      "Podcasts",                "mic",       ("culture", "media-business")),
+    Interest("real-estate",   "Real Estate",             "thumb",     ("money", "housing")),
+    Interest("robotics",      "Robotics",                "chip",      ("tech",)),
+    Interest("rock",          "Rock",                    "note",      ("culture", "music")),
+    Interest("rugby",         "Rugby",                   "rugby",     ("sports",)),
+    Interest("shopping",      "Shopping",                "bag",       ("money", "consumer-prices")),
+    Interest("snow-sports",   "Snow Sports",             "snow",      ("sports",)),
+    Interest("software",      "Software Development",    "laptop",    ("tech", "platforms")),
+    Interest("space",         "Space",                   "rocket",    ("science", "space")),
+    Interest("tennis",        "Tennis",                  "tennis",    ("sports",)),
+    Interest("home-garden",   "Home & Garden",           "home",      ("money", "housing")),
+    Interest("cricket",       "Cricket",                 "cricket",   ("sports",)),
+    Interest("formula1",      "Formula 1",               "car",       ("sports",)),
+    Interest("cycling",       "Cycling",                 "bike",      ("sports", "fitness")),
+    Interest("jpop",          "J-pop",                   "note",      ("culture", "music")),
+    Interest("concerts",      "Concerts",                "note",      ("culture", "music")),
+    Interest("hiphop",        "Hip Hop",                 "note",      ("culture", "music")),
+    Interest("jazz",          "Jazz",                    "note",      ("culture", "music")),
+    Interest("crime",         "Crime",                   "news",      ("world",)),
+    Interest("elections",     "Elections",               "ballot",    ("world", "elections")),
+    Interest("biotech",       "Biotech",                 "atom",      ("science", "body-science")),
+    Interest("mental-health", "Mental Health",           "pulse",     ("health", "mind")),
+    Interest("digital-art",   "Digital Art",             "palette",   ("culture",)),
+)
+
+CATALOGUE_BY_ID: dict[str, Interest] = {i.id: i for i in INTEREST_CATALOGUE}
+
 #: Every subtag, and the facet it lives under.
 #:
 #: **Why this exists.** Eight tags over a twenty-eight topic bank cannot
@@ -391,6 +637,11 @@ BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
 #: mutual exclusion the others do - it neither claims topics from them nor is
 #: starved by them.
 FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
+#: `might_like` stays in the fill order even though it is no longer displayed.
+#: That is deliberate: it claims its picks before the generic sections do, so
+#: the topics it would have shown are still held back from them - which keeps
+#: `/api/explorenew` showing something other than the rest of the page, and
+#: keeps putting the rail back a one-line change.
 
 #: Display order: personal first, global last. Someone opening myFAM is more
 #: likely to want what was chosen for them than what is popular, and the page
@@ -399,27 +650,43 @@ FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
 #: choose their topics first.)
 SECTIONS = (
     ("from_history", "Made for you"),
-    # Exploration, immediately after exploitation. Deliberately not first: a
-    # returning listener opening myFAM most wants what was chosen *from* their
-    # taste, and leading with the rail that is deliberately outside it puts the
-    # least-confident shelf at the top of the page. Deliberately not last
-    # either - below the crowd is where a shelf goes to be ignored, and this is
-    # the only one that widens a taste rather than confirming it.
-    ("might_like", "Explore New"),
+    # What the *world* is paying attention to, in the slot Explore New used
+    # to hold. A different question from what this app's listeners are
+    # playing, and from a different place: `trending.py`, refreshed once for
+    # everybody. It is second at the owner's direction - it was last, where a
+    # row nobody scrolls to is a row nobody reads, and it is the one rail on
+    # this page with a reason to be looked at today rather than eventually.
+    ("world_trending", "Trending"),
     ("followers", "Your circle is on this"),
     ("most_played", "What FAM can't stop playing"),
-    # What the *world* is paying attention to, which is a different question
-    # from what this app's listeners are playing and comes from a different
-    # place: `trending.py`, refreshed once for everybody. Last because it is
-    # the only row not chosen for the listener at all - and honestly empty,
-    # with a reason, until a source is configured.
-    ("world_trending", "Trending"),
 )
+
+#: Ranked, reachable by API, and **not on myFAM** - removed from the page at
+#: the owner's direction, with Trending taking its slot.
+#:
+#: This is the second time this rail has come off, so it is worth writing
+#: down what that costs rather than just doing it: `rank_might_like` is the
+#: only ranking in FAM that offers anything *outside* an established taste,
+#: and without a shelf the page is three ways of being told what you already
+#: like. The ranker, `build_explore_new` and `/api/explorenew` are all kept
+#: and tested, so putting it back is a one-line change to SECTIONS rather
+#: than a rebuild.
+UNSHELVED = ("might_like",)
 
 #: How much each kind of interaction says about taste. Finishing an episode is
 #: the strongest signal there is; a skip is real evidence in the other
 #: direction and must not be treated as a weak play.
-EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5}
+#:
+#: `pick` is somebody saying "this one" from the intro's topic catalogue,
+#: before they have played anything. It is weighted *between* a search and a
+#: completion: stronger than a search, because they chose it off a list rather
+#: than typing a passing thought, and weaker than finishing an episode,
+#: because they have not actually heard one yet. It is the only signal a
+#: listener can give on their first run that has a whole topic behind it - and
+#: therefore the topic's subtags, which the eight pickable facets cannot
+#: express. It costs nothing and generates nothing: a row in the log.
+EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
+                "pick": 1.6}
 
 #: An **impression** is one tile put in front of one listener by one version of
 #: the ranking. It is recorded so "why did we show this?" has an answer, and it
@@ -847,7 +1114,8 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
 
 
 def rank_most_played(
-    store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None
+    store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None,
+    limit: int = SECTION_SIZE
 ) -> list[Topic]:
     """Global play counts *inside FAM*. Deliberately identical for everyone,
     which is what makes it the cheapest section to serve: one script, every
@@ -871,11 +1139,12 @@ def rank_most_played(
     # beats a random one - random means the tile a listener saw this morning is
     # gone this afternoon, and it defeats the shared script cache.
     filler = [t for t in TOPIC_BANK if t.id not in counts and t.id not in exclude]
-    return (ranked + filler)[:SECTION_SIZE]
+    return (ranked + filler)[:limit]
 
 
 def rank_from_history(profile: dict[str, float], exclude: set[str],
-                      damp: Optional[dict[str, float]] = None) -> list[Topic]:
+                      damp: Optional[dict[str, float]] = None,
+                      limit: int = SECTION_SIZE) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
@@ -888,11 +1157,12 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     ]
     scored = [(s, t) for s, t in scored if s > 0]
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
-    return [t for _s, t in scored[:SECTION_SIZE]]
+    return [t for _s, t in scored[:limit]]
 
 
 def rank_might_like(profile: dict[str, float], exclude: set[str],
-                    damp: Optional[dict[str, float]] = None) -> list[Topic]:
+                    damp: Optional[dict[str, float]] = None,
+                    limit: int = SECTION_SIZE) -> list[Topic]:
     """Adjacent, not identical. Exploration.
 
     Serves two surfaces from one ranking: the Explore New rail on myFAM and
@@ -912,7 +1182,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     """
     damp = damp or {}
     if not profile:
-        return [t for t in TOPIC_BANK if t.id not in exclude][:SECTION_SIZE]
+        return [t for t in TOPIC_BANK if t.id not in exclude][:limit]
 
     # The strongest tag's whole *family* is muted, not just the tag. With two
     # levels, muting `sports-performance` on its own leaves `sports` at full
@@ -929,7 +1199,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     def add(candidates: list[tuple[float, Topic]]) -> None:
         candidates.sort(key=lambda pair: (-pair[0], pair[1].id))
         for _score, topic in candidates:
-            if len(picks) >= SECTION_SIZE:
+            if len(picks) >= limit:
                 return
             if topic.id not in taken:
                 picks.append(topic)
@@ -951,7 +1221,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
     # 2. Bridges out of the tag they already have: keep the familiar tag, but
     #    only where it is paired with something new, so it leads somewhere.
-    if len(picks) < SECTION_SIZE:
+    if len(picks) < limit:
         add([
             (float(sum(1 for tag in t.tags if tag not in profile)), t)
             for t in TOPIC_BANK
@@ -961,7 +1231,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
     # 3. Anything genuinely unseen. An empty shelf helps nobody, and a narrow
     #    listener is the one who most needs a way out of the bubble.
-    if len(picks) < SECTION_SIZE:
+    if len(picks) < limit:
         add([
             (float(sum(1 for tag in t.tags if tag not in profile)), t)
             for t in TOPIC_BANK if t.id not in taken
@@ -972,7 +1242,7 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
 
 def rank_followers(
     store: EventStore, user_id: str, mine: set[str], exclude: set[str],
-    damp: Optional[dict[str, float]] = None
+    damp: Optional[dict[str, float]] = None, limit: int = SECTION_SIZE
 ) -> list[Topic]:
     """Co-listener overlap: people who played what you played also played this.
 
@@ -997,7 +1267,7 @@ def rank_followers(
         if overlap:
             scored.append((overlap * damp.get(topic.id, 1.0), topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
-    return [t for _s, t in scored[:SECTION_SIZE]]
+    return [t for _s, t in scored[:limit]]
 
 
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
@@ -1067,7 +1337,57 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     return {"sections": sections, "personalised": bool(profile)}
 
 
-def topics_from_trending(items) -> list:
+#: How many tiles a full-screen section shows. The bank is ~28 topics, so
+#: this is "all of it, in this section's order" rather than a page size -
+#: there is no second page to fetch and nothing new to generate to fill one.
+FULL_SECTION_SIZE = 40
+
+
+def build_section(store: EventStore, user_id: str, key: str,
+                  now: Optional[float] = None,
+                  interests: Iterable[str] = ()) -> dict:
+    """One myFAM section, at full length, in the same order the rail used.
+
+    The rail shows six and the screen behind it shows the rest **of the same
+    ranking**. One ranker, two views - the rule Explore New already follows,
+    for the same reason: a rail and the surface it opens must not give a
+    listener two different answers to one question.
+
+    Nothing here generates anything. It reorders a fixed bank, exactly as
+    `build_feed` does, which is what makes "view more" free.
+    """
+    if key not in dict(SECTIONS):
+        raise KeyError(key)
+    events = store.for_user(user_id) if user_id else []
+    profile = taste(events, now, interests)
+    mine = _played_ids(events)
+    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    limit = FULL_SECTION_SIZE
+    # `exclude` is what they have already played, and *not* the other
+    # sections' picks. On the page the sections take turns so no tile appears
+    # twice; here there is only one section, and hiding its best tiles because
+    # a different rail happened to claim them would make "view more" show
+    # less.
+    if key == "from_history":
+        picks = rank_from_history(profile, mine, damp, limit=limit)
+    elif key == "might_like":
+        picks = rank_might_like(profile, mine, damp, limit=limit)
+    elif key == "followers":
+        picks = rank_followers(store, user_id, mine, mine, damp, limit=limit)
+    elif key == "world_trending":
+        picks = topics_from_trending(trending.cached().items, limit=limit)
+    else:
+        picks = rank_most_played(store, now, mine, limit=limit)
+    return {
+        "key": key,
+        "title": dict(SECTIONS)[key],
+        "topics": [t.as_dict() for t in picks],
+        "empty_reason": _empty_reason(key) if not picks else "",
+        "personalised": bool(profile),
+    }
+
+
+def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:
     """Turn world-trending subjects into tiles.
 
     Tags are derived from the question with the same keyword map the bank
@@ -1090,7 +1410,7 @@ def topics_from_trending(items) -> list:
             tags=tags,
             icon=_icon_for_tags(tags),
         ))
-    return tiles[:SECTION_SIZE]
+    return tiles[:limit]
 
 
 def _icon_for_tags(tags) -> str:

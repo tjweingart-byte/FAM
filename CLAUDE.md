@@ -17,7 +17,11 @@ Three surfaces, all backed by generated audio:
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
    have already generated*. It never writes a script: cards come from the
    shared cache and playing one sends `cached_only`, which the pipeline
-   refuses to satisfy by generating.
+   refuses to satisfy by generating. **And other listeners' only** — the cache
+   records who first generated each entry (`scripts.author`, stamped from
+   `_listener(request)`) and `recent(exclude_author=...)` keeps a listener's
+   own episodes off their own feed. See the settled constraint below for why
+   that id is nowhere near the cache key.
 
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
@@ -286,6 +290,17 @@ the rest of this list it needs taste rather than a key.
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
 4. **myFAM is built; the taste model is crude, and less crude than it was.**
+   *(Two things on the surface changed in §95. The header's right-hand slot is
+   now an **episode-length control of its own**, deliberately separate from the
+   search player's: the length you want for a question you have just typed and
+   the length you want for a tile you are scrolling past are different
+   appetites, and one shared number meant setting either silently reset the
+   other. And each rail ends in a chevron only while there is something left
+   to scroll - at the end it becomes **View more**, which opens the whole of
+   that section. That screen is the same ranking at full length, with the
+   tiles whose script is already written marked and sorted to the front; it
+   generates nothing, because the rail was showing six of something that
+   already had twenty-eight.)*
    `topics.py` ranks a *shared* bank of ~28 topics **four** ways (history /
    exploration / co-listener / trending) from an append-only event log. Tags
    still come from keyword matching, not a classifier - but there are now
@@ -297,8 +312,55 @@ the rest of this list it needs taste rather than a key.
    to 27 distinct signatures. **The eight facets are unchanged and are still
    the only pickable vocabulary** - the intro picker is built from
    `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
+   **There is no language picker** *(§100).* It was the first run's second
+   page, was never wired to generation, and its only honest companion was a
+   note saying so - a question in front of the product that answers to nothing
+   is worse than no question. The *field* stays: still stored, still accepted
+   on `/api/preferences`, still validated against `preferences.LANGUAGES`,
+   because that is what per-language generation reads on the day it exists and
+   dropping a column is a migration with no benefit. What went is the screen.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
+   **The first run is a wheel** *(§99).* Six discs orbiting "View more",
+   turning slowly counter-clockwise, selectable while they move. The ring
+   rotates and each disc counter-rotates by exactly as much, so positions
+   orbit while labels stay upright - both CSS animations on `transform`, which
+   is what keeps them in lockstep with no code running per frame.
+   `prefers-reduced-motion` stops the turning and keeps the wheel.
+   **The two only cancel while they are at the same point in their cycle**
+   *(§100, and this corrects §99's comment).* A *new element's* animation
+   starts at zero, so a disc rebuilt mid-revolution counter-rotates from the
+   wrong place and its label sits at an angle - which is what tapping one used
+   to do to all six. Selecting therefore toggles a class in place and never
+   rebuilds, and any rebuild that does happen ends in `syncWheelPhase`, which
+   puts every disc's `Animation.currentTime` on the ring's. **Anything that
+   redraws the wheel has to go through that**, and the smoke behaviour reads
+   each label's net angle after a tap rather than trusting the claim.
+   **There are two wheels, and they answer two questions** *(§100).* The first
+   run draws `popular_facets` - somebody with no history, so the honest signal
+   is what everybody plays. Settings draws `my_facets`: what *this* listener
+   plays, then what they chose, then the declared order as filler, because a
+   wheel is six discs or it is a broken wheel. `interests_yours_source` says
+   which of the three decided it, and only the Settings wheel carries a line
+   of copy - one that changes on its own without a word reads as the app
+   having lost somebody's answer. **And there is no cap on how many
+   interests somebody has** - it was six, it made a listener with seven pick
+   which to lie about, and nothing counts them now. No cap is not no
+   validation: every value must be a facet and duplicates collapse, so eight
+   is the ceiling, as a fact about the vocabulary rather than a rule anybody
+   is told.
+   **The picker shows six of the eight, and they are the six being played**
+   *(§98, `topics.popular_facets`).* Global play counts, like
+   `rank_most_played` and for the same reason: the first run asks this of
+   somebody with no history, so the only honest signal is everybody else's,
+   and one count serves every listener. This narrows the *screen* and not the
+   vocabulary - the two that miss out are carried by the catalogue's
+   interests, and `interests_all` is served beside `interests_available` so
+   Settings can still read back a stored interest that did not make the grid.
+   `PICKER_DEFAULT_ORDER` is what an empty log gets, and `interests_source`
+   says `"default"` rather than `"played"` when it does, because a declared
+   order and a measurement look identical on screen and calling the first one
+   "most popular" would be inventing a number.
    **Impressions now feed the ranking, in exactly one direction.** A tile
    shown on several separate occasions and never played is damped
    (`FATIGUE_WEIGHT`). The existing rule stands and is enforced: an impression
@@ -306,14 +368,30 @@ the rest of this list it needs taste rather than a key.
    itself its own preferences. Fatigue is per-topic, never per-tag, and can
    only push a tile down, which is what makes it safe. Trending is exempt: it
    is the same list for everyone, which is what makes it cheapest to serve.
-   `rank_might_like` (adjacent to your
-   taste) is **back on myFAM as the Explore New rail**, and serves the Explore
-   New screen behind it from the same ranking - one ranking, two views, so the
-   rail and the surface it opens cannot disagree. It sits second, between
-   "Made for you" and the crowd: it is the only signal offering anything
-   *outside* an established taste, and without it the page is three ways of
-   being told what you already like. The intro's chosen interests now seed `taste`, so "Made for you" is no
-   longer honestly empty on a listener's first open. The cost design is the load-bearing part: **one bank for
+   **The second slot is now "Trending", and Explore New came off the page**
+   *(PROBLEMS.md §96).* `rank_might_like` is still computed, still takes its
+   turn in `FILL_ORDER`, and still serves the Explore New *screen* - it is in
+   `topics.UNSHELVED`, which is the difference between a ranking that is not
+   drawn and a ranking that was deleted. What moved is what the second rail
+   *says*: the world row was at the bottom of four, under two forms of "what
+   you already like", which is the worst place on the page for the one row
+   that is about today. myFAM's four rails are now **Made for you /
+   Trending / Your circle is on this / What FAM can't stop playing**.
+   The cost of it, stated so it is a known trade: adjacency is no longer
+   offered unprompted, so the page is now two personal rows and two crowd
+   rows, and nothing on it reaches outside an established taste until the
+   listener opens Explore New themselves. `UNSHELVED` exists so putting it
+   back is one tuple entry. Anything that iterates `FILL_ORDER` and then looks
+   the key up in the drawn sections must skip `UNSHELVED`, or it is a
+   `KeyError` rather than a finding.
+   The intro's chosen interests now seed `taste`, so "Made for you" is no
+   longer honestly empty on a listener's first open, and
+   `INTEREST_CATALOGUE` is the long list behind "View more", which is the
+   wheel's hub - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
+   the settled constraint above is untouched: an interest is something a
+   listener recognises, a tag is what the ranker scores, and the picker is
+   still built from `TAG_LABELS`.
+   The cost design is the load-bearing part: **one bank for
    everyone, personalisation in the ordering, not the inventory** - so two
    people tapping a tile share one script through `cache.py`.
 5. **playFAM is built as its own tab.** `mixes.py` stores named daily mixes -
@@ -329,17 +407,49 @@ the rest of this list it needs taste rather than a key.
    making deliberately - a new listener follows nobody, so a rail backed only
    by follows would be empty on the day it matters most.
 7. **The social layer generates nothing, and now there is more of it.**
-   `social.py` stores an echo as a row pointing at a query whose script already
-   exists. `messages.py` does the same for a *directed* share - one person, one
+   `social.py` stores a **vibe** as a row pointing at a query whose script
+   already exists. *(The product's word is VIBE!; the codebase's is `echo`,
+   and they are the same row. `/api/vibe` and `/api/echo` are one handler over
+   one table, because a phone that has not updated is still calling the old
+   one - a rename that breaks it turns a copy change into an outage. The
+   `data-echo` attribute and the `echoed` class keep their names for the same
+   reason: a hook renamed for a copy change is a button that quietly stops
+   being found.)* **VIBE! is on every real player and deliberately not on the
+   mini bar** *(§97, reversing §95's "every player").* The bar is a strip with
+   three things competing for one thumb - open, pause, close - and the only
+   irreversible one of them was the one that posts to your friends. The smoke
+   check asserts the absence, so it is a decision rather than a regression
+   waiting to be helpfully undone. `messages.py` does the same for a
+   *directed* share - one person, one
    episode - and `sharing.py` for a link posted outside FAM. All three cost one
    row: sending an episode to ten people costs ten rows and not ten episodes,
    because their taps are what synthesise audio, from one cached script,
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
-8. **Profile is a scaffold, deliberately.** `/api/profile` returns only what
-   the event log actually holds - started, finished, open threads, subjects -
-   because a profile page is the easiest place in an app to invent numbers,
-   and every invented one is a promise to keep later.
+8. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
+   `/api/profile` returns only what the event log and the follow graph
+   actually hold - started, finished, open threads, subjects, vibes, and a
+   friend count that is real because the graph is built. The page is a hub
+   over four shelves the listener owns (Save for Later, Downloads, My Vibe,
+   Friends), a picture they can set **and then crop** - move-and-scale, with
+   the preview and the export computed from the same three numbers, because a
+   crop the listener cannot see is a guess about where a face is (§96) - and a
+   **Settings** screen that gathers
+   everything changeable in one place - it was spread across a modal, the
+   first-run screens nobody sees twice, and an action sheet inside the player,
+   so "where do I change that" had three answers and two of them were wrong.
+   **A settings row is an editor, never the first run happening again**
+   *(§98).* Interests and Language have no editor of their own and reuse the
+   intro screen, and reusing the screen meant reusing the flow: Next chained
+   on to the other setting and "Start listening" wrote `intro: "done"` and
+   dropped the listener on myFAM. `introMode` decides three things and nothing
+   else - whether there is an X, whether the docked button says Save, and
+   where saving returns to. Everything a settings row opens closes back to
+   Settings, by an X drawn the same way on all of them
+   (`.sheet-close` on a screen, `.modal-x` on a modal).
+   The rule it was built under is unchanged: a profile page is the easiest
+   place in an app to invent a number, and every invented one is a promise to
+   keep later.
 9. **Attachments are built** (`attachments.py`, PROBLEMS.md §47). A search can
    carry documents, photos and links. Extraction happens when the thing is
    attached, never on the generation path, because a round-trip in front of the
@@ -392,6 +502,16 @@ the rest of this list it needs taste rather than a key.
   a replacement for the other, and removing either would be a regression. The
   drag clamps at what has actually been written, because the episode is still
   being generated while it plays.
+  **And one episode has one transport** *(§97).* Four controls pause the same
+  `FamAudio` - the search player, play-all, Explore's reel and the mini bar -
+  and each used to keep its own boolean and redraw only its own icon, so
+  pausing on one left the others drawing a pause button over stopped audio.
+  `setPlayState` is the only thing that moves the audio now; everything else
+  delegates to it and it redraws all four. Adding a fifth player is one line
+  there, never a fifth idea of whether something is playing. The mini bar was
+  the case that proved it: its button returned early whenever `isActive()` was
+  false, which is exactly the state that bar is in most often - still on
+  screen after the episode finished, with a play button that did nothing.
 - **No filler, ever, and no setting for it.** The cold open was deleted, not
   disabled - a knob left behind is an invitation to turn it back on, and this
   one was turned back on by an example file. Nothing plays until the real
@@ -714,11 +834,17 @@ the rest of this list it needs taste rather than a key.
   anonymous session can be thrown away and a fresh allowance started, which is
   the price of not putting a login in front of the first word.
 - **Save for later and download are different things, and stay different.**
-  *(SHARING.md.)* Saving is a **pointer** - question, length, folder - and
+  *(SHARING.md.)* Saving is a **pointer** - question, length, title - and
   playing one needs the network like any other episode. Downloading is **the
   audio on the device** and plays with the network off. A download is an
   upgrade to a saved item rather than a second list, which is why saving asks
-  the question and why one row carries both states. The limit is per tier and
+  the question and why one row carries both states - and why Downloads is now
+  a **switch inside Save for Later** rather than a screen of its own
+  (PROBLEMS.md §96). The folder chips came off both shelves in the same
+  change: nobody had ever made a folder, so every listener was shown a fixture
+  named "Commute" as though it were theirs, and **a control with nothing
+  behind it is worse than no control**. `saved.py`'s filing is untouched, so
+  putting folders back costs nothing anybody filed. The limit is per tier and
   is a **standing capacity, not a rate** - a windowed counter would hand out a
   fresh download allowance every morning and never require anybody to delete
   anything. A full shelf is a 409 that **names what to clear**, least recently
@@ -730,6 +856,51 @@ the rest of this list it needs taste rather than a key.
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+- **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
+  shared cache records who first generated each script, so Explore can leave a
+  listener's own episodes off their own feed - and that is the *only* thing it
+  is for. It is stamped by `PodcastPipeline.author`, set per request from
+  `_listener(request)`, and deliberately **not** a field on `EpisodePlan`: the
+  plan is what an episode *is*, `pipeline.key_for` is built from it, and a
+  listener id one field away from the key is one refactor away from being in
+  it. At that point every listener has their own cache, the shared-cost design
+  the whole app rests on is gone, and nothing fails - so a test reads
+  `key_for`'s own body and fails if the word appears there.
+  Two more rules keep it honest. **The first writer keeps it**: a re-write that
+  extends a TTL must not hand authorship to whoever triggered it, so the
+  upsert only fills an empty one. And **prefetch writes none at all** - a
+  warmed script was nobody's tap, so it belongs to everybody, which is also
+  what rows written before the column existed do.
+- **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
+  `playbackRate` on a buffer source resamples, so 1.5x came back a fifth
+  higher - the wrong trade on a voice this project spent a year choosing. The
+  samples are time-stretched instead (WSOLA), and the buffer handed to Web
+  Audio is already the right length, so the node plays at 1.
+  The accounting above it is untouched, and that is the point: WSOLA advances
+  its read pointer by exactly `rate * sampleRate` per second of output, so
+  `positionSamples`, seek, the scrub bar and `TAIL_MARGIN` all keep working
+  without knowing it exists. **At exactly 1x it is bypassed**, so the default
+  costs nothing, and `setPitchLock(false)` restores the old behaviour for a
+  device that cannot keep up with it.
+  The default speed is **1x**, not 1.2x. A speed chosen on somebody's behalf,
+  for a voice they have not heard yet, is a decision the product should not be
+  making; once they change it, it follows them to the next episode.
+- **A control with nothing behind it is worse than no control.** Two were
+  deleted rather than repaired in §95 - a share sheet's Audio/Transcript
+  toggle that only changed a word in a toast, and a "search messages" bar that
+  toasted "demo only". The same rule took the three invented contacts out of
+  `index.html`: a social surface that fabricates people is a profile
+  fabricating numbers with a worse failure mode, because it says a message was
+  sent when none was.
+- **The intro screen is not on the navigation stack, and `goBack()` cannot
+  reach it.** *(§96, §97, §98 - the same trap three times.)* It is drawn with
+  `showScreen("intro")` by `afterAccount`, `restartFirstRun` and both settings
+  entry points, and never pushed. So anything opened *on top* of it - the
+  catalogue, a shelf - pops to whatever was underneath, which is SearchFAM,
+  and the first run silently loses its remaining steps. Every one of those
+  returns by *name* now, recorded when the screen was opened. If a fourth
+  screen is ever shown that way, this is the line to read before wiring its
+  back button.
 - **A listener id is never accepted from the client.** It arrives from an
   HttpOnly session cookie the server minted, and `?user=` is ignored wherever
   it still appears. This replaced `famUserId()`, which made an id up with
@@ -932,7 +1103,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §68-73 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §99-101 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -951,9 +1122,13 @@ and the second one is not optional:
     pip install playwright        # or the browser smoke test skips itself
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
-green rather than assuming it. A complete run ends with `all checks passed` and
-twenty-six named smoke behaviours; anything less means something was skipped, and
-`dev.sh` now says so out loud (PROBLEMS.md §49).
+green rather than assuming it. A complete run ends with `all checks passed`
+**twice** - once per preview build - and **thirty-four** named smoke
+behaviours each time; anything less means something was skipped, and `dev.sh`
+now says so out loud (PROBLEMS.md §49). The number is
+`grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
+trusting this sentence: it has been wrong before, because a count written in
+prose does not fail when somebody adds a behaviour.
 
 What is true but not obvious from the code:
 

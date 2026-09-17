@@ -351,7 +351,12 @@ def _wake_remote_voice() -> None:
 _WAKES: set = set()
 
 
-def _make_pipeline(voice: Optional[str] = None) -> PodcastPipeline:
+def _make_pipeline(voice: Optional[str] = None,
+                   author: str = "") -> PodcastPipeline:
+    """`author` is the listener whose tap paid for this, from
+    `_listener(request)` and never from a parameter. It is stamped on anything
+    this pipeline writes to the shared cache so Explore can keep somebody's
+    own episodes off their own feed - see `cache.recent`."""
     engine = engine_for_voice(voice)
     if DEMO_MODE:
         # Demo mode swaps the model, not the plumbing. It used to pass
@@ -365,9 +370,10 @@ def _make_pipeline(voice: Optional[str] = None) -> PodcastPipeline:
         # other listener, including after a key is finally added.
         return PodcastPipeline(
             generator=DemoGenerator(), engine=engine, cache=SCRIPT_CACHE,
-            voice=voice, cache_writes=False,
+            voice=voice, cache_writes=False, author=author,
         )
-    return PodcastPipeline(engine=engine, cache=SCRIPT_CACHE, voice=voice)
+    return PodcastPipeline(engine=engine, cache=SCRIPT_CACHE, voice=voice,
+                           author=author)
 
 
 def _cache_report() -> dict:
@@ -1636,7 +1642,11 @@ async def share_targets(request: Request) -> dict:
     _read_limit(request)
     return {"targets": [
         {"key": t.key, "label": t.label, "kind": t.kind,
-         "needs_image": t.needs_image, "max_chars": t.max_chars}
+         "needs_image": t.needs_image, "max_chars": t.max_chars,
+         # Whether this destination has a URL to open at all. The rendered
+         # one, with the wording in it, comes back from `/api/share`; this
+         # only says which kind of hand-off a client should be ready for.
+         "has_destination": bool(t.destination)}
         for t in sharing.TARGETS]}
 
 
@@ -2072,8 +2082,23 @@ async def attach(req: AttachRequest, request: Request) -> dict:
     is a round-trip, and the one thing this product will not spend is seconds
     in front of the first word. Doing it here puts the cost while someone is
     still typing.
+
+    **Only a link is paced as a spend.** A document or a photo is read locally
+    and costs no model call and no outbound request, so it takes the reader's
+    limit - the rule this file already applies to `/api/audio`, which asks the
+    cache before pacing at all. Pacing them as generations meant attaching two
+    files in a row - which the interface invites, since a search can carry
+    several - answered the second one with "Slow down a moment", from a button
+    that had just asked for it. A limiter that fires on correct use is not
+    protecting anything.
+
+    A link is different and stays paced: it is an outbound fetch of whatever
+    address was typed, which is the one thing here somebody else pays for.
     """
-    _rate_limit(request)
+    if req.kind == "link":
+        _rate_limit(request)
+    else:
+        _read_limit(request)
     try:
         item = attachments_mod.build(req.kind, req.name, req.data, req.url)
     except attachments_mod.AttachmentError as exc:
@@ -2193,11 +2218,49 @@ async def read_preferences(request: Request):
     authed = bool(listener is not None and listener.is_authenticated)
     stored = (PREFS.get(listener.user_id) if authed
               else prefs_mod.Preferences(_listener(request)))
+    # The six the picker shows, most played across FAM first. `interests_all`
+    # is still every facet, because the picker narrowing is a screen decision
+    # and the eight remain the whole pickable vocabulary - anything that
+    # *reads* a stored interest (settings, the recap) needs every label.
+    picker, picker_source = topics_mod.popular_facets(EVENTS)
+    # And the six the *Settings* wheel shows, which is a different question
+    # asked by a different person. The first run asks somebody with no history
+    # what they like, so the honest answer is what everybody plays. Settings is
+    # opened by somebody who has been using the app, where their own listening
+    # is the better answer - and it keeps changing as they listen, which is
+    # what makes that wheel worth opening twice.
+    mine, mine_source = topics_mod.my_facets(
+        EVENTS, _listener(request), stored.interests)
     body = {
-        "interests_available": [{"id": tag, "label": label}
-                                for tag, label in topics_mod.TAG_LABELS.items()],
+        # `short` is what fits inside the first run's circles; `label` is what
+        # everything that *reads* an interest back shows. A shortening, never a
+        # second name - see `topics.TAG_SHORT`.
+        "interests_available": [{"id": tag,
+                                 "label": topics_mod.TAG_LABELS[tag],
+                                 "short": topics_mod.TAG_SHORT[tag]}
+                                for tag in picker],
+        "interests_all": [{"id": tag, "label": label}
+                          for tag, label in topics_mod.TAG_LABELS.items()],
+        # "played" or "default". A deployment with an empty log is showing a
+        # declared order rather than a measurement, and the two look identical
+        # on screen - so it says which, here and on /api/health, rather than
+        # letting anybody read a default as a popularity ranking.
+        "interests_source": picker_source,
+        "interests_yours": [{"id": tag,
+                             "label": topics_mod.TAG_LABELS[tag],
+                             "short": topics_mod.TAG_SHORT[tag]}
+                            for tag in mine],
+        # "listened", "chosen" or "default" - which of the three sources
+        # actually decided the wheel. A listener with two plays still gets six
+        # discs, because a wheel is six or it is a broken wheel, and this is
+        # what stops the filler being read as a measurement.
+        "interests_yours_source": mine_source,
+        # The long list behind "View more". Named subjects rather than tags -
+        # see `topics.INTEREST_CATALOGUE` for why that distinction is what
+        # lets it be seventy-odd entries without widening the vocabulary the
+        # ranker reasons in by a single word.
+        "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
-        "max_interests": prefs_mod.MAX_INTERESTS,
         # False until per-language generation exists. Printed under the picker
         # rather than left implicit: a setting that silently changes nothing is
         # the failure mode this project has paid for most often.
@@ -2275,6 +2338,64 @@ async def next_up(
     return {"topics": [t.as_dict() for t in picks], "algo": topics_mod.ALGO_VERSION}
 
 
+@app.get("/api/myfam/section")
+async def myfam_section(request: Request,
+                        key: str = Query(..., max_length=32),
+                        minutes: int = Query(3, ge=1, le=10),
+                        interests: str = Query("", max_length=200)):
+    """One myFAM rail, at full length, for the screen behind its "View more".
+
+    Costs no model call and cannot cause one: this reorders the same fixed
+    bank `build_feed` does. Which is the answer to "how do we fill a whole
+    screen without making episodes nobody asked for" - the tiles were always
+    there, the rail just showed six of them.
+
+    Each tile also says whether its script is **already written**. That is the
+    other half of the same answer: a cached tile costs a listener nothing but
+    the audio, so the screen leads with those and says so. It is one local
+    SQLite read per tile - the same probe the pacing path already does - and
+    never a model call, so marking them is as free as ranking them.
+    """
+    _read_limit(request)
+    user = _listener(request)
+    try:
+        body = topics_mod.build_section(
+            EVENTS, user, key, interests=_interests_for(request, interests))
+    except KeyError as exc:
+        raise HTTPException(status_code=404,
+                            detail="No such section.") from exc
+
+    for topic in body["topics"]:
+        topic["cached"] = _topic_is_written(topic.get("query", ""), minutes)
+    # Ready ones first, each rail's own order preserved inside those two
+    # groups. A listener on this screen is browsing, and an episode that
+    # starts instantly is a better thing to put in front of them than one
+    # three places higher that has to be written first.
+    body["topics"].sort(key=lambda t: not t["cached"])
+    body["ready"] = sum(1 for t in body["topics"] if t["cached"])
+    body["minutes"] = minutes
+    if user:
+        EVENTS.record_impressions(
+            user, [(f"section:{key}", t["id"]) for t in body["topics"]])
+    body["algo"] = topics_mod.ALGO_VERSION
+    return body
+
+
+def _topic_is_written(query: str, minutes: int) -> bool:
+    """Whether a tile would replay rather than generate.
+
+    Wrapped rather than inlined because a malformed bank entry must not turn a
+    browse screen into a 400: the honest answer for anything unaskable is
+    "not ready", which is what an unwritten tile already says.
+    """
+    if not query:
+        return False
+    try:
+        return _already_written(_validated_plan(query, minutes))
+    except HTTPException:
+        return False
+
+
 @app.get("/api/explorenew")
 async def explore_new(request: Request, interests: str = Query("", max_length=200)):
     """Explore New: episodes adjacent to a taste rather than inside it.
@@ -2347,6 +2468,12 @@ async def record_event(req: EventRequest, request: Request):
     tags = ()
     if req.topic_id and req.topic_id in topics_mod.BANK_BY_ID:
         tags = topics_mod.BANK_BY_ID[req.topic_id].tags
+    elif req.topic_id and req.topic_id in topics_mod.CATALOGUE_BY_ID:
+        # An interest chosen from the first-run catalogue. It carries its own
+        # tags, which is the whole point of it: "Formula 1" is not something
+        # the eight pickable facets can say, and this is how it reaches the
+        # ranker without anybody being shown a tag name.
+        tags = topics_mod.CATALOGUE_BY_ID[req.topic_id].tags
     elif req.text:
         tags = topics_mod.tags_for_text(req.text)
     EVENTS.record(
@@ -2360,6 +2487,11 @@ async def record_event(req: EventRequest, request: Request):
 class PersonRequest(BaseModel):
     name: str = Field("", max_length=social_mod.MAX_NAME)
     handle: str = Field("", max_length=social_mod.MAX_HANDLE + 1)
+    #: A `data:image/...` URL the client already downscaled, or "" to remove
+    #: the picture. `None` means "leave it as it is" - see `set_me`. The cap
+    #: is the one in `social.MAX_AVATAR`, repeated here so an oversized body
+    #: is refused at the edge rather than after a database round trip.
+    avatar: Optional[str] = Field(None, max_length=social_mod.MAX_AVATAR)
 
 
 class EchoRequest(BaseModel):
@@ -2371,10 +2503,17 @@ class EchoRequest(BaseModel):
 
 @app.post("/api/me")
 async def set_me(req: PersonRequest, request: Request):
-    """Name and handle for this device. Not an account - see /api/profile."""
+    """Name, handle and picture for this device. Not an account - see
+    /api/profile.
+
+    `avatar` is omitted to leave the current one alone and sent as "" to take
+    it off, which are different requests: a client that simply never sends the
+    field must not silently delete a picture somebody chose.
+    """
     _read_limit(request)
     try:
-        return SOCIAL.set_person(_listener(request), req.name, req.handle)
+        return SOCIAL.set_person(_listener(request), req.name, req.handle,
+                                 avatar=req.avatar)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -2401,6 +2540,47 @@ async def delete_echo(request: Request, q: str = Query("", max_length=300),
     return {"ok": SOCIAL.unecho(_listener(request), q, minutes)}
 
 
+# --- vibe -----------------------------------------------------------------
+#
+# "Vibe" is the product name for what this codebase calls an echo. The rename
+# is a rename in the interface and an *alias* on the server: `/api/echo` and
+# `/api/vibe` are the same handler under two paths, and `social.py` still says
+# echo throughout.
+#
+# Two paths rather than one because a client in the field - a phone that has
+# not updated - is still calling the old one, and a rename that breaks it
+# turns a copy change into an outage. Two names for one row is a cost of
+# exactly zero; a second table would not be.
+@app.post("/api/vibe")
+async def post_vibe(req: EchoRequest, request: Request):
+    """Vibe an episode. The same act as `/api/echo`, under its product name."""
+    return await post_echo(req, request)
+
+
+@app.delete("/api/vibe")
+async def delete_vibe(request: Request, q: str = Query("", max_length=300),
+                      minutes: int = Query(3, ge=1, le=10)):
+    """Take a vibe back. The same act as `DELETE /api/echo`."""
+    return await delete_echo(request, q, minutes)
+
+
+@app.get("/api/vibes")
+async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
+    """Everything this listener has vibed, newest first.
+
+    The profile's "My Vibe" shelf. `/api/profile` already returns the first
+    twelve beside everything else it knows; this is the same list on its own,
+    so a shelf that wants all of them does not have to fetch a whole profile
+    to get them.
+    """
+    _read_limit(request)
+    user = _listener(request)
+    person = SOCIAL.person(user)
+    vibes = SOCIAL.echoes_by(user, limit=limit)
+    return {"vibes": [v.as_dict(person["name"], person["handle"]) for v in vibes],
+            "count": len(SOCIAL.echoes_by(user, limit=200))}
+
+
 @app.get("/api/profile")
 async def profile(request: Request):
     """Counts and subjects from this listener's own event log. No model call."""
@@ -2421,6 +2601,12 @@ async def profile(request: Request):
     body["echoes"] = [e.as_dict(person["name"], person["handle"])
                       for e in SOCIAL.echoes_by(user, limit=12)]
     body["echo_count"] = len(SOCIAL.echoes_by(user, limit=200))
+    # The picture, and the follow graph the page has been describing without
+    # having. Counts rather than the lists: a profile draws two numbers and
+    # opens a screen for the rest, and shipping five hundred people to draw
+    # two numbers is the wrong shape of request.
+    body["avatar"] = person["avatar"]
+    body["follows"] = SOCIAL.follow_counts(user)
     return body
 
 
@@ -2445,6 +2631,15 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     generated: it reads finished scripts out of the cache. Everything in that
     cache passed the personal-query filter before it was written, so it is
     already safe to show someone else.
+
+    **Other people's, and only other people's.** An episode this listener
+    generated is dropped from their own feed, because Explore's entire premise
+    is that these are somebody else's questions - and their own coming back at
+    them reads as the app having nothing to show rather than as a feature.
+    It is a display filter: the entry stays in the shared cache, still replays
+    instantly for them anywhere else, and still appears on everyone else's
+    feed. Entries written before authorship was recorded have no author and
+    are shown to everybody, which is what they were already doing.
     """
     _read_limit(request)
     store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
@@ -2454,7 +2649,8 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # Who echoed what. An echo does not create an episode - the script was
     # already here - it changes what the card says, from "someone asked this"
     # to "Rachel sent you this", which is a different reason to press play.
-    labels = SOCIAL.recent_echoes(exclude_user=_listener(request))
+    listener = _listener(request)
+    labels = SOCIAL.recent_echoes(exclude_user=listener)
     episodes = [
         {
             "query": entry["query"],
@@ -2465,7 +2661,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "age_seconds": max(0.0, now - entry["created"]),
             "echoed_by": labels.get((entry["query"], entry["minutes"]), {}).get("by", ""),
         }
-        for entry in store.recent(limit)
+        for entry in store.recent(limit, exclude_author=listener)
     ]
     # An echoed episode leads, because someone chose to send it.
     episodes.sort(key=lambda e: (not e["echoed_by"], e["age_seconds"]))
@@ -2597,7 +2793,7 @@ async def audio(
                         surface=_surface(cached_only, topic_id, context))
 
     try:
-        pipeline = _make_pipeline(voice or None)
+        pipeline = _make_pipeline(voice or None, author=user)
     except TTSUnavailable as exc:
         # The server cannot speak at all. Nothing was generated and nothing was
         # billed, so the allowance goes back - this is the machine being

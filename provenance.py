@@ -71,6 +71,16 @@ class Attribution:
     title: str = ""
     #: True for anything belonging to this listener alone. Never cached.
     private: bool = False
+    #: Where to read it, for the sources panel's "open this" tap. Only an
+    #: article ever has one: a live provider is a feed rather than a page, and
+    #: an attachment is a file on the listener's own device.
+    #:
+    #: **This is the display channel, not the prompt.** `label` stays a
+    #: hostname and never a URL because that is what gets *shown*; a link
+    #: beside it is the same fact made tappable. Nothing here reaches
+    #: `build_prompt` - see the module docstring, which is emphatic about the
+    #: one direction this must never drift in.
+    url: str = ""
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -159,12 +169,16 @@ def from_results(results, retriever: str = "") -> Provenance:
         if not host:
             continue
         when = research.published_at(result)
+        raw_url = str(getattr(result, "url", "") or "")
         out.add(Attribution(
             label=host,
             kind=ARTICLE,
             tier=research.TIER_LABELS.get(research.credibility(result), ""),
             at=when.date().isoformat() if when else "",
             title=str(getattr(result, "title", "") or "")[:200],
+            # Only ever a real web address. A retrieval backend that hands
+            # back something else must not become a link the interface opens.
+            url=raw_url[:500] if raw_url[:8].lower().startswith(("http://", "https://")) else "",
         ))
     return out
 
