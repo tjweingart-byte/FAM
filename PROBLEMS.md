@@ -5546,3 +5546,227 @@ and must be reported rather than routed around.
 
 `PROVIDER_ROLLOUT.md` is the runbook for turning each one on somewhere with
 network.
+
+## 93. Polymarket was configured, healthy and never once asked anything
+
+Connecting the four live providers to production turned up a provider that
+could be switched on completely and still do nothing. `LIVE_ELECTIONS_PROVIDER=polymarket`
+registers the source, `/api/health` reports it registered, `diagnose()` passes,
+`tools/verify_live.py --domain elections` resolves a market and fetches a price.
+Every check said yes. No episode ever reached it.
+
+### The cause: one vocabulary kept in two places
+
+`live_facts.LIVE_DOMAINS` is the routing vocabulary — a source declares one of
+those and `lookup` dispatches on `brief.live_domain`. `BRIEF_SCHEMA` held a
+second, hand-written copy:
+
+    "live_domain": {"type": "string", "enum": ["", "sports", "markets"]},
+
+`elections` was added to the tuple and never to the enum. The schema is passed
+as a strict `json_schema` output format, so this was not a model that tended not
+to say `elections` — it was a model that **could not**. `lookup` returns `None`
+for any domain the brief does not name, so the elections branch was dead code
+reachable only from the verification tool.
+
+Nothing failed. There was no error, no log line, no degraded flag. The
+difference between "configured and serving" and "configured and structurally
+unreachable" was invisible from every surface built to make exactly that
+difference visible — because those surfaces all report on the registry, and the
+registry was fine. §89 built `LiveLookup` so the writer could tell "no provider"
+from "provider broke"; this was a third thing, "provider that is never asked",
+and it looked like neither.
+
+**The general rule: two vocabularies that must agree are one vocabulary.** This
+is §83's `key_for` argument arriving in a different file — there the failure was
+two cache-key implementations drifting and every prefetched script being paid
+for and never read, silently and totally. Same shape here. So the schema now
+reads the tuple:
+
+    "live_domain": {"type": "string",
+                    "enum": [""] + list(live_facts.LIVE_DOMAINS)},
+
+and a test asserts the *reading* rather than the values, because a test listing
+the domains would be the third copy.
+
+### The half a schema fix does not cover
+
+An enum value with no instruction behind it is one the model never picks. The
+EI prompt described `sports` and `markets` and stopped, so adding `elections` to
+the enum alone would have left it technically selectable and practically unused.
+A second test walks `LIVE_DOMAINS` and fails if any domain is routable but never
+explained to the model.
+
+### And a live bug that the blocker was hiding
+
+`LiveFacts.as_prompt_block` ended every block with:
+
+> This is the most authoritative thing you have been given. Where it and the
+> articles below disagree, this is what is true and the articles are older.
+
+That is earned for every other source here: a scoreboard was *observed*, and the
+article about the game was written later and from further away. A prediction
+market was observed too, but what it observed is what people **expect** — so it
+is the newest thing in the prompt and the least authoritative thing in it, a
+combination nothing else in this module has.
+
+Handing a forecast that paragraph is §88's side door standing open with a
+welcome mat: an article reporting the actual result would be explicitly
+overruled by a price, and "trading at 94 percent" would be written up as the
+outcome. `status=unknown` forbids *stating* a result; it says nothing about
+which source wins a disagreement.
+
+So `PREDICTION_MARKET` is now a named constant — a closed vocabulary, for the
+same reason `STATUSES` is one, because `as_prompt_block` switches on it and a
+switch on a free string misses silently — and that one kind is told the
+opposite: it is a forecast, it is not evidence of an outcome, and **where it
+and the articles disagree the articles win**. A market that has not caught up
+with a reported result is a market that is wrong.
+
+The bug was unreachable while the schema blocked elections, which is the part
+worth noticing: unblocking a path is also unblocking whatever was wrong on it.
+
+### Still true
+
+Nothing here has made a real request to `gamma-api.polymarket.com` — the
+container's egress blocks it, as it blocks every provider host including Exa's.
+`python tools/verify_live.py --domain elections` on a machine with network is
+what closes that, and the offline proof is that routing now reaches the source
+with the network stubbed.
+
+## 94. A perfect episode that opened by apologising for itself
+
+`"Dodgers game last night"`, three minutes, researched, generated at 3:15 the
+following afternoon. From its fifth sentence on it is the best episode this
+project has produced: seven innings and one hit for Yamamoto, the two home
+runs and who they came off, Freeman's three hits, the twelfth shutout, the
+magic number down to two and what closes it out, Cincinnati shut out a league
+high seventeen times. Every word of it checks out.
+
+It opened like this:
+
+> I don't have anything reliable on last night's specific Dodgers score or box
+> score to hand you, and I'm not going to guess a result and dress it up as
+> fact. That would be worse than useless if you're about to repeat it to a
+> friend. Here's what's actually true and worth knowing, regardless of which
+> game you mean.
+
+Four sentences later it gave the score.
+
+**Nobody hears the fifth sentence.** The first ten seconds are the whole
+audition, and this one spends them saying the episode cannot do the thing the
+episode then does. The reported verdict is the right one: as good as it was,
+it was all for nothing.
+
+### It is not a prompt lapse, it is the order of events
+
+The system prompt already said "never narrate your own process, sourcing or
+uncertainty". The opening role brief already said "no hedging about not having
+looked anything up". Both were in the prompt that wrote that paragraph.
+
+They lost because the model was not being unreasonable. On a researched
+episode the opening words are written **before the sources land**:
+
+* `_answer_first` starts two calls at once. The cover half runs with
+  `search=False`, no packet, no brief (`understand` skips `role == "opening"`
+  by design), and it is the half that is *spoken first*.
+* The `research_now` path attaches the `web_search` tool with no packet, and a
+  model can emit text before it calls a tool.
+
+In both, something is asked "what happened last night" while holding nothing
+about last night. A lone answerer in that position should say so - it is the
+honest move, and §88 and §89 are two whole sections of this log insisting on
+it. **It is not a lone answerer.** The rest of the episode is already being
+retrieved underneath it. Nothing had ever told it that.
+
+So the diagnosis in the report is exactly right: it needs to know, and trust,
+that the information is coming, and that its job is the runway.
+
+### Three changes, in the order they act
+
+**1. Tell it the shape of the system.** `ROLE_BRIEFS["opening"]` now says that
+a second half of this same episode is reading sources right now, will take
+over mid-flow within seconds, and will give the listener the specifics - so
+write as the first minute of a piece that is about to have everything, not as
+the whole of a piece that is missing something.
+
+**2. Give it something to write instead**, which is the part a ban alone could
+never supply. "Cover what this is, why it works and the history that explains
+it" is fine for a heat pump and useless for `Dodgers game last night`: there is
+no durable explainer under it, which is *why* it reached for a disclaimer. The
+brief now names the alternative for exactly that case - put them in the
+situation: who, where it sits, what was at stake going in, what the run-up
+was, what a result either way would mean. All of it is true whatever the
+result was, and it is precisely what the specifics need in front of them. That
+is §88's "situate, never orient", applied to the half that cannot yet know.
+
+**3. Draw the line the ban has to respect.** "Never hedge" cannot be allowed
+to become "never say a game is still going" - §88 bought that rule at the cost
+of a final score for a game in its third quarter. So the house rules now state
+both halves in one place: **where something stands in the world is the episode
+("the game is in the seventh"); where it stands in your notes never is.**
+
+### And a guard, because a prompt rule that fails silently is not a fix
+
+This rule *was already written* when the Dodgers episode broke it. Writing it
+more forcefully is worth doing and is not worth trusting, so `OpeningGuard`
+holds a disclaimer back before it can reach the voice, in `stream_sentences` -
+the one path the pipeline, the cover half and `write.py` all go through.
+
+What keeps it safe is how little it is allowed to do:
+
+* It looks only at the **head** of a stream, and switches off for good the
+  moment one real sentence gets through. A piece naming something unresolved
+  in the world halfway down is untouched.
+* It is bounded by sentence count as well, so it can never reach a body.
+* It drops a sentence about **our own access** - and then any sentence
+  immediately after it that cannot stand alone ("That would be worse than
+  useless...", "Here's what's actually true...", "Because it's the stuff
+  that..."). Dropping the disclaimer and leaving its justification behind is
+  worse than leaving both.
+* Quoted speech is stripped before matching, so a manager saying "I don't know
+  yet" is reporting rather than FAM disclaiming.
+* If a half turns out to be **nothing but** disclaimer, the text is released
+  rather than replaced with silence. An ugly opening is recoverable; dead air
+  is the one failure this product never accepts.
+* It is visible: a warning per drop, the sentences on `ScriptNotes.meta_openings`,
+  and `write.py` printing them under the script. The guard firing means the
+  prompt did not hold, which is a thing to fix rather than a thing to absorb.
+
+### Considered and not done: skipping the cover on a result question
+
+The cleanest-sounding fix is to not run the from-knowledge half at all when
+the question turns on an outcome - it has, by construction, nothing to say
+about the only thing being asked. It is not the fix, for two reasons. The
+cover only runs where research is slow (`SLOW_RESEARCH_BACKENDS`; on Exa it is
+already off), so it is not what the production path does most of the time. And
+it would leave the `research_now` path - which has no cover at all - opening
+exactly the same way. The thing to fix was the writing before the facts, not
+the second call.
+
+### The house rules paid for it themselves
+
+`test_the_prompt_stays_lean` caught the addition at 8,736 characters against a
+7,800 bound, and its own docstring says the way past it is the dedup pass
+rather than a higher number. The pass found four rules stated twice: "never
+narrate your own process" and "do not announce your own currency" are both
+what the new rule says; the banned-openings list was split across two bullets;
+"never survey many perspectives" and "neutral survey reads as generated" are
+one rule; and the episode-closes paragraph restated "Never tease" in full. The
+`<<NEXT:>>` block also kept a second worked example that `build_prompt` makes
+unnecessary.
+
+One sentence of the new rule moved rather than shrank, and that was a
+correctness fix as much as a size one: "other parts of this episode may be
+written from sources you cannot see" is *true of the cover half and false of a
+single-call episode*, so it belongs in the role brief that only the cover half
+reads, not in the rules every call is sent.
+
+Net: **7,767 characters, below the bound it was already under**, with a rule
+added. Which is what the bound is for.
+
+**Still unheard.** There is no API key in the build container, so as with every
+prompt change in this log, what is verified here is that the instructions and
+the guard are in the prompt and the path. Whether the new opening *sounds*
+right on "Dodgers game last night" needs a key and a listen - `python write.py
+"dodgers game last night" --minutes 3` prints it in seconds.

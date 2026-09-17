@@ -158,6 +158,11 @@ Alpha Vantage is worse on both axes that matter (25 req/**day** free against
     status   unknown
     kind     prediction-market
 
+and the writer's block must say **THE ARTICLES WIN** rather than "the most
+authoritative thing you have been given". A forecast is the newest thing in the
+prompt and the least authoritative thing in it; the paragraph every other live
+source earns is withdrawn for this one. See PROBLEMS.md §93.
+
 **Step 3 — read this before wiring it to anything.**
 
 A live in-game win-probability line moves with the score, so it *reads* like
@@ -168,6 +173,14 @@ they're winning". That is PROBLEMS.md §88 returning through a side door.
 result may be spoken, so a market can colour an episode and can never close
 one. **Do not add a status mapping to this adapter.** If a future change makes
 a market able to satisfy an outcome-dependent question, that is the bug.
+
+**Step 3b — the routing this depends on.** Until PROBLEMS.md §93, everything
+above passed and no episode ever reached Polymarket: `BRIEF_SCHEMA` kept a
+hand-written copy of the routing vocabulary and it did not include `elections`,
+so EI could not name the domain. The enum now reads `live_facts.LIVE_DOMAINS`
+directly. If you add a domain, add it there and nowhere else — and give the EI
+prompt a sentence saying when to choose it, or the model never will. Two tests
+enforce both halves.
 
 **Step 4.** Polymarket covers election *interest*, never election *results*.
 For results you need AP Elections or Decision Desk HQ — both sales-gated with

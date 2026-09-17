@@ -59,6 +59,25 @@ services:
       # synthesis. A warm one answers a chunk in a couple of seconds.
       - key: REMOTE_VOICE_TIMEOUT
         value: "180.0"
+      # --- Live facts: elections ----------------------------------------
+      #
+      # Polymarket. Keyless, so it is a plain `value` rather than a
+      # `sync: false` prompt - there is no credential to keep out of the repo,
+      # which makes it the cheapest live provider to run and the only one that
+      # can be switched on from this file alone.
+      #
+      # POLYMARKET_BASE is deliberately NOT here. config.py already defaults it
+      # to https://gamma-api.polymarket.com, and PROBLEMS.md §54 is what
+      # happens when a second file repeats a setting the code already decides:
+      # the copy drifts, and the deployment quietly runs against something the
+      # spec never chose. Set it here only to point at a different host.
+      #
+      # What this buys and what it does not: election *interest*, never
+      # election *results*. Every fact comes back status=unknown and
+      # kind=prediction-market, and PROBLEMS.md §93 is why a forecast is told
+      # the articles outrank it. Results need AP or DDHQ, both sales-gated.
+      - key: LIVE_ELECTIONS_PROVIDER
+        value: polymarket
       #
       # Deliberately NOT pinned here: ANSWER_FIRST. `Dockerfile.gpu` sets it to
       # 1 because the configuration that was listened to and judged good ran

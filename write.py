@@ -161,6 +161,12 @@ async def main() -> int:
         print(f'  predicted follow-up (never spoken): "{notes.thread}"')
     else:
         print("  NOTE: no predicted follow-up. Go Deeper falls back without one.")
+    # The guard firing means the prompt rule did not hold. It is caught before
+    # anything is spoken, so the episode is fine - but a rule that has to be
+    # caught is a rule to fix, and this is where somebody would see it.
+    # PROBLEMS.md §94.
+    for dropped in notes.meta_openings:
+        print(f'  NOTE: held back a meta opening before it was spoken: "{dropped}"')
     if words < plan.word_budget * 0.8:
         print("  NOTE: came in short. That is allowed now - it should mean it ran "
               "out of things worth saying, not that it gave up.")

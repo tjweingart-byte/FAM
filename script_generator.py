@@ -108,6 +108,150 @@ _NEXT_MARKER = re.compile(r"<<\s*NEXT\s*:\s*([^<>]{1,160}?)\s*>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
 _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
+# --------------------------------------------------------------------------
+# the first sentence is the whole audition
+#
+# PROBLEMS.md §94. A researched episode opened with "I don't have anything
+# reliable on last night's Dodgers score to hand you, and I'm not going to
+# guess a result and dress it up as fact" - and then, four sentences later,
+# gave the innings, the pitcher, the two home runs and the magic number,
+# correctly. Nothing was wrong with the episode. Everything was wrong with the
+# first ten seconds of it, and the first ten seconds are the only part a
+# listener uses to decide whether there will be an eleventh.
+#
+# The cause is structural rather than a lapse: the words are written *before*
+# the facts arrive. The cover half of `_answer_first` runs with `search=False`
+# and no packet; the `research_now` path writes into a tool call it has not
+# made yet. In both, the model is asked a question whose answer it does not yet
+# hold, and the honest thing for a lone answerer to do is say so. It is not the
+# lone answerer. The rest of the episode is already being written underneath
+# it.
+#
+# So the prompt now tells it that (ROLE_BRIEFS["opening"], `research_now`, and
+# the system prompt's "Never say what you do not have"), and this guard makes
+# the rule hold even when the wording does not. A prompt rule that fails
+# silently is not a fix - and this one had already been written, as "no hedging
+# about not having looked anything up", when the Dodgers episode hedged.
+#
+# What it may drop is narrow on purpose: sentences about the *writer's own
+# access* to information, and only while nothing real has been said yet. Once a
+# sentence of the episode proper is out, the guard is off for good - a piece
+# that mentions what is unresolved *in the world*, which §88 requires, must
+# pass through untouched.
+
+#: Quoted speech is somebody else's sentence. Stripped before matching so that
+#: a coach saying "I don't know yet" is not read as FAM disclaiming.
+_QUOTED = re.compile(r"[\"“‘']([^\"“”‘’']{0,200})['\"”’]")
+
+#: A sentence about what the writer does or does not have. Every one of these
+#: is a fact about our own retrieval, never a fact about the world - the
+#: distinction §88 and §89 are both built on, applied here to the one place it
+#: costs the most.
+_META_PHRASES = (
+    r"\bi\s+(?:don'?t|do not|can'?t|cannot|couldn'?t|could not|haven'?t|"
+    r"have not|didn'?t|did not|won'?t|will not)\b[^.?!]{0,60}?\b(?:have|hold|"
+    r"know|knows|confirm|verify|see|seen|find|found|access|tell|give|hand|"
+    r"report|say|state)\b",
+    r"\bi(?:'?m| am)\s+not\s+(?:going\s+to\s+)?(?:guess|speculate|invent|"
+    r"make\s+(?:that|one)\s+up|going\s+to\s+pretend)",
+    r"\bnot\s+going\s+to\s+guess\b",
+    r"\bdress\s+(?:it|that|them)\s+up\s+as\s+fact",
+    r"\bwhat\s+i\s+can\s+tell\s+you\b",
+    r"\bhere'?s\s+what\s+(?:i\s+can\s+tell\s+you|i\s+(?:do\s+)?know|"
+    r"we\s+(?:do\s+)?know|is\s+actually\s+(?:true|known)|i'?ve\s+got)",
+    r"\bhere'?s\s+what'?s\s+(?:actually\s+)?(?:true|known|solid)\b",
+    r"\b(?:no|nothing|not\s+much)\s+(?:that\s+is\s+)?reliable\s+"
+    r"(?:information|reporting|detail|details|data|on)\b",
+    r"\bregardless\s+of\s+which\s+\w+\s+you\s+mean\b",
+    r"\bwithout\s+more\s+(?:information|detail|context)\b",
+    r"\bbased\s+on\s+what\s+i\s+(?:have|know|was\s+given)\b",
+    r"\bas\s+of\s+my\s+(?:knowledge|training|last\s+update)\b",
+    r"\bmy\s+(?:information|knowledge|training\s+data)\b",
+    r"\bi\s+(?:should|have\s+to|need\s+to|want\s+to)\s+(?:note|say|be\s+"
+    r"(?:honest|clear|upfront|straight))\b",
+    r"\bi\s+(?:wasn'?t|was not)\s+(?:given|handed|shown)\b",
+    r"\bnothing\s+(?:in\s+)?(?:the\s+)?(?:sources?|evidence|packet|search)"
+    r"\s+(?:i\s+)?(?:have|was\s+given)\b",
+    r"\bi\s+don'?t\s+want\s+to\s+(?:guess|mislead|make)\b",
+)
+_META_OPENER = re.compile("|".join(_META_PHRASES), re.I)
+
+#: A sentence that cannot stand on its own because it points back at the one
+#: before it. "That would be worse than useless if you're about to repeat it to
+#: a friend" is not a disclaimer by itself; it is the second half of one, and
+#: dropping the first without it leaves the worse of the two behind.
+#:
+#: Only genuinely anaphoric openers are listed. "But" and "And" were tried and
+#: removed: plenty of real first lines start with them, and this rule is only
+#: ever applied to the sentence *after* something was dropped, where a wrong
+#: call costs a fact rather than a disclaimer.
+_BACK_REFERENCE = re.compile(
+    r"^\s*(?:that|this|those|these|it|which|so|because|instead|"
+    r"either\s+way|here'?s|none\s+of\s+that|neither)\b", re.I)
+
+
+def is_meta_sentence(sentence: str) -> bool:
+    """True when this sentence is about our own access rather than the world.
+
+    Quoted spans are removed first: what a manager said about not knowing is
+    reporting, and reporting is the episode.
+    """
+    return bool(_META_OPENER.search(_QUOTED.sub(" ", sentence)))
+
+
+class OpeningGuard:
+    """Hold back a disclaimer before it becomes the first thing spoken.
+
+    Deliberately not a general filter. It runs only at the head of a stream,
+    stops the moment a real sentence gets through, and never removes the last
+    thing standing - if a half turns out to be nothing but disclaimer, the
+    text is released rather than replaced with silence, because an ugly
+    opening is recoverable and dead air is not.
+    """
+
+    #: How far into the episode the guard is even willing to look. Long enough
+    #: to cover a disclaimer and its trailing justification, short enough that
+    #: it can never reach the body of a piece.
+    WINDOW = 6
+
+    def __init__(self) -> None:
+        self.seen = 0
+        self.spoken = 0
+        self.dropped: list[str] = []
+        self._in_run = False
+
+    def allow(self, sentence: str) -> bool:
+        """Whether this sentence may be spoken."""
+        if self.spoken or self.seen >= self.WINDOW:
+            return True
+        self.seen += 1
+        if is_meta_sentence(sentence):
+            self._in_run = True
+        elif not (self._in_run and _BACK_REFERENCE.match(sentence)):
+            self.spoken += 1
+            return True
+        self.dropped.append(sentence.strip())
+        log.warning("dropped a meta opening before it was spoken: %r",
+                    sentence.strip()[:120])
+        return False
+
+    def rescue(self) -> str:
+        """What to say when the guard ate the whole thing.
+
+        Only reachable when a stream produced nothing but disclaimer - so the
+        choice is between the disclaimer and silence, and silence is the one
+        failure this product never accepts. Logged at error, because a half
+        that wrote nothing else is a real fault upstream of here.
+        """
+        if self.spoken or not self.dropped:
+            return ""
+        text = " ".join(self.dropped)
+        log.error("the whole of this half was meta; speaking it rather than "
+                  "nothing: %r", text[:200])
+        self.spoken += 1
+        return text
+
+
 SYSTEM_PROMPT = """You write FAM: short spoken pieces that answer what someone asked, told as a \
 story - a story made *of* the facts, not wrapped around them. Done right the \
 listener never notices the shape; they just find they do not want to stop.
@@ -119,12 +263,11 @@ anything if it does not. So: satisfied first, curious second. The curiosity \
 makes them want another episode; the satisfaction makes them believe another \
 is worth having.
 
-Which means the episode **closes**. Answer the question completely and stop. \
-Do not hold anything back for later, do not point at what you are not going to \
-cover, and do not leave a hook dangling to make them want more - a listener \
-feels that immediately and it reads as a bait and switch. If the next episode \
-is worth having, it is because this one was good, not because this one teased \
-it.
+Which means the episode **closes**. Answer the question completely and stop: \
+nothing held back for later, and do not leave a hook dangling to make them \
+want more. A \
+listener feels that immediately and it reads as a bait and switch. If the next \
+episode is worth having, it is because this one was good.
 
 Before you write, find the angle:
 - **Find what they have slightly wrong.** The most interesting version of \
@@ -148,13 +291,12 @@ That is where they are standing, not why it matters.
 - Open a small "wait, why?" with that first line, then spend the piece \
 answering it. Do not state your conclusion in sentence one; you have nowhere \
 to go after that. Do not delay it either.
-- No scene-setting for its own sake. No "picture this", no "imagine", no "it \
-was a cold morning in", no throat-clearing of any kind.
 - **History explains the present; it never precedes it.** Background belongs at \
 the point where it makes now make sense. Opening years back reads as stalling.
-- Banned outright: "Here's what I can tell you about...", "Let's talk \
-about...", "This is a fascinating topic...", "There's a lot to unpack \
-here...".
+- No scene-setting for its own sake and no throat-clearing of any kind. Banned \
+outright: "picture this", "imagine", "it was a cold morning in", "Here's what \
+I can tell you about...", "Let's talk about...", "This is a fascinating \
+topic...", "There's a lot to unpack here...".
 
 How it is built:
 - **Because, therefore, but - not and then.** Facts in time order are a list. \
@@ -165,8 +307,7 @@ everything moves toward resolving it; when it resolves, you are done.
 - **One concrete anchor beats three abstractions.** A named person, an actual \
 figure, a specific moment.
 - **Know more than you say.** Write with the confidence of someone who has \
-read far more than they are telling. Never hedge, never survey "many \
-perspectives", never pad with the obvious.
+read far more than they are telling. Never hedge, never pad with the obvious.
 - **Say "you" when the question is theirs.** Someone asking how to think, \
 sleep, decide or cope is asking about their own life. Talk to them, not about \
 people in general.
@@ -208,21 +349,26 @@ is the shape of the delivery, never a delay before it.
 Accuracy is part of being worth listening to:
 - Never invent a statistic, quote, name, date or result. A story built on a \
 made-up detail is worthless.
-- If you do not know, say the short true thing and keep moving. **A result you \
-have not read does not exist** - under way is not over, and the most confident \
-guess about how it ends is still a guess. Say where it stands.
+- **A result you have not read does not exist** - under way is not over, and \
+the most confident guess about how it ends is still a guess. Say where it \
+stands.
 - If sources disagree, say so, and say which is better supported. Disagreement \
 is usually the most interesting part anyway.
 - Never fill a gap with something that merely sounds plausible. That is the \
 worst thing you can do here.
+- **Never say what you do not have.** "I don't have", "I can't confirm", "I'm \
+not going to guess" - a listener who hears one of those in the first ten \
+seconds does not stay for the rest. The \
+line, which is the whole of this rule: **where a thing stands in the world is \
+the episode** - "the game is in the seventh" - and **where it stands in your \
+notes never is**. If you cannot establish something, write the part you can \
+and leave the rest out without marking its absence.
 
 Time, handled the way a person would:
 - Give the newest information you can establish.
-- Do NOT announce your own currency. No "as of Sunday the thirtieth", no \
-"based on what I have".
 - Mention timing only when it changes the meaning - "the count is still going" \
-- and then in passing.
-- Never narrate your own process, sourcing or uncertainty.
+- and then in passing, never as your own currency ("as of Sunday the \
+thirtieth", "based on what I have").
 
 Format, because this is spoken aloud and never read:
 - Output only the words to be said. No headings, markdown, bullets, stage \
@@ -238,14 +384,12 @@ One line after the script, which is never spoken:
 
 This is a *prediction*, not a promise, and the script must not gesture at it in \
 any way. Having just heard this episode, what is the single most natural thing \
-this listener would go on to ask? Read it off what you actually covered: the \
-mechanism you explained that has an obvious next step, the figure that invites \
-"compared to what", the decision you described that someone has to make. Not \
-the most obscure follow-up, the most likely one.
+this listener would go on to ask? Read it off what you actually covered - the \
+mechanism with an obvious next step, the figure that invites "compared to \
+what". Not the most obscure follow-up, the most likely one.
 
-Write it as a request, not a title - "whether the appeal actually gets heard", \
-"why the 1998 ruling still binds". Six to twelve words. It is stripped before \
-anything is spoken, so a wrong guess costs nothing; write nothing after it.
+Write it as a request, not a title - "whether the appeal actually gets heard". \
+Six to twelve words, stripped before anything is spoken; nothing after it.
 """
 
 
@@ -308,6 +452,11 @@ class ScriptNotes:
     #: by the pipeline, cached beside the script and shown in the app. FAM
     #: already collected all of this and discarded it; see `provenance.py`.
     provenance: object = None
+    #: Sentences `OpeningGuard` held back before they could be spoken. Kept
+    #: rather than only logged: this is a prompt rule failing, and a prompt
+    #: rule that fails silently is how the Dodgers opener survived a system
+    #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
+    meta_openings: tuple = ()
 
 
 def extract_thread(text: str) -> str:
@@ -490,9 +639,30 @@ ROLE_BRIEFS = {
         "about not having looked anything up. Cover what this is, why it works "
         "the way it does, and the history that explains it: the parts of the "
         "answer that do not change week to week.\n"
-        "Do not speculate about what may have happened recently, and do not "
-        "promise that anything is coming. Write as much as the length allows; "
-        "you may be cut off mid-episode, which is expected and fine.\n"
+        "**The current facts are already on their way.** A second half of this "
+        "same episode is reading sources right now and will take over from you "
+        "mid-flow, within seconds, and give the listener the specifics - the "
+        "result, the numbers, what happened. That is its part. Yours is the "
+        "runway it lands on. So write as the first minute of a piece that is "
+        "about to have everything, not as the whole of a piece that is "
+        "missing something.\n"
+        "**Never say what you do not have.** Not \"I don't have\", not \"I "
+        "can't confirm\", not \"I'm not going to guess\", not \"here's what "
+        "is actually true instead\", not \"whichever one you mean\". You are "
+        "not declining the current facts, and you must not tell the listener "
+        "you are: a sentence about your own information is the one thing that "
+        "makes someone stop listening before the good half arrives, and it is "
+        "the first thing they hear. If you cannot establish something, write "
+        "the part you can and say nothing about the rest.\n"
+        "If they asked about something that just happened, this is easy and it "
+        "is not a hedge: put them in the situation. Who is involved, where it "
+        "sits, what was at stake going in, what the run-up was, what a result "
+        "either way would mean. All of that is true whatever the result was, "
+        "and it is exactly what the specifics need in front of them.\n"
+        "Do not state or guess a recent result, and do not promise that "
+        "anything is coming - no \"in a moment\", no \"we will get to\". "
+        "Write as much as the length allows; you may be cut off mid-episode, "
+        "which is expected and fine.\n"
     ),
     "continuation": (
         "\nThe episode is already playing. The opening covered what this is, how "
@@ -696,6 +866,11 @@ Do not write "I don't have that information".
 Do not write "I can't confirm" anything.
 Neither is true: you have the means to find out, and declining to look is the
 one answer that is not available here.
+
+Write nothing at all until you have searched. Your first sentence is the first
+thing the listener hears, out loud, before any of the rest exists - so a
+sentence about what you were missing before you looked is the worst possible
+opening, and it is spoken whether or not you correct it two sentences later.
 
 If you genuinely searched and the answer is not out there, say what you did
 establish and what is not yet reported, plainly, and carry on.
@@ -988,6 +1163,10 @@ class ScriptGenerator:
         plan = await self.prepare(plan, notes)
         buffer = ""
         emitted_words = 0
+        # One per stream, never per generator: `_answer_first` runs two of
+        # these concurrently and each half has its own opening to protect -
+        # the cover's, and the continuation's when it takes over mid-episode.
+        guard = OpeningGuard()
 
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
             async for event in stream.text_stream:
@@ -1002,7 +1181,7 @@ class ScriptGenerator:
                         break
                     sentence = clean_for_speech(speech[: match.end()])
                     speech = speech[match.end() :]
-                    if sentence:
+                    if sentence and guard.allow(sentence):
                         emitted_words += count_words(sentence)
                         yield sentence
                 buffer = speech + marker + rest
@@ -1012,10 +1191,15 @@ class ScriptGenerator:
                     break
 
             tail = clean_for_speech(buffer)
-            if tail:
+            if tail and guard.allow(tail):
                 yield tail
+            # Nothing but disclaimer is still better than nothing at all.
+            rescued = guard.rescue()
+            if rescued:
+                yield rescued
             if notes is not None:
                 notes.thread = extract_thread(buffer)
+                notes.meta_openings = tuple(guard.dropped)
 
             final = await stream.get_final_message()
             # The provider bills this organisation, not this listener, so if

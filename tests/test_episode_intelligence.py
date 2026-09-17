@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
 import episode_intelligence as ei  # noqa: E402
+import live_facts  # noqa: E402
 import script_generator as sg  # noqa: E402
 from script_generator import ScriptNotes, build_prompt, plan_episode  # noqa: E402
 
@@ -409,6 +410,39 @@ def test_a_request_being_outcome_dependent_says_nothing_about_the_event():
     joined = " ".join(brief.cautions)
     assert "confirmed yet" in joined
     assert "has started is not an event that has finished" in joined
+
+
+def test_live_domain_enum_is_the_routing_vocabulary_not_a_copy_of_it():
+    """The blocker this replaced, and the shape of it is worth keeping.
+
+    `live_facts.LIVE_DOMAINS` is the routing vocabulary: a source declares one
+    of those and `lookup` dispatches on one of those. The schema held a second,
+    hand-written copy, and `elections` was added to the first and never the
+    second - so a keyless, healthy, registered Polymarket could be configured,
+    pass every check on `/api/health`, and never be asked a single question,
+    because the one layer that names a domain was structurally unable to say
+    that one. Nothing failed; it just silently did not happen.
+
+    So the schema reads the tuple, and this asserts the reading rather than the
+    values - a test listing the domains would be the third copy."""
+    enum = ei.BRIEF_SCHEMA["properties"]["live_domain"]["enum"]
+    assert enum == [""] + list(live_facts.LIVE_DOMAINS)
+    # Empty stays first and stays allowed: most questions turn on no live
+    # state at all, and a schema that forced a domain would invent one.
+    assert enum[0] == ""
+    for domain in live_facts.LIVE_DOMAINS:
+        assert domain in enum
+
+
+def test_every_routable_domain_is_explained_to_the_model():
+    """An enum value with no instruction behind it is one the model never
+    picks. Adding a domain to the tuple is therefore only half of adding it -
+    the prompt has to say what question belongs to it."""
+    prompt = ei.build_ei_prompt("who is ahead", 3, "", None)
+    for domain in live_facts.LIVE_DOMAINS:
+        assert f"`{domain}`" in prompt, (
+            f"{domain} is routable but the prompt never tells the model when "
+            f"to choose it")
 
 
 def test_ei_may_not_pick_the_in_progress_shape_itself():
