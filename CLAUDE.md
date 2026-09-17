@@ -367,7 +367,13 @@ the rest of this list it needs taste rather than a key.
    one - a rename that breaks it turns a copy change into an outage. The
    `data-echo` attribute and the `echoed` class keep their names for the same
    reason: a hook renamed for a copy change is a button that quietly stops
-   being found.)* `messages.py` does the same for a *directed* share - one person, one
+   being found.)* **VIBE! is on every real player and deliberately not on the
+   mini bar** *(§97, reversing §95's "every player").* The bar is a strip with
+   three things competing for one thumb - open, pause, close - and the only
+   irreversible one of them was the one that posts to your friends. The smoke
+   check asserts the absence, so it is a decision rather than a regression
+   waiting to be helpfully undone. `messages.py` does the same for a
+   *directed* share - one person, one
    episode - and `sharing.py` for a link posted outside FAM. All three cost one
    row: sending an episode to ten people costs ten rows and not ten episodes,
    because their taps are what synthesise audio, from one cached script,
@@ -440,6 +446,16 @@ the rest of this list it needs taste rather than a key.
   a replacement for the other, and removing either would be a regression. The
   drag clamps at what has actually been written, because the episode is still
   being generated while it plays.
+  **And one episode has one transport** *(§97).* Four controls pause the same
+  `FamAudio` - the search player, play-all, Explore's reel and the mini bar -
+  and each used to keep its own boolean and redraw only its own icon, so
+  pausing on one left the others drawing a pause button over stopped audio.
+  `setPlayState` is the only thing that moves the audio now; everything else
+  delegates to it and it redraws all four. Adding a fifth player is one line
+  there, never a fifth idea of whether something is playing. The mini bar was
+  the case that proved it: its button returned early whenever `isActive()` was
+  false, which is exactly the state that bar is in most often - still on
+  screen after the episode finished, with a play button that did nothing.
 - **No filler, ever, and no setting for it.** The cold open was deleted, not
   disabled - a knob left behind is an invitation to turn it back on, and this
   one was turned back on by an example file. Nothing plays until the real
@@ -1022,7 +1038,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §94-96 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §95-97 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

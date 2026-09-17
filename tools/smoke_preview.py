@@ -477,8 +477,22 @@ def main() -> int:
             page.wait_for_timeout(400)
             found = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
             assert found == ["Ice Hockey"], found
+            # Closing it must come back to the step it was opened from. It
+            # used to `goBack()`, and the intro is drawn with `showScreen` and
+            # never joins the stack - so the pop landed on SearchFAM and the
+            # first run lost its language page on the way out.
             page.evaluate("closeTopicCatalog()")
             page.wait_for_timeout(400)
+            active = page.eval_on_selector(".screen.active", "e => e.id")
+            assert active == "screen-intro", (
+                f"closing the catalogue left the first run at {active}")
+            assert not page.eval_on_selector("#introPageInterests", "e => e.hidden"), (
+                "closing the catalogue skipped past the interests step")
+            # And the run still reaches the language page from here.
+            page.evaluate("introNext()")
+            page.wait_for_timeout(300)
+            assert not page.eval_on_selector("#introPageLanguage", "e => e.hidden"), (
+                "the language step is unreachable after the catalogue")
             page.evaluate("finishIntro()")
             page.wait_for_timeout(700)
 
@@ -715,10 +729,56 @@ def main() -> int:
 
         #: Every screen a listener can control playback from. VIBE! belongs on
         #: all of them - checking two ids by name is what let the main player
-        #: ship without one. The mini player is in this list because the packet
-        #: asks for the button on *every* player and that is the one most often
-        #: still on screen when an episode has finished.
-        PLAYERS = ["screen-player", "screen-playall", "screen-explore", "nowBar"]
+        #: ship without one.
+        #:
+        #: `nowBar` is deliberately not here, and was: the mini bar had a VIBE
+        #: button and it was taken off. It is a strip with three things
+        #: competing for a thumb, and the only irreversible one of them was
+        #: the one that posts to your friends.
+        PLAYERS = ["screen-player", "screen-playall", "screen-explore"]
+
+        def the_mini_bar_offers_no_vibe():
+            """Removed on purpose, so an absence is a decision and not a gap."""
+            assert page.query_selector("#nowBar"), "no mini bar to check"
+            assert not page.eval_on_selector_all(
+                "#nowBar [data-echo]", "e => e.length"), (
+                "VIBE! is back on the mini bar - see PLAYERS above")
+
+        def one_transport_for_one_episode():
+            """Pause anywhere and every control agrees, including the mini bar.
+
+            Four surfaces pause the same audio. They used to keep four
+            booleans, so the mini bar could draw a pause button over a stopped
+            episode - and its own button returned early the moment the episode
+            finished, which is when that bar is most often the only thing on
+            screen.
+            """
+            page.evaluate("setPlayState(false)")
+            paused = page.evaluate(
+                """() => ({
+                     player: document.getElementById("playIcon2").innerHTML,
+                     playall: document.getElementById("paPlayIcon2").innerHTML,
+                     reel: document.getElementById("reelPlay").innerHTML,
+                     bar: document.getElementById("nowPlay").innerHTML
+                   })""")
+            page.evaluate("setPlayState(true)")
+            playing = page.evaluate(
+                """() => ({
+                     player: document.getElementById("playIcon2").innerHTML,
+                     playall: document.getElementById("paPlayIcon2").innerHTML,
+                     reel: document.getElementById("reelPlay").innerHTML,
+                     bar: document.getElementById("nowPlay").innerHTML
+                   })""")
+            for key in ("player", "playall", "reel", "bar"):
+                assert paused[key] != playing[key], (
+                    f"{key} drew the same thing paused and playing")
+            # The mini bar's button must route through the same state rather
+            # than moving the audio behind everyone else's back.
+            page.evaluate("toggleNowBar()")
+            after = page.evaluate("""() => document.getElementById("playIcon2").innerHTML""")
+            page.evaluate("setPlayState(true)")
+            assert after == paused["player"], (
+                "the mini bar paused without telling the player")
 
         def echo_button():
             page.evaluate("openExplore()")
@@ -963,7 +1023,9 @@ def main() -> int:
         check("Mix visibility can be toggled", mix_visibility)
         check("The interest catalogue is the whole list",
               the_interest_catalogue_is_the_whole_list)
-        check("VIBE! is on every player", echo_button)
+        check("VIBE! is on every real player", echo_button)
+        check("The mini bar offers no VIBE", the_mini_bar_offers_no_vibe)
+        check("One transport for one episode", one_transport_for_one_episode)
         check("VIBE! state reaches every player", echo_state_reaches_every_player)
 
         if errors:

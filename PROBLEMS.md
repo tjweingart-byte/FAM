@@ -6029,3 +6029,105 @@ mixes folders too, which is the same word for a third thing.
 
 **Unheard and unseen on a real machine, as always**: no API key and no GPU
 here, so this is checks, smoke behaviours and photographs.
+
+## 97. Four players, four ideas of whether it was playing
+
+The third pass. Four notes, and the one underneath two of them is the same
+bug: **the same episode had four transports and no shared state.**
+
+### The mini bar's button was dead exactly when it was the only one on screen
+
+"On mini player, be able to pause/play with the button there." It had a
+button, wired to `toggleNowBar`, which opened with:
+
+    if(!FamAudio.isActive()) return;
+
+`active` goes false when the stream finishes - and a finished episode is the
+state that bar is in most often, sitting above the tabs after the listener has
+wandered off to another tab. So the one control still on screen did nothing at
+all, silently.
+
+Behind it was the larger version: the search player, DailyFAM's play-all,
+Explore's reel and the mini bar each kept **their own boolean** (`isPlaying`,
+`paIsPlaying`, and two derived from `FamAudio.isPaused()`) and each redrew
+**only its own icon** over one shared `FamAudio`. Pause on the reel, open the
+player, and the player showed a pause button over stopped audio.
+
+`setPlayState` is now the only thing that moves the audio. It sets the state,
+redraws all four, and every other entry point delegates to it - `paTogglePlay`,
+`reelTogglePlay` (after its one genuinely different case: nothing loaded yet,
+where the button *starts* the card rather than resuming it) and
+`toggleNowBar`. A smoke behaviour pauses through one and reads all four.
+
+The rule this is a case of, and it is the same one `pipeline.key_for` is
+written for: **one fact, one place.** Four copies of "is it playing" is four
+copies that agree until they don't, and nothing fails when they stop.
+
+### VIBE comes off the mini bar, reversing an earlier rule
+
+§95 put VIBE! on *every* player, the mini bar included, and the smoke check
+listed `nowBar` by name so nobody could quietly drop it. The note reverses
+that, and the reason holds up: the bar is a strip with three things competing
+for one thumb - open, pause, close - and the only irreversible one of them was
+the one that posts to your friends. It is still on all three real players,
+where there is room to see what is being vibed before vibing it.
+
+The check now asserts the *absence*, so this is a decision rather than a
+regression waiting to be "fixed".
+
+### The arrowheads were on the top of the ring; they belong on the side
+
+Drawn at the top, over the "15", a hairline head reads as a stray tick - which
+is what §96 had already tried to fix by making it solid. The note says plainly
+where it goes: the ring opens **at the side**, and the head sits in the gap.
+Both arcs are now ~280° with the gap centred on 9 and 3 o'clock.
+
+One CSS trap on the way: `.skip-num` centres itself with `left/top:50%` plus a
+`translate(-50%,-50%)`, and Explore's more specific rule replaces the offsets
+with `inset:0` and centres by flex. It had been overriding the transform with
+a `translateY(6%)` nudge, which existed only because the old gap was at the
+top. Removing the nudge left the translate in force against a full-size box,
+and the number walked out of the circle. `transform:none` is the fix, and the
+lesson is that `inset` and `transform` are two centring mechanisms and using
+one does not switch the other off.
+
+### The play triangle was centred by its bounding box
+
+"Increase arrow size and pause size - also center it on the circle." A play
+arrow centred by its **bounding box** reads as sitting to the right, because
+the eye weights the mass and the mass is on the flat side. It is positioned by
+its **centroid** now, a shade left of the geometric middle, and both glyphs
+are larger. The same triangle is used everywhere, including the small tile
+glyphs, because two shapes for one idea is how the transports drifted in the
+first place.
+
+### The settings icon was a sun
+
+Spokes around a circle is brightness on every phone this will run on. It is a
+gear now. The first hand-drawn gear path was not symmetric about (12,12) and
+the render showed it: the hub sat low and right of the teeth. Replaced with a
+known-good one.
+
+### Closing the topic catalogue ended the first run
+
+"When setting up topics and clicked X, it should go back to topics setup page.
+Right now it goes to SearchFAM, skipping the language selection step."
+
+`closeTopicCatalog` called `goBack()`, which pops `stack`. But **the intro is
+drawn with `showScreen` and never joins the stack** - `afterAccount` and both
+settings entry points call `showScreen("intro")` directly. So from the intro,
+`navigate("catalog")` pushed onto a stack whose top was still `home`, and
+popping landed on SearchFAM with the language page never shown.
+
+It returns by *name* now, recorded at open time, which also answers the other
+route in (Settings → More topics). And not via `goBack`, which stops the
+audio: closing a list of topics is not a reason to end an episode. The smoke
+behaviour follows the close with `introNext()` and asserts the language page
+is reachable, because the symptom the note describes is a missing *step*
+rather than a wrong screen.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs - and this round the
+photographs earned their place twice, once for the escaped "15" and once for
+the lopsided gear.
+
