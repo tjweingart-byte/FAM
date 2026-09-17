@@ -2223,6 +2223,14 @@ async def read_preferences(request: Request):
     # and the eight remain the whole pickable vocabulary - anything that
     # *reads* a stored interest (settings, the recap) needs every label.
     picker, picker_source = topics_mod.popular_facets(EVENTS)
+    # And the six the *Settings* wheel shows, which is a different question
+    # asked by a different person. The first run asks somebody with no history
+    # what they like, so the honest answer is what everybody plays. Settings is
+    # opened by somebody who has been using the app, where their own listening
+    # is the better answer - and it keeps changing as they listen, which is
+    # what makes that wheel worth opening twice.
+    mine, mine_source = topics_mod.my_facets(
+        EVENTS, _listener(request), stored.interests)
     body = {
         # `short` is what fits inside the first run's circles; `label` is what
         # everything that *reads* an interest back shows. A shortening, never a
@@ -2238,6 +2246,15 @@ async def read_preferences(request: Request):
         # on screen - so it says which, here and on /api/health, rather than
         # letting anybody read a default as a popularity ranking.
         "interests_source": picker_source,
+        "interests_yours": [{"id": tag,
+                             "label": topics_mod.TAG_LABELS[tag],
+                             "short": topics_mod.TAG_SHORT[tag]}
+                            for tag in mine],
+        # "listened", "chosen" or "default" - which of the three sources
+        # actually decided the wheel. A listener with two plays still gets six
+        # discs, because a wheel is six or it is a broken wheel, and this is
+        # what stops the filler being read as a measurement.
+        "interests_yours_source": mine_source,
         # The long list behind "View more". Named subjects rather than tags -
         # see `topics.INTEREST_CATALOGUE` for why that distinction is what
         # lets it be seventy-odd entries without widening the vocabulary the

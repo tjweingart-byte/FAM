@@ -212,6 +212,59 @@ def popular_facets(
     return ordered[:limit], "played"
 
 
+def my_facets(
+    store: "EventStore", user_id: str, chosen: Iterable[str] = (),
+    limit: int = PICKER_SIZE,
+) -> tuple[list[str], str]:
+    """The facets *this* listener has actually listened to, most first.
+
+    The sibling of `popular_facets` and deliberately a different question.
+    That one is asked on the first run, of somebody with no history, so the
+    only honest signal is everybody else's. This one is asked from Settings by
+    somebody who has been using the app, where their own listening is a better
+    answer than the crowd's - and it keeps answering differently as they use
+    it, which is the point.
+
+    Three sources, in order, and the order is the whole design:
+
+    1. **what they played**, which is the live half;
+    2. **what they chose**, which is what they said before they had played
+       anything, kept in their stored order;
+    3. **`PICKER_DEFAULT_ORDER`**, as filler.
+
+    The filler is not decoration. A wheel is six discs or it is a broken
+    wheel, and a listener who has played two facets and chosen none would
+    otherwise get two - so the shape stays and `source` says which of the
+    three actually decided it. A declared order and a measurement look
+    identical on a screen full of circles.
+    """
+    counts: dict[str, int] = {}
+    for event in store.for_user(user_id):
+        if event.kind not in ("play", "complete"):
+            continue
+        for facet in facets_only(event.tags):
+            counts[facet] = counts.get(facet, 0) + 1
+
+    rank = {tag: i for i, tag in enumerate(PICKER_DEFAULT_ORDER)}
+    out: list[str] = sorted(
+        (t for t in counts if t in TAG_LABELS),
+        key=lambda t: (-counts[t], rank.get(t, 99)),
+    )
+    source = "listened" if out else ""
+
+    for tag in chosen or ():
+        if tag in TAG_LABELS and tag not in out:
+            out.append(tag)
+            source = source or "chosen"
+    for tag in PICKER_DEFAULT_ORDER:
+        if len(out) >= limit:
+            break
+        if tag not in out:
+            out.append(tag)
+            source = source or "default"
+    return out[:limit], source or "default"
+
+
 @dataclass(frozen=True)
 class Interest:
     """One named thing a listener can say they are interested in."""

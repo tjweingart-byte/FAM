@@ -52,12 +52,17 @@ log = logging.getLogger(__name__)
 #: teach the feed nothing.
 INTERESTS = tuple(topics.TAG_LABELS)
 
-#: Offered in the intro and stored. **Not wired to generation**: every episode
-#: is still written and spoken in English, whatever is chosen here. That is the
-#: scope this pass was given, and saying so is the point - a language picker
-#: that silently changes nothing is the "silent success" failure this project
-#: has lost the most time to, so `/api/preferences` returns `language_active`
-#: false and the interface prints it under the picker.
+#: The vocabulary a stored language is validated against. **Nothing in the app
+#: offers a choice from it any more** (§100): the picker was a page of the
+#: first run, it was never wired to generation, and every episode was written
+#: and spoken in English whatever was chosen - so the only honest thing on that
+#: screen was a note saying it would not be acted on. A question in front of
+#: the product that answers to nothing is worse than no question.
+#:
+#: The *field* stays: it is still stored, still accepted on `/api/preferences`,
+#: and still validated against this list. Deleting a column is a migration with
+#: a real cost and no benefit, and this is the vocabulary that per-language
+#: generation will read on the day it exists. What went is the screen.
 LANGUAGES = (
     {"code": "en", "label": "English", "endonym": "English"},
     {"code": "es", "label": "Spanish", "endonym": "Español"},
@@ -74,8 +79,10 @@ LANGUAGES = (
 LANGUAGE_CODES = frozenset(lang["code"] for lang in LANGUAGES)
 DEFAULT_LANGUAGE = "en"
 
-#: True once per-language generation actually exists. Read by /api/preferences
-#: and printed in the interface, so the day it flips the claim flips with it.
+#: True once per-language generation actually exists. Still served on
+#: `/api/preferences`, and no longer printed anywhere, because the picker it
+#: used to caveat is gone - it is now a fact about the API rather than a
+#: sentence under a control.
 LANGUAGE_ACTIVE = False
 
 

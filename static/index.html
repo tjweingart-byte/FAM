@@ -1158,6 +1158,11 @@
     color:var(--text); line-height:1.2; }
   /* Over a centred wheel rather than a left-aligned list. */
   #introPageInterests .entry-h{ text-align:center; }
+  /* Only ever drawn from Settings, where the wheel is this listener's own
+     listening rather than the first run's six. */
+  .intro-sub{ text-align:center; font-size:11.5px; line-height:1.5;
+    color:var(--text-muted); margin:8px 0 0; }
+  .intro-sub[hidden]{ display:none; }
   .entry-acts{ display:flex; flex-direction:column; gap:11px; margin-top:auto; }
   .entry-btn{ width:100%; height:46px; border-radius:23px; border:1px solid var(--border-strong);
     background:none; color:var(--text); font-family:'Space Grotesk',sans-serif;
@@ -1241,12 +1246,6 @@
   @media (prefers-reduced-motion: reduce){
     .orbit-ring, .intro-chip{ animation:none; }
   }
-  .intro-lang{ display:flex; align-items:center; justify-content:space-between;
-    padding:12px 14px; margin-bottom:8px; border-radius:12px;
-    background:var(--surface); border:1px solid var(--border); cursor:pointer; }
-  .intro-lang.on{ border-color:var(--copper); }
-  .intro-lang-name{ font-size:13px; color:var(--text); font-weight:600; }
-  .intro-lang-endonym{ font-size:12px; color:var(--text-faint); }
 
   /* The way on, docked below the scrolling area rather than at the end of it.
      See the markup note: on a phone the language list is taller than the
@@ -1637,6 +1636,7 @@
           <div class="entry-wrap" style="min-height:0; padding-bottom:6px;">
             <div id="introPageInterests">
               <div class="entry-h">Your interests</div>
+              <p class="intro-sub" id="introSub" hidden></p>
               <!-- No paragraph under the heading. Six buttons and a way to see
                    the rest is a question that answers itself; the three lines
                    explaining the cap and when interests stop mattering were
@@ -1666,26 +1666,21 @@
               <div class="intro-picked" id="introPicked"></div>
               <p class="entry-note" id="introSaveNote"></p>
             </div>
-            <div id="introPageLanguage" hidden>
-              <div class="entry-h">Your language</div>
-              <p class="entry-lede">What you would rather listen in.</p>
-              <div id="introLangs"></div>
-              <p class="entry-note" id="introLangNote"></p>
-            </div>
           </div>
         </div>
         <div class="entry-dock" id="introDockInterests">
+          <!-- The last step of the first run, now that the language page is
+               gone. It never did anything - every episode was written and
+               spoken in English either way - so it was a question asked in
+               front of the product whose only honest answer was a note saying
+               it would not be acted on. -->
           <button class="entry-btn primary" id="introNextBtn"
-                  onclick="introPrimary()">Next</button>
-          <!-- Underneath Next, as the packet asks. Choosing nothing is a real
+                  onclick="introPrimary()">Start listening</button>
+          <!-- Underneath, as the packet asks. Choosing nothing is a real
                answer: the feed is ranked from what gets played either way.
-               Hidden when Settings opened this: there is no next step to skip,
+               Hidden when Settings opened this: there is nothing to skip past,
                and "skip" over an existing choice would read as discarding it. -->
           <div class="entry-skip" id="introSkip" onclick="skipInterests()">Skip for now</div>
-        </div>
-        <div class="entry-dock" id="introDockLanguage" hidden>
-          <button class="entry-btn primary" id="introFinishBtn"
-                  onclick="introFinishPrimary()">Start listening</button>
         </div>
       </section>
 
@@ -6150,11 +6145,6 @@
     // not make this week's grid still has to be readable here.
     (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
       .forEach(function(i){ labels[i.id] = i.label; });
-    var langs = {};
-    (PREF_CHOICES.languages || []).forEach(function(l){ langs[l.code] = l.label; });
-    var lang = (AUTH.authenticated && PREF_CHOICES.language)
-             || localPrefs().language || "en";
-
     var html = '<div class="set-group">You</div>'
       + settingsRow("Name and handle",
           escapeHtml((profileNow && profileNow.name) || "Not set"),
@@ -6173,19 +6163,11 @@
             : "None chosen",
           "openInterestsFromSettings()")
       + settingsRow("More topics", "", "openTopicCatalog()")
-      + settingsRow("Language", escapeHtml(langs[lang] || lang),
-          "openLanguageFromSettings()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
       + settingsRow("Episode length on myFAM", myfamLengthMinutes + " min",
           "openMyFamLengthMenu()");
-    if(!PREF_CHOICES.language_active){
-      html += '<div class="set-note">Language is stored and not yet acted on: '
-        + 'every episode is still written and spoken in English. This is the '
-        + 'setting, not the feature.</div>';
-    }
-
     html += '<div class="set-group">Account</div>';
     if(AUTH.authenticated){
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
@@ -6224,15 +6206,6 @@
       showScreen("intro");
     });
   }
-  function openLanguageFromSettings(){
-    introMode = "settings";
-    loadPrefChoices().then(function(){
-      renderIntro();
-      introNext();
-      showScreen("intro");
-    });
-  }
-
   function toggleWeeklyRecap(){
     var on = !(recapData && recapData.enabled === false);
     savePreferences({ weekly_recap: !on }).then(function(){
@@ -7621,10 +7594,9 @@
   // their own browser and is passed to the ranker as a hint on the request,
   // never written down. The interface says which of the two happened rather
   // than letting "Saved" mean two different things.
-  var PREF_CHOICES = { interests_available: [], interests_all: [], languages: [],
-                       language_active: false };
+  var PREF_CHOICES = { interests_available: [], interests_all: [],
+                       interests_yours: [] };
   var introSelection = [];
-  var introLanguage = "en";
   var authMode = "signup";
 
   function localPrefs(){
@@ -7659,11 +7631,8 @@
         PREF_CHOICES = d;
         if(d.saved){
           introSelection = (d.interests || []).slice();
-          introLanguage = d.language || "en";
         } else {
-          var local = localPrefs();
-          introSelection = (local.interests || []).slice();
-          introLanguage = local.language || "en";
+          introSelection = (localPrefs().interests || []).slice();
         }
         return d;
       })
@@ -7679,7 +7648,6 @@
     try { localStorage.removeItem("fam.prefs"); } catch(e){}
     introMode = "first-run";
     introSelection = [];
-    introLanguage = "en";
     showSplash();
     startEntry();
   }
@@ -7798,25 +7766,39 @@
     var fromSettings = introMode === "settings";
     document.getElementById("introTop").hidden = !fromSettings;
     document.getElementById("introSkip").hidden = fromSettings;
-    document.getElementById("introNextBtn").textContent = fromSettings ? "Save" : "Next";
-    document.getElementById("introFinishBtn").textContent =
+    document.getElementById("introNextBtn").textContent =
       fromSettings ? "Save" : "Start listening";
     document.getElementById("introPageInterests").hidden = false;
-    document.getElementById("introPageLanguage").hidden = true;
     document.getElementById("introDockInterests").hidden = false;
-    document.getElementById("introDockLanguage").hidden = true;
+    // One line, and only from Settings. The wheel there is not the wheel from
+    // the first run - it is what this listener actually listens to, and it
+    // changes on its own - so a disc appearing that nobody put there needs a
+    // sentence, or it reads as the app losing their answer.
+    var sub = document.getElementById("introSub");
+    sub.hidden = !fromSettings;
+    sub.textContent = fromSettings
+      ? "What you listen to most, kept up to date as you listen."
+      : "";
     renderPickedSummary();
     renderInterestWheel();
-    renderLanguageList();
     var note = document.getElementById("introSaveNote");
     note.textContent = AUTH.authenticated
       ? "Saved to your account, so they follow you to any device."
       : "Kept on this device only. Create an account and they follow you.";
-    var langNote = document.getElementById("introLangNote");
-    langNote.textContent = PREF_CHOICES.language_active
-      ? ""
-      : "Stored, but not yet acted on: every episode is still written and "
-        + "spoken in English. This is the setting, not the feature.";
+  }
+
+  // Which six the wheel draws, and it is two different questions.
+  //
+  // The first run asks somebody with no history what they like, so the honest
+  // answer is what everybody plays (`popular_facets`). Settings is opened by
+  // somebody who has been using the app, where their own listening is the
+  // better answer and keeps changing - which is what makes that wheel worth
+  // opening twice (`my_facets`).
+  function wheelItems(){
+    if(introMode === "settings" && (PREF_CHOICES.interests_yours || []).length){
+      return PREF_CHOICES.interests_yours;
+    }
+    return PREF_CHOICES.interests_available || [];
   }
 
   // The wheel. Each disc is placed by its own static transform - out to the
@@ -7824,16 +7806,22 @@
   // *orbit* comes from the ring above it rotating. So this draws positions
   // once and never again; nothing here runs per frame.
   //
-  // Redrawing on every tap is safe for the same reason it would not be with a
-  // JavaScript animation: the rotation lives in a CSS animation on the ring,
-  // which is untouched, so a chip that is replaced mid-revolution reappears
-  // exactly where its slot already was. `animation` on the new chip starts
-  // from the same clock as its siblings because every one of them is the same
-  // named animation at the same duration.
+  // **A rebuild has to be re-phased, and that was wrong for one round.** The
+  // ring's animation keeps running when the discs inside it are replaced, but
+  // a *new element's* animation starts at zero - so a disc drawn mid-
+  // revolution counter-rotated from the wrong place and its label sat at an
+  // angle for the rest of the turn. Tapping one was the way to see it.
+  //
+  // Two answers, and both are here because they fix different halves.
+  // `toggleInterest` no longer rebuilds at all - selecting is a class on a
+  // button, not a reason to redraw six of them. And any rebuild that does
+  // happen ends with `syncWheelPhase`, which puts every disc's animation on
+  // the ring's own clock, so the wheel can be redrawn at any moment of any
+  // revolution and the labels stay level.
   function renderInterestWheel(){
     var ring = document.getElementById("orbitRing");
     if(!ring) return;
-    var items = PREF_CHOICES.interests_available || [];
+    var items = wheelItems();
     var n = items.length || 1;
     ring.innerHTML = items.map(function(item, i){
       var a = (360 / n) * i;
@@ -7849,38 +7837,52 @@
         + ' onclick="toggleInterest(\'' + item.id + '\')">'
         + escapeHtml(item.short || item.label) + '</button></div>';
     }).join("");
+    syncWheelPhase(ring);
+  }
+
+  // Put every disc on the ring's clock.
+  //
+  // The two animations are exact inverses of each other, so they only cancel
+  // while they are at the same point in their cycle. A disc created part-way
+  // through a revolution starts its own at zero, which is what tilted the
+  // labels. The Web Animations API can read and set that point directly;
+  // where it is missing, the wheel simply turns without the discs being
+  // re-phased, which is the same behaviour as before this existed rather than
+  // a broken one.
+  function syncWheelPhase(ring){
+    if(!ring || !ring.getAnimations) return;
+    var spin = ring.getAnimations()[0];
+    if(!spin) return;
+    ring.querySelectorAll(".intro-chip").forEach(function(chip){
+      if(!chip.getAnimations) return;
+      chip.getAnimations().forEach(function(a){
+        try { a.currentTime = spin.currentTime; } catch(e){}
+      });
+    });
   }
 
   // No cap. As many or as few as they like, and nothing counts them.
+  //
+  // In place, deliberately: a rebuild would restart every disc's counter-
+  // rotation and tilt six labels to fix one class attribute.
   function toggleInterest(id){
     var at = introSelection.indexOf(id);
     if(at !== -1){ introSelection.splice(at, 1); }
     else { introSelection.push(id); }
-    renderInterestWheel();
+    var on = at === -1;
+    var chip = document.querySelector('.intro-chip[data-interest="' + id + '"]');
+    if(chip){
+      chip.classList.toggle("on", on);
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    } else {
+      renderInterestWheel();
+    }
   }
 
-  function renderLanguageList(){
-    document.getElementById("introLangs").innerHTML =
-      (PREF_CHOICES.languages || []).map(function(lang){
-        return '<div class="intro-lang' + (lang.code === introLanguage ? " on" : "")
-          + '" onclick="chooseLanguage(\'' + lang.code + '\')">'
-          + '<span class="intro-lang-name">' + escapeHtml(lang.label) + '</span>'
-          + '<span class="intro-lang-endonym">' + escapeHtml(lang.endonym) + '</span>'
-          + '</div>';
-      }).join("");
-  }
-  function chooseLanguage(code){ introLanguage = code; renderLanguageList(); }
 
-  // The interests page's button: "Next" on the first run, "Save" from
-  // Settings - where there is no next page to go to, because Language is its
-  // own row with its own way in.
+  // The one docked button: "Start listening" on the first run, "Save" from
+  // Settings. There is no second page any more.
   function introPrimary(){
-    if(introMode === "settings"){ saveIntroFromSettings(); return; }
-    introNext();
-  }
-
-  // The language page's button, same rule.
-  function introFinishPrimary(){
     if(introMode === "settings"){ saveIntroFromSettings(); return; }
     finishIntro();
   }
@@ -7889,9 +7891,9 @@
   // writes `intro: "done"` and calls `finishEntry`, which is the first run
   // ending. Editing a setting is not the first run ending.
   function saveIntroFromSettings(){
-    saveLocalPrefs({ interests: introSelection.slice(), language: introLanguage });
+    saveLocalPrefs({ interests: introSelection.slice() });
     if(AUTH.authenticated){
-      savePreferences({ interests: introSelection, language: introLanguage });
+      savePreferences({ interests: introSelection });
     }
     toast("Saved");
     closeIntroToSettings();
@@ -7907,22 +7909,13 @@
     renderSettings();
   }
 
-  function introNext(){
-    document.getElementById("introPageInterests").hidden = true;
-    document.getElementById("introPageLanguage").hidden = false;
-    // The docked buttons belong to their page, so they change with it.
-    document.getElementById("introDockInterests").hidden = true;
-    document.getElementById("introDockLanguage").hidden = false;
-  }
-
   // "Skip for now", under Next. Choosing nothing is a real answer rather than
   // a failure to answer: the feed is ranked from what actually gets played,
   // and the interests only decide what it opens on. So this clears the
   // selection and moves on rather than quietly keeping half a choice.
   function skipInterests(){
     introSelection = [];
-    renderInterestWheel();
-    introNext();
+    finishIntro();
   }
 
   // ---- the topic catalogue ------------------------------------------------
@@ -8102,11 +8095,9 @@
   }
 
   function finishIntro(){
-    saveLocalPrefs({ interests: introSelection.slice(), language: introLanguage,
-                     intro: "done" });
+    saveLocalPrefs({ interests: introSelection.slice(), intro: "done" });
     if(AUTH.authenticated){
-      savePreferences({ interests: introSelection, language: introLanguage,
-                        intro_done: true });
+      savePreferences({ interests: introSelection, intro_done: true });
     }
     finishEntry();
   }

@@ -124,9 +124,11 @@ def main() -> int:
             body = page.text_content("#introPageInterests") or ""
             for word in ("limit", "up to six", "at most"):
                 assert word not in body.lower(), f"the page still mentions a cap: {word!r}"
-            page.evaluate("introNext()")
-            page.wait_for_selector("#introPageLanguage .intro-lang",
-                                   timeout=10000, state="attached")
+            # Interests is the last step now - the language page is gone
+            # (§100), so this button finishes the run rather than chaining on
+            # to a question that was never wired to anything.
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Start listening", "the first run still has a second step"
             page.evaluate("finishIntro()")
             page.wait_for_timeout(900)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
@@ -500,7 +502,7 @@ def main() -> int:
             # Closing it must come back to the step it was opened from. It
             # used to `goBack()`, and the intro is drawn with `showScreen` and
             # never joins the stack - so the pop landed on SearchFAM and the
-            # first run lost its language page on the way out.
+            # first run fell out of the intro on the way out.
             page.evaluate("closeTopicCatalog()")
             page.wait_for_timeout(400)
             active = page.eval_on_selector(".screen.active", "e => e.id")
@@ -508,11 +510,6 @@ def main() -> int:
                 f"closing the catalogue left the first run at {active}")
             assert not page.eval_on_selector("#introPageInterests", "e => e.hidden"), (
                 "closing the catalogue skipped past the interests step")
-            # And the run still reaches the language page from here.
-            page.evaluate("introNext()")
-            page.wait_for_timeout(300)
-            assert not page.eval_on_selector("#introPageLanguage", "e => e.hidden"), (
-                "the language step is unreachable after the catalogue")
             page.evaluate("finishIntro()")
             page.wait_for_timeout(700)
 
@@ -746,7 +743,9 @@ def main() -> int:
             page.evaluate("openSettings()")
             page.wait_for_selector("#screen-settings.active", timeout=10000)
 
-            for opener in ("openInterestsFromSettings()", "openLanguageFromSettings()"):
+            # One opener now: Language had no editor of its own worth having
+            # and the page it opened is gone (§100).
+            for opener in ("openInterestsFromSettings()",):
                 page.evaluate(opener)
                 page.wait_for_selector("#screen-intro.active", timeout=10000)
                 assert not page.eval_on_selector("#introTop", "e => e.hidden"), (
@@ -856,6 +855,83 @@ def main() -> int:
                 assert abs(c["spin"] + after["ring"]) <= 1, (
                     f"a label is rotating with the ring: disc {c['spin']}deg "
                     f"against ring {after['ring']}deg")
+
+            # And a tap must not tilt it. This is the bug §100 fixes: the tap
+            # used to rebuild the ring, and a *new* element's animation starts
+            # at zero - so a disc drawn mid-revolution counter-rotated from the
+            # wrong place and sat at an angle for the rest of the turn. Four
+            # seconds in is exactly when it showed.
+            page.evaluate("document.querySelectorAll('.intro-chip')[0].click()")
+            page.wait_for_timeout(250)
+            tapped = page.evaluate(probe)
+            assert len(tapped["chips"]) == 6, "the tap lost a disc"
+            for c in tapped["chips"]:
+                assert abs(c["spin"] + tapped["ring"]) <= 2, (
+                    f"tapping tilted a label: disc {c['spin']}deg against ring "
+                    f"{tapped['ring']}deg")
+            assert page.eval_on_selector_all(".intro-chip.on", "e => e.length") == 1, \
+                "the tap did not select anything"
+
+            # A rebuild has to survive it too, not just a tap.
+            page.evaluate("renderInterestWheel()")
+            page.wait_for_timeout(250)
+            rebuilt = page.evaluate(probe)
+            for c in rebuilt["chips"]:
+                assert abs(c["spin"] + rebuilt["ring"]) <= 2, (
+                    f"a rebuilt disc came back tilted: {c['spin']}deg against "
+                    f"ring {rebuilt['ring']}deg")
+
+        def the_settings_wheel_is_the_listeners_own():
+            """Two wheels, two questions (§100). Settings shows what this
+            listener listens to, and says so; the first run shows what
+            everybody plays, and says nothing because there is nothing yet to
+            say. The language page is gone from both.
+
+            Both halves are checked through `renderIntro`, which is the thing
+            that decides, rather than by restarting the first run - that flow
+            runs once per session here and the catalogue behaviour needs it.
+            """
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(600)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+            rows = page.eval_on_selector_all(
+                ".set-row", "e => e.map(x => x.textContent)")
+            assert not any("Language" in r for r in rows), \
+                f"the Language row is back in Settings: {rows}"
+
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active .intro-chip",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            assert not page.eval_on_selector("#introSub", "e => e.hidden"), \
+                "the settings wheel does not say what it is showing"
+            assert page.eval_on_selector_all(".intro-chip", "e => e.length") == 6
+            shown = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            yours = page.evaluate(
+                """() => (PREF_CHOICES.interests_yours || [])
+                       .map(function(i){ return i.short || i.label; })""")
+            assert shown == yours, f"settings drew {shown}, not {yours}"
+
+            # The same screen in the other mode draws the other list, and
+            # stops explaining itself.
+            page.evaluate("introMode = 'first-run'; renderIntro();")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#introSub", "e => e.hidden"), \
+                "the first run is explaining a wheel that needs no explaining"
+            first = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            crowd = page.evaluate(
+                """() => (PREF_CHOICES.interests_available || [])
+                       .map(function(i){ return i.short || i.label; })""")
+            assert first == crowd, f"the first run drew {first}, not {crowd}"
+            # And its one button finishes the run rather than chaining on to a
+            # second page, because there is no second page.
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Start listening"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
 
         def mix_visibility():
             # Public/private has to be reachable, not buried in a menu.
@@ -1167,6 +1243,8 @@ def main() -> int:
         check("Profile renders identity, mixes and echoes", profile)
         check("The interests wheel turns and stays tappable",
               the_interests_wheel_turns_and_stays_tappable)
+        check("The settings wheel is the listener's own",
+              the_settings_wheel_is_the_listeners_own)
         check("Mix visibility can be toggled", mix_visibility)
         check("Every settings screen comes back to Settings",
               every_settings_screen_comes_back_to_settings)

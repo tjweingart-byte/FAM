@@ -312,15 +312,38 @@ the rest of this list it needs taste rather than a key.
    to 27 distinct signatures. **The eight facets are unchanged and are still
    the only pickable vocabulary** - the intro picker is built from
    `TAG_LABELS`, and the resolution is for the ranker, not for the listener.
+   **There is no language picker** *(§100).* It was the first run's second
+   page, was never wired to generation, and its only honest companion was a
+   note saying so - a question in front of the product that answers to nothing
+   is worse than no question. The *field* stays: still stored, still accepted
+   on `/api/preferences`, still validated against `preferences.LANGUAGES`,
+   because that is what per-language generation reads on the day it exists and
+   dropping a column is a migration with no benefit. What went is the screen.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
    **The first run is a wheel** *(§99).* Six discs orbiting "View more",
    turning slowly counter-clockwise, selectable while they move. The ring
    rotates and each disc counter-rotates by exactly as much, so positions
    orbit while labels stay upright - both CSS animations on `transform`, which
-   is what keeps them in lockstep with no code running per frame and lets a
-   disc be redrawn on a tap without losing its place. `prefers-reduced-motion`
-   stops the turning and keeps the wheel. **And there is no cap on how many
+   is what keeps them in lockstep with no code running per frame.
+   `prefers-reduced-motion` stops the turning and keeps the wheel.
+   **The two only cancel while they are at the same point in their cycle**
+   *(§100, and this corrects §99's comment).* A *new element's* animation
+   starts at zero, so a disc rebuilt mid-revolution counter-rotates from the
+   wrong place and its label sits at an angle - which is what tapping one used
+   to do to all six. Selecting therefore toggles a class in place and never
+   rebuilds, and any rebuild that does happen ends in `syncWheelPhase`, which
+   puts every disc's `Animation.currentTime` on the ring's. **Anything that
+   redraws the wheel has to go through that**, and the smoke behaviour reads
+   each label's net angle after a tap rather than trusting the claim.
+   **There are two wheels, and they answer two questions** *(§100).* The first
+   run draws `popular_facets` - somebody with no history, so the honest signal
+   is what everybody plays. Settings draws `my_facets`: what *this* listener
+   plays, then what they chose, then the declared order as filler, because a
+   wheel is six discs or it is a broken wheel. `interests_yours_source` says
+   which of the three decided it, and only the Settings wheel carries a line
+   of copy - one that changes on its own without a word reads as the app
+   having lost somebody's answer. **And there is no cap on how many
    interests somebody has** - it was six, it made a listener with seven pick
    which to lie about, and nothing counts them now. No cap is not no
    validation: every value must be a facet and duplicates collapse, so eight
@@ -1080,7 +1103,7 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §97-99 are the
+`PROBLEMS.md` for every problem hit and its cause (newest last — §98-100 are the
 most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

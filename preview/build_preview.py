@@ -241,6 +241,15 @@ def load_fixtures() -> dict:
             "interests_all": [{"id": tag, "label": label}
                               for tag, label in topics_mod.TAG_LABELS.items()],
             "interests_source": "default",
+            # Settings' wheel: this listener's own listening. The fixture has
+            # no per-listener log, so it is the same declared order and says
+            # so - which is exactly what `my_facets` returns for somebody the
+            # app has never seen.
+            "interests_yours": [
+                {"id": tag, "label": topics_mod.TAG_LABELS[tag],
+                 "short": topics_mod.TAG_SHORT[tag]}
+                for tag in topics_mod.PICKER_DEFAULT_ORDER[:topics_mod.PICKER_SIZE]],
+            "interests_yours_source": "default",
             # Imported rather than copied, like every other fixture here, so
             # the catalogue the preview shows cannot drift from the real one.
             "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],

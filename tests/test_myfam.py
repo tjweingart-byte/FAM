@@ -668,6 +668,62 @@ def test_the_picker_shows_the_six_most_played(client):
     assert len(shown) == topics_mod.PICKER_SIZE
 
 
+def test_the_settings_wheel_is_this_listener_rather_than_the_crowd(client):
+    """Two wheels, two questions (§100). The first run asks somebody with no
+    history, so the honest answer is what everybody plays. Settings is opened
+    by somebody who has been using the app."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    culture = [t for t in topics_mod.TOPIC_BANK
+               if "culture" in topics_mod.facets_only(t.tags)][0]
+    for _ in range(4):
+        store.record(topics_mod.Event("me", "complete", culture.id, "", culture.tags))
+    # Somebody else plays something else, loudly. It must not reach my wheel.
+    health = [t for t in topics_mod.TOPIC_BANK
+              if "health" in topics_mod.facets_only(t.tags)][0]
+    for _ in range(40):
+        store.record(topics_mod.Event("them", "play", health.id, "", health.tags))
+
+    mine, source = topics_mod.my_facets(store, "me")
+    assert source == "listened"
+    assert mine[0] == "culture", mine
+    crowd, _ = topics_mod.popular_facets(store)
+    assert crowd[0] == "health", "the crowd wheel stopped being the crowd"
+
+
+def test_a_listener_with_no_plays_falls_back_to_what_they_chose(client):
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    mine, source = topics_mod.my_facets(store, "new", chosen=["science", "money"])
+    assert source == "chosen"
+    assert mine[:2] == ["science", "money"]
+
+
+def test_the_settings_wheel_is_always_six_discs(client):
+    """A wheel is six or it is a broken wheel. Somebody who has played one
+    thing and chosen nothing still gets six, and `source` is what says the
+    other five are filler rather than a measurement."""
+    import topics as topics_mod
+
+    store = topics_mod.EventStore(":memory:")
+    topic = topics_mod.TOPIC_BANK[0]
+    store.record(topics_mod.Event("me", "play", topic.id, "", topic.tags))
+    mine, source = topics_mod.my_facets(store, "me")
+    assert len(mine) == topics_mod.PICKER_SIZE
+    assert len(set(mine)) == topics_mod.PICKER_SIZE, "a facet was drawn twice"
+    assert source == "listened"
+
+
+def test_both_wheels_reach_the_interface(client):
+    body = client.get("/api/preferences").json()
+    for key in ("interests_available", "interests_yours"):
+        assert len(body[key]) == 6, key
+        assert all(i["short"] and i["label"].startswith(i["short"]) for i in body[key])
+    assert body["interests_yours_source"] in ("listened", "chosen", "default")
+
+
 def test_an_empty_log_says_it_is_showing_a_default_rather_than_a_ranking(client):
     """A declared order and a measurement look identical on screen. On a fresh
     deployment - which is exactly when this screen is shown - it is the former,

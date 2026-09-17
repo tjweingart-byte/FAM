@@ -6307,3 +6307,97 @@ here, so this is checks, smoke behaviours and photographs - and the wheel is
 the first thing in this log that a photograph genuinely cannot check, which is
 why the behaviour above measures it instead.
 
+## 100. The wheel tilted when you tapped it, and the language page goes
+
+Three things, and the first is a bug I wrote a comment claiming was impossible
+one section ago.
+
+### Tapping a disc tilted every label
+
+§99 said, in the source:
+
+> Redrawing on every tap is safe [...] the rotation lives in a CSS animation on
+> the ring, which is untouched, so a chip that is replaced mid-revolution
+> reappears exactly where its slot already was.
+
+The *position* claim was right and the *orientation* claim was wrong, and they
+are not the same claim. The ring keeps its animation when its children are
+replaced - but a **new element's animation starts at zero**. The two
+animations only cancel while they are at the same point in their cycle, so a
+disc drawn eight seconds into a sixty-second revolution counter-rotated from
+the wrong place and sat at 48 degrees for the rest of the turn. Every tap
+rebuilt all six, so one tap tilted all six.
+
+Two fixes, because they cover different halves:
+
+* **`toggleInterest` no longer rebuilds.** Selecting is a class on a button,
+  not a reason to redraw the other five. This is the tap path and the reported
+  symptom.
+* **`syncWheelPhase` re-phases any rebuild that does happen**, by reading the
+  ring's `Animation.currentTime` and writing it onto each disc's. That covers
+  every *other* way the wheel can be redrawn - opening it from Settings, the
+  preferences fetch landing late - which the first fix alone would not.
+
+Where `getAnimations` is missing the wheel simply turns un-rephased, which is
+the behaviour that shipped in §99 rather than a broken one.
+
+**The lesson is about the comment, not the code.** "Nothing here runs per
+frame" was true and I let it stand in for "nothing here can desynchronise",
+which is a different sentence. The smoke behaviour now taps a disc four
+seconds in and reads every label's net angle, so the claim is measured rather
+than asserted.
+
+### The language page is gone
+
+It was the second page of the first run, and it was never wired to anything -
+every episode is written and spoken in English whatever is chosen, which is
+why the only other thing on that screen was a note saying so. A question in
+front of the product that answers to nothing is worse than no question, and
+this one was between a new listener and their first episode.
+
+Out: the page, its dock, the Settings row, `openLanguageFromSettings`,
+`renderLanguageList`, `chooseLanguage`, `introLanguage`, `introNext`, the
+`.intro-lang` styling and the "stored and not yet acted on" notes in both
+places. Interests is now the last step, so its one button says **Start
+listening** and finishes the run.
+
+**The stored field stays**, and the distinction is the point: `LANGUAGES` is
+still the vocabulary `clean_language` validates against, the field is still
+accepted on `/api/preferences`, and nothing anybody saved is dropped. Deleting
+a column is a migration with a real cost and no benefit, and this is what
+per-language generation reads on the day it exists. What went is the screen.
+
+### Settings' wheel is the listener's own, and keeps changing
+
+"The page for Your interests in the settings page should be different than the
+one they see when they are first setting up their account."
+
+Two wheels, two questions, and `topics.my_facets` is the second one. The first
+run asks somebody with **no history** what they like, so the only honest
+answer is what everybody plays (`popular_facets`, §98). Settings is opened by
+somebody who **has been using the app**, where their own listening is the
+better answer and keeps changing - which is what makes that wheel worth
+opening twice.
+
+Three sources, in order, and the order is the design: what they played, then
+what they chose, then `PICKER_DEFAULT_ORDER` as filler. The filler is not
+decoration - **a wheel is six discs or it is a broken wheel** - and
+`interests_yours_source` says which of the three actually decided it, for the
+same reason `interests_source` does: a declared order and a measurement look
+identical on a screen full of circles.
+
+One line of copy, only in Settings: *"What you listen to most, kept up to date
+as you listen."* The first run's page has no such line and does not need one,
+but a wheel whose contents change on their own without a word reads as the app
+having lost somebody's answer.
+
+**Unheard and unseen on a real machine, as always**: no API key and no GPU
+here, so this is checks, smoke behaviours and photographs.
+
+One harness note worth keeping, because it cost a cycle: the first-run flow
+can be walked **once** per smoke session - a second `startEntry()` lands on
+myFAM - and the catalogue behaviour already spends it. The new two-wheel check
+therefore drives `renderIntro` in each mode rather than restarting the run,
+which is also the more direct question: that function is the thing that
+decides which list is drawn.
+

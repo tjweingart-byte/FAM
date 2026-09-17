@@ -435,6 +435,40 @@ LIVE_SHIM = r"""
     }).slice(0, PICKER_SIZE);
   }
 
+  // `topics.my_facets`, in the browser and over *this* listener's rows.
+  // The sibling of `popularFacets` and a different question: the first run
+  // asks somebody with no history, Settings asks somebody who has been using
+  // the app. Three sources in order - what they played, what they chose, then
+  // the declared order as filler - because a wheel is six discs or it is a
+  // broken wheel.
+  function myFacets() {
+    var counts = {}, out = [], seen = {}, source = "";
+    rows("events").forEach(function (e) {
+      if (e.user_id !== UID || !e.topic_id) return;
+      if (e.kind !== "play" && e.kind !== "complete") return;
+      var t = BY_ID[e.topic_id];
+      if (!t) return;
+      facetsOnly(t.tags || []).forEach(function (f) {
+        counts[f] = (counts[f] || 0) + 1;
+      });
+    });
+    Object.keys(counts).filter(function (f) { return TAG_LABELS[f]; })
+      .sort(function (a, b) {
+        return (counts[b] - counts[a])
+          || (PICKER_ORDER.indexOf(a) - PICKER_ORDER.indexOf(b));
+      }).forEach(function (f) { out.push(f); seen[f] = 1; });
+    if (out.length) source = "listened";
+    (myPrefs().interests || []).forEach(function (f) {
+      if (TAG_LABELS[f] && !seen[f]) { out.push(f); seen[f] = 1;
+                                       source = source || "chosen"; }
+    });
+    PICKER_ORDER.forEach(function (f) {
+      if (out.length >= PICKER_SIZE || seen[f]) return;
+      out.push(f); seen[f] = 1; source = source || "default";
+    });
+    return { ids: out.slice(0, PICKER_SIZE), source: source || "default" };
+  }
+
   function myfamBody() {
     var f = feed(), shown = [];
     var sections = SECTIONS.map(function (s) {
@@ -967,6 +1001,7 @@ LIVE_SHIM = r"""
     // ---- preferences, the recap, and what plays next
     if (path === "/api/preferences" && method === "GET") {
       var stored = myPrefs();
+      var mineNow = myFacets();
       return json({
         // The six the picker draws, most played across this store first -
         // `topics.popular_facets` in the browser, over the same event rows.
@@ -979,6 +1014,10 @@ LIVE_SHIM = r"""
           return { id: g, label: TAG_LABELS[g] };
         }),
         interests_source: facetPlayCounted ? "played" : "default",
+        interests_yours: mineNow.ids.map(function (g) {
+          return { id: g, label: TAG_LABELS[g], short: TAG_SHORT[g] };
+        }),
+        interests_yours_source: mineNow.source,
         catalogue: CATALOGUE,
         languages: LANGUAGES,
         language_active: false,
