@@ -240,9 +240,10 @@ twenty-prompt milestone.
 Briefings dropped in there are shown to the model as the house voice. Rules
 describe a style loosely; examples are matched closely, so two or three good
 ones move the output more than any amount of further prompt wording. Prefer
-adding an example over adding another rule. Nobody has written one yet, so the
-strongest available lever on the remaining problem is untouched — and unlike
-the rest of this list it needs taste rather than a key.
+adding an example over adding another rule. One is written
+(`examples/2-flight-cancellations.txt`, §91) and one is not three, so the lever
+is engaged rather than pulled — and unlike the rest of this list it needs taste
+rather than a key, so the next two can be written here with no API key at all.
 
 ## Open problems, in the order they hurt
 
