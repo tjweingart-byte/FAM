@@ -283,19 +283,19 @@ def test_a_broken_event_store_never_breaks_the_feed(client, monkeypatch):
 def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
     """The bug this ordering exists to prevent.
 
-    Filled in display order, Trending and "might like" claim the whole bank
-    first - they can fall back to anything - and the two sections the listener
-    actually asked for arrive empty. The personal sections must choose first.
+    Filled in display order, the crowd rows claim the whole bank first - they
+    can fall back to anything - and the two rails the listener actually asked
+    for arrive empty. The personal rails must choose first.
     """
     play(store, "me", "golf-evolution", kind="complete")
     play(store, "me", "the-trade", kind="complete")
-    play(store, "neighbour", "golf-evolution")
-    play(store, "neighbour", "sleep-science")
+    play(store, "friend", "golf-evolution")
+    play(store, "friend", "sleep-science")
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", circle=["friend"])
     by_key = {s["key"]: s for s in feed["sections"]}
     assert by_key["from_history"]["topics"], "history section was starved"
-    assert by_key["followers"]["topics"], "co-listener section was starved"
+    assert by_key["followers"]["topics"], "the friends rail was starved"
     assert "sleep-science" in [t["id"] for t in by_key["followers"]["topics"]]
     # And the generic section still fills, because the bank is big enough.
     assert by_key["most_played"]["topics"]

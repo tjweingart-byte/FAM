@@ -1,0 +1,354 @@
+"""The four live sources, against recorded payloads.
+
+**None of these has ever made a real request from this machine** - the build
+container's egress proxy blocks all four hosts - so every payload below is
+written from the documented API and every assertion is about the parsing, not
+about the service. `python tools/verify_live.py` is what says a given machine
+can actually reach them; §52's rule is that "a key is set" is not "the key
+works", and neither is a green test file.
+
+What is genuinely worth pinning here is the *contract*, which is the same for
+all four and is the thing a fifth source would be most likely to break:
+
+* a signal is a **measurement**, never a result;
+* a source that is not configured says which credential is missing;
+* a source that breaks raises, and one that saw nothing returns `[]`.
+"""
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import config  # noqa: E402
+import live_facts  # noqa: E402
+import stories  # noqa: E402
+import story_sources  # noqa: E402
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def with_settings(monkeypatch, **kw):
+    patched = dataclasses.replace(config.settings, **kw)
+    monkeypatch.setattr(story_sources, "settings", patched)
+    return patched
+
+
+# --------------------------------------------------------------------------
+# the contract every source keeps
+# --------------------------------------------------------------------------
+def test_every_source_says_which_credential_it_is_missing():
+    """A gap that names its own fix. The alternative is a browse page that is
+    thinner than it should be for a reason nobody can find."""
+    for name, builder in story_sources.BUILDERS.items():
+        ok, why = builder().diagnose()
+        assert why, f"{name} gave no reason"
+        if not ok:
+            assert any(word in why for word in
+                       ("KEY", "=0", "not configured", "switched off",
+                        "is empty")), f"{name}: {why!r} does not name the fix"
+
+
+def test_no_source_can_be_installed_by_a_typo():
+    ready = story_sources.install()
+    assert ready["configured"]
+    assert not ready["problems"]
+    stories.reset()
+    for source in list(stories._SOURCES):
+        stories.unregister(source.name)
+
+
+def test_an_unknown_source_name_costs_one_source_and_not_the_server(monkeypatch):
+    with_settings(monkeypatch, stories_sources="gdelt,not-a-source")
+    try:
+        ready = story_sources.install()
+        assert ready["problems"], "a typo should be reported"
+        assert "not a source this build knows" in ready["problems"][0]
+        assert "GDELT" in ready["installed"], "the real one still installed"
+    finally:
+        for source in list(stories._SOURCES):
+            stories.unregister(source.name)
+
+
+# --------------------------------------------------------------------------
+# Finnhub: a price is a measurement, never a verdict
+# --------------------------------------------------------------------------
+QUOTES = {
+    "NVDA": {"c": 119.4, "dp": -6.2, "t": 1789000000},
+    "AAPL": {"c": 232.1, "dp": 0.4, "t": 1789000000},   # did not move enough
+    "SPY":  {"c": 581.0, "dp": 3.4, "t": 1789000000},
+    "XOM":  {"c": 0, "dp": None, "t": 0},               # unreadable
+}
+
+
+def fake_quotes(monkeypatch):
+    async def _json(url, headers, params, timeout):
+        return QUOTES.get(params.get("symbol"), {})
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+
+
+def test_finnhub_reports_what_moved_and_ignores_what_did_not(monkeypatch):
+    fake_quotes(monkeypatch)
+    with_settings(monkeypatch, finnhub_key="k",
+                  finnhub_watchlist="NVDA,AAPL,SPY,XOM",
+                  stories_market_move_percent=3.0)
+    rows = run(story_sources.FinnhubSignals().collect(8))
+    assert [r.subject for r in rows] == ["Nvidia", "the S&P 500"]
+    assert rows[0].strength == 1.0, "the biggest mover leads"
+    assert rows[0].domain == stories.MARKETS
+
+
+def test_a_finnhub_observation_says_what_moved_and_not_why(monkeypatch):
+    """The whole reason a price is safe to put on a tile: "down six percent"
+    is true whatever the reason, and the reason is what the episode is for."""
+    fake_quotes(monkeypatch)
+    with_settings(monkeypatch, finnhub_key="k", finnhub_watchlist="NVDA")
+    said = run(story_sources.FinnhubSignals().collect(8))[0].observation
+    assert "down about 6.2 percent" in said
+    assert "nothing here says why" in said
+    assert "delay" in said, "a delayed quote must say it is delayed"
+
+
+def test_a_quiet_market_produces_no_tiles_rather_than_dull_ones(monkeypatch):
+    fake_quotes(monkeypatch)
+    with_settings(monkeypatch, finnhub_key="k", finnhub_watchlist="AAPL")
+    assert run(story_sources.FinnhubSignals().collect(8)) == []
+
+
+def test_finnhub_without_a_key_is_off_and_says_which_key(monkeypatch):
+    with_settings(monkeypatch, finnhub_key="")
+    ok, why = story_sources.FinnhubSignals().diagnose()
+    assert not ok and "FINNHUB_KEY" in why
+
+
+# --------------------------------------------------------------------------
+# Polymarket: a forecast, and never a result
+# --------------------------------------------------------------------------
+MARKETS = [
+    {"question": "Will the Fed cut rates in March?",
+     "outcomePrices": "[\"0.62\", \"0.38\"]", "volume24hr": 412000},
+    {"question": "Will the bill pass before the recess?",
+     "bestBid": 0.19, "volume24hr": 88000},
+    {"question": "No price on this one", "volume24hr": 5},
+]
+
+
+def test_polymarket_turns_the_most_traded_markets_into_questions(monkeypatch):
+    async def _json(url, headers, params, timeout):
+        return MARKETS
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+    with_settings(monkeypatch, stories_polymarket=True,
+                  polymarket_base="https://example.invalid")
+    rows = run(story_sources.PolymarketSignals().collect(8))
+    assert len(rows) == 2, "a market with no readable price is not a signal"
+    assert rows[0].subject.startswith("Will the Fed")
+    assert "62 percent" in rows[0].observation
+
+
+def test_every_polymarket_signal_is_marked_unresolved_and_says_so(monkeypatch):
+    """A price that moves with an outcome reads like the outcome. This is what
+    forbids that inference structurally rather than by asking nicely."""
+    async def _json(url, headers, params, timeout):
+        return MARKETS
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+    with_settings(monkeypatch, stories_polymarket=True,
+                  polymarket_base="https://example.invalid")
+    for row in run(story_sources.PolymarketSignals().collect(8)):
+        assert row.outcome_pending
+        assert "not a reported result" in row.observation
+        assert row.domain == stories.PREDICTION
+
+
+def test_polymarket_ships_off(monkeypatch):
+    """Keyless, so without a switch it would turn itself on - and would then
+    be the only live source on a fresh deployment, which would make the browse
+    page a betting slip."""
+    monkeypatch.setattr(story_sources, "settings", config.settings)
+    ok, why = story_sources.PolymarketSignals().diagnose()
+    assert not ok and "STORIES_POLYMARKET" in why
+
+
+# --------------------------------------------------------------------------
+# API-Sports: the score is deliberately not passed on
+# --------------------------------------------------------------------------
+CARD = {"response": [
+    {"teams": {"home": {"name": "Chiefs"}, "away": {"name": "Broncos"}},
+     "status": {"short": "Q3"},
+     "scores": {"home": {"total": 21}, "away": {"total": 7}}},
+    {"teams": {"home": {"name": "Eagles"}, "away": {"name": "Giants"}},
+     "game": {"status": {"short": "NS"}}},
+    {"teams": {"home": {"name": "Jets"}, "away": {"name": "Bills"}},
+     "status": {"short": "FT"},
+     "scores": {"home": {"total": 3}, "away": {"total": 30}}},
+    {"teams": {"home": {"name": "Rams"}, "away": {"name": "Niners"}},
+     "status": {"short": "WHO-KNOWS"}},
+]}
+
+
+def sports(monkeypatch):
+    async def _json(url, headers, params, timeout):
+        return CARD
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+    with_settings(monkeypatch, api_sports_key="k", stories_sports="american-football")
+    return run(story_sources.ApiSportsSignals().collect(8))
+
+
+def test_the_score_never_leaves_this_module(monkeypatch):
+    """PROBLEMS.md §88 was paid for in a final score written for a game in its
+    third quarter. The provider knows the score; the tile must not, because a
+    tile is written before anything is checked."""
+    for row in sports(monkeypatch):
+        assert "21" not in row.observation
+        assert "30" not in row.observation
+        assert stories._safe(row.observation)
+        assert "ahead" not in row.observation.replace("who is ahead", "")
+
+
+def test_a_game_in_progress_is_pushed_hardest_and_a_finished_one_least(monkeypatch):
+    rows = {r.subject: r for r in sports(monkeypatch)}
+    assert rows["Chiefs vs Broncos"].strength > rows["Eagles vs Giants"].strength
+    assert rows["Eagles vs Giants"].strength > rows["Jets vs Bills"].strength
+
+
+def test_an_unfinished_game_is_marked_unfinished(monkeypatch):
+    rows = {r.subject: r for r in sports(monkeypatch)}
+    assert rows["Chiefs vs Broncos"].outcome_pending
+    assert rows["Eagles vs Giants"].outcome_pending
+    assert not rows["Jets vs Bills"].outcome_pending
+
+
+def test_a_game_whose_state_cannot_be_read_is_not_offered(monkeypatch):
+    """`unknown` is not "probably fine" - it is the state in which nothing may
+    be said. A game FAM cannot describe is a game it does not offer."""
+    assert "Rams vs Niners" not in {r.subject for r in sports(monkeypatch)}
+
+
+def test_api_sports_sweeps_rarely_enough_to_stay_inside_its_free_tier():
+    """A hundred requests a day against a fifteen-minute pool clock."""
+    source = story_sources.ApiSportsSignals()
+    assert source.min_interval_seconds >= 3600
+    assert 86400 / source.min_interval_seconds < 100
+
+
+def test_api_sports_without_a_key_is_off_and_says_which_key(monkeypatch):
+    with_settings(monkeypatch, api_sports_key="")
+    ok, why = story_sources.ApiSportsSignals().diagnose()
+    assert not ok and "API_SPORTS_KEY" in why
+
+
+# --------------------------------------------------------------------------
+# GDELT and the trending registry
+# --------------------------------------------------------------------------
+def test_gdelt_is_the_one_source_that_needs_no_credential(monkeypatch):
+    with_settings(monkeypatch, gdelt=True)
+    import gdelt
+
+    monkeypatch.setattr(gdelt, "settings", dataclasses.replace(
+        config.settings, gdelt=True))
+    ok, why = story_sources.GdeltSignals().diagnose()
+    assert ok and "keyless" in why
+
+
+def test_gdelt_ranks_themes_by_measured_volume_and_reads_the_headlines(monkeypatch):
+    import gdelt
+
+    monkeypatch.setattr(gdelt, "settings", dataclasses.replace(
+        config.settings, gdelt=True))
+    volumes = {"ECON_INFLATION": 90.0, "SPORTS": 30.0, "ENERGY": 60.0}
+
+    async def volume_for(theme, timeout):
+        return volumes.get(theme, 0.0)
+
+    class Result:
+        def __init__(self, title):
+            self.title = title
+
+    async def retrieve(query, limit=0, recency_days=0):
+        return [Result(f"a headline about {query}")]
+
+    monkeypatch.setattr(gdelt, "volume_for", volume_for)
+    monkeypatch.setattr(gdelt, "retrieve", retrieve)
+    rows = run(story_sources.GdeltSignals().collect(8))
+    assert [r.subject for r in rows] == ["inflation", "energy", "sport"]
+    assert rows[0].strength == 1.0
+    assert "What is being written under it" in rows[0].observation
+    assert all(stories._safe(r.observation) for r in rows)
+
+
+@pytest.fixture
+def trending_registry():
+    """Registered sources survive `trending.reset()` - that clears the cached
+    feed, not the registry - so anything registered here has to be taken out
+    by name. Left behind, it leaks into `trending.report()` in another file
+    and fails a test about a *different* deployment's configuration."""
+    import trending
+
+    before = list(trending._SOURCES)
+    trending.reset()
+    yield trending
+    trending.reset()
+    trending._SOURCES[:] = before
+
+
+def test_the_trending_registry_reaches_the_pool_as_attention_signals(trending_registry):
+    """`TRENDING_SOURCE=fake` still works, and still produces the row it
+    always did - the registry became one source among four rather than being
+    deprecated, so nothing that was configured stops being configured."""
+    trending = trending_registry
+    trending.register(trending.FakeTrendingSource())
+    if True:
+        rows = run(story_sources.TrendingRegistrySignals().collect(6))
+        assert rows
+        assert rows[0].domain == stories.ATTENTION
+        assert rows[0].strength > rows[-1].strength, "the feed's own order is kept"
+        # And the row it produces is the row that shipped before the pool
+        # existed: the registry already wrote a question and a one-line
+        # reason, and a templated tile uses both rather than overwriting them
+        # with something more generic. Putting a layer in front of a
+        # configured source must not make that source's output worse.
+        tile = stories.template(rows[0])
+        assert tile.query == "why cutting one undersea cable can slow a whole " \
+                             "country's internet"
+        assert tile.angle == rows[0].observation
+
+
+def test_a_broken_trending_source_raises_rather_than_looking_empty(trending_registry):
+    """"Broke" and "had nothing" are different sentences. Collapsing them is
+    how an outage gets shipped as a quiet miss."""
+    trending = trending_registry
+
+    class Boom(trending.TrendingSource):
+        name = "boom"
+
+        def diagnose(self):
+            return True, "ready"
+
+        async def fetch(self, limit):
+            raise RuntimeError("upstream 500")
+
+    trending.register(Boom())
+    with pytest.raises(RuntimeError):
+        run(story_sources.TrendingRegistrySignals().collect(6))
+
+
+# --------------------------------------------------------------------------
+# the rule the whole file exists for
+# --------------------------------------------------------------------------
+def test_the_status_vocabulary_is_the_one_live_facts_already_closed():
+    """A free string misses every comparison silently. The sports source maps
+    at the provider boundary into the same four words everything else in FAM
+    switches on."""
+    assert set(story_sources.ApiSportsSignals.STRENGTH) <= {
+        live_facts.SCHEDULED, live_facts.IN_PROGRESS, live_facts.FINAL}
+    assert live_facts.UNKNOWN not in story_sources.ApiSportsSignals.STRENGTH

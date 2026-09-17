@@ -49,6 +49,7 @@ from episode_intelligence import report as ei_report
 import live_sources
 from gdelt import report as gdelt_report
 import provenance as provenance_mod
+import stories as stories_mod
 import trending as trending_mod
 from live_facts import report as live_facts_report
 from research import ResearchUnavailable, report as research_report
@@ -207,6 +208,21 @@ def _announce_research() -> None:
     log.warning("  Every tab says the same thing; /api/health carries it too.")
 
 
+async def _warm_stories() -> None:
+    """One sweep at startup, so myFAM is full for the first listener.
+
+    Never raises and never blocks boot. `stories.refresh` already swallows
+    everything a provider can do wrong; this catches the rest, because an
+    exception in a task nobody awaits is a warning in a log and an unexplained
+    empty page.
+    """
+    try:
+        await stories_mod.refresh()
+    except Exception:  # noqa: BLE001 - a browse page is never worth a failed boot
+        log.exception("stories: the warming sweep failed; myFAM will serve its "
+                      "evergreen bank until the next refresh")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Pay the voice model's load cost now rather than on the first listener.
@@ -237,7 +253,16 @@ async def lifespan(_: FastAPI):
     # configuration asked for, with problems reported rather than raised, so a
     # typo empties one row instead of stopping the server.
     trending_mod.install()
-    prefetch_sources.install(event_store=EVENTS, mix_store=MIXES)
+    # The live sources behind myFAM's story pool, and one warming sweep before
+    # the first listener arrives. Scheduled rather than awaited: a browse page
+    # that waited on a news sweep to boot would be a server that fails to start
+    # when somebody else's API is slow, and the pool is designed to be read
+    # while it is still empty - the rails fall back to the evergreen bank and
+    # say why. This just means the first listener usually does not see that.
+    stories_mod.install()
+    asyncio.create_task(_warm_stories())
+    prefetch_sources.install(event_store=EVENTS, mix_store=MIXES,
+                             social_store=SOCIAL)
     prefetch.prefetcher(
         generator=None if DEMO_MODE else ScriptGenerator(),
         cache=SCRIPT_CACHE,
@@ -891,6 +916,13 @@ async def health() -> dict:
         # opposed to what one entity's state is. Reported separately because
         # they fail separately and are fixed separately.
         "trending": trending_mod.report(),
+        # What myFAM's two live rails are actually built from, and which
+        # of the four sources this deployment can reach. A pool that had
+        # quietly stopped refreshing would look identical from outside to
+        # one that was working - `stories.report()` is what makes the
+        # difference visible, down to how many tiles were templated
+        # because the composer was unavailable.
+        "stories": stories_mod.report(),
         # The second retrieval index, and the Trending row's feed. Reported
         # separately from `research` because they fail separately: Exa can be
         # healthy while this is off, and vice versa.
@@ -2358,15 +2390,17 @@ async def myfam_section(request: Request,
     """
     _read_limit(request)
     user = _listener(request)
+    written = _written_probe(minutes)
     try:
         body = topics_mod.build_section(
-            EVENTS, user, key, interests=_interests_for(request, interests))
+            EVENTS, user, key, interests=_interests_for(request, interests),
+            circle=SOCIAL.circle_of(user), written=written)
     except KeyError as exc:
         raise HTTPException(status_code=404,
                             detail="No such section.") from exc
 
     for topic in body["topics"]:
-        topic["cached"] = _topic_is_written(topic.get("query", ""), minutes)
+        topic["cached"] = written(topic.get("query", ""))
     # Ready ones first, each rail's own order preserved inside those two
     # groups. A listener on this screen is browsing, and an episode that
     # starts instantly is a better thing to put in front of them than one
@@ -2379,6 +2413,27 @@ async def myfam_section(request: Request,
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = topics_mod.ALGO_VERSION
     return body
+
+
+def _written_probe(minutes: int):
+    """A memoised `query -> already in the cache?` for one request.
+
+    The rankers ask about every candidate they consider and the endpoint then
+    asks again about the ones that survived, so the same handful of queries
+    comes up several times on one page load. Each answer is a local SQLite
+    read - cheap, and cheaper still done once. Memoised per request rather
+    than globally, because "is this cached" is exactly the sort of answer that
+    must not be allowed to go stale.
+    """
+    answers: dict[str, bool] = {}
+
+    def probe(query: str) -> bool:
+        key = query or ""
+        if key not in answers:
+            answers[key] = _topic_is_written(key, minutes)
+        return answers[key]
+
+    return probe
 
 
 def _topic_is_written(query: str, minutes: int) -> bool:
@@ -2426,27 +2481,50 @@ class EventRequest(BaseModel):
 
 
 @app.get("/api/myfam")
-async def myfam(request: Request, interests: str = Query("", max_length=200)):
-    """The five myFAM sections, ranked for this listener.
+async def myfam(request: Request, interests: str = Query("", max_length=200),
+                minutes: int = Query(3, ge=1, le=10)):
+    """The four myFAM rails, ranked for this listener.
 
-    Costs no model call: the topic bank is fixed and this only orders it.
-    A listener with no history still gets Trending and a starter set, with
-    the personal sections honestly empty rather than filled with fakes.
+    **Costs no model call and cannot cause one.** Both inventories are already
+    built - the evergreen bank is fixed, and the live story pool was composed
+    in the background by whichever request found it stale - so this reads,
+    ranks and returns. That is what "zero queue" means here: not that the page
+    is fast, but that there is no path from opening it to generating anything.
+
+    A listener with no history still gets Trending and a starter set, with the
+    personal rails honestly empty rather than filled with fakes.
+
+    `minutes` is the browse length this listener has chosen. It is here for one
+    reason: whether a tile's script is already written depends on the length it
+    would be written at, so asking the cache at the wrong length would mark
+    ready tiles as unready and sort the rails wrong.
     """
-    # A cheap read: ranking a fixed bank costs no model call, so it takes the
-    # reader's limit rather than the generation one.
+    # A cheap read: ranking a fixed inventory costs no model call, so it takes
+    # the reader's limit rather than the generation one.
     _read_limit(request)
     user = _listener(request)
 
     # One refresh serves every listener, so this is scheduled rather than
-    # awaited: myFAM renders from whatever the shared cache holds and stays
+    # awaited: myFAM renders from whatever the shared pool holds and stays
     # instant. The browse surfaces are the one place CLAUDE.md says the wait
-    # must be zero, and a news feed is not worth spending it on - the row is
-    # honestly empty on a cold first load and full on the next.
-    if trending_mod.is_stale():
-        asyncio.create_task(trending_mod.refresh())
+    # must be zero, and a news sweep is not worth spending it on - the rails
+    # fall back to the bank on a cold first load and are full on the next.
+    if stories_mod.is_stale():
+        asyncio.create_task(stories_mod.refresh())
 
-    feed = topics_mod.build_feed(EVENTS, user, interests=_interests_for(request, interests))
+    written = _written_probe(minutes)
+    feed = topics_mod.build_feed(
+        EVENTS, user, interests=_interests_for(request, interests),
+        circle=SOCIAL.circle_of(user), written=written)
+    # Every tile says whether it would replay or generate, the same way the
+    # "view more" screen already did. A listener browsing is choosing between
+    # things to hear, and "this one starts instantly" is a real difference
+    # between two of them - and it is free to say, because the ranking asked
+    # the same question a moment ago and this is the memoised answer.
+    for section in feed["sections"]:
+        for topic in section["topics"]:
+            topic["cached"] = written(topic.get("query", ""))
+    feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
     # and a ranker that writes cannot be tested by calling it. The impression
@@ -2465,17 +2543,12 @@ async def myfam(request: Request, interests: str = Query("", max_length=200)):
 async def record_event(req: EventRequest, request: Request):
     """Log one interaction. Playback never depends on this succeeding."""
     _read_limit(request)
-    tags = ()
-    if req.topic_id and req.topic_id in topics_mod.BANK_BY_ID:
-        tags = topics_mod.BANK_BY_ID[req.topic_id].tags
-    elif req.topic_id and req.topic_id in topics_mod.CATALOGUE_BY_ID:
-        # An interest chosen from the first-run catalogue. It carries its own
-        # tags, which is the whole point of it: "Formula 1" is not something
-        # the eight pickable facets can say, and this is how it reaches the
-        # ranker without anybody being shown a tag name.
-        tags = topics_mod.CATALOGUE_BY_ID[req.topic_id].tags
-    elif req.text:
-        tags = topics_mod.tags_for_text(req.text)
+    # The bank, the first-run catalogue, the live story pool, and failing all
+    # three the words of the question. The catalogue is the case worth naming:
+    # an interest carries its own tags, which is the whole point of it -
+    # "Formula 1" is not something the eight pickable facets can say, and this
+    # is how it reaches the ranker without anybody being shown a tag name.
+    tags = topics_mod.tags_for_id(req.topic_id, req.text)
     EVENTS.record(
         topics_mod.Event(_listener(request), req.kind, req.topic_id, req.text, tags,
                          thread=req.thread)

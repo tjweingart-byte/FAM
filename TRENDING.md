@@ -3,12 +3,23 @@
 The myFAM row backed by an outside feed, and why it is a separate subsystem
 from live facts.
 
+> **Since PROBLEMS.md §102 this registry is one source among several rather
+> than the row's whole supply.** myFAM's two outward-facing rails are now fed
+> by the story pool (`stories.py`, `MYFAM.md`), which sweeps four live sources
+> and composes a title and an angle for each; `story_sources.TrendingRegistrySignals`
+> reads whatever `TRENDING_SOURCE` installed and hands it over as attention
+> signals. Everything below still holds - the contract a source keeps, the
+> item shape, the empty states, the cost design - and a configured feed still
+> produces the row it always did, because its own `query` and `why_now` ride
+> through as `suggested_query` and `suggested_angle`. What changed is that the
+> row is no longer *only* this.
+
 ## Two rows, two questions
 
 | row | key | answers | comes from |
 |---|---|---|---|
 | **Trending** | `world_trending` | what is the world talking about | `trending.py` → an outside feed |
-| **What FAM can't stop playing** | `most_played` | what are *FAM's* listeners playing | `topics.rank_most_played` → the event log |
+| **What FAM can't stop listening to** | `most_played` | what are *FAM's* listeners playing | `topics.rank_most_played` → the event log |
 
 The second already existed under the key `trending`, which is why it was
 renamed: it was always FAM's own popularity, never the world's.

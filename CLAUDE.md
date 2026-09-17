@@ -11,7 +11,9 @@ Three surfaces, all backed by generated audio:
 1. **searchFAM** — ask anything, hear a briefing of a chosen length. *Working
    today.* This is the only surface that fully works.
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
-   Tapping a tile generates and plays that episode.
+   Tapping a tile generates and plays that episode. *Finished (§102): four
+   rails over two shared inventories - the evergreen bank and a live story
+   pool refreshed in the background once for everybody.*
 2b. **DailyFAM** (was playFAM) — named daily mixes. A mix holds topic ids or
    questions the listener typed, never audio, so it is fresh every morning.
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
@@ -289,7 +291,45 @@ the rest of this list it needs taste rather than a key.
    feature is deleted** - not switched off - along with `tools/gap_probe.py`,
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
-4. **myFAM is built; the taste model is crude, and less crude than it was.**
+4. **myFAM is finished, and the bank is no longer the whole of it**
+   *(PROBLEMS.md §102, `stories.py`, `MYFAM.md`).* The page was four rankings
+   of twenty-eight evergreen topics, and none of them could answer what a
+   browse page is actually asked - *what should I hear about today*. There is
+   now a second, **live** inventory beside the bank: a shared story pool built
+   from four live sources (GDELT, Finnhub, Polymarket, API-Sports), refreshed
+   in the background once for everybody.
+   **A tile is a title and an angle; the script is written on the tap.** That
+   is the whole cost argument: deciding an episode is worth writing costs one
+   small model call per refresh window for the entire deployment, and only the
+   stories that are *new* since the last window are composed. myFAM's four
+   rails are now **Made for you / Trending / What FAM can't stop listening to
+   / What your friends are listening to**, in that order - the crowd row that
+   always has something in it above the one that is empty until somebody
+   follows anybody.
+   **Made for you draws on both inventories** and Trending draws only on the
+   live one, because answering "what is trending" with what FAM's listeners
+   have already played would make it a laggier copy of the row below it. The
+   two crowd rows lead with tiles whose script is already written - a sort and
+   never a filter, since an expired cache would otherwise empty a row and call
+   it a fact about what people are playing.
+   **"What your friends are listening to" now reads the follow graph.** It
+   was co-listener overlap under a heading that said "your circle", on a card
+   that said "people you follow" about strangers; `social.circle_of` is
+   friends first, then anyone they follow, and an empty circle returns nothing
+   rather than strangers. The overlap ranking still tops up the post-episode
+   popup, where nothing claims those people are friends.
+   **How hard to push a story and for how long is written down** rather than
+   left implicit in a sort order - `DOMAIN_WEIGHT`, `DOMAIN_SHELF_LIFE` and a
+   36-hour cooldown after expiry - and `first_seen` is the clock, so a story
+   that keeps being reported does not get to be new again. Variety is capped
+   twice, in the pool and in each rail, and the cap is **a cap on what is
+   available and never a quota on what is not**: a listener with one interest
+   still gets a full rail.
+   Nothing live is configured by default, the same way `live_facts` and
+   `trending` ship; `GDELT=1` is the one line that makes it live, and
+   `python tools/stories_report.py` is what says a machine can actually reach
+   the sources. Nothing here has made a real request from the build container.
+5. **The taste model is crude, and less crude than it was.**
    *(Two things on the surface changed in §95. The header's right-hand slot is
    now an **episode-length control of its own**, deliberately separate from the
    search player's: the length you want for a question you have just typed and
@@ -375,8 +415,8 @@ the rest of this list it needs taste rather than a key.
    drawn and a ranking that was deleted. What moved is what the second rail
    *says*: the world row was at the bottom of four, under two forms of "what
    you already like", which is the worst place on the page for the one row
-   that is about today. myFAM's four rails are now **Made for you /
-   Trending / Your circle is on this / What FAM can't stop playing**.
+   that is about today. (§102 then reordered and renamed the two crowd rails
+   and gave the top two a live inventory - see above.)
    The cost of it, stated so it is a known trade: adjacency is no longer
    offered unprompted, so the page is now two personal rows and two crowd
    rows, and nothing on it reaches outside an established taste until the
@@ -393,20 +433,25 @@ the rest of this list it needs taste rather than a key.
    still built from `TAG_LABELS`.
    The cost design is the load-bearing part: **one bank for
    everyone, personalisation in the ordering, not the inventory** - so two
-   people tapping a tile share one script through `cache.py`.
-5. **playFAM is built as its own tab.** `mixes.py` stores named daily mixes -
+   people tapping a tile share one script through `cache.py`. That is
+   unchanged by the live pool, which is shared for exactly the same reason.
+6. **playFAM is built as its own tab.** `mixes.py` stores named daily mixes -
    a mix holds *topic ids*, never audio, so "At the gym" is the same subjects
    every day and a different set of episodes. Members are validated against the
    same shared bank, which is what keeps the cost design intact.
-6. ~~**"What your followers are listening to" has no follow graph behind it.**~~
-   - *the graph is built* (`SHARING.md`). Follows are asymmetric, like the copy
-   always said, and a **friend is the mutual case, derived and never stored** -
-   no request, no accept, no pending state to get wrong. What is still true:
-   the myFAM rail itself still ranks co-listener overlap rather than the graph.
-   That is now a one-line change rather than a missing feature, and worth
-   making deliberately - a new listener follows nobody, so a rail backed only
-   by follows would be empty on the day it matters most.
-7. **The social layer generates nothing, and now there is more of it.**
+7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
+   - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
+   asymmetric, like the copy always said, and a **friend is the mutual case,
+   derived and never stored** - no request, no accept, no pending state to get
+   wrong. And the rail reads it now: `social.circle_of` is friends first, then
+   anyone they follow, which is what stops a listener who has just followed six
+   people getting an empty rail on the day it should have filled. The worry
+   that kept this open - a new listener follows nobody, so a rail backed only
+   by follows is empty on the day it matters most - was answered by admitting
+   it rather than papering over it: the rail is **honestly empty and names the
+   two taps that fix it**, because the alternative was what it did before,
+   which was to show strangers under a heading that said "people you follow".
+8. **The social layer generates nothing, and now there is more of it.**
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,
    and they are the same row. `/api/vibe` and `/api/echo` are one handler over
@@ -426,7 +471,7 @@ the rest of this list it needs taste rather than a key.
    because their taps are what synthesise audio, from one cached script,
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
-8. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
+9. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
    `/api/profile` returns only what the event log and the follow graph
    actually hold - started, finished, open threads, subjects, vibes, and a
    friend count that is real because the graph is built. The page is a hub
@@ -450,14 +495,14 @@ the rest of this list it needs taste rather than a key.
    The rule it was built under is unchanged: a profile page is the easiest
    place in an app to invent a number, and every invented one is a promise to
    keep later.
-9. **Attachments are built** (`attachments.py`, PROBLEMS.md §47). A search can
+10. **Attachments are built** (`attachments.py`, PROBLEMS.md §47). A search can
    carry documents, photos and links. Extraction happens when the thing is
    attached, never on the generation path, because a round-trip in front of the
    first word is the one cost this product refuses. Every failure is a sentence
    the listener can act on, and an attached episode is **never cached**, so it
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
-10. ~~**Personalisation needs state the app does not have**~~ - *identity is
+11. ~~**Personalisation needs state the app does not have**~~ - *identity is
    done; the recommender is still crude.* `accounts.py` gives every listener a
    server-minted session id in an HttpOnly cookie, and an account is *email and
    password attached to the id they already have* - so signing up keeps their
@@ -678,8 +723,33 @@ the rest of this list it needs taste rather than a key.
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+- **A browse tile is a title and an angle; the script waits for the tap.**
+  *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen
+  bank **plus** a live story pool built from four sources, and the pool is the
+  cheapest thing in the product per tile offered: one background sweep and
+  **one small model call per refresh window, for every listener**, composing
+  only what is new since the last one. Forty tiles cost one call, not forty.
+  Four rules hold it up. **A signal is a measurement and never a result** -
+  coverage volume, a traded price, a betting line, a fixture status - because
+  a tile is written before anything is researched, so a result on one is §88
+  with a larger audience; API-Sports knows the score and deliberately does not
+  pass it on. **How hard and how long to push** is written down
+  (`DOMAIN_WEIGHT`, `DOMAIN_SHELF_LIFE`, a cooldown after expiry) rather than
+  left implicit in a sort order, and `first_seen` is the clock, so a story
+  that keeps being reported does not get to be new again. **Variety is capped
+  twice** - in the pool and in each rail - and the cap is a cap on what is
+  available, never a quota on what is not: a listener with one interest still
+  gets a full rail. And **nothing on the page-load path awaits anything**, so
+  there is no route from opening myFAM to generating anything; a test reads
+  `build_feed`'s own source to keep it that way.
+  What that costs, stated: a wrong guess about what is worth offering costs
+  one composed tile nobody taps, which is a fraction of a cent. What it must
+  never cost is availability - no key, a timeout, a refusal and a broken
+  provider all fall back to a templated tile and say so, which is the same
+  rule episode intelligence lives by.
+
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
-  `trending.py`, `TRENDING.md`.)* **"What FAM can't stop playing"** is this
+  `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key
   `trending`, which is why that key is now `most_played`: it was always FAM's
   popularity, never the world's. **"Trending"** is what the world is paying
@@ -1103,8 +1173,9 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §99-101 are the
-most recent), `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
+`PROBLEMS.md` for every problem hit and its cause (newest last — §102 is the
+most recent), `MYFAM.md` for the browse page and the live story pool that fills
+it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
@@ -1123,7 +1194,7 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **thirty-four** named smoke
+**twice** - once per preview build - and **thirty-five** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than

@@ -492,7 +492,7 @@ class Settings:
 
     # --- world trending --------------------------------------------------
     # The myFAM row that says what the *world* is paying attention to, as
-    # opposed to "What FAM can't stop playing", which is this app's own play
+    # opposed to "What FAM can't stop listening to", which is this app's own play
     # counts. A different subsystem from live facts on purpose - see
     # `trending.py`: one changes what is offered, the other what is said.
     #
@@ -515,6 +515,79 @@ class Settings:
     # renders from the cache.
     trending_timeout_seconds: float = _env_float("TRENDING_TIMEOUT_SECONDS", 8.0)
     trending_max_items: int = _env_int("TRENDING_MAX_ITEMS", 6)
+
+    # --- myFAM's story pool ----------------------------------------------
+    # What "Made for you" and "Trending" are built from: live data turned
+    # into candidate episodes - a title and an angle, never a script. See
+    # `stories.py` for the cost design and MYFAM.md for the whole of it.
+    #
+    # On by default, and on the same reasoning as `trending` and `live_facts`:
+    # the *registry* is what matters. With no provider configured its whole
+    # effect is that myFAM offers its evergreen bank and `/api/health` says
+    # which sources are missing and why - which is the state worth shipping,
+    # because the alternative is a gap nobody can see.
+    stories: bool = field(
+        default_factory=lambda: os.environ.get("STORIES", "1")
+        not in ("0", "false", "False", ""))
+    # Empty means every source this build knows, each of which reports itself
+    # as not configured when its credential is absent. A comma-separated list
+    # narrows it - see `story_sources.BUILDERS` for the names.
+    stories_sources: str = field(
+        default_factory=lambda: os.environ.get("STORIES_SOURCES", "").strip())
+    # One sweep and one composition serve every listener for this long. This
+    # is the whole economics of the browse page: fifteen minutes is how fast a
+    # global news index actually moves, and the per-source floors in
+    # `story_sources` keep the providers with daily quotas off this clock.
+    stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
+    # Generous, because this never sits in front of the first word: the pool
+    # refreshes in the background and myFAM renders from whatever it holds.
+    stories_timeout_seconds: float = _env_float("STORIES_TIMEOUT_SECONDS", 12.0)
+
+    # Whether a model writes the titles and angles. Off gives the templated
+    # tiles instead - which is exactly what a deployment with no API key gets,
+    # and is a real product rather than a placeholder. Kept as a switch so the
+    # two can be compared on one machine.
+    stories_compose: bool = field(
+        default_factory=lambda: os.environ.get("STORIES_COMPOSE", "1")
+        not in ("0", "false", "False", ""))
+    # One call per refresh window for every listener, so this is the cheapest
+    # model call in the product and still the one that decides what the whole
+    # browse page says. Same default as the rest of the app: one model to
+    # reason about per deployment.
+    stories_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "STORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    stories_effort: str = field(
+        default_factory=lambda: os.environ.get("STORIES_EFFORT", "low"))
+    stories_max_tokens: int = _env_int("STORIES_MAX_TOKENS", 3000)
+    # A ceiling rather than a target. Nobody is waiting on this - a slow
+    # composition costs one window of freshness, never a listener's wait.
+    stories_compose_timeout_seconds: float = _env_float(
+        "STORIES_COMPOSE_TIMEOUT_SECONDS", 25.0)
+
+    # How far a price has to move before it is worth an episode. A market
+    # where nothing moved more than a percent has no story in it, and offering
+    # one anyway is how a browse page fills with tiles nobody wants.
+    stories_market_move_percent: float = _env_float(
+        "STORIES_MARKET_MOVE_PERCENT", 3.0)
+    # Which API-Sports products to sweep for today's card. Empty follows
+    # API_SPORTS_SPORT, which is the one a deployment says it mostly serves.
+    stories_sports: str = field(
+        default_factory=lambda: os.environ.get("STORIES_SPORTS", "").strip())
+    # Polymarket is keyless, so without a switch of its own it would be the
+    # one source that turned itself on - and on a fresh deployment it would
+    # then be the *only* live source, which would make the browse page a
+    # betting slip. It is also the source a deployment is most likely to want
+    # to decline outright. So it ships off and is named, like every other live
+    # provider in this app: nothing here is absent and quiet.
+    stories_polymarket: bool = field(
+        default_factory=lambda: os.environ.get("STORIES_POLYMARKET", "0")
+        not in ("0", "false", "False", ""))
+    # The symbols Finnhub is asked about each sweep. Empty is the named list
+    # in `story_sources.WATCHLIST`; the free tier has no movers endpoint, so a
+    # fixed watchlist is the honest cheap version of "what moved today".
+    finnhub_watchlist: str = field(
+        default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
     # A second retrieval index beside Exa, and the source behind the Trending

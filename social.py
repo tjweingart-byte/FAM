@@ -441,6 +441,38 @@ class SocialStore:
         mine = {p["user_id"] for p in self.following(user_id, limit)}
         return [p for p in self.followers(user_id, limit) if p["user_id"] in mine]
 
+    def circle_of(self, user_id: str, limit: int = 500) -> list[str]:
+        """Whose listening the "what your friends are listening to" rail reads.
+
+        Friends first, then everyone else they follow. Both, rather than
+        friends only, and the reason is what the rail is for: following is
+        asymmetric here by design, so a listener who follows six people and is
+        followed back by none has no friends and would get an empty rail on
+        the day they had just gone and found six people to follow. Following
+        somebody is already a statement that their taste is worth seeing.
+
+        Friends come first in the list and that is presentation rather than
+        weight: the ranker counts plays and treats everyone here equally, on
+        purpose. Following somebody is already the choice, and a rule that
+        made a mutual follow's listening count double would need a number
+        nobody has any way to tune.
+
+        Returns ids only. `topics.rank_friends` takes a set of ids and knows
+        nothing about this module - the ranking stays a pure function of the
+        event log, which is what keeps it testable without a social graph.
+        """
+        if not user_id:
+            return []
+        out: list[str] = []
+        seen: set[str] = set()
+        for person in (self.friends(user_id, limit)
+                       + self.following(user_id, limit)):
+            uid = person.get("user_id") or ""
+            if uid and uid not in seen:
+                seen.add(uid)
+                out.append(uid)
+        return out
+
     def follow_counts(self, user_id: str) -> dict:
         """Numbers for a profile. Counted rather than kept in a column, because
         a denormalised counter is a number that can be wrong, and this app has

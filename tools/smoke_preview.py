@@ -169,12 +169,74 @@ def main() -> int:
                 f"Explore New is back on myFAM: {titles}"
             assert titles[1].strip() == "Trending", \
                 f"Trending is not in the second slot: {titles}"
+            # The order and the wording the personalisation packet asks for,
+            # read off the page rather than off `topics.SECTIONS` - the point
+            # of checking it here is that the interface has its own copy of
+            # these strings (`SECTION_TITLE`) and the two have drifted before.
+            assert [t.strip().replace("\n", " ") for t in titles[1:]] == [
+                "Trending",
+                "What FAM can't stop listening to",
+                "What your friends are listening to",
+            ], f"the rails are not the ones the packet asks for: {titles}"
             # Every rail now opens its own full-length view from the card at
             # the end of it. Without a visible way through nobody finds those
             # screens, which is how Explore New became unreachable the first
             # time it came off this page.
             assert page.eval_on_selector_all(".feed-more", "e => e.length") >= 1, \
                 "no rail offers a way through to its full surface"
+
+        def live_story_tiles_show_their_angle():
+            """A live tile says what it is about; a bank tile says why it is
+            there.
+
+            The angle is the whole of what the story pool buys a listener -
+            "two cables in the Red Sea were reported damaged this week" rather
+            than "because of what you have played" - and it is one `if` in
+            `seedWhy` away from never being drawn.
+
+            **The two preview builds are honestly in different states here**,
+            and the check reads which rather than assuming one. The fixture
+            build ships templated story tiles - what a deployment with no API
+            key serves, so this tests the floor of the feature and not its best
+            case. The live build runs on a database in the browser with no
+            server behind it, so there is no pool at all and there are no
+            angles to draw; the assertion there is that the page says so,
+            because an empty rail with no explanation is the failure this rule
+            exists to catch. Neither branch is a skip.
+            """
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector(".feed-rail .seed-card", timeout=10000,
+                                   state="attached")
+            drawn = page.evaluate(
+                """() => Array.prototype.map.call(
+                     document.querySelectorAll("#myfamFeed .seed-card"),
+                     function(card){
+                       var why = card.querySelector(".seed-why");
+                       return (why ? why.textContent.trim() : "");
+                     })""")
+            assert drawn, "no card said anything about itself"
+            expected = page.evaluate(
+                """() => Object.keys(myFamTopics)
+                          .map(function(k){ return myFamTopics[k].angle || ""; })
+                          .filter(function(a){ return a; })""")
+            if expected:
+                missing = [a for a in expected if a not in drawn]
+                assert not missing, (
+                    "a live story's angle never reached its card - seedWhy "
+                    f"stopped reading it: {missing[:2]}")
+                return
+            # No pool on this build. Then the rail that is *only* the pool has
+            # to be empty and has to say why - never "nothing is trending".
+            empties = page.eval_on_selector_all(
+                "#myfamFeed .feed-empty", "e => e.map(x => x.textContent.trim())")
+            assert empties, (
+                "this build has no live stories and no rail says so - either "
+                "the pool reached the page without angles, or an empty rail "
+                "is being drawn silently")
+            assert not any("nothing is trending" in e.lower()
+                           or "nothing is happening" in e.lower()
+                           for e in empties), (
+                f"an empty rail made a claim about the world: {empties}")
 
         def go_deeper_titles_fit():
             """A clipped title is invisible to every other check.
@@ -1212,6 +1274,7 @@ def main() -> int:
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
         check("The weekly recap pops and closes", the_weekly_recap_pops_on_a_new_week)
         check("myFAM renders a rail per signal", myfam)
+        check("a live story tile shows its angle", live_story_tiles_show_their_angle)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
         check("Go Deeper fills for a new listener", go_deeper_fills_for_a_new_listener)
         check("A file can be attached to a search", attachments)
