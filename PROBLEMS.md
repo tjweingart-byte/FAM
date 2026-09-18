@@ -6713,3 +6713,231 @@ local loop is not added to the gate.** `dev.sh` has built and smoke-tested
 *both* previews for a while; CI built and smoke-tested only the fixture one -
 and the live build is the one that gets published, and carries its own copy of
 `topics.SECTIONS`. Both are in `ci.yml` now.
+
+## 104. Twenty-two items off a review of the running app
+
+A list from the owner after using the build, covering everything from a
+one-word plural to two features that were drawn and had never worked. It is
+recorded here in the order the causes fall into rather than the order the list
+was written, because several of the items turned out to be the same mistake.
+
+### Two features were drawn, wired to nothing, and looked finished
+
+**Live captions showed a sentence about captions.** The panel rendered
+`t.caption` — a line of prototype copy ending in an em dash, written when the
+whole app was a clickable mock. Nothing was ever connected to the episode, so
+turning captions on produced *"Live captions will appear here as this
+plays—"*, indefinitely.
+
+`/api/transcript` is `/api/sources`' sibling: `pipeline.script_for` reads the
+sentences from the cache under the key the script is already stored under. The
+rule that makes it affordable is that **it never generates** — captions that
+could trigger a write would be a second full Claude call for every episode
+somebody chose to read along with, which is the expensive half of an episode
+paid twice for one listen. So there are three honest states and the panel says
+which: sentences, still catching up, or none at all for an attachment episode,
+which is deliberately uncacheable.
+
+Which sentence is highlighted is **estimated from character count, not
+measured**, and that is worth naming rather than hiding: the audio is one PCM
+stream with no sentence marks in it, so there is nothing to measure against.
+The denominator is the *planned* length rather than `FamAudio.duration()`,
+which grows as the stream arrives and would pin the highlight near the end for
+the whole episode.
+
+**The sources strip was invisible, and one missing call was why.**
+`fetchEpisodeSources` ran in `onEnd` — when the episode *finished* — and when
+Go Deeper opened, and nowhere else. The one moment the panel is for, somebody
+listening and wondering where this came from, was the one moment nothing asked
+for it. It is fetched on the same clock as `/api/next` now, twice, because
+provenance lands with the finished script and a 10-minute script takes longer
+to write than a 2-minute one.
+
+Two smaller faults went with it. An answer that comes back empty no longer
+clears a strip that is already showing — the first try often lands before the
+script has finished, and a panel that disappeared halfway through an episode is
+worse than one that arrived late. And `toggleCC` called `clearSources()`
+**twice**, one of the calls mis-indented under the line above it, so switching
+captions off wiped a different control on a different row about a different
+thing.
+
+Both had a third cause in common: **neither preview had a fixture for either
+endpoint**, so a preview with no sources and no transcript previewed neither.
+Anybody reviewing the app through the published link could not have seen either
+feature working even if the code had been right.
+
+### Three controls said something that was not true
+
+**"Suggested topics"** over the bank in `topic.id` order — alphabetical by
+slug. `/api/topics?ranked=1` orders it with `topics.rank_bank`, the same taste
+model every personal rail uses. Two rules it does *not* share with a rail: it
+is a **sort and never a filter** (a rail is one of five and somebody who
+dislikes its picks can scroll on; the picker *is* the list), and it **does not
+exclude what they have played** — wanting a mix of subjects you already like is
+the entire point of a mix. The heading reads `personalised` off the response
+rather than asserting, because a declared order and a measurement look
+identical on screen.
+
+**The privacy switch meant public**, so the lit position was the one where
+other people could see your mix — read backwards by everybody who has ever
+used a phone. It means private now, with a closed padlock on the knob.
+
+**The copy button on the captions panel** toasted "Transcript copied ✓" and
+copied nothing. The control-with-nothing-behind-it failure in its worst form,
+because it said the thing had happened.
+
+### One bug with four symptoms, and one shared container
+
+The reported navigation bug: Friends → a friend → back → back should reach
+your own profile, and instead went to the friend again, then to searchFAM, and
+then the Profile tab flashed the friend for a moment.
+
+Four symptoms, one cause: **somebody else's profile was drawn into
+`screen-profile`** with a variable deciding whose it was. So back from the
+friend popped to Friends; back again showed `screen-profile` still holding the
+*friend's* DOM; back again fell through to search; and the tab flashed them
+before `loadProfile` replaced it.
+
+Two pages sharing one container is one bug, not a routing bug with four fixes.
+`screen-person` is its own screen, and `viewingProfile` now decides only what
+is drawn there and never which screen is on.
+
+### Things the strongest signal was being thrown away by
+
+**Eighty-five per cent through is finished.** The completion event fired on the
+last sample only. The ending is the one part a listener skips, so an episode
+heard to the ninety-fifth percentile and then closed was recorded as a *play* —
+worth 1.0 against a completion's 2.5. The strongest signal the taste model has
+was being discarded by exactly the behaviour it should reward, and the
+profile's "episodes finished" undercounted for the same reason. A share rather
+than a number of seconds, because "the last thirty seconds" is most of a
+one-minute episode and nothing of a ten-minute one.
+
+### A tap that cost a model call
+
+`.mini-stage` is `flex:1`, so it is most of the player, and it carried a tap
+handler: with an album it jumped to the next episode, and **with no album it
+generated a random myFAM topic**. An episode nobody asked for, costing a Claude
+call and a GPU, in place of whatever was playing. Removed with nothing in its
+place — the swipe-up gesture still moves through an album and is the one the
+`next-hint` label actually advertises.
+
+### The episode title was the question
+
+Somebody who asked `what happened with the fed yesterday` got an episode called
+*What Happened With The Fed Yesterday*: their own words handed back with
+capital letters.
+
+The model writes the title itself, on a `<<TITLE: ...>>` line beside the
+`<<NEXT:>>` one, stripped before synthesis and never spoken. That is what makes
+it affordable — naming an episode with a model call of its own would be the
+expensive half of an episode spent on a label. It is cached in its own column
+beside the script for the same reason `thread` is, and a re-write keeps the
+title it has.
+
+Getting it into the system prompt meant **fitting inside the lean-prompt
+test**, which is the right way round: three rules each said the same thing
+twice ("never tease" listed four ways of teasing, "never summarise" five
+phrases, and the never-say-what-you-do-not-have rule restated its own line).
+Deduplicating them paid for the addition. No rule changed.
+
+### "Iansolomon" was a placeholder, and the setup had no picture
+
+The reported "recommended name" was two things at once. One was genuine browser
+autofill: **one shared `<input>` serves every modal in the app**, so a handle
+typed into it once came back as a suggestion over the field for somebody's
+name. The other was the app's own doing — `placeholder: "e.g. Ian Solomon"` and
+`placeholder: "iansolomon"`, a real-looking name and handle offered to every
+listener.
+
+Every text field says `autocomplete="off"` now, with one exception: the login
+screen's address, which may still be remembered on a device that account has
+signed in on. And the two chained modals that asked for a name and then a
+handle — with no way back between them and no picture at all — are one screen,
+used both as a first-run step and as the Edit profile editor.
+
+The picture needed one fix to work *during* setup: `saveAvatar` read the name
+and handle out of storage, and nothing is stored yet at that point, so it
+refused the photo and sent somebody back to the screen they were already on.
+It reads the fields when that screen is up.
+
+### The weekly recap was an interruption about nothing
+
+It was one episode *about* somebody's week, fired as a popup on the first open
+on or after Sunday. Two things were wrong and neither was fixable by tuning it:
+a thin week produced an episode about having had a thin week, and whatever it
+produced arrived in front of somebody who had opened the app to listen to
+something else.
+
+**What you missed last week** is a myFAM rail instead: what FAM put in front of
+this listener in the last seven days and they did not take. Three rules hold it
+honest, and they generalise. It is **what was actually offered** — the
+impression log minus everything they played — so there is no top-up from the
+bank and a short rail is short, because the heading is a claim about what this
+app did. **An impression still never becomes taste**: it decides membership,
+which is a fact about the feed, and `_affinity` decides the order. And **it can
+only offer what it can still resolve**, which is the bank plus what the story
+pool still holds — a tile invented to stand in for an expired story is §102
+with a heading on it.
+
+Its empty sentence claims neither of the two nothings: somebody who was not
+here last week was offered nothing, somebody who played everything missed
+nothing, and the rail cannot tell them apart.
+
+### Download made saving a two-tap action with a decision in the middle
+
+Pressing save raised a popup asking whether to download the audio to the
+device as well. Save is a toggle now — green, press again to take it off —
+and the download feature is **removed rather than switched off**: three
+endpoints, four store methods, the tier field and its three environment
+variables, the offline IndexedDB layer, the second view of the shelf, and the
+Downloads tile. A route or a knob left behind is an invitation to turn it back
+on, which is the lesson Piper cost.
+
+### The rest, and what each one was
+
+* **Sign-up refused the field it offered.** `_one_identifier` was shared
+  between login and sign-up, so filling in the phone number came back as "send
+  either an email address or a phone number, not both" — a rule about how the
+  server stores things told to somebody answering the fields in front of them.
+  Both are stored on one account row now, and the number formats as it is
+  typed with the country code picked from a select, because the server stores
+  exactly one form and refuses to guess a country.
+* **A new follower was never announced.** "___ started following you", their
+  picture, Follow back, an X. `new_followers` is a query over the follow
+  graph's own timestamps against one column saying when the listener last
+  looked — not a second table with its own read state — and it is cleared by
+  the **Friends tab**, never by the popup being drawn.
+* **A friend's vibe was not named on an Explore card,** and a stranger's was.
+  The tag needs two conditions because it claims a friendship: a friend
+  generated the episode *and* that same friend vibed it.
+* **A friend's profile described people with nothing behind it.**
+  `/api/person` returns only what they chose to publish — public mixes, vibes,
+  and the interests they have not hidden. No play count, no completions, no
+  inferred subjects, no history, and no listener id.
+* **The post-episode popup was bank-only,** so somebody who had just heard
+  about today's news was offered four standing explainers. It draws on the
+  live story pool as well now, exactly as Made for you does.
+* **Logging out left the listener on the Settings screen of an app that was
+  now somebody else's,** with a toast. Half a second of the FAM mark, then the
+  Sign up / Sign in screen, and everything of theirs cleared out of memory on
+  the way.
+* **The default episode was three minutes in about twenty places** — every
+  endpoint's `Query` default, both client length controls, prefetch, the
+  tools. `config.DEFAULT_MINUTES` is two, and a test reads `app.py`'s own
+  source so no endpoint can grow a second opinion.
+* **"1 vibed".** The counts are worded for the numbers they hold.
+* **Your FAM was set in type** while myFAM, DailyFAM and exploreFAM all use
+  the mark.
+* **The player's four icons were unlabelled.** A bookmark, a two-way arrow and
+  a speech rectangle are three guesses; the play-all sidebar and Explore's rail
+  had always carried labels, so this row was the odd one out.
+* **Passwords needed ten characters.** Eight.
+
+### What is still unverified, and it is the same thing as always
+
+None of the writing changes have been heard. There is no API key in this
+container, so the `<<TITLE:>>` line has never produced a title, the captions
+panel has never shown a real script, and the sources cluster has never drawn a
+real publisher. Everything above is verified against tests, the interface
+checks and both browser smoke runs; the parts that need a key need a key.
