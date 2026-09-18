@@ -7086,3 +7086,230 @@ And the numbers still have to be read. `/api/health` now reports
 scheduling a cycle looks identical from outside to sources installed and
 warming every browse - which is precisely the state this had been in since it
 was written.
+
+## 106. A share link handed a stranger the whole app instead of the episode
+
+The nine share destinations have existed since §96 and all nine work: the
+wording, the hand-off URL and the story card are composed server-side and
+tested end to end. What nothing had looked at was **the other end of the
+link**.
+
+`/s/<id>` did this:
+
+    return RedirectResponse(url=f"/?q={quote(record['query'])}&minutes=...")
+
+So somebody sent one episode by a friend landed on the **front door of the
+whole product** - the search box, myFAM, Explore, a sign-up screen - with
+their episode reduced to a query string that the app may or may not act on.
+Everything the share was for was the one thing hardest to find once they
+arrived. This was listed under "what is not built" as app-side work, which it
+is not: the redirect is the server's, and so is the page that replaced it.
+
+### What was actually wrong, in three parts
+
+**1. The destination was the app.** Fixed by serving a page instead:
+`static/listen.html`, one episode, and the rule that the only control which
+works is play. The wordmark, "Ask your own question", "Browse episodes" and Get
+FAM are all `data-door`, routed by one delegated listener to the App Store - so
+a control added later is a door by default rather than by somebody remembering
+to wire it.
+
+**2. Every FAM link posted anywhere previewed identically.** This file already
+records that Facebook and LinkedIn drop everything except the URL and read the
+page for their own preview (§96, found by pressing the button rather than by
+reading the code). The page they were reading was the app's shell. A crawler
+does not run JavaScript, so this cannot be fixed on the client: the title, the
+question and the story card are substituted into the HTML the server sends.
+The same substitution carries the payload the player needs, so the page spends
+no round trip working out what it is - the one-sentence spec applies to a
+stranger's first second of FAM more than to anybody else's.
+
+`og:image` is claimed **only when the card URL is absolute**. A crawler fetches
+it from its own servers, so a relative one advertises a picture that never
+loads - which is the refusal `destination_for` already makes about the link.
+
+**3. The open count would have become a count of robots.** Those same crawlers
+*fetch* `/s/<id>` to build the preview, and opens were counted on the serve.
+Opens are the only number sharing produces, so a wrong one is worse than none.
+The count moved to `POST /api/share/<id>/open`, which the page calls once it is
+running in front of a person. A crawler never gets there, and this needs no
+list of user agents - which is the shape §76 settled against, because such a
+list can always be widened by one more entry and the next miss is already
+written.
+
+### The part that turned out to need no new machinery at all
+
+The question was how a link traces back to "the current episode", and the
+answer is that it already did. **There is no episode id in this product and
+this did not add one.** An episode is identified by its cache key; `key_for`
+builds that key from the question and the length; a share row holds exactly
+those two. So the landing page asking `/api/audio?q=...&minutes=...` computes
+the same key and gets the sharer's own script out of the shared cache - same
+words, no second model call, nothing new stored, ten opens against one script.
+
+Adding a share-specific episode id would have been a second identity for a
+thing that already has one, and the two would have drifted the first time
+`key_for` gained a field - §83's failure with a wider blast radius. A test
+asserts the two keys are equal instead, so that drift fails loudly.
+
+### Two things deliberately not done
+
+**No `cached_only` on the landing page.** It would make a share whose script
+had aged out refuse to play, and a broken link is worse than an episode that
+costs a model call. The exposure is stated rather than hidden: a publicly
+posted link can be opened by strangers, and the first one after an expiry pays
+for a script the rest then share.
+
+**No invented App Store URL.** `APP_STORE_URL` is unset on every deployment
+until the app ships. Empty, the page draws no non-listening control at all -
+not one that 404s, and not one quietly rerouted into the web app, which is the
+thing the page exists to not be. A control with nothing behind it is worse than
+no control, and a stranger arriving from LinkedIn is the worst possible
+audience for a dead button. `/api/health` reports both, because from inside the
+app the configured and unconfigured states look the same.
+
+And the payload carries **no `user_id`**. The share row has the listener id
+sitting next to the question, and this is the one response in the app handed to
+people who are not listeners - so authorship stays provenance and never
+identity (§95), asserted in two tests rather than left to review.
+
+### Getting §106 ready to merge
+
+The §101 audit, run again on this branch. One commit, `origin/Main` is an
+ancestor so it fast-forwards, working tree clean. No secrets, no `console.log`,
+no `pdb`, no hardcoded hosts, no model identifiers in anything pushed. **No
+schema migration at all** - the share row already held the question and the
+length, which is the whole reason the landing page needed no new concept, so
+§101's riskiest category does not arise here.
+
+Two things it did turn up.
+
+**§101's own finding, repeating.** `dev.sh` gained a preview build and a
+browser driver for the landing page; `.github/workflows/ci.yml` gained neither,
+so the thirteen behaviours that prove the page's *restriction* - play works and
+nothing else does - would have been enforced only on whoever happened to run
+the local loop. Added to the gate. The general form is worth restating because
+it has now cost two branches: **a check added to the local loop is not added to
+the gate**, and nothing keeps the two lists in step but somebody remembering.
+
+**A smoke behaviour was racing, and it was the test.** "The first run asks,
+then lets you in" failed once, during a run with three browsers going, on the
+handle field not cleaning what was typed into it. It was not the app:
+`cleanHandleInput` is a synchronous `oninput` handler with no debounce, and
+nothing re-enters `openIdentity` to clobber the field. It was `openIdentity`'s
+own autofocus - `setTimeout(... focus(), 80)` on the *name* field - landing in
+the middle of Playwright's fill of the *handle* field, which types into
+whatever holds focus. So the handle went into the name box and the assertion
+read an empty field.
+
+The fix waits for the autofocus to have landed before typing, which removes the
+race without weakening anything. Nine runs, three of them with all three
+browsers concurrent, are clean. Worth recording for the shape rather than the
+bug: **a screen that focuses something on a timer is a race against any test
+that types into it**, and the failure does not look like a focus problem - it
+looks like the field under test not doing its job.
+
+**Known and deliberately not fixed here.** The preview builds are still not
+reproducible (§101), because `build_preview.py` bakes `time.time()` into a
+fixture. `build_share_preview.py` does not, and rebuilding it is byte-identical
+- so the new artifact can be verified against its source even though the older
+two cannot.
+
+### The gate was red on `Main`, and had been for days
+
+The audit above was written believing CI was green. It was not: **every CI run
+on `Main` for at least ten merges had failed**, always on the same assertion -
+`tests/test_trending.py::test_one_refresh_serves_every_listener`, `assert 2 ==
+1`, "the feed was fetched per listener". This branch inherited it, so its first
+two runs were red for a reason that had nothing to do with sharing.
+
+Worth recording for how nearly it was dismissed. It passed locally - the whole
+suite, 1946 tests - and failed on CI every time, which is the exact shape of a
+thing you write off as an environment difference and stop looking at. The
+difference was the Python version: **3.11 locally, 3.12 in the gate**. Under
+3.12 the whole suite reproduces it, and `tests/test_trending.py` on its own
+passes under both. So it was order-dependent state, not a version bug.
+
+**The cause was `stories.reset()`, whose docstring said "drop everything" and
+did not drop the source registry.** The helper in `test_trending.py` resets and
+then registers `TrendingRegistrySignals`, so a second call through it was
+*appending* rather than replacing: two copies of the same source in `_SOURCES`,
+`stories.refresh()` collecting from both, and therefore two upstream fetches.
+Reproduced in eight lines outside pytest - one helper call gives one fetch, two
+give two.
+
+Three things in it are worth keeping:
+
+* **The failing test was right, and it was the right test.** It exists to guard
+  this row's economics - one fetch serves every listener, which is why Trending
+  is the cheapest place in FAM to put live data rather than the most expensive.
+  It reported one refresh becoming two per listener. That is precisely its job;
+  what it was catching was test pollution rather than a regression in the row,
+  but the number it printed was true either way.
+* **A partial reset is worse than no reset**, because it leaves the caller
+  believing they are starting clean. `reset` now clears `_SOURCES`, which is
+  safe because nothing in production calls it - sources are installed by
+  `story_sources.install`, and `reset` has only ever had test callers.
+* **A red gate protects nothing, and stops being read.** Ten merges went in
+  over a failing check. The cost is not the one test; it is that the next real
+  failure arrives on a board that is already red, and nobody looks.
+
+Fixed, with a guard in `test_stories.py` pinning that `reset` empties the
+registry, and the full suite verified green on **3.12** - the version the gate
+actually runs - as well as on 3.11.
+
+### And a second failure was hiding behind the first
+
+Fixing the trending pollution got CI past the **Tests** step for the first time
+in this branch's history - and the run promptly failed again, on a *different*
+check:
+
+    FAIL  Go Deeper titles are not cut off: Go Deeper tile cuts these titles
+          off: ['What happens to the grid operators when the subsidy expires
+          next year']
+
+Stated precisely, because the distinction matters: this was **not introduced
+here and was also not previously known**. Every recent CI run died at the Tests
+step, so **no run had ever reached the browser smoke tests at all**. The check
+has presumably been failing in the gate for as long as the trending one has;
+nobody could see it. That is the second-order cost of a red board, and it is
+worse than the first: a red check hides the checks behind it.
+
+It does not reproduce here, and the diagnostic added below is what said why.
+The gate reports:
+
+    worst: {'text': 'What happens to the grid operators...',
+            'scrollHeight': 53, 'clientHeight': 39}
+    rendered with: Fraunces, serif at 10.5px/13.125px (webfonts: loaded)
+
+39px is three lines at that line height and 53px is four. So on the runner the
+longest title wraps one line further than the tile allows, and it is **not
+marginal** - it is a whole line over.
+
+`Fraunces, serif` is the CSS stack, not proof that Fraunces rendered;
+`document.fonts.status` says loading *settled*, not that it succeeded. The
+most likely reading is therefore that the runner falls back to its own serif,
+which is wider than the one this container falls back to - which is also why
+blocking Google Fonts locally does **not** reproduce it. The other half of the
+difference is the browser: CI downloads Chromium 1243 (Chrome 153), this
+container has 1194, and it cannot be fetched from here.
+
+Note what that implies beyond the test, because it is the more interesting
+half: if the fallback really is what the runner draws, then **any listener
+whose browser does not get Fraunces sees these titles clipped too.** The check
+would then be reporting a real product fact rather than a CI quirk.
+
+**Deliberately not "fixed".** The ways to make it pass are to install the font
+on the runner, to pin the browser, to give the tile a fourth line, or to loosen
+the tolerance - and the last would weaken a guard that exists because a clipped
+headline actually shipped once. Given the reading above, the honest candidates
+are the third and a real decision about fallback fonts, neither of which is a
+thing to quietly patch in a branch about sharing. It belongs to whoever owns
+that guard.
+
+What was done instead is the part that is safe and was missing: **the failure
+now says what it measured** - the worst offender's scroll and client heights,
+the computed font, size and line height, and whether webfonts had settled.
+Nothing about what passes or fails changed. A layout assertion that can differ
+between machines has to report its measurement, or a failure on a machine you
+do not have is unactionable - which is exactly the position this one is in.

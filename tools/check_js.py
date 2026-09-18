@@ -15,7 +15,11 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TARGETS = [ROOT / "static" / "index.html"]
+TARGETS = [ROOT / "static" / "index.html",
+           # The share landing page. Its script is the only thing
+           # standing between a stranger and silence, and nothing else
+           # here opens it - the preview builds render the app.
+           ROOT / "static" / "listen.html"]
 PLAIN_JS = [ROOT / "static" / "fam-audio.js"]
 
 INLINE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)

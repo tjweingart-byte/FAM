@@ -125,6 +125,18 @@ def main() -> int:
             # password to change yet and nothing chosen to share.
             assert page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
                 "the editor's own rows are in the first run"
+            # Wait out the screen's own autofocus before typing. `openIdentity`
+            # focuses the name field on an 80ms timer, and Playwright's fill
+            # types into whatever holds focus - so a fill that straddles the
+            # timer puts the handle into the name box and this check fails with
+            # an empty field. It failed exactly once, during a run with three
+            # browsers going, which is what a race under load looks like.
+            # Waiting for the focus to have landed removes it without weakening
+            # anything below.
+            page.wait_for_function(
+                "document.activeElement"
+                " && document.activeElement.id === 'identityName'",
+                timeout=5000)
             page.fill("#identityName", "Smoke Tester")
             page.fill("#identityHandle", "@Smoke.Tester")
             # Stored lower-case and stripped, so it is shown that way while
@@ -295,7 +307,13 @@ def main() -> int:
                 # `<<NEXT: six to twelve words>>` - a thread card shows this raw.
                 "What happens to the grid operators when the subsidy expires next year"
             )
-            clipped = page.evaluate(
+            # Text metrics depend on the browser build and the fonts actually
+            # installed, so this check can pass on one machine and fail on
+            # another with the same markup. When it fails it therefore has to
+            # say *what it measured*, not only which titles lost - otherwise
+            # the reader cannot tell a real clipped headline from a machine
+            # rendering in a different font, and cannot reproduce either.
+            measured = page.evaluate(
                 """(xs) => {
                     var el = document.querySelector(".gd-card-title");
                     var original = el.textContent;
@@ -303,12 +321,29 @@ def main() -> int:
                         el.textContent = x;
                         return el.scrollHeight > el.clientHeight + 1;
                     });
+                    var worst = null;
+                    bad.forEach(function(x){
+                        el.textContent = x;
+                        if(!worst || el.scrollHeight > worst.scrollHeight){
+                            worst = {text: x, scrollHeight: el.scrollHeight,
+                                     clientHeight: el.clientHeight};
+                        }
+                    });
                     el.textContent = original;
-                    return bad;
+                    var style = getComputedStyle(el);
+                    return {bad: bad, worst: worst,
+                            font: style.fontFamily, size: style.fontSize,
+                            lineHeight: style.lineHeight,
+                            fonts: document.fonts ? document.fonts.status : "n/a"};
                 }""",
                 titles,
             )
-            assert not clipped, f"Go Deeper tile cuts these titles off: {clipped}"
+            assert not measured["bad"], (
+                f"Go Deeper tile cuts these titles off: {measured['bad']}\n"
+                f"  worst: {measured['worst']}\n"
+                f"  rendered with: {measured['font']} at {measured['size']}"
+                f"/{measured['lineHeight']} (webfonts: {measured['fonts']})"
+            )
 
         def go_deeper_fills_for_a_new_listener():
             """Four tiles even with no history - the case nobody develops in.

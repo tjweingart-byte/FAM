@@ -67,6 +67,14 @@ jobs:
       - name: Build the live phone preview
         run: python preview/build_live_preview.py
 
+      # The share landing page. Not part of either build above - those ship
+      # `static/index.html`, and this is the one surface that is deliberately
+      # not the app: one episode, and every other control a door to the App
+      # Store. §101 again, so it goes in the gate the same day it goes in
+      # `dev.sh` rather than a branch later.
+      - name: Build the share landing preview
+        run: python preview/build_share_preview.py
+
       # Drives the built preview in a real browser with no server at all:
       # every tab, and audio actually advancing. This is the check that would
       # have caught the reel bugs. Both builds are driven, because both ship.
@@ -76,6 +84,10 @@ jobs:
           python -m playwright install --with-deps chromium
           python tools/smoke_preview.py
           python tools/smoke_preview.py preview/fam-live.html
+          # The landing page's whole value is a restriction - play works and
+          # nothing else does - which passes every unit test while being
+          # broken on the page. So the buttons are pressed here too.
+          python tools/smoke_landing.py
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4
@@ -85,4 +97,5 @@ jobs:
             preview/fam-preview.html
             preview/fam-artifact.html
             preview/fam-live-artifact.html
+            preview/fam-share-landing.html
           retention-days: 30

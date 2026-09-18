@@ -1095,6 +1095,31 @@ the rest of this list it needs taste rather than a key.
   shown a fixture named "Commute" as though it were theirs, and **a control
   with nothing behind it is worse than no control**. `saved.py`'s filing is
   untouched, so putting folders back costs nothing anybody filed.
+- **A shared link lands on one episode, and play is the only thing that
+  works.** *(§106, `static/listen.html`, SHARING.md.)* `/s/<id>` used to
+  redirect into the web app, so somebody sent one episode arrived at a search
+  box, myFAM, Explore and a sign-up with their episode reduced to a query
+  string. It now serves a page whose every other control - the wordmark, "Ask
+  your own question", "Browse episodes", Get FAM - is a `data-door` to the App
+  Store, routed by one delegated listener so a control added later is a door
+  by default.
+  Three things hold it up. **It traces back with no new concept**: an episode
+  is identified by its cache key, `key_for` builds that key from the question
+  and the length, and a share row holds exactly those - so the page asking
+  `/api/audio` for them gets the sharer's own script out of the shared cache,
+  and a test asserts the two keys are equal so a new `key_for` field fails
+  loudly rather than silently costing a model call per open. **The head is
+  rendered server-side**, because Facebook and LinkedIn read the page for
+  their preview and run no JavaScript - until this existed every FAM link
+  posted anywhere previewed identically - and `og:image` is claimed only when
+  the card URL is absolute. And **the open count is reported by the page**,
+  never by the serve, because those same crawlers fetch the link and opens are
+  the only number sharing produces; the alternative is a user-agent list,
+  which is the shape §76 settled against.
+  `APP_STORE_URL` unset draws **no** non-listening control at all - not one
+  that 404s, not one rerouted into the app - and `/api/health` says which
+  state a deploy is in. The payload carries no `user_id`: this is the one
+  response in the app handed to people who are not listeners.
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
   share sheet, or a platform SDK hand-off where their app does the posting with
@@ -1354,8 +1379,8 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §104 is the
-most recent, and is the twenty-two-item review this branch answered), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §106 is the
+most recent, and is where a share link stopped handing strangers the whole app), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1382,8 +1407,29 @@ now says so out loud (PROBLEMS.md §49). The number is
 trusting this sentence: it has been wrong before, because a count written in
 prose does not fail when somebody adds a behaviour. (It is 45 as of §104.)
 
+**There is a third browser run, and it is not one of those two** (§106). The
+share landing page is a different page from `static/index.html` - one episode,
+and every other control a door to the App Store - so it has its own build
+(`preview/build_share_preview.py`) and its own driver
+(`tools/smoke_landing.py`), which prints `all N landing behaviours passed` and
+counts them rather than naming a number. A complete run therefore ends with
+that line as well. All three are in `.github/workflows/ci.yml` too: §101's
+finding is that a check added to the local loop is not added to the gate, and
+the two lists are still kept in step by hand.
+
 What is true but not obvious from the code:
 
+- **The gate runs a different Python from the build container**, and that gap
+  hid a failing test for days (§106). `.github/workflows/ci.yml` pins 3.12;
+  this container has 3.11. A green `./dev.sh check` is therefore not the same
+  claim as a green CI, and the difference showed up as order-dependent state
+  that only 3.12 exposed. If CI fails on something that passes here, build a
+  3.12 venv and run the whole suite in it before concluding anything about the
+  environment.
+- **Check that CI is actually green before trusting it.** It was red on `Main`
+  for at least ten merges (§106), always the same assertion, and a red board
+  stops being read. `mcp__github__actions_list` on `ci.yml` filtered to `Main`
+  answers it in one call.
 - There is **no API key** in the build container, so writing quality and
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing

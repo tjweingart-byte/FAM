@@ -25,7 +25,7 @@ from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response
 from fastapi.responses import (
-    JSONResponse, RedirectResponse, StreamingResponse)
+    HTMLResponse, JSONResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -980,6 +980,21 @@ async def health() -> dict:
         # on, and that is exactly the thing worth being able to ask.
         "quotas": {"enforced": quotas.settings_enforcing(),
                    "tiers": entitlements.catalogue()["tiers"]},
+        # Whether a share can actually leave this machine, and what a
+        # recipient finds when it does. Both are unset on a localhost run and
+        # both fail in ways nobody sees from inside the app: a share link that
+        # names no host is posted to LinkedIn as `/s/abc`, and a landing page
+        # with no App Store link draws no way to get FAM at all. Configured is
+        # not working, but for a URL it is the whole of it - there is nothing
+        # to call.
+        "sharing": {
+            "public_base_url": bool(settings.public_base_url),
+            "app_store_url": bool(settings.app_store_url),
+            # What a recipient can do besides listen. False is a deliberate
+            # state, not a misconfiguration - see `sharing.landing_doors`.
+            "landing_doors": sharing.landing_doors(settings.app_store_url),
+            "targets": list(sharing.TARGET_KEYS),
+        },
     }
 
 
@@ -1784,21 +1799,119 @@ async def share_card(request: Request,
                     headers={"Cache-Control": "public, max-age=3600"})
 
 
-@app.get("/s/{share_id}")
-async def share_open(share_id: str, request: Request):
-    """Where a shared link lands.
+@app.get("/api/share/{share_id}")
+async def share_read(share_id: str, request: Request) -> dict:
+    """One share, for anybody holding the link.
 
-    A redirect into the app with the question and length in the query string,
-    counting the open on the way past. The count is the only number sharing
-    produces and it is the one that says whether any of this does anything.
+    The API behind the landing page, and it exists separately from the page
+    for IOS_APP.md's first rule: every feature is an API before it is a
+    screen. A universal link opening the app has to resolve the same share the
+    web page resolves, and neither client should be reading the other's HTML
+    to do it.
+
+    Unauthenticated on purpose - a share link is public by construction, which
+    is the whole point of sending one. What it returns is therefore exactly
+    `sharing.landing_payload`, which carries no `user_id`: authorship is
+    provenance and never identity (PROBLEMS.md 95), and this is the one
+    response where the listener id sits right next to the data being handed
+    to a stranger.
     """
+    _read_limit(request)
     record = SHARES.get(share_id)
     if not record:
-        return RedirectResponse(url="/", status_code=302)
+        raise HTTPException(status_code=404, detail="No such share.")
+    return sharing.landing_payload(
+        record,
+        url=_share_url(share_id)[0],
+        card_url=_card_url(share_id),
+        app_store=settings.app_store_url,
+    )
+
+
+@app.post("/api/share/{share_id}/open")
+async def share_opened(share_id: str, request: Request) -> dict:
+    """Somebody actually looked at a shared episode.
+
+    Separate from serving the page, and that is the whole design. Facebook and
+    LinkedIn *fetch* a shared link to build their preview card, so counting
+    the HTML serve would produce a number made mostly of crawlers - and the
+    open count is the only number sharing produces, so a wrong one is worse
+    than none. Crawlers do not run the page's script; this is what the page
+    calls once it is running in front of a person.
+
+    The alternative - a list of crawler user agents - is the shape PROBLEMS.md
+    76 settled against: it can always be widened by one more entry, and the
+    next one it misses is already written.
+    """
+    _read_limit(request)
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
     SHARES.opened(share_id)
-    target = (f"/?q={quote(record['query'])}&minutes={record['minutes']}"
-              f"&from=share")
-    return RedirectResponse(url=target, status_code=302)
+    return {"ok": True}
+
+
+def _card_url(share_id: str) -> str:
+    """The story card, absolute where there is a host to make it absolute.
+
+    Open Graph images are fetched by a crawler on somebody else's server, so a
+    relative one is no image at all. Returning "" rather than a relative path
+    is what stops `landing_head` advertising a picture that never loads - the
+    same refusal `destination_for` already makes about the link itself.
+    """
+    base = settings.public_base_url
+    return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
+
+
+#: Read once. The landing page is one small file and re-reading it per request
+#: would be a disk hit in front of a stranger's first second of FAM - which is
+#: the second this product cares about most.
+_LANDING_TEMPLATE: str | None = None
+
+
+def _landing_template() -> str:
+    global _LANDING_TEMPLATE
+    if _LANDING_TEMPLATE is None:
+        _LANDING_TEMPLATE = (PROJECT_ROOT / "static" / "listen.html").read_text(
+            encoding="utf-8")
+    return _LANDING_TEMPLATE
+
+
+@app.get("/s/{share_id}")
+async def share_open(share_id: str, request: Request):
+    """Where a shared link lands: one episode, and no way into the rest.
+
+    **This used to redirect into the web app**, which handed a stranger the
+    whole product - search, myFAM, Explore, an account - when what they were
+    sent was one episode. The landing page is the opposite: the only control
+    that works is play, and everything else is a door to the App Store.
+
+    The episode is resolved with no new concept at all. A share row holds the
+    question and the length, `pipeline.key_for` builds the cache key from
+    exactly those, so the page asking `/api/audio` for them gets the sharer's
+    own script back out of the shared cache. There is no episode id in this
+    product and this did not add one; see the note in `sharing.py`.
+
+    A dead link still lands here rather than redirecting, because a page that
+    says the link has expired is a better answer than the front door of an app
+    the person did not ask for - and because a crawler following a stale
+    preview should get markup, not a bounce.
+
+    The open is not counted here. See `share_opened`.
+    """
+    record = SHARES.get(share_id)
+    payload = sharing.landing_payload(
+        record or {}, url=_share_url(share_id)[0],
+        card_url=_card_url(share_id) if record else "",
+        app_store=settings.app_store_url,
+    )
+    return HTMLResponse(
+        content=sharing.render_landing(_landing_template(), payload),
+        status_code=200 if record else 404,
+        # A share is one episode's worth of fixed text. Cacheable, but briefly:
+        # the title can be re-written when an episode is regenerated.
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @app.get("/api/entitlements")

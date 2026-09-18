@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Server-substituted. A crawler does not run JavaScript, so the title, the
+     description and the card have to be in the HTML that is sent - see
+     sharing.landing_head. Opened directly this file still parses; it just
+     describes nothing, which is why it is never linked to without an id. -->
+<title>Who Makes the Chips - FAM</title>
+  <meta name="description" content="why is semiconductor manufacturing so concentrated in taiwan - a 3-minute FAM episode.">
+  <meta property="og:site_name" content="FAM">
+  <meta property="og:type" content="music.song">
+  <meta property="og:title" content="Who Makes the Chips">
+  <meta property="og:description" content="why is semiconductor manufacturing so concentrated in taiwan - a 3-minute FAM episode.">
+  <meta property="og:url" content="https://fam.audio/s/preview-share">
+  <meta property="og:image" content="https://fam.audio/api/share/card?share=preview-share">
+  <meta property="og:image:width" content="1080">
+  <meta property="og:image:height" content="1920">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fam.audio/api/share/card?share=preview-share">
+  <meta name="twitter:title" content="Who Makes the Chips">
+  <meta name="twitter:description" content="why is semiconductor manufacturing so concentrated in taiwan - a 3-minute FAM episode.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* FAM's own palette, restated rather than imported. This page is served to
+     somebody who has never seen the app and may never load its stylesheet;
+     one file that renders on its own is the whole point of it. */
+  :root{
+    --ink:#18151F; --paper:#F4EFE4; --copper:#E0B563; --sage:#8FAE9A;
+    --muted:rgba(244,239,228,0.56); --line:rgba(244,239,228,0.14);
+    --coral:#E2694F;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; height:100%; }
+  body{
+    background:
+      radial-gradient(120% 70% at 18% 8%, rgba(224,181,99,0.14), transparent 60%),
+      linear-gradient(170deg, #2A2733 0%, #1E1B27 55%, #38334A 100%);
+    color:var(--paper); font-family:'Space Grotesk', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100%;
+  }
+  .stage{
+    max-width:520px; margin:0 auto; min-height:100vh; padding:28px 22px 40px;
+    display:flex; flex-direction:column;
+  }
+  .brand{
+    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700;
+    letter-spacing:0.34em; color:var(--copper); background:none; border:0;
+    padding:0; cursor:pointer; text-align:left; align-self:flex-start;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:10.5px;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--sage);
+    margin:34px 0 10px;
+  }
+  h1{
+    font-family:'Fraunces', Georgia, serif; font-weight:600; font-size:31px;
+    line-height:1.18; margin:0 0 12px; color:var(--paper);
+  }
+  .ask{
+    font-size:14.5px; line-height:1.5; color:var(--muted); margin:0 0 4px;
+  }
+  .meta{
+    font-family:'JetBrains Mono', monospace; font-size:11px;
+    letter-spacing:0.08em; color:var(--copper); margin:14px 0 0;
+  }
+
+  .player{ margin:34px 0 0; }
+  .transport{ display:flex; align-items:center; gap:16px; }
+  .play{
+    width:74px; height:74px; flex:0 0 74px; border-radius:50%;
+    border:0; background:var(--copper); color:var(--ink); cursor:pointer;
+    font-size:26px; line-height:1; display:flex; align-items:center;
+    justify-content:center; transition:transform 0.12s ease;
+  }
+  .play:active{ transform:scale(0.95); }
+  .play[disabled]{ opacity:0.45; cursor:default; }
+  .skip{
+    background:none; border:1px solid var(--line); color:var(--paper);
+    border-radius:20px; padding:9px 13px; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:11px;
+  }
+  .skip[disabled]{ opacity:0.35; cursor:default; }
+
+  .bar{
+    margin:22px 0 8px; height:22px; display:flex; align-items:center;
+    cursor:pointer; touch-action:none;
+  }
+  .track{
+    position:relative; height:4px; width:100%; border-radius:3px;
+    background:rgba(244,239,228,0.16);
+  }
+  .fill{
+    position:absolute; left:0; top:0; bottom:0; width:0;
+    border-radius:3px; background:var(--copper);
+  }
+  .knob{
+    position:absolute; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px;
+    border-radius:50%; background:var(--paper); left:0;
+  }
+  .times{
+    display:flex; justify-content:space-between;
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  }
+  .status{
+    min-height:20px; margin:18px 0 0; font-size:13px; line-height:1.45;
+    color:var(--sage);
+  }
+  .status.bad{ color:var(--coral); }
+
+  .doors{ margin-top:auto; padding-top:40px; }
+  .doors p{
+    font-size:13.5px; line-height:1.5; color:var(--muted); margin:0 0 14px;
+  }
+  .door{
+    display:block; width:100%; text-align:center; cursor:pointer;
+    font-family:'Space Grotesk', sans-serif; font-size:15px; font-weight:600;
+    padding:15px 18px; border-radius:14px; border:0; margin:0 0 10px;
+    background:var(--paper); color:var(--ink);
+  }
+  .door.quiet{
+    background:none; border:1px solid var(--line); color:var(--paper);
+    font-weight:500; font-size:14px;
+  }
+  .footnote{
+    margin:18px 0 0; font-size:12px; line-height:1.5; color:var(--muted);
+  }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <!-- Every control on this page except play is a door to the App Store,
+         including the wordmark. `data-door` is what makes it one. -->
+    <button class="brand" data-door="wordmark" type="button">FAM</button>
+
+    <p class="eyebrow" id="eyebrow">Shared with you</p>
+    <h1 id="title">A FAM episode</h1>
+    <p class="ask" id="ask"></p>
+    <p class="meta" id="meta"></p>
+
+    <div class="player">
+      <div class="transport">
+        <button class="play" id="play" type="button" aria-label="Play">&#9654;</button>
+        <button class="skip" id="back" type="button" disabled>&#8630; 15</button>
+        <button class="skip" id="fwd" type="button" disabled>15 &#8631;</button>
+      </div>
+      <div class="bar" id="bar" role="slider" aria-label="Position" tabindex="0">
+        <div class="track"><div class="fill" id="fill"></div><div class="knob" id="knob"></div></div>
+      </div>
+      <div class="times"><span id="now">0:00</span><span id="len">--:--</span></div>
+      <p class="status" id="status"></p>
+    </div>
+
+    <section class="doors" id="doors" hidden></section>
+  </main>
+
+<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true};</script>
+<script>
+/*
+ * FamAudio - streaming speech with transport controls.
+ *
+ * The first version scheduled each incoming chunk and forgot it, which is the
+ * cheapest way to play a live stream but makes seeking impossible: there is
+ * nothing behind you to go back to. This version keeps every sample it has
+ * received in a growing buffer and drives playback from a position cursor, so
+ * skip, scrub and speed changes all work on audio that is still arriving.
+ *
+ * Samples are kept as Int16 (about 2.6 MB per minute) and converted to float
+ * only for the short slice being scheduled, which halves the memory a long
+ * episode would otherwise hold.
+ *
+ * Public surface:
+ *   FamAudio.play(query, minutes, handlers)
+ *   FamAudio.pause() / resume() / stop() / isPaused()
+ *   FamAudio.skip(seconds)          - relative, negative to go back
+ *   FamAudio.seek(seconds)          - absolute
+ *   FamAudio.setRate(multiplier)    - 1 = normal, 1.5 = half again as fast
+ *   FamAudio.setPitchLock(bool)     - keep the voice's pitch when speed changes
+ *   FamAudio.position() / duration() / isActive()
+ */
+window.FamAudio = (function () {
+  "use strict";
+
+  // How far ahead of the clock to keep audio scheduled, and how much to
+  // schedule at once. Short slices keep seek and rate changes responsive.
+  var LOOKAHEAD = 0.35;
+  var SLICE = 0.25;
+  // While the episode is still being written, never seek closer than this to
+  // the end of what has arrived. Landing exactly on the edge starves the
+  // player: nothing is left to schedule, playback stops dead, and further
+  // skips appear to do nothing because the cursor is already pinned there.
+  var TAIL_MARGIN = 2.0;
+
+  var ctx = null;
+  var controller = null;
+  var timer = null;
+  var handlers = {};
+  var token = 0;
+
+  var pcm = null;          // Int16Array, grown as the stream arrives
+  var totalSamples = 0;    // how much of `pcm` is real audio
+  var sampleRate = 22050;
+  var cursor = 0;          // next sample to schedule
+  var playHead = 0;        // ctx time at which `cursor` will be heard
+  var rate = 1;
+  var sources = [];
+  var streamDone = false;
+  var ended = false;
+  var active = false;
+
+  /* ---- Speed without pitch -------------------------------------------
+   *
+   * `playbackRate` on a buffer source resamples: 1.5x speech comes back a
+   * fifth higher, which on a voice this app spent a year choosing is the
+   * wrong trade. So above 1x and below it, the samples are time-stretched
+   * instead - WSOLA, the standard overlap-add with the next frame nudged to
+   * wherever it correlates best, which is what keeps a vowel from doubling
+   * and a consonant from stuttering.
+   *
+   * It is switchable, and 1x costs nothing: at exactly normal speed the
+   * stretcher is bypassed and the samples are scheduled as they always were.
+   *
+   * The accounting below is unchanged and that is the point. One second of
+   * wall clock still consumes `rate * sampleRate` source samples - WSOLA
+   * advances its read pointer by exactly that - so `positionSamples`, seek,
+   * the scrub bar and TAIL_MARGIN all keep working without knowing this
+   * exists. The only difference is that the buffer handed to Web Audio is
+   * already the right length, so the node itself plays at 1.
+   */
+  var pitchLock = true;
+  //: Analysis/synthesis frame, about 46ms at 22.05kHz. Long enough to hold a
+  //: pitch period of any adult voice, short enough not to smear a plosive.
+  var FRAME = 1024;
+  var HOP = FRAME >> 1;
+  //: How far WSOLA may slide a frame to find the best splice, and how coarse
+  //: the search is. Both are a deliberate quality-for-CPU trade: a full
+  //: sample-by-sample search over the whole overlap is ~20x this work for a
+  //: difference nobody has reported hearing, and this runs on a phone on the
+  //: main thread while an episode is still downloading.
+  var SEEK_RADIUS = 160;
+  var SEEK_STEP = 4;
+  var CORR_STEP = 4;
+  //: Hann window, built once. Rebuilt never: FRAME is a constant.
+  var WINDOW = (function () {
+    var w = new Float32Array(FRAME);
+    for (var i = 0; i < FRAME; i++) {
+      w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FRAME);
+    }
+    return w;
+  })();
+  //: The half-frame carried from the last overlap-add, the fractional read
+  //: position, and where the previous frame was actually taken from. Cleared
+  //: on every seek and every rate change, because both invalidate the splice.
+  var olaTail = null;
+  var olaRead = 0;
+  var olaPrev = 0;
+
+  function resetStretch(fromSample) {
+    olaTail = null;
+    olaRead = fromSample;
+    olaPrev = fromSample;
+  }
+
+  function reset() {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (controller) { try { controller.abort(); } catch (e) {} controller = null; }
+    stopSources();
+    if (ctx) { var c = ctx; ctx = null; c.close().catch(function () {}); }
+    pcm = null; totalSamples = 0; cursor = 0; playHead = 0;
+    streamDone = false; ended = false; active = false; rate = 1;
+    resetStretch(0);
+  }
+
+  function stopSources() {
+    for (var i = 0; i < sources.length; i++) {
+      try { sources[i].onended = null; sources[i].stop(); } catch (e) {}
+    }
+    sources = [];
+  }
+
+  function append(int16) {
+    if (!pcm) pcm = new Int16Array(sampleRate * 60);
+    if (totalSamples + int16.length > pcm.length) {
+      var bigger = new Int16Array(Math.max(pcm.length * 2, totalSamples + int16.length));
+      bigger.set(pcm.subarray(0, totalSamples), 0);
+      pcm = bigger;
+    }
+    pcm.set(int16, totalSamples);
+    totalSamples += int16.length;
+  }
+
+  /* Current playback position in samples, derived from the audio clock so it
+     stays correct across pauses (a suspended context stops advancing). */
+  function positionSamples() {
+    if (!ctx) return 0;
+    var aheadSeconds = Math.max(0, playHead - ctx.currentTime);
+    return Math.max(0, cursor - aheadSeconds * rate * sampleRate);
+  }
+
+  /* Whether the stretcher is doing anything. At 1x it is not, and the old
+     path runs exactly as it did - which is also what makes this safe to
+     switch off. */
+  function stretching() {
+    return pitchLock && Math.abs(rate - 1) > 0.01;
+  }
+
+  /* Where the next frame reads best from, within SEEK_RADIUS of where the
+     clock says it should. The template is the source that would have followed
+     the previous frame had we not skipped ahead, so the splice is chosen to
+     continue the waveform rather than to land on a grid. */
+  function bestOffset(want) {
+    var template = olaPrev + HOP;
+    var best = want, bestScore = -Infinity;
+    var lo = Math.max(0, want - SEEK_RADIUS);
+    var hi = Math.min(totalSamples - FRAME, want + SEEK_RADIUS);
+    if (template + HOP > totalSamples || hi < lo) return Math.max(0, Math.min(want, hi));
+    for (var at = lo; at <= hi; at += SEEK_STEP) {
+      var score = 0;
+      for (var i = 0; i < HOP; i += CORR_STEP) {
+        score += pcm[template + i] * pcm[at + i];
+      }
+      if (score > bestScore) { bestScore = score; best = at; }
+    }
+    return best;
+  }
+
+  /* One block of time-stretched output, or null when there is not enough
+     source to make one yet. Advances `cursor` by the source it consumed, so
+     everything above this function keeps counting in source samples. */
+  function stretchedBlock() {
+    var frames = Math.max(1, Math.round(SLICE * sampleRate / HOP));
+    var out = new Float32Array(frames * HOP);
+    var step = HOP * rate;          // source consumed per synthesis hop
+    var wrote = 0;
+
+    for (var f = 0; f < frames; f++) {
+      var want = Math.round(olaRead);
+      var take = want, pad = false;
+      if (want + FRAME > totalSamples) {
+        // Not enough source for a whole frame. Mid-stream that means wait;
+        // at the end of the episode it means finish on what is left, zero
+        // padded, rather than clipping the last word.
+        if (!streamDone) break;
+        if (want >= totalSamples) break;
+        pad = true;
+      } else {
+        take = bestOffset(want);
+      }
+
+      var head = olaTail || new Float32Array(HOP);
+      var tail = new Float32Array(HOP);
+      for (var i = 0; i < FRAME; i++) {
+        var at = take + i;
+        var sample = at < totalSamples ? (pcm[at] / 32768) * WINDOW[i] : 0;
+        if (i < HOP) { head[i] += sample; } else { tail[i - HOP] = sample; }
+      }
+      out.set(head, wrote);
+      wrote += HOP;
+      olaTail = tail;
+      olaPrev = take;
+      olaRead += step;
+      if (pad) { olaRead = totalSamples; break; }
+    }
+
+    if (!wrote) return null;
+    var buf = ctx.createBuffer(1, wrote, sampleRate);
+    buf.getChannelData(0).set(out.subarray(0, wrote));
+    cursor = Math.max(cursor, Math.min(totalSamples, Math.round(olaRead)));
+    return buf;
+  }
+
+  /* One block of plain output: the samples as they are, played by the node at
+     `rate`. What this did before the stretcher existed. */
+  function plainBlock() {
+    var end = Math.min(cursor + Math.floor(SLICE * sampleRate), totalSamples);
+    var length = end - cursor;
+    if (length <= 0) return null;
+    var buf = ctx.createBuffer(1, length, sampleRate);
+    var out = buf.getChannelData(0);
+    for (var i = 0; i < length; i++) out[i] = pcm[cursor + i] / 32768;
+    cursor = end;
+    return buf;
+  }
+
+  /* Keep the clock fed. Runs on a timer so it also picks up newly arrived
+     audio after the buffer has run dry. */
+  function tick() {
+    if (!ctx || !active) return;
+
+    while (playHead - ctx.currentTime < LOOKAHEAD && cursor < totalSamples) {
+      var stretch = stretching();
+      var buf = stretch ? stretchedBlock() : plainBlock();
+      if (!buf) break;
+
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      // Already the right length when stretched, so the node plays it
+      // straight; resampled by the node otherwise.
+      src.playbackRate.value = stretch ? 1 : rate;
+      src.connect(ctx.destination);
+
+      var when = Math.max(playHead, ctx.currentTime + 0.02);
+      src.start(when);
+      sources.push(src);
+      src.onended = (function (node) {
+        return function () {
+          var idx = sources.indexOf(node);
+          if (idx >= 0) sources.splice(idx, 1);
+        };
+      })(src);
+
+      playHead = when + buf.duration / (stretch ? 1 : rate);
+    }
+
+    if (!ended && streamDone && cursor >= totalSamples && ctx.currentTime >= playHead - 0.05) {
+      ended = true;
+      active = false;
+      if (handlers.onEnd) handlers.onEnd();
+    }
+  }
+
+  /* Restart scheduling from `sample`, discarding anything already queued.
+     Used by seek and by rate changes, which both invalidate the queue. */
+  function rescheduleFrom(sample) {
+    if (!ctx) return;
+    stopSources();
+    cursor = Math.max(0, Math.min(Math.floor(sample), totalSamples));
+    // The carried half-frame belongs to audio that is no longer going to be
+    // heard. Keeping it would overlap-add the old position onto the new one,
+    // which is a click on every seek and every speed change.
+    resetStretch(cursor);
+    playHead = ctx.currentTime;
+    ended = false;
+    tick();
+  }
+
+  function play(query, minutes, h, context, voice, listener) {
+    handlers = h || {};
+    stop();
+    var myToken = ++token;
+    active = true;
+
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    controller = new AbortController();
+    timer = setInterval(tick, 80);
+    resetStretch(0);
+
+    var url = "/api/audio?q=" + encodeURIComponent(query) +
+              "&minutes=" + encodeURIComponent(minutes) + "&fmt=pcm" +
+              (context ? "&context=" + encodeURIComponent(context) : "") +
+              (voice ? "&voice=" + encodeURIComponent(voice) : "") +
+              // What they tapped, so myFAM can rank. *Who* is listening is no
+              // longer sent: it comes from the session cookie, which rides
+              // along automatically and cannot be set by this script.
+              // The play is still recorded from the audio request rather than
+              // a separate call, because a play that reached the server is a
+              // fact and a client-side report of one is a claim.
+              (listener && listener.topicId ? "&topic_id=" + encodeURIComponent(listener.topicId) : "") +
+              // Explore replays only. The server refuses to generate on a miss,
+              // so a stale card costs a 409 rather than a model call.
+              (listener && listener.cachedOnly ? "&cached_only=true" : "") +
+              // Documents, photos and links the listener attached. Sent as ids
+              // because the text was extracted when they were added - the
+              // generation path never parses a file or fetches a page.
+              (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "");
+
+    ctx.resume().then(function () {
+      return fetch(url, { signal: controller.signal });
+    }).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () {
+          return { error: "Request failed (" + res.status + ")" };
+        }).then(function (body) {
+          var err = new Error(body.error || "Request failed");
+          // A refusal is not all the same kind of "no". The server says which
+          // limit said it and, for an allowance, what the limit was and when
+          // it comes back - so the interface can raise the limit screen
+          // instead of flashing a toast the listener cannot act on.
+          err.status = res.status;
+          err.refusedBy = body.refused_by || "";
+          err.quota = body.quota || null;
+          throw err;
+        });
+      }
+      sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+
+      var reader = res.body.getReader();
+      var leftover = new Uint8Array(0);
+      var received = 0;
+      var first = true;
+
+      function pump() {
+        return reader.read().then(function (r) {
+          if (myToken !== token) return;
+          if (r.done) {
+            streamDone = true;
+            if (received === 0) throw new Error("The server sent an empty briefing.");
+            return;
+          }
+          received += r.value.length;
+
+          // A 16-bit sample can straddle a chunk boundary; carry the odd byte.
+          var bytes = r.value;
+          if (leftover.length) {
+            var merged = new Uint8Array(leftover.length + bytes.length);
+            merged.set(leftover, 0); merged.set(bytes, leftover.length);
+            bytes = merged;
+          }
+          var usable = bytes.length - (bytes.length % 2);
+          leftover = bytes.slice(usable);
+          if (usable) {
+            append(new Int16Array(
+              bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
+            if (first) {
+              first = false;
+              playHead = ctx.currentTime;
+              tick();
+              if (handlers.onFirstAudio) handlers.onFirstAudio();
+            }
+          }
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      if (err && err.name === "AbortError") return;
+      if (myToken !== token) return;
+      active = false;
+      if (handlers.onError) handlers.onError(err);
+    });
+  }
+
+  /* Play from samples this device already holds, rather than from the network.
+     What a downloaded episode is: the same Int16 buffer the streaming path
+     builds, handed over whole instead of arriving in pieces. Everything below
+     the buffer - the cursor, the scheduler, seek, rate - is untouched, which is
+     why offline playback cannot drift from online playback. */
+  function playStored(samples, rate, h) {
+    handlers = h || {};
+    stop();
+    var myToken = ++token;
+    active = true;
+
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    timer = setInterval(tick, 80);
+    resetStretch(0);
+    sampleRate = Number(rate) || 22050;
+    pcm = samples;
+    totalSamples = samples.length;
+    streamDone = true;   // there is no more coming; it is all already here
+
+    ctx.resume().then(function () {
+      if (myToken !== token) return;
+      playHead = ctx.currentTime;
+      tick();
+      if (handlers.onFirstAudio) handlers.onFirstAudio();
+    }).catch(function (err) {
+      if (myToken !== token) return;
+      active = false;
+      if (handlers.onError) handlers.onError(err);
+    });
+  }
+
+  /* Stream an episode and hand back everything that arrived, for storing.
+     Deliberately a separate entry point from `play`: downloading and
+     listening are different acts, and a listener who taps download is not
+     asking to hear it now. */
+  function fetchAll(url, onProgress) {
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("Could not fetch that episode.");
+      var rate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      var reader = res.body.getReader();
+      var chunks = [];
+      var total = 0;
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) return;
+          chunks.push(r.value);
+          total += r.value.length;
+          if (onProgress) onProgress(total);
+          return pump();
+        });
+      }
+      return pump().then(function () {
+        var bytes = new Uint8Array(total);
+        var at = 0;
+        chunks.forEach(function (c) { bytes.set(c, at); at += c.length; });
+        // Trim an odd trailing byte: a 16-bit sample cannot be half stored.
+        var usable = bytes.length - (bytes.length % 2);
+        return { rate: rate, samples: new Int16Array(
+          bytes.buffer.slice(0, usable)) };
+      });
+    });
+  }
+
+  function pause() { if (ctx && ctx.state === "running") ctx.suspend(); }
+  function resume() { if (ctx && ctx.state === "suspended") ctx.resume(); }
+  function isPaused() { return !!ctx && ctx.state === "suspended"; }
+
+  function stop() { token++; reset(); }
+
+  /* The furthest point that can be played right now. Once the whole episode
+     has arrived that is its end; while it is still streaming, stop short so
+     there is always audio left to keep playing. */
+  function seekLimit() {
+    var have = totalSamples / sampleRate;
+    return streamDone ? have : Math.max(0, have - TAIL_MARGIN);
+  }
+
+  function seek(seconds) {
+    if (!ctx || !totalSamples) return 0;
+    var target = Math.max(0, Math.min(seconds, seekLimit()));
+    rescheduleFrom(target * sampleRate);
+    return cursor / sampleRate;
+  }
+
+  function skip(seconds) {
+    if (!ctx || !totalSamples) return 0;
+    return seek(positionSamples() / sampleRate + seconds);
+  }
+
+  function setRate(multiplier) {
+    multiplier = Math.max(0.5, Math.min(3, Number(multiplier) || 1));
+    if (!ctx) { rate = multiplier; return; }
+    var here = positionSamples();
+    rate = multiplier;
+    rescheduleFrom(here);
+  }
+
+  /* Speed with the voice left alone, or speed the cheap way. On by default.
+     Kept switchable rather than assumed: WSOLA is a very good approximation
+     and not a free one, and a listener who prefers the resampled sound - or a
+     device that cannot keep up with it - has somewhere to go. */
+  function setPitchLock(on) {
+    var want = !!on;
+    if (want === pitchLock) return;
+    pitchLock = want;
+    if (!ctx) return;
+    rescheduleFrom(positionSamples());
+  }
+
+  return {
+    play: play,
+    // Offline playback, from samples already on this device.
+    playStored: playStored,
+    fetchAll: fetchAll,
+    pause: pause,
+    resume: resume,
+    isPaused: isPaused,
+    stop: stop,
+    skip: skip,
+    seek: seek,
+    setRate: setRate,
+    // Speed without changing the pitch of the voice. On by default.
+    setPitchLock: setPitchLock,
+    isPitchLocked: function () { return pitchLock; },
+    // How far the listener may currently skip to, in seconds.
+    seekLimit: seekLimit,
+    getRate: function () { return rate; },
+    position: function () { return positionSamples() / sampleRate; },
+    // Seconds of audio received so far. Grows while the episode streams.
+    duration: function () { return totalSamples / sampleRate; },
+    isActive: function () { return active; },
+    // True once the whole episode has been received.
+    isComplete: function () { return streamDone; },
+  };
+})();
+
+</script>
+<script>
+(function () {
+  "use strict";
+
+  // The server put this here. Opened as a bare file there is no episode, and
+  // the page says so rather than drawing a play button over nothing.
+  var share = window.FAM_SHARE || null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $("status");
+
+  function say(text, bad) {
+    statusEl.textContent = text || "";
+    statusEl.className = bad ? "status bad" : "status";
+  }
+
+  function clock(seconds) {
+    if (!isFinite(seconds) || seconds < 0) seconds = 0;
+    var m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  if (!share || !share.question) {
+    $("eyebrow").textContent = "Nothing to play";
+    $("title").textContent = "This link has expired";
+    say("Ask FAM anything of your own and it will make you an episode.", true);
+    $("play").disabled = true;
+    return;
+  }
+
+  // --- what it is ---------------------------------------------------------
+  $("title").textContent = share.title || "A FAM episode";
+  $("ask").textContent = share.question;
+  $("meta").textContent = share.minutes + " min listen";
+
+  // --- the open count -----------------------------------------------------
+  // Counted from the page rather than from the request that served it, and
+  // deliberately. Facebook and LinkedIn *fetch* a shared link to build their
+  // preview card, so counting the HTML serve would report a number made
+  // mostly of crawlers. They do not run this script. The alternative - a list
+  // of crawler user agents - is the shape PROBLEMS.md 76 settled against: it
+  // can always be widened by one more entry, and the next one it misses is
+  // already written.
+  try {
+    fetch("/api/share/" + encodeURIComponent(share.id) + "/open",
+          { method: "POST", credentials: "same-origin" })
+      .catch(function () { /* a count is not worth a visible failure */ });
+  } catch (err) { /* same */ }
+
+  // --- the doors ----------------------------------------------------------
+  // Everything that is not play. Drawn only when there is somewhere for them
+  // to go: with no APP_STORE_URL this page is the player and nothing else,
+  // because a control with nothing behind it is worse than no control.
+  var doors = $("doors");
+  if (share.has_app) {
+    doors.hidden = false;
+    doors.innerHTML =
+      '<p>This is one episode. FAM makes them about anything you ask.</p>' +
+      '<button class="door" data-door="get" type="button">Get FAM</button>' +
+      '<button class="door quiet" data-door="ask" type="button">Ask your own question</button>' +
+      '<button class="door quiet" data-door="browse" type="button">Browse episodes</button>';
+  } else {
+    doors.hidden = false;
+    doors.innerHTML =
+      '<p class="footnote">FAM makes an episode about anything you ask. ' +
+      'The app is not out yet - this link plays the episode you were sent.</p>';
+  }
+
+  // One delegated handler, so a control added later is a door by default
+  // rather than by remembering to wire it. Play is not in here at all.
+  document.addEventListener("click", function (event) {
+    var el = event.target.closest ? event.target.closest("[data-door]") : null;
+    if (!el) return;
+    event.preventDefault();
+    if (!share.app_store) return;   // cannot happen while has_app draws them
+    window.location.href = share.app_store;
+  });
+
+  // --- listening ----------------------------------------------------------
+  var playing = false, started = false, ended = false;
+  var playBtn = $("play"), fill = $("fill"), knob = $("knob");
+  var bar = $("bar"), dragging = false;
+
+  function setIcon() {
+    playBtn.innerHTML = playing ? "&#10073;&#10073;" : "&#9654;";
+    playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+
+  function draw() {
+    var limit = window.FamAudio.seekLimit();
+    var planned = share.minutes * 60;
+    var have = window.FamAudio.duration();
+    var total = window.FamAudio.isComplete() ? have : Math.max(have, planned);
+    var at = window.FamAudio.position();
+    var pct = total > 0 ? Math.max(0, Math.min(1, at / total)) : 0;
+    fill.style.width = (pct * 100) + "%";
+    knob.style.left = (pct * 100) + "%";
+    $("now").textContent = clock(at);
+    $("len").textContent = clock(total);
+    $("back").disabled = $("fwd").disabled = !started || limit <= 0;
+  }
+
+  function start() {
+    started = true; ended = false;
+    say("Starting the episode…");
+    window.FamAudio.play(share.question, share.minutes, {
+      onFirstAudio: function () { say(""); },
+      onEnd: function () {
+        playing = false; ended = true; setIcon(); draw();
+        say("That's the episode.");
+      },
+      onError: function (err) {
+        // Failures must be visible. A stranger who pressed play and heard
+        // silence has no way to tell a broken deployment from a broken app.
+        playing = false; started = false; setIcon();
+        say((err && err.message) ||
+            "That episode could not be played just now.", true);
+      }
+    });
+    playing = true; setIcon();
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (!started || ended) { start(); return; }
+    if (playing) { window.FamAudio.pause(); playing = false; }
+    else { window.FamAudio.resume(); playing = true; }
+    setIcon();
+  });
+
+  $("back").addEventListener("click", function () { window.FamAudio.skip(-15); draw(); });
+  $("fwd").addEventListener("click", function () { window.FamAudio.skip(15); draw(); });
+
+  // Drag as well as tap, and clamped to what has actually been written -
+  // the episode is still being generated while it plays.
+  function seekFromEvent(event) {
+    if (!started) return;
+    var box = bar.getBoundingClientRect();
+    var x = (event.touches ? event.touches[0].clientX : event.clientX) - box.left;
+    var pct = box.width > 0 ? Math.max(0, Math.min(1, x / box.width)) : 0;
+    var planned = share.minutes * 60;
+    var have = window.FamAudio.duration();
+    var total = window.FamAudio.isComplete() ? have : Math.max(have, planned);
+    window.FamAudio.seek(pct * total);
+    draw();
+  }
+  bar.addEventListener("mousedown", function (e) { dragging = true; seekFromEvent(e); });
+  document.addEventListener("mousemove", function (e) { if (dragging) seekFromEvent(e); });
+  document.addEventListener("mouseup", function () { dragging = false; });
+  bar.addEventListener("touchstart", function (e) { seekFromEvent(e); }, { passive: true });
+  bar.addEventListener("touchmove", function (e) { seekFromEvent(e); }, { passive: true });
+
+  setInterval(draw, 200);
+  draw();
+})();
+</script>
+
+<script>
+/* The two things a published page cannot do. Same silence generator as the
+   other preview builds, so the transport, the scrub bar and the clock behave
+   exactly as they do against a real server - only the voice is missing. */
+(function () {
+  var SAMPLE_RATE = 24000;
+  var realFetch = window.fetch.bind(window);
+  function silence(seconds) {
+    var total = Math.round(seconds * SAMPLE_RATE), sent = 0;
+    var stream = new ReadableStream({
+      pull: function (c) {
+        if (sent >= total) { c.close(); return; }
+        var n = Math.min(SAMPLE_RATE, total - sent);
+        sent += n;
+        c.enqueue(new Uint8Array(n * 2));
+        return new Promise(function (r) { setTimeout(r, 60); });
+      }
+    });
+    return Promise.resolve(new Response(stream, {
+      status: 200,
+      headers: { "Content-Type": "audio/L16", "X-Sample-Rate": String(SAMPLE_RATE) }
+    }));
+  }
+  window.fetch = function (input, init) {
+    var url = typeof input === "string" ? input : (input && input.url) || "";
+    if (url.indexOf("/api/audio") === 0) {
+      var qs = new URLSearchParams(url.split("?")[1] || "");
+      return silence(Math.max(1, Number(qs.get("minutes") || 1)) * 60);
+    }
+    if (url.indexOf("/api/share/") === 0) {
+      return Promise.resolve(new Response('{"ok":true}',
+        { status: 200, headers: { "Content-Type": "application/json" } }));
+    }
+    return realFetch(input, init);
+  };
+})();
+</script>
+<div style="position:fixed;left:0;right:0;bottom:0;z-index:99;padding:7px 12px;
+            background:#18151F;color:#ABA3C4;font:10px/1.4 'JetBrains Mono',monospace;
+            text-align:center;border-top:1px solid rgba(244,239,228,0.14)">
+  PREVIEW - the page is real, the voice is silence. A server speaks it.
+</div>
+</body>
+</html>
