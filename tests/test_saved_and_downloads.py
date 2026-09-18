@@ -1,4 +1,4 @@
-"""Save for later and download - which are deliberately not the same thing."""
+"""Save for later: a pointer to an episode, and the toggle that makes one."""
 from __future__ import annotations
 
 import os
@@ -8,23 +8,12 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import entitlements
 import saved as saved_mod
 
 
 @pytest.fixture
 def store(tmp_path):
     return saved_mod.SavedStore(str(tmp_path / "saved.db"))
-
-
-@pytest.fixture
-def small(monkeypatch):
-    monkeypatch.setenv("FREE_MAX_DOWNLOADS", "2")
-    entitlements.reload_tiers()
-    yield
-    for name in entitlements.LIMIT_ENVIRONMENT:
-        monkeypatch.delenv(name, raising=False)
-    entitlements.reload_tiers()
 
 
 # --- saving ---------------------------------------------------------------
@@ -95,112 +84,50 @@ def test_a_folder_needs_a_name(store):
         store.create_folder("u", "   ")
 
 
-# --- downloads ------------------------------------------------------------
+# --- the toggle -----------------------------------------------------------
+#
+# Save is a toggle now, pressed in the player, so the pair it acts on is the
+# question and the length - the script cache's key - and never a row id the
+# player does not have.
 
-def test_a_saved_episode_is_not_downloaded_until_it_is_asked_for(store):
-    """The whole distinction. Save for later is a pointer and needs the
-    internet; download is the audio on the device."""
-    item = store.save("u", "why bonds move", 3)
-    assert item.downloaded is False
-    assert store.download_status("u", "free")["used"] == 0
-
-
-def test_downloading_takes_a_slot_and_releasing_gives_it_back(store, small):
-    item = store.save("u", "why bonds move", 3)
-    store.reserve_download("u", item.id, "free")
-    assert store.download_status("u", "free")["remaining"] == 1
-    assert store.release_download("u", item.id) is True
-    assert store.download_status("u", "free")["remaining"] == 2
+def test_unsaving_by_question_and_length_takes_it_off_the_shelf(store):
+    store.save("u", "why bonds move", 3)
+    assert store.unsave("u", "why bonds move", 3) is True
+    assert store.find("u", "why bonds move", 3) is None
 
 
-def test_releasing_a_download_keeps_the_episode_saved(store, small):
-    """"I need the space" and "I am not interested any more" are different
-    requests, and merging them loses somebody's list while they tidy their
-    phone."""
-    item = store.save("u", "why bonds move", 3)
-    store.reserve_download("u", item.id, "free")
-    store.release_download("u", item.id)
-    assert len(store.items("u")) == 1
-    assert store.item("u", item.id).downloaded is False
+def test_unsaving_matches_the_length_as_well_as_the_question(store):
+    """Two lengths of one question are two episodes - that is what the cache
+    key says - so un-pressing save on one must not clear the other."""
+    store.save("u", "why bonds move", 3)
+    store.save("u", "why bonds move", 10)
+    store.unsave("u", "why bonds move", 3)
+    assert store.find("u", "why bonds move", 3) is None
+    assert store.find("u", "why bonds move", 10) is not None
 
 
-def test_a_full_shelf_says_what_to_clear(store, small):
-    """A limit without a remedy is a dead end, and on a phone the listener
-    cannot go and look somewhere else."""
-    for i in range(2):
-        item = store.save("u", f"question {i}", 3)
-        store.reserve_download("u", item.id, "free")
-    third = store.save("u", "question 3", 3)
-    with pytest.raises(saved_mod.DownloadLimit) as exc:
-        store.reserve_download("u", third.id, "free")
-    assert exc.value.candidates
-    assert "Remove one" in str(exc.value)
+def test_unsaving_something_that_is_not_saved_is_not_an_error(store):
+    """A toggle pressed twice quickly, or on two devices. Reporting False is
+    enough; raising would make the second tap look like a failure."""
+    assert store.unsave("u", "never saved", 3) is False
 
 
-def test_what_to_clear_offers_the_least_recently_played_first(store, small):
-    """Not the oldest: the one saved first is often the one kept on purpose."""
-    keep = store.save("u", "keep this", 3)
-    stale = store.save("u", "never played", 3)
-    store.reserve_download("u", keep.id, "free", at=100)
-    store.reserve_download("u", stale.id, "free", at=200)
-    store.played("u", keep.id, at=300)
-
-    third = store.save("u", "another", 3)
-    with pytest.raises(saved_mod.DownloadLimit) as exc:
-        store.reserve_download("u", third.id, "free")
-    assert exc.value.candidates[0]["id"] == stale.id
+def test_unsaving_is_scoped_to_the_listener(store):
+    store.save("them", "their question", 3)
+    assert store.unsave("u", "their question", 3) is False
+    assert store.find("them", "their question", 3) is not None
 
 
-def test_a_better_tier_holds_more(store, small):
-    for i in range(3):
-        item = store.save("u", f"question {i}", 3)
-        store.reserve_download("u", item.id, "plus")
-    assert store.download_status("u", "plus")["used"] == 3
-
-
-def test_the_unlimited_tier_has_no_server_side_cap(store):
-    for i in range(12):
-        item = store.save("u", f"question {i}", 3)
-        store.reserve_download("u", item.id, "unlimited")
-    status = store.download_status("u", "unlimited")
-    assert status["unlimited"] is True
-    assert status["remaining"] == entitlements.UNLIMITED
-
-
-def test_downloading_twice_is_not_two_slots(store, small):
-    item = store.save("u", "why bonds move", 3)
-    store.reserve_download("u", item.id, "free")
-    store.reserve_download("u", item.id, "free")
-    assert store.download_status("u", "free")["used"] == 1
-
-
-def test_removing_a_downloaded_item_frees_its_slot(store, small):
-    item = store.save("u", "why bonds move", 3)
-    store.reserve_download("u", item.id, "free")
-    store.remove("u", item.id)
-    assert store.download_status("u", "free")["used"] == 0
-
-
-def test_the_size_is_estimated_before_the_listener_agrees_to_it(store):
-    """So the popup can say "about 8 MB" before they say yes rather than
-    after."""
-    assert saved_mod.estimated_bytes(3) == 3 * 60 * saved_mod.BYTES_PER_SECOND
-    assert saved_mod.estimated_bytes(0) > 0
-
-
-def test_the_device_can_correct_the_estimate(store, small):
-    """An episode ends when it runs out of substance, so the real size is
-    usually smaller than the ceiling the estimate assumed."""
-    item = store.save("u", "why bonds move", 3)
-    store.reserve_download("u", item.id, "free")
-    store.confirm_download("u", item.id, 4_000_000)
-    assert store.item("u", item.id).bytes == 4_000_000
-
-
-def test_confirming_a_download_nobody_reserved_does_not_create_one(store, small):
-    item = store.save("u", "why bonds move", 3)
-    store.confirm_download("u", item.id, 4_000_000)
-    assert store.item("u", item.id).downloaded is False
+def test_the_shelf_carries_no_download_state_any_more(store):
+    """The feature is removed, not switched off. A `downloaded` key coming
+    back would be a client's invitation to draw a control for it."""
+    item = store.save("u", "why bonds move", 3).as_dict()
+    for gone in ("downloaded", "bytes", "downloaded_at", "estimated_bytes"):
+        assert gone not in item, f"{gone} is still on a saved item"
+    for gone in ("download_status", "reserve_download", "confirm_download",
+                 "release_download", "estimated_bytes"):
+        assert not hasattr(saved_mod, gone) and not hasattr(store, gone), \
+            f"saved.py still offers {gone}"
 
 
 # --- deletion -------------------------------------------------------------

@@ -844,12 +844,16 @@ LIVE_SHIM = r"""
       if (rows("accounts").some(function (a) { return a.id === UID; })) return json({ error: "This listener already has an account. Log out first." }, 400);
       // Attaches to the id this listener already has: same user_id, so the
       // events, mixes and echoes above are simply theirs now.
+      // Email and phone land on one account, which is what the sign-up
+      // screen asks for. The number is not verified here or on the server.
+      var ph = String(body.phone || "").trim();
       return put("accounts", UID, {
-        email: em, password: "(scrypt hash - this prototype stores no credential)",
+        email: em, phone: ph,
+        password: "(scrypt hash - this prototype stores no credential)",
         created: now(), last_login: now()
       }).then(function () {
         EMAIL = em; paint();
-        return json({ user_id: UID, email: em, authenticated: true });
+        return json({ user_id: UID, email: em, phone: ph, authenticated: true });
       });
     }
     if (path === "/api/auth/login") {
@@ -1120,25 +1124,40 @@ LIVE_SHIM = r"""
       });
     }
 
-    // ---- save for later, downloads and sharing ----
+    // ---- save for later, and sharing ----
     // Held in the fixture object rather than in the artifact db: the shelf is
     // per-listener and this build's db is shared by everyone looking at the
     // link, so persisting it would show one viewer another viewer's saves.
     // The flow is what this preview is for; the storage has its own tests.
+    if (path.indexOf("/api/saved?") === 0 && method === "GET") {
+      var askQ = new URLSearchParams(path.split("?")[1] || "");
+      if (askQ.get("q")) {
+        return json({ saved: FIXTURES["/api/saved"].items.some(function (i) {
+          return i.query === askQ.get("q")
+            && String(i.minutes) === String(askQ.get("minutes")); }) });
+      }
+    }
+    if (path.indexOf("/api/saved") === 0 && method === "DELETE"
+        && path.indexOf("/api/saved/") !== 0) {
+      var offQ = new URLSearchParams(path.split("?")[1] || "");
+      var shelfOff = FIXTURES["/api/saved"];
+      shelfOff.items = shelfOff.items.filter(function (i) {
+        return !(i.query === offQ.get("q")
+                 && String(i.minutes) === String(offQ.get("minutes"))); });
+      return json({ ok: true, saved: false });
+    }
     if (path === "/api/saved" && method === "POST") {
       var shelf = FIXTURES["/api/saved"];
       var already = shelf.items.filter(function (i) {
         return i.query === body.query && i.minutes === body.minutes; })[0];
       var item = already || {
         id: "sav_" + rid(), folder_id: body.folder_id || "",
-        query: body.query, minutes: body.minutes || 3,
+        query: body.query, minutes: body.minutes || 2,
         title: body.title || body.query, source: body.source || "",
-        created: now(), downloaded: false, bytes: 0, downloaded_at: 0,
-        last_played: 0,
-        estimated_bytes: (body.minutes || 3) * 60 * 22050 * 2
+        created: now(), last_played: 0
       };
       if (!already) shelf.items.unshift(item);
-      return json({ ok: true, item: item, downloads: shelf.downloads });
+      return json({ ok: true, saved: true, item: item });
     }
     if (path === "/api/saved/folders" && method === "POST") {
       var folder = { id: "fld_" + rid(), name: body.name, created: now(), items: 0 };
@@ -1150,39 +1169,10 @@ LIVE_SHIM = r"""
       var sid = bits[3], verb = bits[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === sid; })[0];
-      if (verb === "download" && method === "POST") {
-        if (!found) return json({ error: "No such saved episode." }, 404);
-        if (shelf2.downloads.remaining <= 0) {
-          return json({ error: "You are holding " + shelf2.downloads.used
-            + " downloaded episodes, which is all your plan keeps offline. "
-            + "Remove one to make room." }, 409, {
-              "X-FAM-Downloads": JSON.stringify({
-                candidates: shelf2.items.filter(function (i) { return i.downloaded; }),
-                status: shelf2.downloads })
-            });
-        }
-        found.downloaded = true; found.bytes = found.estimated_bytes;
-        shelf2.downloads.used += 1; shelf2.downloads.remaining -= 1;
-        return json({ ok: true, item: found, downloads: shelf2.downloads,
-                      stream: "/api/audio?q=" + encodeURIComponent(found.query)
-                              + "&minutes=" + found.minutes + "&fmt=pcm" });
-      }
-      if (verb === "download" && method === "DELETE") {
-        if (found && found.downloaded) {
-          found.downloaded = false; found.bytes = 0;
-          shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-        }
-        return json({ ok: true, downloads: shelf2.downloads });
-      }
       if (verb) return json({ ok: true, item: found || null });
       if (method === "DELETE") {
         var at = shelf2.items.indexOf(found);
-        if (at >= 0) {
-          if (found.downloaded) {
-            shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-          }
-          shelf2.items.splice(at, 1);
-        }
+        if (at >= 0) shelf2.items.splice(at, 1);
         return json({ ok: true });
       }
     }

@@ -1,4 +1,4 @@
-"""Saving, downloading and sharing, through the API."""
+"""Saving and sharing, through the API."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import app as appmod
-import entitlements
 
 
 @pytest.fixture
@@ -27,27 +26,18 @@ def account(client):
     return client.get("/api/auth/me").json()["user_id"]
 
 
-@pytest.fixture
-def one_slot(monkeypatch):
-    monkeypatch.setenv("FREE_MAX_DOWNLOADS", "1")
-    entitlements.reload_tiers()
-    yield
-    for name in entitlements.LIMIT_ENVIRONMENT:
-        monkeypatch.delenv(name, raising=False)
-    entitlements.reload_tiers()
-
-
 # --- saving ---------------------------------------------------------------
 
-def test_saving_returns_the_download_status_with_it(client, account):
-    """The interface asks about downloading the moment something is saved, and
-    a popup whose answer is "you have no room" would be a worse question than
-    not asking."""
+def test_saving_says_it_is_saved_and_nothing_about_downloading(client, account):
+    """Saving used to answer with the offline shelf's capacity, because it
+    raised a popup asking whether to download the episode too. Pressing save
+    saves; that is the whole of it."""
     body = client.post("/api/saved", json={
         "query": "why bonds move", "minutes": 3, "title": "Bonds"}).json()
-    assert body["item"]["downloaded"] is False
-    assert body["downloads"]["limit"] > 0
-    assert body["item"]["estimated_bytes"] > 0
+    assert body["saved"] is True
+    assert body["item"]["query"] == "why bonds move"
+    assert "downloads" not in body
+    assert "downloaded" not in body["item"]
 
 
 def test_the_shelf_needs_an_account(client):
@@ -74,57 +64,47 @@ def test_deleting_a_folder_keeps_its_episodes(client, account):
     assert len(client.get("/api/saved").json()["items"]) == 1
 
 
-# --- downloading ----------------------------------------------------------
+# --- the toggle -----------------------------------------------------------
 
-def test_a_download_hands_back_the_stream_to_fill_it_with(client, account):
-    """There is no file to serve - nothing writes one. The client downloads by
-    streaming the same endpoint it would play from, and keeps what arrives."""
-    item = client.post("/api/saved", json={
-        "query": "why bonds move", "minutes": 3}).json()["item"]
-    got = client.post(f"/api/saved/{item['id']}/download").json()
-    assert got["item"]["downloaded"] is True
-    assert got["stream"].startswith("/api/audio?q=")
-    assert "fmt=pcm" in got["stream"]
-
-
-def test_a_full_shelf_is_a_409_naming_what_to_clear(client, account, one_slot):
-    """A capacity, not a rate - so not a 429. And a limit without a remedy is
-    a dead end on a phone, which is why the candidates ride along."""
-    first = client.post("/api/saved", json={"query": "first", "minutes": 3}).json()["item"]
-    client.post(f"/api/saved/{first['id']}/download")
-    second = client.post("/api/saved", json={"query": "second", "minutes": 3}).json()["item"]
-
-    refused = client.post(f"/api/saved/{second['id']}/download")
-    assert refused.status_code == 409
-    extra = json.loads(refused.headers["X-FAM-Downloads"])
-    assert [c["query"] for c in extra["candidates"]] == ["first"]
-    assert extra["status"]["remaining"] == 0
+def test_the_save_control_can_ask_whether_it_is_lit(client, account):
+    """A control that lights up has to be able to ask whether it is lit
+    without pulling the whole shelf down to find out. Same shape as the vibe
+    control's question, and for the same reason."""
+    before = client.get("/api/saved?q=why+bonds+move&minutes=3").json()
+    assert before == {"saved": False}
+    client.post("/api/saved", json={"query": "why bonds move", "minutes": 3})
+    after = client.get("/api/saved?q=why+bonds+move&minutes=3").json()
+    assert after == {"saved": True}
 
 
-def test_freeing_a_slot_makes_room_without_losing_the_episode(client, account, one_slot):
-    first = client.post("/api/saved", json={"query": "first", "minutes": 3}).json()["item"]
-    client.post(f"/api/saved/{first['id']}/download")
-    released = client.request("DELETE", f"/api/saved/{first['id']}/download").json()
-    assert released["downloads"]["remaining"] == 1
-    # Still saved. "I need the space" and "I am not interested" are different
-    # requests.
-    assert len(client.get("/api/saved").json()["items"]) == 1
+def test_unsaving_takes_the_question_and_the_length_not_a_row_id(client, account):
+    """The player knows the pair that is the script cache's key. Making it
+    fetch a row id before it could un-press a button would put a round trip
+    in front of the second tap that the first tap did not pay."""
+    client.post("/api/saved", json={"query": "why bonds move", "minutes": 3})
+    off = client.request("DELETE", "/api/saved?q=why+bonds+move&minutes=3")
+    assert off.status_code == 200 and off.json() == {"ok": True, "saved": False}
+    assert client.get("/api/saved").json()["items"] == []
 
 
-def test_the_device_can_correct_the_estimate(client, account):
-    item = client.post("/api/saved", json={"query": "q", "minutes": 3}).json()["item"]
-    client.post(f"/api/saved/{item['id']}/download")
-    fixed = client.post(f"/api/saved/{item['id']}/download/confirm",
-                        json={"bytes": 4_000_000}).json()
-    assert fixed["item"]["bytes"] == 4_000_000
+def test_a_length_the_listener_did_not_press_save_on_stays_saved(client, account):
+    client.post("/api/saved", json={"query": "q", "minutes": 3})
+    client.post("/api/saved", json={"query": "q", "minutes": 10})
+    client.request("DELETE", "/api/saved?q=q&minutes=3")
+    assert [i["minutes"] for i in client.get("/api/saved").json()["items"]] == [10]
 
 
-def test_a_better_tier_holds_more(client, account, one_slot):
-    appmod.ACCOUNTS.set_plan(account, "plus")
-    for i in range(4):
-        item = client.post("/api/saved", json={"query": f"q{i}", "minutes": 3}
-                           ).json()["item"]
-        assert client.post(f"/api/saved/{item['id']}/download").status_code == 200
+def test_the_download_endpoints_are_gone(client, account):
+    """Removed rather than switched off, on the Piper reasoning: a route left
+    behind is an invitation to draw a control for it again.
+
+    Read off the route table rather than by calling them, because "what does
+    a request to this path do" has several right answers (404, 405, whatever
+    a catch-all decides) and only one of them is the question being asked.
+    """
+    paths = {getattr(route, "path", "") for route in appmod.app.routes}
+    assert not [p for p in paths if "download" in p], \
+        "a download route is still registered"
 
 
 # --- sharing --------------------------------------------------------------

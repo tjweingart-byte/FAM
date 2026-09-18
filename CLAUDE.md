@@ -528,13 +528,13 @@ the rest of this list it needs taste rather than a key.
   and is played as it arrives. This is the core of the product. Compression
   (Opus over a stream) is compatible with it and is the right answer at scale;
   writing a *file* is not.
-  **Downloads do not break this, and the reason is worth stating** *(SHARING.md).*
-  The server still writes nothing: the episode streams exactly as it always
-  does, and the *client* keeps the bytes it was already sent - IndexedDB in the
-  browser, the app's container on iOS. No file exists server-side, nothing is
-  cached as audio, and no URL serves a stored episode. `saved.py` holds a
-  registry of what a listener claims to hold, never the audio - which is also
-  why that registry can drift, and why releasing a slot is one tap.
+  **Nothing anywhere keeps audio now, which makes this simpler rather than
+  weaker** *(SHARING.md).* Downloads - the audio held in the listener's own
+  IndexedDB - used to be the one thing that came close, and they never broke
+  the rule either, because the server wrote nothing then either. The feature
+  is **removed** at the owner's direction, and removed rather than switched
+  off, on the Piper reasoning. `saved.py` now holds pointers and only
+  pointers.
 - **Duration is a ceiling, not a quota.** *(Revised.)* The selected length still
   caps the episode and over-runs are trimmed, but a script that runs out of
   substance now ends early instead of being padded. Enforcing the number in both
@@ -911,22 +911,24 @@ the rest of this list it needs taste rather than a key.
   quota is **a budget shaped like a limit, not a security control**: an
   anonymous session can be thrown away and a fresh allowance started, which is
   the price of not putting a login in front of the first word.
-- **Save for later and download are different things, and stay different.**
-  *(SHARING.md.)* Saving is a **pointer** - question, length, title - and
-  playing one needs the network like any other episode. Downloading is **the
-  audio on the device** and plays with the network off. A download is an
-  upgrade to a saved item rather than a second list, which is why saving asks
-  the question and why one row carries both states - and why Downloads is now
-  a **switch inside Save for Later** rather than a screen of its own
-  (PROBLEMS.md §96). The folder chips came off both shelves in the same
-  change: nobody had ever made a folder, so every listener was shown a fixture
-  named "Commute" as though it were theirs, and **a control with nothing
-  behind it is worse than no control**. `saved.py`'s filing is untouched, so
-  putting folders back costs nothing anybody filed. The limit is per tier and
-  is a **standing capacity, not a rate** - a windowed counter would hand out a
-  fresh download allowance every morning and never require anybody to delete
-  anything. A full shelf is a 409 that **names what to clear**, least recently
-  played first, because a limit without a remedy is a dead end on a phone.
+- **Save for later is a pointer, and pressing save is the whole of it.**
+  *(SHARING.md.)* Question, length, title - one row - and playing one needs
+  the network like any other episode. It is a **toggle**: the icon turns
+  green, pressing it again takes the episode off the shelf. Same shape as
+  VIBE! and drawn the same way, by a `data-save` sweep rather than a list of
+  ids, which is the mistake that once left the main player with no vibe
+  button at all.
+  **Download is gone**, and gone rather than switched off: the endpoints, the
+  store methods, the tier field, the offline IndexedDB layer, the second view
+  of the shelf and the Downloads tile. What it cost was the thing the shelf is
+  for - pressing save raised a question instead of saving. Its three columns
+  stay in the schema, written by nothing, because dropping a column is a
+  migration with no benefit.
+  The folder chips came off the shelf in an earlier change (PROBLEMS.md §96)
+  and have not come back: nobody had ever made a folder, so every listener was
+  shown a fixture named "Commute" as though it were theirs, and **a control
+  with nothing behind it is worse than no control**. `saved.py`'s filing is
+  untouched, so putting folders back costs nothing anybody filed.
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
   share sheet, or a platform SDK hand-off where their app does the posting with

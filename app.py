@@ -1361,13 +1361,6 @@ class MoveRequest(BaseModel):
     folder_id: str = Field("", max_length=64)
 
 
-class ConfirmDownloadRequest(BaseModel):
-    #: What the device actually stored. The server's own figure is a
-    #: deliberately generous estimate; this is the truth from the only place
-    #: that knows it.
-    bytes: int = Field(0, ge=0)
-
-
 class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
     minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
@@ -1520,36 +1513,51 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
 @app.get("/api/saved")
 async def saved_read(request: Request,
                      folder_id: Optional[str] = Query(None, max_length=64),
-                     downloaded: bool = Query(False)) -> dict:
-    """The shelf: folders, what is on it, and how much offline room is left."""
+                     q: str = Query("", max_length=saved_mod.MAX_QUERY),
+                     minutes: int = Query(0, ge=0, le=60)) -> dict:
+    """The shelf, or - with `q` - whether one episode is on it.
+
+    The second form is what draws the save control's state. It is the same
+    shape as `/api/vibe`'s, and for the same reason: a control that lights up
+    has to be able to ask whether it is lit without pulling the whole shelf
+    down to find out.
+    """
     _read_limit(request)
     user = _require_account(request)
-    tier_name = _tier(request)
+    if q:
+        return {"saved": SAVED.find(user, " ".join(q.split()), minutes) is not None}
     return {
         "folders": SAVED.folders(user),
-        "items": [i.as_dict() for i in SAVED.items(user, folder_id, downloaded)],
-        "downloads": SAVED.download_status(user, tier_name),
+        "items": [i.as_dict() for i in SAVED.items(user, folder_id)],
     }
 
 
 @app.post("/api/saved")
 async def saved_save(req: SaveRequest, request: Request) -> dict:
-    """Save an episode for later.
+    """Save an episode for later. Idempotent, and the whole of the action.
 
-    The response carries the download status because the interface asks about
-    downloading the moment something is saved - and asking a question whose
-    answer is "you have no room" would be a worse popup than not asking.
+    It used to answer with the offline shelf's capacity, because saving
+    raised a popup asking whether to download the episode too. There is no
+    download and no popup: pressing save saves, and the icon turns green.
     """
     _read_limit(request)
     user = _require_account(request)
-    tier_name = _tier(request)
     try:
         item = SAVED.save(user, req.query, req.minutes, title=req.title,
                           source=req.source, folder_id=req.folder_id)
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "item": item.as_dict(),
-            "downloads": SAVED.download_status(user, tier_name)}
+    return {"ok": True, "saved": True, "item": item.as_dict()}
+
+
+@app.delete("/api/saved")
+async def saved_unsave(request: Request,
+                       q: str = Query(..., max_length=saved_mod.MAX_QUERY),
+                       minutes: int = Query(0, ge=0, le=60)) -> dict:
+    """Un-press the save control, which knows the episode and not a row id."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": SAVED.unsave(user, q, minutes), "saved": False}
 
 
 @app.delete("/api/saved/{item_id}")
@@ -1560,14 +1568,8 @@ async def saved_remove(item_id: str, request: Request) -> dict:
 
 @app.post("/api/saved/{item_id}/played")
 async def saved_played(item_id: str, request: Request) -> dict:
-    """Note that a saved episode was played.
-
-    Feeds the "what to clear" list, which offers the ones nobody has been back
-    to rather than the oldest - the episode somebody saved first is often the
-    one they are keeping on purpose. Recorded here rather than inferred from
-    the event log because a download plays with the network off, so the only
-    honest moment to record it is the next time the client is online.
-    """
+    """Note that a saved episode was played, so the shelf can order itself by
+    what somebody actually comes back to."""
     _read_limit(request)
     SAVED.played(_require_account(request), item_id)
     return {"ok": True}
@@ -1613,67 +1615,6 @@ async def saved_folder_delete(folder_id: str, request: Request) -> dict:
     _read_limit(request)
     return {"ok": True,
             "unfiled": SAVED.delete_folder(_require_account(request), folder_id)}
-
-
-# --- downloads ------------------------------------------------------------
-
-@app.post("/api/saved/{item_id}/download")
-async def saved_download(item_id: str, request: Request) -> dict:
-    """Take a slot on the offline shelf.
-
-    The server records the claim and the device holds the bytes - there is no
-    file here to hand over, because the settled constraint is that nothing
-    writes one. The client downloads by streaming `/api/audio` exactly as it
-    would to play it, and keeps what arrives.
-
-    A full shelf is a 409 rather than a 429: this is not a rate, it is a
-    capacity, and the body names what to clear because a limit without a
-    remedy is a dead end on a phone.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    try:
-        item = SAVED.reserve_download(item_id=item_id, user_id=user,
-                                      tier_name=_tier(request))
-    except saved_mod.DownloadLimit as exc:
-        raise HTTPException(status_code=409, detail=str(exc), headers={
-            "X-FAM-Downloads": json.dumps(
-                {"candidates": exc.candidates,
-                 "status": SAVED.download_status(user, _tier(request))})
-        }) from exc
-    except saved_mod.SavedError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"ok": True, "item": item.as_dict(),
-            "downloads": SAVED.download_status(user, _tier(request)),
-            # What the client streams to fill the slot. Named here so the
-            # download path and the play path cannot drift apart.
-            "stream": f"/api/audio?q={quote(item.query)}&minutes={item.minutes}&fmt=pcm"}
-
-
-@app.post("/api/saved/{item_id}/download/confirm")
-async def saved_download_confirm(item_id: str, req: ConfirmDownloadRequest,
-                                 request: Request) -> dict:
-    _read_limit(request)
-    item = SAVED.confirm_download(_require_account(request), item_id, req.bytes)
-    if item is None:
-        raise HTTPException(status_code=404, detail="No such saved episode.")
-    return {"ok": True, "item": item.as_dict()}
-
-
-@app.delete("/api/saved/{item_id}/download")
-async def saved_download_release(item_id: str, request: Request) -> dict:
-    """Give the slot back, keeping the episode saved.
-
-    Also how a client re-syncs after its storage was evicted: release what it
-    no longer holds. "I need the space" and "I am not interested" are different
-    requests, and merging them loses somebody's list while they tidy their
-    phone.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    released = SAVED.release_download(user, item_id)
-    return {"ok": released,
-            "downloads": SAVED.download_status(user, _tier(request))}
 
 
 # --- sharing outside FAM --------------------------------------------------

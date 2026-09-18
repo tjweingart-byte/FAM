@@ -1,59 +1,39 @@
-"""Save for later, and download - which are deliberately not the same thing.
+"""Save for later: a pointer to an episode, and nothing else.
 
-The distinction is the whole design, and it is easy to get wrong because both
-look like a bookmark from the outside:
+A saved item is the *question*, the length and a title. It costs one row,
+there is no sensible limit on it, and playing one works exactly like every
+other episode in FAM - synthesised, or replayed from the shared cache, when it
+is tapped.
 
-* **Save for later** is a *pointer*: the question, the length, a title, a
-  folder. It costs one row, there is no sensible limit on it, and playing one
-  **needs the internet** - the episode is synthesised (or replayed from the
-  shared cache) when it is tapped, exactly like every other episode in FAM.
-* **Download** is *the audio on the device*: the listener's phone keeps the
-  samples it already received, so it plays with the network off. It has a hard
-  limit, and running out means clearing something.
+## What used to be here, and why it is gone
 
-A download is therefore an *upgrade to* a saved item rather than a separate
-list - which is why the interface offers it as a question the moment something
-is saved, and why one row carries both states.
+There was a second thing beside it: **download**, the audio kept on the
+device so it played with the network off. It was a state of a saved item
+rather than a second list, the shelf had a per-tier capacity, and saving
+raised a popup asking whether to download too.
 
-## Where the audio lives, and why that keeps the settled constraint
+All of it is removed, at the owner's direction. What it cost was the thing
+this shelf is for: pressing save raised a question instead of saving, so the
+one-tap action in the player was a two-tap action with a decision in the
+middle. Save is now a toggle - press it, the icon turns green, the episode is
+on the shelf; press it again and it is not. The same shape as VIBE!, for the
+same reason.
 
-CLAUDE.md: **no MP3, no audio files.** Raw PCM streams from the engine to the
-client and is played as it arrives; writing a *file* is not compatible with
-that.
+The `downloaded`, `bytes` and `downloaded_at` columns stay in the schema and
+are no longer read or written. Dropping a column is a migration with no
+benefit, and an existing database is not worth rewriting to delete three
+numbers nothing asks for. Nothing here can turn the feature back on: there is
+no code path that sets them.
 
-A download does not break it, because **the server still writes nothing.** The
-episode streams exactly as it always does, and the client retains the bytes it
-was already sent - IndexedDB in a browser, the app's own container on iOS. No
-file is created on the server, nothing is cached as audio, and there is no URL
-anywhere that serves a stored episode. What changes is only that the listener's
-own device stops throwing the samples away.
+## What is still true
 
-Two consequences that follow from that, and both matter:
+Saving is idempotent on `(question, length)`, which is also the script cache's
+key - so two people saving the same episode are pointing at one script, and a
+save costs a row rather than a generation.
 
-1. **This module holds a registry, not audio.** It records that a listener
-   claims to be holding an episode, so the limit can be enforced and the list
-   can be shown. The bytes are somewhere it cannot see.
-2. **The registry can drift.** A phone that is wiped, or a browser whose
-   storage is evicted, still has rows here. So `release` exists, a client
-   re-syncs by releasing what it no longer holds, and the count is treated as
-   *what the listener has claimed* rather than as ground truth. Drift costs a
-   slot, which is why the fix is one tap and not a support ticket.
-
-Uncompressed PCM is 2.65 MB per minute, so a three-minute episode is about
-8 MB and ten of them is 80 MB. That is fine on a phone and heavy in a browser,
-and it is one more argument for Opus over the stream - which IOS_APP.md already
-has as a prerequisite of the app rather than a scale question.
-
-## Limits
-
-Per tier, from `entitlements.max_downloads`, and a **standing capacity** rather
-than a rate: unlike episodes per day, a download is not consumed by time. You
-hold three, or you hold none, until you change it. That is why it is not in
-`quotas.py` - a windowed counter would let somebody accumulate a new download
-allowance every morning and never delete anything.
-
-When the shelf is full the refusal names what to clear, because "you have
-reached your limit" without a list is a dead end on a phone.
+Folders still exist and are still filed against, though nothing in the
+interface currently offers them; that is why an episode filed before the chips
+came off the shelf is unfiltered rather than lost.
 """
 from __future__ import annotations
 
@@ -66,7 +46,6 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-import entitlements
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -78,23 +57,9 @@ MAX_QUERY = 500
 #: against a script making a million of them, and nobody has forty folders.
 MAX_FOLDERS = 40
 
-#: 16-bit mono. The one number that turns a length into a size, so the popup
-#: can say "about 8 MB" before the listener agrees to it rather than after.
-BYTES_PER_SECOND = 22050 * 2
-
 
 class SavedError(ValueError):
     """Something the listener can fix, phrased so it can be shown to them."""
-
-
-class DownloadLimit(SavedError):
-    """The shelf is full. Carries what to clear, because a limit without a
-    remedy is a dead end - especially on a phone, where the listener cannot
-    go and look somewhere else."""
-
-    def __init__(self, message: str, candidates: list) -> None:
-        super().__init__(message)
-        self.candidates = candidates
 
 
 def clean_name(name: str) -> str:
@@ -102,17 +67,6 @@ def clean_name(name: str) -> str:
     if not name:
         raise SavedError("Give the folder a name.")
     return name
-
-
-def estimated_bytes(minutes: int) -> int:
-    """What a download of this length will take on the device.
-
-    Deliberately an estimate and named as one: an episode ends when it runs out
-    of substance (duration is a ceiling, not a quota), so the real size is
-    usually smaller. Over-stating is the right direction - a listener told
-    8 MB and charged 6 is pleased, and the reverse is a bug report.
-    """
-    return int(max(1, int(minutes or 0)) * 60 * BYTES_PER_SECOND)
 
 
 @dataclass
@@ -125,19 +79,13 @@ class SavedItem:
     title: str
     source: str
     created: float
-    downloaded: bool
-    bytes: int
-    downloaded_at: float
     last_played: float
 
     def as_dict(self) -> dict:
         return {
             "id": self.id, "folder_id": self.folder_id, "query": self.query,
             "minutes": self.minutes, "title": self.title, "source": self.source,
-            "created": self.created, "downloaded": self.downloaded,
-            "bytes": self.bytes, "downloaded_at": self.downloaded_at,
-            "last_played": self.last_played,
-            "estimated_bytes": estimated_bytes(self.minutes),
+            "created": self.created, "last_played": self.last_played,
         }
 
 
@@ -166,6 +114,10 @@ class SavedStore:
                        title         TEXT NOT NULL DEFAULT '',
                        source        TEXT NOT NULL DEFAULT '',
                        created       REAL NOT NULL,
+                       -- Written by nothing. Three columns left from the
+                       -- download feature, kept because dropping a column is
+                       -- a migration with no benefit and an existing shelf is
+                       -- not worth rewriting to delete them.
                        downloaded    INTEGER NOT NULL DEFAULT 0,
                        bytes         INTEGER NOT NULL DEFAULT 0,
                        downloaded_at REAL NOT NULL DEFAULT 0,
@@ -174,8 +126,6 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS items_user"
                          " ON items(user_id, created)")
-            conn.execute("CREATE INDEX IF NOT EXISTS items_downloaded"
-                         " ON items(user_id, downloaded)")
             # Saving the same episode twice is the same statement twice. The
             # unique key is (question, length) because that is also the script
             # cache's key - two saves that differ only in something the cache
@@ -242,9 +192,7 @@ class SavedStore:
         """Remove a folder. **Its episodes are unfiled, not deleted.**
 
         Deleting somebody's saved episodes because they tidied up their folders
-        is the kind of surprise that stops people using a feature at all - and
-        a download inside it is bytes on their phone that would then be
-        orphaned, held against their limit with nothing pointing at them.
+        is the kind of surprise that stops people using a feature at all.
         """
         moved = self._conn().execute(
             "UPDATE items SET folder_id = '' WHERE folder_id = ? AND user_id = ?",
@@ -307,7 +255,7 @@ class SavedStore:
         try:
             row = self._conn().execute(
                 "SELECT id, user_id, folder_id, query, minutes, title, source,"
-                " created, downloaded, bytes, downloaded_at, last_played"
+                " created, last_played"
                 " FROM items WHERE id = ? AND user_id = ?",
                 (item_id, user_id)).fetchone()
         except Exception:
@@ -315,20 +263,17 @@ class SavedStore:
             return None
         if not row:
             return None
-        return SavedItem(row[0], row[1], row[2], row[3], row[4], row[5], row[6],
-                         row[7], bool(row[8]), row[9], row[10], row[11])
+        return SavedItem(*row)
 
     def items(self, user_id: str, folder_id: Optional[str] = None,
-              downloaded_only: bool = False, limit: int = 500) -> list[SavedItem]:
+              limit: int = 500) -> list[SavedItem]:
         sql = ("SELECT id, user_id, folder_id, query, minutes, title, source,"
-               " created, downloaded, bytes, downloaded_at, last_played"
+               " created, last_played"
                " FROM items WHERE user_id = ?")
         args: list = [user_id]
         if folder_id is not None:
             sql += " AND folder_id = ?"
             args.append(folder_id)
-        if downloaded_only:
-            sql += " AND downloaded = 1"
         sql += " ORDER BY created DESC LIMIT ?"
         args.append(int(limit))
         try:
@@ -336,14 +281,27 @@ class SavedStore:
         except Exception:
             log.exception("could not read saved items")
             return []
-        return [SavedItem(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
-                          bool(r[8]), r[9], r[10], r[11]) for r in rows]
+        return [SavedItem(*r) for r in rows]
 
     def remove(self, user_id: str, item_id: str) -> bool:
-        """Unsave. Also releases the download slot, if it held one - an item
-        that is gone cannot still be occupying space."""
+        """Unsave."""
         cur = self._conn().execute("DELETE FROM items WHERE id = ? AND user_id = ?",
                                    (item_id, user_id))
+        return bool(cur.rowcount)
+
+    def unsave(self, user_id: str, query: str, minutes: int) -> bool:
+        """Unsave by what the episode *is* rather than by row id.
+
+        The save control in the player is a toggle, and the player knows the
+        question and the length - the same pair that is the script cache's key.
+        It does not know a row id, and making it fetch one before it could
+        un-press a button would put a round trip in front of the second tap
+        that the first tap did not pay.
+        """
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        cur = self._conn().execute(
+            "DELETE FROM items WHERE user_id = ? AND query = ? AND minutes = ?",
+            (user_id, query, max(0, int(minutes or 0))))
         return bool(cur.rowcount)
 
     def move(self, user_id: str, item_id: str, folder_id: str) -> Optional[SavedItem]:
@@ -359,83 +317,6 @@ class SavedStore:
         self._conn().execute(
             "UPDATE items SET last_played = ? WHERE id = ? AND user_id = ?",
             (at or time.time(), item_id, user_id))
-
-    # --- downloads --------------------------------------------------------
-
-    def download_status(self, user_id: str, tier_name: str) -> dict:
-        """How much of the shelf is used. What the popup shows before asking."""
-        held = self.items(user_id, downloaded_only=True)
-        limit = entitlements.max_downloads(tier_name)
-        return {
-            "used": len(held),
-            "limit": limit,
-            "unlimited": limit == entitlements.UNLIMITED,
-            "remaining": (entitlements.UNLIMITED if limit == entitlements.UNLIMITED
-                          else max(0, limit - len(held))),
-            "bytes": sum(i.bytes or estimated_bytes(i.minutes) for i in held),
-            "tier": entitlements.normalise(tier_name),
-        }
-
-    def reserve_download(self, user_id: str, item_id: str, tier_name: str,
-                         at: float = 0.0) -> SavedItem:
-        """Take a slot on the shelf, or raise `DownloadLimit` saying what to
-        clear.
-
-        The server records the claim; the device holds the bytes. So this
-        cannot verify that a download happened - only that the listener is
-        entitled to one more and has said they are taking it.
-        """
-        item = self.item(user_id, item_id)
-        if not item:
-            raise SavedError("No such saved episode.")
-        if item.downloaded:
-            return item
-
-        status = self.download_status(user_id, tier_name)
-        if not status["unlimited"] and status["remaining"] <= 0:
-            held = self.items(user_id, downloaded_only=True)
-            # Least recently useful first: never played, then longest since.
-            # Offering the *oldest* would suggest clearing the one they saved
-            # first, which is often the one they keep on purpose.
-            candidates = sorted(held, key=lambda i: (i.last_played or 0, i.downloaded_at))
-            raise DownloadLimit(
-                f"You are holding {status['used']} downloaded episodes, which "
-                f"is all your plan keeps offline. Remove one to make room.",
-                [c.as_dict() for c in candidates[:5]])
-
-        now = at or time.time()
-        self._conn().execute(
-            "UPDATE items SET downloaded = 1, downloaded_at = ?, bytes = ?"
-            " WHERE id = ? AND user_id = ?",
-            (now, estimated_bytes(item.minutes), item_id, user_id))
-        return self.item(user_id, item_id)
-
-    def confirm_download(self, user_id: str, item_id: str, size: int) -> Optional[SavedItem]:
-        """The client says how much it actually stored.
-
-        Worth a round trip because the estimate is deliberately generous and
-        the difference is what the listener sees on a storage screen. A
-        confirmation that never arrives leaves the estimate standing, which is
-        the safe direction.
-        """
-        self._conn().execute(
-            "UPDATE items SET bytes = ? WHERE id = ? AND user_id = ? AND downloaded = 1",
-            (max(0, int(size or 0)), item_id, user_id))
-        return self.item(user_id, item_id)
-
-    def release_download(self, user_id: str, item_id: str) -> bool:
-        """Give the slot back. The episode stays saved.
-
-        Also how a client re-syncs after its storage was evicted: release what
-        it no longer holds. Deliberately separate from `remove` - "I need the
-        space" and "I am not interested any more" are different requests, and
-        merging them loses somebody's list when they were tidying their phone.
-        """
-        cur = self._conn().execute(
-            "UPDATE items SET downloaded = 0, bytes = 0, downloaded_at = 0"
-            " WHERE id = ? AND user_id = ? AND downloaded = 1",
-            (item_id, user_id))
-        return bool(cur.rowcount)
 
     # --- housekeeping -----------------------------------------------------
 

@@ -446,6 +446,9 @@
     font-size:7.5px; color:var(--text-muted); }
   /* The word under a vibe button, which changes to "vibed" when it is on. */
   .vibe-cap{ text-transform:uppercase; letter-spacing:0.08em; }
+  /* The save control's word, so `setSaved` has one thing to find on every
+     player rather than a list of ids to keep up to date. */
+  .save-cap{ text-transform:uppercase; letter-spacing:0.08em; }
   /* Explore's seek pair centres its number the same way the player's does.
      Written at this specificity on purpose: `.reel-btn span` above pins every
      caption to the bottom, and without this the number would be positioned by
@@ -626,12 +629,33 @@
     margin-bottom:4px;
   }.pt-icon{ width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; color:var(--text); cursor:pointer; flex:none; flex-shrink:0; }
   .pt-icon.on{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
+  /* The labels under the player's four icons. A circle holding a glyph plus
+     the word for it, so the icon is a target and the word is what says which
+     one it is. The circle keeps its size; the caption hangs below it, so the
+     row's spacing is unchanged. */
+  .pt-icon{ position:relative; }
+  .pt-cap{ position:absolute; top:34px; left:50%; transform:translateX(-50%);
+    font-family:'JetBrains Mono', monospace; font-size:7px; letter-spacing:0.07em;
+    text-transform:uppercase; color:var(--text-faint); pointer-events:none;
+    white-space:nowrap; }
+  /* Saved is green, and the green is the same on all four players. Mirrors
+     `.echoed`, which is copper, so the two states are distinguishable at a
+     glance rather than both being "lit". */
+  .pt-icon.saved-on{ background:var(--sage); color:var(--ink);
+    border-color:var(--sage); }
+  .pt-icon.saved-on .pt-cap{ color:var(--sage); }
+  .sb-icon.saved-on .circ{ background:var(--sage); }
+  .sb-icon.saved-on .circ svg{ stroke:var(--ink); }
+  .reel-act.saved-on svg{ background:var(--sage); border-color:var(--sage);
+    color:var(--ink); }
+  .reel-act.saved-on span{ color:var(--sage); }
   .mini-stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
   .pc-row1{ display:flex; align-items:center; gap:16px; }
-  .pc-row2{ display:flex; align-items:center; gap:10px; }
+  /* The extra bottom padding is the icon captions' room. */
+  .pc-row2{ display:flex; align-items:center; gap:10px; padding-bottom:11px; }
   .mini-ctrl-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
   .mini-ctrl-btn:active{ transform:scale(0.94); }
   .mini-play-btn{ width:48px; height:48px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
@@ -1407,22 +1431,10 @@
     border:1px dashed var(--border-strong); font-size:12.5px; line-height:1.55;
     color:var(--text-muted); }
   .locked-acts{ display:flex; gap:9px; margin-top:13px; }
-  /* -------- Save for Later, and the offline shelf --------
-     Two states on one row, because they are two states of one thing: an
-     episode is saved, and it may also be held on the device. A separate
-     "downloads" list would put the same episode in two places and make
-     removing it from one of them ambiguous. */
-  /* The way between the two views of one shelf, where the folder chips used
-     to be. Folders went because a shelf of a dozen episodes does not need
-     filing - and "Commute" was a fixture nobody had made, sitting on a real
-     screen looking like something they had. */
-  .sv-switch{ display:flex; align-items:center; justify-content:space-between;
-    gap:10px; width:calc(100% - 36px); margin:0 18px 12px; padding:12px 14px;
-    border-radius:12px; background:var(--surface); border:1px solid var(--border);
-    color:var(--text); font-family:'Space Grotesk', sans-serif; font-size:13px;
-    font-weight:600; cursor:pointer; }
-  .sv-switch:active{ transform:scale(0.995); }
-  .sv-switch svg{ flex:none; color:var(--text-faint); }
+  /* -------- Save for Later --------
+     One list of pointers. There used to be a second view of it - Downloads,
+     the audio held on the device - and a switch between them; both are gone
+     with the feature. */
   .sv-row{ display:flex; align-items:center; gap:11px; padding:12px 18px;
     border-bottom:1px solid var(--border); cursor:pointer; }
   .sv-row:active{ background:var(--surface); }
@@ -1435,15 +1447,9 @@
     white-space:nowrap; }
   .sv-meta{ font-family:'JetBrains Mono', monospace; font-size:8px;
     color:var(--text-faint); letter-spacing:0.04em; }
-  .sv-dl{ color:var(--sage); }
   .sv-x{ color:var(--text-faint); padding:6px; }
   .sv-empty{ padding:30px 18px; text-align:center; color:var(--text-faint);
     font-family:'Space Grotesk', sans-serif; font-size:11px; line-height:1.6; }
-  .sv-bar{ margin:0 18px 12px; padding:9px 12px; border-radius:11px;
-    background:var(--surface); border:1px solid var(--border);
-    font-family:'JetBrains Mono', monospace; font-size:8px; color:var(--text-muted);
-    letter-spacing:0.04em; }
-
   /* -------- Share sheet: inside FAM, and outside it --------
      One sheet with two halves rather than two sheets, because "share this"
      is one intent and the listener should not have to know which kind of
@@ -1467,28 +1473,13 @@
   .sh-note{ font-family:'JetBrains Mono', monospace; font-size:7.5px;
     color:var(--coral); margin-top:10px; line-height:1.6; }
 
-  /* -------- The download question --------
-     Asked the moment something is saved, because that is when the listener is
-     thinking about it - and answered in one tap either way. */
-  /* The way out of the question. Both buttons are commitments, so without
-     this the only exit was the backdrop - which nothing says is tappable. */
-  .dl-x, .modal-x{ position:absolute; top:12px; right:12px; width:28px;
+  /* The way out of a modal. Every sheet and popup in the app draws its X the
+     same way, so the thumb does not have to find it again on each one. */
+  .modal-x{ position:absolute; top:12px; right:12px; width:28px;
     height:28px; border-radius:50%; background:none; border:none;
     color:var(--text-muted); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
-  .dl-x:active, .modal-x:active{ color:var(--text); }
-  .dl-sub{ font-size:11.5px; line-height:1.5; color:var(--text-muted);
-    margin:8px 0 2px; }
-  .dl-size{ font-family:'JetBrains Mono', monospace; font-size:9px;
-    color:var(--text-muted); margin:-4px 0 14px; letter-spacing:0.04em; }
-  .dl-full{ font-family:'Space Grotesk', sans-serif; font-size:11px;
-    color:var(--text-muted); line-height:1.6; margin-bottom:10px; }
-  .dl-cand{ display:flex; align-items:center; gap:9px; padding:8px 0;
-    border-top:1px solid var(--border); cursor:pointer; }
-  .dl-cand-title{ flex:1; font-family:'Space Grotesk', sans-serif; font-size:11px;
-    color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .dl-cand-free{ font-family:'JetBrains Mono', monospace; font-size:8px;
-    color:var(--copper); }
+  .modal-x:active{ color:var(--text); }
 </style>
 </head>
 <body>
@@ -1802,21 +1793,13 @@
       </section>
 
       <!-- ============ SAVE FOR LATER ============
-           Save for later is a pointer and needs the network; a download is the
-           audio on this device and does not. One list shows both, because they
-           are two states of one episode - see saved.py. -->
+           A pointer to an episode: the question, the length, a title. Playing
+           one needs the network like any other episode - see saved.py. -->
       <section class="screen" id="screen-saved">
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Save for Later</h2>
         </div>
-        <div class="sv-bar" id="svDownloadBar">Loading&hellip;</div>
-        <!-- Downloads lives inside Save for Later rather than beside it. A
-             download is a *state* of a saved episode, so the shelf is one
-             list with two views - and the folders that used to sit here are
-             gone: a shelf of a dozen things does not need filing, and
-             "Commute" was a fixture nobody had made. -->
-        <button class="sv-switch" id="svSwitch" onclick="toggleSavedView()"></button>
         <div class="scroll" id="svBody"></div>
       </section>
 
@@ -2011,10 +1994,14 @@
           </div>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1× · 3 min</div>
-            <span class="pt-icon" onclick="openShareModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg></span>
-            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg></span>
-            <span class="pt-icon" id="playerSave" onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></span>
-            <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg></span>
+            <!-- Four icons with their names under them. Unlabelled, a
+                 bookmark, a two-way arrow and a speech rectangle are three
+                 guesses; the play-all sidebar and Explore's rail had always
+                 carried labels, and this row was the odd one out. -->
+            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
+            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
+            <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
+            <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span class="pt-cap">Captions</span></span>
           </div>
         </div>
       </section>
@@ -2034,7 +2021,7 @@
             <div class="sb-icon" onclick="toggleFavorite(this)"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2"><path d="M12 21s-7.5-4.9-10-9.3C.4 8.5 2 5 5.6 5c2 0 3.5 1.1 4.4 2.6C11 6.1 12.4 5 14.4 5 18 5 19.6 8.5 18 11.7 15.5 16.1 12 21 12 21z"/></svg></div><div class="lbl">Favorite</div></div>
             <div class="sb-icon" onclick="openShareModal()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg></div><div class="lbl">Share</div></div>
             <div class="sb-icon echo-icon" id="echoIcon" data-echo onclick="toggleEcho()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg></div><div class="lbl">VIBE!</div></div>
-            <div class="sb-icon" onclick="saveForLater()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div><div class="lbl">Save</div></div>
+            <div class="sb-icon" data-save onclick="saveForLater()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div><div class="lbl">Save</div></div>
             <div class="sb-icon" id="paCcIcon" onclick="paToggleCC()"><div class="circ"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg></div><div class="lbl">Captions<br>off</div></div>
           </div>
         </div>
@@ -2086,9 +2073,9 @@
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>
               <span>share</span>
             </div>
-            <div class="reel-act" onclick="saveForLater()" title="Save for later" aria-label="Save for later">
+            <div class="reel-act" data-save onclick="saveForLater()" title="Save for later" aria-label="Save for later">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg>
-              <span>save</span>
+              <span class="save-cap">save</span>
             </div>
           </div>
 
@@ -2316,9 +2303,6 @@
         </div>
       </div>
 
-      <!-- Asked the moment something is saved. Saving needs the network to
-           play; downloading does not, and that difference is the whole reason
-           this popup exists rather than one button doing both silently. -->
       <!-- The sources, in full. A popup rather than an inline drawer because
            a player is not a reading surface: the listener asks for this, gets
            the publishers, the headlines and a way to open them, and dismisses
@@ -2356,34 +2340,6 @@
             </button>
           </div>
           <div class="src-list" id="srcList"></div>
-        </div>
-      </div>
-
-      <div class="modal-overlay" id="downloadOverlay" onclick="if(event.target===this) closeDownloadModal()">
-        <div class="modal-card">
-          <!-- An X, because the two buttons are both commitments and there
-               was no way out of the question at all. Tapping it leaves the
-               episode saved - which already happened, on the tap before this
-               popup - and chooses nothing about the download. -->
-          <button class="dl-x" onclick="closeDownloadModal()"
-                  aria-label="Close without choosing">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-          <div class="modal-title" id="dlTitle" style="padding-right:30px;">Saved. Keep it on this phone?</div>
-          <div class="dl-sub" id="dlSub">A download plays with no signal at all.</div>
-          <div class="dl-size" id="dlSize"></div>
-          <div id="dlFullBox" hidden>
-            <div class="dl-full" id="dlFullText"></div>
-            <div id="dlCandidates"></div>
-          </div>
-          <!-- Two named outcomes, stacked, rather than a verb and a shrug.
-               "Not now" left the listener guessing whether the save had
-               happened at all - it had, on the tap before this - so both
-               buttons now say what they do. -->
-          <div class="modal-btns stack">
-            <button class="modal-btn primary" id="dlConfirmBtn" onclick="confirmDownload()">Download it too</button>
-            <button class="modal-btn ghost" id="dlDismissBtn" onclick="closeDownloadModal()">No, just keep it saved</button>
-          </div>
         </div>
       </div>
 
@@ -3531,6 +3487,12 @@
     var episodeTopicId = bankTopicId || "";
     var reportedOutcome = false;
     setEchoed(false);
+    // Both controls open dark and are corrected from the server, because the
+    // episode may already be on the shelf or already vibed from another
+    // device. The vibe state is asked for with the thread a moment later;
+    // this is the same question for the save control.
+    setSaved(false);
+    setTimeout(refreshSavedState, 0);
     markPlaying();
     awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
     FamAudio.play(title, minutes, {
@@ -6067,8 +6029,6 @@
     return '<div class="pf-hub">'
       + hubTile("openSavedAll()", "Save for Later", "Episodes you kept",
           '<path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/>')
-      + hubTile("openDownloads()", "Downloads", "Play with no signal",
-          '<path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>')
       + hubTile("openMyVibe()", "My Vibe",
           vibes ? vibes + (vibes === 1 ? " episode" : " episodes") : "Nothing yet",
           '<path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/>')
@@ -6347,15 +6307,6 @@
           { method: "DELETE" })
       .then(function(){ openMyVibe(); toast("Vibe taken back"); })
       .catch(function(){ toast("Could not take that back"); });
-  }
-
-  // ---------------- Downloads ----------------
-  // The same shelf as Save for Later, filtered to what is actually on this
-  // device. Two views of one list rather than two lists, because a download
-  // is a state of a saved item and not a second kind of thing.
-  function openDownloads(){
-    savedDownloadsOnly = true;
-    openSaved();
   }
 
   // ---------------- Friends ----------------
@@ -6863,74 +6814,25 @@
     return null;
   }
 
-  // ---------------- Save for later, and the offline shelf ----------------
-  // Two different things, and the interface has to keep them different:
+  // ---------------- Save for later ----------------
   //
-  //   Save for later  a pointer. Plays like any other episode, and needs the
-  //                   network to do it.
-  //   Download        the audio, on this device, in IndexedDB. Plays with the
-  //                   network off.
+  // A pointer: the question, the length, a title. Playing one works like every
+  // other episode in FAM - it is synthesised, or replayed from the shared
+  // cache, on the tap.
   //
-  // A download is an upgrade to a saved item rather than a second list, which
-  // is why saving asks the question and why one row shows both states.
-  //
-  // The bytes are stored HERE and never on the server - that is what keeps the
-  // settled "no MP3, no audio files" constraint intact. The server streams as
-  // it always does; this stops throwing the samples away.
+  // **It is a toggle, not a question.** Pressing save saves, the icon turns
+  // green, and pressing it again takes it off the shelf - the same shape as
+  // VIBE!, drawn by the same kind of attribute sweep for the same reason.
+  // What used to happen instead was a popup asking whether to download the
+  // audio to the device as well, which made the one-tap action in the player
+  // a two-tap action with a decision in the middle. The download feature and
+  // its popup are both gone.
 
-  var OFFLINE_DB = "fam-offline";
   // Folders are gone from this screen. The parameter is not passed any more,
   // so the shelf is always the whole shelf - `/api/saved` still supports
   // `folder_id` and `saved.py` still files things, which is why an episode
   // filed before this change is not lost, only unfiltered.
-  var savedCache = { items: [], folders: [], downloads: {} };
-  var pendingSave = null;
-
-  function offlineDB(){
-    return new Promise(function(resolve, reject){
-      var req = indexedDB.open(OFFLINE_DB, 1);
-      req.onupgradeneeded = function(){
-        if(!req.result.objectStoreNames.contains("episodes")){
-          req.result.createObjectStore("episodes", { keyPath: "id" });
-        }
-      };
-      req.onsuccess = function(){ resolve(req.result); };
-      req.onerror = function(){ reject(req.error); };
-    });
-  }
-  function offlinePut(id, rate, samples){
-    return offlineDB().then(function(db){
-      return new Promise(function(resolve, reject){
-        var tx = db.transaction("episodes", "readwrite");
-        tx.objectStore("episodes").put({ id: id, rate: rate, samples: samples });
-        tx.oncomplete = function(){ resolve(samples.length * 2); };
-        tx.onerror = function(){ reject(tx.error); };
-      });
-    });
-  }
-  function offlineGet(id){
-    return offlineDB().then(function(db){
-      return new Promise(function(resolve){
-        var req = db.transaction("episodes", "readonly")
-                    .objectStore("episodes").get(id);
-        req.onsuccess = function(){ resolve(req.result || null); };
-        req.onerror = function(){ resolve(null); };
-      });
-    }).catch(function(){ return null; });
-  }
-  function offlineDrop(id){
-    return offlineDB().then(function(db){
-      var tx = db.transaction("episodes", "readwrite");
-      tx.objectStore("episodes").delete(id);
-      return new Promise(function(resolve){ tx.oncomplete = resolve; });
-    }).catch(function(){});
-  }
-
-  // Whether this screen is showing the whole shelf or only what is on the
-  // device. Two views of one list: a download is a *state* of a saved item,
-  // not a second kind of thing, so a second list would be able to disagree
-  // with the first about what a listener has.
-  var savedDownloadsOnly = false;
+  var savedCache = { items: [], folders: [] };
 
   function openSaved(){
     // Unwind the Your FAM sheet only if that is where this came from.
@@ -6943,18 +6845,12 @@
     navigate("saved");
     loadSaved();
   }
-  // Called from the profile hub. `openSaved` is the only entry point that
-  // does not set the filter, so it is reset here rather than inside it -
-  // otherwise "Save for Later" would keep showing downloads after one visit.
-  function openSavedAll(){
-    savedDownloadsOnly = false;
-    openSaved();
-  }
+  // Kept as a name because the profile hub and the smoke check both call it.
+  // There is one shelf now, so there is nothing left for it to reset.
+  function openSavedAll(){ openSaved(); }
+
   function loadSaved(){
-    document.querySelector("#screen-saved .back-row h2").textContent =
-      savedDownloadsOnly ? "Downloads" : "Save for Later";
-    var url = "/api/saved" + (savedDownloadsOnly ? "?downloaded=true" : "");
-    fetch(url).then(function(r){
+    fetch("/api/saved").then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not open your shelf");
         return d;
@@ -6965,139 +6861,109 @@
     }).catch(function(err){
       document.getElementById("svBody").innerHTML =
         '<div class="sv-empty">' + escapeHtml(err.message) + '</div>';
-      document.getElementById("svDownloadBar").textContent = "";
-      document.getElementById("svSwitch").innerHTML = "";
     });
   }
   function renderSaved(d){
-    var dl = d.downloads || {};
-    // Says the number rather than a bar, because the number is the thing that
-    // decides whether the next download needs something cleared first.
-    document.getElementById("svDownloadBar").textContent = dl.unlimited
-      ? "DOWNLOADED " + (dl.used || 0) + " · NO LIMIT ON YOUR PLAN"
-      : "DOWNLOADED " + (dl.used || 0) + " OF " + (dl.limit || 0)
-        + " · " + (dl.remaining || 0) + " SLOT" + ((dl.remaining === 1) ? "" : "S") + " FREE";
-
-    // The way between the two views of one shelf. It says where it goes,
-    // not where you are: a button labelled with the screen you are already
-    // on is the one thing nobody can read.
-    var downloaded = (d.items || []).filter(function(i){ return i.downloaded; }).length;
-    document.getElementById("svSwitch").innerHTML = savedDownloadsOnly
-      ? '<span>All saved episodes</span>'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>'
-      : '<span>Downloads' + (downloaded ? ' · ' + downloaded : '') + '</span>'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>';
-
     var items = d.items || [];
     if(!items.length){
-      // Two different nothings. An empty shelf and an empty device are not
-      // the same state, and telling somebody to "save an episode" when they
-      // have twelve saved is the app not knowing which screen it is on.
-      document.getElementById("svBody").innerHTML = savedDownloadsOnly
-        ? '<div class="sv-empty">Nothing downloaded to this device yet.<br>'
-          + 'Save an episode and say yes to the download, and it plays with '
-          + 'no signal at all.</div>'
-        : '<div class="sv-empty">Nothing here yet.<br>Save an episode from the '
-          + 'player and it lands here.</div>';
+      document.getElementById("svBody").innerHTML =
+        '<div class="sv-empty">Nothing here yet.<br>Press save on the player '
+        + 'and the episode lands here.</div>';
       return;
     }
     document.getElementById("svBody").innerHTML = items.map(function(i){
-      var badge = i.downloaded
-        ? '<span class="sv-dl">↓ on this device</span> · '
-        : "";
       return '<div class="sv-row">'
         + '<div class="sv-art" onclick="playSaved(\'' + i.id + '\')">'
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
         + '<div class="sv-main" onclick="playSaved(\'' + i.id + '\')">'
         + '<div class="sv-title">' + escapeHtml(i.title || i.query) + '</div>'
-        + '<div class="sv-meta">' + badge + i.minutes + ' MIN</div></div>'
+        + '<div class="sv-meta">' + i.minutes + ' MIN</div></div>'
         + '<div class="sv-x" onclick="removeSaved(\'' + i.id + '\')">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>'
         + '</div>';
     }).join("");
   }
-  // Downloads and Save for Later are two views of one shelf, so this is a
-  // switch rather than a second screen: the row you are looking at is the
-  // same row either way, and removing it from one of them is unambiguous.
-  //
-  // `/api/saved/folders` still exists and still works - nothing was deleted
-  // on the server. What went is the chip row, which was filing for a shelf
-  // that does not need it.
-  function toggleSavedView(){
-    savedDownloadsOnly = !savedDownloadsOnly;
-    loadSaved();
-  }
   function savedItem(id){
     return (savedCache.items || []).filter(function(i){ return i.id === id; })[0];
   }
   function removeSaved(id){
+    var item = savedItem(id);
     fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
-      .then(function(){ offlineDrop(id); loadSaved(); toast("Removed"); })
+      .then(function(){
+        // If the episode being unsaved is the one on the player, the green
+        // icon has to go out with it - otherwise the control and the shelf
+        // disagree about the same episode.
+        var ep = currentEpisode();
+        if(item && ep && ep.query === item.query) setSaved(false);
+        loadSaved();
+        toast("Removed");
+      })
       .catch(function(){ toast("Could not remove that"); });
   }
   function playSaved(id){
     var item = savedItem(id);
     if(!item) return;
-    // A downloaded episode plays from this device. Tried first rather than
-    // only when offline: it is instant, costs nothing, and is what the
-    // listener asked for when they downloaded it.
-    offlineGet(id).then(function(stored){
-      if(stored && stored.samples && stored.samples.length){
-        playStoredEpisode(item, stored);
-        return;
-      }
-      if(navigator.onLine === false){
-        // The honest failure. Save for later is a pointer, so without a
-        // network there is nothing to point at - and saying that is better
-        // than a spinner that never resolves.
-        toast("That one is not on this device, and you are offline");
-        return;
-      }
-      TOPICS["_saved"] = {
-        title: item.title || item.query, prompt: item.query,
-        source: "Saved for later",
-        caption: "Generating your live transcript as this plays\u2014"
-      };
-      selectedLengthMinutes = item.minutes || selectedLengthMinutes;
-      generate("_saved");
-    });
-  }
-
-  /* Playback with the network off. Deliberately goes through the same player
-     screen and the same progress and transport code as everything else: an
-     offline episode that looked or behaved differently would be a second
-     player to keep in step, and the two would drift. */
-  function playStoredEpisode(item, stored){
-    var title = item.title || item.query;
-    var minutes = item.minutes || 2;
-    rememberEpisode(item.query, minutes, "");
-    setEchoed(false);
-    currentPlayingTopicKey = null;
-    TOPICS["_saved"] = { title: title, prompt: item.query,
-                         source: "Downloaded", caption: "" };
-    currentPlayingTopicKey = "_saved";
-    navigate("player");
-    document.getElementById("p-title").textContent = title;
-    FamAudio.playStored(stored.samples, stored.rate, {
-      onFirstAudio: function(){
-        startProgress(stored.samples.length / (stored.rate || 22050));
-        applyPlaybackSpeed();
-        showNowBar(title, item.query, minutes, "Downloaded");
-      },
-      onEnd: function(){
-        refreshProgressNow(); stopProgress(); setPlayState(false); hideNowBar();
-      },
-      onError: function(){ toast("Could not play that from this device"); }
-    });
-    setPlayState(true);
+    TOPICS["_saved"] = {
+      title: item.title || item.query, prompt: item.query,
+      source: "Saved for later",
+      caption: "Generating your live transcript as this plays\u2014"
+    };
+    selectedLengthMinutes = item.minutes || selectedLengthMinutes;
+    generate("_saved");
     fetch("/api/saved/" + encodeURIComponent(item.id) + "/played",
           { method: "POST" }).catch(function(){});
   }
 
-  // ---- the download question ----
+  // ---- the save toggle ----
+  //
+  // Mirrors `setEchoed` exactly, including why it is an attribute sweep: the
+  // main player went without a vibe control for a while because that function
+  // listed ids, and a fifth save button would hit the same wall. Every save
+  // control carries `data-save`.
+  var savedNow = false;
+
+  function setSaved(on){
+    savedNow = on;
+    document.querySelectorAll("[data-save]").forEach(function(el){
+      el.classList.toggle("saved-on", on);
+      var lbl = el.querySelector(".lbl");
+      if(lbl) lbl.textContent = on ? "Saved" : "Save";
+      var cap = el.querySelector(".save-cap");
+      if(cap) cap.textContent = on ? "saved" : "save";
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.setAttribute("title", on ? "Take it off Save for Later"
+                                  : "Save for later");
+    });
+  }
+
+  // Asked when an episode starts, so the control opens in the right state.
+  // One question about one episode rather than the whole shelf - the shelf is
+  // a screen, and this is a light on a button.
+  function refreshSavedState(){
+    var ep = currentEpisode();
+    if(!ep || !AUTH.authenticated){ setSaved(false); return; }
+    fetch("/api/saved?q=" + encodeURIComponent(ep.query)
+          + "&minutes=" + ep.minutes)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ setSaved(!!(d && d.saved)); })
+      .catch(function(){});
+  }
+
   function saveForLater(){
     var ep = currentEpisode();
     if(!ep){ toast("Play something first"); return; }
+    if(savedNow){
+      fetch("/api/saved?q=" + encodeURIComponent(ep.query)
+            + "&minutes=" + ep.minutes, { method: "DELETE" })
+        .then(function(){
+          setSaved(false);
+          toast("Taken off Save for Later");
+          if(document.getElementById("screen-saved").classList.contains("active"))
+            loadSaved();
+        })
+        .catch(function(){ toast("Could not take that off"); });
+      return;
+    }
     fetch("/api/saved", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
@@ -7107,107 +6973,12 @@
         if(!r.ok) throw new Error(d.error || "Could not save that");
         return d;
       });
-    }).then(function(d){
-      pendingSave = d.item;
-      openDownloadModal(d.item, d.downloads);
+    }).then(function(){
+      setSaved(true);
+      toast("Saved for later \u2713");
+      if(document.getElementById("screen-saved").classList.contains("active"))
+        loadSaved();
     }).catch(function(e){ toast(e.message); });
-  }
-  function openDownloadModal(item, status){
-    // The save has already happened - it landed on the tap that opened this.
-    // So the title says so, and the only question left is the download. The
-    // old "Download?" left it ambiguous whether anything had been kept, and
-    // both buttons had to carry the word "save" to make up for it.
-    document.getElementById("dlTitle").textContent = "Saved. Keep it on this phone?";
-    document.getElementById("dlSub").textContent =
-      "A download plays with no signal at all \u2014 on the tube, on a plane, "
-      + "anywhere.";
-    var mb = Math.max(1, Math.round((item.estimated_bytes || 0) / 1048576));
-    document.getElementById("dlSize").textContent =
-      "ABOUT " + mb + " MB · "
-      + (status && status.unlimited ? "NO LIMIT ON YOUR PLAN"
-         : (status ? status.remaining + " OF " + status.limit + " SLOTS FREE" : ""));
-    document.getElementById("dlFullBox").hidden = true;
-    document.getElementById("dlConfirmBtn").hidden = false;
-    document.getElementById("dlDismissBtn").textContent = "No, just keep it saved";
-    document.getElementById("dlConfirmBtn").textContent = "Download it too";
-    document.getElementById("downloadOverlay").classList.add("active");
-  }
-  function closeDownloadModal(){
-    document.getElementById("downloadOverlay").classList.remove("active");
-    pendingSave = null;
-    if(document.getElementById("screen-saved").classList.contains("active")) loadSaved();
-  }
-  function confirmDownload(){
-    if(!pendingSave) { closeDownloadModal(); return; }
-    var item = pendingSave;
-    var btn = document.getElementById("dlConfirmBtn");
-    btn.textContent = "Downloading…";
-    fetch("/api/saved/" + encodeURIComponent(item.id) + "/download",
-          { method: "POST" })
-      .then(function(r){
-        return r.json().then(function(d){
-          if(r.status === 409){
-            // The shelf is full. The refusal names what to clear, because a
-            // limit without a remedy is a dead end on a phone.
-            var extra = {};
-            try { extra = JSON.parse(r.headers.get("X-FAM-Quota")
-                  || r.headers.get("X-FAM-Downloads") || "{}"); } catch(e){}
-            showDownloadFull(d.error, extra.candidates || []);
-            throw new Error("__handled__");
-          }
-          if(!r.ok) throw new Error(d.error || "Could not download that");
-          return d;
-        });
-      })
-      .then(function(d){
-        return FamAudio.fetchAll(d.stream).then(function(audio){
-          return offlinePut(item.id, audio.rate, audio.samples);
-        }).then(function(bytes){
-          return fetch("/api/saved/" + encodeURIComponent(item.id)
-                       + "/download/confirm", {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ bytes: bytes })
-          });
-        });
-      })
-      .then(function(){
-        closeDownloadModal();
-        toast("Downloaded — plays with no signal ✓");
-      })
-      .catch(function(e){
-        if(e.message === "__handled__") return;
-        // The slot was taken and the bytes did not arrive, so give it back:
-        // a shelf holding something that is not there is the worst of both.
-        fetch("/api/saved/" + encodeURIComponent(item.id) + "/download",
-              { method: "DELETE" }).catch(function(){});
-        btn.textContent = "Download it too";
-        toast(e.message || "Could not download that");
-      });
-  }
-  function showDownloadFull(message, candidates){
-    document.getElementById("dlTitle").textContent = "No room on this device";
-    document.getElementById("dlSub").textContent = "";
-    document.getElementById("dlSize").textContent = "";
-    document.getElementById("dlFullText").textContent = message || "";
-    document.getElementById("dlCandidates").innerHTML = candidates.map(function(c){
-      return '<div class="dl-cand" onclick="freeDownloadSlot(\'' + c.id + '\')">'
-        + '<div class="dl-cand-title">' + escapeHtml(c.title || c.query) + '</div>'
-        + '<div class="dl-cand-free">Free up</div></div>';
-    }).join("");
-    document.getElementById("dlFullBox").hidden = false;
-    document.getElementById("dlConfirmBtn").hidden = true;
-    // Still closable, and still honest about what happened: the save landed
-    // on the tap before this one, and only the download is being refused.
-    document.getElementById("dlDismissBtn").textContent = "Keep it saved for later";
-  }
-  function freeDownloadSlot(id){
-    fetch("/api/saved/" + encodeURIComponent(id) + "/download", { method: "DELETE" })
-      .then(function(){ offlineDrop(id); })
-      .then(function(){
-        if(pendingSave){ confirmDownload(); }
-        else { closeDownloadModal(); loadSaved(); }
-      })
-      .catch(function(){ toast("Could not free that up"); });
   }
 
   var pendingShareTopicKey = null;
@@ -7529,6 +7300,8 @@
     var ep = reelCurrent;
     if(!ep) return;
     setEchoed(false);
+    setSaved(false);
+    setTimeout(refreshSavedState, 0);
     markPlaying();
     FamAudio.play(ep.query, ep.minutes, {
       onFirstAudio: function(){

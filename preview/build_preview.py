@@ -325,29 +325,21 @@ def load_fixtures() -> dict:
             "reason": "Next to what you already listen to, rather than more of it.",
             "algo": topics_mod.ALGO_VERSION,
         },
-        # The shelf, with one folder and one episode already on it. Not empty,
-        # because an empty-state preview shows the empty state and nothing
-        # else - and the thing worth looking at on a phone is a row that has
-        # both states of an episode on it at once.
+        # The shelf, with two episodes already on it. Not empty, because an
+        # empty-state preview shows the empty state and nothing else.
         "/api/saved": {
             "folders": [{"id": "fld_commute", "name": "Commute",
                          "created": 0, "items": 1}],
             "items": [
                 {"id": "sav_1", "folder_id": "fld_commute",
                  "query": "why semiconductor manufacturing is concentrated",
-                 "minutes": 3, "title": "Who Actually Makes the World's Chips",
-                 "source": "player", "created": 0, "downloaded": True,
-                 "bytes": 7_900_000, "downloaded_at": 0, "last_played": 0,
-                 "estimated_bytes": 7_938_000},
+                 "minutes": 2, "title": "Who Actually Makes the World's Chips",
+                 "source": "player", "created": 0, "last_played": 0},
                 {"id": "sav_2", "folder_id": "",
                  "query": "how electricity grids handle intermittent renewable power",
                  "minutes": 5, "title": "What the Grid Does When the Wind Drops",
-                 "source": "explore", "created": 0, "downloaded": False,
-                 "bytes": 0, "downloaded_at": 0, "last_played": 0,
-                 "estimated_bytes": 13_230_000},
+                 "source": "explore", "created": 0, "last_played": 0},
             ],
-            "downloads": {"used": 1, "limit": 3, "unlimited": False,
-                          "remaining": 2, "bytes": 7_900_000, "tier": "free"},
         },
         "/api/share/targets": {"targets": [
             {"key": t.key, "label": t.label, "kind": t.kind,
@@ -507,6 +499,7 @@ SHIM = """
       var creds = JSON.parse((init && init.body) || "{}");
       var me = FIXTURES["/api/auth/me"];
       if (creds.email) me.email = creds.email;
+      if (creds.phone) me.phone = creds.phone;
       me.authenticated = true;
       return json(me);
     }
@@ -653,10 +646,31 @@ SHIM = """
         patch.public !== undefined ? patch.public : current.public);
       return json(mixes.mixes[at]);
     }
-    // Save for later, and the download question it asks. Kept in memory for
-    // the life of the page: the point of the preview is the flow - press save,
-    // get asked, say yes, see the row change - and a fixture that never
-    // changed would show the first frame of it and stop.
+    // Save for later. Kept in memory for the life of the page: the point of
+    // the preview is the flow - press save, watch the icon go green, press it
+    // again - and a fixture that never changed would show the first frame of
+    // it and stop.
+    //
+    // The `q=` form is the save control asking whether it is lit, which is
+    // what draws its state when an episode starts.
+    if (path.indexOf("/api/saved?") === 0 && method === "GET") {
+      var askQ = new URLSearchParams(path.split("?")[1] || "");
+      if (askQ.get("q")) {
+        var isOn = FIXTURES["/api/saved"].items.some(function (i) {
+          return i.query === askQ.get("q")
+            && String(i.minutes) === String(askQ.get("minutes")); });
+        return json({ saved: isOn });
+      }
+    }
+    if (path.indexOf("/api/saved") === 0 && method === "DELETE"
+        && path.indexOf("/api/saved/") !== 0) {
+      var offQ = new URLSearchParams(path.split("?")[1] || "");
+      var shelfOff = FIXTURES["/api/saved"];
+      shelfOff.items = shelfOff.items.filter(function (i) {
+        return !(i.query === offQ.get("q")
+                 && String(i.minutes) === String(offQ.get("minutes"))); });
+      return json({ ok: true, saved: false });
+    }
     if (path === "/api/saved" && method === "POST") {
       var wanted = JSON.parse((init && init.body) || "{}");
       var shelf = FIXTURES["/api/saved"];
@@ -665,13 +679,12 @@ SHIM = """
       var item = already || {
         id: "sav_" + Math.random().toString(36).slice(2, 8),
         folder_id: wanted.folder_id || "", query: wanted.query,
-        minutes: wanted.minutes || 3, title: wanted.title || wanted.query,
+        minutes: wanted.minutes || 2, title: wanted.title || wanted.query,
         source: wanted.source || "", created: Date.now() / 1000,
-        downloaded: false, bytes: 0, downloaded_at: 0, last_played: 0,
-        estimated_bytes: (wanted.minutes || 3) * 60 * 22050 * 2
+        last_played: 0
       };
       if (!already) shelf.items.unshift(item);
-      return json({ ok: true, item: item, downloads: shelf.downloads });
+      return json({ ok: true, saved: true, item: item });
     }
     if (path === "/api/saved/folders" && method === "POST") {
       var named = JSON.parse((init && init.body) || "{}");
@@ -686,46 +699,12 @@ SHIM = """
       var verb = parts[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === savedId; })[0];
-      if (verb === "download" && method === "POST") {
-        if (!found) return json({ error: "No such saved episode." }, 404);
-        if (shelf2.downloads.remaining <= 0) {
-          // The full shelf, which is the interesting half of this feature and
-          // the one a preview would otherwise never show.
-          return json({ error: "You are holding " + shelf2.downloads.used
-            + " downloaded episodes, which is all your plan keeps offline. "
-            + "Remove one to make room." }, 409, {
-              "X-FAM-Downloads": JSON.stringify({
-                candidates: shelf2.items.filter(function (i) { return i.downloaded; }),
-                status: shelf2.downloads })
-            });
-        }
-        found.downloaded = true;
-        found.bytes = found.estimated_bytes;
-        shelf2.downloads.used += 1;
-        shelf2.downloads.remaining -= 1;
-        return json({ ok: true, item: found, downloads: shelf2.downloads,
-                      stream: "/api/audio?q=" + encodeURIComponent(found.query)
-                              + "&minutes=" + found.minutes + "&fmt=pcm" });
-      }
-      if (verb === "download" && method === "DELETE") {
-        if (found && found.downloaded) {
-          found.downloaded = false; found.bytes = 0;
-          shelf2.downloads.used -= 1;
-          shelf2.downloads.remaining += 1;
-        }
-        return json({ ok: true, downloads: shelf2.downloads });
-      }
-      if (verb === "download" || verb === "played" || verb === "move") {
+      if (verb === "played" || verb === "move") {
         return json({ ok: true, item: found || null });
       }
       if (method === "DELETE") {
         var where = shelf2.items.indexOf(found);
-        if (where >= 0) {
-          if (found.downloaded) {
-            shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-          }
-          shelf2.items.splice(where, 1);
-        }
+        if (where >= 0) shelf2.items.splice(where, 1);
         return json({ ok: true });
       }
     }

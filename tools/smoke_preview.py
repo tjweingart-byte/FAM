@@ -102,6 +102,14 @@ def main() -> int:
             page.evaluate("showAuthForm()")
             page.fill("#authEmail", "smoke@example.com")
             page.fill("#authPassword", "a-long-enough-password")
+            # The number is asked for and kept on the same account as the
+            # address. Typed as digits, because what the field shows is the
+            # national formatting and what is sent is E.164.
+            page.fill("#authPhone", "4155550142")
+            assert page.input_value("#authPhone") == "(415) 555-0142", \
+                "the phone field did not format what was typed into it"
+            assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
+                "the country code did not default to +1"
             page.evaluate("submitAuthForm()")
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
@@ -387,7 +395,7 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def save_for_later_lists_the_shelf_and_reaches_downloads():
+        def save_for_later_lists_the_shelf():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("openSavedAll()")
@@ -395,30 +403,15 @@ def main() -> int:
                                    timeout=10000, state="attached")
             rows = page.eval_on_selector_all(".sv-row", "e => e.length")
             assert rows >= 2, f"the shelf showed {rows} episodes"
-            # Both states of an episode on one list: saved, and saved AND held
-            # on the device. Two lists would put the same episode in two places
-            # and make removing it from one of them ambiguous.
-            assert page.eval_on_selector_all(".sv-dl", "e => e.length") >= 1, \
-                "nothing on the shelf was marked as being on this device"
-            bar = page.text_content("#svDownloadBar")
-            assert "OF" in bar and "FREE" in bar, \
-                f"the shelf did not say how much offline room was left: {bar!r}"
-            # Downloads is inside this shelf rather than beside it, because a
-            # download is a *state* of a saved episode. The folder chips that
-            # used to be here are gone: a shelf of a dozen things does not
-            # need filing, and the one folder in it was a fixture.
+            # One list of pointers. Downloads used to be a second view of this
+            # shelf with a switch between them, and the folder chips a row
+            # above that; both are gone with their features.
+            assert not page.query_selector("#svSwitch"), \
+                "the Downloads switch came back"
+            assert not page.query_selector("#svDownloadBar"), \
+                "the offline-capacity bar came back"
             assert not page.query_selector(".sv-chip"), \
                 "the folder chips came back"
-            switch = page.text_content("#svSwitch")
-            assert "Downloads" in switch, f"no way through to downloads: {switch!r}"
-            page.click("#svSwitch")
-            page.wait_for_timeout(500)
-            assert page.text_content("#screen-saved .back-row h2").strip() == "Downloads", \
-                "the Downloads view did not open"
-            assert "All saved" in page.text_content("#svSwitch"), \
-                "no way back to the whole shelf"
-            page.click("#svSwitch")
-            page.wait_for_timeout(400)
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -440,35 +433,59 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def saving_from_the_player_asks_about_downloading():
-            """The distinction the whole feature rests on. Save for later is a
-            pointer and needs the network; a download is the audio on this
-            device. One button that silently did both would make the limit
-            arrive as a surprise."""
+        def saving_is_a_toggle_on_every_player():
+            """Press save, the icon goes green, press it again and it does
+            not. Saving used to raise a popup asking whether to download the
+            audio to the device as well, which made the one-tap action in the
+            player a two-tap action with a decision in the middle.
+
+            Checked across every save control at once, the way VIBE! is: the
+            main player went without a vibe button for a while because the
+            function that drew that state listed ids, and a save control on a
+            fifth player would hit exactly that wall."""
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("showScreen('player')")
             page.evaluate("nowBarState = {query: 'why bonds move',"
-                          " title: 'Bonds', minutes: 3}")
+                          " title: 'Bonds', minutes: 2}")
+
+            controls = page.eval_on_selector_all("[data-save]", "e => e.length")
+            assert controls >= 3, f"only {controls} save controls carry data-save"
+
             page.evaluate("saveForLater()")
-            page.wait_for_selector("#downloadOverlay.active", timeout=8000)
-            # The save has already happened, so the popup says so: the only
-            # question left is the download, and the old "Download?" left it
-            # ambiguous whether anything had been kept at all.
-            title = page.text_content("#dlTitle")
-            assert "Saved" in title, f"the popup did not say the save landed: {title!r}"
-            size = page.text_content("#dlSize")
-            assert "MB" in size, f"the popup did not say the size: {size!r}"
-            assert "no signal" in page.text_content("#dlSub").lower(), \
-                "the popup did not say what downloading buys"
-            # Both buttons are commitments, so there has to be a way out of
-            # the question that is not the backdrop.
-            assert page.query_selector("#downloadOverlay .dl-x"), \
-                "the popup cannot be dismissed without choosing"
-            page.click("#downloadOverlay .dl-x")
+            page.wait_for_timeout(800)
+            assert not page.query_selector("#downloadOverlay"), \
+                "the download popup came back"
+            lit = page.eval_on_selector_all(
+                "[data-save]",
+                "e => e.filter(x => x.classList.contains('saved-on')).length")
+            assert lit == controls, \
+                f"saving lit {lit} of {controls} save controls"
+            word = page.eval_on_selector("#playerSave .save-cap",
+                                         "e => e.textContent").strip().lower()
+            assert word == "saved", f"the save control still says {word!r}"
+
+            page.evaluate("saveForLater()")
+            page.wait_for_timeout(800)
+            still = page.eval_on_selector_all(
+                "[data-save]",
+                "e => e.filter(x => x.classList.contains('saved-on')).length")
+            assert still == 0, f"{still} save controls stayed lit after unsaving"
+            page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
-            assert not page.query_selector("#downloadOverlay.active"), \
-                "the X did not close the popup"
+
+        def the_player_names_its_four_icons():
+            """Share, vibe, save and captions. Unlabelled, a bookmark, a
+            two-way arrow and a speech rectangle are three guesses - and the
+            play-all sidebar and Explore's rail had always carried labels, so
+            this row was the odd one out."""
+            page.evaluate("showScreen('player')")
+            page.wait_for_timeout(300)
+            words = page.eval_on_selector_all(
+                "#screen-player .pc-row2 .pt-cap",
+                "e => e.map(x => x.textContent.trim().toLowerCase())")
+            assert words == ["share", "vibe", "save", "captions"], \
+                f"the player's icons are labelled {words}"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -1282,14 +1299,13 @@ def main() -> int:
         check("One tap sends one request", one_tap_is_one_request)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
-        check("Save for Later lists the shelf and reaches Downloads",
-              save_for_later_lists_the_shelf_and_reaches_downloads)
+        check("Save for Later lists the shelf", save_for_later_lists_the_shelf)
         check("The shelf comes back to where it was opened from",
               the_shelf_comes_back_to_where_it_was_opened_from)
         check("The photo editor crops what it shows",
               the_photo_editor_crops_what_it_shows)
-        check("Saving asks about downloading",
-              saving_from_the_player_asks_about_downloading)
+        check("Saving is a toggle on every player", saving_is_a_toggle_on_every_player)
+        check("The player names its four icons", the_player_names_its_four_icons)
         check("An episode can be shared outside FAM",
               an_episode_can_be_shared_outside_fam)
         check("Your FAM offers the recap and Save for Later",
