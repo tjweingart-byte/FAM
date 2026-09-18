@@ -1419,6 +1419,17 @@ the two lists are still kept in step by hand.
 
 What is true but not obvious from the code:
 
+- **The gate runs a different Python from the build container**, and that gap
+  hid a failing test for days (§106). `.github/workflows/ci.yml` pins 3.12;
+  this container has 3.11. A green `./dev.sh check` is therefore not the same
+  claim as a green CI, and the difference showed up as order-dependent state
+  that only 3.12 exposed. If CI fails on something that passes here, build a
+  3.12 venv and run the whole suite in it before concluding anything about the
+  environment.
+- **Check that CI is actually green before trusting it.** It was red on `Main`
+  for at least ten merges (§106), always the same assertion, and a red board
+  stops being read. `mcp__github__actions_list` on `ci.yml` filtered to `Main`
+  answers it in one call.
 - There is **no API key** in the build container, so writing quality and
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing

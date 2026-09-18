@@ -560,3 +560,40 @@ def test_the_pool_never_composes_more_than_it_can_hold(monkeypatch):
     assert seen["n"] <= stories.POOL_SIZE, (
         f"composed {seen['n']} tiles for a pool that holds "
         f"{stories.POOL_SIZE}")
+
+
+def test_reset_drops_the_registered_sources_too():
+    """`reset` says "drop everything", and for a long time it kept the source
+    registry - which is the bug that held CI red on `Main` (PROBLEMS.md §106).
+
+    A helper that resets and then registers was appending rather than
+    replacing, so a second call left two copies of the same source in the list
+    and `refresh` collected from both. It surfaced a long way away, as
+    `test_one_refresh_serves_every_listener` failing `assert 2 == 1` - a test
+    about this row's economics reporting that one refresh had become two. It
+    was right and the pollution was ours, which is the most useful shape a
+    failing test can have and the easiest to dismiss as flaky.
+
+    Pinned here rather than there because the general rule is the valuable
+    one: **a partial reset is worse than no reset**, since it leaves the
+    caller believing they are starting clean.
+    """
+    class Stub(stories.StorySource):
+        name = "stub"
+        domain = stories.ATTENTION
+        cost_per_refresh = 0.0
+        min_interval_seconds = 0.0
+
+        def diagnose(self):
+            return False, "a stub never serves"
+
+        async def collect(self, limit):
+            return []
+
+    stories.reset()
+    stories.register(Stub())
+    assert len(stories.sources()) == 1
+    stories.reset()
+    assert stories.sources() == [], \
+        "reset kept the source registry, so the next register appends"
+    stories.reset()

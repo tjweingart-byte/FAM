@@ -490,13 +490,31 @@ def pool() -> Pool:
 
 
 def reset() -> None:
-    """Drop everything. For tests, and for a forced refresh."""
+    """Drop everything. For tests, and for a forced refresh.
+
+    **Including the registered sources**, which it used to leave behind while
+    saying "everything" - the bug that kept CI red on `Main` for days
+    (PROBLEMS.md §106). A test helper that resets and then registers a source
+    was therefore appending rather than replacing, so the second call had two
+    copies of the same source in the list and `refresh` collected from both.
+    That surfaced a long way from here, as
+    `test_one_refresh_serves_every_listener` failing `assert 2 == 1` - a test
+    about this row's *economics*, reporting that one refresh had become two
+    per listener, which is exactly what it is there to catch. It was right;
+    the pollution was ours.
+
+    Safe to clear because **nothing in production calls this** - sources are
+    installed by `story_sources.install`, and `reset` has only ever had test
+    callers. A partial reset is worse than none: it leaves the caller
+    believing they are starting clean.
+    """
     global _POOL, _REFRESHING
     _POOL = Pool()
     _REFRESHING = False
     _RETIRED.clear()
     _FIRST_SEEN.clear()
     _LAST_SWEPT.clear()
+    _SOURCES.clear()
 
 
 def seed(stories: Iterable[Story], sources_report: Iterable[SourceReport] = ()) -> Pool:

@@ -7214,3 +7214,46 @@ reproducible (§101), because `build_preview.py` bakes `time.time()` into a
 fixture. `build_share_preview.py` does not, and rebuilding it is byte-identical
 - so the new artifact can be verified against its source even though the older
 two cannot.
+
+### The gate was red on `Main`, and had been for days
+
+The audit above was written believing CI was green. It was not: **every CI run
+on `Main` for at least ten merges had failed**, always on the same assertion -
+`tests/test_trending.py::test_one_refresh_serves_every_listener`, `assert 2 ==
+1`, "the feed was fetched per listener". This branch inherited it, so its first
+two runs were red for a reason that had nothing to do with sharing.
+
+Worth recording for how nearly it was dismissed. It passed locally - the whole
+suite, 1946 tests - and failed on CI every time, which is the exact shape of a
+thing you write off as an environment difference and stop looking at. The
+difference was the Python version: **3.11 locally, 3.12 in the gate**. Under
+3.12 the whole suite reproduces it, and `tests/test_trending.py` on its own
+passes under both. So it was order-dependent state, not a version bug.
+
+**The cause was `stories.reset()`, whose docstring said "drop everything" and
+did not drop the source registry.** The helper in `test_trending.py` resets and
+then registers `TrendingRegistrySignals`, so a second call through it was
+*appending* rather than replacing: two copies of the same source in `_SOURCES`,
+`stories.refresh()` collecting from both, and therefore two upstream fetches.
+Reproduced in eight lines outside pytest - one helper call gives one fetch, two
+give two.
+
+Three things in it are worth keeping:
+
+* **The failing test was right, and it was the right test.** It exists to guard
+  this row's economics - one fetch serves every listener, which is why Trending
+  is the cheapest place in FAM to put live data rather than the most expensive.
+  It reported one refresh becoming two per listener. That is precisely its job;
+  what it was catching was test pollution rather than a regression in the row,
+  but the number it printed was true either way.
+* **A partial reset is worse than no reset**, because it leaves the caller
+  believing they are starting clean. `reset` now clears `_SOURCES`, which is
+  safe because nothing in production calls it - sources are installed by
+  `story_sources.install`, and `reset` has only ever had test callers.
+* **A red gate protects nothing, and stops being read.** Ten merges went in
+  over a failing check. The cost is not the one test; it is that the next real
+  failure arrives on a board that is already red, and nobody looks.
+
+Fixed, with a guard in `test_stories.py` pinning that `reset` empties the
+registry, and the full suite verified green on **3.12** - the version the gate
+actually runs - as well as on 3.11.
