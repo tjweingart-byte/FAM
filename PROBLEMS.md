@@ -7275,18 +7275,37 @@ has presumably been failing in the gate for as long as the trending one has;
 nobody could see it. That is the second-order cost of a red board, and it is
 worse than the first: a red check hides the checks behind it.
 
-It does not reproduce here. `tools/smoke_preview.py` passes locally, and it
-still passes with the Google Fonts requests blocked - so it is not simply the
-webfont failing to load. The remaining difference is the browser and the fonts
-installed beside it: CI downloads Chromium 1243 (Chrome 153), this container
-has 1194, and text metrics are a property of the build and the font stack. That
-browser cannot be fetched from here, so it cannot be reproduced here either.
+It does not reproduce here, and the diagnostic added below is what said why.
+The gate reports:
 
-**Deliberately not "fixed".** The three ways to make it pass are to install a
-font in CI, to pin the browser, or to loosen the tolerance - and the third
-would weaken a guard that exists because a clipped headline actually shipped
-once. Which of those is right is a decision about the check, not a bug to
-quietly patch, and it belongs to whoever owns that guard.
+    worst: {'text': 'What happens to the grid operators...',
+            'scrollHeight': 53, 'clientHeight': 39}
+    rendered with: Fraunces, serif at 10.5px/13.125px (webfonts: loaded)
+
+39px is three lines at that line height and 53px is four. So on the runner the
+longest title wraps one line further than the tile allows, and it is **not
+marginal** - it is a whole line over.
+
+`Fraunces, serif` is the CSS stack, not proof that Fraunces rendered;
+`document.fonts.status` says loading *settled*, not that it succeeded. The
+most likely reading is therefore that the runner falls back to its own serif,
+which is wider than the one this container falls back to - which is also why
+blocking Google Fonts locally does **not** reproduce it. The other half of the
+difference is the browser: CI downloads Chromium 1243 (Chrome 153), this
+container has 1194, and it cannot be fetched from here.
+
+Note what that implies beyond the test, because it is the more interesting
+half: if the fallback really is what the runner draws, then **any listener
+whose browser does not get Fraunces sees these titles clipped too.** The check
+would then be reporting a real product fact rather than a CI quirk.
+
+**Deliberately not "fixed".** The ways to make it pass are to install the font
+on the runner, to pin the browser, to give the tile a fourth line, or to loosen
+the tolerance - and the last would weaken a guard that exists because a clipped
+headline actually shipped once. Given the reading above, the honest candidates
+are the third and a real decision about fallback fonts, neither of which is a
+thing to quietly patch in a branch about sharing. It belongs to whoever owns
+that guard.
 
 What was done instead is the part that is safe and was missing: **the failure
 now says what it measured** - the worst offender's scroll and client heights,
