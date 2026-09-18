@@ -156,6 +156,9 @@ async def main() -> int:
               "indexed articles and the writer is told plainly that no live "
               "feed exists - it does not invent a score.")
         print("Set LIVE_SPORTS_PROVIDER (see .env.example) to connect one.")
+        print("The same providers also feed myFAM's story pool, which is a "
+              "separate subsystem on a separate clock: "
+              "`python tools/stories_report.py --dry` is its equivalent of this.")
         return 0
 
     print(f"{passed}/{checked} provider(s) verified.")

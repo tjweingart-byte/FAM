@@ -39,6 +39,7 @@ def load_fixtures() -> dict:
     import entitlements
     import mixes as mixes_mod
     import preferences as prefs_mod
+    import stories as stories_mod
     import topics as topics_mod
     import trending as trending_mod
     import sharing
@@ -46,10 +47,30 @@ def load_fixtures() -> dict:
     bank = [t.as_dict() for t in topics_mod.TOPIC_BANK]
     by_id = {t["id"]: t for t in bank}
 
+    # What a live story tile looks like, produced by the real conversion
+    # rather than described here. Templated rather than composed - no model
+    # runs at build time - which is exactly the tile a deployment with no API
+    # key serves, so the preview shows the floor of the feature rather than
+    # its best case.
+    live_tiles = [
+        t.as_dict() for t in topics_mod.topics_from_stories([
+            stories_mod.template(stories_mod.Signal(
+                subject=item.subject, observation=item.why_now,
+                domain=stories_mod.ATTENTION, source="fixture feed",
+                tags=topics_mod.tags_for_text(f"{item.subject} {item.query}"),
+                strength=max(0.2, 1.0 - 0.1 * max(0, item.rank - 1)),
+                suggested_query=item.query, suggested_angle=item.why_now))
+            for item in trending_mod.FakeTrendingSource.SUBJECTS_AS_ITEMS()
+        ])
+    ]
+
     def section(key, title, ids):
-        # `world_trending` is the one row whose tiles are not bank ids - it
-        # comes from an outside feed - so it passes dicts through directly.
-        topics = [t if isinstance(t, dict) else by_id[t]
+        # A live story tile is passed through as a dict - its inventory is not
+        # the bank - and a bank id is looked up. **Copied either way**: the
+        # same tile can be listed on two rails and the same bank entry is in
+        # `/api/topics` as well, so a caller marking one `cached` would
+        # otherwise mark it everywhere it appears.
+        topics = [dict(t if isinstance(t, dict) else by_id[t])
                   for t in ids if isinstance(t, dict) or t in by_id]
         return {"key": key, "title": title, "topics": topics, "empty_reason": ""}
 
@@ -59,24 +80,32 @@ def load_fixtures() -> dict:
     # and the smoke test blamed the interface. A missing key now fails loudly
     # here, where the fixture is, instead of vanishing.
     myfam_picks = {
-        "from_history": ["chip-supply", "energy-grid", "founder-motivation", "hormuz"],
+        # Two live stories in front of the bank, because Made for you is the
+        # one rail that draws on both inventories and a fixture showing only
+        # one of them previews half the rail.
+        "from_history": (live_tiles[:2]
+                         + ["chip-supply", "energy-grid", "founder-motivation",
+                            "hormuz"]),
         "might_like": ["hollywood-comebacks", "food-supply", "anxiety-loop",
                        "training-load", "pricing-psychology"],
         "followers": ["stadium-money", "sleep-science", "space-race", "longevity-claims"],
+        # The crowd row leads with what is already written, so a few of these
+        # carry `cached` - the badge and the ordering are the whole point of
+        # that rail and are invisible on a fixture that marks none.
         "most_played": ["ai-agents", "fed-next-move", "housing-market",
                         "operator-ceos", "habits-research", "transfer-window"],
-        # The world row. Built from the fake feed's subjects rather than the
-        # bank, because its whole point is that its inventory is not FAM's -
-        # and a fixture that drew it from the bank would preview a page the
-        # app cannot build. These are invented, like every other fixture here,
-        # and the preview's own badge says the page is running on fixtures.
-        "world_trending": [
-            {"id": item.id, "title": item.subject[:1].upper() + item.subject[1:],
-             "subtitle": item.why_now, "query": item.query,
-             "tags": list(topics_mod.tags_for_text(f"{item.subject} {item.query}")),
-             "icon": "world"}
-            for item in trending_mod.FakeTrendingSource.SUBJECTS_AS_ITEMS()
-        ],
+        # The world row. Built from the live story pool's own conversion
+        # rather than the bank, because its whole point is that its inventory
+        # is not FAM's - and a fixture that drew it from the bank would
+        # preview a page the app cannot build. These are invented, like every
+        # other fixture here, and the preview's own badge says the page is
+        # running on fixtures.
+        # The ones Made for you did not claim. The real feed fills the
+        # personal rail first and gives this what is left, because the two
+        # draw on one pool now and a page showing the same tile twice reads as
+        # a bug - so a fixture that repeated them would preview a page the app
+        # does not build.
+        "world_trending": live_tiles[2:],
     }
     missing = [k for k, _ in topics_mod.SECTIONS if k not in myfam_picks]
     if missing:
@@ -86,9 +115,18 @@ def load_fixtures() -> dict:
             f"app builds")
     myfam = {
         "personalised": True,
+        "minutes": 3,
         "sections": [section(key, title, myfam_picks[key])
                      for key, title in topics_mod.SECTIONS],
     }
+    # What the two cached rows look like on a seeded deployment. Invented,
+    # like every fixture here, and marked on the rows that would really carry
+    # it - a "ready" badge on Trending would preview a page the app does not
+    # build, because that row's tiles are new by construction.
+    for row in myfam["sections"]:
+        if row["key"] == "most_played":
+            for index, tile in enumerate(row["topics"]):
+                tile["cached"] = index < 3
 
     def mix(mix_id, name, ids, typed=(), public=False):
         items = [dict(by_id[i], query=by_id[i]["query"], custom=False) for i in ids]

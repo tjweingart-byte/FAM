@@ -73,7 +73,7 @@ def test_trending_candidates_are_the_bank_queries_a_tap_would_send(store):
 
 def test_trending_says_where_in_the_ranking_each_guess_came_from(store):
     first = prefetch_sources.TrendingSource(store).candidates()[0]
-    assert "#1 in what FAM can't stop playing" in first.reason
+    assert "#1 in what FAM can't stop listening to" in first.reason
     assert "everyone" in first.reason
 
 
@@ -123,7 +123,8 @@ def test_the_feed_source_warms_the_rails_the_page_actually_draws(store):
     CLAUDE.md already refused once for `rank_next_up`.
 
     Seeded, because this source is the personal one: the rails it warms are
-    "Made for you" and "Your circle is on this", and both are honestly empty
+    "Made for you" and "What your friends are listening to", and both are
+    honestly empty
     for a listener the app has never seen. That case is the next test.
     """
     topic = topics_mod.TOPIC_BANK[0]

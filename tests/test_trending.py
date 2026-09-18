@@ -2,7 +2,7 @@
 
 Two rows, two questions, and keeping them apart is the point:
 
-* **"What FAM can't stop playing"** - this app's own play counts over its own
+* **"What FAM can't stop listening to"** - this app's own play counts over its own
   bank. Cheap, identical for everyone, and the row that already existed.
 * **"Trending"** - what the world is talking about, from an outside feed.
 
@@ -27,8 +27,23 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
+import stories  # noqa: E402
+import story_sources  # noqa: E402
 import topics as T  # noqa: E402
 import trending  # noqa: E402
+
+
+def world_row_from_the_registry():
+    """Put whatever the trending registry holds onto the myFAM rail.
+
+    The rail reads `stories.pool()` now, not `trending.cached()` - the world
+    row is one source among four rather than a subsystem of its own. The
+    registry is still where `TRENDING_SOURCE` installs a feed, so this is the
+    path a configured trending source actually takes to the page.
+    """
+    stories.reset()
+    stories.register(story_sources.TrendingRegistrySignals())
+    return asyncio.run(stories.refresh())
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +96,7 @@ def test_myfam_has_both_a_world_row_and_a_fam_popularity_row():
     titles = dict(T.SECTIONS)
     assert "world_trending" in keys and "most_played" in keys
     assert titles["world_trending"] == "Trending"
-    assert titles["most_played"] == "What FAM can't stop playing"
+    assert titles["most_played"] == "What FAM can't stop listening to"
 
 
 def test_the_fam_popularity_row_still_ranks_plays_over_the_bank():
@@ -207,7 +222,7 @@ def test_one_refresh_serves_every_listener():
 
     source.fetch = counted
     trending.register(source)
-    asyncio.run(trending.refresh())
+    world_row_from_the_registry()
 
     store = T.EventStore(":memory:")
     for listener in ("u1", "u2", "u3"):
@@ -227,8 +242,11 @@ def test_the_feed_read_needs_no_network_and_no_await():
     code = "\n".join(re.sub(r"#.*", "", line) for line in source.split("\n"))
     assert not inspect.iscoroutinefunction(T.build_feed)
     assert "await" not in code
-    assert "trending.refresh" not in code, "the ranker is fetching"
-    assert "trending.cached()" in code
+    assert ".refresh(" not in code, "the ranker is fetching"
+    # It reads the pool through `live_topics`, which is the one synchronous
+    # accessor. Named here so that replacing it with a fetch breaks a test
+    # rather than the browse page's whole latency guarantee.
+    assert "live_topics(" in code
 
 
 def test_a_subject_keeps_its_id_when_the_question_is_rephrased():

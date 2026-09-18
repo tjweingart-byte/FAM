@@ -67,9 +67,11 @@ It **refuses to run without an API key**. The server happily falls back to a
 canned script, and a cache seeded with that looks exactly like a cache of real
 episodes until you press play, which is worse than an empty Explore.
 
-After seeding, Trending ranks immediately; "Your circle is on this" stays empty
-until you play something, because it ranks overlap with *you*. That is the
-feature working, not a seed that failed.
+After seeding, "What FAM can't stop listening to" ranks immediately and leads
+with the episodes that are already written. "What your friends are listening
+to" stays empty until you follow somebody, and "Trending" stays empty until a
+live source is configured (`MYFAM.md`). Both are the feature working rather
+than a seed that failed, and both say which on the page.
 
 ## Three ways to look at it, and what each one proves
 
@@ -84,6 +86,19 @@ The preview is the interface running for real against fake data: taps, swipes,
 transport controls, the topic picker, mixes and the reels are all live code.
 What it cannot tell you is anything about writing quality or time-to-first-audio
 — those need the server.
+
+And a fourth, for the browse page specifically:
+
+```sh
+python tools/stories_report.py --dry   # sweep the live sources, spend nothing
+python tools/stories_report.py         # one model call; print the tiles
+```
+
+myFAM's two outward rails are filled from a live story pool rather than from
+the topic bank (`MYFAM.md`). Nothing about it is visible in the preview, which
+has no server and therefore no pool — the rails fall back and say why, which is
+also what a deployment with no live source shows. This is how you see the real
+thing without opening the app, and `--dry` is the version that costs nothing.
 
 ## Preview builds
 

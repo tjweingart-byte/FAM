@@ -4810,8 +4810,11 @@
   var SECTION_TITLE = {
     from_history:   null,          // built per-listener, see madeForTitle()
     might_like:     "Explore New",  // ranked, reachable, no longer a rail
-    followers:      "Your circle is on this",
-    most_played:    "What FAM can't stop playing",
+    // Renamed with the rail behind it: this reads the follow graph now, not
+    // co-listener overlap. The old heading said "your circle" about people
+    // the listener had never heard of.
+    followers:      "What your friends are listening to",
+    most_played:    "What FAM can't stop listening to",
     world_trending: "Trending"
   };
 
@@ -4832,8 +4835,14 @@
   // Why this card, in the card. A pick that cannot say why it is there reads
   // as arbitrary, and this is where the three signals become visible.
   function seedWhy(sectionKey, topic){
+    // A live story's angle beats every sentence below it, and that is the
+    // point of having one: "what the strike is really about" says more than
+    // "because of what you have played", and it is about *today*. A bank tile
+    // has no angle - it is a standing explainer, true in any week - so it
+    // falls through to the rail's reason, unchanged.
+    if(topic && topic.angle) return escapeHtml(topic.angle);
     if(sectionKey === "from_history") return "Because of what you have played";
-    if(sectionKey === "followers")    return "<b>People you follow</b> played this";
+    if(sectionKey === "followers")    return "<b>Your friends</b> played this";
     // Says the opposite of the others on purpose. This is the one rail that is
     // not a reflection of an established taste, and a card that claimed
     // "because of what you played" here would be describing the ranking that
@@ -4874,6 +4883,12 @@
             // and generates five is the interface lying about the control the
             // listener just used.
             renderGoDeeper(goDeeperThreadCache, goDeeperBankCache);
+            // And the rails are reloaded, for the same reason one step down:
+            // "ready" means "already written *at this length*", so every badge
+            // on the page was just answered against the old number. Costs no
+            // model call - the whole feed is a ranking of things that already
+            // exist.
+            loadMyFamFeed();
           }
         });
       })(m);
@@ -4907,6 +4922,11 @@
         return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
           + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+          // Already written, so it starts instantly and costs nothing to
+          // serve. The same marker the "view more" screen uses, and the same
+          // class - two spellings of "ready" is how one of them stops being
+          // styled without anybody noticing.
+          + (t.cached ? '<span class="sec-ready">ready</span>' : '')
           + '</div>'
           + '<div class="seed-card-body">'
           + '<div class="seed-card-title">' + escapeHtml(t.title) + '</div>'
@@ -5381,7 +5401,10 @@
         + '<div class="feed-rail"><div class="feed-skeleton"></div>'
         + '<div class="feed-skeleton"></div><div class="feed-skeleton"></div></div></div>';
     }
-    fetch(withInterests("/api/myfam"))
+    // The browse length rides along, because whether a tile is already
+    // written depends on the length it would be written at - asking the cache
+    // at the wrong one marks ready tiles unready and sorts the rails wrong.
+    fetch(withInterests("/api/myfam?minutes=" + myfamLengthMinutes))
       .then(function(r){ if(!r.ok) throw new Error("feed unavailable"); return r.json(); })
       .then(function(data){ renderMyFamFeed(data.sections); loadGoDeeper(); })
       .catch(function(){

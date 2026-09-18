@@ -68,6 +68,15 @@ FAM_ENVIRONMENT = (
     # set must not run a suite that quietly has a news feed in it.
     "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",
     "TRENDING_TIMEOUT_SECONDS", "TRENDING_MAX_ITEMS",
+    # myFAM's story pool. Same reasoning again, and one degree worse: a
+    # developer with STORIES_SOURCES set would run a suite that reaches four
+    # live APIs, so a clean environment here is what keeps the browse-page
+    # tests offline as well as deterministic.
+    "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
+    "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
+    "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
+    "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
+    "FINNHUB_WATCHLIST",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.

@@ -166,9 +166,13 @@ cat <<'TOUR'
     search     type a question, pick a length, press play.
                This is the surface to judge the writing on. Listen to the
                last two sentences: they should land and stop, never tease.
-    myFAM      tap any tile. Same pipeline, the question comes from the
-               shared bank instead of the box. A tile someone already
-               played starts instantly - that is the cache, not a trick.
+    myFAM      tap any tile. Same pipeline, the question comes from a
+               shared inventory instead of the box, and a tile marked
+               "ready" starts instantly - that is the cache, not a trick.
+               "Trending" and half of "Made for you" come from the live
+               story pool; with no live source configured they fall back
+               to the evergreen bank and the row says why (MYFAM.md, and
+               `python tools/stories_report.py --dry` to see the state).
     DailyFAM   open a starter mix and play it through. A mix holds topics,
                never audio, so it is a different set of episodes each day.
     explore    swipe the feed. Nothing here is written on demand: it replays

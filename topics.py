@@ -1,26 +1,34 @@
-"""myFAM: a shared topic bank, plus per-user ranking over it.
+"""myFAM: two shared inventories, plus per-user ranking over them.
 
 The cost argument decides the shape of this module. Generating an episode
 costs a model call; ranking a list costs nothing. So **every user sees the
-same bank of topics and a different ordering of it**. Two people who tap the
-same tile share one script through `cache.py`, and the second tap is free and
-instant. A per-user *bank* would mean a per-user script for every tile, which
-is the same product at many times the price.
+same inventory and a different ordering of it**. Two people who tap the same
+tile share one script through `cache.py`, and the second tap is free and
+instant. A per-user *inventory* would mean a per-user script for every tile,
+which is the same product at many times the price.
 
-Three sections, and the point is that each runs on a *different* signal -
-three shuffles of one score would be one section wearing three hats:
+There are two of them, and they answer different halves of "what should I
+hear":
 
-    trending          what everyone is playing now      (global, not personal)
-    followers         what co-listeners played           (social proxy - see below)
-    from_history      closest to what you played         (exploitation)
-    might_like        adjacent to your taste             (exploration)
+    TOPIC_BANK        ~28 evergreen topics, written by hand, always true
+    stories.pool()    live candidates built from today's data, and expiring
 
-Four now. `might_like` was removed from myFAM once and is back, because it is
-the only signal that offers anything *outside* an established taste - without
-it the page is history, co-listeners and the crowd, which is three ways of
-being told what you already like. It also serves the Explore New surface, and
-the two are deliberately the same ranking rather than two that could disagree
-about what is adjacent to somebody's taste.
+The bank is what a browse page has when nothing has happened; the pool is what
+it has when something has. Neither is a script - a tile is a title, an angle
+and a question, and the writing happens on the tap. See `stories.py`.
+
+Four rails, and the point is that each runs on a *different* signal - four
+shuffles of one score would be one rail wearing four hats:
+
+    from_history      closest to what you played, live and evergreen mixed
+    world_trending    what the world is paying attention to    (global, live)
+    most_played       what FAM's listeners are playing         (global, cached)
+    followers         what the people you follow are playing   (your graph)
+
+A fifth, `might_like`, is ranked and reachable and has no rail: it is the only
+signal that offers anything *outside* an established taste, it serves the
+Explore New surface, and it still takes its turn in `FILL_ORDER` so the tiles
+it would show are held back from the generic rows.
 
 Everything is derived from an append-only event log, so there is no profile to
 keep in sync - a taste profile is a query, not a stored object.
@@ -34,12 +42,14 @@ Impressions arrive ~18 at a time on every feed load, so they are excluded from
 `for_user`, the capped read that feeds `taste`; letting them in would train the
 feed on its own output. See `record_impressions` and `for_user`.
 
-**"What your followers are listening to" is a label over data this app does
-not have.** There are no accounts and no follow graph. What it actually ranks
-is co-listener overlap: people who played what you played also played this.
-That is a real signal and a standard one, but it is not your followers, and
-the honest thing is to say so here rather than let the heading imply a social
-network that does not exist.
+**"What your friends are listening to" now is.** It used to be a label over
+data this app did not have: there was no follow graph, so the rail ranked
+co-listener overlap - people who played what you played also played this - and
+said "people you follow" about strangers. The graph has existed since
+SHARING.md and `rank_friends` reads it, so the heading is a promise the code
+keeps. The overlap signal was not deleted: it is real and standard, and it
+still tops up the post-episode popup, where nothing claims those people are
+anybody's friends.
 """
 from __future__ import annotations
 
@@ -52,6 +62,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
+import stories
 import trending
 from paths import data_path
 
@@ -66,10 +77,49 @@ TRENDING_WINDOW = 3 * 86400
 #: the bank actually is.
 SECTION_SIZE = 6
 
+#: How far back a friend's listening still counts. Longer than `TRENDING_WINDOW`
+#: on purpose: the crowd row is asking "what is being played *now*", which is a
+#: question about a large number of people, and the friends row is asking what
+#: a handful of named people have been into - a question three days of data
+#: cannot answer for somebody with four friends.
+FRIENDS_WINDOW = 14 * 86400
+
+#: How many candidates a ranker hands to the variety pass. Three times what a
+#: rail shows, so `diversify` has something to choose between - trimming six
+#: to six is not a variety rule, it is a sort.
+CANDIDATE_FACTOR = 3
+
+#: At most this many tiles from one facet in one rail. Two, because a rail of
+#: six with three sports tiles reads as a sports rail, and "make sure there is
+#: good variety" is the first line of the packet this page was built from.
+#:
+#: It is a *cap and not a quota*: a listener whose entire history is sport
+#: still gets sport at the top of Made for you, they just do not get six of it
+#: when the bank has something else to say. The cost of the cap is that the
+#: third-best sports tile loses to the best tech one; that is the trade, and
+#: it is the right way round for a browse page somebody scrolls.
+MAX_PER_FACET = 2
+
+#: What a live story is worth next to an evergreen one of the same affinity.
+#:
+#: Made for you draws from both inventories, and without this the bank wins
+#: every time: a bank topic carries four hand-written tags and matches a taste
+#: profile more tidily than a story whose tags came off a keyword sweep. The
+#: multiplier is applied to `Story.push()`, which is already 0..1 and already
+#: decaying, so a fresh story about something they listen to comfortably beats
+#: a standing explainer and a three-quarters-expired one does not.
+FRESHNESS_BOOST = 1.6
+
 
 @dataclass(frozen=True)
 class Topic:
-    """One tile. `query` is what gets generated; `title` is only a label."""
+    """One tile. `query` is what gets generated; `title` is only a label.
+
+    The last three fields are empty for every entry in the evergreen bank and
+    filled for a tile that came out of the live story pool. They are additive
+    on purpose: a bank topic is exactly the tile it always was, and nothing
+    downstream has to know which kind it is holding.
+    """
 
     id: str
     title: str
@@ -77,6 +127,20 @@ class Topic:
     query: str
     tags: tuple[str, ...]
     icon: str
+    #: The one line that says what *this* episode is about, written by the
+    #: story composer. Distinct from `subtitle`, which the bank uses as a
+    #: standing description: an angle is a claim about today and a subtitle is
+    #: not, so a tile that has one shows it and a tile that does not is
+    #: unchanged rather than being given a stale one.
+    angle: str = ""
+    #: Which live source put this here. Shown nowhere; it is what makes a
+    #: per-source hit rate answerable, the same way prefetch counts warmed
+    #: against taken. A guess nobody can score is a guess nobody can improve.
+    source: str = ""
+    #: `Story.push()` at the moment the feed was built: how hard this is being
+    #: pushed right now, between 0 and 1. Zero for the bank, which is not
+    #: pushed at all - it is simply always there.
+    freshness: float = 0.0
 
     def as_dict(self) -> dict:
         return {
@@ -86,6 +150,9 @@ class Topic:
             "query": self.query,
             "tags": list(self.tags),
             "icon": self.icon,
+            "angle": self.angle,
+            "source": self.source,
+            "freshness": round(self.freshness, 3),
         }
 
 
@@ -649,16 +716,29 @@ FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
 #: separate - see FILL_ORDER - because the constrained sections must still
 #: choose their topics first.)
 SECTIONS = (
+    # Live stories the listener's own history argues for, mixed with the
+    # evergreen bank. The one rail that is allowed both inventories, because
+    # it is the one whose question is "what would *you* want", and the answer
+    # to that is sometimes today's news and sometimes a standing explainer.
     ("from_history", "Made for you"),
-    # What the *world* is paying attention to, in the slot Explore New used
-    # to hold. A different question from what this app's listeners are
-    # playing, and from a different place: `trending.py`, refreshed once for
-    # everybody. It is second at the owner's direction - it was last, where a
-    # row nobody scrolls to is a row nobody reads, and it is the one rail on
-    # this page with a reason to be looked at today rather than eventually.
+    # What the *world* is paying attention to. A different question from what
+    # this app's listeners are playing, and from a different place: the live
+    # story pool, refreshed once for everybody. It is second at the owner's
+    # direction - it was last, where a row nobody scrolls to is a row nobody
+    # reads, and it is the one rail on this page with a reason to be looked at
+    # today rather than eventually.
     ("world_trending", "Trending"),
-    ("followers", "Your circle is on this"),
-    ("most_played", "What FAM can't stop playing"),
+    # The two crowd rows, in this order at the owner's direction. FAM's own
+    # popularity is a real measurement over every listener; the friends row is
+    # a real measurement over the handful somebody follows, and is empty until
+    # they follow anybody - so the row that always has something in it goes
+    # above the row that does not.
+    ("most_played", "What FAM can't stop listening to"),
+    # Renamed from "Your circle is on this", and the rename is a promise this
+    # rail now keeps: it reads the follow graph rather than co-listener
+    # overlap. The old heading, and the card copy under it, already said
+    # "people you follow" about strangers who happened to play the same tile.
+    ("followers", "What your friends are listening to"),
 )
 
 #: Ranked, reachable by API, and **not on myFAM** - removed from the page at
@@ -857,7 +937,7 @@ class EventStore:
         now = time.time() if at is None else at
         rows = [
             (user_id[:64], IMPRESSION, topic_id[:64], "",
-             ",".join(BANK_BY_ID[topic_id].tags) if topic_id in BANK_BY_ID else "",
+             ",".join(tags_for_id(topic_id)),
              now, "", str(section)[:40], str(algo)[:40])
             for section, topic_id in shown
         ]
@@ -1113,28 +1193,61 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
     return {e.topic_id for e in events if e.topic_id and e.kind in ("play", "complete")}
 
 
+def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
+    """Every tile this server could name right now: the bank, then the pool.
+
+    The bank wins a collision, which cannot happen - a story id starts `st-`
+    and a bank id is a hand-written word - but saying which wins is cheaper
+    than finding out the day somebody adds a bank entry called `st-...`.
+    """
+    known = dict(BANK_BY_ID)
+    for topic in live_topics(now):
+        known.setdefault(topic.id, topic)
+    return known
+
+
 def rank_most_played(
     store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None,
-    limit: int = SECTION_SIZE
+    limit: int = SECTION_SIZE, written=None,
 ) -> list[Topic]:
-    """Global play counts *inside FAM*. Deliberately identical for everyone,
-    which is what makes it the cheapest section to serve: one script, every
-    listener.
+    """Total listens across FAM, most first. Deliberately identical for
+    everyone, which is what makes it the cheapest section to serve: one
+    script, every listener.
 
     Renamed from `rank_trending`: this was always FAM's own popularity, and
     "trending" now means the world - a separate row on a separate source. The
     two answer different questions and a listener reads them differently, so
     they are two rows rather than one blended ranking.
+
+    **Live stories count here too.** A story somebody tapped this morning is
+    exactly as much "what FAM can't stop listening to" as a bank topic, and
+    excluding it would have made this row a ranking of the evergreen bank
+    wearing a heading about the whole app.
+
+    `written` is an optional `query -> bool`: whether that episode's script is
+    already in the shared cache. The packet asks for this row to be the cached
+    one, and a written tile is one a listener hears instantly and FAM pays
+    nothing for - so written tiles sort first *within* the ranking. Not a
+    filter: a deployment whose cache has just expired would show an empty row,
+    which is a fact about the cache being told as a fact about what people are
+    playing.
     """
     now = time.time() if now is None else now
     exclude = exclude or set()
+    known = known_topics(now)
     counts: dict[str, int] = {}
     for _user, topic_id in store.plays_since(now - TRENDING_WINDOW):
-        counts[topic_id] = counts.get(topic_id, 0) + 1
+        if topic_id in known:
+            counts[topic_id] = counts.get(topic_id, 0) + 1
+    # Only the tiles that could appear here are asked about. Probing the whole
+    # inventory would be a cache read per topic on every feed load to answer a
+    # question about topics nobody has played - cheap each, and the sort of
+    # cheap that a browse surface does thirty times a page.
+    candidates = [t for t in known.values()
+                  if t.id in counts and t.id not in exclude]
+    ready = _ready_set(candidates, written)
     ranked = sorted(
-        (t for t in TOPIC_BANK if t.id in counts and t.id not in exclude),
-        key=lambda t: (-counts[t.id], t.id),
-    )
+        candidates, key=lambda t: (t.id not in ready, -counts[t.id], t.id))
     # A cold bank has no plays yet. A stable slice beats an empty section, and
     # beats a random one - random means the tile a listener saw this morning is
     # gone this afternoon, and it defeats the shared script cache.
@@ -1142,22 +1255,97 @@ def rank_most_played(
     return (ranked + filler)[:limit]
 
 
+def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
+    """Which of these already have a script. Empty when nobody asked.
+
+    One local SQLite read per tile and never a model call, so marking a whole
+    feed is as cheap as ranking it. `None` means the caller does not have a
+    cache to ask - a test, the preview, `write.py` - and the honest answer
+    then is "no information", which sorts nothing rather than sorting
+    everything as unwritten.
+    """
+    if written is None:
+        return set()
+    ready = set()
+    for topic in topics:
+        try:
+            if written(topic.query):
+                ready.add(topic.id)
+        except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+            log.exception("could not check the cache for %r; treating as unwritten",
+                          topic.id)
+    return ready
+
+
 def rank_from_history(profile: dict[str, float], exclude: set[str],
                       damp: Optional[dict[str, float]] = None,
-                      limit: int = SECTION_SIZE) -> list[Topic]:
+                      limit: int = SECTION_SIZE,
+                      candidates: Optional[Iterable[Topic]] = None) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
     never taken loses ground to one that has not been asked yet.
+
+    `candidates` is how the live story pool gets in. Made for you is the one
+    rail drawing on both inventories - the packet asks for "a mix of new and
+    cached" - and the mixing happens here rather than in two rankings stitched
+    together afterwards, because two rankings would need a rule for how many
+    of each, and there is no honest answer to that: it depends entirely on
+    whether anything happened today in the corner of the world this listener
+    cares about. One score over both inventories answers it by measuring,
+    and `FRESHNESS_BOOST` is the only thumb on the scale.
     """
     damp = damp or {}
+    pool = list(candidates) if candidates is not None else list(TOPIC_BANK)
     scored = [
-        (_affinity(t, profile) * damp.get(t.id, 1.0), t)
-        for t in TOPIC_BANK if t.id not in exclude
+        (_affinity(t, profile) * damp.get(t.id, 1.0)
+         * (1.0 + FRESHNESS_BOOST * t.freshness), t)
+        for t in pool if t.id not in exclude
     ]
     scored = [(s, t) for s, t in scored if s > 0]
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:limit]]
+
+
+def rank_friends(
+    store: EventStore, circle: Iterable[str], exclude: set[str],
+    damp: Optional[dict[str, float]] = None, limit: int = SECTION_SIZE,
+    now: Optional[float] = None, written=None,
+) -> list[Topic]:
+    """What the people this listener actually follows have been listening to.
+
+    **This used to be co-listener overlap** - "people who played what you
+    played also played this" - under a heading that said "people you follow",
+    on a card that said "People you follow played this". That was a real
+    signal wearing somebody else's name, and it was honest only in a comment
+    in this file. The follow graph has existed since SHARING.md; the rail now
+    reads it.
+
+    `circle` is passed in rather than looked up, so this module keeps knowing
+    nothing about `social.py` and stays a pure function of the event log. The
+    caller decides who counts as the circle - today that is friends (mutual
+    follows) first and then anyone they follow, which is `social.circle_of`.
+
+    An empty circle returns nothing, deliberately. A rail called "what your
+    friends are listening to" that quietly showed strangers would be the
+    original problem again with better wording, and the empty state names the
+    thing to do about it.
+    """
+    circle = {u for u in circle if u}
+    if not circle:
+        return []
+    now = time.time() if now is None else now
+    known = known_topics(now)
+    damp = damp or {}
+    counts: dict[str, float] = {}
+    for user_id, topic_id in store.plays_since(now - FRIENDS_WINDOW):
+        if user_id in circle and topic_id in known and topic_id not in exclude:
+            counts[topic_id] = counts.get(topic_id, 0.0) + damp.get(topic_id, 1.0)
+    if not counts:
+        return []
+    ready = _ready_set((known[i] for i in counts), written)
+    ordered = sorted(counts, key=lambda i: (i not in ready, -counts[i], i))
+    return [known[i] for i in ordered[:limit]]
 
 
 def rank_might_like(profile: dict[str, float], exclude: set[str],
@@ -1246,8 +1434,13 @@ def rank_followers(
 ) -> list[Topic]:
     """Co-listener overlap: people who played what you played also played this.
 
-    Named "followers" in the interface. It is not a follow graph - the app has
-    no accounts and no follows - and this is the closest real signal to it.
+    **No longer the "friends" rail**, and that is the point of the split.
+    This used to fill a shelf headed "people you follow", which it was not;
+    `rank_friends` reads the real graph and has that heading now. What is left
+    here is the signal itself, which is a good and standard one - it is what
+    tops up the post-episode popup when history alone cannot fill four tiles,
+    where the question is "what next" and nothing claims these people are
+    anybody's friends.
     """
     if not mine:
         return []
@@ -1271,16 +1464,30 @@ def rank_followers(
 
 
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
-               interests: Iterable[str] = ()) -> dict:
+               interests: Iterable[str] = (), circle: Iterable[str] = (),
+               written=None) -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
-    as wide as possible from a deliberately small bank.
+    as wide as possible from two deliberately small inventories.
+
+    **Nothing here generates anything, and nothing here waits on anything.**
+    That is the packet's "zero queue" requirement and it is structural rather
+    than fast: this function reads the event log and two caches somebody else
+    refreshed in the background, ranks what it finds, and returns. There is no
+    path from a page load to a model call, so there is nothing that could
+    queue.
 
     `interests` come from the intro. They matter most on the first open, when
     "Made for you" would otherwise be empty and the honest empty-state is the
     only thing a new listener sees.
+
+    `circle` is who counts as this listener's friends - see `rank_friends`.
+    `written` is an optional `query -> bool` that says whether a tile's script
+    is already in the shared cache; the two crowd rows lead with the ones that
+    are, and every tile carries the answer so the interface can say so.
     """
+    now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
     mine = _played_ids(events)
@@ -1290,51 +1497,87 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     used: set[str] = set()
     picked: dict[str, list[Topic]] = {}
 
+    # The live inventory, read once for the page. Synchronous against a cache
+    # somebody else refreshed, so `build_feed` stays a pure function of the log
+    # plus that cache - which is what keeps it callable in a test with no
+    # network, and what makes the page instant. See `stories.py`.
+    live = live_topics(now)
+    wide = SECTION_SIZE * CANDIDATE_FACTOR
+
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
     # generic ones can fall back to the whole bank, so they claim the very
     # topics the personal ones needed and those arrive empty - which is
     # exactly backwards, since the personal sections are the point.
-    # Built from the shared world feed rather than the bank, so it takes no
-    # part in the fill loop's mutual exclusion below. Read synchronously from
-    # a cache somebody else refreshed: `build_feed` stays a pure function of
-    # the log plus that cache, which is what keeps it callable in a test with
-    # no network. See `trending.py` for why the cache is global.
-    world = topics_from_trending(trending.cached().items)
-
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
-        # to hand them the next episode; trending stays globally *ranked*, it
-        # just stops offering back the one they finished this morning.
+        # to hand them the next episode; the crowd rows stay globally *ranked*,
+        # they just stop offering back the one they finished this morning.
         seen = used | mine
         if key == "from_history":
-            picks = rank_from_history(profile, seen, damp)
+            # The one rail that draws on both inventories - today's stories
+            # and the standing bank - which is what "a mix of new and cached"
+            # asks for.
+            picks = rank_from_history(profile, seen, damp, limit=wide,
+                                      candidates=live + list(TOPIC_BANK))
         elif key == "followers":
-            picks = rank_followers(store, user_id, mine, seen, damp)
+            picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
+                                 written=written)
         elif key == "might_like":
-            picks = rank_might_like(profile, seen, damp)
+            picks = rank_might_like(profile, seen, damp, limit=wide)
         else:
             # Not damped, deliberately: this row is the same list for
             # everyone, which is what makes it the cheapest section to serve.
-            picks = rank_most_played(store, now, seen)
+            picks = rank_most_played(store, now, seen, limit=wide, written=written)
+        picks = diversify(picks, SECTION_SIZE)
         picked[key] = picks
         used |= {t.id for t in picks}
 
-    # An empty section is honest, not broken: a new listener genuinely has no
-    # history and no co-listeners. The interface says so rather than padding
-    # it with picks that pretend to be personal.
-    picked["world_trending"] = world
+    # The world row. Filled last and from what is left, which is a change
+    # worth explaining: it used to take no part in the mutual exclusion above,
+    # because its inventory was not FAM's and the two could not collide. They
+    # can now - Made for you draws on the same live pool - and a page showing
+    # one listener the same tile twice reads as a bug whatever the ranking
+    # meant by it.
+    #
+    # So the personal rail chooses first and this takes the next hottest.
+    # Two listeners therefore see slightly different Trending rows, and that
+    # is ordering rather than inventory: the pool is fetched and composed once
+    # for everybody, and any warmed script is still taken by whoever taps it.
+    # The alternative - Trending claiming the hottest story before the rail
+    # the page exists for - would have put the one story this listener
+    # actually wants in the row about everybody else.
+    #
+    # It also never reads the play log. The packet is explicit that Trending
+    # "does not use cached episodes": what is trending is a question about
+    # today, and answering it with what FAM's listeners have already played
+    # would make it a second, laggier copy of the row below it.
+    picked["world_trending"] = diversify(
+        [t for t in live if t.id not in used and t.id not in mine], SECTION_SIZE)
+    # Why it is empty, when it is. The pool's own sentence is right only when
+    # the pool is empty; a pool that served perfectly well and was claimed by
+    # the rail above would otherwise make this row say the live sources had
+    # nothing - our own page's arrangement reported as a fact about the world,
+    # which is the §89 mistake with a new way in.
+    world_reason = ("" if picked["world_trending"]
+                    else _world_empty_reason(bool(live)))
 
+    # An empty section is honest, not broken: a new listener genuinely has no
+    # history and no friends, and a deployment with no live source genuinely
+    # has no stories. The interface says which, rather than padding the row
+    # with picks that pretend to be personal or current.
     sections = [
         {
             "key": key,
             "title": title,
             "topics": [t.as_dict() for t in picked[key]],
-            "empty_reason": _empty_reason(key) if not picked[key] else "",
+            "empty_reason": (world_reason if key == "world_trending"
+                             else _empty_reason(key) if not picked[key] else ""),
         }
         for key, title in SECTIONS
     ]
-    return {"sections": sections, "personalised": bool(profile)}
+    return {"sections": sections, "personalised": bool(profile),
+            "live_stories": len(live)}
 
 
 #: How many tiles a full-screen section shows. The bank is ~28 topics, so
@@ -1345,7 +1588,8 @@ FULL_SECTION_SIZE = 40
 
 def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
-                  interests: Iterable[str] = ()) -> dict:
+                  interests: Iterable[str] = (), circle: Iterable[str] = (),
+                  written=None) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -1358,26 +1602,36 @@ def build_section(store: EventStore, user_id: str, key: str,
     """
     if key not in dict(SECTIONS):
         raise KeyError(key)
+    now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     limit = FULL_SECTION_SIZE
+    live = live_topics(now)
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
     # a different rail happened to claim them would make "view more" show
     # less.
     if key == "from_history":
-        picks = rank_from_history(profile, mine, damp, limit=limit)
+        picks = rank_from_history(profile, mine, damp, limit=limit,
+                                  candidates=live + list(TOPIC_BANK))
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "followers":
-        picks = rank_followers(store, user_id, mine, mine, damp, limit=limit)
+        picks = rank_friends(store, circle, mine, damp, limit=limit, now=now,
+                             written=written)
     elif key == "world_trending":
-        picks = topics_from_trending(trending.cached().items, limit=limit)
+        picks = [t for t in live if t.id not in mine][:limit]
     else:
-        picks = rank_most_played(store, now, mine, limit=limit)
+        picks = rank_most_played(store, now, mine, limit=limit, written=written)
+    # The same variety rule the rail uses, at the same ratio. A screen showing
+    # forty tiles can carry more of one subject than a row showing six, and a
+    # cap that did not scale would make "view more" a different ranking from
+    # the rail it opened - which is the one thing this screen must not be.
+    picks = diversify(picks, limit,
+                      max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
     return {
         "key": key,
         "title": dict(SECTIONS)[key],
@@ -1385,6 +1639,85 @@ def build_section(store: EventStore, user_id: str, key: str,
         "empty_reason": _empty_reason(key) if not picks else "",
         "personalised": bool(profile),
     }
+
+
+def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> list:
+    """Turn live stories into tiles, loudest first.
+
+    The one conversion between the two inventories, so everything downstream -
+    fatigue, impressions, `facets_only`, the "view more" screen, the
+    post-episode popup - works on stories without knowing they exist. A second
+    tile type would have meant a second branch in each of those, which is
+    six places to forget.
+
+    Tags come from the story, which got them from the same keyword map the
+    bank uses. `freshness` is `Story.push()` frozen at the moment the feed was
+    built: the rankers need it as a number and must not each re-derive it from
+    a clock, or two rails on one page could disagree about how hot something
+    is.
+    """
+    now = time.time() if now is None else now
+    tiles = []
+    for story in rows:
+        tags = tuple(story.tags) or tags_for_text(f"{story.subject} {story.query}")
+        tiles.append(Topic(
+            id=story.id,
+            title=story.title,
+            # A story's standing description *is* its angle - it has no other -
+            # so both carry it. `subtitle` is what every existing surface
+            # already reads; `angle` is what says this one is about today.
+            subtitle=story.angle,
+            query=story.query,
+            tags=tags,
+            icon=_icon_for_tags(tags),
+            angle=story.angle,
+            source=story.source,
+            freshness=story.push(now),
+        ))
+    return tiles[:limit] if limit else tiles
+
+
+def live_topics(now: Optional[float] = None) -> list:
+    """The story pool as tiles. Synchronous, and that is the whole design.
+
+    `build_feed` stays a pure function of the event log plus two caches
+    somebody else refreshed, which is what keeps the ranker callable in a test
+    with no network - and what keeps the browse page instant, because nothing
+    on this path can wait on an upstream. See `stories.py` for why the pool is
+    global and refreshed in the background.
+    """
+    return topics_from_stories(stories.pool().live(now), now=now)
+
+
+def diversify(topics: list, limit: int = SECTION_SIZE,
+              max_per_facet: int = MAX_PER_FACET) -> list:
+    """Cap how much of one rail one subject may have. The variety rule.
+
+    Facets rather than tags, because the thing a listener notices is four
+    tiles about sport and not four tiles that happen to share
+    `sports-business`. Order is otherwise preserved exactly, so this is a
+    filter on a ranking and never a re-ranking: the best tile is always still
+    first.
+
+    It tops up rather than returning short. If capping leaves fewer than
+    `limit`, the tiles it passed over come back in their original order -
+    a half-empty rail is a worse outcome than a slightly samey one, and the
+    listener reads the first one as broken.
+    """
+    kept: list = []
+    spare: list = []
+    counts: dict[str, int] = {}
+    for topic in topics:
+        facets = {facet_of(tag) for tag in topic.tags} or {"other"}
+        if any(counts.get(f, 0) >= max_per_facet for f in facets):
+            spare.append(topic)
+            continue
+        for facet in facets:
+            counts[facet] = counts.get(facet, 0) + 1
+        kept.append(topic)
+        if len(kept) >= limit:
+            return kept
+    return (kept + spare)[:limit]
 
 
 def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:
@@ -1411,6 +1744,29 @@ def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:
             icon=_icon_for_tags(tags),
         ))
     return tiles[:limit]
+
+
+def tags_for_id(topic_id: str, text: str = "") -> tuple[str, ...]:
+    """The tags to log against an interaction with `topic_id`.
+
+    Three places to look, in order: the evergreen bank, the live story pool,
+    and - failing both - the words of whatever was asked. The middle one is
+    why this function exists: a story tile's tags live in the pool and nowhere
+    else, and an event logged without them teaches the taste model nothing
+    about the tap it just recorded.
+
+    A story that has expired since the tap is the case `text` covers. It is a
+    keyword sweep over the question rather than the story's own tags, which is
+    a worse answer and still much better than none.
+    """
+    if topic_id in BANK_BY_ID:
+        return BANK_BY_ID[topic_id].tags
+    if topic_id in CATALOGUE_BY_ID:
+        return CATALOGUE_BY_ID[topic_id].tags
+    for story in stories.pool().live():
+        if story.id == topic_id:
+            return tuple(story.tags)
+    return tags_for_text(text) if text else ()
 
 
 def _icon_for_tags(tags) -> str:
@@ -1445,16 +1801,34 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
     }
 
 
+def _world_empty_reason(pool_had_stories: bool) -> str:
+    """What the Trending rail says when it has nothing in it.
+
+    Two different facts, and they must not share a sentence. With an empty
+    pool this is about the deployment - which source is missing, or which one
+    failed - and `stories.Pool.empty_reason` knows which. With a full pool it
+    is about this page: the rail above got there first, and saying the feed
+    had nothing would be describing our own ordering as the world's silence.
+    """
+    if pool_had_stories:
+        return "Everything the world is on today is already in Made for you."
+    return stories.pool().empty_reason
+
+
 def _empty_reason(key: str) -> str:
     return {
         "most_played": "Nothing has been played yet today.",
         # Deliberately not "nothing is trending". An empty row here is a fact
         # about this deployment, never a claim about the world - the browse
         # surface's version of PROBLEMS.md §89. The live text comes from
-        # `trending.TrendingFeed.empty_reason`, which knows *which* way it
-        # came up empty; this is the fallback when nothing has been asked yet.
-        "world_trending": "FAM isn't connected to a world news feed yet.",
-        "followers": "Nobody you overlap with has listened yet.",
+        # `stories.Pool.empty_reason`, which knows *which* way it came up
+        # empty; this is the fallback when nothing has been asked yet.
+        "world_trending": stories.pool().empty_reason,
+        # Names the thing to do about it. The rail is empty for exactly one
+        # reason - they follow nobody - and a row that said "nobody has
+        # listened yet" would be blaming the app for a state the listener can
+        # fix in two taps.
+        "followers": "Follow some people and this fills up with what they play.",
         "from_history": "Your first episode starts this one off.",
         # Never actually empty in practice - with no profile at all this falls
         # back to the whole bank - but a reason has to exist for the day the

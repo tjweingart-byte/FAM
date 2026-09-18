@@ -57,14 +57,25 @@ jobs:
       - name: Build the phone preview
         run: python preview/build_preview.py
 
+      # The other preview, and the one that is actually published. It is built
+      # from the same interface by a different script and carries its own copy
+      # of things that must stay in step with the code - `topics.SECTIONS`
+      # among them - so a change can leave the fixture build green and the
+      # published one wrong. `dev.sh` has built both for a while; CI did not,
+      # which is PROBLEMS.md §101's finding ("a check added to the local loop
+      # is not added to the gate") with a different file in it.
+      - name: Build the live phone preview
+        run: python preview/build_live_preview.py
+
       # Drives the built preview in a real browser with no server at all:
       # every tab, and audio actually advancing. This is the check that would
-      # have caught the reel bugs.
-      - name: Smoke test the preview
+      # have caught the reel bugs. Both builds are driven, because both ship.
+      - name: Smoke test the previews
         run: |
           pip install playwright
           python -m playwright install --with-deps chromium
           python tools/smoke_preview.py
+          python tools/smoke_preview.py preview/fam-live.html
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4
@@ -73,4 +84,5 @@ jobs:
           path: |
             preview/fam-preview.html
             preview/fam-artifact.html
+            preview/fam-live-artifact.html
           retention-days: 30

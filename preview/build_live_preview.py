@@ -381,7 +381,11 @@ LIVE_SHIM = r"""
     // Filled most-constrained first, exactly as build_feed does: the personal
     // sections choose before the generic ones can claim the bank.
     out.from_history = take(scored.map(function (x) { return x.t; }), 6);
-    out.followers = take(byCount, 6);
+    // The friends rail. Empty in the browser by construction, and honestly
+    // so: it reads the follow graph, this page has no server and therefore no
+    // graph, and showing co-listener overlap here would preview the exact
+    // thing the rail was renamed to stop doing.
+    out.followers = [];
     // Exploration, from the same ranking the Explore New screen uses - so the
     // screen and anything that shows this ranking cannot disagree about what
     // is adjacent to a taste. Still filled here, in FILL_ORDER position, so
@@ -392,10 +396,11 @@ LIVE_SHIM = r"""
     out.might_like = take(exploreNewBody(myPrefs().interests).topics, 6);
     out.most_played = take(byCount.concat(BANK), 6);
     // The world row. Empty in the browser by construction: its inventory is
-    // not FAM's, it comes from an outside news feed the server refreshes, and
-    // a published page has no server. The honest empty state is exactly what
-    // the app shows with no source configured - which is the shipped state -
-    // so this previews the real thing rather than faking a feed.
+    // the live story pool, which a server sweeps and composes in the
+    // background, and a published page has no server. The honest empty state
+    // is exactly what the app shows with no live source configured - which is
+    // the shipped state - so this previews the real thing rather than faking
+    // a feed.
     out.world_trending = [];
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
@@ -408,9 +413,10 @@ LIVE_SHIM = r"""
   // page the app does not.
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
-    ["world_trending", "Trending", "FAM isn't connected to a world news feed yet."],
-    ["followers", "Your circle is on this", "Nobody you overlap with has listened yet."],
-    ["most_played", "What FAM can't stop playing", "Nothing has been played yet."]
+    ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
+    ["most_played", "What FAM can't stop listening to", "Nothing has been played yet."],
+    ["followers", "What your friends are listening to",
+     "Follow some people and this fills up with what they play."]
   ];
 
   // `topics.popular_facets`, in the browser and over the same event rows.

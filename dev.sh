@@ -59,13 +59,20 @@ $PY tools/build_loading_demo.py
 # Skipping the browser test silently is the failure this project has paid for
 # twice: the run still ends "all checks passed" having never opened a browser.
 # Every skip announces itself.
+# A failing smoke test used to print its failure and let the run exit 0, so
+# `./dev.sh check` said nothing was wrong and the shell agreed with it. That is
+# the §101 shape - a check that exists is not a check that fails - and it hid a
+# real failure during the change that added this line. The message stays; the
+# exit code now carries it too.
+smoke_failed=0
 if command -v node >/dev/null 2>&1 && $PY -c "import playwright" 2>/dev/null; then
-  $PY tools/smoke_preview.py || echo "  (smoke test failed - the preview still built)"
+  $PY tools/smoke_preview.py \
+    || { echo "  (smoke test failed - the preview still built)"; smoke_failed=1; }
   # Both previews are shipped, so both are driven. They are built from the
   # same interface but not by the same script, and only one of them is what
   # anyone is given a link to.
   $PY tools/smoke_preview.py preview/fam-live.html \
-    || echo "  (live-preview smoke test failed - the preview still built)"
+    || { echo "  (live-preview smoke test failed - the preview still built)"; smoke_failed=1; }
 else
   printf '  \033[1mSKIPPED: the browser smoke test did not run.\033[0m\n'
   printf '  Nothing below was checked in a browser. To fix:\n'
@@ -73,7 +80,10 @@ else
   command -v node >/dev/null 2>&1 || printf '    and install node\n'
 fi
 
-[ "$MODE" = "check" ] && exit 0
+# Non-zero when a browser check failed, so CI and a human read the same
+# result. A skipped smoke test is still a zero - it announced itself above,
+# and "not run" is a different thing from "run and failed".
+[ "$MODE" = "check" ] && exit "$smoke_failed"
 [ "$MODE" = "preview" ] && exit 0
 
 # The address a phone can actually reach. localhost is useless from a phone,

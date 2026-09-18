@@ -37,11 +37,17 @@ import prefetch_sources  # noqa: E402
 
 def show_plan(listener: str) -> int:
     import mixes as mixes_mod
+    import social as social_mod
     import topics as topics_mod
     from config import settings
 
+    # The social store is what fills the friends rail, and the feed source
+    # warms that rail. Without it this report shows a server warming less than
+    # the server actually would - which is the one thing a report about what
+    # prefetch costs must not do.
     installed = prefetch_sources.install(
-        event_store=topics_mod.EventStore(), mix_store=mixes_mod.MixStore())
+        event_store=topics_mod.EventStore(), mix_store=mixes_mod.MixStore(),
+        social_store=social_mod.SocialStore())
     print(f"sources: {', '.join(installed) or 'none'}")
     print(f"level:   {settings.prefetch_level}"
           f"   ·   per cycle: {settings.prefetch_per_cycle}"

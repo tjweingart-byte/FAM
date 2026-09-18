@@ -62,6 +62,13 @@ class TrendingSource:
     one warmed script is taken by everybody who taps that tile - the hit rate
     here is per *tile*, not per person, and it is the only source worth running
     on an empty server with nobody signed in.
+
+    **The name is a ledger key, not the rail's name.** The rail it warms is
+    "What FAM can't stop listening to"; `trending` now means the world, on a
+    different row from a different place. Renaming this would reset every
+    recorded warm and take against it, which is the only number that can
+    answer "is prefetching this worth it" - so the string stays and the reason
+    below says what it actually is.
     """
 
     name = "trending"
@@ -79,8 +86,8 @@ class TrendingSource:
                 query=topic.query,
                 minutes=self.minutes,
                 source=self.name,
-                reason=(f"#{rank + 1} in what FAM can't stop playing, the same "
-                        f"tile for everyone"),
+                reason=(f"#{rank + 1} in what FAM can't stop listening to, "
+                        f"the same tile for everyone"),
                 topic_id=topic.id,
                 weight=float(limit - rank),
                 # Deliberately blank: this guess is not about one listener, and
@@ -145,9 +152,17 @@ class FeedSource:
     name = "feed"
 
     def __init__(self, store, minutes: int = DEFAULT_MINUTES,
-                 sections: Iterable[str] = ("from_history", "followers")) -> None:
+                 sections: Iterable[str] = ("from_history", "followers"),
+                 circle_of=None) -> None:
         self.store = store
         self.minutes = minutes
+        #: `listener -> the ids whose listening fills their friends rail`.
+        #: Passed in rather than looked up, so this module keeps knowing
+        #: nothing about the social graph - and `None` is not a fallback to
+        #: something else, it is an empty friends rail, which is exactly what
+        #: a deployment with no graph shows. Warming a rail this listener will
+        #: not be shown is money spent on a tile nobody can tap.
+        self.circle_of = circle_of
         #: Which rails are worth warming. Not trending - `TrendingSource`
         #: already has it and warming it twice would double-count its hits.
         #:
@@ -163,7 +178,9 @@ class FeedSource:
             return []
         import topics
 
-        feed = topics.build_feed(self.store, listener, interests=interests)
+        circle = self.circle_of(listener) if self.circle_of else ()
+        feed = topics.build_feed(self.store, listener, interests=interests,
+                                 circle=circle)
         by_key = {s["key"]: s for s in feed.get("sections", [])}
         out: list = []
         for key in self.sections:
@@ -233,7 +250,7 @@ class ThreadSource:
 
 
 def install(event_store=None, mix_store=None,
-            minutes: int = DEFAULT_MINUTES) -> list:
+            minutes: int = DEFAULT_MINUTES, social_store=None) -> list:
     """Register whichever sources this deployment can actually answer.
 
     Called at startup, and **idempotent**: it replaces the sources it manages
@@ -256,7 +273,9 @@ def install(event_store=None, mix_store=None,
     installed: list = []
     if event_store is not None:
         for source in (TrendingSource(event_store, minutes),
-                       FeedSource(event_store, minutes),
+                       FeedSource(event_store, minutes,
+                                  circle_of=(social_store.circle_of
+                                             if social_store is not None else None)),
                        ThreadSource(event_store, minutes)):
             prefetch.register(source)
             installed.append(source.name)

@@ -6461,3 +6461,255 @@ pre-dates this branch (it is the same on `Main`). Left alone rather than
 widened into an interface branch; the fix is to freeze those two fields to a
 fixed timestamp.
 
+
+## 102. myFAM had four rankings of a bank that never changes
+
+The browse page was a shared bank of twenty-eight evergreen topics, ranked four
+ways. Every ranking was real and none of them could answer the thing a browse
+page is actually asked: **what should I hear about today.** A bank that never
+changes says the same thing on the morning a war starts as it did the morning
+before, and no amount of re-sorting it fixes that - which is why this was a
+missing inventory rather than a tuning problem.
+
+The packet that prompted the work asked for four rails, live data behind the
+two that face outward, variety, a judgement about how hard and how long to push
+a story, zero queue on page load, and the cheapest possible way to do all of
+it. Those turn out to be one design rather than six requirements.
+
+### A tile is a title and an angle; the script is written on the tap
+
+This is the whole cost argument and everything else follows from it. Writing an
+episode costs a model call and several seconds; deciding one is worth writing
+costs almost nothing. So myFAM decides - **one small model call per refresh
+window, shared by every listener** - and the script happens when somebody taps,
+or is replayed from the shared cache when somebody else already did.
+
+Offering forty tiles therefore costs one call and not forty. `stories.py` holds
+the pool; `story_sources.py` holds the providers; `MYFAM.md` is the whole of it.
+
+Only the stories that are **new since the last window** are composed.
+Everything already in the pool keeps the title and angle it was written with,
+so a steady state composes two or three tiles per window rather than twenty. At
+the shipped fifteen-minute window that is under a hundred small calls a day for
+an entire deployment.
+
+### The four sources, and what each may say
+
+GDELT (keyless) measures how much the world's press is writing about a theme,
+then reads the leading headlines under the hot ones. Finnhub quotes a named
+watchlist and reports what actually moved. Polymarket returns the most-traded
+open markets. API-Sports returns today's card. The `trending` registry became a
+fifth source rather than being deprecated, so `TRENDING_SOURCE=fake` still
+works and a configured feed still produces the row it always did - it now
+carries its own question and reason through as `suggested_query` and
+`suggested_angle`, because putting a layer in front of a configured source must
+not make that source's output worse.
+
+**Every one of them reports a measurement and never a result.** That is
+§88 moved onto the surface more people see: a tile is written before anything
+is researched, so a result on one is a claim nobody checked. The case that
+makes the rule concrete is API-Sports, which *knows* the score and deliberately
+does not pass it on - the tile says "what decided it" and the episode finds
+out, from dated evidence, on the path built for that.
+
+Three things back it up, in order of how much they are trusted: the composer's
+system prompt says it has researched nothing and must write a tile that is true
+whichever way the thing turns out; `_RESULT_WORDS` catches the case where the
+prompt did not hold and sends that one tile back to its template **with a log
+line**, because a guard that fires quietly is a prompt nobody fixes; and the
+templates cannot say a result either, so the rule survives a total outage.
+
+### How hard to push, and for how long, is now written down
+
+The packet asked for judgement about this. Judgement left implicit in a sort
+order is judgement nobody can argue with, so:
+
+* **How hard**: `DOMAIN_WEIGHT` times the provider's own `strength`, halving
+  every half-shelf-life. Loudest the hour it appears.
+* **How long**: `DOMAIN_SHELF_LIFE` - eight hours for a fixture, eighteen for
+  a market move, twenty for a wave of coverage, four days for an election
+  market - as a **hard expiry** rather than a fade to nothing.
+* **And then it stops**: `SUBJECT_COOLDOWN` keeps the subject out for 36 hours
+  afterwards, however hot its signal still reads.
+
+The load-bearing line is that `first_seen` is the clock and `last_seen` is not:
+**a story that keeps being reported does not get to be new again.** Without it,
+a subject the world talks about all week is the top tile all week - which is
+the "shown the same thing forever" failure that `TrendingItem.id` was hashed
+from the subject to avoid, arriving from the other direction.
+
+### Variety is a cap on what is available, never a quota on what is not
+
+Enforced twice - five per facet in a pool of twenty-four, two per facet in a
+rail of six - so a busy Sunday in sport cannot take over the page before a
+ranker sees it.
+
+The part worth writing down is what happens when the cap has nothing to reach
+for. A listener whose entire history is sport has nothing else with any
+affinity, so `diversify` tops the rail up rather than returning a short one: a
+two-tile rail reads as broken where a samey six-tile one reads as a taste.
+There is a test pinning that trade, because it is the sort of thing that gets
+"fixed" into an empty rail by somebody reading the cap as a rule.
+
+### Zero queue is structural, not fast
+
+`/api/myfam` schedules a refresh when the pool is stale and renders from
+whatever the pool holds. Nothing on the page-load path awaits anything, so
+there is no path from opening the page to generating anything - which is a
+stronger claim than "it is quick" and is checkable. A test reads `build_feed`'s
+own source and fails on `await`, `pipeline`, `generate` or `refresh(`.
+
+A warming sweep runs at startup so the first listener usually does not see a
+cold pool, and it is scheduled rather than awaited: a browse page that waited
+on a news sweep to boot would be a server that fails to start when somebody
+else's API is slow.
+
+### Two rails were quietly dishonest and one of them has been for a while
+
+**"Your circle is on this"** ranked co-listener overlap - people who played
+what you played also played this - and the card under it said "People you
+follow played this" about strangers. `topics.py`'s own docstring admitted it.
+The follow graph has existed since SHARING.md, so the rail now reads it
+(`social.circle_of`: friends first, then everyone else they follow) and is
+named for what it does. An empty circle returns nothing, deliberately: a rail
+called "what your friends are listening to" that quietly showed strangers would
+be the original problem again with better wording. The empty state names the
+two taps that fix it.
+
+The overlap ranking was not deleted - it is a good standard signal - it just
+has no rail. It tops up the post-episode popup, where the question is "what
+next" and nothing claims those people are anybody's friends.
+
+**"What FAM can't stop playing"** ranked the bank by play count and could not
+show a live story somebody had tapped fifty times, because the row was a
+ranking of the evergreen bank wearing a heading about the whole app. It now
+ranks anything with plays, and leads with whatever is already written - a
+written tile starts instantly and costs nothing to serve. Preferring cached is
+a **sort and never a filter**: a deployment whose cache has just expired would
+otherwise show an empty row, which is a fact about the cache told as a fact
+about what people are playing.
+
+### What is not connected, and why saying so is the point
+
+**Nothing live is configured by default.** Every source is registered, each
+reports exactly what it needs, `/api/health` distinguishes ready from not
+configured, and `python tools/stories_report.py` makes a real sweep rather than
+confirming a credential exists. `GDELT=1` is the one line that makes the
+attention half live, because GDELT needs no credential.
+
+Polymarket is keyless and therefore had to be given a switch of its own, off:
+without one it would turn itself on, and on a fresh deployment it would be the
+*only* live source, which would make the browse page a betting slip.
+
+None of the four has made a real request from the build container - its egress
+proxy blocks all four hosts - so every shape is written from the documented API
+and tested against recorded payloads. **Do not say FAM's browse page is live
+until `tools/stories_report.py` has printed real tiles on a real machine.**
+
+### One thing found on the way that was nobody's feature
+
+A source with a free tier measured in requests *per day* cannot be swept on a
+fifteen-minute clock: API-Sports allows a hundred, and the pool would have
+spent the lot on a page nobody opened. So a source declares
+`min_interval_seconds` and a sweep it is not due for reports `skipped` - a
+sixth outcome, and the only one that is not a fault. Reporting it as `empty`
+would have made a working source look broken, which is the same "three
+sentences collapsed into one" mistake the outcome vocabulary exists to prevent.
+
+## 103. The pre-merge review of §102, and a clock that reset itself
+
+An audit before handing §102 to `Main`, in the shape §101 set. The branch is
+one commit, `origin/Main` is an ancestor, so it fast-forwards and no merge
+commit is needed. Working tree clean, nothing secret-shaped in the diff, no
+`console.log`, no `pdb`, **no schema change at all** - and the new code was
+still run against a database written by the pre-branch code, because "there is
+no migration" is exactly the sort of claim that is true right up until it is
+not. Old rows read, ranked and served.
+
+Seven findings. Four were real bugs, and the first one would have quietly
+undone the feature it was part of.
+
+### A story evicted by the variety cap came back as a brand new one
+
+`_diversified` ran when the pool was **written**, so a story it passed over was
+discarded. The next sweep saw that subject again, found no record of it, and
+admitted it as new: `first_seen = now`. Which means it never aged, never
+expired, never reached `SUBJECT_COOLDOWN`, and was **composed and paid for
+again every window**.
+
+Reproduced: five sports tiles admitted, three evicted; six hours later all
+three were back reporting an age of 0.0 hours. So the subjects most likely to
+be evicted - the ones from a busy facet - were exactly the ones that would
+have been shown forever, which is the failure `DOMAIN_SHELF_LIFE` and the
+cooldown exist to prevent, arriving through the one door the push model was
+not watching.
+
+Two changes, because one of them alone would leave the other hole open:
+
+* **The pool keeps more than it offers.** `POOL_STORE` holds everything
+  unexpired; `Pool.live` applies the variety cap on the way *out*. An
+  over-served story is now hidden rather than forgotten.
+* **`_FIRST_SEEN` remembers the clock regardless of pool membership**, so even
+  a story that falls out of the store entirely comes back with the age it had.
+  `_admissible` knows three states - never seen, seen and still inside its
+  shelf life, seen and past it - and only the first may start a clock.
+
+The general form, and it is the one worth keeping: **an eviction that forgets
+is a creation.** Anything with a lifecycle needs its clock kept somewhere that
+outlives its membership of the thing that displays it.
+
+### The composition budget counted the trolley and not the shelf
+
+`_worth_composing` capped per facet from an **empty** counter, so a window
+whose pool already held five sports tiles would happily buy five more - and
+`Pool.live` then showed the same five as yesterday. Money spent on tiles that
+could not be reached. Seeded from what is already held.
+
+### The outcome guard watched the two fields that are read, not the one that is used
+
+`_RESULT_WORDS` checked `title` and `angle` and not `query`. The title is what
+a listener reads; **the query is what the pipeline researches from**, so a
+result asserted there is one the episode inherits and then elaborates. It was
+the field the guard could least afford to miss and the only one it did.
+
+### An empty Trending rail blamed the sources for our own ordering
+
+Made for you fills first, so on a thin day it can take the whole pool and leave
+Trending empty - and the rail reported `stories.Pool.empty_reason`, which says
+things like "the live sources had nothing new this time". That is our own
+page's arrangement stated as a fact about the world: §89 with a new way in.
+`_world_empty_reason` now distinguishes the two, and says where the stories
+went.
+
+### Three smaller ones
+
+**A provider that raises in `diagnose()` stopped the pool forever.** `diagnose`
+ran outside the per-source `try`, and the refresh is scheduled and never
+awaited, so the exception became one log line and the pool never refreshed
+again with the page still looking normal. Guarded, and the endpoint's
+`create_task` now goes through the same wrapper the boot sweep uses.
+
+**API-Sports ordering was the provider's.** Three strength values over a whole
+day's card means most fixtures tie, and a stable sort hands a tie to whatever
+the API listed first - so the tiles changed between sweeps for no visible
+reason. Tie broken on the subject. The *bigger* problem underneath it is named
+rather than fixed: there is **no league filter**, so a day's card is every
+league on earth. The parameter wants a real key in front of the real API,
+because a wrong one does not fail - it returns somebody else's fixtures.
+
+**`tools/prefetch_report.py` under-reported.** It never got the `social_store`
+the feed source now needs, so its friends rail was always empty and the report
+claimed the server would warm less than it would.
+
+### And the check that was not failing
+
+`dev.sh check` printed `1 check(s) failed` and **exited 0**, because the smoke
+tests were run with `|| echo` and the mode exited zero unconditionally. It hid
+a real failure during §102 itself - the run said nothing was wrong and the
+shell agreed. The exit code carries the result now.
+
+Same finding one layer out, which is §101's exactly: **a check added to the
+local loop is not added to the gate.** `dev.sh` has built and smoke-tested
+*both* previews for a while; CI built and smoke-tested only the fixture one -
+and the live build is the one that gets published, and carries its own copy of
+`topics.SECTIONS`. Both are in `ci.yml` now.

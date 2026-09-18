@@ -190,6 +190,63 @@ contract.
 
 ---
 
+## And the same four again, for the browse page
+
+Everything above connects a provider to **what an episode says** (`live_facts`)
+or to the evidence behind it. The same four also feed **what myFAM offers** -
+`stories.py`'s pool, which is a separate subsystem on a separate clock. See
+`MYFAM.md`.
+
+The good news is that it is almost free to turn on once the credentials above
+exist, because the pool is the cheapest place in FAM to put live data: **one
+sweep and one small model call per refresh window, shared by every listener.**
+
+**Step 1.** Prove the sweep without spending a model call:
+
+    python tools/stories_report.py --dry
+
+It prints one line per source - `ok`, `off`, `wait`, `--`, `SLOW`, `FAIL` -
+with the reason, then the pool and the rails a listener with no history would
+see. A source reading `off` names the setting that turns it on.
+
+**Step 2.** Let it compose:
+
+    python tools/stories_report.py
+
+One real model call. Read the tiles. What you are looking for is a **question
+worth an episode** rather than a headline, an angle that would still be true
+tomorrow, and `(templated)` on none of them - a templated tile means the
+composer was unavailable and the pool fell back, which is a working product
+and not the one you are turning on.
+
+**Step 3.** The settings, in the order they are worth adding:
+
+    STORIES=1                # already the default
+    GDELT=1                  # the attention half, keyless, does the most work
+    STORIES_POLYMARKET=1     # keyless; a betting product, so it is opt-in
+    API_SPORTS_KEY=...       # today's card; already set if you did §2 above
+    FINNHUB_KEY=...          # what moved; already set if you did §3 above
+
+**What to watch afterwards.** `/api/health` carries `stories`, which reports
+per source and includes `degraded` - how many tiles in the pool were templated
+rather than written. A `degraded` count that is not zero on a deployment with
+an API key means the composer is failing quietly and the browse page is
+running at its floor.
+
+**The one thing to check by eye**, because nothing can check it for you: a
+pool of six tiles all from one source is a browse page about one corner of the
+world. That is a configuration finding rather than a bug, and the fix is the
+next provider in the list.
+
+**And one step that is only possible once API-Sports has a real key**:
+`ApiSportsSignals` asks for one date per product and gets that day's fixtures
+from every league on earth, so the tiles it produces are stable but not
+necessarily interesting - a third-division match ranks exactly as a marquee
+one. Add a `league` (and, where the product needs it, `season`) parameter once
+you can see real responses, and decide which leagues this deployment serves.
+It is deliberately not guessed at from the documentation: the wrong parameter
+name does not fail, it returns somebody else's fixtures.
+
 ## Recommended order, and why
 
 1. **GDELT** — free, no account, and it is the only one that improves *every*
@@ -206,7 +263,9 @@ Total to run all four: **$0** until API-Sports' free tier bites, then **$19/mo**
 ## After each one
 
     python tools/verify_live.py          # what is configured and whether it answers
-    curl localhost:8000/api/health       # live_facts, live_sources, trending, gdelt
+    python tools/stories_report.py --dry # what myFAM would offer, without spending
+    curl localhost:8000/api/health       # live_facts, live_sources, trending,
+                                         # gdelt, stories
 
 `/api/health` distinguishes three states on purpose — configured and
 operational, configured but unavailable, and not configured. **None of them

@@ -150,7 +150,8 @@ TTL instead of 24 hours.
 | `POST /api/script` | `{query, minutes}` → the script as JSON, no audio |
 | `GET /api/audio?q=…&minutes=N&fmt=pcm\|wav` | The episode, streamed live |
 | `GET /api/next?q=…&minutes=N` | The thread that episode left open, for a one-tap Go Deeper |
-| `GET /api/myfam?user=…` | The four ranked myFAM sections. No model call |
+| `GET /api/myfam?minutes=N` | The four ranked myFAM rails, over the evergreen bank and the live story pool. No model call, and no path to one |
+| `GET /api/myfam/section?key=…&minutes=N` | One rail at full length, behind its "View more" |
 | `POST /api/event` | Record a search, completion or skip, for ranking |
 | `GET /api/topics` | The whole shared topic bank, for the mix picker |
 | `GET /api/explore` | Episodes already in the cache, newest first. Never generates |
