@@ -189,7 +189,13 @@ def load_fixtures() -> dict:
                         "name": "Attached file", "chars": 4200, "url": "",
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
-        "/api/next": {"thread": "why the shipping lanes run through Omani water"},
+        # The thread and the episode's own title, from the same call. Both are
+        # written by the model on trailing marker lines and read back out of
+        # the cache, so a preview with no Claude has to stand in for both -
+        # and the title is the whole point of the swap the player does a few
+        # seconds in, which a fixture without one would show none of.
+        "/api/next": {"thread": "why the shipping lanes run through Omani water",
+                      "title": "The Two-Mile Lane That Moves the Oil"},
         # Who this episode drew on. Invented, like every fixture here - the
         # point on a phone is the corner cluster, the overlap and the popup,
         # none of which a preview with no sources would ever draw. A live

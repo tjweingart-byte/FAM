@@ -2703,7 +2703,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     episodes = [
         {
             "query": entry["query"],
-            "title": entry["query"][:1].upper() + entry["query"][1:],
+            # The episode's own title when the model wrote one, else the
+            # question with a capital letter - which is what every card
+            # showed before titles existed, and is still right for an entry
+            # written before this column did.
+            "title": entry.get("title")
+                     or (entry["query"][:1].upper() + entry["query"][1:]),
             "minutes": entry["minutes"],
             "plays": entry["plays"],
             "thread": entry["thread"],
@@ -2796,23 +2801,37 @@ async def next_thread(
     # looks for has to be keyed the same way the audio request keyed it.
     search: bool | None = Query(None),
 ):
-    """The follow-up this listener is most likely to want, after this episode.
+    """The follow-up this listener is most likely to want, and the episode's
+    own title.
 
-    Read from the script cache, so it costs no tokens and no time. The interface
-    offers it as a one-tap suggestion in Go Deeper: an episode that ends pointed
-    at something specific is only half the job if acting on it still means
-    composing a question into an empty box.
+    Both read from the script cache, so both cost no tokens and no time. Both
+    are written by the model on trailing marker lines that are stripped before
+    anything is spoken, and both are only known once the script is finished -
+    which is after the audio response headers have gone out. Hence one lookup
+    rather than a header on `/api/audio`.
 
-    An empty thread is normal - the script may not be cached, or the model may
-    not have named one - and the interface falls back to the blank field.
+    The thread is offered as a one-tap suggestion in Go Deeper: an episode that
+    ends pointed at something specific is only half the job if acting on it
+    still means composing a question into an empty box.
+
+    The title replaces the typed question. Somebody who asked "what happened
+    with the fed yesterday" was shown an episode called *What Happened With The
+    Fed Yesterday* - their own words handed back with capital letters. The
+    player opens on a provisional title derived from the question and swaps
+    this in when it lands.
+
+    An empty answer for either is normal - the script may not be cached, or the
+    model may not have written that line - and the interface falls back to what
+    it had.
     """
     _read_limit(request)
     plan = _validated_plan(q, minutes, context, search)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"thread": ""}
-    return {"thread": await pipeline.thread_for(plan)}
+        return {"thread": "", "title": ""}
+    return {"thread": await pipeline.thread_for(plan),
+            "title": await pipeline.title_for(plan)}
 
 
 @app.get("/api/audio")

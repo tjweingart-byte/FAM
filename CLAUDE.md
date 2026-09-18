@@ -173,6 +173,23 @@ piece carries on.
 The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
+**An episode is titled by what it turned out to be about.** *(§104.)* It used
+to be the typed question, so somebody who asked `what happened with the fed
+yesterday` got an episode called *What Happened With The Fed Yesterday* -
+their own words handed back with capital letters, which tells them nothing
+they did not just type. The model writes a `<<TITLE: ...>>` line beside the
+`<<NEXT:>>` one, stripped before synthesis and never spoken, so it **costs no
+second call and no latency**: naming an episode with its own model call would
+be the expensive half of an episode spent on a label.
+It is only known once the script is finished, which is after the first word is
+playing - so the player opens on a title *derived* from the question (small
+words kept small, so it reads as a title rather than a transcript of a search
+box) and swaps the real one in when `/api/next` answers. A title the listener
+set, or a bank tile's own, is never replaced: `titleOverridden` marks both. It
+is cached in its own column beside the script for the same reason `thread` is
+- a replayed episode has no `notes`, so an Explore card would otherwise carry
+whoever-asked-first's wording - and a re-write keeps the title it has.
+
 **Go Deeper did not lose its suggestion — it stopped coming from the script.**
 The model still writes a trailing `<<NEXT: ...>>` line, stripped before
 synthesis and never spoken, but it is now a *prediction* rather than a promise:

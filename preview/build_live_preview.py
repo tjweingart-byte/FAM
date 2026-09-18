@@ -885,7 +885,13 @@ LIVE_SHIM = r"""
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
     if (path === "/api/next") {
       var t = threads()[0];
-      return json({ thread: t ? t.thread : "" });
+      // The title comes from the fixtures for the same reason the transcript
+      // does: it is written by the model on a trailing marker line, and a
+      // published page has no Claude and no cache to read one back out of.
+      // It is here at all so the swap the player does a few seconds in is
+      // visible on a phone rather than only in the code.
+      return json({ thread: t ? t.thread : "",
+                    title: (FIXTURES["/api/next"] || {}).title || "" });
     }
 
     if (path === "/api/event") {

@@ -2685,7 +2685,18 @@
     }
     if(val){
       TOPICS["_custom"] = {
-        title: (!typed && attach && ATTACHED[0]) ? ATTACHED[0].name : val,
+        // A *provisional* title, and it is provisional because the real one
+        // does not exist yet: the model writes the episode's name on a
+        // trailing marker line, so it is only known once the script is
+        // finished - after the first word is already playing. This is the
+        // question, shortened and capitalised, and `fetchEpisodeTitle` swaps
+        // in the real one when it lands, the way the Go Deeper chip fills.
+        //
+        // It used to be the raw typed question, so somebody who asked "what
+        // happened with the fed yesterday" got an episode called exactly
+        // that - their own words handed back with capital letters.
+        title: (!typed && attach && ATTACHED[0]) ? ATTACHED[0].name
+                                                 : deriveTitleFromPrompt(val),
         // The title may be the file's name, which is a label and not a
         // question. `prompt` is what actually gets asked.
         prompt: val,
@@ -3254,13 +3265,18 @@
   // response headers have gone - so it is fetched separately, from the cache,
   // at no token cost. Missing is normal and falls back to the empty field.
   var episodeThread = "";
+  //: The episode's own name, off the model's trailing `<<TITLE:>>` line. Read
+  //: from the cache beside the thread, so one request answers both.
+  var episodeTitle = "";
   var episodeStamp = "";
   function rememberEpisode(query, minutes, context){
     episodeStamp = query + "|" + minutes + "|" + (context || "");
     episodeThread = "";
+    episodeTitle = "";
   }
   function fetchEpisodeThread(){
-    if(!episodeStamp || episodeThread) return;
+    if(!episodeStamp) return;
+    if(episodeThread && episodeTitle) return;
     var parts = episodeStamp.split("|");
     var stamp = episodeStamp;
     fetch("/api/next?q=" + encodeURIComponent(parts[0]) +
@@ -3269,11 +3285,45 @@
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
         // The listener may have moved on while this was in flight.
-        if(!data || !data.thread || stamp !== episodeStamp) return;
-        episodeThread = data.thread;
-        showThreadSuggestion();
+        if(!data || stamp !== episodeStamp) return;
+        if(data.thread && !episodeThread){
+          episodeThread = data.thread;
+          showThreadSuggestion();
+        }
+        // The episode's own name, off the same call and the same marker
+        // lines. One request answers both, because both are read out of the
+        // cache under one key and a second round trip would buy nothing.
+        if(data.title) applyEpisodeTitle(data.title);
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
+  }
+
+  // Swap the provisional title for the real one, everywhere it is showing.
+  //
+  // Deliberately *not* on a screen the listener has already left: they may
+  // have opened something else while the script was finishing, and renaming
+  // whatever is on the player now would be the wrong episode's title.
+  // `episodeStamp` is the guard, exactly as it is for the thread and the
+  // sources.
+  function applyEpisodeTitle(title){
+    episodeTitle = title;
+    var key = currentPlayingTopicKey;
+    var topic = key ? TOPICS[key] : null;
+    // A title somebody typed themselves, or a bank tile's own hand-written
+    // one, is not up for replacement. `titleOverridden` is what marks both.
+    if(topic && !topic.titleOverridden){
+      topic.title = title;
+      var shown = document.getElementById("p-title");
+      if(shown && document.getElementById("screen-player")
+                    .classList.contains("active")){
+        shown.textContent = title;
+      }
+    }
+    if(nowBarState && nowBarState.query === episodeStamp.split("|")[0]){
+      nowBarState.title = title;
+      var barTitle = document.getElementById("nowTitle");
+      if(barTitle) barTitle.textContent = title;
+    }
   }
   // ---------------- live captions ----------------
   //
@@ -4327,10 +4377,37 @@
   }
 
   // ---------------- Add topic ----------------
+  // A title from the question, for the moment before the real one exists.
+  //
+  // **Provisional by design.** The episode's own name is written by the model
+  // on a trailing marker line, so it is not known until the script is
+  // finished - which is after the first word is already playing. This stands
+  // in until `/api/next` answers, and `applyEpisodeTitle` replaces it.
+  //
+  // It is also the permanent fallback for anything that never reached the
+  // cache, which is what an attachment episode is by design.
+  //
+  // Title Case on the whole question was worse than doing nothing: it read as
+  // somebody's own words handed back to them with capital letters. The small
+  // words stay small, so it reads as a title rather than as a transcript of a
+  // search box.
+  var TITLE_SMALL_WORDS = {
+    a:1, an:1, and:1, as:1, at:1, but:1, by:1, for:1, from:1, in:1,
+    into:1, is:1, nor:1, of:1, on:1, or:1, over:1, per:1, the:1, to:1, up:1,
+    via:1, vs:1, with:1
+  };
+
   function deriveTitleFromPrompt(promptText){
-    var words = promptText.trim().replace(/\s+/g, " ").split(" ");
+    var words = String(promptText || "").trim().replace(/\s+/g, " ").split(" ");
     var take = words.slice(0, 7);
-    var title = take.map(function(w){ return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+    var title = take.map(function(w, i){
+      var lower = w.toLowerCase();
+      // Never the first word, and never a word somebody capitalised
+      // themselves - "NATO" and "iPhone" are not ours to lower-case.
+      if(i > 0 && TITLE_SMALL_WORDS[lower] && w === lower) return lower;
+      if(w !== lower) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
     if(words.length > 7) title += "…";
     return title;
   }

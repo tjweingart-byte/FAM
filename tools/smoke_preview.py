@@ -597,6 +597,55 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def an_episode_is_titled_by_what_it_is_about():
+            """The title used to be whatever the listener typed. Somebody who
+            asked "what happened with the fed yesterday" got an episode called
+            exactly that - their own words handed back with capital letters.
+
+            The model writes the title on a trailing marker line, so it is not
+            known until the script is finished - after the first word is
+            already playing. The player opens on a provisional title derived
+            from the question and swaps in the real one when it lands, the way
+            the Go Deeper chip fills."""
+            typed = "what happened with the fed yesterday"
+            provisional = page.evaluate(
+                "q => deriveTitleFromPrompt(q)", typed)
+            # Not the raw question, and not Title Case on every word either -
+            # capitalising "With" and "The" reads as a transcript of a search
+            # box rather than as a title.
+            assert provisional != typed, "the provisional title is the question"
+            assert " with " in provisional, \
+                f"the small words were capitalised: {provisional!r}"
+            assert provisional.startswith("What"), provisional
+
+            page.evaluate("showScreen('player')")
+            page.evaluate("currentPlayingTopicKey = '_titletest'")
+            page.evaluate("""() => {
+              TOPICS['_titletest'] = { title: 'Provisional', prompt: 'q',
+                                       source: 'x', caption: '' };
+              document.getElementById('p-title').textContent = 'Provisional';
+              rememberEpisode('q', 2, '');
+            }""")
+            page.evaluate("fetchEpisodeThread()")
+            page.wait_for_timeout(1200)
+            shown = page.text_content("#p-title").strip()
+            assert shown != "Provisional", \
+                "the real title never replaced the provisional one"
+            assert len(shown) > 4, f"the title came back as {shown!r}"
+
+            # A title somebody typed themselves, or a bank tile's own
+            # hand-written one, is not up for replacement.
+            page.evaluate("""() => {
+              TOPICS['_titletest'].titleOverridden = true;
+              TOPICS['_titletest'].title = 'Mine';
+              document.getElementById('p-title').textContent = 'Mine';
+              applyEpisodeTitle('Something The Model Wrote');
+            }""")
+            assert page.text_content("#p-title").strip() == "Mine", \
+                "a title the listener set was overwritten"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def the_player_names_its_four_icons():
             """Share, vibe, save and captions. Unlabelled, a bookmark, a
             two-way arrow and a speech rectangle are three guesses - and the
@@ -1466,6 +1515,8 @@ def main() -> int:
               the_photo_editor_crops_what_it_shows)
         check("Saving is a toggle on every player", saving_is_a_toggle_on_every_player)
         check("The player names its four icons", the_player_names_its_four_icons)
+        check("An episode is titled by what it is about",
+              an_episode_is_titled_by_what_it_is_about)
         check("Live captions show the script being read",
               live_captions_show_the_script_being_read)
         check("The sources cluster shows three in the corner",

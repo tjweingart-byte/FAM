@@ -283,3 +283,73 @@ def test_an_attachment_episode_has_no_transcript():
     plan = script_generator.plan_episode(
         "what does my contract say", 2, attachments=(object(),))
     assert asyncio.run(_pipe(store).script_for(plan)) == []
+
+
+# --------------------------------------------------------------------------
+# the episode's own title, on the same kind of line and in the same column
+# --------------------------------------------------------------------------
+def test_the_title_comes_off_a_marker_line_the_voice_never_reads():
+    """The alternative was a model call in front of - or behind - every
+    episode purely to name it, which is the expensive half of an episode spent
+    on a label. A marker line is free."""
+    import script_generator as sg
+
+    text = ("The strait is quieter than it was. "
+            "<<TITLE: The Two-Mile Lane That Moves the Oil>> "
+            "<<NEXT: whether the insurers widen the zone again>>")
+    assert sg.extract_title(text) == "The Two-Mile Lane That Moves the Oil"
+    assert sg.extract_thread(text) == "whether the insurers widen the zone again"
+    spoken = sg.clean_for_speech(text)
+    assert "TITLE" not in spoken and "Two-Mile" not in spoken
+    assert spoken == "The strait is quieter than it was."
+
+
+def test_an_episode_with_no_title_line_falls_back_rather_than_failing():
+    """Which is what every episode did before this existed."""
+    import script_generator as sg
+
+    assert sg.extract_title("Just the script. <<NEXT: something>>") == ""
+    assert sg.extract_title("") == ""
+
+
+def test_both_prompts_ask_for_the_title():
+    import script_generator as sg
+
+    assert "<<TITLE:" in sg.SYSTEM_PROMPT
+    assert "<<TITLE:" in sg.build_prompt(sg.plan_episode("why bonds move", 2))
+    # And say what it must not be, because the failure this replaces is a
+    # title that is the question.
+    assert "never the question you were" in sg.SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("backend", ["memory", "sqlite"])
+def test_a_title_survives_a_cache_hit(backend, tmp_path):
+    """Stored beside the script for the same reason `thread` is: a replayed
+    episode has no `notes`, so without this a shared or Explore episode would
+    be titled with whatever the first listener happened to type while a
+    freshly generated one had a real name."""
+    store = (cache_mod.MemoryScriptCache() if backend == "memory"
+             else cache_mod.SqliteScriptCache(str(tmp_path / "c.db")))
+    store.put("k", ["One."], 60, "q", "thread", 3, "", "", "", "A Real Name")
+    assert store.title("k") == "A Real Name"
+
+
+@pytest.mark.parametrize("backend", ["memory", "sqlite"])
+def test_a_rewrite_keeps_the_title_it_has(backend, tmp_path):
+    """A longer TTL or fresher sources must not blank the name of an episode
+    that is already in somebody's feed - the same rule authorship keeps."""
+    store = (cache_mod.MemoryScriptCache() if backend == "memory"
+             else cache_mod.SqliteScriptCache(str(tmp_path / "c.db")))
+    store.put("k", ["One."], 60, "q", "", 3, "", "", "", "A Real Name")
+    store.put("k", ["One."], 600, "q", "", 3, "", "", "")
+    assert store.title("k") == "A Real Name"
+
+
+def test_explore_cards_carry_the_title_and_fall_back_to_the_question(tmp_path):
+    store = cache_mod.SqliteScriptCache(str(tmp_path / "c.db"))
+    store.put("named", ["One."], 60, "why bonds move", "", 3, "", "", "",
+              "What Moves A Bond")
+    store.put("unnamed", ["One."], 60, "why stocks move", "", 3)
+    by_key = {e["key"]: e for e in store.recent(10)}
+    assert by_key["named"]["title"] == "What Moves A Bond"
+    assert by_key["unnamed"]["title"] == ""
