@@ -822,13 +822,20 @@
     border:1px solid var(--border); cursor:pointer; }
   .mix-vis-t{ font-size:12.5px; color:var(--text); }
   .mix-vis-s{ font-size:10px; color:var(--text-muted); margin-top:3px; }
-  .mix-switch{ flex:none; width:42px; height:24px; border-radius:999px;
+  /* The switch means *private*, and carries the lock. `on` is the closed one.
+     It used to mean public, which made the lit position the state where other
+     people could see your mix - read the wrong way round by everybody who has
+     ever used a phone. */
+  .mix-switch{ flex:none; width:44px; height:24px; border-radius:999px;
     background:var(--border-strong); position:relative; transition:background 160ms ease; }
   .mix-switch span{ position:absolute; top:3px; left:3px; width:18px; height:18px;
     border-radius:50%; background:var(--text-muted);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--surface);
     transition:transform 160ms ease, background 160ms ease; }
   .mix-switch.on{ background:var(--copper); }
-  .mix-switch.on span{ transform:translateX(18px); background:var(--ink); }
+  .mix-switch.on span{ transform:translateX(20px); background:var(--ink);
+    color:var(--copper); }
 
   /* Vibe controls, on every player. "Vibed" uses the copper the app reserves
      for "you did this", so it reads without a label.
@@ -2098,7 +2105,7 @@
       <section class="screen sheet" id="screen-messages">
         <div class="scroll">
           <div class="myfam-header">
-            <h2>Your FAM</h2>
+            <h2 class="wordmark" aria-label="Your FAM">Your<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
             <div style="display:flex; align-items:center; gap:4px;">
               <button class="myfam-add-btn" onclick="openNewChatModal()">+</button>
               <button class="sheet-close" onclick="closeMessages()" aria-label="Close Your FAM">
@@ -4466,6 +4473,9 @@
   var mixes = [];
   var mixStarters = [];
   var topicBank = [];
+  //: Whether `topicBank` came back in this listener's taste order or the
+  //: bank's own. The picker's heading reads this rather than asserting.
+  var topicBankRanked = false;
   var currentMixId = null;
   var pickerSelection = [];
   var pickerMixId = null;      // null => the picker is creating a new mix
@@ -4495,8 +4505,13 @@
         if(r.status === 401) return { locked: true };
         if(!r.ok) throw new Error("mixes unavailable"); return r.json();
       }),
+      // `ranked=1` is what makes the picker's own heading true. It said
+      // "Suggested topics" over the bank in `topic.id` order, which is
+      // alphabetical by slug and suggests nothing. Ranked, it is the same
+      // taste model every personal rail on myFAM uses - and it is a *sort*,
+      // so the whole bank is still there to be searched.
       topicBank.length ? Promise.resolve({topics: topicBank})
-                       : fetch("/api/topics").then(function(r){
+                       : fetch(withInterests("/api/topics?ranked=1")).then(function(r){
                            // An error body is still JSON. Without this check the
                            // bank silently becomes undefined and the picker dies
                            // with a console error the listener never sees.
@@ -4508,6 +4523,7 @@
       mixes = res[0].mixes;
       mixStarters = res[0].starters || [];
       topicBank = res[1].topics;
+      if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
       renderMixList();
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
@@ -4604,12 +4620,23 @@
     }
     // Public mixes appear on the profile. Private is the default: a mix is a
     // routine, and a routine is personal until someone decides otherwise.
-    html += '<div class="mix-vis" onclick="toggleMixVisibility()">'
+    //
+    // **The switch means private, and the lock is on the switch.** It used to
+    // mean public, which made "on" the state in which other people could see
+    // your mix - and a toggle whose lit position is the *less* private one is
+    // read the wrong way round by everybody who has ever used a phone. On
+    // with a closed padlock and the word Private; off with an open one and
+    // the word Public. The word is beside the switch and the lock is on the
+    // knob, so the two halves of the state cannot be read separately.
+    html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
+      + ' role="switch" aria-checked="' + (m.public ? "false" : "true") + '"'
+      + ' aria-label="Private">'
       + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
       + '<div class="mix-vis-s">' + (m.public
-          ? "Shown on your profile"
+          ? "Public will be displayed on your profile"
           : "Only you can see this mix") + '</div></div>'
-      + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span></span></div>'
+      + '<div class="mix-switch' + (m.public ? "" : " on") + '"><span>'
+      + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
       + '</div>';
     html += '<button class="mix-new" onclick="editMixTopics()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -4815,8 +4842,15 @@
       return (t.title + " " + t.subtitle + " " + t.query).toLowerCase().indexOf(term) !== -1;
     });
     if(matches.length){
+      // Says what the order actually is. "Suggested topics" over a list
+      // nobody had ranked was a claim the screen could not back, which is the
+      // same failure as a profile inventing a number - smaller, and the same
+      // shape. `personalised` comes from the server and is false for a
+      // listener who has expressed no preference, in which case the order is
+      // the bank's own and the heading says so.
       html += '<div class="mix-meta" style="margin:14px 0 8px;">'
-        + (term ? "Matching topics" : "Suggested topics") + '</div>';
+        + (term ? "Matching topics"
+                : (topicBankRanked ? "Suggested for you" : "All topics")) + '</div>';
       html += matches.map(function(t){
         var on = selectionIndex(t.id) !== -1;
         return '<div class="mix-topic' + (on ? " chosen" : "") + '" '
@@ -4833,9 +4867,13 @@
   }
 
   function reloadTopicBank(){
-    fetch("/api/topics")
+    fetch(withInterests("/api/topics?ranked=1"))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ topicBank = d.topics; renderMixPicker(); })
+      .then(function(d){
+        topicBank = d.topics;
+        topicBankRanked = !!d.personalised;
+        renderMixPicker();
+      })
       .catch(function(){ toast("Still cannot reach the topic list"); });
   }
 
@@ -5860,6 +5898,24 @@
         el.innerHTML = '<div class="pf-note">Could not load your profile. '
           + 'Nothing is lost — this fills in when the server is back.</div>';
       });
+  }
+
+  // The lock on the visibility switch. Two glyphs rather than one rotated
+  // shackle, because "open" has to be recognisable at 11px and a tilted bar
+  // is not.
+  function lockClosedSVG(){
+    return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
+      + 'stroke-linejoin="round" aria-hidden="true">'
+      + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
+      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0v3.1"/></svg>';
+  }
+  function lockOpenSVG(){
+    return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
+      + 'stroke-linejoin="round" aria-hidden="true">'
+      + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
+      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0"/></svg>';
   }
 
   function personSVG(size){
@@ -8258,22 +8314,44 @@
     });
   }
 
+  // The four tiles, and which one the countdown is on.
+  //
+  // **The countdown tile is the most likely next listen, and the other three
+  // are the same ranking behind it.** All four come from `/api/nextup`, which
+  // is `build_feed`'s own signals over a profile seeded with the episode that
+  // just ended - the popup is the feed's opinion arrived at one tap earlier,
+  // never a second recommender. It draws on the live story pool as well as
+  // the bank now, exactly as Made for you does; it used to be bank-only,
+  // which meant somebody who had just heard about today's news was offered
+  // four standing explainers.
+  //
+  // Two things may take the lead slot ahead of the ranking, and both are
+  // *better* answers to "most likely next" rather than exceptions to it:
+  //
+  //  * **the album's next episode**, when one is playing. Inside an album the
+  //    next episode is not a recommendation, it is the thing the listener
+  //    already chose, and a ranking that talked them out of it would be
+  //    wrong however well it scored.
+  //  * **the predicted follow-up**, the `<<NEXT:>>` line the model wrote on
+  //    this very episode and that was never spoken. It is the answer to
+  //    exactly this question - having heard this, what would this listener
+  //    most likely ask next - read off what was actually covered, which no
+  //    ranking over a bank of tiles can see.
+  //
+  // With neither, the lead is the ranking's own first pick, which is what the
+  // countdown should be on.
   function buildNextUpTiles(query, topicId, done){
     var lead = null;
     var album = currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer];
     if(album && currentTopicIndexInAlbum > -1
        && currentTopicIndexInAlbum < album.topics.length - 1){
-      // Still inside an album: "next" already has an answer.
       var nextKey = album.topics[currentTopicIndexInAlbum + 1];
       if(TOPICS[nextKey]){
         lead = { title: TOPICS[nextKey].title, sub: "next in " + album.name,
                  album: true };
       }
     } else if(episodeThread){
-      // The follow-up the model named on this very episode, off the trailing
-      // marker line that was never spoken. It costs nothing and it is a better
-      // answer than any ranking, because it read what was actually covered.
-      lead = { title: episodeThread, sub: "picks up the thread",
+      lead = { title: episodeThread, sub: "most likely next",
                query: episodeThread, topicId: "" };
     }
     fetch(withInterests("/api/nextup?topic_id=" + encodeURIComponent(topicId || "")
@@ -8281,10 +8359,17 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         var tiles = lead ? [lead] : [];
-        (d.topics || []).forEach(function(t){
+        (d.topics || []).forEach(function(t, i){
           if(tiles.length >= 4) return;
-          tiles.push({ title: t.title, sub: t.subtitle || "recommended",
-                       query: t.query, topicId: t.id });
+          tiles.push({
+            title: t.title,
+            // Says *why* this one, the way a feed card does, and says it
+            // loudest on the tile the countdown is on. A live story's angle
+            // beats every generic sentence - it is about today, where
+            // "recommended" is about nothing.
+            sub: t.angle || t.subtitle
+                 || ((!lead && i === 0) ? "most likely next" : "recommended"),
+            query: t.query, topicId: t.id });
         });
         done(tiles.slice(0, 4));
       })

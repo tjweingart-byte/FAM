@@ -191,12 +191,21 @@ prefetch plan are for.
 
 **Part of that is now paid back after the episode rather than inside it**
 (PROBLEMS.md §70). When one finishes on the player, four recommendations appear
-in a grid and the first starts itself in five seconds. The countdown tile
-prefers the album's next episode, then the predicted `<<NEXT:>>` follow-up,
-then the ranking - so the pull is there without a word of it being spoken, and
+in a grid and the first starts itself in fifteen seconds - it was five, which
+is long enough to notice a card and not long enough to read four titles and
+choose, so the thing meant to offer a choice was making it. The countdown tile
+is **the most likely next listen** and says so: the album's next episode when
+one is playing (inside an album that is not a recommendation, it is the thing
+the listener already chose), then the predicted `<<NEXT:>>` follow-up, which
+answers exactly this question off what was actually covered, then the ranking's
+own first pick - so the pull is there without a word of it being spoken, and
 declining it is one tap. The tiles are the *feed's* ranking
 (`topics.rank_next_up`), not a second one, so the popup and the shelves cannot
-give a listener two different answers to the same question. It deliberately
+give a listener two different answers to the same question - and the ranking
+draws on **both inventories now, like Made for you**. It was bank-only, so
+somebody who had just heard about today's news was offered four standing
+explainers, because the one place today's stories live was not in its
+candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
 Note this **replaced an earlier rule** that said to open with the answer
@@ -440,6 +449,19 @@ the rest of this list it needs taste rather than a key.
    a mix holds *topic ids*, never audio, so "At the gym" is the same subjects
    every day and a different set of episodes. Members are validated against the
    same shared bank, which is what keeps the cost design intact.
+   Two things the picker got wrong are now right. Its heading said
+   **"Suggested topics"** over the bank in `topic.id` order, which is
+   alphabetical by slug; `/api/topics?ranked=1` orders it with
+   `topics.rank_bank`, the same taste model every rail uses. That ranking is
+   **a sort and never a filter** and **does not exclude what they have
+   played**, which is where it parts company with a rail: the picker *is* the
+   list, and wanting a mix of subjects you already like is the entire point of
+   a mix. The heading reads `personalised` rather than asserting, because a
+   declared order and a measurement look identical on screen.
+   And the **privacy switch means private**, with the lock on the knob: closed
+   and lit for Private, open for Public. It used to mean public, so the lit
+   position was the one where other people could see your mix - read backwards
+   by everybody who has ever used a phone.
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
    - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
    asymmetric, like the copy always said, and a **friend is the mutual case,

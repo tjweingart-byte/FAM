@@ -2113,10 +2113,33 @@ async def detach(request: Request, id: str = Query(..., max_length=64)) -> dict:
 
 
 @app.get("/api/topics")
-async def bank(request: Request):
-    """The whole shared bank, for the mix topic picker."""
+async def bank(request: Request, ranked: bool = Query(False),
+               interests: str = Query("", max_length=200)):
+    """The whole shared bank, for the mix topic picker.
+
+    `ranked` answers the question the picker's own heading was already
+    claiming: it said "Suggested topics" over the bank in `topic.id` order,
+    which is alphabetical by slug and suggests nothing. Ranked, it is the same
+    ranker every personal rail on myFAM uses - `rank_from_history` over
+    `taste`, plus the intro's chosen interests for somebody with no history.
+
+    **A sort, never a filter.** The whole bank comes back either way, in a
+    different order. A picker that hid what it did not rank would be a picker
+    somebody could not find a topic in, and unlike a rail there is no
+    "somewhere else to look" - this *is* the list. It also does not exclude
+    what they have played, which a rail does: wanting a mix of subjects you
+    already like is the entire point of a mix.
+    """
     _read_limit(request)
-    return {"topics": [t.as_dict() for t in topics_mod.TOPIC_BANK]}
+    if not ranked:
+        return {"topics": [t.as_dict() for t in topics_mod.TOPIC_BANK]}
+    user = _listener(request)
+    chosen = _interests_for(request, interests)
+    profile = topics_mod.taste(EVENTS.for_user(user) if user else [],
+                               interests=chosen)
+    order = topics_mod.rank_bank(profile)
+    return {"topics": [t.as_dict() for t in order],
+            "personalised": bool(profile)}
 
 
 @app.get("/api/mixes")

@@ -17,8 +17,11 @@ What stays synthetic, because a browser cannot do it:
 * **/api/audio** returns silence of the right length, exactly as the fixture
   preview does. There is no Piper and no Claude in a published page, so no
   script is written and no audio is spoken.
-* **/api/topics**, **/api/voices** and **/api/health** are reference data, not
-  state, and come from the same fixtures as before.
+* **/api/voices** and **/api/health** are reference data, not state, and come
+  from the same fixtures as before. So do **/api/sources** and
+  **/api/transcript**, because both read a script a published page never
+  writes. **/api/topics** is the fixture bank, ordered by this listener's real
+  taste when the mix picker asks for `ranked=1`.
 
 Everything else — the event log, impressions with their section and algo, the
 listener table, sessions, accounts, mixes and echoes — is real.
@@ -46,7 +49,7 @@ OUT = HERE / "fam-live.html"
 OUT_ARTIFACT = HERE / "fam-live-artifact.html"
 
 #: Reference data only. Everything stateful is served from the database.
-STATIC_PATHS = ("/api/topics", "/api/voices", "/api/health", "/api/attach",
+STATIC_PATHS = ("/api/voices", "/api/health", "/api/attach",
                 # The tier table. Reference data: it is the same for every
                 # viewer, and nothing in the database changes it.
                 "/api/plans",
@@ -1002,6 +1005,24 @@ LIVE_SHIM = r"""
                     ready: all.filter(function (x) { return x.cached; }).length,
                     minutes: mins, empty_reason: "", personalised: true,
                     algo: "live" });
+    }
+
+    // The bank, in this listener's taste order when the picker asks for it.
+    // `ranked=1` is what makes the mix picker's "Suggested for you" heading
+    // true; without it the heading said that over the bank in `topic.id`
+    // order. A sort and never a filter: the whole bank comes back either way.
+    if (path === "/api/topics") {
+      if (qs.get("ranked") !== "1") return json(FIXTURES["/api/topics"]);
+      var bankProfile = taste(UID, myPrefs().interests);
+      if (!Object.keys(bankProfile).length) {
+        return json({ topics: FIXTURES["/api/topics"].topics,
+                      personalised: false });
+      }
+      var ordered = BANK.slice().sort(function (a, b) {
+        var d = affinity(b, bankProfile) - affinity(a, bankProfile);
+        return d || (a.id < b.id ? -1 : 1);
+      });
+      return json({ topics: ordered, personalised: true });
     }
 
     // ---- preferences and what plays next

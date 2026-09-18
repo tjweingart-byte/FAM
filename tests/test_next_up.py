@@ -169,3 +169,30 @@ def test_explore_new_is_not_empty_for_a_new_listener(store):
 def test_explore_new_over_http(client):
     body = client.get("/api/explorenew").json()
     assert body["topics"] and body["reason"] and body["algo"] == T.ALGO_VERSION
+
+
+# --- the popup recommends the way myFAM does ------------------------------
+
+def test_the_popup_draws_on_the_live_pool_as_well_as_the_bank(store, monkeypatch):
+    """It is meant to be the feed's opinion arrived at one tap earlier, and
+    Made for you draws on both inventories. Bank-only meant somebody who had
+    just heard an episode about today's news was offered four standing
+    explainers, because the one place today's stories live was not in the
+    candidate list."""
+    import stories as stories_mod
+
+    now = time.time()
+    story = stories_mod.Story(
+        subject="undersea cables", title="The Cable Cut",
+        angle="two cables in the Red Sea were reported damaged this week",
+        query="why cutting one undersea cable slows a whole country's internet",
+        domain=stories_mod.ATTENTION, source="test feed", tags=("tech",),
+        strength=1.0, first_seen=now,
+        shelf_life=stories_mod.DOMAIN_SHELF_LIFE[stories_mod.ATTENTION])
+    monkeypatch.setattr(stories_mod, "pool",
+                        lambda: stories_mod.Pool(stories=[story], fetched_at=now))
+
+    store.record(T.Event("u", "complete", "ai-agents", "", ("tech",), now))
+    picks = T.rank_next_up(store, "u", now=now, after_id="ai-agents")
+    assert story.id in {t.id for t in picks}, \
+        f"the live story was not offered: {[t.id for t in picks]}"

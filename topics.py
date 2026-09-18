@@ -1360,6 +1360,30 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     return [t for _s, t in scored[:limit]]
 
 
+def rank_bank(profile: dict[str, float]) -> list[Topic]:
+    """The whole bank, best match first. What the mix picker offers.
+
+    **A sort and never a filter**, which is the difference between this and
+    every rail on myFAM. A rail is one of five and a listener who does not
+    like its picks can scroll to the next one; the picker *is* the list, so
+    one that hid what it could not rank would be a picker somebody could not
+    find a topic in.
+
+    It also does not exclude what they have played, which every rail does:
+    wanting a mix of subjects you already like is the entire point of a mix.
+
+    With no profile at all the order is the bank's own, which is honest - a
+    listener with no history has expressed no preference, and inventing one
+    from `topic.id` is what the picker was doing when its heading already
+    said "Suggested topics".
+    """
+    if not profile:
+        return list(TOPIC_BANK)
+    scored = [(_affinity(topic, profile), topic) for topic in TOPIC_BANK]
+    scored.sort(key=lambda pair: (-pair[0], pair[1].id))
+    return [topic for _score, topic in scored]
+
+
 def rank_missed(profile: dict[str, float], shown: dict[str, float],
                 played: set[str], exclude: set[str],
                 candidates: Iterable[Topic],
@@ -2019,7 +2043,15 @@ def rank_next_up(
     Everything they have already played is excluded, along with the episode
     that just ended. Offering back the thing they are still listening to the
     end of is the one recommendation guaranteed to be wrong.
+
+    **It draws on both inventories, like Made for you.** It used to be the
+    bank alone, which made the popup a quietly worse recommender than the rail
+    it is meant to be the feed's opinion of: somebody who had just heard an
+    episode about today's news was offered four standing explainers, because
+    the one place today's stories live was not in its candidate list. Same
+    call to `live_topics`, same `FRESHNESS_BOOST`, same single score over both.
     """
+    now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = _seeded(
         taste(events, now, interests),
@@ -2041,7 +2073,8 @@ def rank_next_up(
                 picks.append(topic)
                 taken.add(topic.id)
 
-    add(rank_from_history(profile, taken, damp))
+    add(rank_from_history(profile, taken, damp,
+                          candidates=live_topics(now) + list(TOPIC_BANK)))
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:

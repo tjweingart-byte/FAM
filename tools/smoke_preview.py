@@ -391,6 +391,19 @@ def main() -> int:
                 "the Your FAM tiles came back"
             assert not page.query_selector("#recapOverlay"), \
                 "the weekly recap popup came back"
+            # "Your" in type, "FAM" as the mark - the same three glyphs
+            # myFAM, DailyFAM and exploreFAM all set. It was plain text.
+            head = page.query_selector("#screen-messages .myfam-header h2")
+            assert head, "Your FAM has no heading"
+            assert "wordmark" in (head.get_attribute("class") or ""), \
+                "the Your FAM heading is not set as a wordmark"
+            glyphs = page.eval_on_selector_all(
+                "#screen-messages .myfam-header h2 .wm-glyph,"
+                " #screen-messages .myfam-header h2 .wm-a",
+                "e => e.length")
+            assert glyphs == 3, f"the FAM mark drew {glyphs} glyphs, not three"
+            assert head.text_content().strip() == "Your", \
+                "the heading still spells FAM out in type"
             # Explore New is off myFAM at the owner's direction, but the
             # ranking, the endpoint and the screen are all still here - which
             # is what makes putting the rail back a one-line change rather
@@ -753,6 +766,14 @@ def main() -> int:
             assert page.query_selector(".nextup-tile.lead .nextup-timer"), \
                 "the first tile has no countdown"
             assert "starts in" in page.text_content("#nextUpSub").lower()
+            # The countdown tile is the most likely next listen, and says so.
+            # With no album and no predicted follow-up it is the ranking's own
+            # first pick, and the four tiles are all from that one ranking -
+            # the popup is the feed's opinion arrived at one tap earlier,
+            # never a second recommender.
+            lead = page.text_content(".nextup-tile.lead .nextup-tile-sub").strip()
+            assert lead and lead.lower() != "recommended", \
+                f"the countdown tile does not say why it is first: {lead!r}"
             # Tapping anything else cancels the countdown rather than racing it.
             page.evaluate("closeNextUp()")
             page.wait_for_timeout(300)
@@ -1123,7 +1144,14 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def mix_visibility():
-            # Public/private has to be reachable, not buried in a menu.
+            """Public/private has to be reachable, not buried in a menu - and
+            it has to read the right way round.
+
+            The switch means **private** and carries the lock. It used to mean
+            public, which made the lit position the state where other people
+            could see your mix, and a toggle whose on position is the less
+            private one is read backwards by everybody who has ever used a
+            phone."""
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             page.wait_for_timeout(400)
@@ -1131,11 +1159,33 @@ def main() -> int:
             page.wait_for_timeout(500)
             switch = page.query_selector(".mix-switch")
             assert switch, "no public/private switch inside a mix"
-            before = "on" in (switch.get_attribute("class") or "")
+
+            def state():
+                lit = "on" in (page.query_selector(".mix-switch")
+                               .get_attribute("class") or "")
+                word = page.text_content(".mix-vis-t").strip()
+                note = page.text_content(".mix-vis-s").strip()
+                shackle = page.eval_on_selector(
+                    ".mix-switch span svg path", "e => e.getAttribute('d')")
+                return lit, word, note, shackle
+
+            lit, word, note, shackle = state()
+            # On means private, off means public, and the word matches.
+            assert (word == "Private") == lit, \
+                f"the switch says {word!r} in its {'on' if lit else 'off'} position"
+            if not lit:
+                assert "displayed on your profile" in note.lower(), \
+                    f"the public note is missing: {note!r}"
+            # A closed padlock closes: its shackle path ends back at the body.
+            assert shackle.rstrip().endswith("v3.1") == lit, \
+                f"the lock is {'open' if lit else 'closed'} in the wrong position"
+
             page.click(".mix-vis")
             page.wait_for_timeout(900)
-            after = "on" in (page.query_selector(".mix-switch").get_attribute("class") or "")
-            assert after != before, "the visibility switch did not move"
+            after, word2, _note2, shackle2 = state()
+            assert after != lit, "the visibility switch did not move"
+            assert word2 != word, "the switch moved and the word did not"
+            assert shackle2 != shackle, "the switch moved and the lock did not"
 
         #: Every screen a listener can control playback from. VIBE! belongs on
         #: all of them - checking two ids by name is what let the main player
