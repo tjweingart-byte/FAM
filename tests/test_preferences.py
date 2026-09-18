@@ -343,3 +343,76 @@ def test_an_unknown_facet_cannot_be_hidden(client):
     r = client.post("/api/preferences", json={"hidden_interests": ["astrology"]})
     assert r.status_code == 400
     assert client.get("/api/preferences").json()["hidden_interests"] == []
+
+
+# --- named subjects from the catalogue ------------------------------------
+
+
+def test_a_chosen_subject_is_stored_and_read_back(store):
+    """The plus button's whole job: it has to still be there tomorrow."""
+    store.save("u", topics=["ai", "movies-tv"])
+    assert store.get("u").topics == ("ai", "movies-tv")
+
+
+def test_subjects_and_interests_are_separate_vocabularies(store):
+    """Two columns on purpose. `interests` is the eight pickable facets;
+    the catalogue names subjects those eight cannot say."""
+    store.save("u", interests=["tech"], topics=["ai"])
+    got = store.get("u")
+    assert got.interests == ("tech",)
+    assert got.topics == ("ai",)
+    with pytest.raises(P.PreferenceError):
+        store.save("u", interests=["ai"])          # a subject is not a facet
+    with pytest.raises(P.PreferenceError):
+        store.save("u", topics=["tech"])           # and a facet is not a subject
+
+
+def test_an_unknown_subject_is_refused(store):
+    """A stored id that names nothing contributes no tags, so it would sit on
+    the profile looking chosen while the ranker ignored it."""
+    with pytest.raises(P.PreferenceError):
+        store.save("u", topics=["not-a-real-subject"])
+
+
+def test_subjects_survive_a_partial_save(store):
+    """The settings screens write one field at a time."""
+    store.save("u", topics=["ai"])
+    store.save("u", language="en")
+    assert store.get("u").topics == ("ai",), "an unrelated save dropped them"
+
+
+def test_every_catalogue_subject_can_be_chosen():
+    """The picker offers the catalogue, so the store has to accept all of it."""
+    ids = [i.id for i in T.INTEREST_CATALOGUE]
+    assert P.clean_topics(ids) == tuple(ids)
+    assert len(ids) > 40, "precondition: this is the long list, not the eight"
+
+
+def test_the_plus_button_reaches_the_ranker_over_the_api(client):
+    """End to end, the way the catalogue's plus button actually works.
+
+    An anonymous listener's choices live in their browser, so they arrive as
+    the same ranking hint the intro's answers use. The profile and the feed
+    both have to honour them, or the button is a setting that changes nothing.
+    """
+    assert client.get("/api/profile").json()["subjects"] == []
+    body = client.get("/api/profile?topics=ai").json()
+    assert "tech" in body["subjects"], "a chosen subject belongs on the profile"
+
+    feed = client.get("/api/myfam?topics=ai").json()
+    assert feed["personalised"], "and it has to reach the feed"
+    made = [s for s in feed["sections"] if s["key"] == "from_history"]
+    assert made and made[0]["topics"], "'Made for you' should not be empty"
+
+
+def test_the_profile_shows_at_most_four_subjects(client):
+    many = "sports,money,health,world,culture,tech"
+    subjects = client.get("/api/profile?interests=" + many).json()["subjects"]
+    assert len(subjects) == 4, subjects
+
+
+def test_a_malformed_subject_hint_costs_nothing(client):
+    """A bad hint must never be what stops the page loading."""
+    r = client.get("/api/profile?topics=not-real,also-not-real")
+    assert r.status_code == 200
+    assert r.json()["subjects"] == []

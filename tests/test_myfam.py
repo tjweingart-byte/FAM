@@ -786,3 +786,82 @@ def test_the_page_is_drawn_from_what_exists_even_if_warming_is_broken(client,
     body = client.get("/api/myfam")
     assert body.status_code == 200
     assert body.json()["sections"], "a broken guess emptied the page"
+
+
+# --- chosen subjects, and the pills that show them ------------------------
+
+
+def test_a_search_moves_the_profile_pills(store):
+    """The pills are `taste` folded to facets, so searching is what moves them."""
+    before = T.summary(store, "u")["subjects"]
+    assert before == [], "precondition: nothing known about this listener yet"
+    store.record(T.Event("u", "search", "", "how the fed sets interest rates",
+                         T.tags_for_text("how the fed sets interest rates")))
+    after = T.summary(store, "u")["subjects"]
+    assert "money" in after, "a search should reach the profile's subjects"
+
+
+def test_the_pills_stop_at_four(store):
+    """Four, not five: they sit under the friend count and a fifth wraps."""
+    for query in ("nfl draft", "the fed and inflation", "how sleep works",
+                  "the election result", "a new film"):
+        store.record(T.Event("u", "search", "", query, T.tags_for_text(query)))
+    subjects = T.summary(store, "u")["subjects"]
+    assert len(subjects) <= T.PROFILE_SUBJECTS == 4, subjects
+
+
+def test_the_pills_include_what_was_chosen_not_only_what_was_played(store):
+    """`summary` was the one taste caller that dropped the listener's choices.
+
+    Somebody who picked interests and added a subject, and has played nothing,
+    had a profile that knew nothing about them.
+    """
+    assert T.summary(store, "u")["subjects"] == []
+    chosen = T.summary(store, "u", interests=("sports",), topics=("ai",))["subjects"]
+    assert "sports" in chosen, "an intro answer belongs on the profile"
+    assert "tech" in chosen, "a subject added from the catalogue does too"
+
+
+def test_a_chosen_subject_carries_its_tags_to_the_ranker():
+    """The catalogue names subjects the eight facets cannot, and that is the
+    whole point of it: adding Formula 1 must be worth more than adding Sport."""
+    assert T.tags_for_topics(("ai",)) == ("tech", "ai")
+    assert T.tags_for_topics(("nonsense",)) == (), "an unknown id contributes nothing"
+    profile = T.taste([], None, (), ("ai",))
+    assert profile.get("ai"), "the subtag has to reach the ranker"
+    assert profile.get("tech"), "and so does its facet"
+
+
+def test_a_chosen_subject_does_not_decay(store):
+    """A `pick` event is real and dated; the stored list is a standing
+    statement. Before this, a subject added on purpose faded out of the feed
+    inside a fortnight while an intro answer did not.
+
+    Decay only shows against *other* activity - `taste` normalises by its own
+    peak, so a single old event alone still reads 1.0 relative to itself. So
+    the listener here added a subject months ago and has been listening to
+    something else since, which is exactly the case that used to lose it.
+    """
+    now = time.time()
+    store.record(T.Event("u", "pick", "ai", "", T.tags_for_id("ai"),
+                         now - 120 * 86400))
+    for _ in range(3):
+        store.record(T.Event("u", "complete", "golf-evolution", "",
+                             T.BANK_BY_ID["golf-evolution"].tags, now - 3600))
+    events = store.for_user("u")
+    faded = T.taste(events, now).get("ai", 0.0)
+    assert faded < 0.2, f"precondition: the old pick has faded to {faded:.3f}"
+    held = T.taste(events, now, (), ("ai",)).get("ai", 0.0)
+    assert held > faded * 3, (
+        f"the standing choice must survive: {faded:.3f} -> {held:.3f}")
+
+
+def test_a_chosen_subject_reaches_the_feed(store):
+    """Stored and ranked, or it is a setting that changes nothing."""
+    plain = T.build_feed(store, "u")
+    seeded = T.build_feed(store, "u", topics=("ai",))
+    assert seeded["personalised"], "a chosen subject should personalise the feed"
+    made_for_you = [s for s in seeded["sections"] if s["key"] == "from_history"]
+    assert made_for_you and made_for_you[0]["topics"], (
+        "'Made for you' should have something in it for somebody who chose a subject")
+    assert plain != seeded, "choosing a subject must change what is offered"

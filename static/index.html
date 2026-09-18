@@ -6209,7 +6209,7 @@
     // when it is about to be drawn.
     checkNewFollowers();
 
-    fetch("/api/profile")
+    fetch(withInterests("/api/profile"))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderProfile)
       .catch(function(){
@@ -8362,8 +8362,16 @@
   // would be the client asserting something the server already knows.
   function interestsParam(){
     if(AUTH.authenticated) return "";
-    var chosen = localPrefs().interests || [];
-    return chosen.length ? "interests=" + encodeURIComponent(chosen.join(",")) : "";
+    var prefs = localPrefs();
+    var parts = [];
+    var chosen = prefs.interests || [];
+    if(chosen.length) parts.push("interests=" + encodeURIComponent(chosen.join(",")));
+    // The catalogue's named subjects travel the same way and for the same
+    // reason: an anonymous listener's choices live in their own browser, so
+    // this is the only route by which the ranker can honour them at all.
+    var subjects = prefs.topics || [];
+    if(subjects.length) parts.push("topics=" + encodeURIComponent(subjects.join(",")));
+    return parts.join("&");
   }
   function withInterests(path){
     var hint = interestsParam();
@@ -8623,7 +8631,7 @@
   // whether there is already a name before it decides to ask for one, and
   // `loadProfile` paints a screen that is not on yet.
   function loadProfileQuietly(){
-    return fetch("/api/profile")
+    return fetch(withInterests("/api/profile"))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ if(d) profileNow = d; return d; })
       .catch(function(){ return null; });
@@ -8890,6 +8898,18 @@
     var from = document.querySelector(".screen.active");
     catalogReturn = from ? from.id.replace(/^screen-/, "") : "";
     document.getElementById("catalogSearch").value = "";
+    // What was chosen before, read back from where it was stored. Without
+    // this the ticks reset every time the catalogue was opened, so a subject
+    // that was still shaping the feed looked un-chosen and adding it again
+    // was the only way to make the screen agree with the ranker.
+    catalogPicked = {};
+    // The account's stored list wins where there is one, the same way the
+    // interests wheel prefers `PREF_CHOICES.interests` over the local copy:
+    // signing in on a second device should find the subjects already added.
+    var storedTopics = (AUTH.authenticated && PREF_CHOICES.saved)
+      ? (PREF_CHOICES.topics || localPrefs().topics || [])
+      : (localPrefs().topics || []);
+    storedTopics.forEach(function(id){ catalogPicked[id] = true; });
     // The catalogue arrives with `/api/preferences`, which the intro has
     // already fetched. Fetched again only if this was opened some other way -
     // from Settings, say - where that call may not have happened yet.
@@ -8953,16 +8973,34 @@
 
   function toggleCatalogTopic(id){
     if(catalogPicked[id]){
-      // Nothing to undo on the server: a pick is one row in an append-only
-      // log, and un-saying it is not something the log can express. What the
-      // list stops claiming is that it is still selected.
+      // The `pick` event stays in the log - it happened, and an append-only
+      // log cannot un-say it. What *is* undone is the standing choice, which
+      // is a stored list and can be rewritten. Before this, removing a topic
+      // only changed what the list drew: the next feed still ranked on it.
       delete catalogPicked[id];
       renderTopicCatalog();
+      saveChosenTopics();
       return;
     }
     catalogPicked[id] = true;
     renderTopicCatalog();
+    // Two different things, deliberately both. The event is the behaviour -
+    // dated, decaying, one moment - and it is what `taste` weighs alongside
+    // plays. The stored list is the standing statement, and it does not
+    // decay, which is why adding a subject still shapes the feed a month
+    // later the way an intro answer does.
     recordFamEvent("pick", id, "");
+    saveChosenTopics();
+  }
+
+  // The catalogue's chosen subjects, written where they will be read again.
+  // Locally for everybody, because listening never needs an account; and to
+  // `/api/preferences` as well for an account, which is what makes them
+  // survive a new device. The same two-places rule the intro's answers follow.
+  function saveChosenTopics(){
+    var chosen = Object.keys(catalogPicked);
+    saveLocalPrefs({ topics: chosen });
+    if(AUTH.authenticated) savePreferences({ topics: chosen });
   }
 
   function renderPickedSummary(){

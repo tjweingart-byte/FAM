@@ -132,6 +132,31 @@ def clean_interests(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(seen)
 
 
+def clean_topics(values: Iterable[str]) -> tuple[str, ...]:
+    """Known catalogue ids, de-duplicated, order preserved.
+
+    Validated against `topics.CATALOGUE_BY_ID` for the same reason
+    `clean_interests` is validated against the facets: a stored id that names
+    nothing contributes no tags, so it would sit on the listener's profile
+    looking chosen while the ranker ignored it entirely - the silent-success
+    failure this project has lost the most time to, in miniature.
+
+    No cap, for the reason §99 removed the one on interests: a number here
+    makes somebody with nine subjects pick which to leave out, and the ranker
+    is perfectly happy to weigh them all.
+    """
+    seen: list[str] = []
+    for raw in values or ():
+        topic_id = str(raw).strip()
+        if not topic_id:
+            continue
+        if topic_id not in topics.CATALOGUE_BY_ID:
+            raise PreferenceError(f"{topic_id!r} is not a subject on offer.")
+        if topic_id not in seen:
+            seen.append(topic_id)
+    return tuple(seen)
+
+
 def clean_language(code: str) -> str:
     lang = (code or "").strip().lower()
     if not lang:
@@ -158,6 +183,17 @@ class Preferences:
     #: profile in the app would show an empty pill row that reads as broken
     #: until each listener went and opted in one at a time.
     hidden_interests: tuple[str, ...] = ()
+    #: Named catalogue subjects this listener added themselves - the plus
+    #: button behind "View more".
+    #:
+    #: Separate from `interests` and deliberately so. `interests` is the eight
+    #: pickable facets and is validated against `TAG_LABELS`, because that is
+    #: what the wheel is built from; the catalogue names 73 subjects the eight
+    #: cannot say, and storing "formula-1" in a facet column would either
+    #: break that validation or flatten the subject to "sports" and lose the
+    #: resolution the catalogue exists to add. Two columns, two vocabularies,
+    #: one ranker: `topics.tags_for_topics` is where they meet.
+    topics: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
@@ -175,6 +211,7 @@ class Preferences:
             "interests": list(self.interests),
             "hidden_interests": list(self.hidden_interests),
             "public_interests": list(self.public_interests),
+            "topics": list(self.topics),
             "language": self.language,
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
@@ -208,6 +245,14 @@ class PreferenceStore:
                              " hidden_interests TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # Same pattern again, for the catalogue subjects somebody added
+            # themselves. Empty means "none added", which is what every row
+            # written before this already meant.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " topics TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -224,7 +269,7 @@ class PreferenceStore:
         try:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
-                " intro_done, hidden_interests"
+                " intro_done, hidden_interests, topics"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -242,6 +287,7 @@ class PreferenceStore:
             recap_week=row[3] or "",
             intro_done=bool(row[4]),
             hidden_interests=tuple(t for t in (row[5] or "").split(",") if t),
+            topics=tuple(t for t in (row[6] or "").split(",") if t),
         )
 
     def save(
@@ -249,6 +295,7 @@ class PreferenceStore:
         user_id: str,
         interests: Optional[Iterable[str]] = None,
         hidden_interests: Optional[Iterable[str]] = None,
+        topics: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
@@ -271,6 +318,8 @@ class PreferenceStore:
             hidden_interests=(clean_interests(hidden_interests)
                               if hidden_interests is not None
                               else current.hidden_interests),
+            topics=(clean_topics(topics) if topics is not None
+                    else current.topics),
             language=(clean_language(language) if language is not None
                       else current.language),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
@@ -282,11 +331,12 @@ class PreferenceStore:
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
-                    intro_done, updated, hidden_interests)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    intro_done, updated, hidden_interests, topics)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
+                   topics           = excluded.topics,
                    language     = excluded.language,
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
@@ -294,7 +344,8 @@ class PreferenceStore:
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
-             at or time.time(), ",".join(merged.hidden_interests)),
+             at or time.time(), ",".join(merged.hidden_interests),
+             ",".join(merged.topics)),
         )
         return merged
 

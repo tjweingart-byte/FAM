@@ -7313,3 +7313,79 @@ the computed font, size and line height, and whether webfonts had settled.
 Nothing about what passes or fails changed. A layout assertion that can differ
 between machines has to report its measurement, or a failure on a machine you
 do not have is unactionable - which is exactly the position this one is in.
+
+## 107. The profile described a listener the feed had never met, and the plus button faded
+
+**Asked:** the pills under the friend count should follow what somebody
+searches and stop at four; adding a subject from the plus button should reach
+the database and the ranking.
+
+Two requests, and underneath them one shape - **a choice the listener made
+that the code downstream did not read.**
+
+**The pills.** They are `summary()`'s `subjects`: `taste` folded through
+`facets_only`. So the "follow what they search" half was already true - a
+search logs tags, tags move taste, taste moves the pills - and the cap was
+five rather than four.
+
+What was not true is the word *interests*. `summary` was the **only** `taste`
+caller in the file that did not pass them:
+
+    profile = taste(events, now)          # summary
+    profile = taste(events, now, interests)   # everything that ranks anything
+
+So a listener who had answered the intro and played nothing had a profile that
+knew nothing about them, and a subject added from the catalogue never reached
+that page at all. The profile was describing a different listener from the one
+the feed was ranking for. It now takes the same two vocabularies every feed
+endpoint takes, and `/api/profile` passes them the same way, so the pills say
+what the feed is actually working from. `PROFILE_SUBJECTS = 4`.
+
+**The plus button.** `toggleCatalogTopic` logged `pick`, and that part worked
+better than it looked: `pick` is a real event kind with weight 1.6, and
+`tags_for_id` resolves a catalogue id to its Interest's tags, so "Formula 1"
+reached the ranker as `("sports", ...)` rather than as nothing. It was in the
+database and in the algorithm.
+
+**What it was not is durable.** An event is dated and decays on the 14-day
+half-life, so a subject somebody added on purpose faded out of their feed
+inside a fortnight, while the same statement made in the intro - stored in
+`preferences.interests`, seeded at a flat `INTEREST_WEIGHT` - did not. Two
+ways of saying the same thing, one of which the app forgot.
+
+**The fix is a second column, not a wider first one.** `interests` is
+validated against `TAG_LABELS` because the wheel is built from it; the
+catalogue names 73 subjects the eight facets cannot say. Putting "formula-1"
+in that column would either break the validation or flatten the subject to
+"sports" and lose exactly the resolution §80 added. So `preferences.topics`
+holds catalogue ids, validated against `CATALOGUE_BY_ID`, and
+`topics.tags_for_topics` is the one place the two vocabularies meet.
+`taste(events, now, interests, topics)` seeds both at `INTEREST_WEIGHT`,
+`setdefault` rather than `=` so a facet named twice is one starting position.
+
+**The event stays, and both are wanted.** The event is the behaviour - dated,
+decaying, one moment, weighed against plays. The stored list is the standing
+statement and does not decay. Removing a subject now rewrites the list (which
+can be un-said) and leaves the event (which cannot).
+
+**Three smaller things the same change had to fix**, each of which would have
+made the feature look broken while working:
+
+* **The catalogue reset its ticks on every open**, because `catalogPicked`
+  started empty. A subject still shaping the feed looked un-chosen, and adding
+  it again was the only way to make the screen agree with the ranker.
+* **An anonymous listener had no route at all.** Their choices live in their
+  own browser, so `interestsParam` carries `topics=` beside `interests=`, on
+  the same reasoning `_interests_for` already carried: a ranking hint validated
+  against a fixed vocabulary, used for one response and never written down, is
+  not the thing "a listener id is never accepted from the client" forbids.
+* **`/api/profile` did not take the hint at all**, so the pills would have
+  honoured a chosen subject for an account and silently ignored it for
+  everybody else - which is most listeners.
+
+**One test premise was wrong and the code was right**, worth recording because
+it nearly became a "fix". A test asserted a four-month-old `pick` had decayed
+away; it read 1.0. `taste` normalises by its own peak, so a single old event
+*alone* is still the maximum of a one-item profile. Decay is only visible
+against other activity, which is the case that actually loses a subject, and
+is what the test does now.

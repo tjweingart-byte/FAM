@@ -433,6 +433,26 @@ the rest of this list it needs taste rather than a key.
    says `"default"` rather than `"played"` when it does, because a declared
    order and a measurement look identical on screen and calling the first one
    "most popular" would be inventing a number.
+   **A subject added from the catalogue is a standing statement, and is
+   stored as one** *(PROBLEMS.md §107).* The plus button behind "View more"
+   logged a `pick` event and nothing else - a real signal, correctly tagged
+   through `tags_for_id`, and a *decaying* one, so a subject somebody added on
+   purpose faded out of their feed in a fortnight while the same statement
+   made in the intro did not. `preferences.topics` now holds the chosen
+   catalogue ids and `taste` seeds them at `INTEREST_WEIGHT` beside
+   `interests`. **Two columns and two vocabularies on purpose**: `interests`
+   is validated against `TAG_LABELS` because the wheel is built from it, and
+   the catalogue names subjects the eight facets cannot say, so storing one in
+   the other would either break that validation or flatten "Formula 1" to
+   "sports". `topics.tags_for_topics` is the only place they meet. The event
+   is still logged: it is the behaviour, the list is the standing statement,
+   and removing a subject rewrites the list and leaves the event.
+   **The profile's pills are that same profile, folded to facets** - four of
+   them (`PROFILE_SUBJECTS`). `summary` used to be the one `taste` caller that
+   passed no interests, so the page described a listener by behaviour alone
+   and omitted everything they had told the app; it takes both vocabularies
+   now, and `/api/profile` accepts the same `interests=`/`topics=` hint every
+   feed endpoint does, which is the only route an anonymous listener has.
    **Impressions now feed the ranking, in exactly one direction.** A tile
    shown on several separate occasions and never played is damped
    (`FATIGUE_WEIGHT`). The existing rule stands and is enforced: an impression

@@ -2397,6 +2397,9 @@ class PreferenceRequest(BaseModel):
     #: profile. The hidden set rather than the shared one - see
     #: `preferences.Preferences.hidden_interests` for why that direction.
     hidden_interests: Optional[list[str]] = None
+    #: Named catalogue subjects added from the plus button. A different
+    #: vocabulary from `interests` - see `preferences.Preferences.topics`.
+    topics: Optional[list[str]] = None
     #: Written by nothing in the interface any more. The weekly recap popup is
     #: gone, replaced by myFAM's "What you missed last week" rail, and the
     #: column stays for the same reason `language` does: dropping it is a
@@ -2426,6 +2429,24 @@ def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
     except prefs_mod.PreferenceError:
         # A malformed hint costs one less-personal feed. It must never be what
         # stops the page loading.
+        return ()
+
+
+def _topics_for(request: Request, given: str = "") -> tuple[str, ...]:
+    """Chosen catalogue subjects for ranking. The `_interests_for` rule,
+    applied to the other half of the vocabulary, for the same reasons.
+
+    An anonymous listener's added subjects live in their own browser, so the
+    query string is the only route by which the ranker can honour them - and a
+    subject somebody added on purpose is the strongest hint this app gets
+    before anyone has played anything.
+    """
+    listener = getattr(request.state, "listener", None)
+    if listener is not None and listener.is_authenticated:
+        return PREFS.get(listener.user_id).topics
+    try:
+        return prefs_mod.clean_topics(given.split(","))
+    except prefs_mod.PreferenceError:
         return ()
 
 
@@ -2507,6 +2528,7 @@ async def write_preferences(req: PreferenceRequest, request: Request):
     try:
         prefs = PREFS.save(user, interests=req.interests, language=req.language,
                            hidden_interests=req.hidden_interests,
+                           topics=req.topics,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -2519,6 +2541,7 @@ async def next_up(
     topic_id: str = Query("", max_length=64),
     q: str = Query("", max_length=300, description="What the finished episode asked"),
     interests: str = Query("", max_length=200),
+    chosen_topics: str = Query("", max_length=400, alias="topics"),
 ):
     """The four tiles the post-episode popup offers.
 
@@ -2531,6 +2554,7 @@ async def next_up(
     picks = topics_mod.rank_next_up(
         EVENTS, user, after_id=topic_id, after_text=q,
         interests=_interests_for(request, interests),
+        topics=_topics_for(request, chosen_topics),
     )
     # Recorded on the same terms as a shelf: one tile, one listener, one
     # ranking version. Without it the popup would be the one surface whose
@@ -2544,7 +2568,8 @@ async def next_up(
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
                         minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
-                        interests: str = Query("", max_length=200)):
+                        interests: str = Query("", max_length=200),
+                        chosen_topics: str = Query("", max_length=400, alias="topics")):
     """One myFAM rail, at full length, for the screen behind its "View more".
 
     Costs no model call and cannot cause one: this reorders the same fixed
@@ -2564,6 +2589,7 @@ async def myfam_section(request: Request,
     try:
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
+            topics=_topics_for(request, chosen_topics),
             circle=SOCIAL.circle_of(user), written=written)
     except KeyError as exc:
         raise HTTPException(status_code=404,
@@ -2622,7 +2648,9 @@ def _topic_is_written(query: str, minutes: int) -> bool:
 
 
 @app.get("/api/explorenew")
-async def explore_new(request: Request, interests: str = Query("", max_length=200)):
+async def explore_new(request: Request,
+                      interests: str = Query("", max_length=200),
+                      chosen_topics: str = Query("", max_length=400, alias="topics")):
     """Explore New: episodes adjacent to a taste rather than inside it.
 
     This is `rank_might_like`, which has been written and tested since myFAM
@@ -2633,7 +2661,8 @@ async def explore_new(request: Request, interests: str = Query("", max_length=20
     _read_limit(request)
     user = _listener(request)
     body = topics_mod.build_explore_new(
-        EVENTS, user, interests=_interests_for(request, interests)
+        EVENTS, user, interests=_interests_for(request, interests),
+        topics=_topics_for(request, chosen_topics),
     )
     if user:
         EVENTS.record_impressions(user, [("explore_new", t["id"]) for t in body["topics"]])
@@ -2652,6 +2681,7 @@ class EventRequest(BaseModel):
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
+                chosen_topics: str = Query("", max_length=400, alias="topics"),
                 minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """The four myFAM rails, ranked for this listener.
 
@@ -2690,6 +2720,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     written = _written_probe(minutes)
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
+        topics=_topics_for(request, chosen_topics),
         circle=SOCIAL.circle_of(user), written=written)
     # Every tile says whether it would replay or generate, the same way the
     # "view more" screen already did. A listener browsing is choosing between
@@ -2845,11 +2876,24 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
 
 
 @app.get("/api/profile")
-async def profile(request: Request):
-    """Counts and subjects from this listener's own event log. No model call."""
+async def profile(request: Request,
+                  interests: str = Query("", max_length=200),
+                  chosen_topics: str = Query("", max_length=400, alias="topics")):
+    """Counts and subjects from this listener's own event log. No model call.
+
+    `interests` and `topics` are the same ranking hint every feed endpoint
+    takes, and the profile needs them for the same reason: its subject pills
+    are `taste` folded to facets, so without them the page would describe a
+    listener by their behaviour alone and silently omit everything they had
+    actually told the app they were interested in.
+    """
     _read_limit(request)
     user = _listener(request)
-    body = topics_mod.summary(EVENTS, user)
+    body = topics_mod.summary(
+        EVENTS, user,
+        interests=_interests_for(request, interests),
+        topics=_topics_for(request, chosen_topics),
+    )
     SOCIAL.seen(user)
     person = SOCIAL.person(user)
     body["name"] = person["name"]

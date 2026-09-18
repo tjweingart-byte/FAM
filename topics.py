@@ -1191,8 +1191,28 @@ class EventStore:
         return removed
 
 
+def tags_for_topics(topic_ids: Iterable[str]) -> tuple[str, ...]:
+    """Every tag carried by a chosen catalogue interest, de-duplicated.
+
+    The catalogue is the listener-facing vocabulary and the tags are the
+    ranker's, so this is the one place the two meet. "Formula 1" is not
+    something the eight pickable facets can say; its Interest carries
+    `("sports", "sports-performance")` and that is what the ranker gets.
+    """
+    out: list[str] = []
+    for topic_id in topic_ids or ():
+        interest = CATALOGUE_BY_ID.get(str(topic_id).strip())
+        if interest is None:
+            continue
+        for tag in interest.tags:
+            if tag not in out:
+                out.append(tag)
+    return tuple(out)
+
+
 def taste(events: Iterable[Event], now: Optional[float] = None,
-          interests: Iterable[str] = ()) -> dict[str, float]:
+          interests: Iterable[str] = (),
+          topics: Iterable[str] = ()) -> dict[str, float]:
     """Tag affinity for one listener: recency-weighted, signed, normalised.
 
     Computed on read rather than stored. A stored profile is a cache that can
@@ -1204,10 +1224,26 @@ def taste(events: Iterable[Event], now: Optional[float] = None,
     one who has gets ranked mostly on what they did. A skip against a chosen
     interest can take it negative, which is correct: choosing "Sport" in an
     intro is a weaker statement than abandoning three sports episodes.
+
+    `topics` are named catalogue interests they added themselves - the
+    catalogue's plus button - and they enter exactly the same way, at the same
+    weight, for the same reason. **Adding one is a standing statement and must
+    not decay.** It was previously only a `pick` event, which is a real signal
+    and a *decaying* one, so an interest somebody added on purpose faded out
+    of their feed inside a fortnight while an intro answer did not. The event
+    is still logged and still counts; this is what makes it durable.
+
+    A topic contributes every tag its Interest carries, so adding "Formula 1"
+    is worth more to the ranker than adding "Sport" - which is the whole
+    reason the catalogue names subjects the eight facets cannot.
     """
     now = time.time() if now is None else now
     scores: dict[str, float] = {tag: INTEREST_WEIGHT for tag in interests
                                 if tag in TAG_LABELS}
+    for tag in tags_for_topics(topics):
+        # `setdefault`, not `=`: a facet named by both an intro answer and a
+        # catalogue topic is one starting position, not a double one.
+        scores.setdefault(tag, INTEREST_WEIGHT)
     for event in events:
         weight = EVENT_WEIGHT.get(event.kind, 0.0) * _decay(max(0.0, now - event.at))
         tags = event.tags or (tags_for_text(event.text) if event.text else ())
@@ -1592,7 +1628,8 @@ def rank_followers(
 
 
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
-               interests: Iterable[str] = (), circle: Iterable[str] = (),
+               interests: Iterable[str] = (), topics: Iterable[str] = (),
+               circle: Iterable[str] = (),
                written=None) -> dict:
     """The whole myFAM page for one listener.
 
@@ -1617,7 +1654,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
-    profile = taste(events, now, interests)
+    profile = taste(events, now, interests, topics)
     mine = _played_ids(events)
     # One read for the whole page. Every personalised section damps the same
     # way, so computing this per section would be the same answer four times.
@@ -1733,7 +1770,8 @@ FULL_SECTION_SIZE = 40
 
 def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
-                  interests: Iterable[str] = (), circle: Iterable[str] = (),
+                  interests: Iterable[str] = (), topics: Iterable[str] = (),
+                  circle: Iterable[str] = (),
                   written=None) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
@@ -1749,7 +1787,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         raise KeyError(key)
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
-    profile = taste(events, now, interests)
+    profile = taste(events, now, interests, topics)
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     limit = FULL_SECTION_SIZE
@@ -1923,15 +1961,34 @@ def _icon_for_tags(tags) -> str:
     return "world"
 
 
-def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dict:
+#: How many subjects the profile shows. Four, because they sit under the
+#: friend count as a line of pills and a fifth wraps on a phone - and because
+#: a list of what somebody is into stops reading as one the longer it gets.
+PROFILE_SUBJECTS = 4
+
+
+def summary(store: EventStore, user_id: str, now: Optional[float] = None,
+            interests: Iterable[str] = (),
+            topics: Iterable[str] = ()) -> dict:
     """What this app actually knows about a listener.
 
     Deliberately only what the event log really holds. A profile page is the
     easiest place in an app to invent numbers - followers, streaks, hours
     saved - and every invented one is a promise the product has to keep later.
+
+    **This was the one `taste` caller that dropped what the listener chose.**
+    Every ranking path passed `interests`; this passed none, so the pills under
+    the friend count were behaviour-only - somebody who had picked six
+    interests and played nothing had a profile that knew nothing about them,
+    and an interest added from the catalogue never appeared there at all. It is
+    the same profile the feed ranks on now, which is the point: the pills say
+    what the feed is actually working from.
+
+    `subjects` stays facets: `facets_only` is what keeps a ranking subtag like
+    `body-science` off a screen, and these are read.
     """
     events = store.for_user(user_id, limit=1000)
-    profile = taste(events, now)
+    profile = taste(events, now, interests, topics)
     top = sorted(profile.items(), key=lambda kv: -kv[1])
     return {
         "listener": user_id,
@@ -1941,7 +1998,9 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
         "open_threads": len(store.open_threads(user_id)),
         # Only tags they are actually positive about; a skip pushes a tag
         # negative and it has no business on a list of what someone likes.
-        "subjects": facets_only(tag for tag, weight in top if weight > 0)[:5],
+        "subjects": facets_only(
+            tag for tag, weight in top if weight > 0
+        )[:PROFILE_SUBJECTS],
         "since": min((e.at for e in events), default=0.0),
     }
 
@@ -2029,6 +2088,7 @@ def rank_next_up(
     after_id: str = "",
     after_text: str = "",
     interests: Iterable[str] = (),
+    topics: Iterable[str] = (),
     size: int = NEXT_UP_SIZE,
 ) -> list[Topic]:
     """The four episodes to offer when one finishes.
@@ -2054,7 +2114,7 @@ def rank_next_up(
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = _seeded(
-        taste(events, now, interests),
+        taste(events, now, interests, topics),
         tags_for_episode(after_id, after_text),
         JUST_HEARD_WEIGHT,
     )
@@ -2093,7 +2153,8 @@ def rank_next_up(
 
 
 def build_explore_new(store: EventStore, user_id: str, now: Optional[float] = None,
-                      interests: Iterable[str] = ()) -> dict:
+                      interests: Iterable[str] = (),
+                      topics: Iterable[str] = ()) -> dict:
     """The Explore New surface: adjacent to a taste, deliberately not inside it.
 
     `rank_might_like` has existed and been tested since myFAM was built, and
@@ -2105,7 +2166,7 @@ def build_explore_new(store: EventStore, user_id: str, now: Optional[float] = No
     you have not asked for is only a good idea if it says why it is there.
     """
     events = store.for_user(user_id) if user_id else []
-    profile = taste(events, now, interests)
+    profile = taste(events, now, interests, topics)
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     picks = rank_might_like(profile, mine, damp)
