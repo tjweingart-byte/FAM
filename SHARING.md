@@ -93,74 +93,121 @@ and the share sheet says so. Nothing invents a host: a link resolving to
 `localhost` posted to LinkedIn is exactly the quiet failure this project keeps
 a rule about.
 
-## Save for later, and download
+## Save for later
 
-The distinction is the whole design, and both look like a bookmark from
-outside:
+A saved item is a **pointer**: the question, the length, a title. It costs one
+row, there is no limit on it worth having, and playing one needs the network
+like every other episode in FAM — it is synthesised, or replayed from the
+shared cache, on the tap.
 
-|  | Save for later | Download |
-|---|---|---|
-| what it is | a pointer: question, length, title | the audio, on the device |
-| costs | one row | a slot, and the phone's storage |
-| plays offline | **no** | **yes** |
-| limit | none worth having | per tier, and it bites |
+Saving is idempotent on `(question, length)`, which is also the script cache's
+key, so two people saving the same episode point at one script.
 
-A download is an **upgrade to** a saved item rather than a separate list. That
-is why the interface asks the question the moment something is saved, and why
-one row carries both states — two lists would put the same episode in two
-places and make removing it from one of them ambiguous.
+### It is a toggle, not a question
 
-### Where the audio lives, and why "no MP3, no audio files" survives
+Press save and the icon turns green; press it again and the episode comes off
+the shelf. Exactly the shape of VIBE!, and drawn the same way — every save
+control carries `data-save`, and `setSaved` sweeps the attribute rather than
+listing ids, which is the mistake that once left the main player without a
+vibe button at all.
 
-The settled constraint is that raw PCM streams from the engine and is played as
-it arrives; writing a *file* is not compatible with that.
+The control asks the server whether it is lit (`GET /api/saved?q=…&minutes=…`)
+when an episode starts, and un-presses with `DELETE /api/saved?q=…&minutes=…`.
+Both take the question and the length rather than a row id, because that pair
+is what the player has: making it fetch an id before it could un-press a
+button would put a round trip in front of the second tap that the first tap
+did not pay.
 
-A download does not break it, because **the server still writes nothing.** The
-episode streams exactly as it always does and the client keeps the bytes it was
-already sent — IndexedDB in the browser, the app's own container on iOS. No
-file is created server-side, no audio is cached, and no URL serves a stored
-episode. What changes is only that the listener's device stops throwing the
-samples away.
+### What used to be here: download
 
-Two consequences, and both matter:
+There was a second thing beside saving — **download**, the audio kept on the
+device so an episode played with the network off. It was a state of a saved
+item rather than a second list, the shelf had a per-tier capacity
+(`max_downloads`), a full shelf answered 409 naming what to clear, and saving
+raised a popup asking whether to download too.
 
-1. **`saved.py` holds a registry, not audio.** It records that a listener
-   claims to hold an episode, so the limit can be enforced and the list shown.
-2. **The registry can drift.** A wiped phone or an evicted browser store still
-   has rows. So `release` exists, a client re-syncs by releasing what it no
-   longer holds, and the count is *what the listener claimed* rather than
-   ground truth. Drift costs a slot, which is why the fix is one tap.
+**All of it is removed**, at the owner's direction, and removed rather than
+switched off on the Piper reasoning: a route or a knob left behind is an
+invitation to turn it back on. Gone are the three endpoints, the store methods,
+the tier field and its three environment variables, the offline IndexedDB
+layer, the second view of the shelf and the Downloads tile on the profile.
 
-Uncompressed PCM is 2.65 MB/minute, so three minutes is ~8 MB and ten of them
-is 80 MB — fine on a phone, heavy in a browser. One more argument for Opus over
-the stream, which `IOS_APP.md` already has as a prerequisite of the app rather
-than a scale question.
+What it cost was the thing the shelf is for: pressing save raised a question
+instead of saving, so the one-tap action in the player was a two-tap action
+with a decision in the middle.
 
-### The limit
+The `downloaded`, `bytes` and `downloaded_at` columns stay in the schema and
+are read and written by nothing. Dropping a column is a migration with no
+benefit, and an existing shelf is not worth rewriting to delete three numbers
+nothing asks for.
 
-Per tier, from `entitlements.max_downloads`: **3 / 25 / no server-side cap**.
-A *standing capacity*, not a rate, which is why it is not in `quotas.py` — a
-windowed counter would hand out a fresh download allowance every morning and
-never require anybody to delete anything, which is the opposite of what a shelf
-limit is for.
+The settled "no MP3, no audio files" constraint is *simpler* for this, not
+weaker: the server never wrote a file for a download either, and now nothing
+anywhere keeps audio.
 
-A full shelf is a **409** (a capacity, not a rate) and the refusal **names what
-to clear**, offering the least recently played first — not the oldest, because
-the episode somebody saved first is often the one they are keeping on purpose.
-A limit without a remedy is a dead end, especially on a phone where the
-listener cannot go and look somewhere else.
-
-The size is estimated *before* the listener agrees to it, generously: an
-episode ends when it runs out of substance, so the real size is usually
-smaller, and being told 8 MB and charged 6 is the right direction to be wrong
-in. The client confirms the real figure afterwards.
+### Folders
 
 Deleting a folder **unfiles its episodes rather than deleting them**. Losing
 somebody's saved episodes because they tidied up is the kind of surprise that
-stops people using a feature — and a download inside it would become bytes on
-their phone held against their limit with nothing pointing at them. *(No
-interface exposes folders any more — see "In the interface" below. The rule
-stands for whatever puts them back.)*
+stops people using a feature. *(No interface exposes folders any more — see
+"In the interface" below. The rule stands for whatever puts them back.)*
+
+## Somebody else's profile
+
+`GET /api/person?handle=…` returns **only what they chose to publish**, and
+that is the whole specification:
+
+* **public mixes** — private by default, so anything here is a mix its owner
+  switched on;
+* **vibes** — a vibe *is* the act of showing somebody an episode, so a list of
+  them is a list of things they published;
+* **interests they have not hidden**.
+
+There is no play count, no completion total, no subjects inferred from
+behaviour and no history. What somebody has listened to is theirs. The
+endpoint exists because that line needed drawing in code rather than by having
+no endpoint at all — the screen was already there, describing people with
+nothing behind it.
+
+**The boundary is the graph.** A handle can be resolved by anybody, because
+handles are how people find each other; a bare `user_id` is only accepted for
+somebody already in the asking listener's following or followers, since an id
+is guessable in a way a handle search is not. And the response carries no
+`user_id` of its own: the follow buttons on that screen already have the id
+they need from the graph, and an id the client did not need is an id that can
+be sent back.
+
+**Hidden rather than shared** is how the interest choice is stored. Somebody's
+interests are the least private thing here and the whole premise of the social
+surfaces, so the honest default is that they are on their profile — and an
+empty column then means "all of them", which is what every existing row
+already says. Storing the *shared* set would default to nothing shared, so
+every profile in the app would show an empty pill row that reads as broken
+until each listener opted in one at a time.
+
+## New followers
+
+`GET /api/friends` carries `new_followers`: who followed since this listener
+last looked. It is a query over the follow graph's own timestamps against one
+column (`people.followers_seen`) saying when that was — not a second table
+with its own read state to get wrong.
+
+`POST /api/friends/seen` is what clears it, and it is called from the **Friends
+tab** and never when the popup is drawn: a badge that cleared itself the moment
+something drew it would be a count nobody got to read.
+
+`followers_seen` defaults to nought, so every follower a listener already has
+reads as new the first time they open the tab after this ships. That is the
+right direction — the alternative is defaulting to *now* and silently
+swallowing followers they were never told about.
+
+`follows_back` rides along on each one, so the popup knows whether to offer the
+button. Offering "Follow back" to somebody who is already a friend is a control
+that cannot do anything.
+
+There is no push and will not be until the app exists, so the honest moment to
+say "___ started following you" is the next time this listener's own app asks —
+on open, and when the profile loads.
 
 ## Where a share actually goes
 
@@ -219,26 +266,35 @@ That is the whole difference between a share sheet and an integration.
   about today was sitting under two rows about what the listener already
   likes. The ranking is still computed and still serves the Explore New
   screen; it just has no rail of its own.
-* **Save for Later has no folders, and neither does Downloads.** Both shelves
-  shipped with a folder chip row and a "New folder" button, and nobody had
-  ever made a folder — so every listener saw "Commute" (a fixture name) as
-  though it were theirs. A control with nothing behind it is worse than no
-  control. What replaced it is the thing the two shelves actually needed from
-  each other: a **Saved / Downloads switch** inside Save for Later, so a
-  download is visibly a subset of what is saved rather than a second list
-  somewhere else. `saved.py` still stores a folder, unused, because unfiling
-  everybody's episodes to delete a column is a migration with a real cost and
-  no benefit.
+* **Save for Later has no folders.** The shelf shipped with a folder chip row
+  and a "New folder" button, and nobody had ever made a folder — so every
+  listener saw "Commute" (a fixture name) as though it were theirs. A control
+  with nothing behind it is worse than no control. `saved.py` still stores a
+  folder, unused, because unfiling everybody's episodes to delete a column is
+  a migration with a real cost and no benefit.
+* **A friend's profile is its own screen.** It used to be drawn into
+  `screen-profile` with a variable deciding whose it was, and that one fact
+  produced all four symptoms of the navigation bug: back from the friend
+  popped to Friends, back again showed `screen-profile` still holding the
+  *friend's* DOM, back again fell through to search, and the Profile tab
+  flashed them before `loadProfile` replaced it. Two pages sharing one
+  container is one bug, not a routing bug with four fixes.
+* **A friend's vibe is named on an Explore card.** "___ vibed with this
+  episode", with their face, when a *friend* both generated the episode and
+  vibed it. Two conditions because the card claims a friendship: a stranger's
+  vibe is not addressed to you, and a friend who generated something without
+  vibing it did not recommend it. A stranger's vibe still lifts a card in the
+  order and no longer puts their name on one.
 * **Every player** — search, play-all and Explore — has **share** and **save**.
   Explore included, so the surface where people find things is not the one
   where they cannot keep them.
-* **Saving opens the download question**, which says the size, what downloading
-  buys ("plays with no signal") and how much room is left. Declining is one tap
-  and the episode stays saved.
-* **Offline playback goes through the same player** — the same progress bar,
-  transport and speed control, driven by `FamAudio.playStored`. A second player
-  for offline episodes would be a second player to keep in step, and the two
-  would drift.
+* **Saving is one tap and shows its state on the button.** The icon turns
+  green; pressing it again takes the episode off the shelf. No popup, no
+  second decision.
+* **The player's four icons are named.** Share, vibe, save, Captions, in words
+  under the glyphs. The play-all sidebar and Explore's rail had always carried
+  labels; the main player was the odd one out, and unlabelled, a bookmark, a
+  two-way arrow and a speech rectangle are three guesses.
 
 ## What is not built
 
@@ -248,6 +304,6 @@ That is the whole difference between a share sheet and an integration.
 * **Notifications.** A share arrives silently until somebody opens Messages.
   Push is an App Store capability and a permission prompt, and it belongs with
   the app rather than ahead of it.
-* **Service-worker offline for the browser.** Downloads are real in the web
-  build — the bytes are in IndexedDB and play from there — but the *page*
-  itself still needs the network to load. On iOS that problem does not exist.
+* **Offline listening of any kind.** The download feature that provided it is
+  removed (above), so nothing plays without the network. If it comes back it
+  is a new design, not the old one switched on.

@@ -244,3 +244,55 @@ def test_a_typed_topic_can_be_added_over_http(client):
     }).json()
     assert made["custom_count"] == 1
     assert [i["custom"] for i in made["items"]] == [False, True]
+
+
+# --- where "Suggested topics" come from ----------------------------------
+#
+# The picker's heading already said "Suggested topics". What it showed was the
+# bank in `topic.id` order, which is alphabetical by slug and suggests nothing.
+
+
+def test_the_picker_can_ask_for_the_bank_in_taste_order(client):
+    import topics as topics_mod
+
+    plain = client.get("/api/topics").json()
+    assert [t["id"] for t in plain["topics"]] == \
+        [t.id for t in topics_mod.TOPIC_BANK], "the plain order is the bank's own"
+
+    for _ in range(3):
+        client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
+    ranked = client.get("/api/topics?ranked=1").json()
+    assert ranked["personalised"] is True
+    assert ranked["topics"][0]["id"] != plain["topics"][0]["id"] or \
+        "tech" in ranked["topics"][0]["tags"]
+    assert "tech" in ranked["topics"][0]["tags"], \
+        f"a tech listener's first suggestion is {ranked['topics'][0]['id']}"
+
+
+def test_ranking_the_picker_is_a_sort_and_never_a_filter(client):
+    """A rail is one of five and a listener who does not like its picks can
+    scroll to the next one. The picker *is* the list, so one that hid what it
+    could not rank would be a picker somebody could not find a topic in."""
+    import topics as topics_mod
+
+    for _ in range(3):
+        client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
+    ranked = client.get("/api/topics?ranked=1").json()["topics"]
+    assert len(ranked) == len(topics_mod.TOPIC_BANK)
+    assert {t["id"] for t in ranked} == {t.id for t in topics_mod.TOPIC_BANK}
+
+
+def test_a_played_topic_is_still_offered_to_a_mix(client):
+    """Every rail excludes what they have played. A mix must not: wanting a
+    mix of subjects you already like is the entire point of one."""
+    client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
+    ranked = client.get("/api/topics?ranked=1").json()["topics"]
+    assert "ai-agents" in {t["id"] for t in ranked}
+
+
+def test_a_listener_with_no_history_is_not_told_it_is_personal(client):
+    """A declared order and a measurement look identical on screen, and
+    calling the first one "suggested for you" would be inventing a number -
+    the same rule `interests_source` keeps for the first-run picker."""
+    body = client.get("/api/topics?ranked=1").json()
+    assert body["personalised"] is False

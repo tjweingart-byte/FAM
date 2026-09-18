@@ -102,7 +102,37 @@ def main() -> int:
             page.evaluate("showAuthForm()")
             page.fill("#authEmail", "smoke@example.com")
             page.fill("#authPassword", "a-long-enough-password")
+            # The number is asked for and kept on the same account as the
+            # address. Typed as digits, because what the field shows is the
+            # national formatting and what is sent is E.164.
+            page.fill("#authPhone", "4155550142")
+            assert page.input_value("#authPhone") == "(415) 555-0142", \
+                "the phone field did not format what was typed into it"
+            assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
+                "the country code did not default to +1"
             page.evaluate("submitAuthForm()")
+
+            # Who they are, before what they want to hear. A name, a handle
+            # and a picture are about *them* and take a moment; the interests
+            # are the last thing before the app, so asking for them first
+            # would put a form between somebody and the episode they came for.
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+            assert page.query_selector("#identityPic"), \
+                "no way to add a picture in the setup"
+            assert page.query_selector("#identitySkip:not([hidden])"), \
+                "there was no way past the identity step"
+            # And the editor-only half is not in the first run: there is no
+            # password to change yet and nothing chosen to share.
+            assert page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
+                "the editor's own rows are in the first run"
+            page.fill("#identityName", "Smoke Tester")
+            page.fill("#identityHandle", "@Smoke.Tester")
+            # Stored lower-case and stripped, so it is shown that way while
+            # it is being typed rather than corrected on save.
+            assert page.input_value("#identityHandle") == "smoketester", \
+                "the handle field did not clean what was typed into it"
+            page.evaluate("saveIdentity()")
+
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
             # Six discs on the wheel, as the designs draw them.
@@ -134,17 +164,28 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "finishing the intro did not land in the app"
 
-        def the_weekly_recap_pops_on_a_new_week():
-            """Fixture says this week's recap is still owed, so it fires on the
-            first open after the intro - and has to be dismissable."""
-            page.wait_for_selector("#recapOverlay.active", timeout=10000)
-            # A tile when there is a week to recap, a sentence saying so when
-            # there is not. Both are correct; an empty card is not.
-            assert page.text_content("#recapBody").strip(), "the recap card was blank"
-            page.evaluate("closeRecap()")
-            page.wait_for_timeout(400)
-            assert not page.query_selector("#recapOverlay.active"), \
-                "the recap could not be dismissed"
+        def no_weekly_recap_pops_up():
+            """The weekly recap popup is gone at the owner's direction, and
+            its shelf is myFAM's "What you missed last week" rail.
+
+            Checked as an absence because the failure it guards is the popup
+            coming back: a recap that fires on the first open of a new week is
+            an interruption in front of an app somebody opened to listen to
+            something, and a rail is not.
+
+            The follower popup is deliberately *not* in this net. "___ started
+            following you" is an interruption somebody else caused and the
+            listener wants; a summary of their own week is neither."""
+            page.wait_for_timeout(1200)
+            assert not page.query_selector("#recapOverlay"), \
+                "the weekly recap popup came back"
+            overlays = page.eval_on_selector_all(
+                ".modal-overlay.active", "e => e.map(x => x.id)")
+            unexpected = [o for o in overlays if o != "followerOverlay"]
+            assert unexpected == [], f"something popped up unasked: {unexpected}"
+            # And clear whatever is up, so the next behaviour is clickable.
+            page.evaluate("closeFollowerPopup()")
+            page.wait_for_timeout(300)
 
         def myfam():
             """One rail per signal, and the count comes from the code.
@@ -175,6 +216,7 @@ def main() -> int:
             # these strings (`SECTION_TITLE`) and the two have drifted before.
             assert [t.strip().replace("\n", " ") for t in titles[1:]] == [
                 "Trending",
+                "What you missed last week",
                 "What FAM can't stop listening to",
                 "What your friends are listening to",
             ], f"the rails are not the ones the packet asks for: {titles}"
@@ -367,13 +409,31 @@ def main() -> int:
             page.reload()
             page.wait_for_timeout(1200)
 
-        def your_fam_offers_the_recap_and_explore_new():
+        def your_fam_is_messages_and_only_messages():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(500)
             page.click("#screen-myfam .myfam-msg-btn")
             page.wait_for_timeout(600)
-            tiles = page.eval_on_selector_all(".yf-tile-name", "e => e.map(x => x.textContent)")
-            assert tiles == ["Weekly Recap", "Save for Later"], f"saw {tiles}"
+            # The two tiles that sat above the threads both came off at the
+            # owner's direction: the weekly recap is gone entirely, and Save
+            # for Later is on the profile, where a listener's shelves live.
+            assert not page.query_selector(".yf-tile"), \
+                "the Your FAM tiles came back"
+            assert not page.query_selector("#recapOverlay"), \
+                "the weekly recap popup came back"
+            # "Your" in type, "FAM" as the mark - the same three glyphs
+            # myFAM, DailyFAM and exploreFAM all set. It was plain text.
+            head = page.query_selector("#screen-messages .myfam-header h2")
+            assert head, "Your FAM has no heading"
+            assert "wordmark" in (head.get_attribute("class") or ""), \
+                "the Your FAM heading is not set as a wordmark"
+            glyphs = page.eval_on_selector_all(
+                "#screen-messages .myfam-header h2 .wm-glyph,"
+                " #screen-messages .myfam-header h2 .wm-a",
+                "e => e.length")
+            assert glyphs == 3, f"the FAM mark drew {glyphs} glyphs, not three"
+            assert head.text_content().strip() == "Your", \
+                "the heading still spells FAM out in type"
             # Explore New is off myFAM at the owner's direction, but the
             # ranking, the endpoint and the screen are all still here - which
             # is what makes putting the rail back a one-line change rather
@@ -387,7 +447,7 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def save_for_later_lists_the_shelf_and_reaches_downloads():
+        def save_for_later_lists_the_shelf():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("openSavedAll()")
@@ -395,30 +455,15 @@ def main() -> int:
                                    timeout=10000, state="attached")
             rows = page.eval_on_selector_all(".sv-row", "e => e.length")
             assert rows >= 2, f"the shelf showed {rows} episodes"
-            # Both states of an episode on one list: saved, and saved AND held
-            # on the device. Two lists would put the same episode in two places
-            # and make removing it from one of them ambiguous.
-            assert page.eval_on_selector_all(".sv-dl", "e => e.length") >= 1, \
-                "nothing on the shelf was marked as being on this device"
-            bar = page.text_content("#svDownloadBar")
-            assert "OF" in bar and "FREE" in bar, \
-                f"the shelf did not say how much offline room was left: {bar!r}"
-            # Downloads is inside this shelf rather than beside it, because a
-            # download is a *state* of a saved episode. The folder chips that
-            # used to be here are gone: a shelf of a dozen things does not
-            # need filing, and the one folder in it was a fixture.
+            # One list of pointers. Downloads used to be a second view of this
+            # shelf with a switch between them, and the folder chips a row
+            # above that; both are gone with their features.
+            assert not page.query_selector("#svSwitch"), \
+                "the Downloads switch came back"
+            assert not page.query_selector("#svDownloadBar"), \
+                "the offline-capacity bar came back"
             assert not page.query_selector(".sv-chip"), \
                 "the folder chips came back"
-            switch = page.text_content("#svSwitch")
-            assert "Downloads" in switch, f"no way through to downloads: {switch!r}"
-            page.click("#svSwitch")
-            page.wait_for_timeout(500)
-            assert page.text_content("#screen-saved .back-row h2").strip() == "Downloads", \
-                "the Downloads view did not open"
-            assert "All saved" in page.text_content("#svSwitch"), \
-                "no way back to the whole shelf"
-            page.click("#svSwitch")
-            page.wait_for_timeout(400)
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -440,35 +485,452 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def saving_from_the_player_asks_about_downloading():
-            """The distinction the whole feature rests on. Save for later is a
-            pointer and needs the network; a download is the audio on this
-            device. One button that silently did both would make the limit
-            arrive as a surprise."""
+        def saving_is_a_toggle_on_every_player():
+            """Press save, the icon goes green, press it again and it does
+            not. Saving used to raise a popup asking whether to download the
+            audio to the device as well, which made the one-tap action in the
+            player a two-tap action with a decision in the middle.
+
+            Checked across every save control at once, the way VIBE! is: the
+            main player went without a vibe button for a while because the
+            function that drew that state listed ids, and a save control on a
+            fifth player would hit exactly that wall."""
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("showScreen('player')")
             page.evaluate("nowBarState = {query: 'why bonds move',"
-                          " title: 'Bonds', minutes: 3}")
+                          " title: 'Bonds', minutes: 2}")
+
+            controls = page.eval_on_selector_all("[data-save]", "e => e.length")
+            assert controls >= 3, f"only {controls} save controls carry data-save"
+
             page.evaluate("saveForLater()")
-            page.wait_for_selector("#downloadOverlay.active", timeout=8000)
-            # The save has already happened, so the popup says so: the only
-            # question left is the download, and the old "Download?" left it
-            # ambiguous whether anything had been kept at all.
-            title = page.text_content("#dlTitle")
-            assert "Saved" in title, f"the popup did not say the save landed: {title!r}"
-            size = page.text_content("#dlSize")
-            assert "MB" in size, f"the popup did not say the size: {size!r}"
-            assert "no signal" in page.text_content("#dlSub").lower(), \
-                "the popup did not say what downloading buys"
-            # Both buttons are commitments, so there has to be a way out of
-            # the question that is not the backdrop.
-            assert page.query_selector("#downloadOverlay .dl-x"), \
-                "the popup cannot be dismissed without choosing"
-            page.click("#downloadOverlay .dl-x")
+            page.wait_for_timeout(800)
+            assert not page.query_selector("#downloadOverlay"), \
+                "the download popup came back"
+            lit = page.eval_on_selector_all(
+                "[data-save]",
+                "e => e.filter(x => x.classList.contains('saved-on')).length")
+            assert lit == controls, \
+                f"saving lit {lit} of {controls} save controls"
+            word = page.eval_on_selector("#playerSave .save-cap",
+                                         "e => e.textContent").strip().lower()
+            assert word == "saved", f"the save control still says {word!r}"
+
+            page.evaluate("saveForLater()")
+            page.wait_for_timeout(800)
+            still = page.eval_on_selector_all(
+                "[data-save]",
+                "e => e.filter(x => x.classList.contains('saved-on')).length")
+            assert still == 0, f"{still} save controls stayed lit after unsaving"
+            page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
-            assert not page.query_selector("#downloadOverlay.active"), \
-                "the X did not close the popup"
+
+        def live_captions_show_the_script_being_read():
+            """The captions tab did nothing. It showed `t.caption` - a line of
+            prototype copy ending in an em dash - so turning captions on
+            produced a sentence about captions, and nothing was ever wired to
+            the episode.
+
+            The sentences come from `/api/transcript`, which reads the cache
+            the script is already stored under and never generates: captions
+            that could trigger a write would be a second full Claude call for
+            every episode somebody chose to read along with."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.evaluate("rememberEpisode('why bonds move', 2, '')")
+            page.evaluate("resetCaptions()")
+
+            before = page.text_content("#cc-text")
+            assert "turned on" in before.lower(), \
+                f"the panel said something other than 'off': {before!r}"
+
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(1500)
+            assert page.eval_on_selector("#ccPanel", "e => e.classList.contains('on')"), \
+                "the captions panel did not open"
+            text = page.text_content("#cc-text")
+            assert "\u2014" not in text or len(text) > 80, \
+                f"the panel is still showing the prototype line: {text!r}"
+            assert len(text.strip()) > 40, f"the panel stayed empty: {text!r}"
+            # One sentence marked as the one being spoken. Without a highlight
+            # it is a transcript, not captions.
+            assert page.query_selector("#cc-text mark"), \
+                "no sentence was marked as the one being read"
+
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(400)
+            assert not page.eval_on_selector(
+                "#ccPanel", "e => e.classList.contains('on')"), \
+                "the captions panel did not close"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_sources_cluster_shows_three_in_the_corner():
+            """It was fetched when an episode *ended* and when Go Deeper
+            opened, and nowhere else - so the one moment it is for, somebody
+            listening and wondering where this came from, was the one moment
+            nothing asked for it."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.evaluate("rememberEpisode('why bonds move', 2, '')")
+            page.evaluate("fetchEpisodeSources()")
+            page.wait_for_selector("#srcPanel:not([hidden])", timeout=8000)
+
+            marks = page.eval_on_selector_all("#srcMarks .src-mark", "e => e.length")
+            assert marks == 3, f"the corner showed {marks} publisher marks, not three"
+            # Overlapped, which is what makes it read as "these several"
+            # rather than as a list somebody has to count.
+            overlap = page.eval_on_selector(
+                "#srcMarks .src-mark:nth-child(2)",
+                "e => getComputedStyle(e).marginLeft")
+            assert overlap.startswith("-"), \
+                f"the marks are not overlapped: margin-left {overlap}"
+            # In the corner of the player, not a strip across it.
+            box = page.eval_on_selector("#srcPanel", "e => {"
+                                        " var r = e.getBoundingClientRect();"
+                                        " var p = e.closest('.mini-stage')"
+                                        "   .getBoundingClientRect();"
+                                        " return {w: r.width, pw: p.width,"
+                                        "  right: p.right - r.right}; }")
+            assert box["w"] < box["pw"] * 0.6, \
+                "the sources panel is still a full-width strip"
+            assert box["right"] < 4, "the sources panel is not in the corner"
+
+            # And the whole list is one tap away, with the ones that are
+            # hidden in the corner still in it.
+            page.evaluate("openSources()")
+            page.wait_for_selector("#sourcesOverlay.active", timeout=6000)
+            rows = page.eval_on_selector_all("#srcList .src-row", "e => e.length")
+            assert rows >= 4, f"the popup listed {rows} sources"
+            page.evaluate("closeSources()")
+            page.wait_for_timeout(300)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def tapping_the_player_generates_nothing():
+            """A tap anywhere on the stage that was not a button either jumped
+            to the next episode in the album or, with no album, generated a
+            random myFAM topic - an episode nobody asked for, costing a model
+            call and a GPU, in place of whatever was playing."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(
+                "#playerStage", "e => !e.getAttribute('onclick')"), \
+                "the player stage still has a tap handler on it"
+            assert page.evaluate("typeof playerTapAdvance") == "undefined", \
+                "playerTapAdvance is still defined"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def an_episode_is_titled_by_what_it_is_about():
+            """The title used to be whatever the listener typed. Somebody who
+            asked "what happened with the fed yesterday" got an episode called
+            exactly that - their own words handed back with capital letters.
+
+            The model writes the title on a trailing marker line, so it is not
+            known until the script is finished - after the first word is
+            already playing. The player opens on a provisional title derived
+            from the question and swaps in the real one when it lands, the way
+            the Go Deeper chip fills."""
+            typed = "what happened with the fed yesterday"
+            provisional = page.evaluate(
+                "q => deriveTitleFromPrompt(q)", typed)
+            # Not the raw question, and not Title Case on every word either -
+            # capitalising "With" and "The" reads as a transcript of a search
+            # box rather than as a title.
+            assert provisional != typed, "the provisional title is the question"
+            assert " with " in provisional, \
+                f"the small words were capitalised: {provisional!r}"
+            assert provisional.startswith("What"), provisional
+
+            page.evaluate("showScreen('player')")
+            page.evaluate("currentPlayingTopicKey = '_titletest'")
+            page.evaluate("""() => {
+              TOPICS['_titletest'] = { title: 'Provisional', prompt: 'q',
+                                       source: 'x', caption: '' };
+              document.getElementById('p-title').textContent = 'Provisional';
+              rememberEpisode('q', 2, '');
+            }""")
+            page.evaluate("fetchEpisodeThread()")
+            page.wait_for_timeout(1200)
+            shown = page.text_content("#p-title").strip()
+            assert shown != "Provisional", \
+                "the real title never replaced the provisional one"
+            assert len(shown) > 4, f"the title came back as {shown!r}"
+
+            # A title somebody typed themselves, or a bank tile's own
+            # hand-written one, is not up for replacement.
+            page.evaluate("""() => {
+              TOPICS['_titletest'].titleOverridden = true;
+              TOPICS['_titletest'].title = 'Mine';
+              document.getElementById('p-title').textContent = 'Mine';
+              applyEpisodeTitle('Something The Model Wrote');
+            }""")
+            assert page.text_content("#p-title").strip() == "Mine", \
+                "a title the listener set was overwritten"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_friends_vibe_is_named_on_an_explore_card():
+            """"<name> vibed with this episode", with their face, when a
+            *friend* both generated it and vibed it.
+
+            Driven through `renderReel` with a card of each kind rather than
+            read off the feed, because the live build has one listener in its
+            database and therefore honestly no friends - the tag is the same
+            code on both, and this checks the code."""
+            page.evaluate("showScreen('explore')")
+            page.evaluate("""() => {
+              reelCurrent = { query: 'why volcanoes erupt',
+                title: 'What Makes A Volcano Go', minutes: 2, thread: '',
+                age_seconds: 300, vibed: true,
+                vibed_by: { name: 'Rachel Solomon', handle: 'rachels',
+                            avatar: '' } };
+              renderReel();
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#reelVibe", "e => !e.hidden"), \
+                "the friend tag did not appear"
+            said = page.text_content("#reelVibe").strip()
+            assert "Rachel Solomon" in said and "vibed with this episode" in said, \
+                f"the tag says {said!r}"
+            assert page.eval_on_selector("#reelVibeAv", "e => e.innerHTML.length") > 0, \
+                "no picture beside the name"
+
+            # A stranger's vibe lifts a card and does not name anybody. Putting
+            # names the listener has never heard of under a card about their
+            # friends is the mistake §102 took off myFAM.
+            page.evaluate("""() => {
+              reelCurrent = { query: 'why bonds move', title: 'Bonds',
+                minutes: 2, thread: '', age_seconds: 300, vibed: true };
+              renderReel();
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#reelVibe", "e => e.hidden"), \
+                "a card with no friend behind it still showed the tag"
+            # Put Explore's own state back. This check reached into
+            # `reelCurrent` to drive the render, and leaving a synthetic card
+            # there breaks the reel for anything that runs after it.
+            page.evaluate("reelCurrent = null; reelQueue = []; reelHistory = []")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def friends_navigation_comes_back_to_your_own_profile():
+            """The bug the packet describes, in four symptoms with one cause:
+            a friend's profile was drawn into `screen-profile` with a variable
+            deciding whose it was. So back from the friend popped to Friends,
+            back again showed `screen-profile` still holding the *friend's*
+            DOM, back again fell through to search, and the Profile tab
+            flashed them. Two pages sharing one container is one bug, not a
+            routing bug with four fixes - the friend's profile has its own
+            screen now."""
+            ensure_account()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+                                   timeout=10000, state="attached")
+            mine = page.text_content("#profileBody")
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1200)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "Friends did not open"
+
+            # Opened by name rather than by tapping a row: the live build has
+            # one listener in its database and so honestly no friends to tap,
+            # and this is a check about the navigation, which is the same code
+            # on both builds.
+            page.evaluate("openPersonProfile('beth')")
+            page.wait_for_timeout(900)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-person", "a friend's profile is not its own screen"
+
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "back from a friend did not reach Friends"
+
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-profile", \
+                "back from Friends did not reach your own profile"
+            # And it is *yours*, not the last friend's left behind in the DOM.
+            assert page.text_content("#profileBody") == mine, \
+                "your own profile came back holding a friend's page"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_friends_profile_shows_what_they_published():
+            """Public mixes, vibes and interest pills - and nothing else. What
+            somebody has listened to is theirs; there is no endpoint that
+            hands one listener another one's history, and a number invented
+            here would be a promise to keep later."""
+            ensure_account()
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1000)
+            page.evaluate("openPersonProfile('beth')")
+            page.wait_for_timeout(1400)
+            body = page.text_content("#personBody") or ""
+            assert "Vibes" in body, "no vibes section on a friend's profile"
+            # The line that has to stay true of this screen, whether or not
+            # there is anything on it.
+            assert "no endpoint" in body, \
+                "the profile stopped saying what it deliberately does not know"
+
+            # The rest is about what a *filled* profile shows, and needs
+            # somebody in the graph to have published something. The live
+            # build has one listener in its database and so honestly nobody
+            # else at all - which is a fact about that deployment, and the
+            # reason this is a precondition rather than an assertion.
+            if not page.evaluate("(friendsData.followers || []).length"):
+                page.evaluate("goBack()")
+                page.evaluate("openMyFamTab()")
+                page.wait_for_timeout(400)
+                return
+            assert page.eval_on_selector_all("#personBody .pf-echo",
+                                             "e => e.length") >= 1, \
+                "their vibes are not listed"
+            assert page.eval_on_selector_all("#personBody .pf-tag",
+                                             "e => e.length") >= 1, \
+                "no interest pills on a friend's profile"
+            assert "DailyFAM mixes" in body, "no public mixes on their profile"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_new_follower_is_announced_and_can_be_followed_back():
+            """"___ started following you", with their picture, a Follow back
+            button and an X.
+
+            Driven with a synthetic follower rather than read off the graph,
+            because the live build has one listener in its database and so
+            honestly nobody to be one - the popup is the same code on both
+            builds, and this checks the code."""
+            ensure_account()
+            page.evaluate("""() => {
+              followerPopupShown = {};
+              showFollowerPopup({ user_id: 'u_test', name: 'Nadia Okoro',
+                                  handle: 'nadia', avatar: '',
+                                  follows_back: false });
+            }""")
+            page.wait_for_selector("#followerOverlay.active", timeout=8000)
+            said = page.text_content("#nfName").strip()
+            assert "Nadia Okoro" in said and "started following you" in said, \
+                f"the popup says {said!r}"
+            assert page.eval_on_selector("#nfAvatar", "e => e.innerHTML.length") > 0, \
+                "no picture at the top of the popup"
+            assert page.query_selector("#followerOverlay .modal-x"), \
+                "the popup cannot be ignored"
+            assert not page.eval_on_selector("#nfBack", "e => e.hidden"), \
+                "no way to follow back"
+
+            # Somebody already followed gets no button, because "Follow back"
+            # there is a control that cannot do anything.
+            page.evaluate("""() => {
+              showFollowerPopup({ user_id: 'u_test2', name: 'Beth Solomon',
+                                  handle: 'beth', avatar: '',
+                                  follows_back: true });
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#nfBack", "e => e.hidden"), \
+                "Follow back was offered to somebody already followed"
+            page.evaluate("closeFollowerPopup()")
+            page.wait_for_timeout(300)
+            assert not page.query_selector("#followerOverlay.active"), \
+                "the popup did not close"
+
+            # The unread count on the profile's Friends tile, and the rule
+            # that it clears on the *tab* and never when a popup is drawn -
+            # otherwise it is a number nobody got to read.
+            page.evaluate("""() => {
+              newFollowers = [{ user_id: 'u_test', name: 'Nadia Okoro',
+                                handle: 'nadia', avatar: '',
+                                follows_back: false }];
+              renderProfile(profileNow || { finished: 0, follows: {} });
+            }""")
+            page.wait_for_timeout(300)
+            badge = page.query_selector(".pf-hub-badge")
+            assert badge and int(badge.text_content()) == 1, \
+                "no unread follower count on the Friends tile"
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("newFollowers.length") == 0, \
+                "opening the Friends tab did not clear the count"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def edit_profile_is_a_screen_with_everything_on_it():
+            """The Edit profile pill used to open two chained modals - a name,
+            then a handle - with no way back between them, no picture, and
+            placeholders reading "e.g. Ian Solomon" and "iansolomon": a real
+            name and handle offered to every listener in the app.
+
+            It is one screen now, with the picture, the name, the username,
+            the password row and the choice of which interests are shared."""
+            ensure_account()
+            # Somebody with a profile to edit. A listener who has never set
+            # one gets the same screen with empty fields, which is correct and
+            # is not what this check is about.
+            page.evaluate("""() => fetch('/api/me', { method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ name: 'Smoke Tester',
+                                     handle: 'smoketester' }) })""")
+            page.wait_for_timeout(600)
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(1100)
+            page.evaluate("editIdentity()")
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+
+            assert page.query_selector("#identityPic"), "no picture to change"
+            assert page.query_selector("#identityName"), "no name field"
+            assert page.query_selector("#identityHandle"), "no username field"
+            assert not page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
+                "the editor's own rows are hidden in the editor"
+            rows = page.text_content("#identityAccountRows") or ""
+            assert "Change password" in rows, "no way to change a password"
+            shared = page.text_content("#identityShared") or ""
+            assert shared.strip(), "nothing about which interests are shared"
+
+            # Prefilled from what is stored, so an editor opens on the current
+            # state rather than on empty fields somebody has to retype.
+            assert page.input_value("#identityName").strip(), \
+                "the editor opened with an empty name"
+
+            # A handle under three characters is refused under the field
+            # rather than in a toast that is gone before it is read.
+            page.fill("#identityHandle", "ab")
+            page.evaluate("saveIdentity()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-identity", "a bad handle was saved anyway"
+            assert page.eval_on_selector(
+                "#identityHandleNote", "e => e.classList.contains('bad')"), \
+                "the refusal was not shown under the field"
+
+            page.evaluate("closeIdentity()")
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-profile", "the X on Edit profile did not return"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_player_names_its_four_icons():
+            """Share, vibe, save and captions. Unlabelled, a bookmark, a
+            two-way arrow and a speech rectangle are three guesses - and the
+            play-all sidebar and Explore's rail had always carried labels, so
+            this row was the odd one out."""
+            page.evaluate("showScreen('player')")
+            page.wait_for_timeout(300)
+            words = page.eval_on_selector_all(
+                "#screen-player .pc-row2 .pt-cap",
+                "e => e.map(x => x.textContent.trim().toLowerCase())")
+            assert words == ["share", "vibe", "save", "captions"], \
+                f"the player's icons are labelled {words}"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -626,6 +1088,14 @@ def main() -> int:
             assert page.query_selector(".nextup-tile.lead .nextup-timer"), \
                 "the first tile has no countdown"
             assert "starts in" in page.text_content("#nextUpSub").lower()
+            # The countdown tile is the most likely next listen, and says so.
+            # With no album and no predicted follow-up it is the ranking's own
+            # first pick, and the four tiles are all from that one ranking -
+            # the popup is the feed's opinion arrived at one tap earlier,
+            # never a second recommender.
+            lead = page.text_content(".nextup-tile.lead .nextup-tile-sub").strip()
+            assert lead and lead.lower() != "recommended", \
+                f"the countdown tile does not say why it is first: {lead!r}"
             # Tapping anything else cancels the countdown rather than racing it.
             page.evaluate("closeNextUp()")
             page.wait_for_timeout(300)
@@ -835,15 +1305,22 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-settings", "saving interests left Settings behind"
 
-            # Every modal a settings row opens closes the same way.
-            page.evaluate("editIdentity()")
+            # Edit profile is a screen now rather than two chained modals
+            # that asked for a name and then a handle with no way back
+            # between them - and it closes the way every other editor does.
+            page.evaluate("openIdentity('edit', 'settings')")
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+            assert not page.eval_on_selector("#identityTop", "e => e.hidden"), \
+                "the editor gave no way out"
+            assert page.query_selector("#identityTop .sheet-close"), \
+                "Edit profile has no X at the top right"
+            assert page.eval_on_selector("#identityNextBtn",
+                                         "e => e.textContent.trim()") == "Save", \
+                "the editor's docked button is not a save"
+            page.evaluate("closeIdentity()")
             page.wait_for_timeout(400)
-            assert page.query_selector("#modalOverlay.active .modal-x"), \
-                "the name modal has no X"
-            page.evaluate("closeModal()")
-            page.wait_for_timeout(300)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
-                == "screen-settings", "closing the name modal left Settings"
+                == "screen-settings", "the X on Edit profile did not return"
 
         def the_interests_wheel_turns_and_stays_tappable():
             """The first run's wheel: six discs orbiting "View more".
@@ -996,7 +1473,14 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def mix_visibility():
-            # Public/private has to be reachable, not buried in a menu.
+            """Public/private has to be reachable, not buried in a menu - and
+            it has to read the right way round.
+
+            The switch means **private** and carries the lock. It used to mean
+            public, which made the lit position the state where other people
+            could see your mix, and a toggle whose on position is the less
+            private one is read backwards by everybody who has ever used a
+            phone."""
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             page.wait_for_timeout(400)
@@ -1004,11 +1488,33 @@ def main() -> int:
             page.wait_for_timeout(500)
             switch = page.query_selector(".mix-switch")
             assert switch, "no public/private switch inside a mix"
-            before = "on" in (switch.get_attribute("class") or "")
+
+            def state():
+                lit = "on" in (page.query_selector(".mix-switch")
+                               .get_attribute("class") or "")
+                word = page.text_content(".mix-vis-t").strip()
+                note = page.text_content(".mix-vis-s").strip()
+                shackle = page.eval_on_selector(
+                    ".mix-switch span svg path", "e => e.getAttribute('d')")
+                return lit, word, note, shackle
+
+            lit, word, note, shackle = state()
+            # On means private, off means public, and the word matches.
+            assert (word == "Private") == lit, \
+                f"the switch says {word!r} in its {'on' if lit else 'off'} position"
+            if not lit:
+                assert "displayed on your profile" in note.lower(), \
+                    f"the public note is missing: {note!r}"
+            # A closed padlock closes: its shackle path ends back at the body.
+            assert shackle.rstrip().endswith("v3.1") == lit, \
+                f"the lock is {'open' if lit else 'closed'} in the wrong position"
+
             page.click(".mix-vis")
             page.wait_for_timeout(900)
-            after = "on" in (page.query_selector(".mix-switch").get_attribute("class") or "")
-            assert after != before, "the visibility switch did not move"
+            after, word2, _note2, shackle2 = state()
+            assert after != lit, "the visibility switch did not move"
+            assert word2 != word, "the switch moved and the word did not"
+            assert shackle2 != shackle, "the switch moved and the lock did not"
 
         #: Every screen a listener can control playback from. VIBE! belongs on
         #: all of them - checking two ids by name is what let the main player
@@ -1272,7 +1778,7 @@ def main() -> int:
 
         print(f"smoke test: {target.name}")
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
-        check("The weekly recap pops and closes", the_weekly_recap_pops_on_a_new_week)
+        check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
@@ -1282,18 +1788,35 @@ def main() -> int:
         check("One tap sends one request", one_tap_is_one_request)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
-        check("Save for Later lists the shelf and reaches Downloads",
-              save_for_later_lists_the_shelf_and_reaches_downloads)
+        check("Save for Later lists the shelf", save_for_later_lists_the_shelf)
         check("The shelf comes back to where it was opened from",
               the_shelf_comes_back_to_where_it_was_opened_from)
         check("The photo editor crops what it shows",
               the_photo_editor_crops_what_it_shows)
-        check("Saving asks about downloading",
-              saving_from_the_player_asks_about_downloading)
+        check("Saving is a toggle on every player", saving_is_a_toggle_on_every_player)
+        check("The player names its four icons", the_player_names_its_four_icons)
+        check("An episode is titled by what it is about",
+              an_episode_is_titled_by_what_it_is_about)
+        check("A friend's vibe is named on an Explore card",
+              a_friends_vibe_is_named_on_an_explore_card)
+        check("Friends navigation comes back to your own profile",
+              friends_navigation_comes_back_to_your_own_profile)
+        check("A friend's profile shows what they published",
+              a_friends_profile_shows_what_they_published)
+        check("A new follower is announced and can be followed back",
+              a_new_follower_is_announced_and_can_be_followed_back)
+        check("Edit profile is a screen with everything on it",
+              edit_profile_is_a_screen_with_everything_on_it)
+        check("Live captions show the script being read",
+              live_captions_show_the_script_being_read)
+        check("The sources cluster shows three in the corner",
+              the_sources_cluster_shows_three_in_the_corner)
+        check("Tapping the player generates nothing",
+              tapping_the_player_generates_nothing)
         check("An episode can be shared outside FAM",
               an_episode_can_be_shared_outside_fam)
-        check("Your FAM offers the recap and Save for Later",
-              your_fam_offers_the_recap_and_explore_new)
+        check("Your FAM is messages and only messages",
+              your_fam_is_messages_and_only_messages)
         check("What's next offers four with a countdown",
               whats_next_offers_four_and_counts_down)
         check("The bar can be dragged to seek", the_bar_can_be_dragged_to_seek)

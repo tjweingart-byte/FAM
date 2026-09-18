@@ -243,7 +243,7 @@ def test_ending_a_session_takes_effect_immediately(store):
     assert store.listener_for(token) is None
 
 
-@pytest.mark.parametrize("password", ["", "short", "nine-char"])
+@pytest.mark.parametrize("password", ["", "short", "seven77"])
 def test_a_short_password_is_refused(store, password):
     with pytest.raises(A.AuthError):
         store.sign_up("u1", "ian@example.com", password)

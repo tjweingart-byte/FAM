@@ -39,10 +39,36 @@ stays a hostname because that is what gets *shown*. It changes nothing about
 the rule above — nothing here reaches `build_prompt`, and the test that reads
 it is unchanged.
 
-## In the interface: a strip, then a popup
+## In the interface: a corner cluster, then a popup
 
-Under the player is a strip of publisher marks and a count. Tapping it opens
-the list: the headline, the outlet, its grade and date, and a way to open it.
+In the **corner of the player** are the first three publishers' marks,
+overlapped, with a count. Tapping opens the list: the headline, the outlet,
+its grade and date, and a way to open it.
+
+Three, at the owner's direction, and it is the right number for a cluster this
+size — more than that at 20px is a row of dots nobody can tell apart, and the
+whole list is one tap away. Overlapped rather than spaced, because that reads
+as "these several" where a spaced row reads as a list somebody has to count.
+
+In the corner rather than as a full-width strip under the title, because it is
+something a listener glances at and not a line of the page.
+
+**It was invisible for as long as it has existed, and the reason was one
+missing call.** `fetchEpisodeSources` ran in `onEnd` — when the episode
+finished — and when Go Deeper opened, and nowhere else. So the one moment the
+panel is actually for, somebody listening and wondering where this came from,
+was the one moment nothing asked for it. It is now fetched on the same clock
+as `/api/next`: a few seconds after the first word, and once more later,
+because provenance lands with the finished script and a 10-minute script takes
+longer to write than a 2-minute one.
+
+Two smaller things went with that. An answer that comes back empty **does not
+clear a strip that is already showing** — the first try often lands before the
+script has finished, and a panel that disappeared halfway through an episode
+would be worse than one that arrived late. And switching **captions** off used
+to call `clearSources()` twice, one of the calls mis-indented under the line
+above it, so turning off one control wiped a different control on a different
+row about a different thing.
 
 **The marks are drawn, not fetched.** An episode's source list is a list of
 what somebody just listened to, so pinging five publishers to decorate it
@@ -104,6 +130,51 @@ already playing.
 
 ## The interface
 
-A collapsed "Sources" panel under the captions on the player. Collapsed by
-default: it is something a listener reaches for to check, not something to read
-while listening. A panel that fails to load never disturbs playback.
+A cluster in the player's corner, hidden until there is something in it — so
+an episode answered from knowledge has an uncluttered corner rather than an
+empty label. A panel that fails to load never disturbs playback.
+
+## Live captions read the same cache
+
+    GET /api/transcript?q=...&minutes=...&context=...
+
+    {"sentences": ["...", "..."], "known": true}
+
+The captions tab did nothing for as long as it existed: it showed
+`t.caption`, a line of prototype copy ending in an em dash, so turning
+captions on produced a sentence about captions.
+
+It reads `pipeline.script_for`, which is `sources_for` and `thread_for`'s
+sibling and makes the same read against the same key. **The rule that makes it
+affordable is that it never generates.** Captions that could trigger a write
+would be a second full Claude call for every episode somebody chose to read
+along with — the expensive half of an episode, paid twice for one listen. So
+a miss is an empty list.
+
+Three states, and they are different:
+
+* **sentences** — the script is in the cache, which it usually is within a few
+  seconds of the first word, because a script is written far faster than it is
+  spoken;
+* **still catching up** — asked, not there yet, asked again;
+* **never** — an attachment episode is deliberately uncacheable, so there is
+  nothing to read back. That is the privacy rule working, and the panel says
+  so rather than waiting forever.
+
+**Which sentence is highlighted is estimated, not measured,** and that is
+worth naming rather than hiding: the audio is one PCM stream with no sentence
+marks in it, so there is nothing to measure against. Speech time is close to
+proportional to character count at the rate the pace controller is holding, so
+the highlight lands within a sentence or so. The denominator is the *planned*
+length rather than what has buffered — `FamAudio.duration()` grows as the
+stream arrives, so dividing by it would pin the highlight near the end for the
+whole episode.
+
+The panel shows a window of four lines around the current one rather than the
+whole script. A transcript that scrolls itself is a reading surface, and a
+player is not one.
+
+The copy button on that panel used to toast "Transcript copied ✓" and copy
+nothing at all — the control-with-nothing-behind-it failure in its worst form,
+because it said the thing had happened. It copies the sentences now, and says
+so honestly when there are none.

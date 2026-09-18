@@ -40,6 +40,7 @@ from __future__ import annotations
 import logging
 from typing import Iterable, Optional
 
+import config
 from prefetch import Candidate
 
 log = logging.getLogger(__name__)
@@ -48,11 +49,12 @@ log = logging.getLogger(__name__)
 #:
 #: Duration is part of the cache key - a 3-minute script is written
 #: differently from a 10-minute one, not cut down from it - so a warm at the
-#: wrong length is a warm nobody ever finds. Three is what the interface opens
-#: on; a deployment whose listeners mostly pick something else should change
-#: this rather than warm several lengths, which multiplies the spend by the
-#: number of lengths and the waste along with it.
-DEFAULT_MINUTES = 3
+#: wrong length is a warm nobody ever finds. It is whatever the interface opens
+#: on, read from `config` rather than repeated here; a deployment whose
+#: listeners mostly pick something else should change that rather than warm
+#: several lengths, which multiplies the spend by the number of lengths and
+#: the waste along with it.
+DEFAULT_MINUTES = config.DEFAULT_MINUTES
 
 
 class TrendingSource:

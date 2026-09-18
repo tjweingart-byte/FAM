@@ -222,3 +222,130 @@ def test_following_somebody_who_does_not_exist_is_a_404(client):
 def test_friends_need_an_account(client):
     assert client.get("/api/friends").status_code == 401
     assert client.get("/api/messages").status_code == 401
+
+
+# --- new followers, and what clears them ----------------------------------
+#
+# There is no push and will not be until the app exists, so "___ started
+# following you" is answered the next time this listener's own app asks. The
+# question is a query over the follow graph's own timestamps against one column
+# saying when they last looked - not a second table with its own read state.
+
+
+def test_a_new_follower_is_reported_until_the_tab_is_opened(client):
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    nadia = TestClient(appmod.app)
+    with nadia:
+        signed_in(nadia, "nadia@b.com", "Nadia", "nadia")
+        nadia.post("/api/friends/follow", json={"user_id": me})
+
+    fresh = client.get("/api/friends").json()["new_followers"]
+    assert [p["handle"] for p in fresh] == ["nadia"]
+    assert fresh[0]["follows_back"] is False, \
+        "Follow back was not offered to somebody who is not followed"
+
+    # Asking again does not clear it: a badge that cleared itself the moment
+    # something drew it would be a count nobody got to read.
+    assert len(client.get("/api/friends").json()["new_followers"]) == 1
+
+    client.post("/api/friends/seen")
+    assert client.get("/api/friends").json()["new_followers"] == []
+
+
+def test_somebody_already_followed_is_not_offered_a_follow_back(client):
+    """Offering it there is a control that cannot do anything."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    beth = TestClient(appmod.app)
+    with beth:
+        her = signed_in(beth, "beth@b.com", "Beth", "beth")
+        client.post("/api/friends/follow", json={"user_id": her})
+        beth.post("/api/friends/follow", json={"user_id": me})
+    fresh = client.get("/api/friends").json()["new_followers"]
+    assert [p["follows_back"] for p in fresh] == [True]
+
+
+def test_a_follower_arriving_after_a_look_is_new_again(client):
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    first = TestClient(appmod.app)
+    with first:
+        signed_in(first, "beth@b.com", "Beth", "beth")
+        first.post("/api/friends/follow", json={"user_id": me})
+    client.post("/api/friends/seen")
+    assert client.get("/api/friends").json()["new_followers"] == []
+
+    later = TestClient(appmod.app)
+    with later:
+        signed_in(later, "nadia@b.com", "Nadia", "nadia")
+        later.post("/api/friends/follow", json={"user_id": me})
+    assert [p["handle"] for p in
+            client.get("/api/friends").json()["new_followers"]] == ["nadia"]
+
+
+# --- another listener's profile -------------------------------------------
+#
+# Only what they chose to publish. What somebody has listened to is theirs,
+# and this endpoint exists precisely because that line needed drawing in code
+# rather than by having no endpoint at all.
+
+
+def test_a_person_profile_carries_only_what_they_published(client):
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    beth = TestClient(appmod.app)
+    with beth:
+        her = signed_in(beth, "beth@b.com", "Beth", "beth")
+        beth.post("/api/preferences", json={"interests": ["tech", "sports"]})
+        mix = beth.post("/api/mixes", json={"name": "Morning",
+                                            "topic_ids": ["ai-agents"]}).json()
+        beth.patch(f"/api/mixes/{mix['id']}", json={"public": True})
+        beth.post("/api/mixes", json={"name": "Private one",
+                                      "topic_ids": ["fed-next-move"]})
+        beth.post("/api/vibe", json={"query": "why bonds move", "title": "Bonds",
+                                     "minutes": 2})
+        # Behaviour, which must not reach anybody else.
+        for _ in range(4):
+            beth.post("/api/event", json={"kind": "complete",
+                                          "topic_id": "ai-agents"})
+        client.post("/api/friends/follow", json={"user_id": her})
+
+    body = client.get("/api/person?handle=beth").json()
+    assert body["name"] == "Beth" and body["handle"] == "beth"
+    assert [m["name"] for m in body["mixes"]] == ["Morning"], \
+        "a private mix reached somebody else's screen"
+    assert [v["title"] for v in body["vibes"]] == ["Bonds"]
+    assert body["vibe_count"] == 1
+    assert set(body["interests"]) == {"tech", "sports"}
+
+    # The line this endpoint exists to keep.
+    for leaked in ("played", "finished", "searched", "open_threads",
+                   "subjects", "user_id", "listener"):
+        assert leaked not in body, f"{leaked!r} reached another listener"
+
+
+def test_a_hidden_interest_does_not_reach_another_listener(client):
+    """"Which topics they choose to publicly share", from the edit screen. The
+    hidden set is stored rather than the shared one, so an existing row means
+    "all of them" - the alternative defaults every profile in the app to an
+    empty pill row that reads as broken."""
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    beth = TestClient(appmod.app)
+    with beth:
+        her = signed_in(beth, "beth@b.com", "Beth", "beth")
+        beth.post("/api/preferences", json={"interests": ["tech", "sports", "money"]})
+        beth.post("/api/preferences", json={"hidden_interests": ["sports"]})
+        client.post("/api/friends/follow", json={"user_id": her})
+        # Their own screen still shows all of them: hiding is about the
+        # profile, not about the ranker or the editor.
+        theirs = beth.get("/api/preferences").json()
+        assert set(theirs["interests"]) == {"tech", "sports", "money"}
+        assert theirs["hidden_interests"] == ["sports"]
+
+    body = client.get("/api/person?handle=beth").json()
+    assert set(body["interests"]) == {"tech", "money"}
+    assert "sports" not in body["interests"]
+
+
+def test_a_person_nobody_can_find_is_a_404(client):
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    assert client.get("/api/person?handle=nobody").status_code == 404
+    # And an id alone is not a way in: the graph is the boundary.
+    assert client.get("/api/person?user_id=anon_made_up").status_code == 404

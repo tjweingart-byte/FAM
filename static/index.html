@@ -308,9 +308,9 @@
   .pf-hub-tile{ padding:13px 13px 14px; border-radius:15px; background:var(--surface);
     border:1px solid var(--border); cursor:pointer; }
   .pf-hub-tile:active{ transform:scale(0.98); }
-  .pf-hub-icon{ width:30px; height:30px; border-radius:9px; background:var(--paper);
-    color:var(--ink); display:flex; align-items:center; justify-content:center;
-    margin-bottom:9px; }
+  .pf-hub-icon{ position:relative; width:30px; height:30px; border-radius:9px;
+    background:var(--paper); color:var(--ink); display:flex; align-items:center;
+    justify-content:center; margin-bottom:9px; }
   .pf-hub-name{ font-family:'Fraunces', serif; font-weight:600; font-size:13px;
     color:var(--text); }
   .pf-hub-sub{ font-family:'JetBrains Mono', monospace; font-size:8px;
@@ -390,6 +390,17 @@
     justify-content:center; align-items:flex-start; overflow-y:auto;
     padding:10px 0; }
   .reel-body::-webkit-scrollbar{ width:0; }
+  /* A friend's vibe, over the card. Their face and their name, because a
+     name on its own reads as a label and a face makes it a person. */
+  .reel-vibe{ display:flex; align-items:center; gap:7px; margin-bottom:10px; }
+  .reel-vibe[hidden]{ display:none; }
+  .reel-vibe-av{ flex:none; width:22px; height:22px; border-radius:50%;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); }
+  .reel-vibe-t{ font-family:'JetBrains Mono', monospace; font-size:8px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--copper);
+    line-height:1.4; }
+  .reel-vibe-t b{ color:var(--text); font-weight:700; }
   .reel-kicker{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--copper); margin-bottom:16px; }
   /* Down from 29px. A long question at 29/1.2 filled the body and pushed
@@ -446,6 +457,9 @@
     font-size:7.5px; color:var(--text-muted); }
   /* The word under a vibe button, which changes to "vibed" when it is on. */
   .vibe-cap{ text-transform:uppercase; letter-spacing:0.08em; }
+  /* The save control's word, so `setSaved` has one thing to find on every
+     player rather than a list of ids to keep up to date. */
+  .save-cap{ text-transform:uppercase; letter-spacing:0.08em; }
   /* Explore's seek pair centres its number the same way the player's does.
      Written at this specificity on purpose: `.reel-btn span` above pins every
      caption to the bottom, and without this the number would be positioned by
@@ -626,12 +640,33 @@
     margin-bottom:4px;
   }.pt-icon{ width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; color:var(--text); cursor:pointer; flex:none; flex-shrink:0; }
   .pt-icon.on{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
-  .mini-stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
+  /* The labels under the player's four icons. A circle holding a glyph plus
+     the word for it, so the icon is a target and the word is what says which
+     one it is. The circle keeps its size; the caption hangs below it, so the
+     row's spacing is unchanged. */
+  .pt-icon{ position:relative; }
+  .pt-cap{ position:absolute; top:34px; left:50%; transform:translateX(-50%);
+    font-family:'JetBrains Mono', monospace; font-size:7px; letter-spacing:0.07em;
+    text-transform:uppercase; color:var(--text-faint); pointer-events:none;
+    white-space:nowrap; }
+  /* Saved is green, and the green is the same on all four players. Mirrors
+     `.echoed`, which is copper, so the two states are distinguishable at a
+     glance rather than both being "lit". */
+  .pt-icon.saved-on{ background:var(--sage); color:var(--ink);
+    border-color:var(--sage); }
+  .pt-icon.saved-on .pt-cap{ color:var(--sage); }
+  .sb-icon.saved-on .circ{ background:var(--sage); }
+  .sb-icon.saved-on .circ svg{ stroke:var(--ink); }
+  .reel-act.saved-on svg{ background:var(--sage); border-color:var(--sage);
+    color:var(--ink); }
+  .reel-act.saved-on span{ color:var(--sage); }
+  .mini-stage{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
   .pc-row1{ display:flex; align-items:center; gap:16px; }
-  .pc-row2{ display:flex; align-items:center; gap:10px; }
+  /* The extra bottom padding is the icon captions' room. */
+  .pc-row2{ display:flex; align-items:center; gap:10px; padding-bottom:11px; }
   .mini-ctrl-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
   .mini-ctrl-btn:active{ transform:scale(0.94); }
   .mini-play-btn{ width:48px; height:48px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
@@ -672,7 +707,8 @@
      a listener reaches for when they want to check, not something to read
      while listening. Empty and unknown are different states and say so - an
      episode with no stored provenance is not an episode with no sources. */
-  .src-panel{ margin:8px 18px 0; flex:none; }
+  /* In the corner of the player, over the stage rather than under it. */
+  .src-panel{ position:absolute; top:0; right:0; z-index:2; }
   /* Required by tools/check_css.py: a class that sets display must say what
      [hidden] means, or the attribute stops working. Deleting CSS from this
      file has broken the app twice; the checker is not optional. */
@@ -680,13 +716,13 @@
   /* The strip: who this episode drew on, as marks, under the player. Small
      on purpose - it is provenance, not a bibliography, and the list is one
      tap away. */
-  .src-strip{ width:100%; display:flex; align-items:center; gap:9px;
-    background:var(--surface); border:1px solid var(--border); border-radius:12px;
-    padding:8px 13px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;
+  .src-strip{ display:flex; align-items:center; gap:7px;
+    background:var(--surface); border:1px solid var(--border); border-radius:999px;
+    padding:4px 9px 4px 5px; color:var(--text-muted);
+    font-family:'JetBrains Mono', monospace;
     font-size:9px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; }
   .src-panel:active .src-strip{ transform:scale(0.99); }
-  .src-lab{ flex:none; }
-  .src-marks{ flex:1; display:flex; align-items:center; }
+  .src-marks{ display:flex; align-items:center; }
   /* Overlapped like a row of faces: it reads as "these several", where a
      spaced row reads as a list somebody has to count. */
   .src-marks .src-mark{ margin-left:-6px; border:1.5px solid var(--surface); }
@@ -797,13 +833,20 @@
     border:1px solid var(--border); cursor:pointer; }
   .mix-vis-t{ font-size:12.5px; color:var(--text); }
   .mix-vis-s{ font-size:10px; color:var(--text-muted); margin-top:3px; }
-  .mix-switch{ flex:none; width:42px; height:24px; border-radius:999px;
+  /* The switch means *private*, and carries the lock. `on` is the closed one.
+     It used to mean public, which made the lit position the state where other
+     people could see your mix - read the wrong way round by everybody who has
+     ever used a phone. */
+  .mix-switch{ flex:none; width:44px; height:24px; border-radius:999px;
     background:var(--border-strong); position:relative; transition:background 160ms ease; }
   .mix-switch span{ position:absolute; top:3px; left:3px; width:18px; height:18px;
     border-radius:50%; background:var(--text-muted);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--surface);
     transition:transform 160ms ease, background 160ms ease; }
   .mix-switch.on{ background:var(--copper); }
-  .mix-switch.on span{ transform:translateX(18px); background:var(--ink); }
+  .mix-switch.on span{ transform:translateX(20px); background:var(--ink);
+    color:var(--copper); }
 
   /* Vibe controls, on every player. "Vibed" uses the copper the app reserves
      for "you did this", so it reads without a label.
@@ -1200,6 +1243,30 @@
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);
     margin-bottom:6px; }
   .auth-optional{ color:var(--text-faint); }
+  /* Country code beside the number. The code is fixed-width so the number
+     field does not jump about as the selection changes length. */
+  .phone-row{ display:flex; gap:8px; align-items:stretch; }
+  .phone-cc{ flex:0 0 86px; margin-bottom:0 !important; padding-right:6px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; }
+  .phone-num{ flex:1 1 auto; min-width:0; }
+
+  /* ============ WHO YOU ARE: name, handle, picture ============ */
+  .id-pic-row{ display:flex; align-items:center; gap:14px; margin:4px 0 20px; }
+  .id-pic-say{ font-family:'JetBrains Mono', monospace; font-size:9px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint); }
+  /* The @ sits inside the field, so the handle reads as a handle while it is
+     being typed rather than becoming one on save. */
+  .id-handle{ position:relative; }
+  .id-at{ position:absolute; left:13px; top:50%; transform:translateY(-50%);
+    font-family:'JetBrains Mono', monospace; font-size:13px;
+    color:var(--text-faint); pointer-events:none; }
+  .id-handle .modal-input{ padding-left:27px; }
+  .id-note{ font-family:'Space Grotesk', sans-serif; font-size:10.5px;
+    line-height:1.5; color:var(--text-faint); margin-top:7px; }
+  .id-note.bad{ color:var(--coral); }
+  /* An interest kept private. Same pill, struck through rather than removed,
+     so the choice is visible and reversible in one tap. */
+  .pf-tag.off{ opacity:0.45; text-decoration:line-through; }
 
   /* ============ INTRO: interests, then language ============ */
   .intro-top{ flex:none; display:flex; justify-content:flex-end;
@@ -1348,42 +1415,6 @@
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
 
-  /* ============ WEEKLY RECAP ============ */
-  .recap-card{ background:var(--surface); border-radius:20px; padding:18px;
-    width:84%; border:1px solid var(--border-strong);
-    box-shadow:0 30px 60px -20px rgba(0,0,0,0.6); }
-  .recap-top{ display:flex; align-items:flex-start; justify-content:space-between;
-    gap:10px; margin-bottom:14px; }
-  .recap-h{ font-family:'Fraunces', serif; font-weight:600; font-size:17px;
-    color:var(--text); line-height:1.25; }
-  .recap-tile{ padding:14px; border-radius:15px; background:var(--bg);
-    border:1px solid var(--border); cursor:pointer; }
-  .recap-tile:active{ transform:scale(0.99); }
-  .recap-tile-title{ font-family:'Fraunces', serif; font-weight:600; font-size:14px;
-    color:var(--text); line-height:1.3; margin-bottom:6px; }
-  .recap-figs{ font-family:'JetBrains Mono', monospace; font-size:9px;
-    letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); }
-  .recap-empty{ font-size:12.5px; line-height:1.55; color:var(--text-muted); }
-  .recap-off{ display:block; width:100%; margin-top:13px; padding:10px;
-    border:none; background:none; color:var(--text-faint);
-    font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.06em;
-    text-transform:uppercase; cursor:pointer; }
-  .recap-off:active{ opacity:0.6; }
-
-  /* ============ YOUR FAM: two tiles above the threads ============ */
-  .yf-tiles{ display:grid; grid-template-columns:1fr 1fr; gap:10px;
-    margin:2px 0 18px; }
-  .yf-tile{ padding:14px 13px 15px; border-radius:15px; background:var(--surface);
-    border:1px solid var(--border); cursor:pointer; }
-  .yf-tile:active{ transform:scale(0.98); }
-  .yf-tile-icon{ width:30px; height:30px; border-radius:9px; background:var(--paper);
-    color:var(--ink); display:flex; align-items:center; justify-content:center;
-    margin-bottom:10px; }
-  .yf-tile-name{ font-family:'Fraunces', serif; font-weight:600; font-size:13px;
-    color:var(--text); margin-bottom:4px; }
-  .yf-tile-sub{ font-family:'JetBrains Mono', monospace; font-size:8px;
-    letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint);
-    line-height:1.5; }
 
   /* ============ EXPLORE NEW ============ */
   .xn-reason{ font-size:12.5px; line-height:1.55; color:var(--text-muted);
@@ -1401,22 +1432,10 @@
     border:1px dashed var(--border-strong); font-size:12.5px; line-height:1.55;
     color:var(--text-muted); }
   .locked-acts{ display:flex; gap:9px; margin-top:13px; }
-  /* -------- Save for Later, and the offline shelf --------
-     Two states on one row, because they are two states of one thing: an
-     episode is saved, and it may also be held on the device. A separate
-     "downloads" list would put the same episode in two places and make
-     removing it from one of them ambiguous. */
-  /* The way between the two views of one shelf, where the folder chips used
-     to be. Folders went because a shelf of a dozen episodes does not need
-     filing - and "Commute" was a fixture nobody had made, sitting on a real
-     screen looking like something they had. */
-  .sv-switch{ display:flex; align-items:center; justify-content:space-between;
-    gap:10px; width:calc(100% - 36px); margin:0 18px 12px; padding:12px 14px;
-    border-radius:12px; background:var(--surface); border:1px solid var(--border);
-    color:var(--text); font-family:'Space Grotesk', sans-serif; font-size:13px;
-    font-weight:600; cursor:pointer; }
-  .sv-switch:active{ transform:scale(0.995); }
-  .sv-switch svg{ flex:none; color:var(--text-faint); }
+  /* -------- Save for Later --------
+     One list of pointers. There used to be a second view of it - Downloads,
+     the audio held on the device - and a switch between them; both are gone
+     with the feature. */
   .sv-row{ display:flex; align-items:center; gap:11px; padding:12px 18px;
     border-bottom:1px solid var(--border); cursor:pointer; }
   .sv-row:active{ background:var(--surface); }
@@ -1429,15 +1448,9 @@
     white-space:nowrap; }
   .sv-meta{ font-family:'JetBrains Mono', monospace; font-size:8px;
     color:var(--text-faint); letter-spacing:0.04em; }
-  .sv-dl{ color:var(--sage); }
   .sv-x{ color:var(--text-faint); padding:6px; }
   .sv-empty{ padding:30px 18px; text-align:center; color:var(--text-faint);
     font-family:'Space Grotesk', sans-serif; font-size:11px; line-height:1.6; }
-  .sv-bar{ margin:0 18px 12px; padding:9px 12px; border-radius:11px;
-    background:var(--surface); border:1px solid var(--border);
-    font-family:'JetBrains Mono', monospace; font-size:8px; color:var(--text-muted);
-    letter-spacing:0.04em; }
-
   /* -------- Share sheet: inside FAM, and outside it --------
      One sheet with two halves rather than two sheets, because "share this"
      is one intent and the listener should not have to know which kind of
@@ -1461,28 +1474,34 @@
   .sh-note{ font-family:'JetBrains Mono', monospace; font-size:7.5px;
     color:var(--coral); margin-top:10px; line-height:1.6; }
 
-  /* -------- The download question --------
-     Asked the moment something is saved, because that is when the listener is
-     thinking about it - and answered in one tap either way. */
-  /* The way out of the question. Both buttons are commitments, so without
-     this the only exit was the backdrop - which nothing says is tappable. */
-  .dl-x, .modal-x{ position:absolute; top:12px; right:12px; width:28px;
+  /* "___ started following you". Their face at the top, as the packet asks:
+     a name on its own reads as a notification, a face makes it a person. */
+  .nf-av{ width:64px; height:64px; border-radius:50%; margin:6px auto 12px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); }
+  .nf-name{ font-family:'Fraunces', serif; font-weight:500; font-size:16px;
+    color:var(--text-muted); text-align:center; line-height:1.35; }
+  .nf-name b{ color:var(--text); font-weight:600; }
+  .nf-at{ font-family:'JetBrains Mono', monospace; font-size:9px;
+    letter-spacing:0.08em; color:var(--text-faint); text-align:center;
+    margin:5px 0 14px; }
+  .nf-already{ font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    letter-spacing:0.05em; text-transform:uppercase; color:var(--sage);
+    text-align:center; padding:4px 0 2px; }
+  .nf-already[hidden]{ display:none; }
+  /* The unread count on the profile's Friends tile. */
+  .pf-hub-badge{ position:absolute; top:-4px; right:-6px; min-width:16px;
+    height:16px; padding:0 4px; border-radius:8px; background:var(--coral);
+    color:var(--paper); font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  /* The way out of a modal. Every sheet and popup in the app draws its X the
+     same way, so the thumb does not have to find it again on each one. */
+  .modal-x{ position:absolute; top:12px; right:12px; width:28px;
     height:28px; border-radius:50%; background:none; border:none;
     color:var(--text-muted); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
-  .dl-x:active, .modal-x:active{ color:var(--text); }
-  .dl-sub{ font-size:11.5px; line-height:1.5; color:var(--text-muted);
-    margin:8px 0 2px; }
-  .dl-size{ font-family:'JetBrains Mono', monospace; font-size:9px;
-    color:var(--text-muted); margin:-4px 0 14px; letter-spacing:0.04em; }
-  .dl-full{ font-family:'Space Grotesk', sans-serif; font-size:11px;
-    color:var(--text-muted); line-height:1.6; margin-bottom:10px; }
-  .dl-cand{ display:flex; align-items:center; gap:9px; padding:8px 0;
-    border-top:1px solid var(--border); cursor:pointer; }
-  .dl-cand-title{ flex:1; font-family:'Space Grotesk', sans-serif; font-size:11px;
-    color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .dl-cand-free{ font-family:'JetBrains Mono', monospace; font-size:8px;
-    color:var(--copper); }
+  .modal-x:active{ color:var(--text); }
 </style>
 </head>
 <body>
@@ -1548,7 +1567,7 @@
             </div>
             <div class="entry-h">Ask anything. Hear the answer.</div>
             <p class="entry-lede">An account keeps your mixes, your interests
-              and your weekly recap — on any device you sign in on. Listening
+              and what you save — on any device you sign in on. Listening
               works without one.</p>
             <div class="entry-acts">
               <button class="entry-btn primary" onclick="openAuth('signup')">Sign Up</button>
@@ -1582,7 +1601,7 @@
             <button class="auth-method" onclick="showAuthForm()">
               <span class="am-icon">@</span>
               <span class="am-body">Continue with email
-                <span class="am-sub">email, password, phone optional</span></span>
+                <span class="am-sub">email, phone and a password</span></span>
             </button>
             <div id="authForm" hidden>
               <div class="auth-field">
@@ -1594,19 +1613,33 @@
               <div class="auth-field">
                 <div class="auth-label">Password</div>
                 <input class="modal-input" id="authPassword" type="password"
-                       placeholder="at least 10 characters" style="margin-bottom:0;">
+                       autocomplete="new-password"
+                       placeholder="at least 8 characters" style="margin-bottom:0;">
               </div>
+              <!-- Phone is asked for and kept on the same account as the
+                   address. The code is a select rather than something typed
+                   into the same box, because the server stores exactly one
+                   form (E.164) and refuses to guess a country - so the one
+                   part that cannot be inferred is the one part that is
+                   picked rather than typed. -->
               <div class="auth-field" id="authPhoneField">
-                <div class="auth-label">Phone <span class="auth-optional">— optional</span></div>
-                <input class="modal-input" id="authPhone" type="tel"
-                       autocomplete="tel" placeholder="+1 555 0100" style="margin-bottom:0;">
+                <div class="auth-label">Phone</div>
+                <div class="phone-row">
+                  <select class="modal-input phone-cc" id="authPhoneCC"
+                          aria-label="Country code"></select>
+                  <input class="modal-input phone-num" id="authPhone" type="tel"
+                         inputmode="tel" autocomplete="off" autocorrect="off"
+                         autocapitalize="off" spellcheck="false"
+                         placeholder="(888) 888-8888" style="margin-bottom:0;"
+                         oninput="formatPhoneInput(this)">
+                </div>
               </div>
               <button class="entry-btn primary" id="authSubmit"
                       onclick="submitAuthForm()">Create account</button>
               <p class="entry-note" id="authNote">Your password is what signs you
-                in. A phone number is kept as a contact detail only — there is no
-                SMS delivery behind it, so it cannot sign you in or recover an
-                account.</p>
+                in. Your number is kept on the account and works as a second way
+                in — there is no SMS delivery behind it yet, so it cannot verify
+                you or recover an account.</p>
             </div>
             <p class="entry-note">There is no password reset yet: it needs email
               delivery this app has no route to. A forgotten password today is a
@@ -1684,6 +1717,77 @@
         </div>
       </section>
 
+      <!-- ============ WHO YOU ARE ============
+           A step of the first run, and the Edit profile screen, from one
+           piece of markup - the same arrangement `screen-intro` already has
+           with Settings, and for the same reason: these are the same three
+           fields, and a second copy of them would be a second copy to keep
+           in step.
+
+           `identityMode` decides three things and nothing else: whether there
+           is an X, what the docked button says, and where saving goes. The
+           two blocks that are only an editor's business - a password change
+           and which interests are shared - are hidden during the first run,
+           where there is no password to change yet and nothing chosen to
+           share. -->
+      <section class="screen" id="screen-identity">
+        <div class="intro-top" id="identityTop" hidden>
+          <button class="sheet-close" onclick="closeIdentity()"
+                  aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="entry-wrap" style="min-height:0;">
+            <div class="entry-h" id="identityHeading">Who are you?</div>
+            <p class="entry-lede" id="identityLede">A name and a handle are how
+              your friends find you, and how a vibe you send says who it is
+              from. Both can change later.</p>
+
+            <div class="id-pic-row">
+              <div class="pf-pic" id="identityPic" onclick="pickAvatar()"
+                   role="button" aria-label="Choose a profile picture">
+                <span class="pf-cam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3.5L8 5.5h8L17.5 8H21v11H3z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+              </div>
+              <div class="id-pic-say" id="identityPicSay">Add a photo</div>
+            </div>
+
+            <div class="auth-field">
+              <div class="auth-label">Your name</div>
+              <input class="modal-input" id="identityName" type="text"
+                     autocomplete="off" autocorrect="off" autocapitalize="words"
+                     spellcheck="false" placeholder="Your name"
+                     style="margin-bottom:0;">
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">Username</div>
+              <div class="id-handle">
+                <span class="id-at">@</span>
+                <input class="modal-input" id="identityHandle" type="text"
+                       autocomplete="off" autocorrect="off" autocapitalize="off"
+                       spellcheck="false" placeholder="yourhandle"
+                       oninput="cleanHandleInput(this)" style="margin-bottom:0;">
+              </div>
+              <div class="id-note" id="identityHandleNote">Letters, numbers and
+                underscores. This is what people search for.</div>
+            </div>
+
+            <div id="identityEditOnly" hidden>
+              <div class="set-group">Shared on your profile</div>
+              <p class="id-note">Your interests are on your profile. Tap one to
+                keep it to yourself &mdash; it still ranks what you hear.</p>
+              <div class="pf-tags" id="identityShared"></div>
+
+              <div class="set-group">Account</div>
+              <div id="identityAccountRows"></div>
+            </div>
+          </div>
+        </div>
+        <div class="entry-dock">
+          <button class="entry-btn primary" id="identityNextBtn"
+                  onclick="saveIdentity()">Next</button>
+          <div class="entry-skip" id="identitySkip" onclick="skipIdentity()">Skip for now</div>
+        </div>
+      </section>
+
       <!-- The topic catalogue, behind "View more" on the interests page.
            Every row is a real subject from the shared bank, so adding one is
            a statement with a whole topic behind it - and the topic carries
@@ -1697,7 +1801,7 @@
           </button>
         </div>
         <div style="padding:0 18px 12px;">
-          <input class="modal-input" id="catalogSearch" type="search" autocomplete="off"
+          <input class="modal-input" id="catalogSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics" oninput="renderTopicCatalog()"
                  style="margin-bottom:0;">
         </div>
@@ -1757,7 +1861,7 @@
           <h2>Friends</h2>
         </div>
         <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="friendSearch" type="search" autocomplete="off"
+          <input class="modal-input" id="friendSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Find someone by handle" style="margin-bottom:0;"
                  oninput="searchPeople()">
         </div>
@@ -1782,21 +1886,13 @@
       </section>
 
       <!-- ============ SAVE FOR LATER ============
-           Save for later is a pointer and needs the network; a download is the
-           audio on this device and does not. One list shows both, because they
-           are two states of one episode - see saved.py. -->
+           A pointer to an episode: the question, the length, a title. Playing
+           one needs the network like any other episode - see saved.py. -->
       <section class="screen" id="screen-saved">
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Save for Later</h2>
         </div>
-        <div class="sv-bar" id="svDownloadBar">Loading&hellip;</div>
-        <!-- Downloads lives inside Save for Later rather than beside it. A
-             download is a *state* of a saved episode, so the shelf is one
-             list with two views - and the folders that used to sit here are
-             gone: a shelf of a dozen things does not need filing, and
-             "Commute" was a fixture nobody had made. -->
-        <button class="sv-switch" id="svSwitch" onclick="toggleSavedView()"></button>
         <div class="scroll" id="svBody"></div>
       </section>
 
@@ -1809,7 +1905,7 @@
           </div>
           <div class="home-hero">
           <div class="fam-input-box">
-            <textarea id="searchInput" placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
+            <textarea id="searchInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
           </div>
           <div class="attach-row" id="attachRow"></div>
           <div class="fam-controls">
@@ -1931,7 +2027,7 @@
           <h2 id="pickerTitle">Choose topics</h2>
         </div>
         <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="pickerSearch" type="text" autocomplete="off"
+          <input class="modal-input" id="pickerSearch" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics, or type your own"
                  oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedTopic()">
         </div>
@@ -1959,25 +2055,30 @@
           <span class="x" onclick="goBack()">✕</span>
         </div>
         <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
-        <div class="mini-stage" id="playerStage" onclick="playerTapAdvance(event)">
+        <div class="mini-stage" id="playerStage">
+          <!-- Where this episode's facts came from: the first three
+               publishers' marks, overlapped, in the corner. Tapping opens the
+               whole list with headlines and links - see `openSources`.
+
+               In the corner rather than as a full-width strip under the title
+               because it is a thing a listener glances at, not a line of the
+               page. It is hidden until there is something to show, so an
+               episode answered from knowledge has an uncluttered corner
+               rather than an empty label. -->
+          <div class="src-panel" id="srcPanel" hidden onclick="openSources()"
+               role="button" tabindex="0" aria-label="Show this episode's sources">
+            <div class="src-strip">
+              <span class="src-marks" id="srcMarks"></span>
+              <span class="src-count" id="srcCount">—</span>
+            </div>
+          </div>
           <div class="mini-title" id="p-title">Title</div>
           <div class="mini-src" id="p-src">Source</div>
           <div class="next-hint" id="nextHint"></div>
         </div>
         <div class="captions-panel off" id="ccPanel">
-          <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="toast('Transcript copied ✓')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
+          <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="copyTranscript()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
           <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
-        </div>
-        <!-- Where this episode's facts came from, as a strip of publisher
-             marks. Tapping it opens the list, with the headlines and a link
-             to each - see `openSources`. -->
-        <div class="src-panel" id="srcPanel" hidden onclick="openSources()"
-             role="button" tabindex="0" aria-label="Show this episode's sources">
-          <div class="src-strip">
-            <span class="src-lab">Sources</span>
-            <span class="src-marks" id="srcMarks"></span>
-            <span class="src-count" id="srcCount">—</span>
-          </div>
         </div>
         <div class="progress-wrap">
           <div class="progress-bar"><div class="buffered"></div><div class="fill"></div><div class="knob"></div></div>
@@ -1991,10 +2092,14 @@
           </div>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1× · 3 min</div>
-            <span class="pt-icon" onclick="openShareModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg></span>
-            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg></span>
-            <span class="pt-icon" id="playerSave" onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></span>
-            <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg></span>
+            <!-- Four icons with their names under them. Unlabelled, a
+                 bookmark, a two-way arrow and a speech rectangle are three
+                 guesses; the play-all sidebar and Explore's rail had always
+                 carried labels, and this row was the odd one out. -->
+            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
+            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
+            <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
+            <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span class="pt-cap">Captions</span></span>
           </div>
         </div>
       </section>
@@ -2014,7 +2119,7 @@
             <div class="sb-icon" onclick="toggleFavorite(this)"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2"><path d="M12 21s-7.5-4.9-10-9.3C.4 8.5 2 5 5.6 5c2 0 3.5 1.1 4.4 2.6C11 6.1 12.4 5 14.4 5 18 5 19.6 8.5 18 11.7 15.5 16.1 12 21 12 21z"/></svg></div><div class="lbl">Favorite</div></div>
             <div class="sb-icon" onclick="openShareModal()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg></div><div class="lbl">Share</div></div>
             <div class="sb-icon echo-icon" id="echoIcon" data-echo onclick="toggleEcho()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg></div><div class="lbl">VIBE!</div></div>
-            <div class="sb-icon" onclick="saveForLater()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div><div class="lbl">Save</div></div>
+            <div class="sb-icon" data-save onclick="saveForLater()"><div class="circ"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--paper)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div><div class="lbl">Save</div></div>
             <div class="sb-icon" id="paCcIcon" onclick="paToggleCC()"><div class="circ"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg></div><div class="lbl">Captions<br>off</div></div>
           </div>
         </div>
@@ -2044,6 +2149,15 @@
           </div>
 
           <div class="reel-body" id="reelBody">
+            <!-- "<name> vibed with this episode", with their face, when a
+                 *friend* both generated this episode and vibed it. Two
+                 conditions because the tag claims a friendship - see
+                 /api/explore. Hidden otherwise, rather than showing a
+                 stranger's name under a card about your friends. -->
+            <div class="reel-vibe" id="reelVibe" hidden>
+              <span class="reel-vibe-av" id="reelVibeAv"></span>
+              <span class="reel-vibe-t" id="reelVibeT"></span>
+            </div>
             <div class="reel-kicker" id="reelKicker">Someone asked</div>
             <div class="reel-title" id="reelTitle">Loading…</div>
             <div class="reel-sub" id="reelSub"></div>
@@ -2066,9 +2180,9 @@
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>
               <span>share</span>
             </div>
-            <div class="reel-act" onclick="saveForLater()" title="Save for later" aria-label="Save for later">
+            <div class="reel-act" data-save onclick="saveForLater()" title="Save for later" aria-label="Save for later">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg>
-              <span>save</span>
+              <span class="save-cap">save</span>
             </div>
           </div>
 
@@ -2104,6 +2218,21 @@
 
       <!-- ============ MESSAGES (inbox) ============ -->
       <!-- ============ PROFILE ============ -->
+      <!-- Somebody else's profile, on **its own screen**.
+           It used to be drawn into `screen-profile` with a variable deciding
+           whose it was, and that single fact produced all four symptoms of
+           the navigation bug: back from the friend popped to Friends, back
+           again showed `screen-profile` still holding the *friend's* DOM,
+           back again fell through to search, and the Profile tab flashed
+           them before `loadProfile` replaced it. Two pages sharing one
+           container is not a routing bug with four fixes, it is one bug. -->
+      <section class="screen" id="screen-person">
+        <div class="scroll">
+          <div class="pf-top" id="personTop"></div>
+          <div id="personBody"></div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-profile">
         <div class="scroll">
           <div class="pf-top" id="pfTop"></div>
@@ -2121,7 +2250,7 @@
       <section class="screen sheet" id="screen-messages">
         <div class="scroll">
           <div class="myfam-header">
-            <h2>Your FAM</h2>
+            <h2 class="wordmark" aria-label="Your FAM">Your<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
             <div style="display:flex; align-items:center; gap:4px;">
               <button class="myfam-add-btn" onclick="openNewChatModal()">+</button>
               <button class="sheet-close" onclick="closeMessages()" aria-label="Close Your FAM">
@@ -2129,27 +2258,18 @@
               </button>
             </div>
           </div>
-          <!-- Two destinations above the threads. The recap is the same
-               content the Sunday popup shows, reachable on demand rather than
-               only when it fires; Explore New is its own surface. -->
-          <div class="yf-tiles">
-            <div class="yf-tile" onclick="openRecapFromTile()">
-              <div class="yf-tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h11"/></svg></div>
-              <div class="yf-tile-name">Weekly Recap</div>
-              <div class="yf-tile-sub" id="yfRecapSub">Your week, in one episode</div>
-            </div>
-            <div class="yf-tile" onclick="openSavedAll()">
-              <div class="yf-tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div>
-              <div class="yf-tile-name">Save for Later</div>
-              <div class="yf-tile-sub" id="yfSavedSub">Episodes you kept</div>
-            </div>
-          </div>
+          <!-- Nothing above the threads any more. The two tiles that were
+               here - Weekly Recap and Save for Later - both came off at the
+               owner's direction. The recap is gone entirely (myFAM's "What
+               you missed last week" rail replaced it) and Save for Later is
+               on the profile, which is where a listener's own shelves live.
+               Your FAM is messages, and only messages. -->
           <!-- A real filter over the threads already fetched. It used to
                toast "demo only", which is a control with nothing behind it -
                and filtering a list the page is holding costs nothing. -->
           <div class="search-bar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input id="msgSearch" type="search" autocomplete="off"
+            <input id="msgSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                    placeholder="Search messages" oninput="renderThreadRows()">
           </div>
           <div id="threadList"></div>
@@ -2167,7 +2287,7 @@
         </div>
         <div class="scroll" id="thread-body"></div>
         <div class="chat-input-row" style="display:flex; border-top:1px solid var(--border);">
-          <input type="text" id="threadInput" placeholder="Message…">
+          <input type="text" id="threadInput" placeholder="Message…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <button onclick="sendThreadMessage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
       </section>
@@ -2179,7 +2299,7 @@
                that used to be the only other way out is undocumented. -->
           <button class="modal-x" onclick="closeModal()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="modal-title" id="modalTitle">Title</div>
-          <input class="modal-input" id="modalInput" type="text" placeholder="">
+          <input class="modal-input" id="modalInput" type="text" placeholder="" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeModal()">Cancel</button>
             <button class="modal-btn primary" id="modalConfirmBtn">Save</button>
@@ -2200,18 +2320,6 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="recapOverlay">
-        <div class="recap-card">
-          <div class="recap-top">
-            <div class="recap-h">Here it is! my Weekly Recap</div>
-            <button class="sheet-close" onclick="closeRecap()" aria-label="Close the recap">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
-          </div>
-          <div id="recapBody"></div>
-          <button class="recap-off" onclick="disableWeeklyRecap()">Disable Weekly Notifications</button>
-        </div>
-      </div>
 
       <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
         <div class="sheet-card" id="sheetCard"></div>
@@ -2263,7 +2371,7 @@
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
-          <input class="modal-input" id="goDeeperInput" type="text" placeholder="e.g. &quot;explain the market impact&quot;">
+          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="e.g. &quot;explain the market impact&quot;">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeGoDeeper()">Cancel</button>
             <button class="modal-btn primary" onclick="confirmGoDeeper()">Continue</button>
@@ -2296,9 +2404,6 @@
         </div>
       </div>
 
-      <!-- Asked the moment something is saved. Saving needs the network to
-           play; downloading does not, and that difference is the whole reason
-           this popup exists rather than one button doing both silently. -->
       <!-- The sources, in full. A popup rather than an inline drawer because
            a player is not a reading surface: the listener asks for this, gets
            the publishers, the headlines and a way to open them, and dismisses
@@ -2339,30 +2444,30 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="downloadOverlay" onclick="if(event.target===this) closeDownloadModal()">
+      <!-- "___ started following you". Raised when this listener's own app
+           next asks - on open and when the profile loads - because there is
+           no push here and will not be until the app exists. It neither
+           clears the badge nor marks anything seen: the Friends tab does
+           both, so the count survives long enough to be read.
+
+           The X is not optional. Both buttons are commitments, and a popup
+           whose only exit is the backdrop is a popup nothing says is
+           dismissable - the same reasoning that put an X on the download
+           question before that feature was removed. -->
+      <div class="modal-overlay" id="followerOverlay"
+           onclick="if(event.target===this) closeFollowerPopup()">
         <div class="modal-card">
-          <!-- An X, because the two buttons are both commitments and there
-               was no way out of the question at all. Tapping it leaves the
-               episode saved - which already happened, on the tap before this
-               popup - and chooses nothing about the download. -->
-          <button class="dl-x" onclick="closeDownloadModal()"
-                  aria-label="Close without choosing">
+          <button class="modal-x" onclick="closeFollowerPopup()"
+                  aria-label="Ignore this">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
-          <div class="modal-title" id="dlTitle" style="padding-right:30px;">Saved. Keep it on this phone?</div>
-          <div class="dl-sub" id="dlSub">A download plays with no signal at all.</div>
-          <div class="dl-size" id="dlSize"></div>
-          <div id="dlFullBox" hidden>
-            <div class="dl-full" id="dlFullText"></div>
-            <div id="dlCandidates"></div>
-          </div>
-          <!-- Two named outcomes, stacked, rather than a verb and a shrug.
-               "Not now" left the listener guessing whether the save had
-               happened at all - it had, on the tap before this - so both
-               buttons now say what they do. -->
+          <div class="nf-av" id="nfAvatar"></div>
+          <div class="nf-name" id="nfName"></div>
+          <div class="nf-at" id="nfHandle"></div>
           <div class="modal-btns stack">
-            <button class="modal-btn primary" id="dlConfirmBtn" onclick="confirmDownload()">Download it too</button>
-            <button class="modal-btn ghost" id="dlDismissBtn" onclick="closeDownloadModal()">No, just keep it saved</button>
+            <button class="modal-btn primary" id="nfBack" onclick="followBack()">Follow back</button>
+            <div class="nf-already" id="nfAlready" hidden>You already follow them &mdash; you are friends.</div>
+            <button class="modal-btn ghost" onclick="closeFollowerPopup()">Not now</button>
           </div>
         </div>
       </div>
@@ -2409,7 +2514,7 @@
           <div class="gc-label" style="margin-bottom:8px;">Your FAM contacts</div>
           <div class="share-contacts" id="newChatContacts"></div>
           <div class="gc-label" style="margin:16px 0 8px;">Or start a new conversation</div>
-          <input class="modal-input" id="newChatInput" type="text" placeholder="Name or phone number">
+          <input class="modal-input" id="newChatInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeNewChatModal()">Cancel</button>
             <button class="modal-btn primary" onclick="confirmNewChat()">Start chat</button>
@@ -2534,7 +2639,10 @@
   var currentAlbumForPlayer = null;
   var currentTopicIndexInAlbum = -1;
   var scrollLocked = false;
-  var selectedLengthMinutes = 3;
+  // The length a search opens on. Two minutes: long enough for the answer
+  // and the story around it, short enough that somebody who typed a question
+  // has it answered before they have to decide whether to stay.
+  var selectedLengthMinutes = 2;
 
   function showScreen(id){
     // Find the target BEFORE deactivating anything. The other order clears
@@ -2750,7 +2858,18 @@
     }
     if(val){
       TOPICS["_custom"] = {
-        title: (!typed && attach && ATTACHED[0]) ? ATTACHED[0].name : val,
+        // A *provisional* title, and it is provisional because the real one
+        // does not exist yet: the model writes the episode's name on a
+        // trailing marker line, so it is only known once the script is
+        // finished - after the first word is already playing. This is the
+        // question, shortened and capitalised, and `fetchEpisodeTitle` swaps
+        // in the real one when it lands, the way the Go Deeper chip fills.
+        //
+        // It used to be the raw typed question, so somebody who asked "what
+        // happened with the fed yesterday" got an episode called exactly
+        // that - their own words handed back with capital letters.
+        title: (!typed && attach && ATTACHED[0]) ? ATTACHED[0].name
+                                                 : deriveTitleFromPrompt(val),
         // The title may be the file's name, which is a label and not a
         // question. `prompt` is what actually gets asked.
         prompt: val,
@@ -3139,6 +3258,10 @@
     if(cur) cur.textContent = formatTime(seconds);
     if(tot) tot.textContent = formatTime(total);
 
+    // Far enough through to count as heard. Checked here because this is the
+    // one function that runs on a clock and knows the position.
+    if(reportOutcomeIfHeard) reportOutcomeIfHeard(seconds, total);
+
     // The segmented player runs on the same FamAudio, so one ticker serves
     // both. Its bar used to be a placeholder - a fixed 44% fill in the CSS and
     // a time set to a fifth of the length, neither of which moved - which is
@@ -3154,6 +3277,26 @@
       if(paTot) paTot.textContent = formatTime(total);
     }
   }
+
+  // --- when an episode counts as finished -----------------------------
+  //
+  // **Eighty-five per cent through is finished.** Waiting for the last sample
+  // counted almost nothing: the ending is the one part a listener skips, and
+  // an episode heard to the ninety-fifth percentile and then closed was
+  // recorded as a *play*, which is worth 1.0 against a completion's 2.5. So
+  // the strongest signal the taste model has was being thrown away by exactly
+  // the behaviour it should reward, and the profile's "episodes finished"
+  // undercounted for the same reason.
+  //
+  // It is a share rather than a number of seconds because episodes are one to
+  // ten minutes long, and "the last thirty seconds" is most of a one-minute
+  // episode and nothing of a ten-minute one.
+  var FINISHED_SHARE = 0.85;
+
+  //: Set by `speakText` for whatever is playing, and called by the progress
+  //: ticker - which is the only thing that knows how far through it is.
+  //: Cleared when the episode ends, so it can never fire against the next one.
+  var reportOutcomeIfHeard = null;
 
   function startProgress(totalSeconds){
     stopProgress();
@@ -3319,13 +3462,18 @@
   // response headers have gone - so it is fetched separately, from the cache,
   // at no token cost. Missing is normal and falls back to the empty field.
   var episodeThread = "";
+  //: The episode's own name, off the model's trailing `<<TITLE:>>` line. Read
+  //: from the cache beside the thread, so one request answers both.
+  var episodeTitle = "";
   var episodeStamp = "";
   function rememberEpisode(query, minutes, context){
     episodeStamp = query + "|" + minutes + "|" + (context || "");
     episodeThread = "";
+    episodeTitle = "";
   }
   function fetchEpisodeThread(){
-    if(!episodeStamp || episodeThread) return;
+    if(!episodeStamp) return;
+    if(episodeThread && episodeTitle) return;
     var parts = episodeStamp.split("|");
     var stamp = episodeStamp;
     fetch("/api/next?q=" + encodeURIComponent(parts[0]) +
@@ -3334,12 +3482,225 @@
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
         // The listener may have moved on while this was in flight.
-        if(!data || !data.thread || stamp !== episodeStamp) return;
-        episodeThread = data.thread;
-        showThreadSuggestion();
+        if(!data || stamp !== episodeStamp) return;
+        if(data.thread && !episodeThread){
+          episodeThread = data.thread;
+          showThreadSuggestion();
+        }
+        // The episode's own name, off the same call and the same marker
+        // lines. One request answers both, because both are read out of the
+        // cache under one key and a second round trip would buy nothing.
+        if(data.title) applyEpisodeTitle(data.title);
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
   }
+
+  // Swap the provisional title for the real one, everywhere it is showing.
+  //
+  // Deliberately *not* on a screen the listener has already left: they may
+  // have opened something else while the script was finishing, and renaming
+  // whatever is on the player now would be the wrong episode's title.
+  // `episodeStamp` is the guard, exactly as it is for the thread and the
+  // sources.
+  function applyEpisodeTitle(title){
+    episodeTitle = title;
+    var key = currentPlayingTopicKey;
+    var topic = key ? TOPICS[key] : null;
+    // A title somebody typed themselves, or a bank tile's own hand-written
+    // one, is not up for replacement. `titleOverridden` is what marks both.
+    if(topic && !topic.titleOverridden){
+      topic.title = title;
+      var shown = document.getElementById("p-title");
+      if(shown && document.getElementById("screen-player")
+                    .classList.contains("active")){
+        shown.textContent = title;
+      }
+    }
+    if(nowBarState && nowBarState.query === episodeStamp.split("|")[0]){
+      nowBarState.title = title;
+      var barTitle = document.getElementById("nowTitle");
+      if(barTitle) barTitle.textContent = title;
+    }
+  }
+  // ---------------- live captions ----------------
+  //
+  // The script the voice is reading, on screen, moving with it.
+  //
+  // It used to show `t.caption` - a one-line piece of prototype copy ending in
+  // an em dash - so turning captions on produced a sentence about captions.
+  // Nothing was wired to the actual episode at all.
+  //
+  // **The sentences come from the cache and are never generated.** They are
+  // read through `/api/transcript`, which is `/api/sources` and `/api/next`'s
+  // sibling and, like both, reads the key the script is already stored under.
+  // Asking a model for them would be a second full Claude call for every
+  // episode somebody chose to read along with - the expensive half of an
+  // episode, paid twice for one listen.
+  //
+  // The script is written far faster than it is spoken, so it is usually in
+  // the cache within a few seconds of the first word. Until it is, the panel
+  // says it is waiting rather than showing nothing, and an episode that is
+  // never cached - an attachment episode, which is deliberately private -
+  // says that instead of waiting forever.
+  var captionSentences = [];
+  var captionStamp = "";
+  var captionTimer = null;
+  var captionPolls = 0;
+
+  //: How often to ask for a script that has not landed yet, and how many
+  //: times. Six tries over about twelve seconds: the script finishes well
+  //: before the audio does, and an episode whose script is not cached by then
+  //: is one that is not going to be.
+  var CAPTION_POLL_MS = 2000;
+  var CAPTION_POLL_MAX = 6;
+
+  function captionsOn(){
+    var panel = document.getElementById("ccPanel");
+    return !!(panel && panel.classList.contains("on"));
+  }
+
+  function resetCaptions(){
+    captionSentences = [];
+    captionStamp = "";
+    captionPolls = 0;
+    if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
+  }
+
+  function fetchCaptions(){
+    if(!episodeStamp) return;
+    if(captionStamp === episodeStamp && captionSentences.length) return;
+    if(captionPolls >= CAPTION_POLL_MAX){ renderCaptions(); return; }
+    captionPolls++;
+    var parts = episodeStamp.split("|");
+    var stamp = episodeStamp;
+    fetch("/api/transcript?q=" + encodeURIComponent(parts[0]) +
+          "&minutes=" + encodeURIComponent(parts[1]) +
+          "&context=" + encodeURIComponent(parts[2] || ""))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        // The listener may have moved on while this was in flight.
+        if(!data || stamp !== episodeStamp) return;
+        if((data.sentences || []).length){
+          captionSentences = data.sentences;
+          captionStamp = stamp;
+          captionPolls = CAPTION_POLL_MAX;   // stop asking
+        }
+        renderCaptions();
+      })
+      // Captions that fail to load must never disturb playback, which is the
+      // same rule the sources panel keeps.
+      .catch(function(){});
+  }
+
+  // Which sentence is being spoken, near enough to read along with.
+  //
+  // Estimated from characters rather than measured, and that is a real
+  // approximation worth naming: the audio is one PCM stream with no sentence
+  // marks in it, so there is nothing to measure against. Speech time is close
+  // to proportional to character count at a fixed rate, which is what the
+  // pace controller is holding it to - so the highlight lands within a
+  // sentence or so, and a listener reading along never notices.
+  //
+  // The denominator is the *planned* length rather than what has buffered:
+  // `FamAudio.duration()` grows as the stream arrives, so dividing by it
+  // would keep the highlight pinned near the end for the whole episode.
+  function captionIndexNow(){
+    if(!captionSentences.length) return 0;
+    var total = 0, lengths = [];
+    captionSentences.forEach(function(line){
+      var n = String(line || "").length || 1;
+      lengths.push(n); total += n;
+    });
+    var spoken = FamAudio.position();
+    var whole = FamAudio.isComplete() ? FamAudio.duration()
+                                      : captionTotalSeconds();
+    if(!(whole > 0)) return 0;
+    var through = Math.max(0, Math.min(1, spoken / whole)) * total;
+    var running = 0;
+    for(var i = 0; i < lengths.length; i++){
+      running += lengths[i];
+      if(through <= running) return i;
+    }
+    return lengths.length - 1;
+  }
+
+  function captionTotalSeconds(){
+    var parts = (episodeStamp || "").split("|");
+    var minutes = parseInt(parts[1], 10);
+    if(!(minutes > 0)) minutes = selectedLengthMinutes;
+    return minutes * 60;
+  }
+
+  function renderCaptions(){
+    var box = document.getElementById("cc-text");
+    if(!box) return;
+    if(!captionsOn()){
+      box.innerHTML = "Displayed here when captions are turned on.";
+      return;
+    }
+    if(!captionSentences.length){
+      // Three states, and they are different. Still being written is a wait;
+      // an episode that is never cached has no captions at all and saying
+      // "waiting" about it would wait forever.
+      box.innerHTML = captionPolls >= CAPTION_POLL_MAX
+        ? "No transcript for this one \u2014 an episode you attached a file to "
+          + "is never stored, so there is nothing to read back."
+        : "Catching up with the script\u2026";
+      return;
+    }
+    var here = captionIndexNow();
+    // A window rather than the whole script. The panel is four lines tall, and
+    // a transcript that scrolls itself is a reading surface - which a player
+    // is not (CLAUDE.md, on what the cold open got wrong).
+    var from = Math.max(0, here - 1);
+    var lines = captionSentences.slice(from, here + 3);
+    box.innerHTML = lines.map(function(line, i){
+      var text = escapeHtml(String(line || "").trim());
+      return (from + i === here) ? "<mark>" + text + "</mark>" : text;
+    }).join(" ");
+  }
+
+  // Runs only while the panel is open. A timer redrawing a hidden element on
+  // every episode would be the whole app paying for a feature nobody turned
+  // on.
+  function startCaptionTicker(){
+    if(captionTimer) clearInterval(captionTimer);
+    captionTimer = setInterval(function(){
+      if(!captionsOn()){ clearInterval(captionTimer); captionTimer = null; return; }
+      if(!captionSentences.length){ fetchCaptions(); return; }
+      renderCaptions();
+    }, captionSentences.length ? 400 : CAPTION_POLL_MS);
+  }
+
+  // The copy button on the captions panel. It used to toast "Transcript
+  // copied" and copy nothing at all, which is the control-with-nothing-behind
+  // -it failure in its worst form: it said the thing had happened.
+  function copyTranscript(){
+    if(!captionSentences.length){
+      toast("No transcript for this one yet");
+      return;
+    }
+    var text = captionSentences.join(" ");
+    var done = function(){ toast("Transcript copied \u2713"); };
+    var failed = function(){ toast("Could not copy that"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(failed);
+      return;
+    }
+    // Older WebKit, and any context where the async clipboard is unavailable.
+    try {
+      var box = document.createElement("textarea");
+      box.value = text;
+      box.style.position = "fixed";
+      box.style.opacity = "0";
+      document.body.appendChild(box);
+      box.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(box);
+      ok ? done() : failed();
+    } catch(e){ failed(); }
+  }
+
   function showThreadSuggestion(){
     var chip = document.getElementById("goDeeperSuggestion");
     if(!chip) return;
@@ -3507,7 +3868,21 @@
     rememberEpisode(title, minutes, context || "");
     var episodeTopicId = bankTopicId || "";
     var reportedOutcome = false;
+    reportOutcomeIfHeard = function(heard, whole){
+      if(reportedOutcome || !(whole > 0)) return;
+      if(heard / whole < FINISHED_SHARE) return;
+      reportedOutcome = true;
+      // The thread rides along, exactly as it does on the end-of-episode
+      // path, so Go Deeper can offer it back later without another lookup.
+      recordFamEvent("complete", episodeTopicId, title, episodeThread);
+    };
     setEchoed(false);
+    // Both controls open dark and are corrected from the server, because the
+    // episode may already be on the shelf or already vibed from another
+    // device. The vibe state is asked for with the thread a moment later;
+    // this is the same question for the save control.
+    setSaved(false);
+    setTimeout(refreshSavedState, 0);
     markPlaying();
     awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
     FamAudio.play(title, minutes, {
@@ -3522,20 +3897,32 @@
         // thread is usually already in the cache and the chip is ready
         // before the listener thinks to reach for Go Deeper.
         setTimeout(fetchEpisodeThread, 6000);
+        // And the sources, for the same reason and on the same clock.
+        //
+        // This is why the strip was never on screen: it was fetched in
+        // `onEnd` and when Go Deeper opened, and nowhere else - so the one
+        // moment it is actually for, somebody listening and wondering where
+        // this came from, was the one moment it was never asked for. Tried
+        // twice, because provenance lands with the finished script and a
+        // 10-minute episode's script takes longer to write than a 2-minute
+        // one's.
+        setTimeout(fetchEpisodeSources, 6000);
+        setTimeout(fetchEpisodeSources, 20000);
       },
       onEnd: function(){
         awaitingFirstAudio = "";
         refreshProgressNow();
         stopProgress();
         setPlayState(false);
+        reportOutcomeIfHeard = null;
         fetchEpisodeThread();
         fetchEpisodeSources();
         // Finishing is the strongest taste signal there is, and only the
-        // client knows it happened.
+        // client knows it happened. Usually already recorded by now - the
+        // ticker calls it at 85% - and this is the case where an episode ran
+        // out of substance and ended early, which is still finished.
         if(!reportedOutcome){
           reportedOutcome = true;
-          // The thread rides along on the completion, so Go Deeper can offer
-          // it back later without another lookup.
           recordFamEvent("complete", episodeTopicId, title, episodeThread);
         }
         noteResume(title, minutes, 0);   // finished: nothing left to resume
@@ -3588,7 +3975,8 @@
     currentPlayingTopicKey = key;
     document.getElementById("p-title").textContent = t.title;
     document.getElementById("p-src").textContent = "from " + t.source;
-    document.getElementById("cc-text").innerHTML = t.caption;
+    document.getElementById("cc-text").innerHTML =
+      "Displayed here when captions are turned on.";
     var isFromSearch = pendingFromSearch;
     pendingFromSearch = false;
     // Decides where the popup's "Back to ..." goes, so it names the place the
@@ -3611,6 +3999,7 @@
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
+    resetCaptions();
     document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
     clearSources();
     panel.dataset.key = key;
@@ -3657,15 +4046,15 @@
     var nextKey = topics[nextIndex];
     generate(nextKey, currentAlbumForPlayer);
   }
-  function playerTapAdvance(e){
-    if(currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer]){
-      playNextInAlbum();
-      return;
-    }
-    var ids = Object.keys(myFamTopics);
-    if(!ids.length){ toast("Nothing queued yet"); return; }
-    startBankTopic(ids[Math.floor(Math.random() * ids.length)]);
-  }
+  // `playerTapAdvance` used to live here, wired to the whole of `.mini-stage` -
+  // which is `flex:1`, so it was most of the player. A tap anywhere that was
+  // not a button either jumped to the next episode in the album or, with no
+  // album, **generated a random topic off myFAM**: an episode nobody asked
+  // for, costing a model call and a GPU, in place of whatever was playing.
+  //
+  // Removed at the owner's direction, and there is nothing to put back in its
+  // place: the swipe-up gesture below still moves through an album, and it is
+  // the one the `next-hint` label actually advertises.
 
   (function(){
     var playerScreen = document.getElementById("screen-player");
@@ -3700,17 +4089,23 @@
     var on = panel.classList.contains("on");
     if(on){
       panel.classList.remove("on"); panel.classList.add("off");
-      document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
-    clearSources();
-      clearSources();
+      // Note what is *not* here any more: two calls to `clearSources()`, one
+      // of them mis-indented under the line above. Switching captions off
+      // wiped the sources strip, which is a different control on a different
+      // row about a different thing.
+      if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
+      renderCaptions();
       icon.classList.remove("on");
-    } else {
-      var key = panel.dataset.key;
-      var t = TOPICS[key];
-      panel.classList.remove("off"); panel.classList.add("on");
-      document.getElementById("cc-text").innerHTML = t.caption;
-      icon.classList.add("on");
+      return;
     }
+    panel.classList.remove("off"); panel.classList.add("on");
+    icon.classList.add("on");
+    // Ask immediately, then keep asking until it lands. The script is written
+    // far faster than it is spoken, so this usually resolves on the first try
+    // even when captions are turned on during the opening sentence.
+    renderCaptions();
+    fetchCaptions();
+    startCaptionTicker();
   }
 
   // One episode, one transport.
@@ -3839,6 +4234,12 @@
     // Passwords are masked and kept out of autofill's way. Reset every time,
     // or a password modal would leave the next text modal masked.
     input.type = opts.inputType || "text";
+    // One shared input serves every modal in the app - naming a mix, picking a
+    // handle, typing a password - so the browser was offering whatever had
+    // last been typed into it as a suggestion on all of them. A handle typed
+    // once came back as a recommendation over the field for somebody's name.
+    input.setAttribute("autocomplete",
+      opts.inputType === "password" ? "new-password" : "off");
     document.getElementById("modalConfirmBtn").textContent = opts.confirmLabel || "Save";
     _modalConfirmHandler = opts.onConfirm;
     document.getElementById("modalOverlay").classList.add("active");
@@ -4182,10 +4583,37 @@
   }
 
   // ---------------- Add topic ----------------
+  // A title from the question, for the moment before the real one exists.
+  //
+  // **Provisional by design.** The episode's own name is written by the model
+  // on a trailing marker line, so it is not known until the script is
+  // finished - which is after the first word is already playing. This stands
+  // in until `/api/next` answers, and `applyEpisodeTitle` replaces it.
+  //
+  // It is also the permanent fallback for anything that never reached the
+  // cache, which is what an attachment episode is by design.
+  //
+  // Title Case on the whole question was worse than doing nothing: it read as
+  // somebody's own words handed back to them with capital letters. The small
+  // words stay small, so it reads as a title rather than as a transcript of a
+  // search box.
+  var TITLE_SMALL_WORDS = {
+    a:1, an:1, and:1, as:1, at:1, but:1, by:1, for:1, from:1, in:1,
+    into:1, is:1, nor:1, of:1, on:1, or:1, over:1, per:1, the:1, to:1, up:1,
+    via:1, vs:1, with:1
+  };
+
   function deriveTitleFromPrompt(promptText){
-    var words = promptText.trim().replace(/\s+/g, " ").split(" ");
+    var words = String(promptText || "").trim().replace(/\s+/g, " ").split(" ");
     var take = words.slice(0, 7);
-    var title = take.map(function(w){ return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+    var title = take.map(function(w, i){
+      var lower = w.toLowerCase();
+      // Never the first word, and never a word somebody capitalised
+      // themselves - "NATO" and "iPhone" are not ours to lower-case.
+      if(i > 0 && TITLE_SMALL_WORDS[lower] && w === lower) return lower;
+      if(w !== lower) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
     if(words.length > 7) title += "…";
     return title;
   }
@@ -4328,6 +4756,9 @@
   var mixes = [];
   var mixStarters = [];
   var topicBank = [];
+  //: Whether `topicBank` came back in this listener's taste order or the
+  //: bank's own. The picker's heading reads this rather than asserting.
+  var topicBankRanked = false;
   var currentMixId = null;
   var pickerSelection = [];
   var pickerMixId = null;      // null => the picker is creating a new mix
@@ -4357,8 +4788,13 @@
         if(r.status === 401) return { locked: true };
         if(!r.ok) throw new Error("mixes unavailable"); return r.json();
       }),
+      // `ranked=1` is what makes the picker's own heading true. It said
+      // "Suggested topics" over the bank in `topic.id` order, which is
+      // alphabetical by slug and suggests nothing. Ranked, it is the same
+      // taste model every personal rail on myFAM uses - and it is a *sort*,
+      // so the whole bank is still there to be searched.
       topicBank.length ? Promise.resolve({topics: topicBank})
-                       : fetch("/api/topics").then(function(r){
+                       : fetch(withInterests("/api/topics?ranked=1")).then(function(r){
                            // An error body is still JSON. Without this check the
                            // bank silently becomes undefined and the picker dies
                            // with a console error the listener never sees.
@@ -4370,6 +4806,7 @@
       mixes = res[0].mixes;
       mixStarters = res[0].starters || [];
       topicBank = res[1].topics;
+      if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
       renderMixList();
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
@@ -4466,12 +4903,23 @@
     }
     // Public mixes appear on the profile. Private is the default: a mix is a
     // routine, and a routine is personal until someone decides otherwise.
-    html += '<div class="mix-vis" onclick="toggleMixVisibility()">'
+    //
+    // **The switch means private, and the lock is on the switch.** It used to
+    // mean public, which made "on" the state in which other people could see
+    // your mix - and a toggle whose lit position is the *less* private one is
+    // read the wrong way round by everybody who has ever used a phone. On
+    // with a closed padlock and the word Private; off with an open one and
+    // the word Public. The word is beside the switch and the lock is on the
+    // knob, so the two halves of the state cannot be read separately.
+    html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
+      + ' role="switch" aria-checked="' + (m.public ? "false" : "true") + '"'
+      + ' aria-label="Private">'
       + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
       + '<div class="mix-vis-s">' + (m.public
-          ? "Shown on your profile"
+          ? "Public will be displayed on your profile"
           : "Only you can see this mix") + '</div></div>'
-      + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span></span></div>'
+      + '<div class="mix-switch' + (m.public ? "" : " on") + '"><span>'
+      + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
       + '</div>';
     html += '<button class="mix-new" onclick="editMixTopics()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -4677,8 +5125,15 @@
       return (t.title + " " + t.subtitle + " " + t.query).toLowerCase().indexOf(term) !== -1;
     });
     if(matches.length){
+      // Says what the order actually is. "Suggested topics" over a list
+      // nobody had ranked was a claim the screen could not back, which is the
+      // same failure as a profile inventing a number - smaller, and the same
+      // shape. `personalised` comes from the server and is false for a
+      // listener who has expressed no preference, in which case the order is
+      // the bank's own and the heading says so.
       html += '<div class="mix-meta" style="margin:14px 0 8px;">'
-        + (term ? "Matching topics" : "Suggested topics") + '</div>';
+        + (term ? "Matching topics"
+                : (topicBankRanked ? "Suggested for you" : "All topics")) + '</div>';
       html += matches.map(function(t){
         var on = selectionIndex(t.id) !== -1;
         return '<div class="mix-topic' + (on ? " chosen" : "") + '" '
@@ -4695,9 +5150,13 @@
   }
 
   function reloadTopicBank(){
-    fetch("/api/topics")
+    fetch(withInterests("/api/topics?ranked=1"))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ topicBank = d.topics; renderMixPicker(); })
+      .then(function(d){
+        topicBank = d.topics;
+        topicBankRanked = !!d.personalised;
+        renderMixPicker();
+      })
       .catch(function(){ toast("Still cannot reach the topic list"); });
   }
 
@@ -4815,7 +5274,11 @@
     // the listener had never heard of.
     followers:      "What your friends are listening to",
     most_played:    "What FAM can't stop listening to",
-    world_trending: "Trending"
+    world_trending: "Trending",
+    // The weekly recap's replacement. A shelf rather than the popup it
+    // replaces: the recap was one episode *about* somebody's week, so a thin
+    // week produced an episode about having had a thin week.
+    missed:         "What you missed last week"
   };
 
   // Which rails open a fuller surface from the heading itself. Nothing does
@@ -4842,6 +5305,9 @@
     // falls through to the rail's reason, unchanged.
     if(topic && topic.angle) return escapeHtml(topic.angle);
     if(sectionKey === "from_history") return "Because of what you have played";
+    // True by construction: every tile on this rail is one this app put in
+    // front of this listener in the last week and they did not take.
+    if(sectionKey === "missed")       return "<b>Went past you</b> this week";
     if(sectionKey === "followers")    return "<b>Your friends</b> played this";
     // Says the opposite of the others on purpose. This is the one rail that is
     // not a reflection of an established taste, and a card that claimed
@@ -4863,7 +5329,7 @@
   // than something the server needs to know.
   var myfamLengthMinutes = (function(){
     var kept = parseInt(localPrefs().myfam_minutes, 10);
-    return (kept >= 1 && kept <= 10) ? kept : 3;
+    return (kept >= 1 && kept <= 10) ? kept : 2;
   })();
 
   function openMyFamLengthMenu(){
@@ -5155,13 +5621,15 @@
     }
 
     panel.hidden = false;
-    // Four marks and a number. More than that on a phone is a row of dots
-    // nobody can tell apart, and the popup is one tap away.
-    marks.innerHTML = sourcesNow.slice(0, 4).map(function(item){
-      return srcMark(item, 22);
+    // Three marks and a number, overlapped. Three at the owner's direction,
+    // and it is the right number for the corner it now sits in: more than
+    // that at this size is a row of dots nobody can tell apart, and the whole
+    // list is one tap away.
+    marks.innerHTML = sourcesNow.slice(0, 3).map(function(item){
+      return srcMark(item, 20);
     }).join("");
-    count.textContent = sourcesNow.length > 4
-      ? "+" + (sourcesNow.length - 4) : String(sourcesNow.length);
+    count.textContent = sourcesNow.length > 3
+      ? "+" + (sourcesNow.length - 3) : String(sourcesNow.length);
   }
 
   function renderSourceList(){
@@ -5245,6 +5713,12 @@
       .then(function(data){
         // The listener may have moved on while this was in flight.
         if (!data || stamp !== episodeStamp) return;
+        // The first try often lands before the script has finished, so the
+        // answer is "nothing known yet". Leaving what is already on screen is
+        // the only safe direction: a later try replaces it, and an empty
+        // answer that wiped a strip already showing four publishers would be
+        // this panel disappearing halfway through an episode.
+        if (!(data.items || []).length && sourcesNow.length) return;
         renderSources(data);
       })
       // A provenance panel that fails to load must never disturb playback.
@@ -5567,9 +6041,6 @@
   // to navigate home.
   function openMessages(){
     renderThreadList();
-    var sub = document.getElementById("yfRecapSub");
-    if(sub) sub.textContent = AUTH.authenticated
-      ? "Your week, in one episode" : "Needs an account";
     navigate("messages");
     var dot = document.getElementById("msgUnread");
     if(dot) dot.hidden = true;
@@ -5584,13 +6055,12 @@
   // to invent numbers, and every invented one is a promise to keep later.
   function openProfile(){
     setTab("profile");
-    viewingProfile = null;          // your own
     loadProfile();
   }
 
-  // Someone else's profile. Same page, different verbs: you can add them and
-  // message them, and the parts that are only yours - friends, listening time,
-  // the manage links - are simply not there.
+  // Who the person screen is currently showing. Only ever read by that
+  // screen: it decides *what is drawn there*, never which screen is on, which
+  // is the distinction the navigation bug turned on.
   var viewingProfile = null;
 
   // Who the server says we are. There is no way to work this out locally any
@@ -5631,7 +6101,7 @@
       onConfirm: function(email){
         showModal({
           title: "Password",
-          placeholder: "at least 10 characters",
+          placeholder: "at least 8 characters",
           confirmLabel: confirmLabel,
           inputType: "password",
           onConfirm: function(password){ done(email, password); }
@@ -5671,12 +6141,45 @@
     });
   }
 
+  // Log out, then land on the screen a new install lands on.
+  //
+  // It used to log out and leave the listener wherever they were - on the
+  // Settings screen of an app that was now somebody else's, with a toast. The
+  // packet asks for a loader over the screen and then the Sign up / Sign in
+  // page, which is also the honest answer: logging out is the one action that
+  // changes who the whole app belongs to, and the screen should say so.
+  //
+  // The overlay is the splash, which is already the FAM mark over everything.
+  // Half a second, so it reads as the app resetting rather than as a wait.
+  var LOGOUT_SPLASH_MS = 500;
+
   function logOut(){
-    postAuth("/api/auth/logout", {}, "Logged out").then(function(){
-      // A fresh anonymous listener, so the app keeps working with nothing of
-      // theirs on screen.
-      loadMyFam();
-    });
+    showSplash(LOGOUT_SPLASH_MS);
+    fetch("/api/auth/logout", { method: "POST" })
+      .then(function(){ return refreshAuth(); })
+      .catch(function(){})
+      .then(function(){
+        // Everything of theirs, off the screen and out of memory. A shelf or
+        // a friends list left in a variable is the previous listener's data
+        // sitting in the next one's app.
+        friendsData = { following: [], followers: [], friends: [], counts: {} };
+        newFollowers = [];
+        followerPopupShown = {};
+        savedCache = { items: [], folders: [] };
+        viewingProfile = null;
+        mixes = [];
+        try { localStorage.removeItem("fam.prefs"); } catch(e){}
+        stopSpeech();
+        hideNowBar();
+        // Back to the entry screen, the way a new install arrives - the
+        // welcome screen is not on the navigation stack, so it is shown by
+        // name and the stack is reset rather than pushed to.
+        stack = ["welcome"];
+        introMode = "first-run";
+        introSelection = [];
+        loadPrefChoices();
+        showScreen("welcome");
+      });
   }
 
   function changePassword(){
@@ -5685,7 +6188,7 @@
       inputType: "password",
       onConfirm: function(current){
         showModal({
-          title: "New password", placeholder: "at least 10 characters",
+          title: "New password", placeholder: "at least 8 characters",
           confirmLabel: "Change", inputType: "password",
           onConfirm: function(next){
             postAuth("/api/auth/password", { current: current, "new": next },
@@ -5701,7 +6204,11 @@
   function loadProfile(){
     var el = document.getElementById("profileBody");
     if(!el) return;
-    if(viewingProfile){ renderFriendProfile(viewingProfile); return; }
+    // Who followed since they last looked - for the badge on the Friends
+    // tile, and for the popup. Asked here because opening the profile is
+    // when it is about to be drawn.
+    checkNewFollowers();
+
     fetch("/api/profile")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderProfile)
@@ -5710,6 +6217,30 @@
         el.innerHTML = '<div class="pf-note">Could not load your profile. '
           + 'Nothing is lost — this fills in when the server is back.</div>';
       });
+  }
+
+  // The lock on the visibility switch. Two glyphs rather than one rotated
+  // shackle, because "open" has to be recognisable at 11px and a tilted bar
+  // is not.
+  function lockClosedSVG(){
+    return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
+      + 'stroke-linejoin="round" aria-hidden="true">'
+      + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
+      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0v3.1"/></svg>';
+  }
+  function lockOpenSVG(){
+    return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
+      + 'stroke-linejoin="round" aria-hidden="true">'
+      + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
+      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0"/></svg>';
+  }
+
+  // "1 vibe", "2 vibes". Regular plurals only, which is every noun a count
+  // on this page is ever attached to.
+  function plural(n, word){
+    return Number(n) === 1 ? word : word + "s";
   }
 
   function personSVG(size){
@@ -5994,9 +6525,28 @@
   function saveAvatar(dataUrl){
     // Name and handle ride along because `/api/me` writes all three: sending
     // a picture on its own would clear a name somebody had already set.
+    //
+    // **On the identity screen they come from the fields, not from what is
+    // stored.** During the first run nothing is stored yet, and the whole
+    // point of that step is that the picture is part of it - reading the
+    // stored name there would refuse the photo and send somebody back to the
+    // screen they are already on.
+    var onIdentity = document.getElementById("screen-identity")
+                       .classList.contains("active");
     var name = (profileNow && profileNow.name) || "";
     var handle = (profileNow && profileNow.handle) || "";
-    if(!name || !handle){
+    if(onIdentity){
+      name = document.getElementById("identityName").value.trim() || name;
+      handle = (document.getElementById("identityHandle").value.trim() || handle)
+                 .replace(/^@+/, "").toLowerCase();
+    }
+    if(!name || handle.length < 3){
+      if(onIdentity){
+        var note = document.getElementById("identityHandleNote");
+        note.textContent = "A name and a handle first \u2014 then the photo.";
+        note.classList.add("bad");
+        return;
+      }
       toast("Set your name and handle first");
       editIdentity();
       return;
@@ -6009,8 +6559,19 @@
         if(!r.ok) throw new Error(d.error || "Could not save that picture");
         return d;
       });
-    }).then(function(){ loadProfile(); toast("Picture saved"); })
-      .catch(function(err){ toast(err.message); });
+    }).then(function(saved){
+      profileNow = profileNow || {};
+      profileNow.name = saved.name;
+      profileNow.handle = saved.handle;
+      profileNow.avatar = saved.avatar || "";
+      if(onIdentity){
+        drawIdentityPicture(profileNow);
+        toast("Picture saved");
+        return;
+      }
+      loadProfile();
+      toast("Picture saved");
+    }).catch(function(err){ toast(err.message); });
   }
 
   function removeAvatar(){
@@ -6038,22 +6599,27 @@
     return '<div class="pf-hub">'
       + hubTile("openSavedAll()", "Save for Later", "Episodes you kept",
           '<path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/>')
-      + hubTile("openDownloads()", "Downloads", "Play with no signal",
-          '<path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>')
       + hubTile("openMyVibe()", "My Vibe",
-          vibes ? vibes + (vibes === 1 ? " episode" : " episodes") : "Nothing yet",
+          vibes ? vibes + " " + plural(vibes, "episode") : "Nothing yet",
           '<path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/>')
+      // How many people have followed since this listener last looked at who
+      // follows them. Read from the server, which answers it off the follow
+      // graph's own timestamps - so it is a count of a real thing, and opening
+      // the tab is what clears it.
       + hubTile("openFriends()", "Friends",
-          friends ? friends + (friends === 1 ? " friend" : " friends") : "Find people",
-          '<circle cx="9" cy="8" r="3.4"/><path d="M2.6 19a6.4 6.4 0 0112.8 0"/><path d="M16 5.6a3.4 3.4 0 010 6.8"/><path d="M17.5 19a6.5 6.5 0 00-2-4.7"/>')
+          friends ? friends + " " + plural(friends, "friend") : "Find people",
+          '<circle cx="9" cy="8" r="3.4"/><path d="M2.6 19a6.4 6.4 0 0112.8 0"/><path d="M16 5.6a3.4 3.4 0 010 6.8"/><path d="M17.5 19a6.5 6.5 0 00-2-4.7"/>',
+          newFollowers.length)
       + '</div>';
   }
 
-  function hubTile(action, name, sub, paths){
+  function hubTile(action, name, sub, paths, badge){
     return '<div class="pf-hub-tile" onclick="' + action + '">'
       + '<div class="pf-hub-icon"><svg width="16" height="16" viewBox="0 0 24 24" '
       + 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
-      + 'stroke-linejoin="round">' + paths + '</svg></div>'
+      + 'stroke-linejoin="round">' + paths + '</svg>'
+      + (badge ? '<span class="pf-hub-badge">' + badge + '</span>' : '')
+      + '</div>'
       + '<div class="pf-hub-name">' + escapeHtml(name) + '</div>'
       + '<div class="pf-hub-sub">' + escapeHtml(sub) + '</div></div>';
   }
@@ -6091,9 +6657,15 @@
       // Friends is a real number now: the follow graph is built, and a mutual
       // follow is what a friend is. Every one of these comes from the event
       // log or that graph - nothing here is invented.
+      // Every one of these comes from the event log or the follow graph -
+      // nothing here is invented - and each is worded for the number it
+      // actually holds. "1 vibes" is the tell that a count was printed
+      // rather than read.
       + '<div class="pf-counts"><b>' + p.finished + '</b> finished · <b>'
-      + (p.echo_count || 0) + '</b> vibed · <b onclick="openFriends()">'
-      + (follows.friends || 0) + '</b> friends</div>'
+      + (p.echo_count || 0) + '</b> ' + plural(p.echo_count || 0, "vibe")
+      + ' · <b onclick="openFriends()">'
+      + (follows.friends || 0) + '</b> '
+      + plural(follows.friends || 0, "friend") + '</div>'
       + '</div></div>';
 
     html += '<div class="pf-acts">'
@@ -6193,10 +6765,11 @@
           "openMyFamLengthMenu()");
     html += '<div class="set-group">Account</div>';
     if(AUTH.authenticated){
+      // No "Weekly recap" row. The popup it switched off is gone - myFAM's
+      // "What you missed last week" rail replaced it - and a settings row
+      // that turns off something nothing shows is the control-with-nothing-
+      // behind-it failure with a longer fuse, because it reads as working.
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
-        + settingsRow("Weekly recap",
-            (recapData && recapData.enabled === false) ? "Off" : "On",
-            "toggleWeeklyRecap()")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
@@ -6207,8 +6780,8 @@
       html += settingsRow("Create account", "", "createAccount()")
         + settingsRow("Sign in", "", "signIn()")
         + '<div class="set-note">Listening needs no account. What one buys is '
-        + 'durability: saved mixes, your interests and language, and the weekly '
-        + 'recap. Everything you have done already comes with you.</div>';
+        + 'durability: saved mixes, your interests and language, and Save for '
+        + 'Later. Everything you have done already comes with you.</div>';
     }
 
     html += '<div class="set-group">This app</div>'
@@ -6229,16 +6802,6 @@
       showScreen("intro");
     });
   }
-  function toggleWeeklyRecap(){
-    var on = !(recapData && recapData.enabled === false);
-    savePreferences({ weekly_recap: !on }).then(function(){
-      return loadRecap();
-    }).then(function(){
-      renderSettings();
-      toast(on ? "Weekly recap off" : "Weekly recap on");
-    });
-  }
-
   function confirmDeleteAccount(){
     showActionSheet([
       { group: "This deletes everything FAM holds about you, now. It cannot be undone." },
@@ -6320,15 +6883,6 @@
       .catch(function(){ toast("Could not take that back"); });
   }
 
-  // ---------------- Downloads ----------------
-  // The same shelf as Save for Later, filtered to what is actually on this
-  // device. Two views of one list rather than two lists, because a download
-  // is a state of a saved item and not a second kind of thing.
-  function openDownloads(){
-    savedDownloadsOnly = true;
-    openSaved();
-  }
-
   // ---------------- Friends ----------------
   function openFriends(){
     if(!AUTH.authenticated){
@@ -6341,18 +6895,114 @@
       '<div class="pf-empty">Loading…</div>';
     navigate("friends");
     loadFriends();
+    // They are looking at who follows them, so nobody is new any more. Done
+    // **here** and never when the popup is drawn: a badge that cleared itself
+    // the moment a popup appeared would be a count nobody got to read.
+    fetch("/api/friends/seen", { method: "POST" })
+      .then(function(){ newFollowers = []; })
+      .catch(function(){});
   }
 
   var friendsData = { following: [], followers: [], friends: [], counts: {} };
 
+  //: Who followed since this listener last opened the Friends tab. Drives the
+  //: badge on the profile's Friends tile and the popup below.
+  var newFollowers = [];
+  //: Who has already been shown in a popup this session, so a refresh does
+  //: not raise the same person again. Deliberately in memory rather than
+  //: stored: the badge is the durable record, and this is only about not
+  //: repeating a popup between two fetches a minute apart.
+  var followerPopupShown = {};
+
   function loadFriends(){
-    fetch("/api/friends")
+    return fetch("/api/friends")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ friendsData = d; renderFriends(); })
+      .then(function(d){
+        friendsData = d;
+        newFollowers = d.new_followers || [];
+        renderFriends();
+        return d;
+      })
       .catch(function(){
         document.getElementById("friendsBody").innerHTML =
           '<div class="pf-empty">Could not load your friends list.</div>';
       });
+  }
+
+  // --- "___ started following you" -------------------------------------
+  //
+  // There is no push here and there is not going to be until the app exists,
+  // so the honest moment to say this is the next time the listener's own app
+  // asks - which is on open and whenever the profile loads. One popup at a
+  // time, oldest first, and it neither clears the badge nor marks anything
+  // seen: the Friends tab does both.
+  function checkNewFollowers(){
+    if(!AUTH.authenticated) return;
+    fetch("/api/friends")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        friendsData = d;
+        newFollowers = d.new_followers || [];
+        var next = newFollowers.filter(function(p){
+          return !followerPopupShown[p.user_id];
+        })[0];
+        if(next) showFollowerPopup(next);
+      })
+      .catch(function(){});
+  }
+
+  var followerNow = null;
+
+  function showFollowerPopup(person){
+    // Never two overlays deep. This and the what's-next popup are triggered
+    // from different places and could in principle land together.
+    closeNextUp();
+    followerNow = person;
+    followerPopupShown[person.user_id] = true;
+    var av = document.getElementById("nfAvatar");
+    av.style.background = personHue(person.handle || person.name);
+    av.innerHTML = avatarHTML(person, 64);
+    document.getElementById("nfName").innerHTML =
+      "<b>" + escapeHtml(person.name || ("@" + (person.handle || "someone")))
+      + "</b> started following you";
+    document.getElementById("nfHandle").textContent =
+      person.handle ? "@" + person.handle : "";
+    // Offering "Follow back" to somebody who is already a friend is a control
+    // that cannot do anything. The server says which, so this does not have
+    // to go and ask.
+    var back = document.getElementById("nfBack");
+    back.hidden = !!person.follows_back;
+    document.getElementById("nfAlready").hidden = !person.follows_back;
+    document.getElementById("followerOverlay").classList.add("active");
+  }
+
+  function closeFollowerPopup(){
+    document.getElementById("followerOverlay").classList.remove("active");
+    followerNow = null;
+  }
+
+  function followBack(){
+    if(!followerNow){ closeFollowerPopup(); return; }
+    var who = followerNow;
+    fetch("/api/friends/follow", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ user_id: who.user_id })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "Could not follow them back");
+        return d;
+      });
+    }).then(function(){
+      closeFollowerPopup();
+      toast("You and " + (who.name || "they") + " are friends now");
+      if(document.getElementById("screen-friends").classList.contains("active")){
+        loadFriends();
+      }
+      if(document.getElementById("screen-profile").classList.contains("active")){
+        loadProfile();
+      }
+    }).catch(function(e){ toast(e.message); });
   }
 
   function personRow(person, action, label){
@@ -6485,12 +7135,41 @@
       .concat(friendsData.following || [], friendsData.followers || [])
       .filter(function(p){ return p.handle === handle; })[0];
     viewingProfile = known || { handle: handle, name: "", user_id: "" };
-    navigate("profile");
-    loadProfile();
+    navigate("person");
+    renderFriendProfile(viewingProfile);
+    // What they have chosen to publish: their public mixes, their vibes and
+    // the interests they have not hidden. Fetched after the screen is drawn,
+    // so tapping a row is never a wait.
+    loadPersonProfile(viewingProfile);
   }
 
-  function renderFriendProfile(person){
-    document.getElementById("pfTop").innerHTML =
+  function loadPersonProfile(person){
+    var handle = person.handle || "";
+    var query = handle ? "handle=" + encodeURIComponent(handle)
+                       : "user_id=" + encodeURIComponent(person.user_id || "");
+    fetch("/api/person?" + query)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        // They may have moved on, or opened somebody else, while this was in
+        // flight - the same guard every other late-arriving fetch here keeps.
+        if(!d || !viewingProfile || viewingProfile.handle !== handle) return;
+        if(!document.getElementById("screen-person").classList.contains("active")) return;
+        renderFriendProfile(viewingProfile, d);
+      })
+      .catch(function(){ /* the standing from the graph is still drawn */ });
+  }
+
+  // Their profile. Two sources, and the split is deliberate: the **standing**
+  // comes from the follow graph, which both sides can already see, and
+  // everything else comes from `/api/person`, which returns only what they
+  // actively chose to publish - public mixes, vibes, and the interests they
+  // have not hidden.
+  //
+  // What is still not here, and must not arrive: a play count, a completion
+  // total, or subjects inferred from behaviour. What somebody has listened to
+  // is theirs, and no endpoint hands one listener another one's history.
+  function renderFriendProfile(person, published){
+    document.getElementById("personTop").innerHTML =
       '<button class="pf-btn sq" onclick="goBack()" aria-label="Back">'
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>'
@@ -6510,16 +7189,18 @@
     var standing = (following && followsYou) ? "friends"
                  : following ? "you follow them"
                  : followsYou ? "follows you" : "";
+    var pub = published || {};
+    var vibes = pub.vibe_count || 0;
 
     var html = '<div class="pf-id"><div class="pf-pic">'
-      + avatarHTML(person, 78) + '</div><div>'
+      + avatarHTML(pub.avatar ? pub : person, 78) + '</div><div>'
       + '<div class="pf-name">'
-      + escapeHtml(person.name || ("@" + (person.handle || ""))) + '</div>'
+      + escapeHtml(pub.name || person.name || ("@" + (person.handle || ""))) + '</div>'
       + '<div class="pf-at">@' + escapeHtml(person.handle || "") + '</div>'
-      // Nothing counted. What somebody has finished, or vibed, is on their own
-      // profile; no endpoint hands it to anybody else, and a number invented
-      // here would be a promise to keep later.
-      + (standing ? '<div class="pf-counts">' + standing + '</div>' : '')
+      + '<div class="pf-counts">'
+      + (vibes ? '<b>' + vibes + '</b> ' + plural(vibes, "vibe")
+                 + (standing ? ' · ' : '') : '')
+      + escapeHtml(standing) + '</div>'
       + '</div></div>';
 
     if(person.user_id){
@@ -6537,12 +7218,57 @@
         + '</div>';
     }
 
-    html += famIsFam();
-    html += '<div class="pf-note">This is what the follow graph knows about '
-      + 'them, and no more. What somebody has listened to is theirs \u2014 FAM '
-      + 'has no endpoint that hands one listener another one\u2019s history, '
-      + 'and a number invented here would be a promise to keep later.</div>';
-    document.getElementById("profileBody").innerHTML = html;
+    // Their interests, as pills - the ones they have not hidden. Read from
+    // `interest_labels`, which speaks in the eight words a listener was
+    // actually offered rather than in ranking subtags.
+    var labels = pub.interest_labels || [];
+    if(labels.length){
+      html += '<div class="pf-tags">' + labels.map(function(t){
+        return '<div class="pf-tag">' + escapeHtml(t) + '</div>';
+      }).join("") + '</div>';
+    }
+
+    // Their public DailyFAM mixes. Private is the default, so anything here
+    // is a mix they switched on themselves.
+    html += foldersBlock(pub.mixes || [], false);
+
+    // And their vibes, which are by definition public: a vibe *is* the act of
+    // showing somebody an episode.
+    var theirVibes = pub.vibes || [];
+    html += '<div class="pf-rail">Vibes <em>' + vibes + '</em></div>';
+    if(theirVibes.length){
+      // The same card the listener's own vibes are drawn as, so two lists of
+      // the same thing look like the same thing.
+      html += '<div class="pf-echoes">' + theirVibes.slice(0, 4).map(function(v, i){
+        return '<div class="pf-echo" onclick="playPersonVibe(' + i + ')">'
+          + '<div class="t">' + escapeHtml(v.title || v.query) + '</div>'
+          + '<div class="m">vibed · ' + (v.minutes || 2) + ' min</div></div>';
+      }).join("") + '</div>';
+    } else {
+      html += '<div class="pf-empty">Nothing vibed yet.</div>';
+    }
+    personVibes = theirVibes;
+
+    html += '<div class="pf-note">This is what they have chosen to show: '
+      + 'public mixes, vibes, and the interests they share. What somebody has '
+      + 'listened to is theirs \u2014 FAM has no endpoint that hands one '
+      + 'listener another one\u2019s history, and a number invented here '
+      + 'would be a promise to keep later.</div>';
+    document.getElementById("personBody").innerHTML = html;
+  }
+
+  var personVibes = [];
+
+  function playPersonVibe(i){
+    var v = personVibes[i];
+    if(!v) return;
+    var key = "pvibe_" + i + "_" + Date.now();
+    TOPICS[key] = { title: v.title || v.query,
+                    source: "vibed by " + (viewingProfile && viewingProfile.name
+                                           ? viewingProfile.name : "a friend"),
+                    caption: "", prompt: v.query,
+                    exploreMinutes: v.minutes, titleOverridden: true };
+    generate(key);
   }
 
   function messagePerson(userId){
@@ -6553,31 +7279,189 @@
     openThreadWith(person);
   }
 
-  function editIdentity(){
-    showModal({
-      title: "Your name",
-      placeholder: "e.g. Ian Solomon",
-      confirmLabel: "Next",
-      onConfirm: function(name){
-        showModal({
-          title: "Pick a handle",
-          placeholder: "iansolomon",
-          confirmLabel: "Save",
-          onConfirm: function(handle){
-            fetch("/api/me", {
-              method: "POST", headers: {"Content-Type": "application/json"},
-              body: JSON.stringify({ name: name, handle: handle })
-            }).then(function(r){
-              return r.json().then(function(d){
-                if(!r.ok) throw new Error(d.error || "Could not save that");
-                return d;
-              });
-            }).then(function(){ loadProfile(); toast("Saved"); })
-              .catch(function(err){ toast(err.message); });
-          }
-        });
-      }
+  // ---------------- Who you are ----------------
+  //
+  // Name, handle and picture, on one screen, used two ways - the same
+  // arrangement `screen-intro` has with Settings and for the same reason:
+  // these are the same three fields, and a second copy of them is a second
+  // copy to keep in step.
+  //
+  // It replaces two chained modals that asked for a name and then a handle
+  // with no way back between them, no picture, and placeholders reading
+  // "e.g. Ian Solomon" and "iansolomon" - a real-looking name and handle
+  // offered to every listener in the app.
+  //
+  // `identityMode` decides three things and nothing else: whether there is an
+  // X, what the docked button says, and where saving goes. It is the lesson
+  // `introMode` already carries - see the settled constraint about the intro
+  // screen not being on the navigation stack, which is the trap this screen
+  // would otherwise fall into as the fourth one.
+  var identityMode = "first-run";
+  //: Where an editor returns to, recorded by *name* when it is opened. The
+  //: identity screen is shown with `showScreen` and never pushed, so a
+  //: `goBack()` from it pops whatever was under it - which is the trap the
+  //: intro screen fell into three times.
+  var identityReturn = "profile";
+  //: Which interests this listener has chosen to keep off their profile.
+  //: Edited here, sent as `hidden_interests`.
+  var identityHidden = [];
+
+  function openIdentity(mode, returnTo){
+    identityMode = mode || "first-run";
+    identityReturn = returnTo || "profile";
+    var editing = identityMode === "edit";
+    document.getElementById("identityTop").hidden = !editing;
+    document.getElementById("identitySkip").hidden = editing;
+    document.getElementById("identityEditOnly").hidden = !editing;
+    document.getElementById("identityNextBtn").textContent =
+      editing ? "Save" : "Next";
+    document.getElementById("identityHeading").textContent =
+      editing ? "Edit profile" : "Who are you?";
+    document.getElementById("identityLede").textContent = editing
+      ? "This is what your friends see. Nothing here is on anybody else's "
+        + "screen unless you put it there."
+      : "A name and a handle are how your friends find you, and how a vibe "
+        + "you send says who it is from. Both can change later.";
+
+    // Prefilled from whatever is already stored, so an editor opens on the
+    // current state rather than on empty fields somebody has to retype.
+    var p = profileNow || {};
+    document.getElementById("identityName").value = p.name || "";
+    document.getElementById("identityHandle").value = p.handle || "";
+    drawIdentityPicture(p);
+    identityHidden = (PREF_CHOICES.hidden_interests || []).slice();
+    renderSharedInterests();
+    renderIdentityAccountRows();
+    showScreen("identity");
+    if(!editing) setTimeout(function(){
+      document.getElementById("identityName").focus();
+    }, 80);
+  }
+
+  function drawIdentityPicture(p){
+    var box = document.getElementById("identityPic");
+    if(!box) return;
+    var cam = box.querySelector(".pf-cam");
+    box.innerHTML = avatarHTML(p, 78);
+    if(cam) box.appendChild(cam);
+    document.getElementById("identityPicSay").textContent =
+      (p && p.avatar) ? "Tap to change" : "Add a photo";
+  }
+
+  // A handle is stored lower-case and stripped of its @, so it is shown that
+  // way while it is being typed. Otherwise somebody types "Ian" and is shown
+  // "ian" only after saving, which reads as the app correcting them.
+  function cleanHandleInput(input){
+    var at = input.selectionStart;
+    var before = input.value;
+    input.value = before.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
+    if(input.value.length === before.length){
+      try { input.setSelectionRange(at, at); } catch(e){}
+    }
+  }
+
+  // Their interests, with the ones kept private struck through. A tap
+  // toggles. Struck rather than removed, so the choice is visible and
+  // reversible in one tap instead of being a list of what is left.
+  function renderSharedInterests(){
+    var box = document.getElementById("identityShared");
+    if(!box) return;
+    var mine = (PREF_CHOICES.saved ? (PREF_CHOICES.interests || [])
+                                   : (localPrefs().interests || []));
+    var labels = {};
+    (PREF_CHOICES.interests_all || []).forEach(function(row){
+      labels[row.id] = row.label;
     });
+    if(!mine.length){
+      box.innerHTML = '<div class="id-note">Nothing chosen yet. Pick a few '
+        + 'under Interests and they show up here.</div>';
+      return;
+    }
+    box.innerHTML = mine.map(function(id){
+      var off = identityHidden.indexOf(id) !== -1;
+      return '<div class="pf-tag' + (off ? " off" : "") + '" '
+        + 'onclick="toggleSharedInterest(\'' + id + '\')">'
+        + escapeHtml(labels[id] || id) + '</div>';
+    }).join("");
+  }
+
+  function toggleSharedInterest(id){
+    var at = identityHidden.indexOf(id);
+    if(at === -1) identityHidden.push(id); else identityHidden.splice(at, 1);
+    renderSharedInterests();
+  }
+
+  function renderIdentityAccountRows(){
+    var box = document.getElementById("identityAccountRows");
+    if(!box) return;
+    box.innerHTML = AUTH.authenticated
+      ? settingsRow("Signed in as", escapeHtml(AUTH.email), "")
+        + settingsRow("Change password", "", "changePassword()")
+      : '<div class="set-note">Create an account and your name, handle and '
+        + 'picture follow you to any device you sign in on.</div>';
+  }
+
+  function saveIdentity(){
+    var name = document.getElementById("identityName").value.trim();
+    var handle = document.getElementById("identityHandle").value.trim()
+                   .replace(/^@+/, "").toLowerCase();
+    var note = document.getElementById("identityHandleNote");
+    note.classList.remove("bad");
+    if(!name){ toast("A name, please"); return; }
+    if(handle.length < 3){
+      note.textContent = "A handle needs at least three characters.";
+      note.classList.add("bad");
+      return;
+    }
+    var body = { name: name, handle: handle };
+    fetch("/api/me", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "Could not save that");
+        return d;
+      });
+    }).then(function(saved){
+      profileNow = profileNow || {};
+      profileNow.name = saved.name;
+      profileNow.handle = saved.handle;
+      // The sharing choice, only from the editor - the first run has nothing
+      // chosen yet to share or hide.
+      if(identityMode === "edit" && AUTH.authenticated){
+        savePreferences({ hidden_interests: identityHidden });
+      }
+      if(identityMode === "edit"){
+        showScreen(identityReturn);
+        if(identityReturn === "profile") loadProfile();
+        toast("Saved");
+        return;
+      }
+      // The first run carries on to the interests, which is the last step.
+      afterIdentity();
+    }).catch(function(err){
+      // A taken handle is the common one, and it belongs under the field
+      // rather than in a toast that is gone before they have read it.
+      if(/taken/i.test(err.message)){
+        note.textContent = err.message;
+        note.classList.add("bad");
+        return;
+      }
+      toast(err.message);
+    });
+  }
+
+  function skipIdentity(){ afterIdentity(); }
+
+  function closeIdentity(){
+    showScreen(identityReturn);
+    if(identityReturn === "profile") loadProfile();
+  }
+
+  // Kept as a name because the profile's pill calls it, and because this is
+  // what the two chained modals used to be.
+  function editIdentity(){
+    openIdentity("edit", "profile");
   }
 
 
@@ -6834,74 +7718,25 @@
     return null;
   }
 
-  // ---------------- Save for later, and the offline shelf ----------------
-  // Two different things, and the interface has to keep them different:
+  // ---------------- Save for later ----------------
   //
-  //   Save for later  a pointer. Plays like any other episode, and needs the
-  //                   network to do it.
-  //   Download        the audio, on this device, in IndexedDB. Plays with the
-  //                   network off.
+  // A pointer: the question, the length, a title. Playing one works like every
+  // other episode in FAM - it is synthesised, or replayed from the shared
+  // cache, on the tap.
   //
-  // A download is an upgrade to a saved item rather than a second list, which
-  // is why saving asks the question and why one row shows both states.
-  //
-  // The bytes are stored HERE and never on the server - that is what keeps the
-  // settled "no MP3, no audio files" constraint intact. The server streams as
-  // it always does; this stops throwing the samples away.
+  // **It is a toggle, not a question.** Pressing save saves, the icon turns
+  // green, and pressing it again takes it off the shelf - the same shape as
+  // VIBE!, drawn by the same kind of attribute sweep for the same reason.
+  // What used to happen instead was a popup asking whether to download the
+  // audio to the device as well, which made the one-tap action in the player
+  // a two-tap action with a decision in the middle. The download feature and
+  // its popup are both gone.
 
-  var OFFLINE_DB = "fam-offline";
   // Folders are gone from this screen. The parameter is not passed any more,
   // so the shelf is always the whole shelf - `/api/saved` still supports
   // `folder_id` and `saved.py` still files things, which is why an episode
   // filed before this change is not lost, only unfiltered.
-  var savedCache = { items: [], folders: [], downloads: {} };
-  var pendingSave = null;
-
-  function offlineDB(){
-    return new Promise(function(resolve, reject){
-      var req = indexedDB.open(OFFLINE_DB, 1);
-      req.onupgradeneeded = function(){
-        if(!req.result.objectStoreNames.contains("episodes")){
-          req.result.createObjectStore("episodes", { keyPath: "id" });
-        }
-      };
-      req.onsuccess = function(){ resolve(req.result); };
-      req.onerror = function(){ reject(req.error); };
-    });
-  }
-  function offlinePut(id, rate, samples){
-    return offlineDB().then(function(db){
-      return new Promise(function(resolve, reject){
-        var tx = db.transaction("episodes", "readwrite");
-        tx.objectStore("episodes").put({ id: id, rate: rate, samples: samples });
-        tx.oncomplete = function(){ resolve(samples.length * 2); };
-        tx.onerror = function(){ reject(tx.error); };
-      });
-    });
-  }
-  function offlineGet(id){
-    return offlineDB().then(function(db){
-      return new Promise(function(resolve){
-        var req = db.transaction("episodes", "readonly")
-                    .objectStore("episodes").get(id);
-        req.onsuccess = function(){ resolve(req.result || null); };
-        req.onerror = function(){ resolve(null); };
-      });
-    }).catch(function(){ return null; });
-  }
-  function offlineDrop(id){
-    return offlineDB().then(function(db){
-      var tx = db.transaction("episodes", "readwrite");
-      tx.objectStore("episodes").delete(id);
-      return new Promise(function(resolve){ tx.oncomplete = resolve; });
-    }).catch(function(){});
-  }
-
-  // Whether this screen is showing the whole shelf or only what is on the
-  // device. Two views of one list: a download is a *state* of a saved item,
-  // not a second kind of thing, so a second list would be able to disagree
-  // with the first about what a listener has.
-  var savedDownloadsOnly = false;
+  var savedCache = { items: [], folders: [] };
 
   function openSaved(){
     // Unwind the Your FAM sheet only if that is where this came from.
@@ -6914,18 +7749,12 @@
     navigate("saved");
     loadSaved();
   }
-  // Called from the profile hub. `openSaved` is the only entry point that
-  // does not set the filter, so it is reset here rather than inside it -
-  // otherwise "Save for Later" would keep showing downloads after one visit.
-  function openSavedAll(){
-    savedDownloadsOnly = false;
-    openSaved();
-  }
+  // Kept as a name because the profile hub and the smoke check both call it.
+  // There is one shelf now, so there is nothing left for it to reset.
+  function openSavedAll(){ openSaved(); }
+
   function loadSaved(){
-    document.querySelector("#screen-saved .back-row h2").textContent =
-      savedDownloadsOnly ? "Downloads" : "Save for Later";
-    var url = "/api/saved" + (savedDownloadsOnly ? "?downloaded=true" : "");
-    fetch(url).then(function(r){
+    fetch("/api/saved").then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not open your shelf");
         return d;
@@ -6936,139 +7765,109 @@
     }).catch(function(err){
       document.getElementById("svBody").innerHTML =
         '<div class="sv-empty">' + escapeHtml(err.message) + '</div>';
-      document.getElementById("svDownloadBar").textContent = "";
-      document.getElementById("svSwitch").innerHTML = "";
     });
   }
   function renderSaved(d){
-    var dl = d.downloads || {};
-    // Says the number rather than a bar, because the number is the thing that
-    // decides whether the next download needs something cleared first.
-    document.getElementById("svDownloadBar").textContent = dl.unlimited
-      ? "DOWNLOADED " + (dl.used || 0) + " · NO LIMIT ON YOUR PLAN"
-      : "DOWNLOADED " + (dl.used || 0) + " OF " + (dl.limit || 0)
-        + " · " + (dl.remaining || 0) + " SLOT" + ((dl.remaining === 1) ? "" : "S") + " FREE";
-
-    // The way between the two views of one shelf. It says where it goes,
-    // not where you are: a button labelled with the screen you are already
-    // on is the one thing nobody can read.
-    var downloaded = (d.items || []).filter(function(i){ return i.downloaded; }).length;
-    document.getElementById("svSwitch").innerHTML = savedDownloadsOnly
-      ? '<span>All saved episodes</span>'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>'
-      : '<span>Downloads' + (downloaded ? ' · ' + downloaded : '') + '</span>'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>';
-
     var items = d.items || [];
     if(!items.length){
-      // Two different nothings. An empty shelf and an empty device are not
-      // the same state, and telling somebody to "save an episode" when they
-      // have twelve saved is the app not knowing which screen it is on.
-      document.getElementById("svBody").innerHTML = savedDownloadsOnly
-        ? '<div class="sv-empty">Nothing downloaded to this device yet.<br>'
-          + 'Save an episode and say yes to the download, and it plays with '
-          + 'no signal at all.</div>'
-        : '<div class="sv-empty">Nothing here yet.<br>Save an episode from the '
-          + 'player and it lands here.</div>';
+      document.getElementById("svBody").innerHTML =
+        '<div class="sv-empty">Nothing here yet.<br>Press save on the player '
+        + 'and the episode lands here.</div>';
       return;
     }
     document.getElementById("svBody").innerHTML = items.map(function(i){
-      var badge = i.downloaded
-        ? '<span class="sv-dl">↓ on this device</span> · '
-        : "";
       return '<div class="sv-row">'
         + '<div class="sv-art" onclick="playSaved(\'' + i.id + '\')">'
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
         + '<div class="sv-main" onclick="playSaved(\'' + i.id + '\')">'
         + '<div class="sv-title">' + escapeHtml(i.title || i.query) + '</div>'
-        + '<div class="sv-meta">' + badge + i.minutes + ' MIN</div></div>'
+        + '<div class="sv-meta">' + i.minutes + ' MIN</div></div>'
         + '<div class="sv-x" onclick="removeSaved(\'' + i.id + '\')">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>'
         + '</div>';
     }).join("");
   }
-  // Downloads and Save for Later are two views of one shelf, so this is a
-  // switch rather than a second screen: the row you are looking at is the
-  // same row either way, and removing it from one of them is unambiguous.
-  //
-  // `/api/saved/folders` still exists and still works - nothing was deleted
-  // on the server. What went is the chip row, which was filing for a shelf
-  // that does not need it.
-  function toggleSavedView(){
-    savedDownloadsOnly = !savedDownloadsOnly;
-    loadSaved();
-  }
   function savedItem(id){
     return (savedCache.items || []).filter(function(i){ return i.id === id; })[0];
   }
   function removeSaved(id){
+    var item = savedItem(id);
     fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
-      .then(function(){ offlineDrop(id); loadSaved(); toast("Removed"); })
+      .then(function(){
+        // If the episode being unsaved is the one on the player, the green
+        // icon has to go out with it - otherwise the control and the shelf
+        // disagree about the same episode.
+        var ep = currentEpisode();
+        if(item && ep && ep.query === item.query) setSaved(false);
+        loadSaved();
+        toast("Removed");
+      })
       .catch(function(){ toast("Could not remove that"); });
   }
   function playSaved(id){
     var item = savedItem(id);
     if(!item) return;
-    // A downloaded episode plays from this device. Tried first rather than
-    // only when offline: it is instant, costs nothing, and is what the
-    // listener asked for when they downloaded it.
-    offlineGet(id).then(function(stored){
-      if(stored && stored.samples && stored.samples.length){
-        playStoredEpisode(item, stored);
-        return;
-      }
-      if(navigator.onLine === false){
-        // The honest failure. Save for later is a pointer, so without a
-        // network there is nothing to point at - and saying that is better
-        // than a spinner that never resolves.
-        toast("That one is not on this device, and you are offline");
-        return;
-      }
-      TOPICS["_saved"] = {
-        title: item.title || item.query, prompt: item.query,
-        source: "Saved for later",
-        caption: "Generating your live transcript as this plays\u2014"
-      };
-      selectedLengthMinutes = item.minutes || selectedLengthMinutes;
-      generate("_saved");
-    });
-  }
-
-  /* Playback with the network off. Deliberately goes through the same player
-     screen and the same progress and transport code as everything else: an
-     offline episode that looked or behaved differently would be a second
-     player to keep in step, and the two would drift. */
-  function playStoredEpisode(item, stored){
-    var title = item.title || item.query;
-    var minutes = item.minutes || 3;
-    rememberEpisode(item.query, minutes, "");
-    setEchoed(false);
-    currentPlayingTopicKey = null;
-    TOPICS["_saved"] = { title: title, prompt: item.query,
-                         source: "Downloaded", caption: "" };
-    currentPlayingTopicKey = "_saved";
-    navigate("player");
-    document.getElementById("p-title").textContent = title;
-    FamAudio.playStored(stored.samples, stored.rate, {
-      onFirstAudio: function(){
-        startProgress(stored.samples.length / (stored.rate || 22050));
-        applyPlaybackSpeed();
-        showNowBar(title, item.query, minutes, "Downloaded");
-      },
-      onEnd: function(){
-        refreshProgressNow(); stopProgress(); setPlayState(false); hideNowBar();
-      },
-      onError: function(){ toast("Could not play that from this device"); }
-    });
-    setPlayState(true);
+    TOPICS["_saved"] = {
+      title: item.title || item.query, prompt: item.query,
+      source: "Saved for later",
+      caption: "Generating your live transcript as this plays\u2014"
+    };
+    selectedLengthMinutes = item.minutes || selectedLengthMinutes;
+    generate("_saved");
     fetch("/api/saved/" + encodeURIComponent(item.id) + "/played",
           { method: "POST" }).catch(function(){});
   }
 
-  // ---- the download question ----
+  // ---- the save toggle ----
+  //
+  // Mirrors `setEchoed` exactly, including why it is an attribute sweep: the
+  // main player went without a vibe control for a while because that function
+  // listed ids, and a fifth save button would hit the same wall. Every save
+  // control carries `data-save`.
+  var savedNow = false;
+
+  function setSaved(on){
+    savedNow = on;
+    document.querySelectorAll("[data-save]").forEach(function(el){
+      el.classList.toggle("saved-on", on);
+      var lbl = el.querySelector(".lbl");
+      if(lbl) lbl.textContent = on ? "Saved" : "Save";
+      var cap = el.querySelector(".save-cap");
+      if(cap) cap.textContent = on ? "saved" : "save";
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.setAttribute("title", on ? "Take it off Save for Later"
+                                  : "Save for later");
+    });
+  }
+
+  // Asked when an episode starts, so the control opens in the right state.
+  // One question about one episode rather than the whole shelf - the shelf is
+  // a screen, and this is a light on a button.
+  function refreshSavedState(){
+    var ep = currentEpisode();
+    if(!ep || !AUTH.authenticated){ setSaved(false); return; }
+    fetch("/api/saved?q=" + encodeURIComponent(ep.query)
+          + "&minutes=" + ep.minutes)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ setSaved(!!(d && d.saved)); })
+      .catch(function(){});
+  }
+
   function saveForLater(){
     var ep = currentEpisode();
     if(!ep){ toast("Play something first"); return; }
+    if(savedNow){
+      fetch("/api/saved?q=" + encodeURIComponent(ep.query)
+            + "&minutes=" + ep.minutes, { method: "DELETE" })
+        .then(function(){
+          setSaved(false);
+          toast("Taken off Save for Later");
+          if(document.getElementById("screen-saved").classList.contains("active"))
+            loadSaved();
+        })
+        .catch(function(){ toast("Could not take that off"); });
+      return;
+    }
     fetch("/api/saved", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
@@ -7078,107 +7877,12 @@
         if(!r.ok) throw new Error(d.error || "Could not save that");
         return d;
       });
-    }).then(function(d){
-      pendingSave = d.item;
-      openDownloadModal(d.item, d.downloads);
+    }).then(function(){
+      setSaved(true);
+      toast("Saved for later \u2713");
+      if(document.getElementById("screen-saved").classList.contains("active"))
+        loadSaved();
     }).catch(function(e){ toast(e.message); });
-  }
-  function openDownloadModal(item, status){
-    // The save has already happened - it landed on the tap that opened this.
-    // So the title says so, and the only question left is the download. The
-    // old "Download?" left it ambiguous whether anything had been kept, and
-    // both buttons had to carry the word "save" to make up for it.
-    document.getElementById("dlTitle").textContent = "Saved. Keep it on this phone?";
-    document.getElementById("dlSub").textContent =
-      "A download plays with no signal at all \u2014 on the tube, on a plane, "
-      + "anywhere.";
-    var mb = Math.max(1, Math.round((item.estimated_bytes || 0) / 1048576));
-    document.getElementById("dlSize").textContent =
-      "ABOUT " + mb + " MB · "
-      + (status && status.unlimited ? "NO LIMIT ON YOUR PLAN"
-         : (status ? status.remaining + " OF " + status.limit + " SLOTS FREE" : ""));
-    document.getElementById("dlFullBox").hidden = true;
-    document.getElementById("dlConfirmBtn").hidden = false;
-    document.getElementById("dlDismissBtn").textContent = "No, just keep it saved";
-    document.getElementById("dlConfirmBtn").textContent = "Download it too";
-    document.getElementById("downloadOverlay").classList.add("active");
-  }
-  function closeDownloadModal(){
-    document.getElementById("downloadOverlay").classList.remove("active");
-    pendingSave = null;
-    if(document.getElementById("screen-saved").classList.contains("active")) loadSaved();
-  }
-  function confirmDownload(){
-    if(!pendingSave) { closeDownloadModal(); return; }
-    var item = pendingSave;
-    var btn = document.getElementById("dlConfirmBtn");
-    btn.textContent = "Downloading…";
-    fetch("/api/saved/" + encodeURIComponent(item.id) + "/download",
-          { method: "POST" })
-      .then(function(r){
-        return r.json().then(function(d){
-          if(r.status === 409){
-            // The shelf is full. The refusal names what to clear, because a
-            // limit without a remedy is a dead end on a phone.
-            var extra = {};
-            try { extra = JSON.parse(r.headers.get("X-FAM-Quota")
-                  || r.headers.get("X-FAM-Downloads") || "{}"); } catch(e){}
-            showDownloadFull(d.error, extra.candidates || []);
-            throw new Error("__handled__");
-          }
-          if(!r.ok) throw new Error(d.error || "Could not download that");
-          return d;
-        });
-      })
-      .then(function(d){
-        return FamAudio.fetchAll(d.stream).then(function(audio){
-          return offlinePut(item.id, audio.rate, audio.samples);
-        }).then(function(bytes){
-          return fetch("/api/saved/" + encodeURIComponent(item.id)
-                       + "/download/confirm", {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ bytes: bytes })
-          });
-        });
-      })
-      .then(function(){
-        closeDownloadModal();
-        toast("Downloaded — plays with no signal ✓");
-      })
-      .catch(function(e){
-        if(e.message === "__handled__") return;
-        // The slot was taken and the bytes did not arrive, so give it back:
-        // a shelf holding something that is not there is the worst of both.
-        fetch("/api/saved/" + encodeURIComponent(item.id) + "/download",
-              { method: "DELETE" }).catch(function(){});
-        btn.textContent = "Download it too";
-        toast(e.message || "Could not download that");
-      });
-  }
-  function showDownloadFull(message, candidates){
-    document.getElementById("dlTitle").textContent = "No room on this device";
-    document.getElementById("dlSub").textContent = "";
-    document.getElementById("dlSize").textContent = "";
-    document.getElementById("dlFullText").textContent = message || "";
-    document.getElementById("dlCandidates").innerHTML = candidates.map(function(c){
-      return '<div class="dl-cand" onclick="freeDownloadSlot(\'' + c.id + '\')">'
-        + '<div class="dl-cand-title">' + escapeHtml(c.title || c.query) + '</div>'
-        + '<div class="dl-cand-free">Free up</div></div>';
-    }).join("");
-    document.getElementById("dlFullBox").hidden = false;
-    document.getElementById("dlConfirmBtn").hidden = true;
-    // Still closable, and still honest about what happened: the save landed
-    // on the tap before this one, and only the download is being refused.
-    document.getElementById("dlDismissBtn").textContent = "Keep it saved for later";
-  }
-  function freeDownloadSlot(id){
-    fetch("/api/saved/" + encodeURIComponent(id) + "/download", { method: "DELETE" })
-      .then(function(){ offlineDrop(id); })
-      .then(function(){
-        if(pendingSave){ confirmDownload(); }
-        else { closeDownloadModal(); loadSaved(); }
-      })
-      .catch(function(){ toast("Could not free that up"); });
   }
 
   var pendingShareTopicKey = null;
@@ -7435,13 +8139,31 @@
     document.getElementById("reelTitle").textContent = title;
     document.getElementById("reelSub").textContent = sub || "";
     document.getElementById("reelKicker").textContent = kicker || "";
+    var vibeTag = document.getElementById("reelVibe");
+    if(vibeTag) vibeTag.hidden = true;
     document.getElementById("reelCount").textContent = "";
   }
 
   function renderReel(){
     if(!reelCurrent) return;
     var ep = reelCurrent;
-    document.getElementById("reelKicker").textContent = "Someone asked";
+    // A friend both generated this and vibed it. `vibed_by` is only ever
+    // present when both hold - the server decides that, so the card cannot
+    // claim a friendship the graph does not have.
+    var vibe = document.getElementById("reelVibe");
+    if(vibe){
+      var by = ep.vibed_by;
+      vibe.hidden = !by;
+      if(by){
+        var av = document.getElementById("reelVibeAv");
+        av.style.background = personHue(by.handle || by.name);
+        av.innerHTML = avatarHTML(by, 22);
+        document.getElementById("reelVibeT").innerHTML =
+          "<b>" + escapeHtml(by.name) + "</b> vibed with this episode";
+      }
+    }
+    document.getElementById("reelKicker").textContent =
+      ep.vibed_by ? "From a friend" : "Someone asked";
     document.getElementById("reelTitle").textContent = ep.title;
     document.getElementById("reelSub").textContent =
       relativeAge(ep.age_seconds) + " · " + ep.minutes + " min"
@@ -7500,6 +8222,8 @@
     var ep = reelCurrent;
     if(!ep) return;
     setEchoed(false);
+    setSaved(false);
+    setTimeout(refreshSavedState, 0);
     markPlaying();
     FamAudio.play(ep.query, ep.minutes, {
       onFirstAudio: function(){
@@ -7652,6 +8376,8 @@
       .then(function(r){ return r.json(); })
       .then(function(d){
         PREF_CHOICES = d;
+        // The editor draws the pills off `interests` and strikes through
+        // whatever is in `hidden_interests`, so both have to be here.
         if(d.saved){
           introSelection = (d.interests || []).slice();
         } else {
@@ -7695,9 +8421,17 @@
       mode === "login" ? "Log in" : "Sign up";
     document.getElementById("authSubmit").textContent =
       mode === "login" ? "Log in" : "Create account";
-    // Logging in identifies an account that exists; a phone number would be
-    // asking for something it cannot use.
+    // Logging in identifies an account that exists; a phone number is a
+    // second way in rather than a second field to fill, so the form asks for
+    // one identifier and the account carries both.
     document.getElementById("authPhoneField").hidden = (mode === "login");
+    // The one place an address may be remembered: somebody coming back to an
+    // account on a device they have already used. Signing up is a new
+    // identity, so nothing about the last one is offered.
+    document.getElementById("authEmail").setAttribute(
+      "autocomplete", mode === "login" ? "email" : "off");
+    document.getElementById("authPassword").setAttribute(
+      "autocomplete", mode === "login" ? "current-password" : "new-password");
     document.getElementById("authForm").hidden = true;
     showScreen("auth");
   }
@@ -7707,7 +8441,92 @@
   }
   function showAuthForm(){
     document.getElementById("authForm").hidden = false;
+    fillCountryCodes("authPhoneCC");
     document.getElementById("authEmail").focus();
+  }
+
+  // --- phone numbers -------------------------------------------------------
+  //
+  // The server stores exactly one form, E.164, and refuses to guess a country
+  // for a bare national number - two people in different countries would
+  // otherwise own "the same" account. So the country is picked here and the
+  // rest is digits, and what is *shown* while typing is the national
+  // formatting people recognise rather than the form that gets stored.
+  var COUNTRY_CODES = [
+    ["+1", "US"], ["+44", "UK"], ["+61", "AU"], ["+64", "NZ"], ["+353", "IE"],
+    ["+33", "FR"], ["+49", "DE"], ["+34", "ES"], ["+39", "IT"], ["+31", "NL"],
+    ["+46", "SE"], ["+47", "NO"], ["+45", "DK"], ["+351", "PT"], ["+41", "CH"],
+    ["+43", "AT"], ["+32", "BE"], ["+48", "PL"], ["+30", "GR"], ["+52", "MX"],
+    ["+55", "BR"], ["+54", "AR"], ["+56", "CL"], ["+57", "CO"], ["+27", "ZA"],
+    ["+234", "NG"], ["+254", "KE"], ["+20", "EG"], ["+971", "AE"], ["+972", "IL"],
+    ["+90", "TR"], ["+7", "RU"], ["+86", "CN"], ["+81", "JP"], ["+82", "KR"],
+    ["+91", "IN"], ["+92", "PK"], ["+62", "ID"], ["+63", "PH"], ["+65", "SG"],
+    ["+60", "MY"], ["+66", "TH"], ["+84", "VN"], ["+852", "HK"], ["+886", "TW"]
+  ];
+
+  function fillCountryCodes(id){
+    var sel = document.getElementById(id);
+    if(!sel || sel.options.length) return;
+    COUNTRY_CODES.forEach(function(row){
+      var o = document.createElement("option");
+      o.value = row[0];
+      o.textContent = row[0] + " " + row[1];
+      sel.appendChild(o);
+    });
+    sel.value = "+1";
+  }
+
+  // (888) 888-8888 for a ten-digit North American number; plain groups of
+  // digits otherwise, because every other country writes its own differently
+  // and inventing a grouping for one of them is worse than none.
+  function prettyPhone(digits, cc){
+    digits = String(digits || "").replace(/\D/g, "");
+    if(cc === "+1"){
+      digits = digits.slice(0, 10);
+      if(digits.length <= 3) return digits.length ? "(" + digits : "";
+      if(digits.length <= 6) return "(" + digits.slice(0,3) + ") " + digits.slice(3);
+      return "(" + digits.slice(0,3) + ") " + digits.slice(3,6) + "-" + digits.slice(6);
+    }
+    digits = digits.slice(0, 14);
+    return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
+  }
+
+  function formatPhoneInput(input){
+    var row = input.closest(".phone-row");
+    var sel = row ? row.querySelector(".phone-cc") : null;
+    var cc = sel ? sel.value : "+1";
+    var atEnd = input.selectionStart === input.value.length;
+    input.value = prettyPhone(input.value, cc);
+    if(atEnd){
+      try { input.setSelectionRange(input.value.length, input.value.length); }
+      catch(e){}
+    }
+  }
+
+  // What gets sent: the code and the digits, with nothing else in between.
+  function phoneValue(ccId, numId){
+    var sel = document.getElementById(ccId);
+    var num = document.getElementById(numId);
+    var digits = ((num && num.value) || "").replace(/\D/g, "");
+    if(!digits) return "";
+    return ((sel && sel.value) || "+1") + digits;
+  }
+
+  // The reverse, for an editor showing a number that is already stored.
+  function setPhoneFields(ccId, numId, e164){
+    fillCountryCodes(ccId);
+    var sel = document.getElementById(ccId);
+    var num = document.getElementById(numId);
+    if(!sel || !num) return;
+    var raw = String(e164 || "").replace(/[^\d+]/g, "");
+    if(!raw){ num.value = ""; return; }
+    var best = "+1";
+    COUNTRY_CODES.forEach(function(row){
+      if(raw.indexOf(row[0]) === 0 && row[0].length > best.length) best = row[0];
+    });
+    if(raw.indexOf(best) !== 0) best = "+1";
+    sel.value = best;
+    num.value = prettyPhone(raw.slice(best.length), best);
   }
 
   // Drawn because they are the design; not connected because there is no OAuth
@@ -7722,8 +8541,12 @@
   function submitAuthForm(){
     var email = document.getElementById("authEmail").value.trim();
     var password = document.getElementById("authPassword").value;
-    var phone = (document.getElementById("authPhone").value || "").trim();
+    var phone = phoneValue("authPhoneCC", "authPhone");
     if(!email || !password){ toast("Email and password, please"); return; }
+    if(authMode === "signup" && !phone){ toast("A phone number, please"); return; }
+    if(authMode === "signup" && password.length < 8){
+      toast("Use at least 8 characters"); return;
+    }
     var path = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
     var body = { email: email, password: password };
     if(authMode === "signup" && phone) body.phone = phone;
@@ -7746,7 +8569,6 @@
           showScreen(back);
           if(back === "playfam") loadMixes();
           if(back === "myfam") loadMyFamFeed();
-          checkWeeklyRecap();
           return;
         }
         afterAccount();
@@ -7755,21 +8577,62 @@
 
   function skipAccount(){
     saveLocalPrefs({ entry: "skipped" });
-    afterAccount();
+    // Skipping the account step skips the name-and-handle step with it.
+    // "Skip for now" is one decision about setup, and asking who they are
+    // immediately after they declined to say is the gate they just refused.
+    afterAccount({ askWhoTheyAre: false });
   }
 
   // The intro runs after either path, which is what the packet asks for: the
   // questions are about what to play, not about who is paying.
-  function afterAccount(){
+  // After credentials, before interests: who they are.
+  //
+  // The order is the one the packet asks for and it is the right way round.
+  // A name, a handle and a picture are about *them* and take a moment; the
+  // interests are about what they want to hear and are the last thing before
+  // the app. Asking for interests first and identity afterwards would put a
+  // form between somebody and the episode they came for.
+  function afterAccount(opts){
+    var ask = !(opts && opts.askWhoTheyAre === false);
     loadPrefChoices().then(function(){
       if(localPrefs().intro === "done" || PREF_CHOICES.intro_done){
         finishEntry();
         return;
       }
-      introMode = "first-run";
-      renderIntro();
-      showScreen("intro");
+      // A handle is for other people to find somebody by, which is worth
+      // nothing without an account to find - so this step belongs after
+      // signing up and nowhere else.
+      if(!ask || !AUTH.authenticated){ afterIdentity(); return; }
+      // Already named, so there is nothing to ask - somebody who set a name
+      // and stopped before the interests, or who signed in rather than up.
+      if(profileNow && profileNow.name && profileNow.handle){
+        afterIdentity();
+        return;
+      }
+      loadProfileQuietly().then(function(){
+        if(profileNow && profileNow.name && profileNow.handle){
+          afterIdentity();
+          return;
+        }
+        openIdentity("first-run", "intro");
+      });
     });
+  }
+
+  // The profile, read without drawing it. The identity step needs to know
+  // whether there is already a name before it decides to ask for one, and
+  // `loadProfile` paints a screen that is not on yet.
+  function loadProfileQuietly(){
+    return fetch("/api/profile")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) profileNow = d; return d; })
+      .catch(function(){ return null; });
+  }
+
+  function afterIdentity(){
+    introMode = "first-run";
+    renderIntro();
+    showScreen("intro");
   }
 
   // --- intro ---------------------------------------------------------------
@@ -8129,97 +8992,6 @@
     saveLocalPrefs({ entry: "done" });
     openMyFamTab();
     loadMyFamFeed();
-    checkWeeklyRecap();
-  }
-
-  // --- weekly recap --------------------------------------------------------
-  var recapData = null;
-
-  function loadRecap(){
-    return fetch("/api/recap").then(function(r){
-      if(r.status === 401) return { locked: true };
-      if(!r.ok) throw new Error("recap unavailable");
-      return r.json();
-    }).then(function(d){ recapData = d; return d; })
-      .catch(function(){ return null; });
-  }
-
-  // "The first time they open the app on or after Sunday" - so a Sunday that
-  // was missed still arrives on the Wednesday. The server answers that from a
-  // stored date; this only asks.
-  function checkWeeklyRecap(){
-    if(!AUTH.authenticated) return;
-    loadRecap().then(function(d){
-      if(!d || d.locked || !d.enabled || !d.due) return;
-      openRecap();
-      // Marked seen on display, not on dismissal: a listener who swipes the
-      // app away has still had their recap, and showing it again on Thursday
-      // would read as a bug.
-      fetch("/api/recap/seen", { method: "POST" }).catch(function(){});
-    });
-  }
-
-  function openRecap(){
-    // Never two overlays deep. They are triggered from different places and
-    // could in principle land together; one covering the other is a screen
-    // nobody designed.
-    closeNextUp();
-    renderRecap();
-    document.getElementById("recapOverlay").classList.add("active");
-  }
-  function closeRecap(){
-    document.getElementById("recapOverlay").classList.remove("active");
-  }
-
-  function openRecapFromTile(){
-    if(!AUTH.authenticated){
-      toast("The weekly recap needs an account");
-      return;
-    }
-    loadRecap().then(function(){ openRecap(); });
-  }
-
-  function renderRecap(){
-    var body = document.getElementById("recapBody");
-    var d = recapData;
-    if(!d || d.locked){
-      body.innerHTML = '<div class="recap-empty">The weekly recap needs an '
-        + 'account — it is built from listening the server keeps for you.</div>';
-      return;
-    }
-    if(d.empty){
-      // Nothing to recap is a sentence, not a tile. Inventing one would be
-      // the whole failure this page could have.
-      body.innerHTML = '<div class="recap-empty">' + escapeHtml(d.reason) + '</div>';
-      return;
-    }
-    body.innerHTML = '<div class="recap-tile" onclick="playRecap()">'
-      + '<div class="recap-tile-title">' + escapeHtml(d.title) + '</div>'
-      + '<div class="recap-figs">' + escapeHtml(d.subtitle || "") + '</div>'
-      + '</div>';
-  }
-
-  function playRecap(){
-    if(!recapData || !recapData.query) return;
-    closeRecap();
-    closeMessages();
-    var key = "recap_" + Date.now();
-    TOPICS[key] = {
-      title: recapData.title,
-      source: "your week",
-      caption: "Live captions will appear here as this plays—",
-      prompt: recapData.query,
-      titleOverridden: true
-    };
-    generate(key);
-  }
-
-  function disableWeeklyRecap(){
-    if(!AUTH.authenticated){ closeRecap(); return; }
-    savePreferences({ weekly_recap: false }).then(function(){
-      toast("Weekly recap turned off");
-      closeRecap();
-    });
   }
 
   // --- Explore New ---------------------------------------------------------
@@ -8301,22 +9073,44 @@
     });
   }
 
+  // The four tiles, and which one the countdown is on.
+  //
+  // **The countdown tile is the most likely next listen, and the other three
+  // are the same ranking behind it.** All four come from `/api/nextup`, which
+  // is `build_feed`'s own signals over a profile seeded with the episode that
+  // just ended - the popup is the feed's opinion arrived at one tap earlier,
+  // never a second recommender. It draws on the live story pool as well as
+  // the bank now, exactly as Made for you does; it used to be bank-only,
+  // which meant somebody who had just heard about today's news was offered
+  // four standing explainers.
+  //
+  // Two things may take the lead slot ahead of the ranking, and both are
+  // *better* answers to "most likely next" rather than exceptions to it:
+  //
+  //  * **the album's next episode**, when one is playing. Inside an album the
+  //    next episode is not a recommendation, it is the thing the listener
+  //    already chose, and a ranking that talked them out of it would be
+  //    wrong however well it scored.
+  //  * **the predicted follow-up**, the `<<NEXT:>>` line the model wrote on
+  //    this very episode and that was never spoken. It is the answer to
+  //    exactly this question - having heard this, what would this listener
+  //    most likely ask next - read off what was actually covered, which no
+  //    ranking over a bank of tiles can see.
+  //
+  // With neither, the lead is the ranking's own first pick, which is what the
+  // countdown should be on.
   function buildNextUpTiles(query, topicId, done){
     var lead = null;
     var album = currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer];
     if(album && currentTopicIndexInAlbum > -1
        && currentTopicIndexInAlbum < album.topics.length - 1){
-      // Still inside an album: "next" already has an answer.
       var nextKey = album.topics[currentTopicIndexInAlbum + 1];
       if(TOPICS[nextKey]){
         lead = { title: TOPICS[nextKey].title, sub: "next in " + album.name,
                  album: true };
       }
     } else if(episodeThread){
-      // The follow-up the model named on this very episode, off the trailing
-      // marker line that was never spoken. It costs nothing and it is a better
-      // answer than any ranking, because it read what was actually covered.
-      lead = { title: episodeThread, sub: "picks up the thread",
+      lead = { title: episodeThread, sub: "most likely next",
                query: episodeThread, topicId: "" };
     }
     fetch(withInterests("/api/nextup?topic_id=" + encodeURIComponent(topicId || "")
@@ -8324,10 +9118,17 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         var tiles = lead ? [lead] : [];
-        (d.topics || []).forEach(function(t){
+        (d.topics || []).forEach(function(t, i){
           if(tiles.length >= 4) return;
-          tiles.push({ title: t.title, sub: t.subtitle || "recommended",
-                       query: t.query, topicId: t.id });
+          tiles.push({
+            title: t.title,
+            // Says *why* this one, the way a feed card does, and says it
+            // loudest on the tile the countdown is on. A live story's angle
+            // beats every generic sentence - it is about today, where
+            // "recommended" is about nothing.
+            sub: t.angle || t.subtitle
+                 || ((!lead && i === 0) ? "most likely next" : "recommended"),
+            query: t.query, topicId: t.id });
         });
         done(tiles.slice(0, 4));
       })
@@ -8411,13 +9212,13 @@
   }
 
   // ---------------- Splash screen ----------------
-  function showSplash(){
+  function showSplash(ms){
     var splash = document.getElementById("splashScreen");
     if(!splash) return;
     splash.classList.remove("hide");
     setTimeout(function(){
       splash.classList.add("hide");
-    }, 1400);
+    }, ms || 1400);
   }
   showSplash();
   // The entry screens run once and then never again. Everything after them is
@@ -8427,7 +9228,9 @@
     if(!entryComplete()){ startEntry(); return; }
     loadPrefChoices();
     loadMyFamFeed();
-    checkWeeklyRecap();
+    // There is no push, so the honest moment to say "___ started following
+    // you" is the next time this listener's own app asks.
+    checkNewFollowers();
   });
 </script>
 </body>

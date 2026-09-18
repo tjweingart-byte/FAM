@@ -100,6 +100,15 @@ CANDIDATE_FACTOR = 3
 #: it is the right way round for a browse page somebody scrolls.
 MAX_PER_FACET = 2
 
+#: How far back "What you missed last week" looks, and how many it offers.
+#:
+#: A week because that is what the rail says, and eight because the packet
+#: asks for six to eight - the top of that range, so the rail fills when there
+#: is enough and is honestly short when there is not. Padding it out to eight
+#: from things the listener was never offered would make the heading a lie.
+MISSED_WINDOW = 7 * 86400
+MISSED_SECTION_SIZE = 8
+
 #: What a live story is worth next to an evergreen one of the same affinity.
 #:
 #: Made for you draws from both inventories, and without this the bank wins
@@ -209,7 +218,7 @@ FACETS: frozenset[str] = frozenset(TAG_LABELS)
 #: The first run draws them on a wheel and "Money & markets" does not fit in a
 #: 78px disc at a readable size. This is a *shortening*, never a second name:
 #: every entry is a prefix or the whole of its `TAG_LABELS` value, so nothing
-#: in the app calls one facet two things. Settings, the recap and the
+#: in the app calls one facet two things. Settings, the wheels and the
 #: catalogue all still read the full label.
 TAG_SHORT: dict[str, str] = {
     "sports": "Sport",
@@ -588,7 +597,7 @@ def facet_of(tag: str) -> str:
 def facets_only(tags: Iterable[str]) -> list[str]:
     """Fold a mix of facets and subtags up to facets, keeping first-seen order.
 
-    Anything a *listener* reads - the recap's subjects, a mix's icon - has to
+    Anything a *listener* reads - a rail's subjects, a mix's icon - has to
     speak in the eight words they were actually offered. `sleep` is a better
     ranking signal than `health` and a worse sentence: nobody chose it, and
     TAG_LABELS has no word for it on purpose. So the resolution stays inside
@@ -697,13 +706,19 @@ TOPIC_BANK: tuple[Topic, ...] = (
 
 BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
 
-#: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The two
-#: personal sections have the fewest eligible topics, so they choose first;
-#: trending can fall back to the whole bank and therefore chooses last.
+#: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The most
+#: constrained sections choose first; trending can fall back to the whole bank
+#: and therefore chooses last.
+#:
+#: `missed` is first because it is the narrowest inventory on the page - only
+#: what this listener was shown in the last week and did not take - so it
+#: cannot starve anything, and letting `from_history` choose ahead of it took
+#: the *best* of the missed tiles and left the rail whose heading is about
+#: relevance holding the leftovers.
 #: `world_trending` is not filled from the bank, so it takes no part in the
 #: mutual exclusion the others do - it neither claims topics from them nor is
 #: starved by them.
-FILL_ORDER = ("from_history", "followers", "might_like", "most_played")
+FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played")
 #: `might_like` stays in the fill order even though it is no longer displayed.
 #: That is deliberate: it claims its picks before the generic sections do, so
 #: the topics it would have shown are still held back from them - which keeps
@@ -728,6 +743,17 @@ SECTIONS = (
     # reads, and it is the one rail on this page with a reason to be looked at
     # today rather than eventually.
     ("world_trending", "Trending"),
+    # What this listener was offered in the last week and did not take. The
+    # weekly recap's replacement, and deliberately a *shelf* rather than the
+    # popup it replaces: the recap was one episode about somebody's week,
+    # which meant a thin week produced an episode about having had a thin
+    # week. This is episodes they can still have.
+    #
+    # Third, under Trending rather than over it. §102 moved the world row up
+    # here on the argument that the one rail about *today* should not sit
+    # under two rails about what somebody already likes, and this is a third
+    # rail about what they already like - a week older.
+    ("missed", "What you missed last week"),
     # The two crowd rows, in this order at the owner's direction. FAM's own
     # popularity is a real measurement over every listener; the friends row is
     # a real measurement over the handful somebody follows, and is empty until
@@ -993,6 +1019,33 @@ class EventStore:
                   section=r[3], algo=r[4])
             for r in rows
         ]
+
+    def impressions_since(self, user_id: str, since: float) -> dict[str, float]:
+        """Which tiles were put in front of this listener since `since`, and
+        when they last were.
+
+        The read behind "What you missed last week". Deliberately *not* a
+        ranking input the way `impression_occasions` is - this answers "was
+        this offered", which is a fact about the feed, and the rail then
+        removes everything they played. An impression still never becomes
+        taste: the ordering below it is `_affinity`, the same profile every
+        other personal rail scores against.
+        """
+        if not user_id:
+            return {}
+        try:
+            rows = self._conn().execute(
+                "SELECT topic_id, MAX(at) FROM events"
+                " WHERE user_id = ? AND kind = ? AND topic_id != '' AND at >= ?"
+                " GROUP BY topic_id",
+                (user_id, IMPRESSION, float(since)),
+            ).fetchall()
+        except Exception:
+            # One rail short is a far better outcome than no feed, which is
+            # the rule every other read in this class keeps.
+            log.exception("could not read recent impressions")
+            return {}
+        return {r[0]: float(r[1]) for r in rows}
 
     def impression_occasions(self, user_id: str) -> dict[str, int]:
         """How many separate occasions each tile was put in front of them.
@@ -1307,6 +1360,81 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     return [t for _s, t in scored[:limit]]
 
 
+def rank_bank(profile: dict[str, float]) -> list[Topic]:
+    """The whole bank, best match first. What the mix picker offers.
+
+    **A sort and never a filter**, which is the difference between this and
+    every rail on myFAM. A rail is one of five and a listener who does not
+    like its picks can scroll to the next one; the picker *is* the list, so
+    one that hid what it could not rank would be a picker somebody could not
+    find a topic in.
+
+    It also does not exclude what they have played, which every rail does:
+    wanting a mix of subjects you already like is the entire point of a mix.
+
+    With no profile at all the order is the bank's own, which is honest - a
+    listener with no history has expressed no preference, and inventing one
+    from `topic.id` is what the picker was doing when its heading already
+    said "Suggested topics".
+    """
+    if not profile:
+        return list(TOPIC_BANK)
+    scored = [(_affinity(topic, profile), topic) for topic in TOPIC_BANK]
+    scored.sort(key=lambda pair: (-pair[0], pair[1].id))
+    return [topic for _score, topic in scored]
+
+
+def rank_missed(profile: dict[str, float], shown: dict[str, float],
+                played: set[str], exclude: set[str],
+                candidates: Iterable[Topic],
+                limit: int = MISSED_SECTION_SIZE,
+                now: Optional[float] = None) -> list[Topic]:
+    """What FAM offered this listener in the last week that they did not take.
+
+    The replacement for the weekly recap, and a different kind of thing from
+    it: the recap was an *episode about their week*, written from their own
+    log, which meant a listener who had a thin week got a thin episode about
+    having a thin week. This is a shelf of episodes they can still have.
+
+    Three rules hold it honest.
+
+    **It is what was actually offered.** `shown` is the impression log for the
+    window - tiles this app put on a screen in front of this person - minus
+    everything they played. The heading says "you missed", so every tile under
+    it has to be something they could have taken and did not. There is no
+    top-up from things they were never shown, and a short rail is short.
+
+    **An impression still never becomes taste.** Being shown something says
+    nothing about whether you wanted it, and CLAUDE.md is emphatic that letting
+    it into the taste model is how a feed teaches itself its own preferences.
+    The impression decides *membership* here - which is a fact about the feed,
+    not about the listener - and `_affinity` against the same profile every
+    other personal rail uses decides the order.
+
+    **It can only offer what it can still resolve.** A live story that expired
+    and fell out of the pool has no title, no angle and no question, and a tile
+    invented to stand in for one would be exactly the failure this whole
+    subsystem is built against. So `candidates` is the bank plus what the pool
+    still holds, and a story that has aged out is simply not in the rail.
+    """
+    now = time.time() if now is None else now
+    by_id = {t.id: t for t in candidates}
+    missed = []
+    for topic_id, last_at in shown.items():
+        if topic_id in played or topic_id in exclude:
+            continue
+        topic = by_id.get(topic_id)
+        if topic is None:
+            continue
+        if now - last_at > MISSED_WINDOW:
+            continue
+        missed.append((_affinity(topic, profile), last_at, topic))
+    # Affinity first, then most recently offered - two tiles this listener has
+    # nothing to say about should at least arrive newest first.
+    missed.sort(key=lambda row: (-row[0], -row[1], row[2].id))
+    return [topic for _score, _at, topic in missed[:limit]]
+
+
 def rank_friends(
     store: EventStore, circle: Iterable[str], exclude: set[str],
     damp: Optional[dict[str, float]] = None, limit: int = SECTION_SIZE,
@@ -1502,6 +1630,15 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # plus that cache - which is what keeps it callable in a test with no
     # network, and what makes the page instant. See `stories.py`.
     live = live_topics(now)
+    # Everything the pool holds, cap included. "What you missed" has to be able
+    # to resolve a tile that was offered a few days ago and has since been
+    # pushed under the variety cap - to that listener it was on the page, and
+    # a rail that quietly dropped it would be answering a different question.
+    live_held = topics_from_stories(stories.pool().held(now), now=now)
+    # Which tiles were put in front of them this week. Read once, like the
+    # fatigue table, and for a different purpose - see `rank_missed` on why
+    # membership may come from an impression and order may not.
+    shown = store.impressions_since(user_id, now - MISSED_WINDOW) if user_id else {}
     wide = SECTION_SIZE * CANDIDATE_FACTOR
 
     # Filled most-constrained first, displayed in the order the product asks
@@ -1514,7 +1651,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         # to hand them the next episode; the crowd rows stay globally *ranked*,
         # they just stop offering back the one they finished this morning.
         seen = used | mine
-        if key == "from_history":
+        if key == "missed":
+            # The bank plus whatever the pool still holds - `held` rather than
+            # `live`, so a story the variety cap is hiding is still resolvable.
+            # What it cannot resolve, it does not offer: see `rank_missed`.
+            picks = rank_missed(profile, shown, mine, used,
+                                candidates=live_held + list(TOPIC_BANK),
+                                limit=MISSED_SECTION_SIZE, now=now)
+        elif key == "from_history":
             # The one rail that draws on both inventories - today's stories
             # and the standing bank - which is what "a mix of new and cached"
             # asks for.
@@ -1529,7 +1673,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # Not damped, deliberately: this row is the same list for
             # everyone, which is what makes it the cheapest section to serve.
             picks = rank_most_played(store, now, seen, limit=wide, written=written)
-        picks = diversify(picks, SECTION_SIZE)
+        picks = diversify(picks, MISSED_SECTION_SIZE if key == "missed"
+                          else SECTION_SIZE)
         picked[key] = picks
         used |= {t.id for t in picks}
 
@@ -1830,6 +1975,11 @@ def _empty_reason(key: str) -> str:
         # fix in two taps.
         "followers": "Follow some people and this fills up with what they play.",
         "from_history": "Your first episode starts this one off.",
+        # Two different nothings, and the rail cannot tell them apart from
+        # here: a listener who has not been on myFAM this week was offered
+        # nothing, and one who played everything missed nothing. The sentence
+        # has to be true of both, so it claims neither.
+        "missed": "Nothing went past you this week.",
         # Never actually empty in practice - with no profile at all this falls
         # back to the whole bank - but a reason has to exist for the day the
         # bank is smaller than the sections that draw from it.
@@ -1893,7 +2043,15 @@ def rank_next_up(
     Everything they have already played is excluded, along with the episode
     that just ended. Offering back the thing they are still listening to the
     end of is the one recommendation guaranteed to be wrong.
+
+    **It draws on both inventories, like Made for you.** It used to be the
+    bank alone, which made the popup a quietly worse recommender than the rail
+    it is meant to be the feed's opinion of: somebody who had just heard an
+    episode about today's news was offered four standing explainers, because
+    the one place today's stories live was not in its candidate list. Same
+    call to `live_topics`, same `FRESHNESS_BOOST`, same single score over both.
     """
+    now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = _seeded(
         taste(events, now, interests),
@@ -1915,7 +2073,8 @@ def rank_next_up(
                 picks.append(topic)
                 taken.add(topic.id)
 
-    add(rank_from_history(profile, taken, damp))
+    add(rank_from_history(profile, taken, damp,
+                          candidates=live_topics(now) + list(TOPIC_BANK)))
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:
@@ -1931,68 +2090,6 @@ def rank_next_up(
         taken = {t.id for t in picks} | ({after_id} if after_id else set())
         add(list(TOPIC_BANK))
     return picks[:size]
-
-
-#: How far back the weekly recap looks. A week, because that is what it claims.
-RECAP_WINDOW = 7 * 86400
-
-
-def weekly_recap(store: EventStore, user_id: str, now: Optional[float] = None) -> dict:
-    """What this listener actually did in the last seven days.
-
-    Only what the log holds, for the same reason `summary` is thin: a recap is
-    the second easiest place in an app to invent a number, and an invented one
-    is a promise to keep next week. A listener who heard nothing gets told
-    that, not a recap of nothing.
-
-    `query` is the episode the recap tile generates if tapped - built from the
-    subjects they actually listened to, so it is one shared, cacheable question
-    about the week's news in those areas rather than a personal document. It
-    holds no personal detail for the same reason: it goes through the ordinary
-    generation path and into the shared cache.
-    """
-    now = time.time() if now is None else now
-    events = [e for e in store.for_user(user_id, limit=1000)
-              if e.at >= now - RECAP_WINDOW]
-    profile = taste(events, now)
-    subjects = facets_only(
-        tag for tag, weight in sorted(profile.items(), key=lambda kv: -kv[1])
-        if weight > 0
-    )[:3]
-    played = sum(1 for e in events if e.kind in ("play", "complete"))
-    finished = sum(1 for e in events if e.kind == "complete")
-    recap = {
-        "week": time.strftime("%Y-%m-%d", time.gmtime(now)),
-        "played": played,
-        "finished": finished,
-        "searched": sum(1 for e in events if e.kind == "search"),
-        "subjects": subjects,
-        "subject_labels": [TAG_LABELS[t] for t in subjects],
-        "minutes": 5,
-        "title": "Your week in FAM",
-        "subtitle": "",
-        "query": "",
-        "empty": True,
-        "reason": "",
-    }
-    if not played and not recap["searched"]:
-        recap["reason"] = ("Nothing to recap yet — this fills in once you have "
-                           "listened to something this week.")
-        return recap
-    if not subjects:
-        # They listened, but to nothing the keyword map could place. Honest:
-        # a recap needs a subject, and inventing one would be the whole failure.
-        recap["reason"] = ("You listened this week, but not to anything we could "
-                           "group into a subject — so there is nothing to recap.")
-        return recap
-    labels = [TAG_LABELS[t].lower() for t in subjects]
-    joined = labels[0] if len(labels) == 1 else \
-        ", ".join(labels[:-1]) + " and " + labels[-1]
-    recap["empty"] = False
-    recap["query"] = f"what happened this week in {joined}"
-    recap["subtitle"] = (f"{finished} finished · " if finished else "") + \
-        ", ".join(TAG_LABELS[t] for t in subjects)
-    return recap
 
 
 def build_explore_new(store: EventStore, user_id: str, now: Optional[float] = None,

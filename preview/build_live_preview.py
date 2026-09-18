@@ -17,8 +17,11 @@ What stays synthetic, because a browser cannot do it:
 * **/api/audio** returns silence of the right length, exactly as the fixture
   preview does. There is no Piper and no Claude in a published page, so no
   script is written and no audio is spoken.
-* **/api/topics**, **/api/voices** and **/api/health** are reference data, not
-  state, and come from the same fixtures as before.
+* **/api/voices** and **/api/health** are reference data, not state, and come
+  from the same fixtures as before. So do **/api/sources** and
+  **/api/transcript**, because both read a script a published page never
+  writes. **/api/topics** is the fixture bank, ordered by this listener's real
+  taste when the mix picker asks for `ranked=1`.
 
 Everything else — the event log, impressions with their section and algo, the
 listener table, sessions, accounts, mixes and echoes — is real.
@@ -46,10 +49,18 @@ OUT = HERE / "fam-live.html"
 OUT_ARTIFACT = HERE / "fam-live-artifact.html"
 
 #: Reference data only. Everything stateful is served from the database.
-STATIC_PATHS = ("/api/topics", "/api/voices", "/api/health", "/api/attach",
+STATIC_PATHS = ("/api/voices", "/api/health", "/api/attach",
                 # The tier table. Reference data: it is the same for every
                 # viewer, and nothing in the database changes it.
-                "/api/plans")
+                "/api/plans",
+                # Provenance and the transcript. Both are read off a script
+                # that a published page never writes - there is no Claude here
+                # and no cache to write into - so they come from the fixtures,
+                # like the silence that stands in for the audio. What is worth
+                # looking at on a phone is the corner cluster, the overlap and
+                # the caption highlight walking the script, and a page with
+                # neither would preview none of it.
+                "/api/sources", "/api/transcript")
 
 
 LIVE_SHIM = r"""
@@ -352,6 +363,14 @@ LIVE_SHIM = r"""
     });
     return s;
   }
+  // topics._affinity: how well one tile matches a taste profile, normalised
+  // by tag count so a tile with six tags is not simply worth more than one
+  // with two. Named rather than inlined because two rails score with it.
+  function affinity(t, profile) {
+    var s = 0;
+    (t.tags || []).forEach(function (g) { s += (profile[g] || 0); });
+    return s / Math.sqrt((t.tags || []).length || 1);
+  }
 
   function feed() {
     var profile = taste(UID, myPrefs().interests), mine = playedIds(UID),
@@ -365,8 +384,7 @@ LIVE_SHIM = r"""
       return got;
     }
     var scored = BANK.map(function (t) {
-      var s = 0; (t.tags || []).forEach(function (g) { s += (profile[g] || 0); });
-      return { t: t, s: s / Math.sqrt((t.tags || []).length || 1) };
+      return { t: t, s: affinity(t, profile) };
     }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; });
 
     var counts = {};
@@ -405,6 +423,35 @@ LIVE_SHIM = r"""
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
 
+  // `topics.rank_missed`: what this listener was shown in the last week and
+  // did not take. The one rail on this page the live build can compute for
+  // real, because impressions are written into the database on every myFAM
+  // load - so opening the preview twice actually fills it.
+  //
+  // Bank only, like the server for anything it can no longer resolve: this
+  // page has no story pool, so a live tile offered last week has nothing
+  // behind it, and inventing one is the failure the whole subsystem is built
+  // against.
+  function missedRail(taken) {
+    var since = now() - 7 * 86400;
+    var shown = {};
+    rows("events").forEach(function (e) {
+      if (e.user_id !== UID || e.kind !== "impression" || !e.topic_id) return;
+      if (e.at < since) return;
+      shown[e.topic_id] = Math.max(shown[e.topic_id] || 0, e.at);
+    });
+    var mine = playedIds(UID);
+    var profile = taste(UID);
+    return Object.keys(shown)
+      .filter(function (id) { return !mine[id] && !taken[id] && BY_ID[id]; })
+      .map(function (id) {
+        return { t: BY_ID[id], s: affinity(BY_ID[id], profile), at: shown[id] };
+      })
+      .sort(function (a, b) { return (b.s - a.s) || (b.at - a.at); })
+      .map(function (x) { return x.t; })
+      .slice(0, 8);
+  }
+
   // `topics.SECTIONS`, in order. Trending sits second, where Explore New used
   // to - the row about today was under two rows about what the listener
   // already likes, which is the worst place on the page for it. Explore New
@@ -414,6 +461,7 @@ LIVE_SHIM = r"""
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
+    ["missed", "What you missed last week", "Nothing went past you this week."],
     ["most_played", "What FAM can't stop listening to", "Nothing has been played yet."],
     ["followers", "What your friends are listening to",
      "Follow some people and this fills up with what they play."]
@@ -477,6 +525,13 @@ LIVE_SHIM = r"""
 
   function myfamBody() {
     var f = feed(), shown = [];
+    // Filled after the rest, from what they were shown on previous loads and
+    // did not play, and never repeating a tile the page is already showing.
+    var claimed = {};
+    Object.keys(f.picked).forEach(function (k) {
+      (f.picked[k] || []).forEach(function (t) { claimed[t.id] = 1; });
+    });
+    f.picked.missed = missedRail(claimed);
     var sections = SECTIONS.map(function (s) {
       var list = f.picked[s[0]] || [];
       list.forEach(function (t) { shown.push({ id: t.id, section: s[0] }); });
@@ -540,7 +595,7 @@ LIVE_SHIM = r"""
       if (!tags.length) tags = tagsForText(e.text || "");
       tags.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; });
     });
-    // Facets, for the same reason as the recap: these are printed on the
+    // Facets, for the same reason the rails are: these are printed on the
     // profile as the subjects someone listens to.
     return facetsOnly(Object.keys(counts)
       .sort(function (a, b) {
@@ -570,7 +625,7 @@ LIVE_SHIM = r"""
     return out.slice(0, 8);
   }
 
-  // ------------------------------------------------- preferences and recap
+  // ------------------------------------------------------------ preferences
   // One row per listener, and - like the server - only read back for one with
   // an account. An anonymous listener's answers live in their own browser and
   // arrive as a hint on the request, which is what `hint` below is.
@@ -578,6 +633,8 @@ LIVE_SHIM = r"""
     var row = rows("prefs").filter(function (r) { return r.id === UID; })[0];
     return {
       interests: row && row.interests ? String(row.interests).split(",").filter(Boolean) : [],
+      hidden_interests: row && row.hidden_interests
+        ? String(row.hidden_interests).split(",").filter(Boolean) : [],
       language: (row && row.language) || "en",
       weekly_recap: row ? row.weekly_recap !== 0 : true,
       recap_week: (row && row.recap_week) || "",
@@ -590,62 +647,6 @@ LIVE_SHIM = r"""
     // No cap - the vocabulary is the only bound, as on the server (§99).
     return String(qs.get("interests") || "").split(",")
       .filter(function (g) { return TAG_LABELS[g]; });
-  }
-
-  // The Sunday that started the week `t` falls in, in UTC - preferences.week_start.
-  function weekStart(t) {
-    var d = new Date((t || now()) * 1000);
-    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-    return d.toISOString().slice(0, 10);
-  }
-
-  function recapBody() {
-    var since = now() - 7 * 86400;
-    var week = behavioural(UID).filter(function (e) { return e.at >= since; });
-    var counts = {};
-    week.forEach(function (e) {
-      var w = WEIGHT[e.kind] || 0;
-      var tags = e.tags ? String(e.tags).split(",").filter(Boolean) : tagsForText(e.text || "");
-      tags.forEach(function (g) { counts[g] = (counts[g] || 0) + w; });
-    });
-    // Folded to facets before slicing, like topics.weekly_recap: a recap that
-    // said "your week in sleep, mind and habits" would be naming tags nobody
-    // was ever shown, and TAG_LABELS has no word for them.
-    var subjects = facetsOnly(
-      Object.keys(counts).filter(function (g) { return counts[g] > 0; })
-        .sort(function (a, b) { return counts[b] - counts[a]; })
-    ).slice(0, 3);
-    var played = week.filter(function (e) { return e.kind === "play" || e.kind === "complete"; }).length;
-    var finished = week.filter(function (e) { return e.kind === "complete"; }).length;
-    var searched = week.filter(function (e) { return e.kind === "search"; }).length;
-    var prefs = myPrefs();
-    var body = {
-      week: weekStart(), played: played, finished: finished, searched: searched,
-      subjects: subjects,
-      subject_labels: subjects.map(function (g) { return TAG_LABELS[g]; }),
-      minutes: 5, title: "Your week in FAM", subtitle: "", query: "",
-      empty: true, reason: "",
-      due: prefs.weekly_recap && prefs.recap_week !== weekStart(),
-      enabled: prefs.weekly_recap
-    };
-    if (!played && !searched) {
-      body.reason = "Nothing to recap yet \u2014 this fills in once you have "
-        + "listened to something this week.";
-      return body;
-    }
-    if (!subjects.length) {
-      body.reason = "You listened this week, but not to anything we could group "
-        + "into a subject \u2014 so there is nothing to recap.";
-      return body;
-    }
-    var labels = subjects.map(function (g) { return TAG_LABELS[g].toLowerCase(); });
-    var joined = labels.length === 1 ? labels[0]
-      : labels.slice(0, -1).join(", ") + " and " + labels[labels.length - 1];
-    body.empty = false;
-    body.query = "what happened this week in " + joined;
-    body.subtitle = (finished ? finished + " finished \u00b7 " : "")
-      + subjects.map(function (g) { return TAG_LABELS[g]; }).join(", ");
-    return body;
   }
 
   // topics.rank_next_up: the feed's own signals over a profile seeded with the
@@ -741,7 +742,7 @@ LIVE_SHIM = r"""
           title: String(s.query).charAt(0).toUpperCase() + String(s.query).slice(1),
           minutes: s.minutes, plays: s.hits || 0, thread: s.thread || "",
           age_seconds: Math.max(0, now() - s.created),
-          echoed_by: labels[s.query] || ""
+          vibed: !!labels[s.query]
         };
       });
     return { episodes: eps };
@@ -844,12 +845,16 @@ LIVE_SHIM = r"""
       if (rows("accounts").some(function (a) { return a.id === UID; })) return json({ error: "This listener already has an account. Log out first." }, 400);
       // Attaches to the id this listener already has: same user_id, so the
       // events, mixes and echoes above are simply theirs now.
+      // Email and phone land on one account, which is what the sign-up
+      // screen asks for. The number is not verified here or on the server.
+      var ph = String(body.phone || "").trim();
       return put("accounts", UID, {
-        email: em, password: "(scrypt hash - this prototype stores no credential)",
+        email: em, phone: ph,
+        password: "(scrypt hash - this prototype stores no credential)",
         created: now(), last_login: now()
       }).then(function () {
         EMAIL = em; paint();
-        return json({ user_id: UID, email: em, authenticated: true });
+        return json({ user_id: UID, email: em, phone: ph, authenticated: true });
       });
     }
     if (path === "/api/auth/login") {
@@ -882,7 +887,13 @@ LIVE_SHIM = r"""
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
     if (path === "/api/next") {
       var t = threads()[0];
-      return json({ thread: t ? t.thread : "" });
+      // The title comes from the fixtures for the same reason the transcript
+      // does: it is written by the model on a trailing marker line, and a
+      // published page has no Claude and no cache to read one back out of.
+      // It is here at all so the swap the player does a few seconds in is
+      // visible on a phone rather than only in the code.
+      return json({ thread: t ? t.thread : "",
+                    title: (FIXTURES["/api/next"] || {}).title || "" });
     }
 
     if (path === "/api/event") {
@@ -958,9 +969,18 @@ LIVE_SHIM = r"""
     // these is honestly empty rather than seeded with people who do not
     // exist. An empty friends list is a fact about this deployment; three
     // invented contacts would be a claim about the world.
+    //
+    // It is also why an Explore card here never carries `vibed_by`: that tag
+    // needs a *friend* who both generated the episode and vibed it, and there
+    // is nobody here to be one. The fixture build shows it instead.
     if (path === "/api/friends") {
       return json({ following: [], followers: [], friends: [],
+                    new_followers: [],
                     counts: { following: 0, followers: 0, friends: 0 } });
+    }
+    if (path === "/api/friends/seen") return json({ ok: true });
+    if (path === "/api/person") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
     }
     if (path === "/api/people") return json({ people: [] });
     if (path === "/api/friends/follow") {
@@ -1004,7 +1024,25 @@ LIVE_SHIM = r"""
                     algo: "live" });
     }
 
-    // ---- preferences, the recap, and what plays next
+    // The bank, in this listener's taste order when the picker asks for it.
+    // `ranked=1` is what makes the mix picker's "Suggested for you" heading
+    // true; without it the heading said that over the bank in `topic.id`
+    // order. A sort and never a filter: the whole bank comes back either way.
+    if (path === "/api/topics") {
+      if (qs.get("ranked") !== "1") return json(FIXTURES["/api/topics"]);
+      var bankProfile = taste(UID, myPrefs().interests);
+      if (!Object.keys(bankProfile).length) {
+        return json({ topics: FIXTURES["/api/topics"].topics,
+                      personalised: false });
+      }
+      var ordered = BANK.slice().sort(function (a, b) {
+        var d = affinity(b, bankProfile) - affinity(a, bankProfile);
+        return d || (a.id < b.id ? -1 : 1);
+      });
+      return json({ topics: ordered, personalised: true });
+    }
+
+    // ---- preferences and what plays next
     if (path === "/api/preferences" && method === "GET") {
       var stored = myPrefs();
       var mineNow = myFacets();
@@ -1030,6 +1068,11 @@ LIVE_SHIM = r"""
         account: !!EMAIL, saved: !!EMAIL,
         account_required: ACCOUNT_REQUIRED,
         interests: EMAIL ? stored.interests : [],
+        hidden_interests: EMAIL ? stored.hidden_interests : [],
+        public_interests: EMAIL
+          ? stored.interests.filter(function (g) {
+              return stored.hidden_interests.indexOf(g) === -1; })
+          : [],
         language: EMAIL ? stored.language : "en",
         weekly_recap: stored.weekly_recap, recap_week: stored.recap_week,
         intro_done: EMAIL ? stored.intro_done : false
@@ -1041,8 +1084,13 @@ LIVE_SHIM = r"""
       var chosen = (body.interests !== undefined && body.interests !== null)
         ? body.interests.filter(function (g) { return TAG_LABELS[g]; })
         : was.interests;
+      var hidden = (body.hidden_interests !== undefined
+                    && body.hidden_interests !== null)
+        ? body.hidden_interests.filter(function (g) { return TAG_LABELS[g]; })
+        : was.hidden_interests;
       return put("prefs", UID, {
         interests: chosen.join(","),
+        hidden_interests: hidden.join(","),
         language: body.language !== undefined && body.language !== null
           ? body.language : was.language,
         weekly_recap: body.weekly_recap !== undefined && body.weekly_recap !== null
@@ -1052,19 +1100,6 @@ LIVE_SHIM = r"""
           ? (body.intro_done ? 1 : 0) : (was.intro_done ? 1 : 0),
         updated: now()
       }).then(function () { paint(); return json(myPrefs()); });
-    }
-    if (path === "/api/recap" && method === "GET") {
-      if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
-      return json(recapBody());
-    }
-    if (path === "/api/recap/seen") {
-      if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
-      var before = myPrefs();
-      return put("prefs", UID, {
-        interests: before.interests.join(","), language: before.language,
-        weekly_recap: before.weekly_recap ? 1 : 0, recap_week: weekStart(),
-        intro_done: before.intro_done ? 1 : 0, updated: now()
-      }).then(function () { paint(); return json({ ok: true }); });
     }
     if (path === "/api/nextup") {
       return json(nextUpBody(qs.get("topic_id") || "", qs.get("q") || "",
@@ -1120,25 +1155,40 @@ LIVE_SHIM = r"""
       });
     }
 
-    // ---- save for later, downloads and sharing ----
+    // ---- save for later, and sharing ----
     // Held in the fixture object rather than in the artifact db: the shelf is
     // per-listener and this build's db is shared by everyone looking at the
     // link, so persisting it would show one viewer another viewer's saves.
     // The flow is what this preview is for; the storage has its own tests.
+    if (path.indexOf("/api/saved?") === 0 && method === "GET") {
+      var askQ = new URLSearchParams(path.split("?")[1] || "");
+      if (askQ.get("q")) {
+        return json({ saved: FIXTURES["/api/saved"].items.some(function (i) {
+          return i.query === askQ.get("q")
+            && String(i.minutes) === String(askQ.get("minutes")); }) });
+      }
+    }
+    if (path.indexOf("/api/saved") === 0 && method === "DELETE"
+        && path.indexOf("/api/saved/") !== 0) {
+      var offQ = new URLSearchParams(path.split("?")[1] || "");
+      var shelfOff = FIXTURES["/api/saved"];
+      shelfOff.items = shelfOff.items.filter(function (i) {
+        return !(i.query === offQ.get("q")
+                 && String(i.minutes) === String(offQ.get("minutes"))); });
+      return json({ ok: true, saved: false });
+    }
     if (path === "/api/saved" && method === "POST") {
       var shelf = FIXTURES["/api/saved"];
       var already = shelf.items.filter(function (i) {
         return i.query === body.query && i.minutes === body.minutes; })[0];
       var item = already || {
         id: "sav_" + rid(), folder_id: body.folder_id || "",
-        query: body.query, minutes: body.minutes || 3,
+        query: body.query, minutes: body.minutes || 2,
         title: body.title || body.query, source: body.source || "",
-        created: now(), downloaded: false, bytes: 0, downloaded_at: 0,
-        last_played: 0,
-        estimated_bytes: (body.minutes || 3) * 60 * 22050 * 2
+        created: now(), last_played: 0
       };
       if (!already) shelf.items.unshift(item);
-      return json({ ok: true, item: item, downloads: shelf.downloads });
+      return json({ ok: true, saved: true, item: item });
     }
     if (path === "/api/saved/folders" && method === "POST") {
       var folder = { id: "fld_" + rid(), name: body.name, created: now(), items: 0 };
@@ -1150,39 +1200,10 @@ LIVE_SHIM = r"""
       var sid = bits[3], verb = bits[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === sid; })[0];
-      if (verb === "download" && method === "POST") {
-        if (!found) return json({ error: "No such saved episode." }, 404);
-        if (shelf2.downloads.remaining <= 0) {
-          return json({ error: "You are holding " + shelf2.downloads.used
-            + " downloaded episodes, which is all your plan keeps offline. "
-            + "Remove one to make room." }, 409, {
-              "X-FAM-Downloads": JSON.stringify({
-                candidates: shelf2.items.filter(function (i) { return i.downloaded; }),
-                status: shelf2.downloads })
-            });
-        }
-        found.downloaded = true; found.bytes = found.estimated_bytes;
-        shelf2.downloads.used += 1; shelf2.downloads.remaining -= 1;
-        return json({ ok: true, item: found, downloads: shelf2.downloads,
-                      stream: "/api/audio?q=" + encodeURIComponent(found.query)
-                              + "&minutes=" + found.minutes + "&fmt=pcm" });
-      }
-      if (verb === "download" && method === "DELETE") {
-        if (found && found.downloaded) {
-          found.downloaded = false; found.bytes = 0;
-          shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-        }
-        return json({ ok: true, downloads: shelf2.downloads });
-      }
       if (verb) return json({ ok: true, item: found || null });
       if (method === "DELETE") {
         var at = shelf2.items.indexOf(found);
-        if (at >= 0) {
-          if (found.downloaded) {
-            shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-          }
-          shelf2.items.splice(at, 1);
-        }
+        if (at >= 0) shelf2.items.splice(at, 1);
         return json({ ok: true });
       }
     }

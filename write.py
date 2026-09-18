@@ -32,7 +32,7 @@ import asyncio
 import time
 
 from anthropic_client import build_async_client
-from config import settings
+from config import DEFAULT_MINUTES, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
 
 PRICES = {
@@ -45,7 +45,7 @@ PRICES = {
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("query")
-    ap.add_argument("--minutes", type=int, default=3)
+    ap.add_argument("--minutes", type=int, default=DEFAULT_MINUTES)
     ap.add_argument("--model", default=None)
     ap.add_argument("--no-search", action="store_true")
     ap.add_argument("--prompt", action="store_true", help="print the prompt that was sent")

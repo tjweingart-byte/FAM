@@ -106,6 +106,15 @@ def load_fixtures() -> dict:
         # a bug - so a fixture that repeated them would preview a page the app
         # does not build.
         "world_trending": live_tiles[2:],
+        # What this listener was shown last week and did not take. Eight,
+        # because the rail's own size is eight and a fixture that showed six
+        # would preview a shorter row than the app builds. Bank topics only:
+        # a live story that was offered last week has usually expired and
+        # fallen out of the pool by now, and the real rail cannot resolve one
+        # it no longer holds - so neither should the preview.
+        "missed": ["sleep-science", "longevity-claims", "song-breaks-internet",
+                   "restaurant-scene", "space-race", "morning-mindset",
+                   "the-trade", "pricing-psychology"],
     }
     missing = [k for k, _ in topics_mod.SECTIONS if k not in myfam_picks]
     if missing:
@@ -115,7 +124,7 @@ def load_fixtures() -> dict:
             f"app builds")
     myfam = {
         "personalised": True,
-        "minutes": 3,
+        "minutes": 2,
         "sections": [section(key, title, myfam_picks[key])
                      for key, title in topics_mod.SECTIONS],
     }
@@ -149,10 +158,15 @@ def load_fixtures() -> dict:
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
 
+    # One card carries a friend's vibe, which is the whole of that tag: a
+    # friend both generated the episode and vibed it. The others do not, so
+    # the preview shows both states rather than one.
     explore = {"episodes": [
         {"query": q, "title": q[:1].upper() + q[1:], "minutes": m,
          "plays": p, "thread": th, "age_seconds": age,
-         "echoed_by": "Rachel Solomon" if m == 5 else ""}
+         "vibed": m == 5,
+         **({"vibed_by": {"name": "Rachel Solomon", "handle": "rachels",
+                          "avatar": ""}} if m == 5 else {})}
         for q, m, p, th, age in [
             ("why the strait of hormuz moves the oil price", 3, 4,
              "why the shipping lanes run through Omani water", 140),
@@ -180,7 +194,52 @@ def load_fixtures() -> dict:
                         "name": "Attached file", "chars": 4200, "url": "",
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
-        "/api/next": {"thread": "why the shipping lanes run through Omani water"},
+        # The thread and the episode's own title, from the same call. Both are
+        # written by the model on trailing marker lines and read back out of
+        # the cache, so a preview with no Claude has to stand in for both -
+        # and the title is the whole point of the swap the player does a few
+        # seconds in, which a fixture without one would show none of.
+        "/api/next": {"thread": "why the shipping lanes run through Omani water",
+                      "title": "The Two-Mile Lane That Moves the Oil"},
+        # Who this episode drew on. Invented, like every fixture here - the
+        # point on a phone is the corner cluster, the overlap and the popup,
+        # none of which a preview with no sources would ever draw. A live
+        # feed and an article read differently in the list, so there is one
+        # of each.
+        "/api/sources": {
+            "known": True,
+            "retrievers": ["exa", "gdelt"],
+            "items": [
+                {"label": "reuters.com", "kind": "article", "tier": "wire service",
+                 "at": "2026-09-16", "title": "Shipping rates climb as tankers reroute",
+                 "url": "https://www.reuters.com/"},
+                {"label": "ft.com", "kind": "article", "tier": "national paper",
+                 "at": "2026-09-16", "title": "Insurers widen the war-risk zone",
+                 "url": "https://www.ft.com/"},
+                {"label": "apnews.com", "kind": "article", "tier": "wire service",
+                 "at": "2026-09-15", "title": "Two more cargoes divert south",
+                 "url": "https://apnews.com/"},
+                {"label": "Polymarket", "kind": "live", "tier": "live feed",
+                 "at": "2026-09-17T08:40:00", "title": "", "url": ""},
+            ],
+        },
+        # The sentences the voice is reading, for live captions. The preview's
+        # audio is silence of the right length, so the highlight walks the
+        # script on the same clock it would against a real voice.
+        "/api/transcript": {"known": True, "sentences": [
+            "Tanker traffic through the strait is down about a fifth this week.",
+            "The reason is not the shooting, it is the paperwork.",
+            "War-risk insurance is priced daily, and on Monday the underwriters "
+            "widened the zone by ninety miles.",
+            "That pushed a dozen ships outside the cover they had already paid for.",
+            "A captain with no cover does not sail, whatever the cargo is worth.",
+            "So the queue at the southern end is now four days long.",
+            "Freight rates followed within hours, because the ships that are "
+            "still moving can name their price.",
+            "The oil price barely moved, which is the part worth sitting with.",
+            "Traders have been reading this strait for fifty years and they "
+            "price the insurance, not the headlines.",
+        ]},
         # Two open threads; the shim seeds two part-heard episodes alongside
         # them, so Go Deeper opens as a full grid rather than one lonely card.
         "/api/godeeper": {"threads": [
@@ -227,7 +286,12 @@ def load_fixtures() -> dict:
             "searched": 12, "open_threads": 2,
             "subjects": ["tech", "money", "science", "health"],
             "since": _time.time() - 63 * 86400,
-            "name": "Ian Solomon", "handle": "iansolomon",
+            # **Unnamed to start**, which is what a first run actually is.
+            # It used to be "Ian Solomon" / "iansolomon", so the preview
+            # showed a first run to somebody who already had a name and a
+            # handle - and offered that name as a placeholder to everybody
+            # else. `POST /api/me` fills these in, the way the app does.
+            "name": "", "handle": "",
             "joined": _time.time() - 63 * 86400,
             "echo_count": 7,
             # The picture and the follow graph the profile now draws. Both
@@ -295,20 +359,9 @@ def load_fixtures() -> dict:
             "language_active": prefs_mod.LANGUAGE_ACTIVE,
             "account": True, "saved": True,
             "account_required": "You need an account for this.",
-            "interests": [], "language": "en", "weekly_recap": True,
+            "interests": [], "hidden_interests": [], "public_interests": [],
+            "language": "en", "weekly_recap": True,
             "recap_week": "", "intro_done": False,
-        },
-        # Due, so opening the preview for the first time shows the Sunday
-        # popup - the whole behaviour, which a `due: false` fixture would
-        # hide. The shim flips it once /api/recap/seen is posted.
-        "/api/recap": {
-            "week": "2026-09-06", "played": 9, "finished": 6, "searched": 4,
-            "subjects": ["tech", "money", "science"],
-            "subject_labels": ["Technology", "Money & markets", "Science"],
-            "minutes": 5, "title": "Your week in FAM",
-            "subtitle": "6 finished · Technology, Money & markets, Science",
-            "query": "what happened this week in technology, money & markets and science",
-            "empty": False, "reason": "", "due": True, "enabled": True,
         },
         "/api/nextup": {
             "topics": [by_id[i] for i in
@@ -325,29 +378,21 @@ def load_fixtures() -> dict:
             "reason": "Next to what you already listen to, rather than more of it.",
             "algo": topics_mod.ALGO_VERSION,
         },
-        # The shelf, with one folder and one episode already on it. Not empty,
-        # because an empty-state preview shows the empty state and nothing
-        # else - and the thing worth looking at on a phone is a row that has
-        # both states of an episode on it at once.
+        # The shelf, with two episodes already on it. Not empty, because an
+        # empty-state preview shows the empty state and nothing else.
         "/api/saved": {
             "folders": [{"id": "fld_commute", "name": "Commute",
                          "created": 0, "items": 1}],
             "items": [
                 {"id": "sav_1", "folder_id": "fld_commute",
                  "query": "why semiconductor manufacturing is concentrated",
-                 "minutes": 3, "title": "Who Actually Makes the World's Chips",
-                 "source": "player", "created": 0, "downloaded": True,
-                 "bytes": 7_900_000, "downloaded_at": 0, "last_played": 0,
-                 "estimated_bytes": 7_938_000},
+                 "minutes": 2, "title": "Who Actually Makes the World's Chips",
+                 "source": "player", "created": 0, "last_played": 0},
                 {"id": "sav_2", "folder_id": "",
                  "query": "how electricity grids handle intermittent renewable power",
                  "minutes": 5, "title": "What the Grid Does When the Wind Drops",
-                 "source": "explore", "created": 0, "downloaded": False,
-                 "bytes": 0, "downloaded_at": 0, "last_played": 0,
-                 "estimated_bytes": 13_230_000},
+                 "source": "explore", "created": 0, "last_played": 0},
             ],
-            "downloads": {"used": 1, "limit": 3, "unlimited": False,
-                          "remaining": 2, "bytes": 7_900_000, "tier": "free"},
         },
         "/api/share/targets": {"targets": [
             {"key": t.key, "label": t.label, "kind": t.kind,
@@ -412,10 +457,14 @@ SHIM = """
     all: [
       { user_id: "u_beth", name: "Beth Solomon", handle: "beth" },
       { user_id: "u_mike", name: "Mike Solomon", handle: "mike" },
-      { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" }
+      { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" },
+      // Follows and is not followed back, so the asymmetry the graph is built
+      // around is visible on a phone - and so the follower popup and the
+      // unread badge have something real to draw.
+      { user_id: "u_nadia", name: "Nadia Okoro", handle: "nadia" }
     ],
     following: ["u_beth", "u_mike", "u_rachel"],
-    followers: ["u_beth", "u_rachel"],
+    followers: ["u_beth", "u_rachel", "u_nadia"],
     vibes: [
       { id: 1, query: "why the strait of hormuz moves the oil price",
         title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
@@ -457,11 +506,49 @@ SHIM = """
       };
       var friends = this.following.filter(function (id) {
         return self.followers.indexOf(id) !== -1; });
+      // Somebody who has followed and not been followed back, so the popup
+      // and the badge both have something to show on a phone. `new_followers`
+      // is cleared by POST /api/friends/seen, the way the server clears it.
+      var fresh = this.seenFollowers
+        ? []
+        : pick(this.followers.filter(function (id) {
+            return self.following.indexOf(id) === -1; })
+          ).map(function (p) {
+            return { user_id: p.user_id, name: p.name, handle: p.handle,
+                     avatar: "", at: 0, follows_back: false };
+          });
       return { following: pick(this.following), followers: pick(this.followers),
-               friends: pick(friends),
+               friends: pick(friends), new_followers: fresh,
                counts: { following: this.following.length,
                          followers: this.followers.length,
                          friends: friends.length } };
+    },
+    seenFollowers: false,
+    //: What another listener has chosen to publish. Only ever these three
+    //: things: public mixes, vibes, and interests they have not hidden. A
+    //: play count here would be a fixture of something the server has no
+    //: endpoint for.
+    published: function (handle) {
+      var who = this.all.filter(function (p) { return p.handle === handle; })[0];
+      if (!who) return null;
+      return {
+        name: who.name, handle: who.handle, avatar: "", joined: 0,
+        mixes: [{ id: "pm1", name: "Morning", public: true,
+                  items: [], topics: [], topic_ids: [], custom_count: 0,
+                  created_at: 0, updated_at: 0 }],
+        vibes: [
+          { id: 1, query: "how reusable rockets changed the economics of spaceflight",
+            title: "Inside the New Space Race", minutes: 5, thread: "", at: 0,
+            by: who.name, handle: who.handle },
+          { id: 2, query: "why the strait of hormuz moves the oil price",
+            title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
+            thread: "", at: 0, by: who.name, handle: who.handle }
+        ],
+        vibe_count: 2,
+        interests: ["tech", "world"],
+        interest_labels: ["Technology", "World"],
+        follows: { following: 3, followers: 4, friends: 2 }
+      };
     },
     inbox: function () {
       var self = this;
@@ -507,6 +594,7 @@ SHIM = """
       var creds = JSON.parse((init && init.body) || "{}");
       var me = FIXTURES["/api/auth/me"];
       if (creds.email) me.email = creds.email;
+      if (creds.phone) me.phone = creds.phone;
       me.authenticated = true;
       return json(me);
     }
@@ -520,17 +608,11 @@ SHIM = """
     if (path === "/api/preferences" && method === "POST") {
       var chosen = JSON.parse((init && init.body) || "{}");
       var stored = FIXTURES["/api/preferences"];
-      ["interests", "language", "weekly_recap", "intro_done"].forEach(function (k) {
+      ["interests", "hidden_interests", "language", "weekly_recap",
+       "intro_done"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
       });
-      if (stored.weekly_recap === false) FIXTURES["/api/recap"].enabled = false;
       return json(stored);
-    }
-    // Settles the week, the way the stored date does on the server: the popup
-    // must not come back on the next reload of the same preview.
-    if (path === "/api/recap/seen") {
-      FIXTURES["/api/recap"].due = false;
-      return json({ ok: true });
     }
     // --- people, messages and vibes -----------------------------------
     // The prototype used to hold three invented contacts in the page itself.
@@ -547,6 +629,16 @@ SHIM = """
       return json(mine);
     }
     if (path === "/api/friends") return json(PEOPLE.graph());
+    if (path === "/api/friends/seen") {
+      PEOPLE.seenFollowers = true;
+      return json({ ok: true });
+    }
+    if (path === "/api/person") {
+      var found = PEOPLE.published(
+        String(qs.get("handle") || "").replace(/^@/, ""));
+      return found ? json(found)
+                   : json({ error: "No listener by that handle." }, 404);
+    }
     if (path === "/api/people") {
       var term = (qs.get("q") || "").toLowerCase();
       return json({ people: PEOPLE.all.filter(function (p) {
@@ -653,10 +745,31 @@ SHIM = """
         patch.public !== undefined ? patch.public : current.public);
       return json(mixes.mixes[at]);
     }
-    // Save for later, and the download question it asks. Kept in memory for
-    // the life of the page: the point of the preview is the flow - press save,
-    // get asked, say yes, see the row change - and a fixture that never
-    // changed would show the first frame of it and stop.
+    // Save for later. Kept in memory for the life of the page: the point of
+    // the preview is the flow - press save, watch the icon go green, press it
+    // again - and a fixture that never changed would show the first frame of
+    // it and stop.
+    //
+    // The `q=` form is the save control asking whether it is lit, which is
+    // what draws its state when an episode starts.
+    if (path.indexOf("/api/saved?") === 0 && method === "GET") {
+      var askQ = new URLSearchParams(path.split("?")[1] || "");
+      if (askQ.get("q")) {
+        var isOn = FIXTURES["/api/saved"].items.some(function (i) {
+          return i.query === askQ.get("q")
+            && String(i.minutes) === String(askQ.get("minutes")); });
+        return json({ saved: isOn });
+      }
+    }
+    if (path.indexOf("/api/saved") === 0 && method === "DELETE"
+        && path.indexOf("/api/saved/") !== 0) {
+      var offQ = new URLSearchParams(path.split("?")[1] || "");
+      var shelfOff = FIXTURES["/api/saved"];
+      shelfOff.items = shelfOff.items.filter(function (i) {
+        return !(i.query === offQ.get("q")
+                 && String(i.minutes) === String(offQ.get("minutes"))); });
+      return json({ ok: true, saved: false });
+    }
     if (path === "/api/saved" && method === "POST") {
       var wanted = JSON.parse((init && init.body) || "{}");
       var shelf = FIXTURES["/api/saved"];
@@ -665,13 +778,12 @@ SHIM = """
       var item = already || {
         id: "sav_" + Math.random().toString(36).slice(2, 8),
         folder_id: wanted.folder_id || "", query: wanted.query,
-        minutes: wanted.minutes || 3, title: wanted.title || wanted.query,
+        minutes: wanted.minutes || 2, title: wanted.title || wanted.query,
         source: wanted.source || "", created: Date.now() / 1000,
-        downloaded: false, bytes: 0, downloaded_at: 0, last_played: 0,
-        estimated_bytes: (wanted.minutes || 3) * 60 * 22050 * 2
+        last_played: 0
       };
       if (!already) shelf.items.unshift(item);
-      return json({ ok: true, item: item, downloads: shelf.downloads });
+      return json({ ok: true, saved: true, item: item });
     }
     if (path === "/api/saved/folders" && method === "POST") {
       var named = JSON.parse((init && init.body) || "{}");
@@ -686,46 +798,12 @@ SHIM = """
       var verb = parts[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === savedId; })[0];
-      if (verb === "download" && method === "POST") {
-        if (!found) return json({ error: "No such saved episode." }, 404);
-        if (shelf2.downloads.remaining <= 0) {
-          // The full shelf, which is the interesting half of this feature and
-          // the one a preview would otherwise never show.
-          return json({ error: "You are holding " + shelf2.downloads.used
-            + " downloaded episodes, which is all your plan keeps offline. "
-            + "Remove one to make room." }, 409, {
-              "X-FAM-Downloads": JSON.stringify({
-                candidates: shelf2.items.filter(function (i) { return i.downloaded; }),
-                status: shelf2.downloads })
-            });
-        }
-        found.downloaded = true;
-        found.bytes = found.estimated_bytes;
-        shelf2.downloads.used += 1;
-        shelf2.downloads.remaining -= 1;
-        return json({ ok: true, item: found, downloads: shelf2.downloads,
-                      stream: "/api/audio?q=" + encodeURIComponent(found.query)
-                              + "&minutes=" + found.minutes + "&fmt=pcm" });
-      }
-      if (verb === "download" && method === "DELETE") {
-        if (found && found.downloaded) {
-          found.downloaded = false; found.bytes = 0;
-          shelf2.downloads.used -= 1;
-          shelf2.downloads.remaining += 1;
-        }
-        return json({ ok: true, downloads: shelf2.downloads });
-      }
-      if (verb === "download" || verb === "played" || verb === "move") {
+      if (verb === "played" || verb === "move") {
         return json({ ok: true, item: found || null });
       }
       if (method === "DELETE") {
         var where = shelf2.items.indexOf(found);
-        if (where >= 0) {
-          if (found.downloaded) {
-            shelf2.downloads.used -= 1; shelf2.downloads.remaining += 1;
-          }
-          shelf2.items.splice(where, 1);
-        }
+        if (where >= 0) shelf2.items.splice(where, 1);
         return json({ ok: true });
       }
     }

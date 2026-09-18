@@ -126,10 +126,8 @@ UNLIMITED = -1
 #: the same reason: a developer's widened cap must not quietly widen the suite.
 LIMIT_ENVIRONMENT: tuple[str, ...] = (
     "FREE_EPISODES_PER_DAY", "FREE_EXPLORE_PER_DAY", "FREE_MAX_MINUTES",
-    "FREE_MAX_DOWNLOADS",
     "PLUS_EPISODES_PER_WEEK", "PLUS_EXPLORE_PER_WEEK", "PLUS_MAX_MINUTES",
-    "PLUS_MAX_DOWNLOADS",
-    "UNLIMITED_MAX_MINUTES", "UNLIMITED_MAX_DOWNLOADS",
+    "UNLIMITED_MAX_MINUTES",
 )
 
 
@@ -180,12 +178,6 @@ class Tier:
     #: `settings.max_minutes`. Duration is the other lever on GPU cost, and
     #: having it here means it can be used without a second mechanism.
     max_minutes: int
-    #: How many episodes may be held offline at once. A **standing capacity**,
-    #: not a rate - which is why it is here and not in `quotas.py`. A windowed
-    #: counter would hand out a fresh download allowance every morning and
-    #: never require anybody to delete anything, which is the opposite of what
-    #: a shelf limit is for.
-    max_downloads: int = 3
 
     def limit_for(self, resource: str) -> Optional[Limit]:
         for limit in self.limits:
@@ -199,7 +191,6 @@ class Tier:
             "label": self.label,
             "blurb": self.blurb,
             "max_minutes": self.max_minutes,
-            "max_downloads": self.max_downloads,
             "limits": [limit.as_dict() for limit in self.limits],
             "features": sorted(features_for(self.name)),
         }
@@ -234,7 +225,6 @@ def _build_tiers() -> dict[str, "Tier"]:
                 Limit("explore", "day", _env_int("FREE_EXPLORE_PER_DAY", 25)),
             ),
             max_minutes=_env_int("FREE_MAX_MINUTES", 10),
-            max_downloads=_env_int("FREE_MAX_DOWNLOADS", 3),
         ),
         "plus": Tier(
             name="plus",
@@ -245,7 +235,6 @@ def _build_tiers() -> dict[str, "Tier"]:
                 Limit("explore", "week", _env_int("PLUS_EXPLORE_PER_WEEK", UNLIMITED)),
             ),
             max_minutes=_env_int("PLUS_MAX_MINUTES", 10),
-            max_downloads=_env_int("PLUS_MAX_DOWNLOADS", 25),
         ),
         "unlimited": Tier(
             name="unlimited",
@@ -259,7 +248,6 @@ def _build_tiers() -> dict[str, "Tier"]:
             # No server-side cap. The honest caveat, so nobody reads this as a
             # promise the app cannot keep: the real limit on an unlimited tier
             # is the device's storage, not this number.
-            max_downloads=_env_int("UNLIMITED_MAX_DOWNLOADS", UNLIMITED),
         ),
     }
 
@@ -319,8 +307,6 @@ FEATURES: tuple[Feature, ...] = (
     Feature("mixes", "Daily mixes", "free",
             "Already gated on having an account, which is a different axis. "
             "A mix holds topic ids and no audio, so it costs storage."),
-    Feature("weekly_recap", "Weekly recap", "free",
-            "Reads the event log. Account-gated already."),
     Feature("explore_new", "Explore New", "free",
             "The only surface offering anything outside an established taste. "
             "Gating discovery makes the free tier a smaller world, not a "
@@ -328,11 +314,6 @@ FEATURES: tuple[Feature, ...] = (
     Feature("long_episodes", "Longer episodes", "free",
             "Handled by `max_minutes` per tier rather than as a flag, because "
             "it is a quantity. Listed so the registry is a complete answer."),
-    Feature("downloads", "Offline downloads", "free",
-            "Handled by `max_downloads` per tier rather than as a flag, "
-            "because it is a quantity. The bytes sit on the listener's own "
-            "device, so the marginal cost to FAM is one stream that would "
-            "have happened anyway - it is a retention feature, not a cost."),
     Feature("share_external", "Share outside FAM", "free",
             "A share link costs a row and reaches somebody who does not have "
             "the app. Gating the cheapest route to a new listener would be a "
@@ -416,16 +397,6 @@ def max_minutes(tier_name: str, ceiling: int) -> int:
     return min(tier(tier_name).max_minutes, int(ceiling))
 
 
-def max_downloads(tier_name: str) -> int:
-    """How many episodes this tier may hold offline at once.
-
-    `UNLIMITED` means no server-side cap - which is not the same as no cap, and
-    anything showing this to a listener should not imply otherwise: the device
-    runs out of storage long before the server runs out of rows.
-    """
-    return tier(tier_name).max_downloads
-
-
 def describe(tier_name: str) -> dict:
     """What the client is told about the tier it is on. One shape, used by
     `/api/entitlements` and by anything that needs to explain a refusal."""
@@ -435,7 +406,6 @@ def describe(tier_name: str) -> dict:
         "label": resolved.label,
         "blurb": resolved.blurb,
         "max_minutes": resolved.max_minutes,
-        "max_downloads": resolved.max_downloads,
         "limits": {limit.resource: limit.as_dict() for limit in resolved.limits},
         "features": sorted(features_for(resolved.name)),
     }

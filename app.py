@@ -42,7 +42,8 @@ import oauth
 import quotas
 import saved as saved_mod
 import sharing
-from config import DEFAULT_PIPELINE, describe_key, key_source, settings
+from config import (DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
+                    key_source, settings)
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
@@ -1047,11 +1048,34 @@ async def auth_me(request: Request) -> dict:
 
 
 def _one_identifier(req: CredentialsRequest) -> str:
-    """Which of email or phone this request is using. Exactly one."""
+    """Which of email or phone this *login* is using. Exactly one.
+
+    Logging in is still a choice of one identifier - two would be two lookups
+    with nothing to do when they disagree. Signing up is not: see
+    `_signup_identity`.
+    """
     if bool(req.email) == bool(req.phone):
         raise HTTPException(
             status_code=400,
             detail="Send either an email address or a phone number, not both.")
+    return "email" if req.email else "phone"
+
+
+def _signup_identity(req: CredentialsRequest) -> str:
+    """Which identifiers a sign-up is carrying: "email", "phone" or "both".
+
+    Sign-up asks for an address *and* a number and keeps both on one account,
+    so "both" is the ordinary case rather than a contradiction. It was refused
+    for as long as this endpoint shared `_one_identifier` with login, which
+    meant filling in the number the form itself offered failed with a message
+    about how the server stores things.
+    """
+    if not req.email and not req.phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Send an email address or a phone number.")
+    if req.email and req.phone:
+        return "both"
     return "email" if req.email else "phone"
 
 
@@ -1084,10 +1108,12 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     _rate_limit(request)
     user = _require_listener(request)
     try:
-        if _one_identifier(req) == "email":
-            listener = ACCOUNTS.sign_up(user, req.email, req.password)
-        else:
+        kind = _signup_identity(req)
+        if kind == "phone":
             listener = ACCOUNTS.sign_up_phone(user, req.phone, req.password)
+        else:
+            listener = ACCOUNTS.sign_up(user, req.email, req.password,
+                                        phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # A fresh token even though the id has not changed, so that a native
@@ -1321,7 +1347,7 @@ class SendMessageRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(3, ge=0, le=60)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
@@ -1335,16 +1361,9 @@ class MoveRequest(BaseModel):
     folder_id: str = Field("", max_length=64)
 
 
-class ConfirmDownloadRequest(BaseModel):
-    #: What the device actually stored. The server's own figure is a
-    #: deliberately generous estimate; this is the truth from the only place
-    #: that knows it.
-    bytes: int = Field(0, ge=0)
-
-
 class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
-    minutes: int = Field(3, ge=0, le=60)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
 
 
@@ -1364,6 +1383,87 @@ async def friends_read(request: Request) -> dict:
         "followers": SOCIAL.followers(user),
         "friends": SOCIAL.friends(user),
         "counts": SOCIAL.follow_counts(user),
+        # Who followed since this listener last looked. Read here rather than
+        # from an endpoint of its own because the interface asks this question
+        # at the same moment it asks the others, and a badge is not worth a
+        # second round trip.
+        "new_followers": SOCIAL.new_followers(user),
+    }
+
+
+@app.post("/api/friends/seen")
+async def friends_seen(request: Request) -> dict:
+    """They opened the Friends tab, so nobody is new any more.
+
+    Deliberately *not* done when the follower popup is drawn: a badge that
+    cleared itself the moment a popup appeared would be a count nobody ever
+    got to read.
+    """
+    _read_limit(request)
+    SOCIAL.mark_followers_seen(_require_account(request))
+    return {"ok": True}
+
+
+@app.get("/api/person")
+async def person_profile(request: Request,
+                         handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                         user_id: str = Query("", max_length=64)) -> dict:
+    """Another listener's profile: **only what they have chosen to publish.**
+
+    The rule this endpoint exists under, and the reason it did not exist
+    before: what somebody has listened to is theirs. There is no play count
+    here, no completion total, no subjects inferred from behaviour and no
+    history. Three things come back, and each one is something the person
+    actively decided to show:
+
+    * **public mixes** - a mix is private by default and appears here only
+      once its owner switched it to public;
+    * **vibes** - a vibe *is* the act of showing somebody an episode, so a
+      list of them is a list of things they chose to publish;
+    * **interests they have not hidden** - declared in the first run or in
+      Settings, minus anything they turned off in Edit profile.
+
+    The standing between the two of you comes from the follow graph, which
+    both sides can already see.
+    """
+    _read_limit(request)
+    me = _listener(request)
+    target = ""
+    if user_id:
+        # Only somebody already in this listener's graph, by id. An id is
+        # guessable in a way a handle search is not, and the graph is the
+        # boundary: you may look at people you or they have followed.
+        known = {p["user_id"] for p in
+                 SOCIAL.following(me) + SOCIAL.followers(me)} if me else set()
+        target = user_id if user_id in known else ""
+    if not target and handle:
+        wanted = handle.strip().lstrip("@").lower()
+        found = [p for p in SOCIAL.find_people(wanted, exclude_user=me, limit=5)
+                 if p["handle"] == wanted]
+        target = found[0]["user_id"] if found else ""
+    if not target:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+
+    person = SOCIAL.person(target)
+    prefs = PREFS.get(target)
+    interests = topics_mod.facets_only(prefs.public_interests)
+    return {
+        # Deliberately no `user_id`: this response is drawn, not acted on, and
+        # the follow buttons on that screen already have the id they need from
+        # the graph. A listener id the client did not need is a listener id
+        # that can be sent back.
+        "name": person["name"],
+        "handle": person["handle"],
+        "avatar": person["avatar"],
+        "joined": person["joined"],
+        "mixes": [m.as_dict() for m in MIXES.public_for_user(target)],
+        "vibes": [e.as_dict(person["name"], person["handle"])
+                  for e in SOCIAL.echoes_by(target, limit=12)],
+        "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
+        "interests": interests,
+        "interest_labels": [topics_mod.TAG_LABELS[t] for t in interests
+                            if t in topics_mod.TAG_LABELS],
+        "follows": SOCIAL.follow_counts(target),
     }
 
 
@@ -1494,36 +1594,51 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
 @app.get("/api/saved")
 async def saved_read(request: Request,
                      folder_id: Optional[str] = Query(None, max_length=64),
-                     downloaded: bool = Query(False)) -> dict:
-    """The shelf: folders, what is on it, and how much offline room is left."""
+                     q: str = Query("", max_length=saved_mod.MAX_QUERY),
+                     minutes: int = Query(0, ge=0, le=60)) -> dict:
+    """The shelf, or - with `q` - whether one episode is on it.
+
+    The second form is what draws the save control's state. It is the same
+    shape as `/api/vibe`'s, and for the same reason: a control that lights up
+    has to be able to ask whether it is lit without pulling the whole shelf
+    down to find out.
+    """
     _read_limit(request)
     user = _require_account(request)
-    tier_name = _tier(request)
+    if q:
+        return {"saved": SAVED.find(user, " ".join(q.split()), minutes) is not None}
     return {
         "folders": SAVED.folders(user),
-        "items": [i.as_dict() for i in SAVED.items(user, folder_id, downloaded)],
-        "downloads": SAVED.download_status(user, tier_name),
+        "items": [i.as_dict() for i in SAVED.items(user, folder_id)],
     }
 
 
 @app.post("/api/saved")
 async def saved_save(req: SaveRequest, request: Request) -> dict:
-    """Save an episode for later.
+    """Save an episode for later. Idempotent, and the whole of the action.
 
-    The response carries the download status because the interface asks about
-    downloading the moment something is saved - and asking a question whose
-    answer is "you have no room" would be a worse popup than not asking.
+    It used to answer with the offline shelf's capacity, because saving
+    raised a popup asking whether to download the episode too. There is no
+    download and no popup: pressing save saves, and the icon turns green.
     """
     _read_limit(request)
     user = _require_account(request)
-    tier_name = _tier(request)
     try:
         item = SAVED.save(user, req.query, req.minutes, title=req.title,
                           source=req.source, folder_id=req.folder_id)
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "item": item.as_dict(),
-            "downloads": SAVED.download_status(user, tier_name)}
+    return {"ok": True, "saved": True, "item": item.as_dict()}
+
+
+@app.delete("/api/saved")
+async def saved_unsave(request: Request,
+                       q: str = Query(..., max_length=saved_mod.MAX_QUERY),
+                       minutes: int = Query(0, ge=0, le=60)) -> dict:
+    """Un-press the save control, which knows the episode and not a row id."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": SAVED.unsave(user, q, minutes), "saved": False}
 
 
 @app.delete("/api/saved/{item_id}")
@@ -1534,14 +1649,8 @@ async def saved_remove(item_id: str, request: Request) -> dict:
 
 @app.post("/api/saved/{item_id}/played")
 async def saved_played(item_id: str, request: Request) -> dict:
-    """Note that a saved episode was played.
-
-    Feeds the "what to clear" list, which offers the ones nobody has been back
-    to rather than the oldest - the episode somebody saved first is often the
-    one they are keeping on purpose. Recorded here rather than inferred from
-    the event log because a download plays with the network off, so the only
-    honest moment to record it is the next time the client is online.
-    """
+    """Note that a saved episode was played, so the shelf can order itself by
+    what somebody actually comes back to."""
     _read_limit(request)
     SAVED.played(_require_account(request), item_id)
     return {"ok": True}
@@ -1587,67 +1696,6 @@ async def saved_folder_delete(folder_id: str, request: Request) -> dict:
     _read_limit(request)
     return {"ok": True,
             "unfiled": SAVED.delete_folder(_require_account(request), folder_id)}
-
-
-# --- downloads ------------------------------------------------------------
-
-@app.post("/api/saved/{item_id}/download")
-async def saved_download(item_id: str, request: Request) -> dict:
-    """Take a slot on the offline shelf.
-
-    The server records the claim and the device holds the bytes - there is no
-    file here to hand over, because the settled constraint is that nothing
-    writes one. The client downloads by streaming `/api/audio` exactly as it
-    would to play it, and keeps what arrives.
-
-    A full shelf is a 409 rather than a 429: this is not a rate, it is a
-    capacity, and the body names what to clear because a limit without a
-    remedy is a dead end on a phone.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    try:
-        item = SAVED.reserve_download(item_id=item_id, user_id=user,
-                                      tier_name=_tier(request))
-    except saved_mod.DownloadLimit as exc:
-        raise HTTPException(status_code=409, detail=str(exc), headers={
-            "X-FAM-Downloads": json.dumps(
-                {"candidates": exc.candidates,
-                 "status": SAVED.download_status(user, _tier(request))})
-        }) from exc
-    except saved_mod.SavedError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"ok": True, "item": item.as_dict(),
-            "downloads": SAVED.download_status(user, _tier(request)),
-            # What the client streams to fill the slot. Named here so the
-            # download path and the play path cannot drift apart.
-            "stream": f"/api/audio?q={quote(item.query)}&minutes={item.minutes}&fmt=pcm"}
-
-
-@app.post("/api/saved/{item_id}/download/confirm")
-async def saved_download_confirm(item_id: str, req: ConfirmDownloadRequest,
-                                 request: Request) -> dict:
-    _read_limit(request)
-    item = SAVED.confirm_download(_require_account(request), item_id, req.bytes)
-    if item is None:
-        raise HTTPException(status_code=404, detail="No such saved episode.")
-    return {"ok": True, "item": item.as_dict()}
-
-
-@app.delete("/api/saved/{item_id}/download")
-async def saved_download_release(item_id: str, request: Request) -> dict:
-    """Give the slot back, keeping the episode saved.
-
-    Also how a client re-syncs after its storage was evicted: release what it
-    no longer holds. "I need the space" and "I am not interested" are different
-    requests, and merging them loses somebody's list while they tidy their
-    phone.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    released = SAVED.release_download(user, item_id)
-    return {"ok": released,
-            "downloads": SAVED.download_status(user, _tier(request))}
 
 
 # --- sharing outside FAM --------------------------------------------------
@@ -2043,7 +2091,7 @@ def _require_listener(request: Request) -> str:
 #: that mistake has already been avoided once here (see accounts.py).
 #:
 #: What *is* gated is everything the server keeps for you long-term - saved
-#: mixes, chosen interests and language, the weekly recap - on the product
+#: mixes, chosen interests and language, Save for Later - on the product
 #: decision that durable per-listener storage is what an account is for.
 #:
 #: The interaction log is deliberately NOT in that set. It is ambient
@@ -2146,10 +2194,33 @@ async def detach(request: Request, id: str = Query(..., max_length=64)) -> dict:
 
 
 @app.get("/api/topics")
-async def bank(request: Request):
-    """The whole shared bank, for the mix topic picker."""
+async def bank(request: Request, ranked: bool = Query(False),
+               interests: str = Query("", max_length=200)):
+    """The whole shared bank, for the mix topic picker.
+
+    `ranked` answers the question the picker's own heading was already
+    claiming: it said "Suggested topics" over the bank in `topic.id` order,
+    which is alphabetical by slug and suggests nothing. Ranked, it is the same
+    ranker every personal rail on myFAM uses - `rank_from_history` over
+    `taste`, plus the intro's chosen interests for somebody with no history.
+
+    **A sort, never a filter.** The whole bank comes back either way, in a
+    different order. A picker that hid what it did not rank would be a picker
+    somebody could not find a topic in, and unlike a rail there is no
+    "somewhere else to look" - this *is* the list. It also does not exclude
+    what they have played, which a rail does: wanting a mix of subjects you
+    already like is the entire point of a mix.
+    """
     _read_limit(request)
-    return {"topics": [t.as_dict() for t in topics_mod.TOPIC_BANK]}
+    if not ranked:
+        return {"topics": [t.as_dict() for t in topics_mod.TOPIC_BANK]}
+    user = _listener(request)
+    chosen = _interests_for(request, interests)
+    profile = topics_mod.taste(EVENTS.for_user(user) if user else [],
+                               interests=chosen)
+    order = topics_mod.rank_bank(profile)
+    return {"topics": [t.as_dict() for t in order],
+            "personalised": bool(profile)}
 
 
 @app.get("/api/mixes")
@@ -2202,12 +2273,22 @@ async def delete_mix(mix_id: str, request: Request):
 
 
 class PreferenceRequest(BaseModel):
-    """Every field optional: the intro saves one page at a time, and the recap
-    popup writes one flag from a screen that knows nothing about the rest."""
+    """Every field optional: the intro saves one page at a time, and a
+    settings row writes one flag from a screen that knows nothing about the
+    rest."""
 
     # No `user` field, for the same reason MixRequest has none.
     interests: Optional[list[str]] = None
     language: Optional[str] = Field(None, max_length=8)
+    #: Which of their interests they have chosen *not* to show on their
+    #: profile. The hidden set rather than the shared one - see
+    #: `preferences.Preferences.hidden_interests` for why that direction.
+    hidden_interests: Optional[list[str]] = None
+    #: Written by nothing in the interface any more. The weekly recap popup is
+    #: gone, replaced by myFAM's "What you missed last week" rail, and the
+    #: column stays for the same reason `language` does: dropping it is a
+    #: migration with no benefit, and it is what a scheduled digest would read
+    #: on the day one exists.
     weekly_recap: Optional[bool] = None
     intro_done: Optional[bool] = None
 
@@ -2253,7 +2334,7 @@ async def read_preferences(request: Request):
     # The six the picker shows, most played across FAM first. `interests_all`
     # is still every facet, because the picker narrowing is a screen decision
     # and the eight remain the whole pickable vocabulary - anything that
-    # *reads* a stored interest (settings, the recap) needs every label.
+    # *reads* a stored interest (Settings, the catalogue) needs every label.
     picker, picker_source = topics_mod.popular_facets(EVENTS)
     # And the six the *Settings* wheel shows, which is a different question
     # asked by a different person. The first run asks somebody with no history
@@ -2312,35 +2393,11 @@ async def write_preferences(req: PreferenceRequest, request: Request):
     user = _require_account(request)
     try:
         prefs = PREFS.save(user, interests=req.interests, language=req.language,
+                           hidden_interests=req.hidden_interests,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return prefs.as_dict()
-
-
-@app.get("/api/recap")
-async def recap(request: Request):
-    """This listener's week, and whether they are still owed this one.
-
-    `due` is what decides the popup, and it is answered here rather than in the
-    browser because the rule is "the first open on or after Sunday" - a
-    question about a stored date, not about this session.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    body = topics_mod.weekly_recap(EVENTS, user)
-    prefs = PREFS.get(user)
-    body["due"] = PREFS.recap_due(user)
-    body["enabled"] = prefs.weekly_recap
-    return body
-
-
-@app.post("/api/recap/seen")
-async def recap_seen(request: Request):
-    """Mark this week's recap shown, so it does not appear again until Sunday."""
-    _read_limit(request)
-    PREFS.mark_recap_seen(_require_account(request))
-    return {"ok": True}
 
 
 @app.get("/api/nextup")
@@ -2373,7 +2430,7 @@ async def next_up(
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
-                        minutes: int = Query(3, ge=1, le=10),
+                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200)):
     """One myFAM rail, at full length, for the screen behind its "View more".
 
@@ -2482,7 +2539,7 @@ class EventRequest(BaseModel):
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
-                minutes: int = Query(3, ge=1, le=10)):
+                minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """The four myFAM rails, ranked for this listener.
 
     **Costs no model call and cannot cause one.** Both inventories are already
@@ -2575,7 +2632,7 @@ class PersonRequest(BaseModel):
 class EchoRequest(BaseModel):
     query: str = Field(..., max_length=300)
     title: str = Field("", max_length=200)
-    minutes: int = Field(3, ge=1, le=10)
+    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
     thread: str = Field("", max_length=200)
 
 
@@ -2613,7 +2670,7 @@ async def post_echo(req: EchoRequest, request: Request):
 
 @app.delete("/api/echo")
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(3, ge=1, le=10)):
+                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
     return {"ok": SOCIAL.unecho(_listener(request), q, minutes)}
 
@@ -2637,7 +2694,7 @@ async def post_vibe(req: EchoRequest, request: Request):
 
 @app.delete("/api/vibe")
 async def delete_vibe(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(3, ge=1, le=10)):
+                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
 
@@ -2724,25 +2781,61 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     if store is None:
         return {"episodes": [], "reason": "The shared cache is switched off."}
     now = time.time()
-    # Who echoed what. An echo does not create an episode - the script was
-    # already here - it changes what the card says, from "someone asked this"
-    # to "Rachel sent you this", which is a different reason to press play.
     listener = _listener(request)
-    labels = SOCIAL.recent_echoes(exclude_user=listener)
-    episodes = [
-        {
+
+    # **A friend vibed this.** Two conditions, and the card claims a
+    # friendship so both have to hold: this listener's *friend* generated the
+    # episode, and that same friend vibed it. Either alone is a weaker claim -
+    # a stranger's vibe is not addressed to you, and a friend who generated
+    # something without vibing it did not recommend it.
+    #
+    # `friends` is the mutual case, derived and never stored (see SHARING.md),
+    # which is what makes "friend" a word the tag is allowed to use.
+    friends = {p["user_id"]: p for p in SOCIAL.friends(listener)} if listener else {}
+    vibes = SOCIAL.echoes_among(list(friends)) if friends else {}
+
+    # And who else vibed what. Still read, and still only for the *order*: a
+    # vibe is somebody choosing to send an episode, which is a real reason for
+    # a card to lead. It no longer puts a stranger's name on one - naming
+    # people the listener has never heard of under a heading about their
+    # friends is the mistake §102 took off myFAM.
+    anyone = SOCIAL.recent_echoes(exclude_user=listener)
+
+    episodes = []
+    for entry in store.recent(limit, exclude_author=listener):
+        pair = (entry["query"], entry["minutes"])
+        by = vibes.get(pair)
+        friend = friends.get(entry.get("author") or "")
+        card = {
             "query": entry["query"],
-            "title": entry["query"][:1].upper() + entry["query"][1:],
+            # The episode's own title when the model wrote one, else the
+            # question with a capital letter - which is what every card
+            # showed before titles existed, and is still right for an entry
+            # written before this column did.
+            "title": entry.get("title")
+                     or (entry["query"][:1].upper() + entry["query"][1:]),
             "minutes": entry["minutes"],
             "plays": entry["plays"],
             "thread": entry["thread"],
             "age_seconds": max(0.0, now - entry["created"]),
-            "echoed_by": labels.get((entry["query"], entry["minutes"]), {}).get("by", ""),
+            "vibed": bool(pair in anyone or by),
         }
-        for entry in store.recent(limit, exclude_author=listener)
-    ]
-    # An echoed episode leads, because someone chose to send it.
-    episodes.sort(key=lambda e: (not e["echoed_by"], e["age_seconds"]))
+        # Note what is *not* on the card: `author`. It is read here for one
+        # display decision and resolved to a name and a picture; a listener id
+        # in this response would be an id the client could send back, which is
+        # the rule `_listener` exists to keep.
+        if by and friend and by.get("user_id") == friend["user_id"]:
+            card["vibed_by"] = {
+                "name": by["name"] or friend.get("name") or "A friend",
+                "handle": by["handle"] or friend.get("handle") or "",
+                "avatar": by["avatar"] or friend.get("avatar") or "",
+            }
+        episodes.append(card)
+
+    # A vibed episode leads, because someone chose to send it, and a friend's
+    # leads over a stranger's.
+    episodes.sort(key=lambda e: (not e.get("vibed_by"), not e["vibed"],
+                                 e["age_seconds"]))
     return {"episodes": episodes}
 
 
@@ -2750,7 +2843,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
 async def episode_sources(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     search: bool = Query(True),
 ):
@@ -2783,40 +2876,86 @@ async def episode_sources(
     return body
 
 
-@app.get("/api/next")
-async def next_thread(
+@app.get("/api/transcript")
+async def episode_transcript(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
-    # Same reason as /api/audio: this looks up a cache entry, and the entry it
-    # looks for has to be keyed the same way the audio request keyed it.
-    search: bool | None = Query(None),
+    search: bool = Query(True),
 ):
-    """The follow-up this listener is most likely to want, after this episode.
+    """The sentences this episode is made of, for live captions.
 
-    Read from the script cache, so it costs no tokens and no time. The interface
-    offers it as a one-tap suggestion in Go Deeper: an episode that ends pointed
-    at something specific is only half the job if acting on it still means
-    composing a question into an empty box.
+    Read from the cache under the same key the script is stored under, like
+    `/api/sources` and `/api/next` - and for the same reason as both: what an
+    episode *says* is only settled once the script has been written, which is
+    after the audio response headers have gone out.
 
-    An empty thread is normal - the script may not be cached, or the model may
-    not have named one - and the interface falls back to the blank field.
+    **It never generates.** Captions that could trigger a write would be a
+    second full Claude call for every episode somebody chose to read along
+    with - the expensive half of an episode, paid twice for one listen. So the
+    honest states are "here are the sentences" and "not written down yet", and
+    `known` is which. An attachment episode is deliberately never cached, so
+    it never has captions; that is a fact about privacy, not a failure.
     """
     _read_limit(request)
     plan = _validated_plan(q, minutes, context, search)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"thread": ""}
-    return {"thread": await pipeline.thread_for(plan)}
+        return {"sentences": [], "known": False}
+    sentences = await pipeline.script_for(plan)
+    return {"sentences": sentences, "known": bool(sentences)}
+
+
+@app.get("/api/next")
+async def next_thread(
+    request: Request,
+    q: str = Query(..., description="What the listener asked"),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    context: str = Query("", description="Topic the listener just heard"),
+    # Same reason as /api/audio: this looks up a cache entry, and the entry it
+    # looks for has to be keyed the same way the audio request keyed it.
+    search: bool | None = Query(None),
+):
+    """The follow-up this listener is most likely to want, and the episode's
+    own title.
+
+    Both read from the script cache, so both cost no tokens and no time. Both
+    are written by the model on trailing marker lines that are stripped before
+    anything is spoken, and both are only known once the script is finished -
+    which is after the audio response headers have gone out. Hence one lookup
+    rather than a header on `/api/audio`.
+
+    The thread is offered as a one-tap suggestion in Go Deeper: an episode that
+    ends pointed at something specific is only half the job if acting on it
+    still means composing a question into an empty box.
+
+    The title replaces the typed question. Somebody who asked "what happened
+    with the fed yesterday" was shown an episode called *What Happened With The
+    Fed Yesterday* - their own words handed back with capital letters. The
+    player opens on a provisional title derived from the question and swaps
+    this in when it lands.
+
+    An empty answer for either is normal - the script may not be cached, or the
+    model may not have written that line - and the interface falls back to what
+    it had.
+    """
+    _read_limit(request)
+    plan = _validated_plan(q, minutes, context, search)
+    try:
+        pipeline = _make_pipeline()
+    except TTSUnavailable:
+        return {"thread": "", "title": ""}
+    return {"thread": await pipeline.thread_for(plan),
+            "title": await pipeline.title_for(plan)}
 
 
 @app.get("/api/audio")
 async def audio(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     fmt: str = Query("wav", pattern="^(wav|pcm)$"),
     context: str = Query("", description="Topic the listener just heard, for a follow-up"),
     voice: str = Query("", description="Voice id from /api/voices"),

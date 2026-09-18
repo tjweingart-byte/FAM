@@ -165,16 +165,98 @@ def test_only_public_mixes_reach_the_profile(client):
     assert [m["name"] for m in client.get("/api/profile?user=u1").json()["mixes"]] == ["Morning"]
 
 
-def test_an_echo_labels_the_explore_card(client):
+def _account(http, who: str) -> str:
+    """Sign somebody up and give them a name. Following is account-gated, and
+    a friendship needs two sides that can follow."""
+    http.post("/api/auth/signup", json={"email": f"{who}@fam.test",
+                                        "password": "a-long-enough-password"})
+    http.post("/api/me", json={"name": who.title(), "handle": who})
+    return http.get("/api/auth/me").json()["user_id"]
+
+
+def _friends(a, b):
+    """Mutual follows, which is what makes a friend - derived, never stored."""
+    a_id = a.get("/api/auth/me").json()["user_id"]
+    b_id = b.get("/api/auth/me").json()["user_id"]
+    a.post("/api/friends/follow", json={"user_id": b_id})
+    b.post("/api/friends/follow", json={"user_id": a_id})
+    return a_id, b_id
+
+
+def test_a_strangers_vibe_lifts_a_card_without_naming_them(client):
+    """A vibe is somebody choosing to send an episode, which is a real reason
+    for a card to lead. It is not a reason to put a name the listener has
+    never heard of on one - which is the mistake §102 took off myFAM."""
     appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt", "", 3)
     rachel = TestClient(appmod.app)
     rachel.post("/api/me", json={"name": "Rachel", "handle": "rachel"})
     rachel.post("/api/echo", json={"query": "why volcanoes erupt",
                                    "title": "Why Volcanoes Erupt", "minutes": 3})
     card = client.get("/api/explore").json()["episodes"][0]
-    assert card["echoed_by"] == "Rachel"
-    # And it is not labelled back to the person who sent it.
-    assert rachel.get("/api/explore").json()["episodes"][0]["echoed_by"] == ""
+    assert card["vibed"] is True
+    assert "vibed_by" not in card, "a stranger was named on an Explore card"
+    # And it is not marked back to the person who sent it.
+    mine = rachel.get("/api/explore").json()["episodes"]
+    assert mine == [] or mine[0]["vibed"] is False
+
+
+def test_a_friends_vibe_names_them_on_the_card(client):
+    """Both conditions, because the card claims a friendship: a *friend*
+    generated the episode and that same friend vibed it."""
+    _account(client, "ian")
+    rachel = TestClient(appmod.app)
+    with rachel:
+        _account(rachel, "rachel")
+        _me, her = _friends(client, rachel)
+        # She generated it - authorship is what the cache records - and
+        # vibed it.
+        appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
+                                "", 3, "", "", her)
+        rachel.post("/api/echo", json={"query": "why volcanoes erupt",
+                                       "title": "Why Volcanoes Erupt",
+                                       "minutes": 3})
+
+    card = client.get("/api/explore").json()["episodes"][0]
+    assert card["vibed_by"]["name"] == "Rachel"
+    assert card["vibed_by"]["handle"] == "rachel"
+    assert "author" not in card, "a listener id reached the client"
+    assert "user_id" not in card["vibed_by"], "a listener id reached the client"
+
+
+def test_a_friend_who_did_not_generate_it_is_not_credited(client):
+    """A friend vibing a stranger's episode is a weaker claim than the tag
+    makes, so the tag does not appear. The card still leads."""
+    _account(client, "ian")
+    rachel = TestClient(appmod.app)
+    with rachel:
+        _account(rachel, "rachel")
+        _friends(client, rachel)
+        # Nobody recorded as the author - a row written before authorship
+        # existed, which is shown to everybody and credited to nobody.
+        appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
+                                "", 3)
+        rachel.post("/api/echo", json={"query": "why volcanoes erupt",
+                                       "title": "Why Volcanoes Erupt",
+                                       "minutes": 3})
+    card = client.get("/api/explore").json()["episodes"][0]
+    assert card["vibed"] is True and "vibed_by" not in card
+
+
+def test_somebody_you_only_follow_is_not_a_friend_on_a_card(client):
+    """Follows are asymmetric. The tag says "friend", which is the mutual
+    case - derived and never stored."""
+    _account(client, "ian")
+    rachel = TestClient(appmod.app)
+    with rachel:
+        her = _account(rachel, "rachel")
+        client.post("/api/friends/follow", json={"user_id": her})  # one way
+        appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
+                                "", 3, "", "", her)
+        rachel.post("/api/echo", json={"query": "why volcanoes erupt",
+                                       "title": "Why Volcanoes Erupt",
+                                       "minutes": 3})
+    card = client.get("/api/explore").json()["episodes"][0]
+    assert "vibed_by" not in card
 
 
 def test_a_taken_handle_is_a_readable_refusal(client):

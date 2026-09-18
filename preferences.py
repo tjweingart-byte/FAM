@@ -13,8 +13,12 @@ interface now needs cannot be inferred at all:
   folds them in at roughly the weight of one play, so real listening overtakes
   a declared interest within an evening rather than being fought by it.
 * **Language**, which is stored and not yet acted on - see LANGUAGES.
-* **Whether they want the weekly recap.** "Do you want this popup" is a
-  question with an answer; deriving it from behaviour would be a guess.
+* **Whether they want a weekly digest.** Stored, and read by nothing: the
+  weekly recap popup that used to read it is gone, replaced by myFAM's "What
+  you missed last week" rail, which needs no preference because a rail is not
+  an interruption. The column stays for the same reason `language` does -
+  dropping one is a migration with no benefit, and it is what a scheduled
+  digest would read on the day there is one to schedule.
 
 Being *stored* is the whole reason this is gated on having an account. Nothing
 here works for an anonymous listener, by decision: a preference the server
@@ -23,13 +27,11 @@ listener still sees the intro - their answers stay in their own browser, are
 passed to the ranker for that request only, and the interface says so plainly
 rather than implying they were saved.
 
-**Why the recap week is a date and not a flag.** "Show it the first time they
-open on or after Sunday" cannot be a boolean, because nothing clears it: a
-listener who does not open the app until Wednesday must still get Sunday's
-recap, and must not then get it again on Thursday. Storing the Sunday that
-started the week they last saw it answers both - it is due whenever the
-current week's Sunday differs from the stored one - and it needs no scheduled
-job, which this app has no way to run anyway.
+**`recap_week` and `week_start` are kept for the same reason.** They were the
+answer to "show it the first time they open on or after Sunday", which cannot
+be a boolean because nothing clears it. Nothing asks the question now. They
+are a stored date and a pure function of the clock, and both are what a
+scheduled digest would be built on.
 """
 from __future__ import annotations
 
@@ -94,8 +96,8 @@ def week_start(now: Optional[float] = None) -> str:
     """The Sunday that began the week `now` falls in, as YYYY-MM-DD (UTC).
 
     UTC rather than local time, because the server has no idea where the
-    listener is and a recap that arrives a few hours early is a smaller wrong
-    than one that arrives twice.
+    listener is and something that arrives a few hours early is a smaller
+    wrong than something that arrives twice.
     """
     now = time.time() if now is None else now
     stamp = time.gmtime(now)
@@ -145,15 +147,34 @@ class Preferences:
 
     user_id: str
     interests: tuple[str, ...] = ()
+    #: Interests this listener has chosen **not** to show on their profile.
+    #:
+    #: Stored as the hidden set rather than the shared one, and that is the
+    #: decision worth writing down. Somebody's interests are the least private
+    #: thing here and the whole premise of the social surfaces, so the honest
+    #: default is that they are on their profile - and an empty column then
+    #: means "all of them", which is what every existing row already says.
+    #: Storing the *shared* set would default to nothing shared, so every
+    #: profile in the app would show an empty pill row that reads as broken
+    #: until each listener went and opted in one at a time.
+    hidden_interests: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
     recap_week: str = ""
     intro_done: bool = False
 
+    @property
+    def public_interests(self) -> tuple[str, ...]:
+        """What another listener may see. Derived, so the two cannot disagree."""
+        hidden = set(self.hidden_interests)
+        return tuple(t for t in self.interests if t not in hidden)
+
     def as_dict(self) -> dict:
         return {
             "interests": list(self.interests),
+            "hidden_interests": list(self.hidden_interests),
+            "public_interests": list(self.public_interests),
             "language": self.language,
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
@@ -179,6 +200,14 @@ class PreferenceStore:
                        updated      REAL NOT NULL
                    )"""
             )
+            # Added after the table shipped, so an existing row is widened
+            # rather than recreated. Empty means "none hidden", which is what
+            # every row written before this already meant.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " hidden_interests TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -194,7 +223,8 @@ class PreferenceStore:
             return Preferences("")
         try:
             row = self._conn().execute(
-                "SELECT interests, language, weekly_recap, recap_week, intro_done"
+                "SELECT interests, language, weekly_recap, recap_week,"
+                " intro_done, hidden_interests"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -211,12 +241,14 @@ class PreferenceStore:
             weekly_recap=bool(row[2]),
             recap_week=row[3] or "",
             intro_done=bool(row[4]),
+            hidden_interests=tuple(t for t in (row[5] or "").split(",") if t),
         )
 
     def save(
         self,
         user_id: str,
         interests: Optional[Iterable[str]] = None,
+        hidden_interests: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
@@ -236,6 +268,9 @@ class PreferenceStore:
             user_id=user_id,
             interests=(clean_interests(interests) if interests is not None
                        else current.interests),
+            hidden_interests=(clean_interests(hidden_interests)
+                              if hidden_interests is not None
+                              else current.hidden_interests),
             language=(clean_language(language) if language is not None
                       else current.language),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
@@ -247,10 +282,11 @@ class PreferenceStore:
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
-                    intro_done, updated)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+                    intro_done, updated, hidden_interests)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
-                   interests    = excluded.interests,
+                   interests        = excluded.interests,
+                   hidden_interests = excluded.hidden_interests,
                    language     = excluded.language,
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
@@ -258,23 +294,9 @@ class PreferenceStore:
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
-             at or time.time()),
+             at or time.time(), ",".join(merged.hidden_interests)),
         )
         return merged
-
-    def recap_due(self, user_id: str, now: Optional[float] = None) -> bool:
-        """Is this week's recap still owed to this listener?
-
-        True on the first open of a new week and false thereafter, whichever
-        day of the week that open happens on.
-        """
-        prefs = self.get(user_id)
-        if not prefs.weekly_recap:
-            return False
-        return prefs.recap_week != week_start(now)
-
-    def mark_recap_seen(self, user_id: str, now: Optional[float] = None) -> Preferences:
-        return self.save(user_id, recap_week=week_start(now))
 
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.

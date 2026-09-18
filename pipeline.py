@@ -171,6 +171,9 @@ class GenerationStats:
     sample_rate: int = settings.sample_rate
     truncated: bool = False
     topups: int = 0
+    #: The episode's own title, off the model's trailing marker line. Empty
+    #: when it wrote none, and every caller falls back to the question.
+    title: str = ""
     #: "hit" | "miss" | "off" - whether this episode reused a shared script.
     #: "exact" | "near" | "" - *how* a hit was found. A near hit replayed an
     #: episode written for a differently-worded question, which is worth being
@@ -978,6 +981,21 @@ class PodcastPipeline:
             return ""
         return bucket_for(plan)
 
+    async def title_for(self, plan: EpisodePlan) -> str:
+        """The episode's own name, or "". Mirrors `thread_for` exactly.
+
+        Only known once the script has been written, which is after the audio
+        response headers have gone out - so the player opens on a provisional
+        title derived from the question and swaps this in when it lands, the
+        same way the Go Deeper chip fills.
+        """
+        if not self.cache or not is_shareable(plan.query):
+            return ""
+        reader = getattr(self.cache, "title", None)
+        if reader is None:
+            return ""
+        return reader(await self._cache_key(plan))
+
     async def thread_for(self, plan: EpisodePlan) -> str:
         """The go-deeper thread of an episode that has already been generated.
 
@@ -1003,6 +1021,27 @@ class PodcastPipeline:
         if reader is None:
             return ""
         return reader(await self._cache_key(plan))
+
+    async def script_for(self, plan: EpisodePlan) -> list:
+        """The written sentences for an episode already generated, or [].
+
+        What live captions read. Mirrors `sources_for` and `thread_for`
+        exactly, including the part that matters most: **it never generates.**
+        A caption track that could trigger a write would be a second full
+        Claude call for every episode somebody chose to read along with, which
+        is the expensive half of an episode paid twice for one listen.
+
+        So captions are available once the script is in the cache, which is
+        well before the audio finishes - the script is written far faster than
+        it is spoken - and are honestly unavailable for an episode that is not
+        cached at all, which is what an attachment episode is by design.
+        """
+        if not self.cache or not is_shareable(plan.query):
+            return []
+        reader = getattr(self.cache, "get", None)
+        if reader is None:
+            return []
+        return list(reader(await self._cache_key(plan)) or [])
 
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
@@ -1137,6 +1176,7 @@ class PodcastPipeline:
                 break  # the top-up produced nothing; stop asking
 
         stats.thread = notes.thread
+        stats.title = notes.title
 
         if self.cache and self.cache_writes and shareable and stats.script:
             # How long this stays true, from what the episode was actually
@@ -1156,7 +1196,8 @@ class PodcastPipeline:
                 if notes.provenance is not None:
                     sources = notes.provenance.to_json()
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                               plan.minutes, bucket, sources, self.author)
+                               plan.minutes, bucket, sources, self.author,
+                               stats.title)
                 log.info("cached %d sentences for %r (ttl %ds)",
                          len(stats.script), plan.query, ttl)
             else:

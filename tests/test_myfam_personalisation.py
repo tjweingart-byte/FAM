@@ -1,9 +1,10 @@
 """The myFAM page the personalisation packet asks for.
 
-Four rails, in one order, each on a different signal:
+Five rails, in one order, each on a different signal:
 
     Made for you                     what you listen to, live and evergreen
     Trending                         what the world is on, live only
+    What you missed last week        what you were offered and did not take
     What FAM can't stop listening to what everyone here is playing, cached
     What your friends are listening  what your graph is playing, cached
 
@@ -62,12 +63,18 @@ def story(subject, tags, domain=stories.ATTENTION, first_seen=None, strength=1.0
 def test_the_rails_are_in_the_order_the_packet_asks_for():
     """"What FAM can't stop listening to" above "What your friends are
     listening to" - the crowd row that always has something in it goes above
-    the one that is empty until somebody follows anybody."""
+    the one that is empty until somebody follows anybody.
+
+    "What you missed last week" sits under Trending rather than over it: the
+    world row was moved up on the argument that the one rail about *today*
+    should not sit under rails about what somebody already likes, and this is
+    another rail about what they already like, a week older."""
     assert [k for k, _ in T.SECTIONS] == [
-        "from_history", "world_trending", "most_played", "followers"]
+        "from_history", "world_trending", "missed", "most_played", "followers"]
     assert [t for _k, t in T.SECTIONS] == [
         "Made for you",
         "Trending",
+        "What you missed last week",
         "What FAM can't stop listening to",
         "What your friends are listening to",
     ]
@@ -413,3 +420,86 @@ def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
     row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert row["empty_reason"] == stories.pool().empty_reason
     assert "isn't connected" in row["empty_reason"]
+
+
+# --- what you missed last week --------------------------------------------
+#
+# The weekly recap's replacement, and a different kind of thing: the recap was
+# one episode *about* somebody's week, so a thin week produced an episode about
+# having had a thin week. This is episodes they can still have.
+
+
+def _shown(store, topics, at, user="u"):
+    for topic in topics:
+        store.record(T.Event(user, T.IMPRESSION, topic.id, "", topic.tags, at,
+                             section="from_history", algo=T.ALGO_VERSION))
+
+
+def _missed(store, user="u", now=None):
+    feed = T.build_feed(store, user, now=now)
+    return [sec for sec in feed["sections"] if sec["key"] == "missed"][0]
+
+
+def test_the_rail_is_what_was_offered_and_not_taken(store):
+    now = time.time()
+    offered = list(T.TOPIC_BANK)[:5]
+    _shown(store, offered, now - 3 * 86400)
+    store.record(T.Event("u", "complete", offered[0].id, offered[0].query,
+                         offered[0].tags, now - 3 * 86400))
+
+    ids = [t["id"] for t in _missed(store, now=now)["topics"]]
+    assert offered[0].id not in ids, "an episode they played is not one they missed"
+    assert set(ids) == {t.id for t in offered[1:]}, \
+        "the rail is the rest of what was put in front of them"
+
+
+def test_a_tile_nobody_was_ever_shown_is_not_a_tile_they_missed(store):
+    """The heading is a claim about what this app did, so every tile under it
+    has to be something the listener could have taken. A top-up from the bank
+    would make the row full and the heading false."""
+    now = time.time()
+    offered = list(T.TOPIC_BANK)[:2]
+    _shown(store, offered, now - 86400)
+    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
+    assert ids == {t.id for t in offered}
+    assert len(ids) < T.MISSED_SECTION_SIZE, "the rail padded itself out"
+
+
+def test_the_window_is_a_week_because_that_is_what_the_rail_says(store):
+    now = time.time()
+    recent, stale = list(T.TOPIC_BANK)[0], list(T.TOPIC_BANK)[1]
+    _shown(store, [recent], now - 2 * 86400)
+    _shown(store, [stale], now - 9 * 86400)
+    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
+    assert ids == {recent.id}
+
+
+def test_an_empty_rail_claims_neither_of_the_two_nothings(store):
+    """A listener who was not here last week was offered nothing; one who
+    played everything missed nothing. The rail cannot tell them apart, so its
+    sentence must be true of both."""
+    rail = _missed(store, user="nobody")
+    assert rail["topics"] == []
+    said = rail["empty_reason"].lower()
+    assert said
+    for wrong in ("you played", "you have not", "nothing is happening"):
+        assert wrong not in said, f"the rail claimed one of the two: {said!r}"
+
+
+def test_being_shown_something_still_never_becomes_taste(store):
+    """An impression decides membership here - a fact about the feed - and
+    never the profile. Letting it into `taste` is how a feed teaches itself
+    its own preferences, which CLAUDE.md is emphatic about."""
+    now = time.time()
+    _shown(store, list(T.TOPIC_BANK)[:6], now - 86400)
+    assert T.taste(store.for_user("u"), now) == {}, \
+        "impressions reached the taste profile"
+
+
+def test_the_rail_offers_no_more_than_the_packet_asks_for(store):
+    now = time.time()
+    _shown(store, list(T.TOPIC_BANK)[:20], now - 86400)
+    rail = _missed(store, now=now)
+    assert 6 <= len(rail["topics"]) <= 8, \
+        f"the rail showed {len(rail['topics'])} tiles"
+    assert len(rail["topics"]) == T.MISSED_SECTION_SIZE

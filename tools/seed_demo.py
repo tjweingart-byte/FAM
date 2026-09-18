@@ -106,7 +106,7 @@ def record_history(events, topic, minutes: int, thread: str, rng: random.Random)
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--episodes", type=int, default=8)
-    ap.add_argument("--minutes", type=int, default=3)
+    ap.add_argument("--minutes", type=int, default=2)
     ap.add_argument("--search", action="store_true",
                     help="ground each episode in live sources (much slower)")
     ap.add_argument("--dry-run", action="store_true",

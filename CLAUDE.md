@@ -13,7 +13,8 @@ Three surfaces, all backed by generated audio:
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
-   pool refreshed in the background once for everybody.*
+   pool refreshed in the background once for everybody. A fifth rail, **What
+   you missed last week**, replaced the weekly recap popup.*
 2b. **DailyFAM** (was playFAM) — named daily mixes. A mix holds topic ids or
    questions the listener typed, never audio, so it is fresh every morning.
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
@@ -172,6 +173,23 @@ piece carries on.
 The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
+**An episode is titled by what it turned out to be about.** *(§104.)* It used
+to be the typed question, so somebody who asked `what happened with the fed
+yesterday` got an episode called *What Happened With The Fed Yesterday* -
+their own words handed back with capital letters, which tells them nothing
+they did not just type. The model writes a `<<TITLE: ...>>` line beside the
+`<<NEXT:>>` one, stripped before synthesis and never spoken, so it **costs no
+second call and no latency**: naming an episode with its own model call would
+be the expensive half of an episode spent on a label.
+It is only known once the script is finished, which is after the first word is
+playing - so the player opens on a title *derived* from the question (small
+words kept small, so it reads as a title rather than a transcript of a search
+box) and swaps the real one in when `/api/next` answers. A title the listener
+set, or a bank tile's own, is never replaced: `titleOverridden` marks both. It
+is cached in its own column beside the script for the same reason `thread` is
+- a replayed episode has no `notes`, so an Explore card would otherwise carry
+whoever-asked-first's wording - and a re-write keeps the title it has.
+
 **Go Deeper did not lose its suggestion — it stopped coming from the script.**
 The model still writes a trailing `<<NEXT: ...>>` line, stripped before
 synthesis and never spoken, but it is now a *prediction* rather than a promise:
@@ -190,12 +208,21 @@ prefetch plan are for.
 
 **Part of that is now paid back after the episode rather than inside it**
 (PROBLEMS.md §70). When one finishes on the player, four recommendations appear
-in a grid and the first starts itself in five seconds. The countdown tile
-prefers the album's next episode, then the predicted `<<NEXT:>>` follow-up,
-then the ranking - so the pull is there without a word of it being spoken, and
+in a grid and the first starts itself in fifteen seconds - it was five, which
+is long enough to notice a card and not long enough to read four titles and
+choose, so the thing meant to offer a choice was making it. The countdown tile
+is **the most likely next listen** and says so: the album's next episode when
+one is playing (inside an album that is not a recommendation, it is the thing
+the listener already chose), then the predicted `<<NEXT:>>` follow-up, which
+answers exactly this question off what was actually covered, then the ranking's
+own first pick - so the pull is there without a word of it being spoken, and
 declining it is one tap. The tiles are the *feed's* ranking
 (`topics.rank_next_up`), not a second one, so the popup and the shelves cannot
-give a listener two different answers to the same question. It deliberately
+give a listener two different answers to the same question - and the ranking
+draws on **both inventories now, like Made for you**. It was bank-only, so
+somebody who had just heard about today's news was offered four standing
+explainers, because the one place today's stories live was not in its
+candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
 Note this **replaced an earlier rule** that said to open with the answer
@@ -439,6 +466,19 @@ the rest of this list it needs taste rather than a key.
    a mix holds *topic ids*, never audio, so "At the gym" is the same subjects
    every day and a different set of episodes. Members are validated against the
    same shared bank, which is what keeps the cost design intact.
+   Two things the picker got wrong are now right. Its heading said
+   **"Suggested topics"** over the bank in `topic.id` order, which is
+   alphabetical by slug; `/api/topics?ranked=1` orders it with
+   `topics.rank_bank`, the same taste model every rail uses. That ranking is
+   **a sort and never a filter** and **does not exclude what they have
+   played**, which is where it parts company with a rail: the picker *is* the
+   list, and wanting a mix of subjects you already like is the entire point of
+   a mix. The heading reads `personalised` rather than asserting, because a
+   declared order and a measurement look identical on screen.
+   And the **privacy switch means private**, with the lock on the knob: closed
+   and lit for Private, open for Public. It used to mean public, so the lit
+   position was the one where other people could see your mix - read backwards
+   by everybody who has ever used a phone.
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
    - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
    asymmetric, like the copy always said, and a **friend is the mutual case,
@@ -451,6 +491,39 @@ the rest of this list it needs taste rather than a key.
    it rather than papering over it: the rail is **honestly empty and names the
    two taps that fix it**, because the alternative was what it did before,
    which was to show strangers under a heading that said "people you follow".
+7b. **A friend's profile is its own screen, and it shows what they published.**
+   *(§104, `SHARING.md`.)* The navigation bug the packet reported had four
+   symptoms and one cause: somebody else's profile was drawn into
+   `screen-profile` with a variable deciding whose it was. So back from the
+   friend popped to Friends, back again showed that screen still holding the
+   *friend's* DOM, back again fell through to search, and the Profile tab
+   flashed them. **Two pages sharing one container is one bug, not a routing
+   bug with four fixes** - `screen-person` is its own screen now, and
+   `viewingProfile` decides only what is drawn there, never which screen is on.
+   `/api/person` returns **only what they chose to publish**: public mixes,
+   vibes (a vibe *is* the act of showing somebody an episode), and the
+   interests they have not hidden. No play count, no completion total, no
+   inferred subjects, no history - what somebody has listened to is theirs. The
+   boundary is the graph: a handle resolves for anybody, a bare id only for
+   somebody already in the asking listener's follows, and the response carries
+   no id of its own. The interest choice is stored as the **hidden** set, so an
+   existing row means "all of them" - storing the shared set would default
+   every profile in the app to an empty pill row that reads as broken.
+   **A new follower is announced, once, with a way to answer it.** "___ started
+   following you", their picture, Follow back, and an X. `new_followers` is a
+   query over the follow graph's own timestamps against one column saying when
+   the listener last looked - not a second table with its own read state - and
+   it is cleared by the **Friends tab**, never by the popup being drawn: a
+   badge that cleared itself the moment something drew it is a count nobody got
+   to read. `follows_back` rides along, because offering the button to somebody
+   already followed is a control that cannot do anything.
+   **And eighty-five per cent through is finished.** Waiting for the last
+   sample counted almost nothing: the ending is the one part a listener skips,
+   so an episode heard to the ninety-fifth percentile and closed was recorded
+   as a *play* - worth 1.0 against a completion's 2.5. The strongest signal the
+   taste model has was being thrown away by exactly the behaviour it should
+   reward. A share rather than a number of seconds, because "the last thirty
+   seconds" is most of a one-minute episode and nothing of a ten-minute one.
 8. **The social layer generates nothing, and now there is more of it.**
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,
@@ -483,6 +556,26 @@ the rest of this list it needs taste rather than a key.
    everything changeable in one place - it was spread across a modal, the
    first-run screens nobody sees twice, and an action sheet inside the player,
    so "where do I change that" had three answers and two of them were wrong.
+   **The first run asks who they are, and Edit profile is a screen** *(§104).*
+   After credentials and before the interests there is a step for a name, a
+   username and a picture - in that order, because a name and a handle are
+   about *them* and the interests are the last thing before the app, so asking
+   for interests first would put a form between somebody and the episode they
+   came for. It is asked **only after signing up**: a handle is for other
+   people to find somebody by, which is worth nothing without an account to
+   find, and "Skip for now" is one decision about setup rather than two.
+   The Edit profile pill opens the same screen as an editor - `identityMode`
+   decides whether there is an X, what the docked button says and where
+   saving goes, exactly as `introMode` does, which is the trap the intro
+   screen fell into three times. It carries the picture, the name, the
+   username, Change password, and **which interests are shared**: stored as
+   the *hidden* set, and hiding one changes the profile and never the ranker,
+   because an interest is a statement about what to play and hiding it is a
+   statement about a screen.
+   What it replaces: two chained modals asking for a name and then a handle,
+   with no way back between them, no picture at all, and placeholders reading
+   "e.g. Ian Solomon" and "iansolomon" - a real-looking name and handle
+   offered to every listener in the app.
    **A settings row is an editor, never the first run happening again**
    *(§98).* Interests and Language have no editor of their own and reuse the
    intro screen, and reusing the screen meant reusing the flow: Next chained
@@ -528,13 +621,13 @@ the rest of this list it needs taste rather than a key.
   and is played as it arrives. This is the core of the product. Compression
   (Opus over a stream) is compatible with it and is the right answer at scale;
   writing a *file* is not.
-  **Downloads do not break this, and the reason is worth stating** *(SHARING.md).*
-  The server still writes nothing: the episode streams exactly as it always
-  does, and the *client* keeps the bytes it was already sent - IndexedDB in the
-  browser, the app's container on iOS. No file exists server-side, nothing is
-  cached as audio, and no URL serves a stored episode. `saved.py` holds a
-  registry of what a listener claims to hold, never the audio - which is also
-  why that registry can drift, and why releasing a slot is one tap.
+  **Nothing anywhere keeps audio now, which makes this simpler rather than
+  weaker** *(SHARING.md).* Downloads - the audio held in the listener's own
+  IndexedDB - used to be the one thing that came close, and they never broke
+  the rule either, because the server wrote nothing then either. The feature
+  is **removed** at the owner's direction, and removed rather than switched
+  off, on the Piper reasoning. `saved.py` now holds pointers and only
+  pointers.
 - **Duration is a ceiling, not a quota.** *(Revised.)* The selected length still
   caps the episode and over-runs are trimmed, but a script that runs out of
   substance now ends early instead of being padded. Enforcing the number in both
@@ -684,6 +777,31 @@ the rest of this list it needs taste rather than a key.
   leaving silence**. Every drop is logged, carried on
   `ScriptNotes.meta_openings` and printed by `write.py`: the guard firing means
   the prompt did not hold, which is a thing to fix rather than to absorb.
+- **Live captions read the cache, and the sources cluster is in the corner.**
+  *(§104, `PROVENANCE.md`.)* Both were drawn and neither worked. The captions
+  tab showed `t.caption` - a line of prototype copy ending in an em dash - so
+  turning captions on produced a sentence about captions; the sources strip was
+  fetched when an episode *ended* and when Go Deeper opened, and nowhere else,
+  so the one moment it is for was the one moment nothing asked for it.
+  `/api/transcript` is `/api/sources`' sibling and reads the same key, and the
+  rule that makes it affordable is that **it never generates**: captions that
+  could trigger a write would be a second full Claude call for every episode
+  somebody chose to read along with. A miss is an empty list, an attachment
+  episode has no captions at all because it is deliberately uncacheable, and
+  the panel says which. Which sentence is highlighted is **estimated from
+  character count, not measured** - the audio is one PCM stream with no
+  sentence marks in it - and the denominator is the planned length, because
+  `duration()` grows as the stream arrives.
+  The cluster shows **three** marks, overlapped, in the player's corner, and
+  an empty answer never clears a strip that is already showing: the first try
+  often lands before the script has finished.
+- **Nothing on the player generates an episode except a button.** *(§104.)*
+  `.mini-stage` is `flex:1`, so it is most of the player, and it carried a tap
+  handler that jumped to the next episode in the album or - with no album -
+  generated a **random** myFAM topic: an episode nobody asked for, costing a
+  model call and a GPU, in place of whatever was playing. Removed with nothing
+  in its place; the swipe-up gesture still moves through an album and is the
+  one the `next-hint` label actually advertises.
 - **An article index is the wrong instrument for a scoreboard, and the seam is
   now built out.** *(§82, §89, `live_facts.py`, `live_sources.py`,
   `LIVE_FACTS.md`.)* A game ends and the scoreboard knows instantly; the recap
@@ -756,6 +874,29 @@ the rest of this list it needs taste rather than a key.
   provider all fall back to a templated tile and say so, which is the same
   rule episode intelligence lives by.
 
+- **The weekly recap is a rail, not a popup.** *(`topics.rank_missed`,
+  `MYFAM.md`.)* It was one episode *about* somebody's week, fired on the first
+  open on or after Sunday - so a thin week produced an episode about having had
+  a thin week, in front of somebody who opened the app to listen to something
+  else. **What you missed last week** is a shelf of episodes they can still
+  have: what FAM put in front of them in the last seven days and they did not
+  take.
+  Three things keep it honest and generalise past it. **It is what was
+  actually offered** - the impression log minus everything they played - so
+  there is no top-up from the bank and a short rail is short, because the
+  heading is a claim about what this app did. **An impression still never
+  becomes taste**: it decides *membership*, which is a fact about the feed, and
+  `_affinity` decides the *order*. And **it can only offer what it can still
+  resolve** - the bank plus what the pool still holds - because a tile invented
+  to stand in for an expired story is §102 with a heading on it.
+  The empty sentence claims neither of the two nothings: somebody who was not
+  here last week was offered nothing, somebody who played everything missed
+  nothing, and the rail cannot tell them apart.
+  What went with the popup: `/api/recap`, `topics.weekly_recap`, the
+  scheduling in `preferences.py`, the Settings row that switched it off, and
+  the two tiles above Your FAM's threads. The `weekly_recap` and `recap_week`
+  *columns* stay, read by nothing, on the same reasoning as the language field
+  - they are what a scheduled digest would read on the day there is one.
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
   `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key
@@ -862,7 +1003,7 @@ the rest of this list it needs taste rather than a key.
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
-  Saved mixes, chosen interests and language, and the weekly recap need an
+  Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
   audio path do not. The interaction log is deliberately outside the gate - it
   is ambient personalisation rather than something the listener made and can
@@ -911,22 +1052,24 @@ the rest of this list it needs taste rather than a key.
   quota is **a budget shaped like a limit, not a security control**: an
   anonymous session can be thrown away and a fresh allowance started, which is
   the price of not putting a login in front of the first word.
-- **Save for later and download are different things, and stay different.**
-  *(SHARING.md.)* Saving is a **pointer** - question, length, title - and
-  playing one needs the network like any other episode. Downloading is **the
-  audio on the device** and plays with the network off. A download is an
-  upgrade to a saved item rather than a second list, which is why saving asks
-  the question and why one row carries both states - and why Downloads is now
-  a **switch inside Save for Later** rather than a screen of its own
-  (PROBLEMS.md §96). The folder chips came off both shelves in the same
-  change: nobody had ever made a folder, so every listener was shown a fixture
-  named "Commute" as though it were theirs, and **a control with nothing
-  behind it is worse than no control**. `saved.py`'s filing is untouched, so
-  putting folders back costs nothing anybody filed. The limit is per tier and
-  is a **standing capacity, not a rate** - a windowed counter would hand out a
-  fresh download allowance every morning and never require anybody to delete
-  anything. A full shelf is a 409 that **names what to clear**, least recently
-  played first, because a limit without a remedy is a dead end on a phone.
+- **Save for later is a pointer, and pressing save is the whole of it.**
+  *(SHARING.md.)* Question, length, title - one row - and playing one needs
+  the network like any other episode. It is a **toggle**: the icon turns
+  green, pressing it again takes the episode off the shelf. Same shape as
+  VIBE! and drawn the same way, by a `data-save` sweep rather than a list of
+  ids, which is the mistake that once left the main player with no vibe
+  button at all.
+  **Download is gone**, and gone rather than switched off: the endpoints, the
+  store methods, the tier field, the offline IndexedDB layer, the second view
+  of the shelf and the Downloads tile. What it cost was the thing the shelf is
+  for - pressing save raised a question instead of saving. Its three columns
+  stay in the schema, written by nothing, because dropping a column is a
+  migration with no benefit.
+  The folder chips came off the shelf in an earlier change (PROBLEMS.md §96)
+  and have not come back: nobody had ever made a folder, so every listener was
+  shown a fixture named "Commute" as though it were theirs, and **a control
+  with nothing behind it is worse than no control**. `saved.py`'s filing is
+  untouched, so putting folders back costs nothing anybody filed.
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
   share sheet, or a platform SDK hand-off where their app does the posting with
@@ -1181,8 +1324,8 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §102-103 are
-the most recent), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §104 is the
+most recent, and is the twenty-two-item review this branch answered), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1202,12 +1345,12 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **thirty-five** named smoke
+**twice** - once per preview build - and **forty-five** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour.
+prose does not fail when somebody adds a behaviour. (It is 45 as of §104.)
 
 What is true but not obvious from the code:
 

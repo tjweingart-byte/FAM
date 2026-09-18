@@ -105,6 +105,14 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])[\"')\]]*\s+")
 # Stripped before synthesis and handed to the interface, which offers it as a
 # one-tap "go deeper". The script itself never hints at it.
 _NEXT_MARKER = re.compile(r"<<\s*NEXT\s*:\s*([^<>]{1,160}?)\s*>>", re.I)
+#: The episode's own title, on the same kind of trailing line as NEXT and for
+#: exactly the same reason: it is written *by* the model, off what it actually
+#: covered, and it costs no second call.
+#:
+#: The alternative would have been a model call in front of - or behind - every
+#: episode purely to name it, which is the expensive half of an episode spent
+#: on a label. A marker line is free.
+_TITLE_MARKER = re.compile(r"<<\s*TITLE\s*:\s*([^<>]{1,120}?)\s*>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
 _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
@@ -327,15 +335,13 @@ How it ends:
 you have - the detail that makes the answer stick. Then stop, mid-stride. An \
 episode that has said what it came to say does not need a closing move.
 - **Never tease.** No hook for a future episode, no "but that raises another \
-question", no "there is more to this than", no pointing at something you are \
-deliberately not covering. If a thing is worth mentioning it is worth \
-answering; if it is not worth answering, leave it out entirely.
+question", no pointing at something you are deliberately not covering. If a \
+thing is worth mentioning it is worth answering; if not, leave it out.
 - **No rhetorical questions and no forecasting.** Not "but will it hold?", not \
 "we will have to wait and see", not "watch this space". Never ask the listener \
 a question at the end.
 - **Never summarise or recap.** They just heard it. "So, to sum up", "in \
-conclusion", "all in all", "the bottom line is", "and that's the story of" - \
-each one hands the listener their coat.
+conclusion", "the bottom line is" - each hands the listener their coat.
 - Unresolved things belong *in* the piece, where you say plainly that they are \
 unresolved and why, and then carry on. They do not belong at the end as a \
 parting hook.
@@ -358,17 +364,15 @@ is usually the most interesting part anyway.
 worst thing you can do here.
 - **Never say what you do not have.** "I don't have", "I can't confirm", "I'm \
 not going to guess" - a listener who hears one of those in the first ten \
-seconds does not stay for the rest. The \
-line, which is the whole of this rule: **where a thing stands in the world is \
-the episode** - "the game is in the seventh" - and **where it stands in your \
+seconds does not stay. The line: **where a thing stands in the world is the \
+episode** - "the game is in the seventh" - and **where it stands in your \
 notes never is**. If you cannot establish something, write the part you can \
 and leave the rest out without marking its absence.
 
 Time, handled the way a person would:
 - Give the newest information you can establish.
 - Mention timing only when it changes the meaning - "the count is still going" \
-- and then in passing, never as your own currency ("as of Sunday the \
-thirtieth", "based on what I have").
+- and then in passing, never as your own currency ("based on what I have").
 
 Format, because this is spoken aloud and never read:
 - Output only the words to be said. No headings, markdown, bullets, stage \
@@ -378,18 +382,24 @@ point. Say numbers as a person says them: "about twelve percent", "nineteen \
 ninety-eight".
 - No greeting, no sign-off, no naming the show, and never mention being an AI.
 
-One line after the script, which is never spoken:
+Two lines after the script, never spoken:
+
+<<TITLE: three to eight words>>
+
+What this episode turned out to be *about*, never the question you were \
+asked. Concrete and readable at a glance in a list; no colon, no question \
+mark, and never their own wording handed back.
 
 <<NEXT: what they would most likely wonder about next>>
 
 This is a *prediction*, not a promise, and the script must not gesture at it in \
-any way. Having just heard this episode, what is the single most natural thing \
-this listener would go on to ask? Read it off what you actually covered - the \
+any way. Having just heard this, what is the single most natural thing this \
+listener would go on to ask? Read it off what you actually covered - the \
 mechanism with an obvious next step, the figure that invites "compared to \
 what". Not the most obscure follow-up, the most likely one.
 
-Write it as a request, not a title - "whether the appeal actually gets heard". \
-Six to twelve words, stripped before anything is spoken; nothing after it.
+A request, not a title - "whether the appeal actually gets heard". Six to \
+twelve words; nothing after it.
 """
 
 
@@ -452,6 +462,10 @@ class ScriptNotes:
     #: by the pipeline, cached beside the script and shown in the app. FAM
     #: already collected all of this and discarded it; see `provenance.py`.
     provenance: object = None
+    #: The episode's own title, off the model's trailing marker line. Empty
+    #: when it did not write one, and every caller falls back to the question -
+    #: which is what all of them showed before this existed.
+    title: str = ""
     #: Sentences `OpeningGuard` held back before they could be spoken. Kept
     #: rather than only logged: this is a prompt rule failing, and a prompt
     #: rule that fails silently is how the Dodgers opener survived a system
@@ -466,6 +480,29 @@ def extract_thread(text: str) -> str:
         return ""
     thread = re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")
     return thread[:160]
+
+
+def extract_title(text: str) -> str:
+    """Pull the episode's own title out of its trailing marker line.
+
+    What this replaces: the typed question, shown as the title. Somebody who
+    asked "what happened with the fed yesterday" got an episode called *What
+    Happened With The Fed Yesterday* - their own words handed back with capital
+    letters, which tells them nothing they did not just type and reads as an
+    echo rather than as a thing they now have.
+
+    Written by the model on the same kind of line as `<<NEXT:>>`, so it costs
+    nothing: no second call, no latency in front of the first word. Empty when
+    the model did not write one, and callers fall back to the question, which
+    is exactly what they did before.
+    """
+    match = _TITLE_MARKER.search(text)
+    if not match:
+        return ""
+    title = re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")
+    # A model asked for a title occasionally writes a sentence. Trimmed rather
+    # than rejected: most of a good title is still better than the question.
+    return title[:80]
 
 
 @dataclass
@@ -913,13 +950,19 @@ Finish when the answer is finished. Land on the most concrete thing you have
 and stop. Do not tease what you are not covering, do not end on a question, and
 do not summarise what they just heard.
 
-Then, on its own line after the script, predict the single most likely thing
-they would go on to ask, having heard this:
+Then two lines after the script. Name the episode by what it turned out to be
+about, never by the question you were asked - three to eight words, concrete,
+readable at a glance in a list, no colon and no question mark:
+
+<<TITLE: three to eight words>>
+
+And predict the single most likely thing they would go on to ask, having heard
+this:
 
 <<NEXT: six to twelve words>>
 
-Read it off what you actually said. That line is stripped before anything is
-spoken and the script must not hint at it. Nothing goes after it.
+Read both off what you actually said. Both lines are stripped before anything
+is spoken and the script must not hint at either. Nothing goes after them.
 
 The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch
@@ -934,6 +977,7 @@ def clean_for_speech(text: str) -> str:
     # The go-deeper marker, and any half-written one: everything from an
     # unmatched "<<" onwards is metadata, never speech.
     text = _NEXT_MARKER.sub("", text)
+    text = _TITLE_MARKER.sub("", text)
     text = re.sub(r"<<.*$", "", text, flags=re.S)
     # Stage directions first, while their brackets are still intact.
     text = re.sub(r"\[[^\]]{0,60}\]", "", text)
@@ -1199,6 +1243,7 @@ class ScriptGenerator:
                 yield rescued
             if notes is not None:
                 notes.thread = extract_thread(buffer)
+                notes.title = extract_title(buffer)
                 notes.meta_openings = tuple(guard.dropped)
 
             final = await stream.get_final_message()

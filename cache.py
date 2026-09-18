@@ -403,12 +403,19 @@ class ScriptCache(Protocol):
     def get(self, key: str) -> Optional[list[str]]: ...
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
-        minutes: int = 0, bucket: str = "", sources: str = "", author: str = ""
+        minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
+        title: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
     #: can never speak it by accident.
     def thread(self, key: str) -> str: ...
+    #: The episode's own title, written by the model on the same kind of
+    #: trailing line as `thread` and stored for the same reason: a replayed
+    #: episode has no `notes`, so without this a shared or Explore episode
+    #: would be titled with somebody else's typed question while a freshly
+    #: generated one had a real name.
+    def title(self, key: str) -> str: ...
     #: Who the cached episode's facts came from, as stored JSON. Kept beside
     #: the script for the same reason `thread` is: a cache hit replays
     #: sentences and has no `notes`, so without this a shared or Explore
@@ -438,6 +445,8 @@ class MemoryScriptCache:
         #: key -> provenance JSON. Beside the tuple rather than in it, so the
         #: shape the existing tests assert on is unchanged.
         self._sources: dict[str, str] = {}
+        #: key -> the episode's own title, for the same reason.
+        self._titles: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
@@ -455,11 +464,13 @@ class MemoryScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = ""
+        author: str = "", title: str = ""
     ) -> None:
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
         if sources:
             self._sources[key] = sources
+        if title:
+            self._titles[key] = title
         # First writer only. A second listener asking the same question is
         # served from this entry and never rewrites it, so authorship stays
         # "who paid for this" rather than "who asked most recently".
@@ -481,7 +492,8 @@ class MemoryScriptCache:
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
             {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
-             "plays": 0, "thread": v[2]}
+             "plays": 0, "thread": v[2], "title": self._titles.get(k, ""),
+             "author": self._authors.get(k, "")}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and not (exclude_author and self._authors.get(k) == exclude_author)
@@ -500,6 +512,12 @@ class MemoryScriptCache:
         if not entry or entry[0] < time.time():
             return ""
         return self._sources.get(key, "")
+
+    def title(self, key: str) -> str:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return ""
+        return self._titles.get(key, "")
 
     def stats(self) -> dict:
         return {"backend": "memory", "entries": len(self._data), "hits": self.hits, "misses": self.misses}
@@ -560,6 +578,15 @@ class SqliteScriptCache:
                 # before this migration have no author and are shown to
                 # everybody, which is what they were already doing.
                 ("author", "ALTER TABLE scripts ADD COLUMN author TEXT NOT NULL DEFAULT ''"),
+                # The episode's own title, off the model's trailing marker
+                # line. Beside the script for the same reason `thread` is: a
+                # replayed episode has no `notes`, so without this a shared or
+                # Explore episode would be titled with whatever the first
+                # listener happened to type while a freshly generated one had
+                # a real name. Rows written before this migration have none
+                # and fall back to the question, which is what every row did
+                # before it existed.
+                ("title", "ALTER TABLE scripts ADD COLUMN title TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -600,7 +627,7 @@ class SqliteScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = ""
+        author: str = "", title: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -625,8 +652,8 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector, sources, author)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bucket, vector, sources, author, title)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
                 "  query = excluded.query, sentences = excluded.sentences,"
@@ -634,10 +661,15 @@ class SqliteScriptCache:
                 "  bucket = excluded.bucket, vector = excluded.vector,"
                 "  sources = excluded.sources,"
                 "  author = CASE WHEN scripts.author != '' THEN scripts.author"
-                "                ELSE excluded.author END",
+                "                ELSE excluded.author END,"
+                # A re-write keeps the title it has unless it is bringing a
+                # new one. A longer TTL or fresher sources must not blank the
+                # name of an episode that is already in somebody's feed.
+                "  title = CASE WHEN excluded.title != '' THEN excluded.title"
+                "               ELSE scripts.title END",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
-                 (author or "")[:64]),
+                 (author or "")[:64], (title or "")[:120]),
             )
         except Exception:
             log.exception("script cache write failed; continuing")
@@ -699,6 +731,20 @@ class SqliteScriptCache:
             log.exception("script cache thread read failed")
             return ""
 
+    def title(self, key: str) -> str:
+        """The episode's own name, or "" - in which case the caller falls back
+        to the question, which is what everything did before this existed."""
+        try:
+            row = self._conn().execute(
+                "SELECT title, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return ""
+            return row[0] or ""
+        except Exception:
+            log.exception("script cache title read failed")
+            return ""
+
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         """Live cache entries, newest first - the raw material for Explore.
 
@@ -719,7 +765,8 @@ class SqliteScriptCache:
         """
         try:
             rows = self._conn().execute(
-                "SELECT key, query, minutes, created, hits, thread FROM scripts"
+                "SELECT key, query, minutes, created, hits, thread, title,"
+                " author FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"
                 " ORDER BY created DESC LIMIT ?",
@@ -730,8 +777,15 @@ class SqliteScriptCache:
             log.exception("could not read recent scripts")
             return []
         return [
+            # `author` is here for exactly one display decision - whether a
+            # *friend* generated this - and must not leave the server as an
+            # id. `/api/explore` resolves it to a name and a picture and emits
+            # neither. Authorship is provenance, never identity: nothing about
+            # the key or the bucket reads it, and a listener id one field away
+            # from the key is one refactor away from being in it.
             {"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
-             "plays": r[4], "thread": r[5] or ""}
+             "plays": r[4], "thread": r[5] or "", "title": r[6] or "",
+             "author": r[7] or ""}
             for r in rows
         ]
 
