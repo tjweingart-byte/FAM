@@ -35,7 +35,7 @@ import prefetch  # noqa: E402
 import prefetch_sources  # noqa: E402
 
 
-def show_plan(listener: str) -> int:
+def show_plan(listener: str, minutes: int = 0) -> int:
     import mixes as mixes_mod
     import social as social_mod
     import topics as topics_mod
@@ -53,14 +53,19 @@ def show_plan(listener: str) -> int:
           f"   ·   per cycle: {settings.prefetch_per_cycle}"
           f"   ·   {'ON' if settings.prefetch else 'OFF (PREFETCH=0)'}")
     print(f"budget:  {settings.prefetch_daily_episodes} episodes / "
-          f"${settings.prefetch_daily_dollars:.2f} a day\n")
+          f"{settings.prefetch_daily_briefs} briefs / "
+          f"${settings.prefetch_daily_dollars:.2f} a day")
+    print(f"cycle:   at most one per listener every "
+          f"{settings.prefetch_cycle_seconds:.0f}s, scheduled when myFAM is "
+          f"drawn\n")
 
     worker = prefetch.Prefetcher()
-    plan = worker.plan(listener)
+    plan = worker.plan(listener, minutes=minutes)
     if not plan:
-        print("nothing to warm. With no listener only trending answers, and a "
-              "cold event log has no plays in it yet - seed one with "
-              "`python tools/seed_demo.py`.")
+        print("nothing to warm. With no listener only trending and the live "
+              "story pool answer; a cold event log has no plays in it yet "
+              "(seed one with `python tools/seed_demo.py`) and the pool is "
+              "empty until a source is configured and a sweep has run.")
         return 0
 
     print(f"would warm {len(plan)} episode(s)"
@@ -92,6 +97,14 @@ def show_live(base: str) -> int:
     print(f"prefetch: {'ON' if report.get('enabled') else 'OFF'}"
           f"   ·   level {report.get('level')}"
           f"   ·   sources: {', '.join(report.get('sources') or []) or 'none'}")
+    # Whether anything is actually *driving* it. Sources installed and nothing
+    # scheduling a cycle looks identical from outside to sources installed and
+    # warming every browse - which is the state this was in until §105.
+    if "listeners_cycled" in report:
+        cycled = report["listeners_cycled"]
+        print(f"cycles:   warmed for {cycled} listener(s) since this process "
+              f"started" + ("  - nothing has scheduled one yet" if not cycled
+                            else ""))
     if not report.get("built"):
         print("no prefetcher has been built in that process yet, so there is "
               "nothing to report on.")
@@ -99,13 +112,23 @@ def show_live(base: str) -> int:
 
     budget = report.get("budget") or {}
     print(f"budget:   {budget.get('episodes_used')}/{budget.get('max_episodes')} "
-          f"episodes, ${budget.get('dollars_used', 0):.3f}/"
+          f"episodes, {budget.get('briefs_used', 0)}/"
+          f"{budget.get('max_briefs', 0)} briefs, "
+          f"${budget.get('dollars_used', 0):.3f}/"
           f"${budget.get('max_dollars', 0):.2f} today")
 
     warmed, taken = report.get("warmed", 0), report.get("taken", 0)
     rate = report.get("hit_rate")
-    print(f"\nwarmed {warmed}, taken {taken}, hit rate "
+    print(f"\nscripts:  warmed {warmed}, taken {taken}, hit rate "
           + ("no data yet" if rate is None else f"{rate:.0%}"))
+    # The level that actually ships, so this is usually the only line with
+    # anything in it. Counted every time a tap uses one, rather than once per
+    # key: a brief is held in the process, so each tap that finds one is a
+    # separate several seconds nobody waited.
+    brief_rate = report.get("brief_hit_rate")
+    print(f"briefs:   warmed {report.get('briefs_warmed', 0)}, "
+          f"taken {report.get('briefs_taken', 0)}, hit rate "
+          + ("no data yet" if brief_rate is None else f"{brief_rate:.0%}"))
     if report.get("skipped_already_cached"):
         print(f"  {report['skipped_already_cached']} already in the cache "
               "(somebody else had already paid for them)")
@@ -118,8 +141,11 @@ def show_live(base: str) -> int:
         for name, row in by_source.items():
             got, put = row.get("taken", 0), row.get("warmed", 0)
             share = f"{got / put:.0%}" if put else "-"
-            print(f"    {name:<10} warmed {put:>4}  taken {got:>4}  "
-                  f"{share:>5}  ${row.get('dollars', 0):.3f}")
+            bgot, bput = row.get("briefs_taken", 0), row.get("briefs_warmed", 0)
+            bshare = f"{bgot / bput:.0%}" if bput else "-"
+            print(f"    {name:<10} scripts {put:>3}/{got:<3} {share:>5}   "
+                  f"briefs {bput:>3}/{bgot:<3} {bshare:>5}   "
+                  f"${row.get('dollars', 0):.3f}")
         print("\n  A source warming a lot and taken rarely is paying for "
               "episodes nobody wanted.\n  One taken nearly every time is "
               "probably worth warming deeper (PREFETCH_LEVEL=script).")
@@ -133,8 +159,11 @@ def main() -> int:
     ap.add_argument("--live", nargs="?", const="http://127.0.0.1:8000",
                     default="", metavar="URL",
                     help="read the hit rate from a running server instead")
+    ap.add_argument("--minutes", type=int, default=0,
+                    help="the browse length to plan at, as myFAM would pass it")
     args = ap.parse_args()
-    return show_live(args.live) if args.live else show_plan(args.listener)
+    return (show_live(args.live) if args.live
+            else show_plan(args.listener, args.minutes))
 
 
 if __name__ == "__main__":

@@ -114,10 +114,15 @@ browse surfaces, where what someone might tap is known well before they tap it,
 and where a speculative script is far more likely to be used than one triggered
 by a keystroke pause. That is where to spend it.
 
-**The framework for spending it there is now built** *(PROBLEMS.md §83,
-`prefetch.py`).* It ships off, and it is a framework rather than a policy: what
-to warm, how much of it, and when, are questions that want the hit rate it
-produces. See the settled constraint below.
+**The framework for spending it there is now built, and myFAM now drives it**
+*(PROBLEMS.md §83 for the framework, §105 for the driving).* Drawing the page
+schedules a cycle - never awaited - and what it warms is the **brief**: the one
+model call episode intelligence puts between a tap and its retrieval, paid
+before the finger lands instead of in front of the first word. So the amendment
+above is honoured where it said it would be: search pays EI, myFAM does not.
+Warming whole *scripts* is a separate level and stays opt-in, because a
+speculative brief costs a fraction of a cent and a speculative episode costs an
+episode. See the settled constraint below.
 
 ## What makes a FAM episode different
 
@@ -979,26 +984,46 @@ the rest of this list it needs taste rather than a key.
   at all, since that would be a tap silently skipping EI after paying for it.
   Four things it may never do: **compete with a live listener** (the serving
   path marks itself, prefetch stands aside, one warm at a time), **spend past
-  its ceiling** (episodes *and* dollars, because a 10-minute researched episode
-  costs several times a 1-minute one), **warm anything personal** (the same
+  its ceiling** (episodes, briefs *and* dollars - a 10-minute researched
+  episode costs several times a 1-minute one and a brief a fraction of
+  either, so one count for all three binds on the wrong thing: §105 found 50
+  *briefs* being a whole day's warming with the dollar budget untouched), **warm anything personal** (the same
   `is_shareable` rule a live episode obeys), and **pretend it is paying** -
   warmed and taken are counted separately per source, recorded from the
   serving path with the key that actually hit, and reported as `None` rather
   than `0` when there is no data, because zero out of zero reads as failure and
-  is actually silence.
-  **It ships off** (`PREFETCH=0`), on the tier system's reasoning: the
-  mechanism is worth having ready and the policy is worth deciding with
-  numbers. Nothing schedules a cycle yet - that is the next decision, not an
-  oversight. `python tools/prefetch_report.py` shows what a deployment would
-  warm without spending anything; `--live` reads the hit rate off a server.
+  is actually silence. **Briefs are counted beside scripts** (§105), or the
+  shipped level would report "no data yet" forever - counted on every tap that
+  uses one rather than once per key, because the store is in-process, and never
+  counted when the brief was degraded and therefore dropped.
+  **It ships on at `brief`, and myFAM is what schedules it** *(§105, reversing
+  §83's "it ships off").* `/api/myfam` calls `prefetch.schedule_cycle` when
+  the page is drawn and never awaits it, the same shape as the story sweep
+  beside it - for as long as this module existed nothing called `run_once` at
+  all, so every source, budget and ledger in it was inert. Three things that
+  scheduling had to bring with it, each of which would otherwise have made the
+  warming worthless or expensive: a **per-listener cooldown**
+  (`PREFETCH_CYCLE_SECONDS`), because a browse page is drawn far more often
+  than it is acted on; the **length the surface is showing**, passed down to
+  `Prefetcher.plan`, because minutes are in both keys and myFAM has had a
+  length control of its own since §95; and a **skip for a brief already held**,
+  because a brief keeps for an hour and a cycle can come round every five
+  minutes. Warming whole scripts stays opt-in (`PREFETCH_LEVEL=script`) and
+  still wants the hit rate first. `python tools/prefetch_report.py` shows what
+  a deployment would warm without spending anything; `--live` reads the hit
+  rate off a server.
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for
   everyone", "in their 'At the gym' mix (typed, so shared with nobody)" - and
   it survives to the report, because the only way to judge a prefetcher is to
   see which *kinds* of guess get taken. The source ordering is a **cost design,
-  not a ranking one**: trending is identical for everybody so one warmed script
-  serves every tap, a bank mix member is shared where a typed one is a script a
-  day for one person, and a feed rail is the most personal and least shareable.
+  not a ranking one**: trending and the live story pool are identical for
+  everybody so one warm serves every tap, a bank mix member is shared where a
+  typed one is a script a day for one person, and a feed rail is the most
+  personal and least shareable. **The story pool is the one with most to gain**
+  (§105): a tile there is a title and an angle, so the subject is still
+  unresolved at the tap, which is exactly the call a warmed brief has already
+  made.
   Sources are **forbidden to call a model or the network** - one that costs
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
@@ -1257,15 +1282,20 @@ which is the go/no-go for all of it.
   out loud rather than letting anyone find out the hard way.
 - **Local or hosted voices?** Changes the cost model more than the model choice
   does.
-- **How much to prefetch?** Every speculative script costs money; every one not
-  fetched costs a wait. *The framework is built and off* (§83), so this is now
-  a measurement rather than a guess: turn `PREFETCH=1` on, let it warm, and
-  read the per-source hit rate off `/api/health` or
+- **How much to prefetch?** *Half answered (§105), and the half that is left is
+  the expensive one.* What schedules a cycle is decided: myFAM, on the draw,
+  per listener, at most one every `PREFETCH_CYCLE_SECONDS`. What is warmed is
+  the **brief** - cheap enough that being wrong costs a fraction of a cent, and
+  worth enough that being right removes the seconds EI costs a browse tap.
+  **Still open: whether to warm scripts**, which is the question that actually
+  costs money, and it is now a measurement rather than a guess - let it warm
+  and read the per-source hit rate off `/api/health` or
   `tools/prefetch_report.py --live`. A source warmed often and taken rarely is
   paying for episodes nobody wanted; one taken nearly every time is worth
-  warming deeper (`PREFETCH_LEVEL=script`). **Still to decide, and deliberately
-  not decided here: what schedules a cycle** - when, how often, and per
-  listener or globally.
+  warming deeper (`PREFETCH_LEVEL=script`). Two further things nothing warms
+  yet, and both are one class each: DailyFAM's mixes are warmed only when
+  their owner opens myFAM, and no cycle is scheduled for a listener who is not
+  looking.
 - **Is a local embedding model worth installing?** The near-match cache
   (PROBLEMS.md §68) is built, measured and off by default. It raises the share
   of re-phrasings that find an existing episode from 22% to 56% on a measured

@@ -1,8 +1,10 @@
 """Writing the episode before anybody asks for it.
 
-The framework, not the policy. It ships off (`PREFETCH=0`), so most of what is
-below is about the four properties that have to hold before anybody dares turn
-it on:
+**It ships on at `brief` level** (PROBLEMS.md §105): myFAM schedules a cycle
+when it is drawn, so the seconds episode intelligence costs are paid before the
+tap rather than in front of the first word. Warming whole *scripts* is still
+opt-in. So most of what is below is about the five properties that have to hold
+for that to be safe:
 
 1. **A warmed script is found.** Prefetch and the tap compute the cache key
    with the same function, so they cannot drift. This is the failure that would
@@ -14,6 +16,9 @@ it on:
 4. **It says whether it is paying.** Warmed and taken are counted separately,
    per source, because "how much to prefetch" cannot be answered by anything
    except the hit rate.
+5. **Something drives it, and driving it is cheap.** A framework nothing calls
+   is a framework that does nothing; one called on every page draw has to
+   refuse itself in a dictionary lookup.
 
 Nothing here needs a key, a network or a voice: the generator is stubbed, and
 prefetch never touches a voice by design - the script is the expensive,
@@ -280,8 +285,12 @@ def test_a_budget_reports_what_is_left_for_a_person_to_read():
     assert shown["dollars_left"] == pytest.approx(1.75)
 
 
-def test_nothing_is_warmed_while_prefetch_is_off():
+def test_nothing_is_warmed_while_prefetch_is_off(monkeypatch):
+    """`PREFETCH=0` restores the old behaviour exactly: every tap pays for its
+    own brief. Set explicitly now that the default is on."""
     prefetch.reset()
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=False))
     generator = FakeGenerator()
     prefetcher = prefetch.Prefetcher(generator=generator,
                                      cache=cache_mod.MemoryScriptCache())
@@ -331,7 +340,8 @@ def test_the_hit_rate_is_reported_per_source(warmer):
     prefetcher.ledger.note_consumed(key)
 
     by_source = prefetcher.ledger.as_dict()["by_source"]
-    assert by_source["trending"] == {"warmed": 1, "taken": 1, "dollars": 0.0}
+    assert by_source["trending"]["warmed"] == 1
+    assert by_source["trending"]["taken"] == 1
     assert by_source["mixes"]["taken"] == 0
 
 
@@ -400,8 +410,10 @@ def test_a_cycle_stops_the_moment_the_budget_is_gone(on):
         "the cycle kept asking after the answer could only be the same")
 
 
-def test_a_cycle_does_not_run_while_prefetch_is_off():
+def test_a_cycle_does_not_run_while_prefetch_is_off(monkeypatch):
     prefetch.reset()
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=False))
     prefetcher = prefetch.Prefetcher(generator=FakeGenerator(),
                                      cache=cache_mod.MemoryScriptCache())
     assert asyncio.run(prefetcher.run_once())["ran"] is False
@@ -496,15 +508,28 @@ def test_no_warm_brief_is_offered_while_prefetch_is_off():
 # --------------------------------------------------------------------------
 # what a person can see
 # --------------------------------------------------------------------------
-def test_health_says_which_state_a_deploy_is_in():
+def test_health_says_which_state_a_deploy_is_in(monkeypatch):
     """A prefetcher that is off looks exactly like one that is on and missing
     everything. Both are reportable and they need different fixes."""
     prefetch.reset()
     prefetch.reset_sources()
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=False))
     report = prefetch.report()
     assert report["enabled"] is False
     assert report["built"] is False
     assert report["level"] in prefetch.LEVELS
+
+
+def test_health_says_what_is_driving_it(warmer):
+    """Sources installed and nothing scheduling a cycle looks identical from
+    outside to sources installed and warming every browse - which is exactly
+    the state this module was in until §105."""
+    prefetcher, _generator, _cache = warmer
+    assert prefetcher.report()["listeners_cycled"] == 0
+    prefetcher.note_cycle("listener-1")
+    assert prefetcher.report()["listeners_cycled"] == 1
+    assert prefetcher.report()["cycle_seconds"] > 0
 
 
 def test_health_reports_the_ledger_once_a_prefetcher_exists(warmer):
@@ -516,12 +541,12 @@ def test_health_reports_the_ledger_once_a_prefetcher_exists(warmer):
 
 
 def test_the_source_report_names_what_is_missing(on):
-    """A prefetcher running on one surface out of four looks identical from
+    """A prefetcher running on one surface out of five looks identical from
     outside to one running on all of them."""
     prefetch.register(ListSource("trending", []))
     report = prefetch_sources.report()
     assert report["installed"] == ["trending"]
-    assert set(report["missing"]) == {"mixes", "feed", "threads"}
+    assert set(report["missing"]) == {"stories", "mixes", "feed", "threads"}
 
 
 def test_an_unknown_warm_level_is_refused_rather_than_guessed():
@@ -578,3 +603,228 @@ def test_an_ordinary_question_is_still_warmed_as_a_script(on):
                                   level="script"))
     assert outcome == "script"
     assert generator.wrote == ["how does a heat pump work"]
+
+
+# --------------------------------------------------------------------------
+# 5. something actually drives it (PROBLEMS.md §105)
+# --------------------------------------------------------------------------
+# For as long as this module existed, `run_once` was called by nothing outside
+# tests and tools, so every source, budget and ledger in it was inert: the
+# framework was built, reported on /api/health, and never once asked to guess.
+# These are about the thing that asks.
+def test_a_browse_surface_can_schedule_a_cycle_without_waiting_for_it(on):
+    """The whole point. myFAM renders from what already exists, and a page that
+    waited for speculation would have spent the latency the speculation was
+    buying."""
+    warmed: list = []
+
+    class SlowPrefetcher(prefetch.Prefetcher):
+        async def run_once(self, listener="", minutes=0):
+            await asyncio.sleep(0)
+            warmed.append((listener, minutes))
+            return {"ran": True, "reason": "", "outcomes": {"brief": 1}}
+
+    async def scenario():
+        prefetch._PREFETCHER = SlowPrefetcher(generator=FakeGenerator())
+        assert prefetch.schedule_cycle("listener-1", 5) is True
+        # Nothing has run yet: the caller was not blocked.
+        assert warmed == []
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert warmed == [("listener-1", 5)]
+
+    asyncio.run(scenario())
+
+
+def test_a_page_drawn_twice_schedules_one_cycle(on):
+    """A browse page is drawn far more often than it is acted on - opening the
+    tab, coming back from a player, a pull to refresh. Without a clock on it,
+    one listener flicking between tabs would spend the whole daily ceiling on
+    the same six tiles."""
+    async def scenario():
+        prefetch._PREFETCHER = prefetch.Prefetcher(generator=FakeGenerator())
+        assert prefetch.schedule_cycle("listener-1") is True
+        assert prefetch.schedule_cycle("listener-1") is False
+
+    asyncio.run(scenario())
+
+
+def test_one_listeners_browsing_does_not_stop_everybody_elses(on):
+    """The clock is per listener rather than global, or the busiest person on
+    the server would be the only one whose guesses were ever warmed."""
+    async def scenario():
+        prefetch._PREFETCHER = prefetch.Prefetcher(generator=FakeGenerator())
+        assert prefetch.schedule_cycle("listener-1") is True
+        assert prefetch.schedule_cycle("listener-2") is True
+
+    asyncio.run(scenario())
+
+
+def test_the_clock_comes_round_again(monkeypatch, on):
+    """It is a cooldown, not a once-per-process gate: a listener who comes back
+    to a genuinely different page gets a genuinely new cycle."""
+    pf = prefetch.Prefetcher(generator=FakeGenerator())
+    now = time.monotonic()
+    pf.note_cycle("listener-1", now=now)
+    assert pf.due("listener-1", now=now + 10) is False
+    assert pf.due("listener-1",
+                  now=now + config.settings.prefetch_cycle_seconds + 1) is True
+
+
+def test_nothing_is_scheduled_while_prefetch_is_off(monkeypatch):
+    """Off has to mean off at the entry point too, or a deployment that turned
+    it off would still be paying for cycles that then refuse themselves."""
+    prefetch.reset()
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=False))
+
+    async def scenario():
+        prefetch._PREFETCHER = prefetch.Prefetcher(generator=FakeGenerator())
+        assert prefetch.schedule_cycle("listener-1") is False
+
+    asyncio.run(scenario())
+    prefetch.reset()
+
+
+def test_a_cycle_that_fails_never_reaches_the_page_that_scheduled_it(on):
+    """A guess that falls over must not surface to a listener who asked for
+    something else - they asked for a browse page, and they get one."""
+    class BrokenPrefetcher(prefetch.Prefetcher):
+        async def run_once(self, listener="", minutes=0):
+            raise RuntimeError("the model fell over")
+
+    async def scenario():
+        prefetch._PREFETCHER = BrokenPrefetcher(generator=FakeGenerator())
+        assert prefetch.schedule_cycle("listener-1") is True
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())  # no exception escapes
+
+
+def test_a_cycle_is_warmed_at_the_length_the_surface_is_showing(on):
+    """myFAM has a length control of its own (§95), and a brief is keyed by
+    `(query, minutes, context)`. A warm at the interface default is a warm
+    nobody looks up, for every listener who changed it."""
+    prefetch.register(ListSource("test", [candidate("a question", minutes=2)]))
+    pf = prefetch.Prefetcher(generator=FakeGenerator())
+
+    planned = pf.plan("listener-1", minutes=7)
+
+    assert [c.minutes for c in planned] == [7]
+    assert [c.minutes for c in pf.plan("listener-1")] == [2], (
+        "without an override each source's own default has to stand"
+    )
+
+
+def test_a_brief_already_held_is_not_bought_again(on, monkeypatch):
+    """A brief keeps for an hour and a browse can schedule a cycle every five
+    minutes, so without this the same six tiles would be bought twelve times
+    over - a prefetcher whose whole saving went on re-buying its own work."""
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=True,
+                                            prefetch_level="brief"))
+    generator = FakeGenerator()
+    pf = prefetch.Prefetcher(generator=generator,
+                             cache=cache_mod.MemoryScriptCache())
+
+    assert asyncio.run(pf.warm(candidate("what did the fed do"))) == "brief"
+    assert asyncio.run(pf.warm(candidate("what did the fed do"))) == "cached"
+    assert generator.understood == ["what did the fed do"], (
+        "contextual relevance was paid for twice for one warmed brief"
+    )
+
+
+def test_a_warmed_brief_that_gets_used_is_counted_too(on, monkeypatch):
+    """`brief` is the shipped level, so a ledger that counted only scripts
+    would report "no data yet" forever on the default deployment - which is
+    the "never pretend it is paying" rule with the sign flipped."""
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=True,
+                                            prefetch_level="brief"))
+    prefetch._PREFETCHER = prefetch.Prefetcher(
+        generator=FakeGenerator(), cache=cache_mod.MemoryScriptCache())
+
+    asyncio.run(prefetch._PREFETCHER.warm(candidate("a question",
+                                                    source="stories")))
+    report = prefetch._PREFETCHER.report()
+    assert report["briefs_warmed"] == 1 and report["briefs_taken"] == 0
+    assert report["brief_hit_rate"] == 0.0
+
+    assert prefetch.warm_brief("a question", 3) is not None
+    report = prefetch._PREFETCHER.report()
+    assert report["briefs_taken"] == 1
+    assert report["by_source"]["stories"]["briefs_taken"] == 1
+
+
+def test_a_brief_nobody_warmed_reports_no_data_rather_than_zero(on):
+    """Zero out of zero reads as a failing prefetcher and is actually silence -
+    the same rule the script hit rate keeps."""
+    prefetcher = prefetch.Prefetcher(generator=FakeGenerator())
+    assert prefetcher.report()["brief_hit_rate"] is None
+
+
+def test_a_degraded_brief_is_not_counted_as_warmed(on, monkeypatch):
+    """The store drops it - keeping one would mean a tap skipping EI after
+    paying for it - so counting it would report a saving no tap can collect."""
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=True,
+                                            prefetch_level="brief"))
+    degraded = ei.Brief(query="a question", subject="a question",
+                        search_query="a question", degraded=True)
+    prefetcher = prefetch.Prefetcher(generator=FakeGenerator(brief=degraded),
+                                     cache=cache_mod.MemoryScriptCache())
+    asyncio.run(prefetcher.warm(candidate("a question", source="stories")))
+    assert prefetcher.report()["briefs_warmed"] == 0
+
+
+def test_a_script_warm_counts_its_brief_once_and_its_cost_once(on):
+    """A `script` warm keeps a brief too, and a tap can take that brief before
+    the script is ever asked for - so it is counted. The dollars are not: they
+    belong to the script row, and adding them twice would make the budget
+    report describe a spend that never happened."""
+    prefetcher = prefetch.Prefetcher(generator=FakeGenerator(),
+                                     cache=cache_mod.MemoryScriptCache())
+    asyncio.run(prefetcher.warm(candidate("a question", source="trending"),
+                                level="script"))
+    row = prefetcher.report()["by_source"]["trending"]
+    assert row["briefs_warmed"] == 1 and row["warmed"] == 1
+
+
+def test_the_brief_ceiling_is_not_the_episode_ceiling(on, monkeypatch):
+    """The defect this exists to stop: a brief costs a fraction of a script,
+    so counting one against the episode ceiling made 50 *briefs* a day's
+    warming - six per cycle, one cycle per browse. A deployment on the shipped
+    level would have stopped before lunch with most of the dollar budget
+    unspent, and the only sign of it would be `budget` in a log line."""
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=True,
+                                            prefetch_level="brief"))
+    budget = prefetch.Budget(max_episodes=2, max_briefs=5, max_dollars=10.0)
+    pf = prefetch.Prefetcher(generator=FakeGenerator(),
+                             cache=cache_mod.MemoryScriptCache(), budget=budget)
+
+    for n in range(5):
+        assert asyncio.run(pf.warm(candidate(f"question {n}"))) == "brief"
+    assert budget.as_dict()["episodes_used"] == 0, (
+        "a brief was charged to the episode ceiling")
+    assert asyncio.run(pf.warm(candidate("question 6"))) == "budget", (
+        "the brief ceiling is not enforced at all")
+
+
+def test_a_budget_with_no_brief_ceiling_falls_back_to_the_episode_one(on):
+    """Zero means "use the episode ceiling", so a Budget built before this
+    existed bounds briefs exactly as it always did rather than not at all."""
+    budget = prefetch.Budget(max_episodes=1, max_dollars=10.0)
+    assert budget.brief_ceiling == 1
+    budget.spend(0.0, level="brief")
+    assert budget.allows(level="brief") is False
+
+
+def test_the_dollar_ceiling_still_bounds_both_kinds(on):
+    """The counts are the per-kind backstop; the dollars are the currency the
+    two share, and a brief that spends the day's money must stop too."""
+    budget = prefetch.Budget(max_episodes=99, max_briefs=99, max_dollars=0.01)
+    budget.spend(0.02, level="brief")
+    assert budget.allows(level="brief") is False
+    assert budget.allows() is False

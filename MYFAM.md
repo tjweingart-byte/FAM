@@ -223,6 +223,39 @@ fact about what people are playing.
 the length it would be written at, so asking at the wrong length marks ready
 tiles unready and sorts the rails wrong.
 
+## What the page warms before a tap
+
+Drawing myFAM schedules a **prefetch cycle** - `prefetch.schedule_cycle(user,
+minutes)`, called after the feed is built and never awaited, exactly like the
+story sweep above it. What it warms is the **brief**: the one model call
+episode intelligence makes between a tap and its retrieval, which is the
+several seconds a browse tap would otherwise pay in front of its first word.
+
+**Not the script.** A brief costs a fraction of a cent, so a wrong guess is
+nearly free; an episode costs an episode. `PREFETCH_LEVEL=script` warms the
+whole thing and stays opt-in until the hit rate says it pays - and on a page
+whose top two rails are today's news, writing episodes hours before they are
+tapped is also how they arrive stale.
+
+Four things make the warming worth anything at all, and each was a way for it
+to be quietly worthless (PROBLEMS.md §105):
+
+* **The length is the one this page is showing.** A brief is keyed by
+  `(query, minutes, context)`, and the header's length control is separate
+  from the search player's, so a warm at the interface default is a warm
+  nobody looks up.
+* **One cycle per listener per `PREFETCH_CYCLE_SECONDS`.** A browse page is
+  drawn far more often than it is acted on.
+* **The story pool has a source of its own.** It fills the top two rails and
+  had none, which made it the one inventory where every tap paid full price -
+  and it is where a brief buys most, because a tile is a title and an angle.
+* **A brief already held is not bought again.** They keep for an hour and a
+  cycle can come round every five minutes.
+
+`python tools/prefetch_report.py` prints what this deployment would warm
+without spending anything; `--live` reads the hit rate, per source, off a
+running server.
+
 ## The friends rail reads the graph
 
 It used to be co-listener overlap — *people who played what you played also
@@ -289,6 +322,13 @@ source look broken.
     STORIES_SPORTS=                 # empty follows API_SPORTS_SPORT
     STORIES_POLYMARKET=0            # keyless, so it needs a switch of its own
     FINNHUB_WATCHLIST=              # empty = story_sources.WATCHLIST
+
+    PREFETCH=1                      # warm what a tap would pay for; 0 = every tap pays
+    PREFETCH_LEVEL=brief            # script = write whole episodes in advance
+    PREFETCH_CYCLE_SECONDS=300.0    # at most one cycle per listener this often
+    PREFETCH_PER_CYCLE=6            # candidates per cycle, shared across sources
+    PREFETCH_DAILY_BRIEFS=400       # counted apart from episodes; they cost far less
+    PREFETCH_DAILY_DOLLARS=2.0      # the ceiling both kinds of warm share
 
 **Nothing live is configured by default**, and that is deliberately not the
 same as nothing being here — the same doctrine `live_facts` and `trending`

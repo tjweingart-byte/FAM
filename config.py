@@ -654,15 +654,20 @@ class Settings:
     # --- Prefetch ---------------------------------------------------------
     # Writing the episode before anybody asks for it - see `prefetch.py`.
     #
-    # **Off, and the reasoning is the tier system's** (PROBLEMS.md §81): the
-    # mechanism is worth having ready and the policy is worth deciding with
-    # numbers rather than with a guess. CLAUDE.md's open question is "how much
-    # to prefetch?", every speculative script costs money, and the hit rate
-    # that answers it does not exist yet. Switching this on starts producing
-    # it; `/api/health` reports which state a deploy is in, because a
-    # prefetcher that is off looks exactly like one that is on and missing.
+    # **On, at the owner's direction** (PROBLEMS.md §105). It shipped off on
+    # the tier system's reasoning - the mechanism ready, the policy decided
+    # with numbers - and the policy is now decided for the one surface that
+    # can answer for itself: myFAM knows what somebody might tap before they
+    # tap it, so the seconds episode intelligence costs there are seconds
+    # nobody has to pay. What is on is the **cheap half** (see
+    # `prefetch_level`): a brief, never a whole episode, so a wrong guess
+    # costs one small model call rather than a script nobody hears.
+    #
+    # The ceilings below still bound it, `/api/health` still reports which
+    # state a deploy is in, and `PREFETCH=0` restores the old behaviour
+    # exactly: every tap pays for its own brief.
     prefetch: bool = field(
-        default_factory=lambda: os.environ.get("PREFETCH", "0")
+        default_factory=lambda: os.environ.get("PREFETCH", "1")
         not in ("0", "false", "False", ""))
     # brief | script - how much is paid in advance.
     #
@@ -682,11 +687,26 @@ class Settings:
     # expensive - a 10-minute researched episode costs several times a
     # 1-minute one, so counting episodes alone does not bound the bill.
     prefetch_daily_episodes: int = _env_int("PREFETCH_DAILY_EPISODES", 50)
+    # Briefs are counted apart from episodes and have their own ceiling,
+    # because they cost a fraction of one. Counting a brief as an episode made
+    # 50 briefs the whole day's warming - six per cycle, one cycle per browse -
+    # so a deployment on the shipped level would stop before lunch with five
+    # cents of the two dollars below spent, and nothing would say why.
+    prefetch_daily_briefs: int = _env_int("PREFETCH_DAILY_BRIEFS", 400)
     prefetch_daily_dollars: float = _env_float("PREFETCH_DAILY_DOLLARS", 2.0)
     # How long the server must have gone without generating for a real
     # listener before it will spend on a guess. A speculative episode that
     # delays a real one has inverted the entire point of prefetching.
     prefetch_quiet_seconds: float = _env_float("PREFETCH_QUIET_SECONDS", 20.0)
+    # The shortest gap between two cycles warmed for the same listener.
+    #
+    # myFAM schedules a cycle when it is drawn, and a browse page is drawn
+    # often - opening the tab, coming back from a player, a pull to refresh.
+    # Without a clock on it, one listener flicking between tabs would spend
+    # the whole daily ceiling on the same six tiles. Five minutes is longer
+    # than a browse and shorter than an episode, so a listener who comes back
+    # to a genuinely different page gets a genuinely new cycle.
+    prefetch_cycle_seconds: float = _env_float("PREFETCH_CYCLE_SECONDS", 300.0)
     # How long a warmed brief stays usable. A brief is a claim about *now* - a
     # why-now hypothesis and a recency window built this morning are wrong by
     # this evening - and a stale brief is worse than none, because it would

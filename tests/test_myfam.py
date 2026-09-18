@@ -748,3 +748,41 @@ def test_picking_an_interest_teaches_the_ranker_its_tags(client):
     logged = [e for e in appmod.EVENTS.for_user(me) if e.kind == "pick"]
     assert logged, "the pick was not recorded"
     assert set(logged[0].tags) >= set(topics_mod.CATALOGUE_BY_ID["formula1"].tags)
+
+
+# --- warming what a tap would pay for (PROBLEMS.md §105) ------------------
+def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
+    """myFAM is where CLAUDE.md says the wait must be zero, so the page draws
+    from what already exists and *schedules* the guessing. A page that waited
+    for speculation would have spent the latency the speculation was buying."""
+    import prefetch
+
+    scheduled: list = []
+    monkeypatch.setattr(prefetch, "schedule_cycle",
+                        lambda listener="", minutes=0: scheduled.append(
+                            (listener, minutes)) or True)
+
+    assert client.get("/api/myfam?minutes=7").status_code == 200
+    assert scheduled, "the browse page warmed nothing at all"
+    listener, minutes = scheduled[0]
+    assert listener, "a warm has to be attributed to the listener it is for"
+    assert minutes == 7, (
+        "warmed at the wrong length: a brief is keyed by (query, minutes, "
+        "context), so this one is a brief nobody ever looks up"
+    )
+
+
+def test_the_page_is_drawn_from_what_exists_even_if_warming_is_broken(client,
+                                                                      monkeypatch):
+    """A guess that falls over must never reach a listener who asked for a
+    browse page. The same rule the story sweep beside it keeps."""
+    import prefetch
+
+    class Broken:
+        def due(self, listener="", now=None):
+            raise RuntimeError("the prefetcher fell over")
+
+    monkeypatch.setattr(prefetch, "_PREFETCHER", Broken())
+    body = client.get("/api/myfam")
+    assert body.status_code == 200
+    assert body.json()["sections"], "a broken guess emptied the page"
