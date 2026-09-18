@@ -7172,3 +7172,45 @@ And the payload carries **no `user_id`**. The share row has the listener id
 sitting next to the question, and this is the one response in the app handed to
 people who are not listeners - so authorship stays provenance and never
 identity (§95), asserted in two tests rather than left to review.
+
+### Getting §106 ready to merge
+
+The §101 audit, run again on this branch. One commit, `origin/Main` is an
+ancestor so it fast-forwards, working tree clean. No secrets, no `console.log`,
+no `pdb`, no hardcoded hosts, no model identifiers in anything pushed. **No
+schema migration at all** - the share row already held the question and the
+length, which is the whole reason the landing page needed no new concept, so
+§101's riskiest category does not arise here.
+
+Two things it did turn up.
+
+**§101's own finding, repeating.** `dev.sh` gained a preview build and a
+browser driver for the landing page; `.github/workflows/ci.yml` gained neither,
+so the thirteen behaviours that prove the page's *restriction* - play works and
+nothing else does - would have been enforced only on whoever happened to run
+the local loop. Added to the gate. The general form is worth restating because
+it has now cost two branches: **a check added to the local loop is not added to
+the gate**, and nothing keeps the two lists in step but somebody remembering.
+
+**A smoke behaviour was racing, and it was the test.** "The first run asks,
+then lets you in" failed once, during a run with three browsers going, on the
+handle field not cleaning what was typed into it. It was not the app:
+`cleanHandleInput` is a synchronous `oninput` handler with no debounce, and
+nothing re-enters `openIdentity` to clobber the field. It was `openIdentity`'s
+own autofocus - `setTimeout(... focus(), 80)` on the *name* field - landing in
+the middle of Playwright's fill of the *handle* field, which types into
+whatever holds focus. So the handle went into the name box and the assertion
+read an empty field.
+
+The fix waits for the autofocus to have landed before typing, which removes the
+race without weakening anything. Nine runs, three of them with all three
+browsers concurrent, are clean. Worth recording for the shape rather than the
+bug: **a screen that focuses something on a timer is a race against any test
+that types into it**, and the failure does not look like a focus problem - it
+looks like the field under test not doing its job.
+
+**Known and deliberately not fixed here.** The preview builds are still not
+reproducible (§101), because `build_preview.py` bakes `time.time()` into a
+fixture. `build_share_preview.py` does not, and rebuilding it is byte-identical
+- so the new artifact can be verified against its source even though the older
+two cannot.

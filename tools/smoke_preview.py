@@ -125,6 +125,18 @@ def main() -> int:
             # password to change yet and nothing chosen to share.
             assert page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
                 "the editor's own rows are in the first run"
+            # Wait out the screen's own autofocus before typing. `openIdentity`
+            # focuses the name field on an 80ms timer, and Playwright's fill
+            # types into whatever holds focus - so a fill that straddles the
+            # timer puts the handle into the name box and this check fails with
+            # an empty field. It failed exactly once, during a run with three
+            # browsers going, which is what a race under load looks like.
+            # Waiting for the focus to have landed removes it without weakening
+            # anything below.
+            page.wait_for_function(
+                "document.activeElement"
+                " && document.activeElement.id === 'identityName'",
+                timeout=5000)
             page.fill("#identityName", "Smoke Tester")
             page.fill("#identityHandle", "@Smoke.Tester")
             # Stored lower-case and stripped, so it is shown that way while

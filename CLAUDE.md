@@ -1407,6 +1407,16 @@ now says so out loud (PROBLEMS.md §49). The number is
 trusting this sentence: it has been wrong before, because a count written in
 prose does not fail when somebody adds a behaviour. (It is 45 as of §104.)
 
+**There is a third browser run, and it is not one of those two** (§106). The
+share landing page is a different page from `static/index.html` - one episode,
+and every other control a door to the App Store - so it has its own build
+(`preview/build_share_preview.py`) and its own driver
+(`tools/smoke_landing.py`), which prints `all N landing behaviours passed` and
+counts them rather than naming a number. A complete run therefore ends with
+that line as well. All three are in `.github/workflows/ci.yml` too: §101's
+finding is that a check added to the local loop is not added to the gate, and
+the two lists are still kept in step by hand.
+
 What is true but not obvious from the code:
 
 - There is **no API key** in the build container, so writing quality and
