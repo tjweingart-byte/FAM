@@ -307,7 +307,13 @@ def main() -> int:
                 # `<<NEXT: six to twelve words>>` - a thread card shows this raw.
                 "What happens to the grid operators when the subsidy expires next year"
             )
-            clipped = page.evaluate(
+            # Text metrics depend on the browser build and the fonts actually
+            # installed, so this check can pass on one machine and fail on
+            # another with the same markup. When it fails it therefore has to
+            # say *what it measured*, not only which titles lost - otherwise
+            # the reader cannot tell a real clipped headline from a machine
+            # rendering in a different font, and cannot reproduce either.
+            measured = page.evaluate(
                 """(xs) => {
                     var el = document.querySelector(".gd-card-title");
                     var original = el.textContent;
@@ -315,12 +321,29 @@ def main() -> int:
                         el.textContent = x;
                         return el.scrollHeight > el.clientHeight + 1;
                     });
+                    var worst = null;
+                    bad.forEach(function(x){
+                        el.textContent = x;
+                        if(!worst || el.scrollHeight > worst.scrollHeight){
+                            worst = {text: x, scrollHeight: el.scrollHeight,
+                                     clientHeight: el.clientHeight};
+                        }
+                    });
                     el.textContent = original;
-                    return bad;
+                    var style = getComputedStyle(el);
+                    return {bad: bad, worst: worst,
+                            font: style.fontFamily, size: style.fontSize,
+                            lineHeight: style.lineHeight,
+                            fonts: document.fonts ? document.fonts.status : "n/a"};
                 }""",
                 titles,
             )
-            assert not clipped, f"Go Deeper tile cuts these titles off: {clipped}"
+            assert not measured["bad"], (
+                f"Go Deeper tile cuts these titles off: {measured['bad']}\n"
+                f"  worst: {measured['worst']}\n"
+                f"  rendered with: {measured['font']} at {measured['size']}"
+                f"/{measured['lineHeight']} (webfonts: {measured['fonts']})"
+            )
 
         def go_deeper_fills_for_a_new_listener():
             """Four tiles even with no history - the case nobody develops in.

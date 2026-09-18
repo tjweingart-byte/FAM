@@ -7257,3 +7257,40 @@ Three things in it are worth keeping:
 Fixed, with a guard in `test_stories.py` pinning that `reset` empties the
 registry, and the full suite verified green on **3.12** - the version the gate
 actually runs - as well as on 3.11.
+
+### And a second failure was hiding behind the first
+
+Fixing the trending pollution got CI past the **Tests** step for the first time
+in this branch's history - and the run promptly failed again, on a *different*
+check:
+
+    FAIL  Go Deeper titles are not cut off: Go Deeper tile cuts these titles
+          off: ['What happens to the grid operators when the subsidy expires
+          next year']
+
+Stated precisely, because the distinction matters: this was **not introduced
+here and was also not previously known**. Every recent CI run died at the Tests
+step, so **no run had ever reached the browser smoke tests at all**. The check
+has presumably been failing in the gate for as long as the trending one has;
+nobody could see it. That is the second-order cost of a red board, and it is
+worse than the first: a red check hides the checks behind it.
+
+It does not reproduce here. `tools/smoke_preview.py` passes locally, and it
+still passes with the Google Fonts requests blocked - so it is not simply the
+webfont failing to load. The remaining difference is the browser and the fonts
+installed beside it: CI downloads Chromium 1243 (Chrome 153), this container
+has 1194, and text metrics are a property of the build and the font stack. That
+browser cannot be fetched from here, so it cannot be reproduced here either.
+
+**Deliberately not "fixed".** The three ways to make it pass are to install a
+font in CI, to pin the browser, or to loosen the tolerance - and the third
+would weaken a guard that exists because a clipped headline actually shipped
+once. Which of those is right is a decision about the check, not a bug to
+quietly patch, and it belongs to whoever owns that guard.
+
+What was done instead is the part that is safe and was missing: **the failure
+now says what it measured** - the worst offender's scroll and client heights,
+the computed font, size and line height, and whether webfonts had settled.
+Nothing about what passes or fails changed. A layout assertion that can differ
+between machines has to report its measurement, or a failure on a machine you
+do not have is unactionable - which is exactly the position this one is in.
