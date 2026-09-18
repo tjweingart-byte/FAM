@@ -967,6 +967,14 @@ class Settings:
     # shows the share as not-yet-public rather than pretending.
     public_base_url: str = field(
         default_factory=lambda: os.environ.get("PUBLIC_BASE_URL", "").rstrip("/"))
+    # Where a share recipient is sent when they press anything that is not
+    # play. Unset on every deployment until the app actually ships, and
+    # nothing here invents a URL: an App Store link that 404s is a worse
+    # first impression than no button, so the landing page draws those
+    # controls only when this is set (see `sharing.landing_payload`). The
+    # same rule `public_base_url` above keeps, for the same reason.
+    app_store_url: str = field(
+        default_factory=lambda: os.environ.get("APP_STORE_URL", "").strip())
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

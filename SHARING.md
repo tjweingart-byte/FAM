@@ -296,11 +296,93 @@ That is the whole difference between a share sheet and an integration.
   labels; the main player was the odd one out, and unlabelled, a bookmark, a
   two-way arrow and a speech rectangle are three guesses.
 
+## Where a shared link lands
+
+`/s/<id>` serves **a page with one episode on it**. It used to redirect into
+the web app, which handed somebody who had been sent one episode the whole
+product - a search box, myFAM, Explore and a sign-up - and lost the episode
+they actually came for in the process.
+
+The rule the page keeps: **the only control that works is play, and everything
+else is a door to the App Store.** Play, pause, scrub and the two fifteen-second
+buttons are the whole of what it does. The wordmark, "Ask your own question",
+"Browse episodes" and the Get FAM button are all `data-door`, handled by one
+delegated listener, so a control added later is a door by default rather than
+by somebody remembering to wire it.
+
+### Tracing a link back to its episode
+
+There is no episode id in this product, and this did not add one. An episode is
+identified by its cache key, and `pipeline.key_for` builds that key from the
+question and the length - so a share row holding `query` and `minutes` **is** a
+pointer at the episode, resolved the way every other surface resolves one.
+Following the link calls `/api/audio?q=...&minutes=...`, the pipeline computes
+the same key, and the sharer's own script comes back out of the shared cache.
+
+Same words, no second model call, nothing new stored. A test asserts the two
+keys are equal, so a field added to `key_for` (PROBLEMS.md §83) fails here until
+the share row carries it too - which is the failure that would otherwise be
+silent, because a share that missed the cache would still play, just differently
+and at full price.
+
+Ten people opening one link is therefore ten syntheses against one script,
+which is the cost design the rest of the app already rests on.
+
+### The page is rendered on the server, and that is not a preference
+
+Facebook and LinkedIn read the shared page to build their own preview and ignore
+everything else - this file says so above, and §96 caught Facebook doing it. A
+crawler does not run JavaScript, so a page that fetched its own title would be
+posted everywhere as whatever the fallback markup said. The title, the question
+and the story card are substituted into the HTML the server sends
+(`sharing.render_landing`, into two comment markers in `static/listen.html`),
+which is also why the player needs no round trip to discover what it is before
+it can start.
+
+**`og:image` is only claimed when the card URL is absolute.** A crawler fetches
+it from its own servers, so a relative one advertises a picture that never
+loads - the same refusal `destination_for` already makes about the link itself.
+
+### The open count is reported by the page, not by the serve
+
+Because those same crawlers *fetch* `/s/<id>`, counting the HTML serve would
+make the only number sharing produces mostly robots. The page calls
+`POST /api/share/<id>/open` once it is running in front of a person, and a
+crawler never gets there. The alternative - a list of crawler user agents - is
+the shape §76 settled against: it can always be widened by one more entry, and
+the next one it misses is already written.
+
+### With no App Store link there are no doors
+
+`APP_STORE_URL` is unset on every deployment until the app ships, and nothing
+here invents one. When it is empty the page draws **no** non-listening control
+at all - not one that 404s, and not one quietly rerouted into the web app, which
+is the thing the page exists to not be. A control with nothing behind it is
+worse than no control, and a stranger arriving from LinkedIn is the worst
+possible audience for a dead button. `/api/health` reports `sharing.app_store_url`
+and `sharing.landing_doors`, because from inside the app both states look
+identical.
+
+### What it deliberately does not do
+
+* **No `cached_only`.** A share whose script had aged out of the cache would
+  refuse to play, and a broken link is a worse outcome than an episode that
+  costs a model call. The exposure is real and stated rather than hidden: a link
+  posted publicly can be opened by strangers, and the first one after an expiry
+  pays for a script the rest then share. Quotas apply to them as to anybody.
+* **No account, and no route to one.** Listening has never needed an account and
+  a share is the cheapest route FAM has to a listener who does not have it yet.
+* **It generates nothing by itself.** Drawing the page costs a row read. The
+  episode is written only if somebody presses play.
+
 ## What is not built
 
 * **Group threads**, and the decision about what a share to a group means.
-* **A share opening the app on a phone.** `/s/<id>` redirects into the web app;
-  universal links and an App Store fallback are app-side work.
+* **Universal links.** `/s/<id>` now serves a landing page rather than
+  redirecting into the web app (below), and `/api/share/<id>` resolves the same
+  share for a native client - but the `apple-app-site-association` file that
+  makes iOS open the app instead of the browser is app-side work, and needs a
+  bundle id that does not exist yet.
 * **Notifications.** A share arrives silently until somebody opens Messages.
   Push is an App Store capability and a permission prompt, and it belongs with
   the app rather than ahead of it.

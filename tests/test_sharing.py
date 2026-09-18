@@ -239,3 +239,131 @@ def test_the_two_that_drop_our_words_are_the_two_we_say_so_about():
             assert carries_words, \
                 f"{target.key} silently drops the wording and nothing says so"
         assert rendered["destination"]
+
+
+# --- the landing page -----------------------------------------------------
+#
+# Where a shared link goes, and the rule the whole page exists to keep: the
+# only control that works is play, and everything else is a door to the App
+# Store.
+
+SHARE_ROW = {"id": "abc123", "title": "Who Makes the Chips",
+             "query": "why is semiconductor manufacturing concentrated",
+             "minutes": 3, "user_id": "listener-42", "created": 0.0,
+             "opens": 0}
+
+
+def test_the_landing_payload_never_carries_a_listener_id():
+    """The one response that hands a stranger a row with a listener id sitting
+    in it. Authorship is provenance and never identity (PROBLEMS.md 95), and a
+    share link is public by construction - so this is where that rule is
+    broken by accident if it is ever broken at all."""
+    payload = sharing.landing_payload(SHARE_ROW, url="https://fam.audio/s/abc123")
+    assert "user_id" not in payload
+    assert "listener-42" not in repr(payload)
+
+
+def test_the_head_describes_the_episode_rather_than_the_app():
+    """Facebook and LinkedIn read the page for their preview and ignore
+    everything else, so a landing page whose head says "FAM" posts every
+    episode as the same link."""
+    head = sharing.landing_head(sharing.landing_payload(
+        SHARE_ROW, url="https://fam.audio/s/abc123"))
+    assert "Who Makes the Chips" in head
+    assert 'property="og:title"' in head
+    assert "semiconductor manufacturing" in head
+
+
+def test_a_card_that_is_not_public_is_not_advertised_as_an_image():
+    """An Open Graph image is fetched by a crawler on somebody else's server.
+    A relative one is no image at all, so claiming it would advertise a
+    picture that never loads - the same refusal `destination_for` makes about
+    the link."""
+    head = sharing.landing_head(sharing.landing_payload(
+        SHARE_ROW, url="/s/abc123", card_url="/api/share/card?share=abc123"))
+    assert "og:image" not in head
+    assert "og:url" not in head
+
+
+def test_a_question_full_of_markup_cannot_break_out_of_the_page():
+    """The question is text a listener typed and the payload is embedded in a
+    `<script>`. `</script>` inside it would end the block and put the rest of
+    the question into the document as markup."""
+    nasty = dict(SHARE_ROW, query='</script><img src=x onerror=alert(1)>',
+                 title='</title><script>alert(2)</script>')
+    page = sharing.render_landing(
+        "<html><head><!--FAM_SHARE_HEAD--></head>"
+        "<body><!--FAM_SHARE_DATA--></body></html>",
+        sharing.landing_payload(nasty, url="https://fam.audio/s/abc123"))
+    assert "</script><img" not in page
+    assert "<script>alert(2)</script>" not in page
+    assert "alert(1)" in page, "the question should survive, merely escaped"
+
+
+def test_the_markers_are_gone_once_the_page_is_rendered():
+    """A marker left in is a page that ships an HTML comment where its title
+    should be, and nothing fails."""
+    page = sharing.render_landing(
+        "<html><head><!--FAM_SHARE_HEAD--></head>"
+        "<body><!--FAM_SHARE_DATA--></body></html>",
+        sharing.landing_payload(SHARE_ROW, url="https://fam.audio/s/abc123"))
+    assert sharing.HEAD_MARKER not in page
+    assert sharing.DATA_MARKER not in page
+    assert "window.FAM_SHARE" in page
+
+
+def test_with_no_app_store_link_there_are_no_doors():
+    """A control with nothing behind it is worse than no control, and a
+    stranger arriving from LinkedIn is the worst audience for a button that
+    404s. Nothing invents a store URL, the same way nothing invents a host."""
+    assert sharing.landing_doors("") is False
+    assert sharing.landing_doors("   ") is False
+    assert sharing.landing_doors("https://apps.apple.com/app/fam/id1") is True
+    assert sharing.landing_payload(SHARE_ROW, url="/s/abc123")["has_app"] is False
+
+
+def test_the_real_page_carries_both_markers_and_the_player():
+    """The shipped file, not a fixture. A page that lost its markers would
+    render with no title and no episode, and only this notices."""
+    import pathlib
+
+    page = (pathlib.Path(__file__).resolve().parent.parent
+            / "static" / "listen.html").read_text()
+    assert sharing.HEAD_MARKER in page
+    assert sharing.DATA_MARKER in page
+    # The audio path is the one thing this page is for.
+    assert "fam-audio.js" in page
+    # Every control that is not play is a door. The delegated handler is what
+    # makes a control added later a door by default rather than by somebody
+    # remembering to wire it.
+    assert "data-door" in page
+
+
+def test_a_share_resolves_to_the_episode_the_sharer_heard():
+    """The whole trace-back, in one assertion.
+
+    There is no episode id in this product. A share row holds the question and
+    the length, `pipeline.key_for` builds the cache key from exactly those, so
+    the landing page asking `/api/audio` for them gets the sharer's own script
+    out of the shared cache - no second model call, and nothing new stored.
+
+    If a field is ever added that changes what an episode is, it goes in
+    `key_for` (PROBLEMS.md 83) and this fails until the share row carries it
+    too - which is the point of asserting it here rather than trusting it.
+    """
+    import asyncio
+
+    from pipeline import key_for
+    from script_generator import plan_episode
+
+    heard = plan_episode(SHARE_ROW["query"], SHARE_ROW["minutes"])
+    followed = plan_episode(SHARE_ROW["query"], SHARE_ROW["minutes"])
+    assert asyncio.run(key_for(heard)) == asyncio.run(key_for(followed))
+
+
+def test_every_platform_the_packet_named_has_a_target():
+    """The nine destinations asked for, by name. A tenth is fine; a missing
+    one is a share sheet with a gap in it."""
+    wanted = {"copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
+              "instagram_story", "snapchat_story"}
+    assert wanted <= set(sharing.TARGET_KEYS)

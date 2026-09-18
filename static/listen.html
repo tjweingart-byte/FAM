@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Server-substituted. A crawler does not run JavaScript, so the title, the
+     description and the card have to be in the HTML that is sent - see
+     sharing.landing_head. Opened directly this file still parses; it just
+     describes nothing, which is why it is never linked to without an id. -->
+<!--FAM_SHARE_HEAD-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* FAM's own palette, restated rather than imported. This page is served to
+     somebody who has never seen the app and may never load its stylesheet;
+     one file that renders on its own is the whole point of it. */
+  :root{
+    --ink:#18151F; --paper:#F4EFE4; --copper:#E0B563; --sage:#8FAE9A;
+    --muted:rgba(244,239,228,0.56); --line:rgba(244,239,228,0.14);
+    --coral:#E2694F;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; height:100%; }
+  body{
+    background:
+      radial-gradient(120% 70% at 18% 8%, rgba(224,181,99,0.14), transparent 60%),
+      linear-gradient(170deg, #2A2733 0%, #1E1B27 55%, #38334A 100%);
+    color:var(--paper); font-family:'Space Grotesk', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100%;
+  }
+  .stage{
+    max-width:520px; margin:0 auto; min-height:100vh; padding:28px 22px 40px;
+    display:flex; flex-direction:column;
+  }
+  .brand{
+    font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700;
+    letter-spacing:0.34em; color:var(--copper); background:none; border:0;
+    padding:0; cursor:pointer; text-align:left; align-self:flex-start;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:10.5px;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--sage);
+    margin:34px 0 10px;
+  }
+  h1{
+    font-family:'Fraunces', Georgia, serif; font-weight:600; font-size:31px;
+    line-height:1.18; margin:0 0 12px; color:var(--paper);
+  }
+  .ask{
+    font-size:14.5px; line-height:1.5; color:var(--muted); margin:0 0 4px;
+  }
+  .meta{
+    font-family:'JetBrains Mono', monospace; font-size:11px;
+    letter-spacing:0.08em; color:var(--copper); margin:14px 0 0;
+  }
+
+  .player{ margin:34px 0 0; }
+  .transport{ display:flex; align-items:center; gap:16px; }
+  .play{
+    width:74px; height:74px; flex:0 0 74px; border-radius:50%;
+    border:0; background:var(--copper); color:var(--ink); cursor:pointer;
+    font-size:26px; line-height:1; display:flex; align-items:center;
+    justify-content:center; transition:transform 0.12s ease;
+  }
+  .play:active{ transform:scale(0.95); }
+  .play[disabled]{ opacity:0.45; cursor:default; }
+  .skip{
+    background:none; border:1px solid var(--line); color:var(--paper);
+    border-radius:20px; padding:9px 13px; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:11px;
+  }
+  .skip[disabled]{ opacity:0.35; cursor:default; }
+
+  .bar{
+    margin:22px 0 8px; height:22px; display:flex; align-items:center;
+    cursor:pointer; touch-action:none;
+  }
+  .track{
+    position:relative; height:4px; width:100%; border-radius:3px;
+    background:rgba(244,239,228,0.16);
+  }
+  .fill{
+    position:absolute; left:0; top:0; bottom:0; width:0;
+    border-radius:3px; background:var(--copper);
+  }
+  .knob{
+    position:absolute; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px;
+    border-radius:50%; background:var(--paper); left:0;
+  }
+  .times{
+    display:flex; justify-content:space-between;
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  }
+  .status{
+    min-height:20px; margin:18px 0 0; font-size:13px; line-height:1.45;
+    color:var(--sage);
+  }
+  .status.bad{ color:var(--coral); }
+
+  .doors{ margin-top:auto; padding-top:40px; }
+  .doors p{
+    font-size:13.5px; line-height:1.5; color:var(--muted); margin:0 0 14px;
+  }
+  .door{
+    display:block; width:100%; text-align:center; cursor:pointer;
+    font-family:'Space Grotesk', sans-serif; font-size:15px; font-weight:600;
+    padding:15px 18px; border-radius:14px; border:0; margin:0 0 10px;
+    background:var(--paper); color:var(--ink);
+  }
+  .door.quiet{
+    background:none; border:1px solid var(--line); color:var(--paper);
+    font-weight:500; font-size:14px;
+  }
+  .footnote{
+    margin:18px 0 0; font-size:12px; line-height:1.5; color:var(--muted);
+  }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <!-- Every control on this page except play is a door to the App Store,
+         including the wordmark. `data-door` is what makes it one. -->
+    <button class="brand" data-door="wordmark" type="button">FAM</button>
+
+    <p class="eyebrow" id="eyebrow">Shared with you</p>
+    <h1 id="title">A FAM episode</h1>
+    <p class="ask" id="ask"></p>
+    <p class="meta" id="meta"></p>
+
+    <div class="player">
+      <div class="transport">
+        <button class="play" id="play" type="button" aria-label="Play">&#9654;</button>
+        <button class="skip" id="back" type="button" disabled>&#8630; 15</button>
+        <button class="skip" id="fwd" type="button" disabled>15 &#8631;</button>
+      </div>
+      <div class="bar" id="bar" role="slider" aria-label="Position" tabindex="0">
+        <div class="track"><div class="fill" id="fill"></div><div class="knob" id="knob"></div></div>
+      </div>
+      <div class="times"><span id="now">0:00</span><span id="len">--:--</span></div>
+      <p class="status" id="status"></p>
+    </div>
+
+    <section class="doors" id="doors" hidden></section>
+  </main>
+
+<!--FAM_SHARE_DATA-->
+<script src="/fam-audio.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // The server put this here. Opened as a bare file there is no episode, and
+  // the page says so rather than drawing a play button over nothing.
+  var share = window.FAM_SHARE || null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $("status");
+
+  function say(text, bad) {
+    statusEl.textContent = text || "";
+    statusEl.className = bad ? "status bad" : "status";
+  }
+
+  function clock(seconds) {
+    if (!isFinite(seconds) || seconds < 0) seconds = 0;
+    var m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  if (!share || !share.question) {
+    $("eyebrow").textContent = "Nothing to play";
+    $("title").textContent = "This link has expired";
+    say("Ask FAM anything of your own and it will make you an episode.", true);
+    $("play").disabled = true;
+    return;
+  }
+
+  // --- what it is ---------------------------------------------------------
+  $("title").textContent = share.title || "A FAM episode";
+  $("ask").textContent = share.question;
+  $("meta").textContent = share.minutes + " min listen";
+
+  // --- the open count -----------------------------------------------------
+  // Counted from the page rather than from the request that served it, and
+  // deliberately. Facebook and LinkedIn *fetch* a shared link to build their
+  // preview card, so counting the HTML serve would report a number made
+  // mostly of crawlers. They do not run this script. The alternative - a list
+  // of crawler user agents - is the shape PROBLEMS.md 76 settled against: it
+  // can always be widened by one more entry, and the next one it misses is
+  // already written.
+  try {
+    fetch("/api/share/" + encodeURIComponent(share.id) + "/open",
+          { method: "POST", credentials: "same-origin" })
+      .catch(function () { /* a count is not worth a visible failure */ });
+  } catch (err) { /* same */ }
+
+  // --- the doors ----------------------------------------------------------
+  // Everything that is not play. Drawn only when there is somewhere for them
+  // to go: with no APP_STORE_URL this page is the player and nothing else,
+  // because a control with nothing behind it is worse than no control.
+  var doors = $("doors");
+  if (share.has_app) {
+    doors.hidden = false;
+    doors.innerHTML =
+      '<p>This is one episode. FAM makes them about anything you ask.</p>' +
+      '<button class="door" data-door="get" type="button">Get FAM</button>' +
+      '<button class="door quiet" data-door="ask" type="button">Ask your own question</button>' +
+      '<button class="door quiet" data-door="browse" type="button">Browse episodes</button>';
+  } else {
+    doors.hidden = false;
+    doors.innerHTML =
+      '<p class="footnote">FAM makes an episode about anything you ask. ' +
+      'The app is not out yet - this link plays the episode you were sent.</p>';
+  }
+
+  // One delegated handler, so a control added later is a door by default
+  // rather than by remembering to wire it. Play is not in here at all.
+  document.addEventListener("click", function (event) {
+    var el = event.target.closest ? event.target.closest("[data-door]") : null;
+    if (!el) return;
+    event.preventDefault();
+    if (!share.app_store) return;   // cannot happen while has_app draws them
+    window.location.href = share.app_store;
+  });
+
+  // --- listening ----------------------------------------------------------
+  var playing = false, started = false, ended = false;
+  var playBtn = $("play"), fill = $("fill"), knob = $("knob");
+  var bar = $("bar"), dragging = false;
+
+  function setIcon() {
+    playBtn.innerHTML = playing ? "&#10073;&#10073;" : "&#9654;";
+    playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+
+  function draw() {
+    var limit = window.FamAudio.seekLimit();
+    var planned = share.minutes * 60;
+    var have = window.FamAudio.duration();
+    var total = window.FamAudio.isComplete() ? have : Math.max(have, planned);
+    var at = window.FamAudio.position();
+    var pct = total > 0 ? Math.max(0, Math.min(1, at / total)) : 0;
+    fill.style.width = (pct * 100) + "%";
+    knob.style.left = (pct * 100) + "%";
+    $("now").textContent = clock(at);
+    $("len").textContent = clock(total);
+    $("back").disabled = $("fwd").disabled = !started || limit <= 0;
+  }
+
+  function start() {
+    started = true; ended = false;
+    say("Starting the episode…");
+    window.FamAudio.play(share.question, share.minutes, {
+      onFirstAudio: function () { say(""); },
+      onEnd: function () {
+        playing = false; ended = true; setIcon(); draw();
+        say("That's the episode.");
+      },
+      onError: function (err) {
+        // Failures must be visible. A stranger who pressed play and heard
+        // silence has no way to tell a broken deployment from a broken app.
+        playing = false; started = false; setIcon();
+        say((err && err.message) ||
+            "That episode could not be played just now.", true);
+      }
+    });
+    playing = true; setIcon();
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (!started || ended) { start(); return; }
+    if (playing) { window.FamAudio.pause(); playing = false; }
+    else { window.FamAudio.resume(); playing = true; }
+    setIcon();
+  });
+
+  $("back").addEventListener("click", function () { window.FamAudio.skip(-15); draw(); });
+  $("fwd").addEventListener("click", function () { window.FamAudio.skip(15); draw(); });
+
+  // Drag as well as tap, and clamped to what has actually been written -
+  // the episode is still being generated while it plays.
+  function seekFromEvent(event) {
+    if (!started) return;
+    var box = bar.getBoundingClientRect();
+    var x = (event.touches ? event.touches[0].clientX : event.clientX) - box.left;
+    var pct = box.width > 0 ? Math.max(0, Math.min(1, x / box.width)) : 0;
+    var planned = share.minutes * 60;
+    var have = window.FamAudio.duration();
+    var total = window.FamAudio.isComplete() ? have : Math.max(have, planned);
+    window.FamAudio.seek(pct * total);
+    draw();
+  }
+  bar.addEventListener("mousedown", function (e) { dragging = true; seekFromEvent(e); });
+  document.addEventListener("mousemove", function (e) { if (dragging) seekFromEvent(e); });
+  document.addEventListener("mouseup", function () { dragging = false; });
+  bar.addEventListener("touchstart", function (e) { seekFromEvent(e); }, { passive: true });
+  bar.addEventListener("touchmove", function (e) { seekFromEvent(e); }, { passive: true });
+
+  setInterval(draw, 200);
+  draw();
+})();
+</script>
+</body>
+</html>

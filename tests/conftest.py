@@ -103,6 +103,10 @@ FAM_ENVIRONMENT = (
     # suite: a test asserting a link is not yet public would pass or fail
     # depending on whose machine it ran on.
     "PUBLIC_BASE_URL",
+    # Where a share recipient goes when they press anything but play. Unset
+    # in a test, or a machine with a real one would draw doors the assertions
+    # about the empty state do not expect.
+    "APP_STORE_URL",
     # Which machine speaks, and how it is reached. A developer with a real
     # RunPod endpoint configured must run the same suite as CI: without these
     # cleared, `VOICE_BACKEND=remote` in their shell would point the engine

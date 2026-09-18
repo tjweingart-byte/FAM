@@ -7086,3 +7086,89 @@ And the numbers still have to be read. `/api/health` now reports
 scheduling a cycle looks identical from outside to sources installed and
 warming every browse - which is precisely the state this had been in since it
 was written.
+
+## 106. A share link handed a stranger the whole app instead of the episode
+
+The nine share destinations have existed since §96 and all nine work: the
+wording, the hand-off URL and the story card are composed server-side and
+tested end to end. What nothing had looked at was **the other end of the
+link**.
+
+`/s/<id>` did this:
+
+    return RedirectResponse(url=f"/?q={quote(record['query'])}&minutes=...")
+
+So somebody sent one episode by a friend landed on the **front door of the
+whole product** - the search box, myFAM, Explore, a sign-up screen - with
+their episode reduced to a query string that the app may or may not act on.
+Everything the share was for was the one thing hardest to find once they
+arrived. This was listed under "what is not built" as app-side work, which it
+is not: the redirect is the server's, and so is the page that replaced it.
+
+### What was actually wrong, in three parts
+
+**1. The destination was the app.** Fixed by serving a page instead:
+`static/listen.html`, one episode, and the rule that the only control which
+works is play. The wordmark, "Ask your own question", "Browse episodes" and Get
+FAM are all `data-door`, routed by one delegated listener to the App Store - so
+a control added later is a door by default rather than by somebody remembering
+to wire it.
+
+**2. Every FAM link posted anywhere previewed identically.** This file already
+records that Facebook and LinkedIn drop everything except the URL and read the
+page for their own preview (§96, found by pressing the button rather than by
+reading the code). The page they were reading was the app's shell. A crawler
+does not run JavaScript, so this cannot be fixed on the client: the title, the
+question and the story card are substituted into the HTML the server sends.
+The same substitution carries the payload the player needs, so the page spends
+no round trip working out what it is - the one-sentence spec applies to a
+stranger's first second of FAM more than to anybody else's.
+
+`og:image` is claimed **only when the card URL is absolute**. A crawler fetches
+it from its own servers, so a relative one advertises a picture that never
+loads - which is the refusal `destination_for` already makes about the link.
+
+**3. The open count would have become a count of robots.** Those same crawlers
+*fetch* `/s/<id>` to build the preview, and opens were counted on the serve.
+Opens are the only number sharing produces, so a wrong one is worse than none.
+The count moved to `POST /api/share/<id>/open`, which the page calls once it is
+running in front of a person. A crawler never gets there, and this needs no
+list of user agents - which is the shape §76 settled against, because such a
+list can always be widened by one more entry and the next miss is already
+written.
+
+### The part that turned out to need no new machinery at all
+
+The question was how a link traces back to "the current episode", and the
+answer is that it already did. **There is no episode id in this product and
+this did not add one.** An episode is identified by its cache key; `key_for`
+builds that key from the question and the length; a share row holds exactly
+those two. So the landing page asking `/api/audio?q=...&minutes=...` computes
+the same key and gets the sharer's own script out of the shared cache - same
+words, no second model call, nothing new stored, ten opens against one script.
+
+Adding a share-specific episode id would have been a second identity for a
+thing that already has one, and the two would have drifted the first time
+`key_for` gained a field - §83's failure with a wider blast radius. A test
+asserts the two keys are equal instead, so that drift fails loudly.
+
+### Two things deliberately not done
+
+**No `cached_only` on the landing page.** It would make a share whose script
+had aged out refuse to play, and a broken link is worse than an episode that
+costs a model call. The exposure is stated rather than hidden: a publicly
+posted link can be opened by strangers, and the first one after an expiry pays
+for a script the rest then share.
+
+**No invented App Store URL.** `APP_STORE_URL` is unset on every deployment
+until the app ships. Empty, the page draws no non-listening control at all -
+not one that 404s, and not one quietly rerouted into the web app, which is the
+thing the page exists to not be. A control with nothing behind it is worse than
+no control, and a stranger arriving from LinkedIn is the worst possible
+audience for a dead button. `/api/health` reports both, because from inside the
+app the configured and unconfigured states look the same.
+
+And the payload carries **no `user_id`**. The share row has the listener id
+sitting next to the question, and this is the one response in the app handed to
+people who are not listeners - so authorship stays provenance and never
+identity (§95), asserted in two tests rather than left to review.

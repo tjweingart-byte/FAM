@@ -158,19 +158,51 @@ def test_the_story_card_is_an_image(client):
     assert card.headers["content-type"].startswith("image/svg+xml")
 
 
-def test_following_a_share_link_lands_on_the_episode_and_is_counted(client):
+def test_following_a_share_link_lands_on_the_episode(client):
+    """Rewritten in §106. This used to assert a 302 into the web app, which
+    handed somebody sent one episode the whole product - a search box, myFAM,
+    Explore and a sign-up - with their episode reduced to a query string.
+
+    It is a page with that one episode on it now. `test_share_landing.py` is
+    the rest of the contract; this keeps the end-to-end shape honest from the
+    share that was created to the page that plays it.
+    """
     body = client.post("/api/share", json={
         "query": "why bonds move", "minutes": 3}).json()
-    hop = client.get(body["url"], follow_redirects=False)
-    assert hop.status_code == 302
-    assert "q=why" in hop.headers["location"]
-    assert appmod.SHARES.get(body["share"]["id"])["opens"] == 1
+    landing = client.get(body["url"], follow_redirects=False)
+    assert landing.status_code == 200
+    assert landing.headers["content-type"].startswith("text/html")
+    assert "why bonds move" in landing.text
 
 
-def test_an_unknown_share_link_lands_in_the_app_rather_than_on_an_error(client):
-    """Somebody followed a link a friend sent them. A 404 is a worse first
-    impression of FAM than the home screen."""
-    assert client.get("/s/nope", follow_redirects=False).status_code == 302
+def test_following_a_share_link_is_counted_by_the_page(client):
+    """Also §106, and the reason the count moved off the serve: Facebook and
+    LinkedIn *fetch* a shared link to build their preview card, so counting
+    the HTML would make opens - the only number sharing produces - mostly
+    robots. The page reports it once it is running in front of a person."""
+    body = client.post("/api/share", json={
+        "query": "why bonds move", "minutes": 3}).json()
+    share_id = body["share"]["id"]
+    client.get(body["url"])
+    assert appmod.SHARES.get(share_id)["opens"] == 0, "a crawler must not count"
+    client.post(f"/api/share/{share_id}/open")
+    assert appmod.SHARES.get(share_id)["opens"] == 1
+
+
+def test_an_unknown_share_link_lands_on_a_page_rather_than_an_error(client):
+    """Somebody followed a link a friend sent them, and a bare error is a
+    worse first impression of FAM than a sentence explaining it.
+
+    The intent is unchanged from when this bounced to the home screen; what
+    changed is that the home screen was never the right answer either - they
+    wanted one episode, not an app. They get a page that says the link has
+    expired. The status is 404 so a crawler or a cache does not treat a dead
+    share as a live one; a browser renders the body either way.
+    """
+    response = client.get("/s/nope", follow_redirects=False)
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("text/html")
+    assert "expired" in response.text.lower()
 
 
 def test_the_targets_catalogue_says_which_need_a_picture(client):

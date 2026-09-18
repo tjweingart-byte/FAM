@@ -55,6 +55,11 @@ $PY preview/build_preview.py
 # real database, beside it. Leaving it out of "the whole loop in one command"
 # is how a stale build gets shipped, and how the wrong file gets published.
 $PY preview/build_live_preview.py
+
+# The share landing page. Not part of either preview above: those ship
+# `static/index.html`, and this is the one surface that is deliberately not
+# the app - one episode, and every other control a door to the App Store.
+$PY preview/build_share_preview.py
 $PY tools/build_loading_demo.py
 # Skipping the browser test silently is the failure this project has paid for
 # twice: the run still ends "all checks passed" having never opened a browser.
@@ -73,6 +78,11 @@ if command -v node >/dev/null 2>&1 && $PY -c "import playwright" 2>/dev/null; th
   # anyone is given a link to.
   $PY tools/smoke_preview.py preview/fam-live.html \
     || { echo "  (live-preview smoke test failed - the preview still built)"; smoke_failed=1; }
+  # The landing page's whole value is a restriction - play works and nothing
+  # else does - and a restriction passes every unit test while being broken on
+  # the page. So it is pressed rather than read.
+  $PY tools/smoke_landing.py \
+    || { echo "  (landing smoke test failed - the preview still built)"; smoke_failed=1; }
 else
   printf '  \033[1mSKIPPED: the browser smoke test did not run.\033[0m\n'
   printf '  Nothing below was checked in a browser. To fix:\n'

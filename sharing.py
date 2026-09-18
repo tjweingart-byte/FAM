@@ -442,3 +442,164 @@ class ShareStore:
         except Exception:
             log.exception("could not erase shares for %r", user_id)
             return 0
+
+
+# --- the landing page -----------------------------------------------------
+#
+# Where a shared link actually goes, and the one place in FAM that is *not*
+# the app.
+#
+# ## Tracing a link back to its episode, without inventing an episode id
+#
+# There is no episode id in this product, and adding one to carry a share
+# would be a second identity for a thing that already has one. An episode is
+# identified by its cache key, and `pipeline.key_for` builds that key from the
+# question and the length - so a share row holding `query` and `minutes` *is*
+# a pointer at the episode, resolved the same way every other surface resolves
+# one. Following the link calls `/api/audio?q=<query>&minutes=<minutes>`, the
+# pipeline computes the same key, and the sharer's own script comes back out
+# of the shared cache. Same words, no second model call, nothing new stored.
+#
+# That is also why a share costs one row: it records a *question*, not audio
+# and not a script. Ten people opening the link is ten syntheses against one
+# cached script, which is the cost design the whole app rests on.
+#
+# ## Why the page is rendered here rather than fetched by the page
+#
+# Facebook and LinkedIn read the shared page to build their own preview and
+# ignore anything in the query string (SHARING.md says so, and §96 caught
+# Facebook doing it). A crawler does not run JavaScript, so a landing page
+# that fetched its own title would be posted everywhere as whatever the
+# fallback markup said. The title, the question and the card therefore have to
+# be *in the HTML the server sends*, which means substituted here.
+#
+# The same substitution carries the payload the player needs, so the page does
+# not spend a round trip discovering what it is before it can start - the
+# one-sentence spec applies to a stranger's first second of FAM more than to
+# anybody else's.
+
+#: Substituted in `static/listen.html`. Comments rather than a template
+#: language: the file has to stay a page a browser can open directly, so that
+#: the preview build and `tools/check_js.py` see the same markup the server
+#: sends.
+HEAD_MARKER = "<!--FAM_SHARE_HEAD-->"
+DATA_MARKER = "<!--FAM_SHARE_DATA-->"
+
+
+def landing_payload(share: dict, *, url: str, card_url: str = "",
+                    app_store: str = "") -> dict:
+    """Everything the landing page is allowed to know.
+
+    Note what is absent: `user_id`. A share link is public by construction -
+    that is the entire point of it - and the listener id behind it is the one
+    the whole app authenticates with. Authorship is provenance and never
+    identity (PROBLEMS.md §95), and a share row is the one place that rule
+    could be broken by accident, because the row has the id sitting right
+    there next to the question.
+
+    `app_store` empty is a real state and not a missing value: see
+    `landing_doors`.
+    """
+    return {
+        "id": str(share.get("id") or ""),
+        "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
+        "question": (share.get("query") or "").strip()[:MAX_QUERY],
+        "minutes": max(1, int(share.get("minutes") or 0)),
+        "url": url or "",
+        "card": card_url or "",
+        "app_store": app_store or "",
+        # Whether there is anywhere to send somebody who presses something
+        # that is not play. False means the page draws no such control at all.
+        "has_app": bool(app_store),
+    }
+
+
+def landing_doors(app_store: str) -> bool:
+    """Whether the landing page may draw anything but the player.
+
+    Every control on that page except play is a door to the App Store, so with
+    no App Store link there are no doors - not doors that go nowhere, and not
+    doors quietly rerouted into the web app, which is the thing the page
+    exists to *not* be.
+
+    This is the settled rule twice over: nothing invents a host
+    (`PUBLIC_BASE_URL` keeps it for share links), and a control with nothing
+    behind it is worse than no control - which took a fixture folder called
+    "Commute" and three invented contacts out of this app already. A stranger
+    following a link from LinkedIn is the worst possible audience for a button
+    that 404s.
+    """
+    return bool(str(app_store or "").strip())
+
+
+def _json_for_script(payload: dict) -> str:
+    """JSON that cannot end the `<script>` element it is embedded in.
+
+    The question is text a listener typed. `</script>` inside it would close
+    the block and put the rest of the question into the document as markup;
+    escaping the slash is the standard fix and survives `JSON.parse` because
+    `<\\/` and `</` are the same string to it. `<!--` gets the same treatment:
+    it opens a comment in the legacy HTML script grammar.
+    """
+    import json
+
+    text = json.dumps(payload, ensure_ascii=False)
+    return (text.replace("<", "\\u003c").replace(">", "\\u003e")
+                .replace("&", "\\u0026"))
+
+
+def landing_head(payload: dict) -> str:
+    """The preview card Facebook, LinkedIn, X and iMessage build the link from.
+
+    Server-rendered because none of them run JavaScript, and because this is
+    the only thing standing between a well-composed share and a post that says
+    whatever `<title>` happened to hold.
+
+    `og:image` is only claimed when the card URL is absolute. A relative image
+    in an Open Graph tag is not resolved by most crawlers, so a deployment
+    without `PUBLIC_BASE_URL` would advertise a picture that never loads -
+    which is the same failure `destination_for` already refuses to produce.
+    """
+    esc = html.escape
+    title = esc(payload.get("title") or "A FAM episode")
+    question = (payload.get("question") or "").strip()
+    minutes = payload.get("minutes") or 1
+    description = esc(
+        f"{question} - a {minutes}-minute FAM episode." if question
+        else f"A {minutes}-minute FAM episode.")
+    url = payload.get("url") or ""
+    card = payload.get("card") or ""
+
+    tags = [
+        f'<title>{title} - FAM</title>',
+        f'<meta name="description" content="{description}">',
+        '<meta property="og:site_name" content="FAM">',
+        '<meta property="og:type" content="music.song">',
+        f'<meta property="og:title" content="{title}">',
+        f'<meta property="og:description" content="{description}">',
+    ]
+    if is_public_link(url):
+        tags.append(f'<meta property="og:url" content="{esc(url)}">')
+    if is_public_link(card):
+        tags.append(f'<meta property="og:image" content="{esc(card)}">')
+        tags.append('<meta property="og:image:width" content="1080">')
+        tags.append('<meta property="og:image:height" content="1920">')
+        tags.append('<meta name="twitter:card" content="summary_large_image">')
+        tags.append(f'<meta name="twitter:image" content="{esc(card)}">')
+    else:
+        tags.append('<meta name="twitter:card" content="summary">')
+    tags.append(f'<meta name="twitter:title" content="{title}">')
+    tags.append(f'<meta name="twitter:description" content="{description}">')
+    return "\n  ".join(tags)
+
+
+def render_landing(template: str, payload: dict) -> str:
+    """`static/listen.html` with this episode's head and payload in it.
+
+    Substitution rather than a template engine, and markers that are HTML
+    comments, so the file on disk stays openable and checkable on its own.
+    """
+    page = template.replace(HEAD_MARKER, landing_head(payload))
+    data = (f'<script>window.FAM_SHARE = {_json_for_script(payload)};'
+            f'</script>')
+    return page.replace(DATA_MARKER, data)

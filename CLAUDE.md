@@ -1095,6 +1095,31 @@ the rest of this list it needs taste rather than a key.
   shown a fixture named "Commute" as though it were theirs, and **a control
   with nothing behind it is worse than no control**. `saved.py`'s filing is
   untouched, so putting folders back costs nothing anybody filed.
+- **A shared link lands on one episode, and play is the only thing that
+  works.** *(§106, `static/listen.html`, SHARING.md.)* `/s/<id>` used to
+  redirect into the web app, so somebody sent one episode arrived at a search
+  box, myFAM, Explore and a sign-up with their episode reduced to a query
+  string. It now serves a page whose every other control - the wordmark, "Ask
+  your own question", "Browse episodes", Get FAM - is a `data-door` to the App
+  Store, routed by one delegated listener so a control added later is a door
+  by default.
+  Three things hold it up. **It traces back with no new concept**: an episode
+  is identified by its cache key, `key_for` builds that key from the question
+  and the length, and a share row holds exactly those - so the page asking
+  `/api/audio` for them gets the sharer's own script out of the shared cache,
+  and a test asserts the two keys are equal so a new `key_for` field fails
+  loudly rather than silently costing a model call per open. **The head is
+  rendered server-side**, because Facebook and LinkedIn read the page for
+  their preview and run no JavaScript - until this existed every FAM link
+  posted anywhere previewed identically - and `og:image` is claimed only when
+  the card URL is absolute. And **the open count is reported by the page**,
+  never by the serve, because those same crawlers fetch the link and opens are
+  the only number sharing produces; the alternative is a user-agent list,
+  which is the shape §76 settled against.
+  `APP_STORE_URL` unset draws **no** non-listening control at all - not one
+  that 404s, not one rerouted into the app - and `/api/health` says which
+  state a deploy is in. The payload carries no `user_id`: this is the one
+  response in the app handed to people who are not listeners.
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
   share sheet, or a platform SDK hand-off where their app does the posting with
@@ -1354,8 +1379,8 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §104 is the
-most recent, and is the twenty-two-item review this branch answered), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §106 is the
+most recent, and is where a share link stopped handing strangers the whole app), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
