@@ -42,7 +42,8 @@ import oauth
 import quotas
 import saved as saved_mod
 import sharing
-from config import DEFAULT_PIPELINE, describe_key, key_source, settings
+from config import (DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
+                    key_source, settings)
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
@@ -1047,11 +1048,34 @@ async def auth_me(request: Request) -> dict:
 
 
 def _one_identifier(req: CredentialsRequest) -> str:
-    """Which of email or phone this request is using. Exactly one."""
+    """Which of email or phone this *login* is using. Exactly one.
+
+    Logging in is still a choice of one identifier - two would be two lookups
+    with nothing to do when they disagree. Signing up is not: see
+    `_signup_identity`.
+    """
     if bool(req.email) == bool(req.phone):
         raise HTTPException(
             status_code=400,
             detail="Send either an email address or a phone number, not both.")
+    return "email" if req.email else "phone"
+
+
+def _signup_identity(req: CredentialsRequest) -> str:
+    """Which identifiers a sign-up is carrying: "email", "phone" or "both".
+
+    Sign-up asks for an address *and* a number and keeps both on one account,
+    so "both" is the ordinary case rather than a contradiction. It was refused
+    for as long as this endpoint shared `_one_identifier` with login, which
+    meant filling in the number the form itself offered failed with a message
+    about how the server stores things.
+    """
+    if not req.email and not req.phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Send an email address or a phone number.")
+    if req.email and req.phone:
+        return "both"
     return "email" if req.email else "phone"
 
 
@@ -1084,10 +1108,12 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     _rate_limit(request)
     user = _require_listener(request)
     try:
-        if _one_identifier(req) == "email":
-            listener = ACCOUNTS.sign_up(user, req.email, req.password)
-        else:
+        kind = _signup_identity(req)
+        if kind == "phone":
             listener = ACCOUNTS.sign_up_phone(user, req.phone, req.password)
+        else:
+            listener = ACCOUNTS.sign_up(user, req.email, req.password,
+                                        phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # A fresh token even though the id has not changed, so that a native
@@ -1321,7 +1347,7 @@ class SendMessageRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(3, ge=0, le=60)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
@@ -1344,7 +1370,7 @@ class ConfirmDownloadRequest(BaseModel):
 
 class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
-    minutes: int = Field(3, ge=0, le=60)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
 
 
@@ -2373,7 +2399,7 @@ async def next_up(
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
-                        minutes: int = Query(3, ge=1, le=10),
+                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200)):
     """One myFAM rail, at full length, for the screen behind its "View more".
 
@@ -2482,7 +2508,7 @@ class EventRequest(BaseModel):
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
-                minutes: int = Query(3, ge=1, le=10)):
+                minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """The four myFAM rails, ranked for this listener.
 
     **Costs no model call and cannot cause one.** Both inventories are already
@@ -2575,7 +2601,7 @@ class PersonRequest(BaseModel):
 class EchoRequest(BaseModel):
     query: str = Field(..., max_length=300)
     title: str = Field("", max_length=200)
-    minutes: int = Field(3, ge=1, le=10)
+    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
     thread: str = Field("", max_length=200)
 
 
@@ -2613,7 +2639,7 @@ async def post_echo(req: EchoRequest, request: Request):
 
 @app.delete("/api/echo")
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(3, ge=1, le=10)):
+                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
     return {"ok": SOCIAL.unecho(_listener(request), q, minutes)}
 
@@ -2637,7 +2663,7 @@ async def post_vibe(req: EchoRequest, request: Request):
 
 @app.delete("/api/vibe")
 async def delete_vibe(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(3, ge=1, le=10)):
+                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
 
@@ -2750,7 +2776,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
 async def episode_sources(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     search: bool = Query(True),
 ):
@@ -2787,7 +2813,7 @@ async def episode_sources(
 async def next_thread(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # Same reason as /api/audio: this looks up a cache entry, and the entry it
     # looks for has to be keyed the same way the audio request keyed it.
@@ -2816,7 +2842,7 @@ async def next_thread(
 async def audio(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(3, ge=1, le=10),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     fmt: str = Query("wav", pattern="^(wav|pcm)$"),
     context: str = Query("", description="Topic the listener just heard, for a follow-up"),
     voice: str = Query("", description="Voice id from /api/voices"),

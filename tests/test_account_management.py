@@ -76,11 +76,43 @@ def test_a_number_without_a_country_code_is_refused_rather_than_guessed(client):
     assert "country code" in r.json()["error"]
 
 
-def test_signup_needs_exactly_one_identifier(client):
-    both = client.post("/api/auth/signup", json={
-        "email": "a@b.com", "phone": "+14155550142", "password": "password12"})
+def test_signup_takes_an_email_and_a_phone_together(client):
+    """The sign-up screen asks for both, so both have to be accepted and both
+    have to be stored. This was a 400 - "send either an email address or a
+    phone number, not both" - which meant filling in the field the form itself
+    offered was an error message about how the server stores things."""
+    r = client.post("/api/auth/signup", json={
+        "email": "a@b.com", "phone": "+1 (415) 555-0142",
+        "password": "password12"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["email"] == "a@b.com"
+    assert body["phone"] == "+14155550142"
+
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "a@b.com" and me["phone"] == "+14155550142"
+
+
+def test_either_identifier_from_one_signup_logs_in(client):
+    """One account, two ways in - which is the whole reason for storing both."""
+    signed = client.post("/api/auth/signup", json={
+        "email": "two@ways.com", "phone": "+14155550143",
+        "password": "password12"}).json()
+    client.post("/api/auth/logout")
+    by_phone = client.post("/api/auth/login", json={
+        "phone": "+14155550143", "password": "password12"})
+    assert by_phone.status_code == 200, by_phone.text
+    assert by_phone.json()["user_id"] == signed["user_id"]
+    client.post("/api/auth/logout")
+    by_email = client.post("/api/auth/login", json={
+        "email": "two@ways.com", "password": "password12"})
+    assert by_email.status_code == 200, by_email.text
+    assert by_email.json()["user_id"] == signed["user_id"]
+
+
+def test_signup_still_needs_at_least_one_identifier(client):
     neither = client.post("/api/auth/signup", json={"password": "password12"})
-    assert both.status_code == 400 and neither.status_code == 400
+    assert neither.status_code == 400
 
 
 def test_a_phone_and_an_email_account_do_not_collide(client):

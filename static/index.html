@@ -1200,6 +1200,12 @@
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);
     margin-bottom:6px; }
   .auth-optional{ color:var(--text-faint); }
+  /* Country code beside the number. The code is fixed-width so the number
+     field does not jump about as the selection changes length. */
+  .phone-row{ display:flex; gap:8px; align-items:stretch; }
+  .phone-cc{ flex:0 0 86px; margin-bottom:0 !important; padding-right:6px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; }
+  .phone-num{ flex:1 1 auto; min-width:0; }
 
   /* ============ INTRO: interests, then language ============ */
   .intro-top{ flex:none; display:flex; justify-content:flex-end;
@@ -1582,7 +1588,7 @@
             <button class="auth-method" onclick="showAuthForm()">
               <span class="am-icon">@</span>
               <span class="am-body">Continue with email
-                <span class="am-sub">email, password, phone optional</span></span>
+                <span class="am-sub">email, phone and a password</span></span>
             </button>
             <div id="authForm" hidden>
               <div class="auth-field">
@@ -1594,19 +1600,33 @@
               <div class="auth-field">
                 <div class="auth-label">Password</div>
                 <input class="modal-input" id="authPassword" type="password"
-                       placeholder="at least 10 characters" style="margin-bottom:0;">
+                       autocomplete="new-password"
+                       placeholder="at least 8 characters" style="margin-bottom:0;">
               </div>
+              <!-- Phone is asked for and kept on the same account as the
+                   address. The code is a select rather than something typed
+                   into the same box, because the server stores exactly one
+                   form (E.164) and refuses to guess a country - so the one
+                   part that cannot be inferred is the one part that is
+                   picked rather than typed. -->
               <div class="auth-field" id="authPhoneField">
-                <div class="auth-label">Phone <span class="auth-optional">— optional</span></div>
-                <input class="modal-input" id="authPhone" type="tel"
-                       autocomplete="tel" placeholder="+1 555 0100" style="margin-bottom:0;">
+                <div class="auth-label">Phone</div>
+                <div class="phone-row">
+                  <select class="modal-input phone-cc" id="authPhoneCC"
+                          aria-label="Country code"></select>
+                  <input class="modal-input phone-num" id="authPhone" type="tel"
+                         inputmode="tel" autocomplete="off" autocorrect="off"
+                         autocapitalize="off" spellcheck="false"
+                         placeholder="(888) 888-8888" style="margin-bottom:0;"
+                         oninput="formatPhoneInput(this)">
+                </div>
               </div>
               <button class="entry-btn primary" id="authSubmit"
                       onclick="submitAuthForm()">Create account</button>
               <p class="entry-note" id="authNote">Your password is what signs you
-                in. A phone number is kept as a contact detail only — there is no
-                SMS delivery behind it, so it cannot sign you in or recover an
-                account.</p>
+                in. Your number is kept on the account and works as a second way
+                in — there is no SMS delivery behind it yet, so it cannot verify
+                you or recover an account.</p>
             </div>
             <p class="entry-note">There is no password reset yet: it needs email
               delivery this app has no route to. A forgotten password today is a
@@ -1697,7 +1717,7 @@
           </button>
         </div>
         <div style="padding:0 18px 12px;">
-          <input class="modal-input" id="catalogSearch" type="search" autocomplete="off"
+          <input class="modal-input" id="catalogSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics" oninput="renderTopicCatalog()"
                  style="margin-bottom:0;">
         </div>
@@ -1757,7 +1777,7 @@
           <h2>Friends</h2>
         </div>
         <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="friendSearch" type="search" autocomplete="off"
+          <input class="modal-input" id="friendSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Find someone by handle" style="margin-bottom:0;"
                  oninput="searchPeople()">
         </div>
@@ -1809,7 +1829,7 @@
           </div>
           <div class="home-hero">
           <div class="fam-input-box">
-            <textarea id="searchInput" placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
+            <textarea id="searchInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
           </div>
           <div class="attach-row" id="attachRow"></div>
           <div class="fam-controls">
@@ -1931,7 +1951,7 @@
           <h2 id="pickerTitle">Choose topics</h2>
         </div>
         <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="pickerSearch" type="text" autocomplete="off"
+          <input class="modal-input" id="pickerSearch" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics, or type your own"
                  oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedTopic()">
         </div>
@@ -2149,7 +2169,7 @@
                and filtering a list the page is holding costs nothing. -->
           <div class="search-bar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input id="msgSearch" type="search" autocomplete="off"
+            <input id="msgSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                    placeholder="Search messages" oninput="renderThreadRows()">
           </div>
           <div id="threadList"></div>
@@ -2167,7 +2187,7 @@
         </div>
         <div class="scroll" id="thread-body"></div>
         <div class="chat-input-row" style="display:flex; border-top:1px solid var(--border);">
-          <input type="text" id="threadInput" placeholder="Message…">
+          <input type="text" id="threadInput" placeholder="Message…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <button onclick="sendThreadMessage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
       </section>
@@ -2179,7 +2199,7 @@
                that used to be the only other way out is undocumented. -->
           <button class="modal-x" onclick="closeModal()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="modal-title" id="modalTitle">Title</div>
-          <input class="modal-input" id="modalInput" type="text" placeholder="">
+          <input class="modal-input" id="modalInput" type="text" placeholder="" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeModal()">Cancel</button>
             <button class="modal-btn primary" id="modalConfirmBtn">Save</button>
@@ -2263,7 +2283,7 @@
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
-          <input class="modal-input" id="goDeeperInput" type="text" placeholder="e.g. &quot;explain the market impact&quot;">
+          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="e.g. &quot;explain the market impact&quot;">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeGoDeeper()">Cancel</button>
             <button class="modal-btn primary" onclick="confirmGoDeeper()">Continue</button>
@@ -2409,7 +2429,7 @@
           <div class="gc-label" style="margin-bottom:8px;">Your FAM contacts</div>
           <div class="share-contacts" id="newChatContacts"></div>
           <div class="gc-label" style="margin:16px 0 8px;">Or start a new conversation</div>
-          <input class="modal-input" id="newChatInput" type="text" placeholder="Name or phone number">
+          <input class="modal-input" id="newChatInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeNewChatModal()">Cancel</button>
             <button class="modal-btn primary" onclick="confirmNewChat()">Start chat</button>
@@ -2534,7 +2554,10 @@
   var currentAlbumForPlayer = null;
   var currentTopicIndexInAlbum = -1;
   var scrollLocked = false;
-  var selectedLengthMinutes = 3;
+  // The length a search opens on. Two minutes: long enough for the answer
+  // and the story around it, short enough that somebody who typed a question
+  // has it answered before they have to decide whether to stay.
+  var selectedLengthMinutes = 2;
 
   function showScreen(id){
     // Find the target BEFORE deactivating anything. The other order clears
@@ -3839,6 +3862,12 @@
     // Passwords are masked and kept out of autofill's way. Reset every time,
     // or a password modal would leave the next text modal masked.
     input.type = opts.inputType || "text";
+    // One shared input serves every modal in the app - naming a mix, picking a
+    // handle, typing a password - so the browser was offering whatever had
+    // last been typed into it as a suggestion on all of them. A handle typed
+    // once came back as a recommendation over the field for somebody's name.
+    input.setAttribute("autocomplete",
+      opts.inputType === "password" ? "new-password" : "off");
     document.getElementById("modalConfirmBtn").textContent = opts.confirmLabel || "Save";
     _modalConfirmHandler = opts.onConfirm;
     document.getElementById("modalOverlay").classList.add("active");
@@ -4863,7 +4892,7 @@
   // than something the server needs to know.
   var myfamLengthMinutes = (function(){
     var kept = parseInt(localPrefs().myfam_minutes, 10);
-    return (kept >= 1 && kept <= 10) ? kept : 3;
+    return (kept >= 1 && kept <= 10) ? kept : 2;
   })();
 
   function openMyFamLengthMenu(){
@@ -5631,7 +5660,7 @@
       onConfirm: function(email){
         showModal({
           title: "Password",
-          placeholder: "at least 10 characters",
+          placeholder: "at least 8 characters",
           confirmLabel: confirmLabel,
           inputType: "password",
           onConfirm: function(password){ done(email, password); }
@@ -5685,7 +5714,7 @@
       inputType: "password",
       onConfirm: function(current){
         showModal({
-          title: "New password", placeholder: "at least 10 characters",
+          title: "New password", placeholder: "at least 8 characters",
           confirmLabel: "Change", inputType: "password",
           onConfirm: function(next){
             postAuth("/api/auth/password", { current: current, "new": next },
@@ -6556,12 +6585,12 @@
   function editIdentity(){
     showModal({
       title: "Your name",
-      placeholder: "e.g. Ian Solomon",
+      placeholder: "Your name",
       confirmLabel: "Next",
       onConfirm: function(name){
         showModal({
           title: "Pick a handle",
-          placeholder: "iansolomon",
+          placeholder: "yourhandle",
           confirmLabel: "Save",
           onConfirm: function(handle){
             fetch("/api/me", {
@@ -7040,7 +7069,7 @@
      player to keep in step, and the two would drift. */
   function playStoredEpisode(item, stored){
     var title = item.title || item.query;
-    var minutes = item.minutes || 3;
+    var minutes = item.minutes || 2;
     rememberEpisode(item.query, minutes, "");
     setEchoed(false);
     currentPlayingTopicKey = null;
@@ -7695,9 +7724,17 @@
       mode === "login" ? "Log in" : "Sign up";
     document.getElementById("authSubmit").textContent =
       mode === "login" ? "Log in" : "Create account";
-    // Logging in identifies an account that exists; a phone number would be
-    // asking for something it cannot use.
+    // Logging in identifies an account that exists; a phone number is a
+    // second way in rather than a second field to fill, so the form asks for
+    // one identifier and the account carries both.
     document.getElementById("authPhoneField").hidden = (mode === "login");
+    // The one place an address may be remembered: somebody coming back to an
+    // account on a device they have already used. Signing up is a new
+    // identity, so nothing about the last one is offered.
+    document.getElementById("authEmail").setAttribute(
+      "autocomplete", mode === "login" ? "email" : "off");
+    document.getElementById("authPassword").setAttribute(
+      "autocomplete", mode === "login" ? "current-password" : "new-password");
     document.getElementById("authForm").hidden = true;
     showScreen("auth");
   }
@@ -7707,7 +7744,92 @@
   }
   function showAuthForm(){
     document.getElementById("authForm").hidden = false;
+    fillCountryCodes("authPhoneCC");
     document.getElementById("authEmail").focus();
+  }
+
+  // --- phone numbers -------------------------------------------------------
+  //
+  // The server stores exactly one form, E.164, and refuses to guess a country
+  // for a bare national number - two people in different countries would
+  // otherwise own "the same" account. So the country is picked here and the
+  // rest is digits, and what is *shown* while typing is the national
+  // formatting people recognise rather than the form that gets stored.
+  var COUNTRY_CODES = [
+    ["+1", "US"], ["+44", "UK"], ["+61", "AU"], ["+64", "NZ"], ["+353", "IE"],
+    ["+33", "FR"], ["+49", "DE"], ["+34", "ES"], ["+39", "IT"], ["+31", "NL"],
+    ["+46", "SE"], ["+47", "NO"], ["+45", "DK"], ["+351", "PT"], ["+41", "CH"],
+    ["+43", "AT"], ["+32", "BE"], ["+48", "PL"], ["+30", "GR"], ["+52", "MX"],
+    ["+55", "BR"], ["+54", "AR"], ["+56", "CL"], ["+57", "CO"], ["+27", "ZA"],
+    ["+234", "NG"], ["+254", "KE"], ["+20", "EG"], ["+971", "AE"], ["+972", "IL"],
+    ["+90", "TR"], ["+7", "RU"], ["+86", "CN"], ["+81", "JP"], ["+82", "KR"],
+    ["+91", "IN"], ["+92", "PK"], ["+62", "ID"], ["+63", "PH"], ["+65", "SG"],
+    ["+60", "MY"], ["+66", "TH"], ["+84", "VN"], ["+852", "HK"], ["+886", "TW"]
+  ];
+
+  function fillCountryCodes(id){
+    var sel = document.getElementById(id);
+    if(!sel || sel.options.length) return;
+    COUNTRY_CODES.forEach(function(row){
+      var o = document.createElement("option");
+      o.value = row[0];
+      o.textContent = row[0] + " " + row[1];
+      sel.appendChild(o);
+    });
+    sel.value = "+1";
+  }
+
+  // (888) 888-8888 for a ten-digit North American number; plain groups of
+  // digits otherwise, because every other country writes its own differently
+  // and inventing a grouping for one of them is worse than none.
+  function prettyPhone(digits, cc){
+    digits = String(digits || "").replace(/\D/g, "");
+    if(cc === "+1"){
+      digits = digits.slice(0, 10);
+      if(digits.length <= 3) return digits.length ? "(" + digits : "";
+      if(digits.length <= 6) return "(" + digits.slice(0,3) + ") " + digits.slice(3);
+      return "(" + digits.slice(0,3) + ") " + digits.slice(3,6) + "-" + digits.slice(6);
+    }
+    digits = digits.slice(0, 14);
+    return digits.replace(/(\d{3})(?=\d)/g, "$1 ").trim();
+  }
+
+  function formatPhoneInput(input){
+    var row = input.closest(".phone-row");
+    var sel = row ? row.querySelector(".phone-cc") : null;
+    var cc = sel ? sel.value : "+1";
+    var atEnd = input.selectionStart === input.value.length;
+    input.value = prettyPhone(input.value, cc);
+    if(atEnd){
+      try { input.setSelectionRange(input.value.length, input.value.length); }
+      catch(e){}
+    }
+  }
+
+  // What gets sent: the code and the digits, with nothing else in between.
+  function phoneValue(ccId, numId){
+    var sel = document.getElementById(ccId);
+    var num = document.getElementById(numId);
+    var digits = ((num && num.value) || "").replace(/\D/g, "");
+    if(!digits) return "";
+    return ((sel && sel.value) || "+1") + digits;
+  }
+
+  // The reverse, for an editor showing a number that is already stored.
+  function setPhoneFields(ccId, numId, e164){
+    fillCountryCodes(ccId);
+    var sel = document.getElementById(ccId);
+    var num = document.getElementById(numId);
+    if(!sel || !num) return;
+    var raw = String(e164 || "").replace(/[^\d+]/g, "");
+    if(!raw){ num.value = ""; return; }
+    var best = "+1";
+    COUNTRY_CODES.forEach(function(row){
+      if(raw.indexOf(row[0]) === 0 && row[0].length > best.length) best = row[0];
+    });
+    if(raw.indexOf(best) !== 0) best = "+1";
+    sel.value = best;
+    num.value = prettyPhone(raw.slice(best.length), best);
   }
 
   // Drawn because they are the design; not connected because there is no OAuth
@@ -7722,8 +7844,12 @@
   function submitAuthForm(){
     var email = document.getElementById("authEmail").value.trim();
     var password = document.getElementById("authPassword").value;
-    var phone = (document.getElementById("authPhone").value || "").trim();
+    var phone = phoneValue("authPhoneCC", "authPhone");
     if(!email || !password){ toast("Email and password, please"); return; }
+    if(authMode === "signup" && !phone){ toast("A phone number, please"); return; }
+    if(authMode === "signup" && password.length < 8){
+      toast("Use at least 8 characters"); return;
+    }
     var path = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
     var body = { email: email, password: password };
     if(authMode === "signup" && phone) body.phone = phone;

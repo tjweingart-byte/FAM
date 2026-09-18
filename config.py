@@ -195,6 +195,16 @@ RESEARCH_BACKENDS = ("claude", "exa")
 #: literal, for the same reason as DEFAULT_PIPELINE.
 DEFAULT_RESEARCH_BACKEND = "exa"
 
+#: How long an episode is when nobody has said. Two minutes, not three.
+#:
+#: Named here because it was a literal `3` in about twenty places - every
+#: endpoint's `Query` default, the client's two length controls, prefetch,
+#: and half the tools - which is the shape a number takes when nobody can
+#: change it without missing one. `DEPTH_BANDS` says what each band of minutes
+#: is *for*; this says which one somebody who has expressed no preference
+#: lands in.
+DEFAULT_MINUTES = 2
+
 #: How much of an episode prefetch pays for in advance. See `prefetch_level`.
 #: Named here rather than repeated as literals so "the levels" is one fact in
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.

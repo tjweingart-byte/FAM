@@ -582,3 +582,27 @@ def test_a_first_thought_too_long_for_the_budget_is_refused_not_held():
     fit = fit_to_budget([released[0].text], 5.0, 150.0, SENTENCE_GAP,
                         OVERRUN_GRACE)
     assert fit.spoken == [] and fit.truncated is True
+
+
+# --- what a listener gets when they have said nothing ---------------------
+
+def test_the_default_episode_is_two_minutes():
+    """One number in one place. It was the literal `3` in about twenty of
+    them - every endpoint's Query default, both of the client's length
+    controls, prefetch and half the tools - which is the shape a number takes
+    when nobody can change it without missing one."""
+    import config
+    assert config.DEFAULT_MINUTES == 2
+
+
+def test_no_endpoint_hard_codes_its_own_default_length():
+    """A second opinion about the default would be invisible: the request
+    that used it would simply produce a differently-sized episode."""
+    import pathlib
+    import re
+    source = pathlib.Path(__file__).resolve().parent.parent / "app.py"
+    body = source.read_text()
+    # `Field(0, ...)` on a message is a sentinel meaning "no episode attached",
+    # not a length, so it is not one of these.
+    stray = re.findall(r"minutes: int = (?:Query|Field)\(\s*[1-9]\d*", body)
+    assert not stray, f"app.py still hard-codes a default length: {stray}"

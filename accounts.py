@@ -91,7 +91,7 @@ COOKIE_NAME = "fam_session"
 MAX_EMAIL = 254
 MAX_PHONE = 20          # E.164 is at most 15 digits; the rest is the + and slack
 MAX_DISPLAY_NAME = 60
-MIN_PASSWORD = 10
+MIN_PASSWORD = 8
 MAX_PASSWORD = 1024  # scrypt on an unbounded string is a denial-of-service
 
 # Deliberately permissive. Address validation by regex is a well-known way to
@@ -469,17 +469,30 @@ class AccountStore:
         return plan
 
     def sign_up(self, user_id: str, email: str, password: str,
-                at: float = 0.0) -> Listener:
+                phone: str = "", at: float = 0.0) -> Listener:
         """Attach credentials to the identity this listener already has.
 
         Deliberately *not* "create a user". The listener exists already - they
         have a history, maybe mixes, maybe echoes - and this claims that
         identity rather than starting a second one beside it. That is why there
         is no migration step anywhere in this module.
+
+        **Email and phone are one account, not two.** The sign-up screen asks
+        for both and both are stored on the same row, so either one logs in
+        later. This used to be an exclusive choice, which produced the bug
+        where filling in the optional number after an address was refused with
+        "send either an email address or a phone number, not both" - a rule
+        about how the server stored things, told to somebody who was simply
+        answering the fields in front of them.
+
+        The number is still *not verified*; nothing here sends an SMS. Storing
+        it buys a second way in and a way to reach somebody the day delivery
+        exists, and it is not a second factor until then.
         """
         if not user_id:
             raise AuthError("No listener to attach an account to.")
         email = clean_email(email)
+        phone = clean_phone(phone) if phone else ""
         password = check_password(password)
         now = at or time.time()
 
@@ -487,16 +500,27 @@ class AccountStore:
             raise AuthError("This listener already has an account. Log out first.")
         try:
             self._conn().execute(
-                "INSERT INTO accounts (user_id, email, password, created, last_login)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (user_id, email, hash_password(password), now, now),
+                "INSERT INTO accounts (user_id, email, password, created,"
+                " last_login, phone) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, email, hash_password(password), now, now, phone),
             )
         except sqlite3.IntegrityError as exc:
-            # Only tells them an address is taken, which they can already
-            # discover by trying to sign up. Nothing else is disclosed.
-            raise AuthError("That email is already registered.") from exc
+            # Only tells them an identifier is taken, which they can already
+            # discover by trying to sign up. Nothing else is disclosed. Which
+            # of the two collided is worth saying, because otherwise somebody
+            # whose number is already on another account is told to change
+            # their email address.
+            taken = "phone number" if phone and self._phone_taken(phone) else "email"
+            raise AuthError(f"That {taken} is already registered.") from exc
         self._link(user_id, "email", email, email, now)
-        return Listener(user_id, email, has_account=True)
+        if phone:
+            self._link(user_id, "phone", phone, email, now)
+        return Listener(user_id, email, phone=phone, has_account=True)
+
+    def _phone_taken(self, phone: str) -> bool:
+        row = self._conn().execute(
+            "SELECT 1 FROM accounts WHERE phone = ?", (phone,)).fetchone()
+        return bool(row)
 
     def log_in(self, email: str, password: str, at: float = 0.0) -> Listener:
         """Verify credentials. Raises the *same* error either way.

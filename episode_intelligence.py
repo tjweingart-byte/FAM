@@ -54,7 +54,7 @@ import credentials
 import live_facts
 import metering
 from anthropic_client import build_async_client
-from config import settings
+from config import DEFAULT_MINUTES, settings
 
 log = logging.getLogger(__name__)
 
@@ -569,7 +569,7 @@ Work out:
   for how something works, what someone is like, or what is at stake."""
 
 
-async def understand(query: str, minutes: int = 3, context: str = "",
+async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
                      notes=None, now: str | None = None) -> Brief:
     """Work out what this request is, before anything is retrieved.
 
