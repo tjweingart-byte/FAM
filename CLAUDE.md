@@ -491,6 +491,39 @@ the rest of this list it needs taste rather than a key.
    it rather than papering over it: the rail is **honestly empty and names the
    two taps that fix it**, because the alternative was what it did before,
    which was to show strangers under a heading that said "people you follow".
+7b. **A friend's profile is its own screen, and it shows what they published.**
+   *(§104, `SHARING.md`.)* The navigation bug the packet reported had four
+   symptoms and one cause: somebody else's profile was drawn into
+   `screen-profile` with a variable deciding whose it was. So back from the
+   friend popped to Friends, back again showed that screen still holding the
+   *friend's* DOM, back again fell through to search, and the Profile tab
+   flashed them. **Two pages sharing one container is one bug, not a routing
+   bug with four fixes** - `screen-person` is its own screen now, and
+   `viewingProfile` decides only what is drawn there, never which screen is on.
+   `/api/person` returns **only what they chose to publish**: public mixes,
+   vibes (a vibe *is* the act of showing somebody an episode), and the
+   interests they have not hidden. No play count, no completion total, no
+   inferred subjects, no history - what somebody has listened to is theirs. The
+   boundary is the graph: a handle resolves for anybody, a bare id only for
+   somebody already in the asking listener's follows, and the response carries
+   no id of its own. The interest choice is stored as the **hidden** set, so an
+   existing row means "all of them" - storing the shared set would default
+   every profile in the app to an empty pill row that reads as broken.
+   **A new follower is announced, once, with a way to answer it.** "___ started
+   following you", their picture, Follow back, and an X. `new_followers` is a
+   query over the follow graph's own timestamps against one column saying when
+   the listener last looked - not a second table with its own read state - and
+   it is cleared by the **Friends tab**, never by the popup being drawn: a
+   badge that cleared itself the moment something drew it is a count nobody got
+   to read. `follows_back` rides along, because offering the button to somebody
+   already followed is a control that cannot do anything.
+   **And eighty-five per cent through is finished.** Waiting for the last
+   sample counted almost nothing: the ending is the one part a listener skips,
+   so an episode heard to the ninety-fifth percentile and closed was recorded
+   as a *play* - worth 1.0 against a completion's 2.5. The strongest signal the
+   taste model has was being thrown away by exactly the behaviour it should
+   reward. A share rather than a number of seconds, because "the last thirty
+   seconds" is most of a one-minute episode and nothing of a ten-minute one.
 8. **The social layer generates nothing, and now there is more of it.**
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,

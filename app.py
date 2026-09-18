@@ -1383,6 +1383,87 @@ async def friends_read(request: Request) -> dict:
         "followers": SOCIAL.followers(user),
         "friends": SOCIAL.friends(user),
         "counts": SOCIAL.follow_counts(user),
+        # Who followed since this listener last looked. Read here rather than
+        # from an endpoint of its own because the interface asks this question
+        # at the same moment it asks the others, and a badge is not worth a
+        # second round trip.
+        "new_followers": SOCIAL.new_followers(user),
+    }
+
+
+@app.post("/api/friends/seen")
+async def friends_seen(request: Request) -> dict:
+    """They opened the Friends tab, so nobody is new any more.
+
+    Deliberately *not* done when the follower popup is drawn: a badge that
+    cleared itself the moment a popup appeared would be a count nobody ever
+    got to read.
+    """
+    _read_limit(request)
+    SOCIAL.mark_followers_seen(_require_account(request))
+    return {"ok": True}
+
+
+@app.get("/api/person")
+async def person_profile(request: Request,
+                         handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                         user_id: str = Query("", max_length=64)) -> dict:
+    """Another listener's profile: **only what they have chosen to publish.**
+
+    The rule this endpoint exists under, and the reason it did not exist
+    before: what somebody has listened to is theirs. There is no play count
+    here, no completion total, no subjects inferred from behaviour and no
+    history. Three things come back, and each one is something the person
+    actively decided to show:
+
+    * **public mixes** - a mix is private by default and appears here only
+      once its owner switched it to public;
+    * **vibes** - a vibe *is* the act of showing somebody an episode, so a
+      list of them is a list of things they chose to publish;
+    * **interests they have not hidden** - declared in the first run or in
+      Settings, minus anything they turned off in Edit profile.
+
+    The standing between the two of you comes from the follow graph, which
+    both sides can already see.
+    """
+    _read_limit(request)
+    me = _listener(request)
+    target = ""
+    if user_id:
+        # Only somebody already in this listener's graph, by id. An id is
+        # guessable in a way a handle search is not, and the graph is the
+        # boundary: you may look at people you or they have followed.
+        known = {p["user_id"] for p in
+                 SOCIAL.following(me) + SOCIAL.followers(me)} if me else set()
+        target = user_id if user_id in known else ""
+    if not target and handle:
+        wanted = handle.strip().lstrip("@").lower()
+        found = [p for p in SOCIAL.find_people(wanted, exclude_user=me, limit=5)
+                 if p["handle"] == wanted]
+        target = found[0]["user_id"] if found else ""
+    if not target:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+
+    person = SOCIAL.person(target)
+    prefs = PREFS.get(target)
+    interests = topics_mod.facets_only(prefs.public_interests)
+    return {
+        # Deliberately no `user_id`: this response is drawn, not acted on, and
+        # the follow buttons on that screen already have the id they need from
+        # the graph. A listener id the client did not need is a listener id
+        # that can be sent back.
+        "name": person["name"],
+        "handle": person["handle"],
+        "avatar": person["avatar"],
+        "joined": person["joined"],
+        "mixes": [m.as_dict() for m in MIXES.public_for_user(target)],
+        "vibes": [e.as_dict(person["name"], person["handle"])
+                  for e in SOCIAL.echoes_by(target, limit=12)],
+        "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
+        "interests": interests,
+        "interest_labels": [topics_mod.TAG_LABELS[t] for t in interests
+                            if t in topics_mod.TAG_LABELS],
+        "follows": SOCIAL.follow_counts(target),
     }
 
 
@@ -2199,6 +2280,10 @@ class PreferenceRequest(BaseModel):
     # No `user` field, for the same reason MixRequest has none.
     interests: Optional[list[str]] = None
     language: Optional[str] = Field(None, max_length=8)
+    #: Which of their interests they have chosen *not* to show on their
+    #: profile. The hidden set rather than the shared one - see
+    #: `preferences.Preferences.hidden_interests` for why that direction.
+    hidden_interests: Optional[list[str]] = None
     #: Written by nothing in the interface any more. The weekly recap popup is
     #: gone, replaced by myFAM's "What you missed last week" rail, and the
     #: column stays for the same reason `language` does: dropping it is a
@@ -2308,6 +2393,7 @@ async def write_preferences(req: PreferenceRequest, request: Request):
     user = _require_account(request)
     try:
         prefs = PREFS.save(user, interests=req.interests, language=req.language,
+                           hidden_interests=req.hidden_interests,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -2695,13 +2781,32 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     if store is None:
         return {"episodes": [], "reason": "The shared cache is switched off."}
     now = time.time()
-    # Who echoed what. An echo does not create an episode - the script was
-    # already here - it changes what the card says, from "someone asked this"
-    # to "Rachel sent you this", which is a different reason to press play.
     listener = _listener(request)
-    labels = SOCIAL.recent_echoes(exclude_user=listener)
-    episodes = [
-        {
+
+    # **A friend vibed this.** Two conditions, and the card claims a
+    # friendship so both have to hold: this listener's *friend* generated the
+    # episode, and that same friend vibed it. Either alone is a weaker claim -
+    # a stranger's vibe is not addressed to you, and a friend who generated
+    # something without vibing it did not recommend it.
+    #
+    # `friends` is the mutual case, derived and never stored (see SHARING.md),
+    # which is what makes "friend" a word the tag is allowed to use.
+    friends = {p["user_id"]: p for p in SOCIAL.friends(listener)} if listener else {}
+    vibes = SOCIAL.echoes_among(list(friends)) if friends else {}
+
+    # And who else vibed what. Still read, and still only for the *order*: a
+    # vibe is somebody choosing to send an episode, which is a real reason for
+    # a card to lead. It no longer puts a stranger's name on one - naming
+    # people the listener has never heard of under a heading about their
+    # friends is the mistake §102 took off myFAM.
+    anyone = SOCIAL.recent_echoes(exclude_user=listener)
+
+    episodes = []
+    for entry in store.recent(limit, exclude_author=listener):
+        pair = (entry["query"], entry["minutes"])
+        by = vibes.get(pair)
+        friend = friends.get(entry.get("author") or "")
+        card = {
             "query": entry["query"],
             # The episode's own title when the model wrote one, else the
             # question with a capital letter - which is what every card
@@ -2713,12 +2818,24 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "plays": entry["plays"],
             "thread": entry["thread"],
             "age_seconds": max(0.0, now - entry["created"]),
-            "echoed_by": labels.get((entry["query"], entry["minutes"]), {}).get("by", ""),
+            "vibed": bool(pair in anyone or by),
         }
-        for entry in store.recent(limit, exclude_author=listener)
-    ]
-    # An echoed episode leads, because someone chose to send it.
-    episodes.sort(key=lambda e: (not e["echoed_by"], e["age_seconds"]))
+        # Note what is *not* on the card: `author`. It is read here for one
+        # display decision and resolved to a name and a picture; a listener id
+        # in this response would be an id the client could send back, which is
+        # the rule `_listener` exists to keep.
+        if by and friend and by.get("user_id") == friend["user_id"]:
+            card["vibed_by"] = {
+                "name": by["name"] or friend.get("name") or "A friend",
+                "handle": by["handle"] or friend.get("handle") or "",
+                "avatar": by["avatar"] or friend.get("avatar") or "",
+            }
+        episodes.append(card)
+
+    # A vibed episode leads, because someone chose to send it, and a friend's
+    # leads over a stranger's.
+    episodes.sort(key=lambda e: (not e.get("vibed_by"), not e["vibed"],
+                                 e["age_seconds"]))
     return {"episodes": episodes}
 
 

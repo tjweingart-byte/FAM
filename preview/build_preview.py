@@ -158,10 +158,15 @@ def load_fixtures() -> dict:
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
 
+    # One card carries a friend's vibe, which is the whole of that tag: a
+    # friend both generated the episode and vibed it. The others do not, so
+    # the preview shows both states rather than one.
     explore = {"episodes": [
         {"query": q, "title": q[:1].upper() + q[1:], "minutes": m,
          "plays": p, "thread": th, "age_seconds": age,
-         "echoed_by": "Rachel Solomon" if m == 5 else ""}
+         "vibed": m == 5,
+         **({"vibed_by": {"name": "Rachel Solomon", "handle": "rachels",
+                          "avatar": ""}} if m == 5 else {})}
         for q, m, p, th, age in [
             ("why the strait of hormuz moves the oil price", 3, 4,
              "why the shipping lanes run through Omani water", 140),
@@ -446,10 +451,14 @@ SHIM = """
     all: [
       { user_id: "u_beth", name: "Beth Solomon", handle: "beth" },
       { user_id: "u_mike", name: "Mike Solomon", handle: "mike" },
-      { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" }
+      { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" },
+      // Follows and is not followed back, so the asymmetry the graph is built
+      // around is visible on a phone - and so the follower popup and the
+      // unread badge have something real to draw.
+      { user_id: "u_nadia", name: "Nadia Okoro", handle: "nadia" }
     ],
     following: ["u_beth", "u_mike", "u_rachel"],
-    followers: ["u_beth", "u_rachel"],
+    followers: ["u_beth", "u_rachel", "u_nadia"],
     vibes: [
       { id: 1, query: "why the strait of hormuz moves the oil price",
         title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
@@ -491,11 +500,49 @@ SHIM = """
       };
       var friends = this.following.filter(function (id) {
         return self.followers.indexOf(id) !== -1; });
+      // Somebody who has followed and not been followed back, so the popup
+      // and the badge both have something to show on a phone. `new_followers`
+      // is cleared by POST /api/friends/seen, the way the server clears it.
+      var fresh = this.seenFollowers
+        ? []
+        : pick(this.followers.filter(function (id) {
+            return self.following.indexOf(id) === -1; })
+          ).map(function (p) {
+            return { user_id: p.user_id, name: p.name, handle: p.handle,
+                     avatar: "", at: 0, follows_back: false };
+          });
       return { following: pick(this.following), followers: pick(this.followers),
-               friends: pick(friends),
+               friends: pick(friends), new_followers: fresh,
                counts: { following: this.following.length,
                          followers: this.followers.length,
                          friends: friends.length } };
+    },
+    seenFollowers: false,
+    //: What another listener has chosen to publish. Only ever these three
+    //: things: public mixes, vibes, and interests they have not hidden. A
+    //: play count here would be a fixture of something the server has no
+    //: endpoint for.
+    published: function (handle) {
+      var who = this.all.filter(function (p) { return p.handle === handle; })[0];
+      if (!who) return null;
+      return {
+        name: who.name, handle: who.handle, avatar: "", joined: 0,
+        mixes: [{ id: "pm1", name: "Morning", public: true,
+                  items: [], topics: [], topic_ids: [], custom_count: 0,
+                  created_at: 0, updated_at: 0 }],
+        vibes: [
+          { id: 1, query: "how reusable rockets changed the economics of spaceflight",
+            title: "Inside the New Space Race", minutes: 5, thread: "", at: 0,
+            by: who.name, handle: who.handle },
+          { id: 2, query: "why the strait of hormuz moves the oil price",
+            title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
+            thread: "", at: 0, by: who.name, handle: who.handle }
+        ],
+        vibe_count: 2,
+        interests: ["tech", "world"],
+        interest_labels: ["Technology", "World"],
+        follows: { following: 3, followers: 4, friends: 2 }
+      };
     },
     inbox: function () {
       var self = this;
@@ -575,6 +622,16 @@ SHIM = """
       return json(mine);
     }
     if (path === "/api/friends") return json(PEOPLE.graph());
+    if (path === "/api/friends/seen") {
+      PEOPLE.seenFollowers = true;
+      return json({ ok: true });
+    }
+    if (path === "/api/person") {
+      var found = PEOPLE.published(
+        String(qs.get("handle") || "").replace(/^@/, ""));
+      return found ? json(found)
+                   : json({ error: "No listener by that handle." }, 404);
+    }
     if (path === "/api/people") {
       var term = (qs.get("q") || "").toLowerCase();
       return json({ people: PEOPLE.all.filter(function (p) {

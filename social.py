@@ -140,6 +140,21 @@ class SocialStore:
                              " avatar TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # When this listener last looked at who follows them. A new
+            # follower is one whose `follows.at` is later than this, which
+            # makes "how many are new" a query over data that already existed
+            # rather than a second table with its own read state to get wrong.
+            #
+            # Nought means never looked, so every follower a listener already
+            # has reads as new the first time they open the tab after this
+            # ships. That is the right direction: the alternative is defaulting
+            # to *now* and silently swallowing followers they were never told
+            # about.
+            try:
+                conn.execute("ALTER TABLE people ADD COLUMN"
+                             " followers_seen REAL NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS echoes (
                        id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -373,6 +388,43 @@ class SocialStore:
                 out[key] = {"by": name or "Someone", "handle": handle or "", "at": at}
         return out
 
+    def echoes_among(self, user_ids, limit: int = 400) -> dict:
+        """(query, minutes) -> the person who vibed it, for a named set only.
+
+        The read behind Explore's friend tag. `recent_echoes` answers "did
+        *anybody* vibe this", which was the right question when there was no
+        follow graph; this answers "did one of *these people* vibe this", which
+        is the one a card claiming a friendship has to ask.
+
+        Carries the avatar, because the tag shows a face beside the name and a
+        second lookup per card to find it would be a query per tile.
+        """
+        ids = [str(u) for u in (user_ids or []) if u]
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        try:
+            rows = self._conn().execute(
+                "SELECT e.query, e.minutes, p.name, p.handle, p.avatar, e.at,"
+                " e.user_id FROM echoes e"
+                " LEFT JOIN people p ON p.user_id = e.user_id"
+                f" WHERE e.user_id IN ({marks})"
+                " ORDER BY e.at DESC LIMIT ?",
+                (*ids, int(limit)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read echoes for a circle")
+            return {}
+        out: dict = {}
+        for query, minutes, name, handle, avatar, at, user_id in rows:
+            key = (query, minutes)
+            if key in out:
+                continue
+            out[key] = {"user_id": user_id, "name": name or "",
+                        "handle": handle or "", "avatar": avatar or "",
+                        "at": at}
+        return out
+
     # --- the follow graph -------------------------------------------------
 
     def follow(self, user_id: str, target_id: str, at: float = 0.0) -> bool:
@@ -472,6 +524,59 @@ class SocialStore:
                 seen.add(uid)
                 out.append(uid)
         return out
+
+    def new_followers(self, user_id: str, limit: int = 20) -> list[dict]:
+        """People who followed this listener since they last looked.
+
+        `follows_back` rides along so the popup knows whether to offer the
+        button: offering "Follow back" to somebody who is already a friend is
+        a control that cannot do anything, and finding that out would cost a
+        query per person.
+        """
+        if not user_id:
+            return []
+        try:
+            rows = self._conn().execute(
+                "SELECT f.follower, p.name, p.handle, f.at, p.avatar,"
+                "       EXISTS(SELECT 1 FROM follows b"
+                "              WHERE b.follower = ? AND b.followee = f.follower)"
+                " FROM follows f"
+                " LEFT JOIN people p ON p.user_id = f.follower"
+                " WHERE f.followee = ?"
+                "   AND f.at > COALESCE((SELECT followers_seen FROM people"
+                "                        WHERE user_id = ?), 0)"
+                " ORDER BY f.at DESC LIMIT ?",
+                (user_id, user_id, user_id, int(limit)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read new followers")
+            return []
+        return [
+            {"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
+             "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5])}
+            for r in rows
+        ]
+
+    def mark_followers_seen(self, user_id: str, at: float = 0.0) -> None:
+        """They looked. Everything up to now stops being new.
+
+        Written on the Friends *tab*, never when the popup appears: a badge
+        that cleared itself the moment a popup was drawn would be a count
+        nobody ever got to read.
+        """
+        if not user_id:
+            return
+        now = at or time.time()
+        try:
+            self._conn().execute(
+                "INSERT INTO people (user_id, name, handle, joined, last_seen,"
+                " followers_seen) VALUES (?, '', '', ?, ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET"
+                " followers_seen = excluded.followers_seen",
+                (user_id[:64], now, now, now),
+            )
+        except Exception:
+            log.exception("could not mark followers seen; continuing")
 
     def follow_counts(self, user_id: str) -> dict:
         """Numbers for a profile. Counted rather than kept in a column, because

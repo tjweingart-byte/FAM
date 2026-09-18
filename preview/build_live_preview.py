@@ -740,7 +740,7 @@ LIVE_SHIM = r"""
           title: String(s.query).charAt(0).toUpperCase() + String(s.query).slice(1),
           minutes: s.minutes, plays: s.hits || 0, thread: s.thread || "",
           age_seconds: Math.max(0, now() - s.created),
-          echoed_by: labels[s.query] || ""
+          vibed: !!labels[s.query]
         };
       });
     return { episodes: eps };
@@ -967,9 +967,18 @@ LIVE_SHIM = r"""
     // these is honestly empty rather than seeded with people who do not
     // exist. An empty friends list is a fact about this deployment; three
     // invented contacts would be a claim about the world.
+    //
+    // It is also why an Explore card here never carries `vibed_by`: that tag
+    // needs a *friend* who both generated the episode and vibed it, and there
+    // is nobody here to be one. The fixture build shows it instead.
     if (path === "/api/friends") {
       return json({ following: [], followers: [], friends: [],
+                    new_followers: [],
                     counts: { following: 0, followers: 0, friends: 0 } });
+    }
+    if (path === "/api/friends/seen") return json({ ok: true });
+    if (path === "/api/person") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
     }
     if (path === "/api/people") return json({ people: [] });
     if (path === "/api/friends/follow") {

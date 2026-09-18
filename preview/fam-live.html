@@ -308,9 +308,9 @@
   .pf-hub-tile{ padding:13px 13px 14px; border-radius:15px; background:var(--surface);
     border:1px solid var(--border); cursor:pointer; }
   .pf-hub-tile:active{ transform:scale(0.98); }
-  .pf-hub-icon{ width:30px; height:30px; border-radius:9px; background:var(--paper);
-    color:var(--ink); display:flex; align-items:center; justify-content:center;
-    margin-bottom:9px; }
+  .pf-hub-icon{ position:relative; width:30px; height:30px; border-radius:9px;
+    background:var(--paper); color:var(--ink); display:flex; align-items:center;
+    justify-content:center; margin-bottom:9px; }
   .pf-hub-name{ font-family:'Fraunces', serif; font-weight:600; font-size:13px;
     color:var(--text); }
   .pf-hub-sub{ font-family:'JetBrains Mono', monospace; font-size:8px;
@@ -390,6 +390,17 @@
     justify-content:center; align-items:flex-start; overflow-y:auto;
     padding:10px 0; }
   .reel-body::-webkit-scrollbar{ width:0; }
+  /* A friend's vibe, over the card. Their face and their name, because a
+     name on its own reads as a label and a face makes it a person. */
+  .reel-vibe{ display:flex; align-items:center; gap:7px; margin-bottom:10px; }
+  .reel-vibe[hidden]{ display:none; }
+  .reel-vibe-av{ flex:none; width:22px; height:22px; border-radius:50%;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); }
+  .reel-vibe-t{ font-family:'JetBrains Mono', monospace; font-size:8px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--copper);
+    line-height:1.4; }
+  .reel-vibe-t b{ color:var(--text); font-weight:700; }
   .reel-kicker{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--copper); margin-bottom:16px; }
   /* Down from 29px. A long question at 29/1.2 filled the body and pushed
@@ -1445,6 +1456,27 @@
   .sh-note{ font-family:'JetBrains Mono', monospace; font-size:7.5px;
     color:var(--coral); margin-top:10px; line-height:1.6; }
 
+  /* "___ started following you". Their face at the top, as the packet asks:
+     a name on its own reads as a notification, a face makes it a person. */
+  .nf-av{ width:64px; height:64px; border-radius:50%; margin:6px auto 12px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); }
+  .nf-name{ font-family:'Fraunces', serif; font-weight:500; font-size:16px;
+    color:var(--text-muted); text-align:center; line-height:1.35; }
+  .nf-name b{ color:var(--text); font-weight:600; }
+  .nf-at{ font-family:'JetBrains Mono', monospace; font-size:9px;
+    letter-spacing:0.08em; color:var(--text-faint); text-align:center;
+    margin:5px 0 14px; }
+  .nf-already{ font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    letter-spacing:0.05em; text-transform:uppercase; color:var(--sage);
+    text-align:center; padding:4px 0 2px; }
+  .nf-already[hidden]{ display:none; }
+  /* The unread count on the profile's Friends tile. */
+  .pf-hub-badge{ position:absolute; top:-4px; right:-6px; min-width:16px;
+    height:16px; padding:0 4px; border-radius:8px; background:var(--coral);
+    color:var(--paper); font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    font-weight:700; display:flex; align-items:center; justify-content:center; }
+
   /* The way out of a modal. Every sheet and popup in the app draws its X the
      same way, so the thumb does not have to find it again on each one. */
   .modal-x{ position:absolute; top:12px; right:12px; width:28px;
@@ -2135,6 +2167,15 @@
           </div>
 
           <div class="reel-body" id="reelBody">
+            <!-- "<name> vibed with this episode", with their face, when a
+                 *friend* both generated this episode and vibed it. Two
+                 conditions because the tag claims a friendship - see
+                 /api/explore. Hidden otherwise, rather than showing a
+                 stranger's name under a card about your friends. -->
+            <div class="reel-vibe" id="reelVibe" hidden>
+              <span class="reel-vibe-av" id="reelVibeAv"></span>
+              <span class="reel-vibe-t" id="reelVibeT"></span>
+            </div>
             <div class="reel-kicker" id="reelKicker">Someone asked</div>
             <div class="reel-title" id="reelTitle">Loading…</div>
             <div class="reel-sub" id="reelSub"></div>
@@ -2195,6 +2236,21 @@
 
       <!-- ============ MESSAGES (inbox) ============ -->
       <!-- ============ PROFILE ============ -->
+      <!-- Somebody else's profile, on **its own screen**.
+           It used to be drawn into `screen-profile` with a variable deciding
+           whose it was, and that single fact produced all four symptoms of
+           the navigation bug: back from the friend popped to Friends, back
+           again showed `screen-profile` still holding the *friend's* DOM,
+           back again fell through to search, and the Profile tab flashed
+           them before `loadProfile` replaced it. Two pages sharing one
+           container is not a routing bug with four fixes, it is one bug. -->
+      <section class="screen" id="screen-person">
+        <div class="scroll">
+          <div class="pf-top" id="personTop"></div>
+          <div id="personBody"></div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-profile">
         <div class="scroll">
           <div class="pf-top" id="pfTop"></div>
@@ -2406,6 +2462,34 @@
         </div>
       </div>
 
+      <!-- "___ started following you". Raised when this listener's own app
+           next asks - on open and when the profile loads - because there is
+           no push here and will not be until the app exists. It neither
+           clears the badge nor marks anything seen: the Friends tab does
+           both, so the count survives long enough to be read.
+
+           The X is not optional. Both buttons are commitments, and a popup
+           whose only exit is the backdrop is a popup nothing says is
+           dismissable - the same reasoning that put an X on the download
+           question before that feature was removed. -->
+      <div class="modal-overlay" id="followerOverlay"
+           onclick="if(event.target===this) closeFollowerPopup()">
+        <div class="modal-card">
+          <button class="modal-x" onclick="closeFollowerPopup()"
+                  aria-label="Ignore this">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <div class="nf-av" id="nfAvatar"></div>
+          <div class="nf-name" id="nfName"></div>
+          <div class="nf-at" id="nfHandle"></div>
+          <div class="modal-btns stack">
+            <button class="modal-btn primary" id="nfBack" onclick="followBack()">Follow back</button>
+            <div class="nf-already" id="nfAlready" hidden>You already follow them &mdash; you are friends.</div>
+            <button class="modal-btn ghost" onclick="closeFollowerPopup()">Not now</button>
+          </div>
+        </div>
+      </div>
+
       <!-- The limit screen. Raised only by a refusal the server actually
            made, never by the interface guessing it is close - so while the
            tier system is switched off (ENFORCE_QUOTAS=0) this never appears,
@@ -2477,7 +2561,7 @@
    this keeps it in localStorage instead. That is the only place the demo
    diverges, and the badge says so. ------------------------------------- */
 (function () {
-  var FIXTURES = {"/api/myfam": {"personalised": true, "minutes": 2, "sections": [{"key": "from_history", "title": "Made for you", "topics": [{"id": "st-33663c33cfc5", "title": "Undersea cables", "subtitle": "two cables in the Red Sea were reported damaged this week", "query": "why cutting one undersea cable can slow a whole country's internet", "tags": ["tech"], "icon": "tech", "angle": "two cables in the Red Sea were reported damaged this week", "source": "fixture feed", "freshness": 1.0}, {"id": "st-a2476ef3380f", "title": "Central bank digital currency", "subtitle": "three more central banks published pilot results", "query": "what a central bank digital currency would actually change for you", "tags": ["money"], "icon": "sports", "angle": "three more central banks published pilot results", "source": "fixture feed", "freshness": 0.9}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "founder-motivation", "title": "Where Motivation Actually Comes From", "subtitle": "Progress, evidence, and the founder's problem.", "query": "finding the motivation for my startup", "tags": ["health", "business", "mind", "founders"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "hormuz", "title": "The Two-Mile Lane That Moves the Oil Price", "subtitle": "Chokepoints, insurance, and why geography decides.", "query": "why the Strait of Hormuz moves the oil price", "tags": ["world", "money", "geopolitics", "commodities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}, {"key": "world_trending", "title": "Trending", "topics": [{"id": "st-1d1f123b363b", "title": "Stadium financing", "subtitle": "a new public financing vote is in the news", "query": "who really pays when a city builds a stadium", "tags": ["cities", "sports", "sports-business", "world"], "icon": "business", "angle": "a new public financing vote is in the news", "source": "fixture feed", "freshness": 0.8}, {"id": "st-1bc3f5bca892", "title": "Drought and shipping", "subtitle": "canal transit limits were tightened again", "query": "how a drought thousands of miles away raises what you pay for goods", "tags": ["business", "supply-chain"], "icon": "business", "angle": "canal transit limits were tightened again", "source": "fixture feed", "freshness": 0.7}, {"id": "st-7a8619ed5a8b", "title": "Antibiotic resistance", "subtitle": "a new class cleared a late-stage trial", "query": "why the antibiotics pipeline nearly stopped, and what refilled it", "tags": [], "icon": "world", "angle": "a new class cleared a late-stage trial", "source": "fixture feed", "freshness": 0.6}, {"id": "st-e9fc6c784f5e", "title": "Rare earth processing", "subtitle": "a new processing plant was announced outside China", "query": "why refining rare earths is harder than digging them up", "tags": [], "icon": "world", "angle": "a new processing plant was announced outside China", "source": "fixture feed", "freshness": 0.5}], "empty_reason": ""}, {"key": "missed", "title": "What you missed last week", "topics": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "song-breaks-internet", "title": "How One Song Breaks the Internet", "subtitle": "Playlists, algorithms, and the new path to a hit.", "query": "how a song becomes a hit through playlists and short video", "tags": ["culture", "tech", "music", "platforms"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "restaurant-scene", "title": "The Restaurants Everyone's Talking About", "subtitle": "Openings, closings, and where the lines form.", "query": "why some restaurants become impossible to book", "tags": ["culture", "food"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}, {"key": "most_played", "title": "What FAM can't stop listening to", "topics": [{"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "operator-ceos", "title": "Why Founders Are Taking Back Control", "subtitle": "Leadership, product, and the rise of operator CEOs.", "query": "why boards are keeping founders as CEO", "tags": ["business", "founders"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "cached": false}, {"id": "transfer-window", "title": "How a Transfer Window Actually Works", "subtitle": "Agents, deadlines, and the money underneath.", "query": "how football transfer deals actually get done", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "cached": false}], "empty_reason": ""}, {"key": "followers", "title": "What your friends are listening to", "topics": [{"id": "stadium-money", "title": "Who Really Pays for a Stadium", "subtitle": "Public money, private returns, and the argument.", "query": "who actually pays for new sports stadiums", "tags": ["sports", "money", "world", "sports-business", "cities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}]}, "/api/mixes": {"mixes": [{"id": "m1", "name": "Morning", "items": [{"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topics": [{"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["fed-next-move", "ai-agents", "morning-mindset"], "custom_count": 0, "public": true, "created_at": 0, "updated_at": 0}, {"id": "m2", "name": "At the gym", "items": [{"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topics": [{"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["training-load", "the-trade", "habits-research"], "custom_count": 0, "public": false, "created_at": 0, "updated_at": 0}, {"id": "m3", "name": "Wind down", "items": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "q:whatmycoun", "title": "what my council is doing about the high street", "query": "what my council is doing about the high street", "custom": true, "subtitle": "Added by you", "icon": "leaf"}], "topics": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["sleep-science", "anxiety-loop"], "custom_count": 1, "public": false, "created_at": 0, "updated_at": 0}], "starters": [{"name": "Morning", "topic_ids": ["fed-next-move", "ai-agents", "morning-mindset"]}, {"name": "At the gym", "topic_ids": ["training-load", "the-trade", "habits-research"]}, {"name": "Wind down", "topic_ids": ["sleep-science", "anxiety-loop", "hollywood-comebacks"]}]}, "/api/topics": {"topics": [{"id": "nil-arms-race", "title": "The New College Football Arms Race", "subtitle": "NIL money, facilities, and the new power brokers.", "query": "how NIL money changed college football recruiting", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "operator-ceos", "title": "Why Founders Are Taking Back Control", "subtitle": "Leadership, product, and the rise of operator CEOs.", "query": "why boards are keeping founders as CEO", "tags": ["business", "founders"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "hollywood-comebacks", "title": "Inside the Best Hollywood Comebacks", "subtitle": "The stories, the risks, the second acts.", "query": "how Hollywood comeback stories actually happen", "tags": ["culture", "film-tv"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "golf-evolution", "title": "The Quiet Evolution of Golf", "subtitle": "New players. New formats. Same obsession.", "query": "how professional golf formats are changing", "tags": ["sports", "sports-performance"], "icon": "golf", "angle": "", "source": "", "freshness": 0.0}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "song-breaks-internet", "title": "How One Song Breaks the Internet", "subtitle": "Playlists, algorithms, and the new path to a hit.", "query": "how a song becomes a hit through playlists and short video", "tags": ["culture", "tech", "music", "platforms"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "restaurant-scene", "title": "The Restaurants Everyone's Talking About", "subtitle": "Openings, closings, and where the lines form.", "query": "why some restaurants become impossible to book", "tags": ["culture", "food"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "hormuz", "title": "The Two-Mile Lane That Moves the Oil Price", "subtitle": "Chokepoints, insurance, and why geography decides.", "query": "why the Strait of Hormuz moves the oil price", "tags": ["world", "money", "geopolitics", "commodities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "founder-motivation", "title": "Where Motivation Actually Comes From", "subtitle": "Progress, evidence, and the founder's problem.", "query": "finding the motivation for my startup", "tags": ["health", "business", "mind", "founders"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "streaming-economics", "title": "Why Streaming Keeps Getting Worse", "subtitle": "Licensing, churn, and the maths underneath.", "query": "why streaming services keep raising prices and losing shows", "tags": ["culture", "business", "film-tv", "media-business"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "election-mechanics", "title": "How a Close Election Is Actually Called", "subtitle": "Counting, models, and why it takes days.", "query": "how news organisations decide to call an election", "tags": ["world", "elections"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "attention-economy", "title": "The Fight for Fifteen Seconds", "subtitle": "How short video rewired everything downstream.", "query": "how short-form video changed the media business", "tags": ["tech", "culture", "platforms", "internet-culture"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "transfer-window", "title": "How a Transfer Window Actually Works", "subtitle": "Agents, deadlines, and the money underneath.", "query": "how football transfer deals actually get done", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "stadium-money", "title": "Who Really Pays for a Stadium", "subtitle": "Public money, private returns, and the argument.", "query": "who actually pays for new sports stadiums", "tags": ["sports", "money", "world", "sports-business", "cities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "food-supply", "title": "How Food Gets to a City", "subtitle": "Logistics, margins, and the fragile bits.", "query": "how a city's food supply chain actually works", "tags": ["world", "business", "supply-chain", "cities"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}]}, "/api/attach": {"id": "preview-attachment", "kind": "document", "name": "Attached file", "chars": 4200, "url": "", "preview": "A stand-in for extracted text."}, "/api/explore": {"episodes": [{"query": "why the strait of hormuz moves the oil price", "title": "Why the strait of hormuz moves the oil price", "minutes": 3, "plays": 4, "thread": "why the shipping lanes run through Omani water", "age_seconds": 140, "echoed_by": ""}, {"query": "what habit research actually shows about lasting change", "title": "What habit research actually shows about lasting change", "minutes": 2, "plays": 2, "thread": "why streaks break in the third week", "age_seconds": 900, "echoed_by": ""}, {"query": "how reusable rockets changed the economics of spaceflight", "title": "How reusable rockets changed the economics of spaceflight", "minutes": 5, "plays": 7, "thread": "what happens when launch gets cheaper than shipping", "age_seconds": 4000, "echoed_by": "Rachel Solomon"}, {"query": "a good mindset for when I wake up in the morning", "title": "A good mindset for when I wake up in the morning", "minutes": 1, "plays": 3, "thread": "why a flat morning cortisol curve might mean burnout", "age_seconds": 9000, "echoed_by": ""}, {"query": "what the Federal Reserve is likely to do about interest rates", "title": "What the Federal Reserve is likely to do about interest rates", "minutes": 3, "plays": 9, "thread": "who actually loses when rates stay high", "age_seconds": 30000, "echoed_by": ""}, {"query": "how a city's food supply chain actually works", "title": "How a city's food supply chain actually works", "minutes": 4, "plays": 1, "thread": "the three days of stock nobody plans for", "age_seconds": 100000, "echoed_by": ""}]}, "/api/next": {"thread": "why the shipping lanes run through Omani water", "title": "The Two-Mile Lane That Moves the Oil"}, "/api/sources": {"known": true, "retrievers": ["exa", "gdelt"], "items": [{"label": "reuters.com", "kind": "article", "tier": "wire service", "at": "2026-09-16", "title": "Shipping rates climb as tankers reroute", "url": "https://www.reuters.com/"}, {"label": "ft.com", "kind": "article", "tier": "national paper", "at": "2026-09-16", "title": "Insurers widen the war-risk zone", "url": "https://www.ft.com/"}, {"label": "apnews.com", "kind": "article", "tier": "wire service", "at": "2026-09-15", "title": "Two more cargoes divert south", "url": "https://apnews.com/"}, {"label": "Polymarket", "kind": "live", "tier": "live feed", "at": "2026-09-17T08:40:00", "title": "", "url": ""}]}, "/api/transcript": {"known": true, "sentences": ["Tanker traffic through the strait is down about a fifth this week.", "The reason is not the shooting, it is the paperwork.", "War-risk insurance is priced daily, and on Monday the underwriters widened the zone by ninety miles.", "That pushed a dozen ships outside the cover they had already paid for.", "A captain with no cover does not sail, whatever the cargo is worth.", "So the queue at the southern end is now four days long.", "Freight rates followed within hours, because the ships that are still moving can name their price.", "The oil price barely moved, which is the part worth sitting with.", "Traders have been reading this strait for fifty years and they price the insurance, not the headlines."]}, "/api/godeeper": {"threads": [{"thread": "why the shipping lanes run through Omani water", "title": "The Two-Mile Lane That Moves the Oil", "from_title": "Why the Strait of Hormuz Moves the Oil Price", "at": 0}, {"thread": "how NIL money changed college football recruiting", "title": "The New College Football Arms Race", "from_title": "Who Really Pays for a Stadium", "at": 0}]}, "/api/voices": {"voices": [{"id": "piper:en_GB-alba-medium", "label": "Alba (GB, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_GB-northern_english_male-medium", "label": "Northern_English_Male (GB, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_US-amy-medium", "label": "Amy (US, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_US-lessac-medium", "label": "Lessac (US, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "say:Samantha", "label": "Samantha", "engine": "say", "detail": "en-US"}, {"id": "say:Daniel", "label": "Daniel", "engine": "say", "detail": "en-GB"}, {"id": "say:Karen", "label": "Karen", "engine": "say", "detail": "en-AU"}, {"id": "say:Moira", "label": "Moira", "engine": "say", "detail": "en-IE"}, {"id": "say:Aman", "label": "Aman", "engine": "say", "detail": "en-IN"}, {"id": "say:Fred", "label": "Fred", "engine": "say", "detail": "en-US"}, {"id": "say:Rishi", "label": "Rishi", "engine": "say", "detail": "en-IN"}, {"id": "say:Tara", "label": "Tara", "engine": "say", "detail": "en-IN"}, {"id": "say:Tessa", "label": "Tessa", "engine": "say", "detail": "en-ZA"}], "default": "piper:en_GB-alba-medium"}, "/api/auth/me": {"user_id": "preview-listener", "email": "ian@example.com", "authenticated": true}, "/api/profile": {"listener": "preview-listener", "played": 34, "finished": 21, "searched": 12, "open_threads": 2, "subjects": ["tech", "money", "science", "health"], "since": 1784258236.7863848, "name": "Ian Solomon", "handle": "iansolomon", "joined": 1784258236.7863853, "echo_count": 7, "avatar": "", "follows": {"following": 3, "followers": 2, "friends": 2}, "mixes": [{"id": "m1", "name": "Morning Run", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}, {"id": "m2", "name": "Market Watch", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}, {"id": "m3", "name": "Kids' Questions", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}], "echoes": [{"title": "The Two-Mile Lane That Moves the Oil", "minutes": 4, "query": "why the strait of hormuz moves the oil price", "asked": true}, {"title": "How a City's Food Supply Chain Works", "minutes": 4, "query": "how a city's food supply chain actually works", "asked": false}, {"title": "Who Actually Makes the World's Chips", "minutes": 6, "query": "why semiconductor manufacturing is concentrated", "asked": true}, {"title": "What We Actually Know About Sleep", "minutes": 5, "query": "what sleep research actually establishes", "asked": false}]}, "/api/health": {"ok": true, "demo": true, "engine": "preview"}, "/api/event": {"ok": true}, "/api/plans": {"tiers": [{"name": "free", "label": "FAM", "blurb": "A few episodes a day, and the whole of Explore to listen through.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "day", "count": 5, "unlimited": false}, {"resource": "explore", "window": "day", "count": 25, "unlimited": false}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}, {"name": "plus", "label": "FAM Plus", "blurb": "Enough episodes a week to listen the way you actually listen.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "week", "count": 150, "unlimited": false}, {"resource": "explore", "window": "week", "count": -1, "unlimited": true}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}, {"name": "unlimited", "label": "FAM Unlimited", "blurb": "No ceiling.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "day", "count": -1, "unlimited": true}, {"resource": "explore", "window": "day", "count": -1, "unlimited": true}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}], "features": [{"key": "search", "label": "Ask anything", "min_tier": "free"}, {"key": "explore", "label": "Explore", "min_tier": "free"}, {"key": "go_deeper", "label": "Go Deeper", "min_tier": "free"}, {"key": "research", "label": "Live research", "min_tier": "free"}, {"key": "attachments", "label": "Documents and photos", "min_tier": "free"}, {"key": "voice_choice", "label": "Choose a voice", "min_tier": "free"}, {"key": "mixes", "label": "Daily mixes", "min_tier": "free"}, {"key": "explore_new", "label": "Explore New", "min_tier": "free"}, {"key": "long_episodes", "label": "Longer episodes", "min_tier": "free"}, {"key": "share_external", "label": "Share outside FAM", "min_tier": "free"}, {"key": "api_access", "label": "API access", "min_tier": "free"}], "current": "free"}, "/api/preferences": {"interests_available": [{"id": "world", "label": "World", "short": "World"}, {"id": "tech", "label": "Technology", "short": "Tech"}, {"id": "sports", "label": "Sport", "short": "Sport"}, {"id": "business", "label": "Business", "short": "Business"}, {"id": "money", "label": "Money & markets", "short": "Money"}, {"id": "science", "label": "Science", "short": "Science"}], "interests_all": [{"id": "sports", "label": "Sport"}, {"id": "business", "label": "Business"}, {"id": "money", "label": "Money & markets"}, {"id": "tech", "label": "Technology"}, {"id": "science", "label": "Science"}, {"id": "health", "label": "Health & mind"}, {"id": "culture", "label": "Culture"}, {"id": "world", "label": "World"}], "interests_source": "default", "interests_yours": [{"id": "world", "label": "World", "short": "World"}, {"id": "tech", "label": "Technology", "short": "Tech"}, {"id": "sports", "label": "Sport", "short": "Sport"}, {"id": "business", "label": "Business", "short": "Business"}, {"id": "money", "label": "Money & markets", "short": "Money"}, {"id": "science", "label": "Science", "short": "Science"}], "interests_yours_source": "default", "catalogue": [{"id": "soccer", "label": "Soccer", "icon": "ball", "tags": ["sports"]}, {"id": "stocks", "label": "Stocks & Economy", "icon": "chart", "tags": ["money", "macro"]}, {"id": "politics", "label": "Politics", "icon": "ballot", "tags": ["world"]}, {"id": "iran", "label": "Iran Conflict", "icon": "news", "tags": ["world", "geopolitics"]}, {"id": "sports", "label": "Sports", "icon": "tennis", "tags": ["sports"]}, {"id": "business", "label": "Business & Finance", "icon": "briefcase", "tags": ["business"]}, {"id": "science", "label": "Science", "icon": "atom", "tags": ["science"]}, {"id": "technology", "label": "Technology", "icon": "chip", "tags": ["tech"]}, {"id": "art", "label": "Art", "icon": "palette", "tags": ["culture"]}, {"id": "movies-tv", "label": "Movies & TV", "icon": "film", "tags": ["culture", "film-tv"]}, {"id": "ai", "label": "Artificial Intelligence", "icon": "sparkle", "tags": ["tech", "ai"]}, {"id": "gaming", "label": "Gaming", "icon": "gamepad", "tags": ["culture", "internet-culture"]}, {"id": "crypto", "label": "Cryptocurrency", "icon": "coin", "tags": ["money"]}, {"id": "nfl", "label": "NFL", "icon": "shield", "tags": ["sports"]}, {"id": "anime", "label": "Anime", "icon": "anime", "tags": ["culture", "film-tv"]}, {"id": "travel", "label": "Travel", "icon": "plane", "tags": ["culture"]}, {"id": "food-drink", "label": "Food & Drink", "icon": "chef", "tags": ["culture", "food"]}, {"id": "baseball", "label": "Baseball", "icon": "baseball", "tags": ["sports"]}, {"id": "basketball", "label": "Basketball", "icon": "basketball", "tags": ["sports"]}, {"id": "beauty", "label": "Beauty", "icon": "beauty", "tags": ["culture"]}, {"id": "boxing", "label": "Boxing", "icon": "glove", "tags": ["sports"]}, {"id": "career", "label": "Career", "icon": "cap", "tags": ["business"]}, {"id": "cars", "label": "Cars", "icon": "car", "tags": ["tech"]}, {"id": "pets", "label": "Pets", "icon": "paw", "tags": ["culture"]}, {"id": "celebs", "label": "Celebs", "icon": "star", "tags": ["culture"]}, {"id": "music", "label": "Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "country-music", "label": "Country Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "news", "label": "News", "icon": "news", "tags": ["world"]}, {"id": "dance", "label": "Dance", "icon": "disco", "tags": ["culture"]}, {"id": "dating", "label": "Dating & Relationships", "icon": "hearts", "tags": ["health", "mind"]}, {"id": "design", "label": "Design", "icon": "design", "tags": ["culture"]}, {"id": "education", "label": "Education", "icon": "cap", "tags": ["science"]}, {"id": "electronic", "label": "Electronic Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "startups", "label": "Startups", "icon": "briefcase", "tags": ["business", "founders"]}, {"id": "esports", "label": "Esports", "icon": "gamepad", "tags": ["culture", "internet-culture"]}, {"id": "family", "label": "Marriage & Family", "icon": "people", "tags": ["health", "mind"]}, {"id": "fashion", "label": "Fashion", "icon": "shirt", "tags": ["culture"]}, {"id": "pop", "label": "Pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "golf", "label": "Golf", "icon": "golf", "tags": ["sports"]}, {"id": "kpop", "label": "K-pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "memes", "label": "Memes", "icon": "meme", "tags": ["culture", "internet-culture"]}, {"id": "health", "label": "Health & Fitness", "icon": "pulse", "tags": ["health", "fitness"]}, {"id": "mma", "label": "MMA & Wrestling", "icon": "glove", "tags": ["sports"]}, {"id": "motorsport", "label": "Racing & Motorsports", "icon": "car", "tags": ["sports"]}, {"id": "motorcycles", "label": "Motorcycles", "icon": "bike", "tags": ["sports"]}, {"id": "nature", "label": "Nature & Outdoors", "icon": "tree", "tags": ["science"]}, {"id": "hockey", "label": "Ice Hockey", "icon": "hockey", "tags": ["sports"]}, {"id": "olympics", "label": "Olympics", "icon": "tennis", "tags": ["sports"]}, {"id": "personal-fin", "label": "Personal Finance", "icon": "doc", "tags": ["money"]}, {"id": "photography", "label": "Photography", "icon": "camera", "tags": ["culture"]}, {"id": "podcasts", "label": "Podcasts", "icon": "mic", "tags": ["culture", "media-business"]}, {"id": "real-estate", "label": "Real Estate", "icon": "thumb", "tags": ["money", "housing"]}, {"id": "robotics", "label": "Robotics", "icon": "chip", "tags": ["tech"]}, {"id": "rock", "label": "Rock", "icon": "note", "tags": ["culture", "music"]}, {"id": "rugby", "label": "Rugby", "icon": "rugby", "tags": ["sports"]}, {"id": "shopping", "label": "Shopping", "icon": "bag", "tags": ["money", "consumer-prices"]}, {"id": "snow-sports", "label": "Snow Sports", "icon": "snow", "tags": ["sports"]}, {"id": "software", "label": "Software Development", "icon": "laptop", "tags": ["tech", "platforms"]}, {"id": "space", "label": "Space", "icon": "rocket", "tags": ["science", "space"]}, {"id": "tennis", "label": "Tennis", "icon": "tennis", "tags": ["sports"]}, {"id": "home-garden", "label": "Home & Garden", "icon": "home", "tags": ["money", "housing"]}, {"id": "cricket", "label": "Cricket", "icon": "cricket", "tags": ["sports"]}, {"id": "formula1", "label": "Formula 1", "icon": "car", "tags": ["sports"]}, {"id": "cycling", "label": "Cycling", "icon": "bike", "tags": ["sports", "fitness"]}, {"id": "jpop", "label": "J-pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "concerts", "label": "Concerts", "icon": "note", "tags": ["culture", "music"]}, {"id": "hiphop", "label": "Hip Hop", "icon": "note", "tags": ["culture", "music"]}, {"id": "jazz", "label": "Jazz", "icon": "note", "tags": ["culture", "music"]}, {"id": "crime", "label": "Crime", "icon": "news", "tags": ["world"]}, {"id": "elections", "label": "Elections", "icon": "ballot", "tags": ["world", "elections"]}, {"id": "biotech", "label": "Biotech", "icon": "atom", "tags": ["science", "body-science"]}, {"id": "mental-health", "label": "Mental Health", "icon": "pulse", "tags": ["health", "mind"]}, {"id": "digital-art", "label": "Digital Art", "icon": "palette", "tags": ["culture"]}], "languages": [{"code": "en", "label": "English", "endonym": "English"}, {"code": "es", "label": "Spanish", "endonym": "Espa\u00f1ol"}, {"code": "fr", "label": "French", "endonym": "Fran\u00e7ais"}, {"code": "de", "label": "German", "endonym": "Deutsch"}, {"code": "pt", "label": "Portuguese", "endonym": "Portugu\u00eas"}, {"code": "it", "label": "Italian", "endonym": "Italiano"}, {"code": "hi", "label": "Hindi", "endonym": "\u0939\u093f\u0928\u094d\u0926\u0940"}, {"code": "ar", "label": "Arabic", "endonym": "\u0627\u0644\u0639\u0631\u0628\u064a\u0629"}, {"code": "zh", "label": "Chinese", "endonym": "\u4e2d\u6587"}, {"code": "ja", "label": "Japanese", "endonym": "\u65e5\u672c\u8a9e"}], "language_active": false, "account": true, "saved": true, "account_required": "You need an account for this.", "interests": [], "language": "en", "weekly_recap": true, "recap_week": "", "intro_done": false}, "/api/nextup": {"topics": [{"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "algo": "2026-09-14.1"}, "/api/explorenew": {"topics": [{"id": "hollywood-comebacks", "title": "Inside the Best Hollywood Comebacks", "subtitle": "The stories, the risks, the second acts.", "query": "how Hollywood comeback stories actually happen", "tags": ["culture", "film-tv"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "food-supply", "title": "How Food Gets to a City", "subtitle": "Logistics, margins, and the fragile bits.", "query": "how a city's food supply chain actually works", "tags": ["world", "business", "supply-chain", "cities"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}], "personalised": true, "reason": "Next to what you already listen to, rather than more of it.", "algo": "2026-09-14.1"}, "/api/saved": {"folders": [{"id": "fld_commute", "name": "Commute", "created": 0, "items": 1}], "items": [{"id": "sav_1", "folder_id": "fld_commute", "query": "why semiconductor manufacturing is concentrated", "minutes": 2, "title": "Who Actually Makes the World's Chips", "source": "player", "created": 0, "last_played": 0}, {"id": "sav_2", "folder_id": "", "query": "how electricity grids handle intermittent renewable power", "minutes": 5, "title": "What the Grid Does When the Wind Drops", "source": "explore", "created": 0, "last_played": 0}]}, "/api/share/targets": {"targets": [{"key": "copy", "label": "Copy link", "kind": "copy", "needs_image": false, "max_chars": 0}, {"key": "sms", "label": "iMessage", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "email", "label": "Email", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "whatsapp", "label": "WhatsApp", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "x", "label": "X", "kind": "link", "needs_image": false, "max_chars": 240}, {"key": "facebook", "label": "Facebook", "kind": "link", "needs_image": false, "max_chars": 0}, {"key": "linkedin", "label": "LinkedIn", "kind": "link", "needs_image": false, "max_chars": 2800}, {"key": "instagram_story", "label": "Instagram story", "kind": "story", "needs_image": true, "max_chars": 0}, {"key": "snapchat_story", "label": "Snapchat story", "kind": "story", "needs_image": true, "max_chars": 0}]}};
+  var FIXTURES = {"/api/myfam": {"personalised": true, "minutes": 2, "sections": [{"key": "from_history", "title": "Made for you", "topics": [{"id": "st-33663c33cfc5", "title": "Undersea cables", "subtitle": "two cables in the Red Sea were reported damaged this week", "query": "why cutting one undersea cable can slow a whole country's internet", "tags": ["tech"], "icon": "tech", "angle": "two cables in the Red Sea were reported damaged this week", "source": "fixture feed", "freshness": 1.0}, {"id": "st-a2476ef3380f", "title": "Central bank digital currency", "subtitle": "three more central banks published pilot results", "query": "what a central bank digital currency would actually change for you", "tags": ["money"], "icon": "sports", "angle": "three more central banks published pilot results", "source": "fixture feed", "freshness": 0.9}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "founder-motivation", "title": "Where Motivation Actually Comes From", "subtitle": "Progress, evidence, and the founder's problem.", "query": "finding the motivation for my startup", "tags": ["health", "business", "mind", "founders"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "hormuz", "title": "The Two-Mile Lane That Moves the Oil Price", "subtitle": "Chokepoints, insurance, and why geography decides.", "query": "why the Strait of Hormuz moves the oil price", "tags": ["world", "money", "geopolitics", "commodities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}, {"key": "world_trending", "title": "Trending", "topics": [{"id": "st-1d1f123b363b", "title": "Stadium financing", "subtitle": "a new public financing vote is in the news", "query": "who really pays when a city builds a stadium", "tags": ["cities", "sports", "sports-business", "world"], "icon": "business", "angle": "a new public financing vote is in the news", "source": "fixture feed", "freshness": 0.8}, {"id": "st-1bc3f5bca892", "title": "Drought and shipping", "subtitle": "canal transit limits were tightened again", "query": "how a drought thousands of miles away raises what you pay for goods", "tags": ["business", "supply-chain"], "icon": "business", "angle": "canal transit limits were tightened again", "source": "fixture feed", "freshness": 0.7}, {"id": "st-7a8619ed5a8b", "title": "Antibiotic resistance", "subtitle": "a new class cleared a late-stage trial", "query": "why the antibiotics pipeline nearly stopped, and what refilled it", "tags": [], "icon": "world", "angle": "a new class cleared a late-stage trial", "source": "fixture feed", "freshness": 0.6}, {"id": "st-e9fc6c784f5e", "title": "Rare earth processing", "subtitle": "a new processing plant was announced outside China", "query": "why refining rare earths is harder than digging them up", "tags": [], "icon": "world", "angle": "a new processing plant was announced outside China", "source": "fixture feed", "freshness": 0.5}], "empty_reason": ""}, {"key": "missed", "title": "What you missed last week", "topics": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "song-breaks-internet", "title": "How One Song Breaks the Internet", "subtitle": "Playlists, algorithms, and the new path to a hit.", "query": "how a song becomes a hit through playlists and short video", "tags": ["culture", "tech", "music", "platforms"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "restaurant-scene", "title": "The Restaurants Everyone's Talking About", "subtitle": "Openings, closings, and where the lines form.", "query": "why some restaurants become impossible to book", "tags": ["culture", "food"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}, {"key": "most_played", "title": "What FAM can't stop listening to", "topics": [{"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": true}, {"id": "operator-ceos", "title": "Why Founders Are Taking Back Control", "subtitle": "Leadership, product, and the rise of operator CEOs.", "query": "why boards are keeping founders as CEO", "tags": ["business", "founders"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "cached": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "cached": false}, {"id": "transfer-window", "title": "How a Transfer Window Actually Works", "subtitle": "Agents, deadlines, and the money underneath.", "query": "how football transfer deals actually get done", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "cached": false}], "empty_reason": ""}, {"key": "followers", "title": "What your friends are listening to", "topics": [{"id": "stadium-money", "title": "Who Really Pays for a Stadium", "subtitle": "Public money, private returns, and the argument.", "query": "who actually pays for new sports stadiums", "tags": ["sports", "money", "world", "sports-business", "cities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}], "empty_reason": ""}]}, "/api/mixes": {"mixes": [{"id": "m1", "name": "Morning", "items": [{"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topics": [{"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["fed-next-move", "ai-agents", "morning-mindset"], "custom_count": 0, "public": true, "created_at": 0, "updated_at": 0}, {"id": "m2", "name": "At the gym", "items": [{"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topics": [{"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["training-load", "the-trade", "habits-research"], "custom_count": 0, "public": false, "created_at": 0, "updated_at": 0}, {"id": "m3", "name": "Wind down", "items": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "q:whatmycoun", "title": "what my council is doing about the high street", "query": "what my council is doing about the high street", "custom": true, "subtitle": "Added by you", "icon": "leaf"}], "topics": [{"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0, "custom": false}], "topic_ids": ["sleep-science", "anxiety-loop"], "custom_count": 1, "public": false, "created_at": 0, "updated_at": 0}], "starters": [{"name": "Morning", "topic_ids": ["fed-next-move", "ai-agents", "morning-mindset"]}, {"name": "At the gym", "topic_ids": ["training-load", "the-trade", "habits-research"]}, {"name": "Wind down", "topic_ids": ["sleep-science", "anxiety-loop", "hollywood-comebacks"]}]}, "/api/topics": {"topics": [{"id": "nil-arms-race", "title": "The New College Football Arms Race", "subtitle": "NIL money, facilities, and the new power brokers.", "query": "how NIL money changed college football recruiting", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "operator-ceos", "title": "Why Founders Are Taking Back Control", "subtitle": "Leadership, product, and the rise of operator CEOs.", "query": "why boards are keeping founders as CEO", "tags": ["business", "founders"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "ai-agents", "title": "Why Everyone Is Talking About AI Agents", "subtitle": "What they are, how they work, why now.", "query": "what AI agents are and why they matter now", "tags": ["tech", "ai"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "hollywood-comebacks", "title": "Inside the Best Hollywood Comebacks", "subtitle": "The stories, the risks, the second acts.", "query": "how Hollywood comeback stories actually happen", "tags": ["culture", "film-tv"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "golf-evolution", "title": "The Quiet Evolution of Golf", "subtitle": "New players. New formats. Same obsession.", "query": "how professional golf formats are changing", "tags": ["sports", "sports-performance"], "icon": "golf", "angle": "", "source": "", "freshness": 0.0}, {"id": "habits-research", "title": "The Habits That Actually Change Your Life", "subtitle": "What the research says, and what people ignore.", "query": "what habit research actually shows about lasting change", "tags": ["health", "habits"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "fed-next-move", "title": "The Fed's Next Move, Explained", "subtitle": "Rates, inflation data, and what markets expect.", "query": "what the Federal Reserve is likely to do about interest rates", "tags": ["money", "macro"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "song-breaks-internet", "title": "How One Song Breaks the Internet", "subtitle": "Playlists, algorithms, and the new path to a hit.", "query": "how a song becomes a hit through playlists and short video", "tags": ["culture", "tech", "music", "platforms"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "restaurant-scene", "title": "The Restaurants Everyone's Talking About", "subtitle": "Openings, closings, and where the lines form.", "query": "why some restaurants become impossible to book", "tags": ["culture", "food"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "the-trade", "title": "The Trade That Changed Everything", "subtitle": "Front offices, cap space, and deals nobody saw.", "query": "how a single trade reshapes a sports franchise", "tags": ["sports", "sports-drama"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "sleep-science", "title": "What We Actually Know About Sleep", "subtitle": "The research, the myths, what isn't settled.", "query": "what sleep research actually establishes", "tags": ["health", "science", "sleep", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "hormuz", "title": "The Two-Mile Lane That Moves the Oil Price", "subtitle": "Chokepoints, insurance, and why geography decides.", "query": "why the Strait of Hormuz moves the oil price", "tags": ["world", "money", "geopolitics", "commodities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "morning-mindset", "title": "What to Do With the First Ten Minutes", "subtitle": "Why waking up feels the way it does.", "query": "a good mindset for when I wake up in the morning", "tags": ["health", "habits", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "founder-motivation", "title": "Where Motivation Actually Comes From", "subtitle": "Progress, evidence, and the founder's problem.", "query": "finding the motivation for my startup", "tags": ["health", "business", "mind", "founders"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "longevity-claims", "title": "Sorting the Longevity Claims", "subtitle": "What holds up, what is marketing.", "query": "which longevity interventions have real evidence", "tags": ["health", "science", "longevity", "body-science"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "streaming-economics", "title": "Why Streaming Keeps Getting Worse", "subtitle": "Licensing, churn, and the maths underneath.", "query": "why streaming services keep raising prices and losing shows", "tags": ["culture", "business", "film-tv", "media-business"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "election-mechanics", "title": "How a Close Election Is Actually Called", "subtitle": "Counting, models, and why it takes days.", "query": "how news organisations decide to call an election", "tags": ["world", "elections"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "attention-economy", "title": "The Fight for Fifteen Seconds", "subtitle": "How short video rewired everything downstream.", "query": "how short-form video changed the media business", "tags": ["tech", "culture", "platforms", "internet-culture"], "icon": "music", "angle": "", "source": "", "freshness": 0.0}, {"id": "transfer-window", "title": "How a Transfer Window Actually Works", "subtitle": "Agents, deadlines, and the money underneath.", "query": "how football transfer deals actually get done", "tags": ["sports", "money", "sports-business"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "stadium-money", "title": "Who Really Pays for a Stadium", "subtitle": "Public money, private returns, and the argument.", "query": "who actually pays for new sports stadiums", "tags": ["sports", "money", "world", "sports-business", "cities"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "food-supply", "title": "How Food Gets to a City", "subtitle": "Logistics, margins, and the fragile bits.", "query": "how a city's food supply chain actually works", "tags": ["world", "business", "supply-chain", "cities"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}]}, "/api/attach": {"id": "preview-attachment", "kind": "document", "name": "Attached file", "chars": 4200, "url": "", "preview": "A stand-in for extracted text."}, "/api/explore": {"episodes": [{"query": "why the strait of hormuz moves the oil price", "title": "Why the strait of hormuz moves the oil price", "minutes": 3, "plays": 4, "thread": "why the shipping lanes run through Omani water", "age_seconds": 140, "vibed": false}, {"query": "what habit research actually shows about lasting change", "title": "What habit research actually shows about lasting change", "minutes": 2, "plays": 2, "thread": "why streaks break in the third week", "age_seconds": 900, "vibed": false}, {"query": "how reusable rockets changed the economics of spaceflight", "title": "How reusable rockets changed the economics of spaceflight", "minutes": 5, "plays": 7, "thread": "what happens when launch gets cheaper than shipping", "age_seconds": 4000, "vibed": true, "vibed_by": {"name": "Rachel Solomon", "handle": "rachels", "avatar": ""}}, {"query": "a good mindset for when I wake up in the morning", "title": "A good mindset for when I wake up in the morning", "minutes": 1, "plays": 3, "thread": "why a flat morning cortisol curve might mean burnout", "age_seconds": 9000, "vibed": false}, {"query": "what the Federal Reserve is likely to do about interest rates", "title": "What the Federal Reserve is likely to do about interest rates", "minutes": 3, "plays": 9, "thread": "who actually loses when rates stay high", "age_seconds": 30000, "vibed": false}, {"query": "how a city's food supply chain actually works", "title": "How a city's food supply chain actually works", "minutes": 4, "plays": 1, "thread": "the three days of stock nobody plans for", "age_seconds": 100000, "vibed": false}]}, "/api/next": {"thread": "why the shipping lanes run through Omani water", "title": "The Two-Mile Lane That Moves the Oil"}, "/api/sources": {"known": true, "retrievers": ["exa", "gdelt"], "items": [{"label": "reuters.com", "kind": "article", "tier": "wire service", "at": "2026-09-16", "title": "Shipping rates climb as tankers reroute", "url": "https://www.reuters.com/"}, {"label": "ft.com", "kind": "article", "tier": "national paper", "at": "2026-09-16", "title": "Insurers widen the war-risk zone", "url": "https://www.ft.com/"}, {"label": "apnews.com", "kind": "article", "tier": "wire service", "at": "2026-09-15", "title": "Two more cargoes divert south", "url": "https://apnews.com/"}, {"label": "Polymarket", "kind": "live", "tier": "live feed", "at": "2026-09-17T08:40:00", "title": "", "url": ""}]}, "/api/transcript": {"known": true, "sentences": ["Tanker traffic through the strait is down about a fifth this week.", "The reason is not the shooting, it is the paperwork.", "War-risk insurance is priced daily, and on Monday the underwriters widened the zone by ninety miles.", "That pushed a dozen ships outside the cover they had already paid for.", "A captain with no cover does not sail, whatever the cargo is worth.", "So the queue at the southern end is now four days long.", "Freight rates followed within hours, because the ships that are still moving can name their price.", "The oil price barely moved, which is the part worth sitting with.", "Traders have been reading this strait for fifty years and they price the insurance, not the headlines."]}, "/api/godeeper": {"threads": [{"thread": "why the shipping lanes run through Omani water", "title": "The Two-Mile Lane That Moves the Oil", "from_title": "Why the Strait of Hormuz Moves the Oil Price", "at": 0}, {"thread": "how NIL money changed college football recruiting", "title": "The New College Football Arms Race", "from_title": "Who Really Pays for a Stadium", "at": 0}]}, "/api/voices": {"voices": [{"id": "piper:en_GB-alba-medium", "label": "Alba (GB, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_GB-northern_english_male-medium", "label": "Northern_English_Male (GB, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_US-amy-medium", "label": "Amy (US, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "piper:en_US-lessac-medium", "label": "Lessac (US, medium)", "engine": "piper", "detail": "neural, ships with the app"}, {"id": "say:Samantha", "label": "Samantha", "engine": "say", "detail": "en-US"}, {"id": "say:Daniel", "label": "Daniel", "engine": "say", "detail": "en-GB"}, {"id": "say:Karen", "label": "Karen", "engine": "say", "detail": "en-AU"}, {"id": "say:Moira", "label": "Moira", "engine": "say", "detail": "en-IE"}, {"id": "say:Aman", "label": "Aman", "engine": "say", "detail": "en-IN"}, {"id": "say:Fred", "label": "Fred", "engine": "say", "detail": "en-US"}, {"id": "say:Rishi", "label": "Rishi", "engine": "say", "detail": "en-IN"}, {"id": "say:Tara", "label": "Tara", "engine": "say", "detail": "en-IN"}, {"id": "say:Tessa", "label": "Tessa", "engine": "say", "detail": "en-ZA"}], "default": "piper:en_GB-alba-medium"}, "/api/auth/me": {"user_id": "preview-listener", "email": "ian@example.com", "authenticated": true}, "/api/profile": {"listener": "preview-listener", "played": 34, "finished": 21, "searched": 12, "open_threads": 2, "subjects": ["tech", "money", "science", "health"], "since": 1784260846.834578, "name": "Ian Solomon", "handle": "iansolomon", "joined": 1784260846.8345785, "echo_count": 7, "avatar": "", "follows": {"following": 3, "followers": 2, "friends": 2}, "mixes": [{"id": "m1", "name": "Morning Run", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}, {"id": "m2", "name": "Market Watch", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}, {"id": "m3", "name": "Kids' Questions", "public": true, "items": [{"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}, {"id": "x"}], "topics": [], "topic_ids": [], "custom_count": 0, "created_at": 0, "updated_at": 0}], "echoes": [{"title": "The Two-Mile Lane That Moves the Oil", "minutes": 4, "query": "why the strait of hormuz moves the oil price", "asked": true}, {"title": "How a City's Food Supply Chain Works", "minutes": 4, "query": "how a city's food supply chain actually works", "asked": false}, {"title": "Who Actually Makes the World's Chips", "minutes": 6, "query": "why semiconductor manufacturing is concentrated", "asked": true}, {"title": "What We Actually Know About Sleep", "minutes": 5, "query": "what sleep research actually establishes", "asked": false}]}, "/api/health": {"ok": true, "demo": true, "engine": "preview"}, "/api/event": {"ok": true}, "/api/plans": {"tiers": [{"name": "free", "label": "FAM", "blurb": "A few episodes a day, and the whole of Explore to listen through.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "day", "count": 5, "unlimited": false}, {"resource": "explore", "window": "day", "count": 25, "unlimited": false}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}, {"name": "plus", "label": "FAM Plus", "blurb": "Enough episodes a week to listen the way you actually listen.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "week", "count": 150, "unlimited": false}, {"resource": "explore", "window": "week", "count": -1, "unlimited": true}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}, {"name": "unlimited", "label": "FAM Unlimited", "blurb": "No ceiling.", "max_minutes": 10, "limits": [{"resource": "episode", "window": "day", "count": -1, "unlimited": true}, {"resource": "explore", "window": "day", "count": -1, "unlimited": true}], "features": ["api_access", "attachments", "explore", "explore_new", "go_deeper", "long_episodes", "mixes", "research", "search", "share_external", "voice_choice"]}], "features": [{"key": "search", "label": "Ask anything", "min_tier": "free"}, {"key": "explore", "label": "Explore", "min_tier": "free"}, {"key": "go_deeper", "label": "Go Deeper", "min_tier": "free"}, {"key": "research", "label": "Live research", "min_tier": "free"}, {"key": "attachments", "label": "Documents and photos", "min_tier": "free"}, {"key": "voice_choice", "label": "Choose a voice", "min_tier": "free"}, {"key": "mixes", "label": "Daily mixes", "min_tier": "free"}, {"key": "explore_new", "label": "Explore New", "min_tier": "free"}, {"key": "long_episodes", "label": "Longer episodes", "min_tier": "free"}, {"key": "share_external", "label": "Share outside FAM", "min_tier": "free"}, {"key": "api_access", "label": "API access", "min_tier": "free"}], "current": "free"}, "/api/preferences": {"interests_available": [{"id": "world", "label": "World", "short": "World"}, {"id": "tech", "label": "Technology", "short": "Tech"}, {"id": "sports", "label": "Sport", "short": "Sport"}, {"id": "business", "label": "Business", "short": "Business"}, {"id": "money", "label": "Money & markets", "short": "Money"}, {"id": "science", "label": "Science", "short": "Science"}], "interests_all": [{"id": "sports", "label": "Sport"}, {"id": "business", "label": "Business"}, {"id": "money", "label": "Money & markets"}, {"id": "tech", "label": "Technology"}, {"id": "science", "label": "Science"}, {"id": "health", "label": "Health & mind"}, {"id": "culture", "label": "Culture"}, {"id": "world", "label": "World"}], "interests_source": "default", "interests_yours": [{"id": "world", "label": "World", "short": "World"}, {"id": "tech", "label": "Technology", "short": "Tech"}, {"id": "sports", "label": "Sport", "short": "Sport"}, {"id": "business", "label": "Business", "short": "Business"}, {"id": "money", "label": "Money & markets", "short": "Money"}, {"id": "science", "label": "Science", "short": "Science"}], "interests_yours_source": "default", "catalogue": [{"id": "soccer", "label": "Soccer", "icon": "ball", "tags": ["sports"]}, {"id": "stocks", "label": "Stocks & Economy", "icon": "chart", "tags": ["money", "macro"]}, {"id": "politics", "label": "Politics", "icon": "ballot", "tags": ["world"]}, {"id": "iran", "label": "Iran Conflict", "icon": "news", "tags": ["world", "geopolitics"]}, {"id": "sports", "label": "Sports", "icon": "tennis", "tags": ["sports"]}, {"id": "business", "label": "Business & Finance", "icon": "briefcase", "tags": ["business"]}, {"id": "science", "label": "Science", "icon": "atom", "tags": ["science"]}, {"id": "technology", "label": "Technology", "icon": "chip", "tags": ["tech"]}, {"id": "art", "label": "Art", "icon": "palette", "tags": ["culture"]}, {"id": "movies-tv", "label": "Movies & TV", "icon": "film", "tags": ["culture", "film-tv"]}, {"id": "ai", "label": "Artificial Intelligence", "icon": "sparkle", "tags": ["tech", "ai"]}, {"id": "gaming", "label": "Gaming", "icon": "gamepad", "tags": ["culture", "internet-culture"]}, {"id": "crypto", "label": "Cryptocurrency", "icon": "coin", "tags": ["money"]}, {"id": "nfl", "label": "NFL", "icon": "shield", "tags": ["sports"]}, {"id": "anime", "label": "Anime", "icon": "anime", "tags": ["culture", "film-tv"]}, {"id": "travel", "label": "Travel", "icon": "plane", "tags": ["culture"]}, {"id": "food-drink", "label": "Food & Drink", "icon": "chef", "tags": ["culture", "food"]}, {"id": "baseball", "label": "Baseball", "icon": "baseball", "tags": ["sports"]}, {"id": "basketball", "label": "Basketball", "icon": "basketball", "tags": ["sports"]}, {"id": "beauty", "label": "Beauty", "icon": "beauty", "tags": ["culture"]}, {"id": "boxing", "label": "Boxing", "icon": "glove", "tags": ["sports"]}, {"id": "career", "label": "Career", "icon": "cap", "tags": ["business"]}, {"id": "cars", "label": "Cars", "icon": "car", "tags": ["tech"]}, {"id": "pets", "label": "Pets", "icon": "paw", "tags": ["culture"]}, {"id": "celebs", "label": "Celebs", "icon": "star", "tags": ["culture"]}, {"id": "music", "label": "Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "country-music", "label": "Country Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "news", "label": "News", "icon": "news", "tags": ["world"]}, {"id": "dance", "label": "Dance", "icon": "disco", "tags": ["culture"]}, {"id": "dating", "label": "Dating & Relationships", "icon": "hearts", "tags": ["health", "mind"]}, {"id": "design", "label": "Design", "icon": "design", "tags": ["culture"]}, {"id": "education", "label": "Education", "icon": "cap", "tags": ["science"]}, {"id": "electronic", "label": "Electronic Music", "icon": "note", "tags": ["culture", "music"]}, {"id": "startups", "label": "Startups", "icon": "briefcase", "tags": ["business", "founders"]}, {"id": "esports", "label": "Esports", "icon": "gamepad", "tags": ["culture", "internet-culture"]}, {"id": "family", "label": "Marriage & Family", "icon": "people", "tags": ["health", "mind"]}, {"id": "fashion", "label": "Fashion", "icon": "shirt", "tags": ["culture"]}, {"id": "pop", "label": "Pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "golf", "label": "Golf", "icon": "golf", "tags": ["sports"]}, {"id": "kpop", "label": "K-pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "memes", "label": "Memes", "icon": "meme", "tags": ["culture", "internet-culture"]}, {"id": "health", "label": "Health & Fitness", "icon": "pulse", "tags": ["health", "fitness"]}, {"id": "mma", "label": "MMA & Wrestling", "icon": "glove", "tags": ["sports"]}, {"id": "motorsport", "label": "Racing & Motorsports", "icon": "car", "tags": ["sports"]}, {"id": "motorcycles", "label": "Motorcycles", "icon": "bike", "tags": ["sports"]}, {"id": "nature", "label": "Nature & Outdoors", "icon": "tree", "tags": ["science"]}, {"id": "hockey", "label": "Ice Hockey", "icon": "hockey", "tags": ["sports"]}, {"id": "olympics", "label": "Olympics", "icon": "tennis", "tags": ["sports"]}, {"id": "personal-fin", "label": "Personal Finance", "icon": "doc", "tags": ["money"]}, {"id": "photography", "label": "Photography", "icon": "camera", "tags": ["culture"]}, {"id": "podcasts", "label": "Podcasts", "icon": "mic", "tags": ["culture", "media-business"]}, {"id": "real-estate", "label": "Real Estate", "icon": "thumb", "tags": ["money", "housing"]}, {"id": "robotics", "label": "Robotics", "icon": "chip", "tags": ["tech"]}, {"id": "rock", "label": "Rock", "icon": "note", "tags": ["culture", "music"]}, {"id": "rugby", "label": "Rugby", "icon": "rugby", "tags": ["sports"]}, {"id": "shopping", "label": "Shopping", "icon": "bag", "tags": ["money", "consumer-prices"]}, {"id": "snow-sports", "label": "Snow Sports", "icon": "snow", "tags": ["sports"]}, {"id": "software", "label": "Software Development", "icon": "laptop", "tags": ["tech", "platforms"]}, {"id": "space", "label": "Space", "icon": "rocket", "tags": ["science", "space"]}, {"id": "tennis", "label": "Tennis", "icon": "tennis", "tags": ["sports"]}, {"id": "home-garden", "label": "Home & Garden", "icon": "home", "tags": ["money", "housing"]}, {"id": "cricket", "label": "Cricket", "icon": "cricket", "tags": ["sports"]}, {"id": "formula1", "label": "Formula 1", "icon": "car", "tags": ["sports"]}, {"id": "cycling", "label": "Cycling", "icon": "bike", "tags": ["sports", "fitness"]}, {"id": "jpop", "label": "J-pop", "icon": "note", "tags": ["culture", "music"]}, {"id": "concerts", "label": "Concerts", "icon": "note", "tags": ["culture", "music"]}, {"id": "hiphop", "label": "Hip Hop", "icon": "note", "tags": ["culture", "music"]}, {"id": "jazz", "label": "Jazz", "icon": "note", "tags": ["culture", "music"]}, {"id": "crime", "label": "Crime", "icon": "news", "tags": ["world"]}, {"id": "elections", "label": "Elections", "icon": "ballot", "tags": ["world", "elections"]}, {"id": "biotech", "label": "Biotech", "icon": "atom", "tags": ["science", "body-science"]}, {"id": "mental-health", "label": "Mental Health", "icon": "pulse", "tags": ["health", "mind"]}, {"id": "digital-art", "label": "Digital Art", "icon": "palette", "tags": ["culture"]}], "languages": [{"code": "en", "label": "English", "endonym": "English"}, {"code": "es", "label": "Spanish", "endonym": "Espa\u00f1ol"}, {"code": "fr", "label": "French", "endonym": "Fran\u00e7ais"}, {"code": "de", "label": "German", "endonym": "Deutsch"}, {"code": "pt", "label": "Portuguese", "endonym": "Portugu\u00eas"}, {"code": "it", "label": "Italian", "endonym": "Italiano"}, {"code": "hi", "label": "Hindi", "endonym": "\u0939\u093f\u0928\u094d\u0926\u0940"}, {"code": "ar", "label": "Arabic", "endonym": "\u0627\u0644\u0639\u0631\u0628\u064a\u0629"}, {"code": "zh", "label": "Chinese", "endonym": "\u4e2d\u6587"}, {"code": "ja", "label": "Japanese", "endonym": "\u65e5\u672c\u8a9e"}], "language_active": false, "account": true, "saved": true, "account_required": "You need an account for this.", "interests": [], "language": "en", "weekly_recap": true, "recap_week": "", "intro_done": false}, "/api/nextup": {"topics": [{"id": "energy-grid", "title": "What the Grid Does When the Wind Drops", "subtitle": "Storage, baseload, and the balancing act.", "query": "how electricity grids handle intermittent renewable power", "tags": ["science", "money", "energy", "commodities"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "chip-supply", "title": "Who Actually Makes the World's Chips", "subtitle": "Fabs, bottlenecks, and why it is so concentrated.", "query": "why semiconductor manufacturing is concentrated in so few places", "tags": ["tech", "world", "chips", "geopolitics"], "icon": "tech", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}, {"id": "housing-market", "title": "Why Houses Cost What They Cost", "subtitle": "Supply, rates, and the arguments that repeat.", "query": "what actually drives house prices", "tags": ["money", "housing"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}], "algo": "2026-09-14.1"}, "/api/explorenew": {"topics": [{"id": "hollywood-comebacks", "title": "Inside the Best Hollywood Comebacks", "subtitle": "The stories, the risks, the second acts.", "query": "how Hollywood comeback stories actually happen", "tags": ["culture", "film-tv"], "icon": "camera", "angle": "", "source": "", "freshness": 0.0}, {"id": "food-supply", "title": "How Food Gets to a City", "subtitle": "Logistics, margins, and the fragile bits.", "query": "how a city's food supply chain actually works", "tags": ["world", "business", "supply-chain", "cities"], "icon": "food", "angle": "", "source": "", "freshness": 0.0}, {"id": "anxiety-loop", "title": "Why Worry Feels Productive", "subtitle": "The loop, and what actually interrupts it.", "query": "why worrying feels useful when it is not", "tags": ["health", "mind"], "icon": "leaf", "angle": "", "source": "", "freshness": 0.0}, {"id": "training-load", "title": "How Athletes Are Actually Trained Now", "subtitle": "Load, recovery, and the data behind it.", "query": "how modern athletic training load is managed", "tags": ["sports", "health", "sports-performance", "fitness"], "icon": "sports", "angle": "", "source": "", "freshness": 0.0}, {"id": "pricing-psychology", "title": "Why Everything Ends in Ninety-Nine", "subtitle": "What the pricing research does and does not show.", "query": "what the evidence says about psychological pricing", "tags": ["business", "money", "strategy", "consumer-prices"], "icon": "business", "angle": "", "source": "", "freshness": 0.0}, {"id": "space-race", "title": "Inside the New Space Race", "subtitle": "Reusable rockets, private missions, who's winning.", "query": "how reusable rockets changed the economics of spaceflight", "tags": ["science", "business", "space"], "icon": "rocket", "angle": "", "source": "", "freshness": 0.0}], "personalised": true, "reason": "Next to what you already listen to, rather than more of it.", "algo": "2026-09-14.1"}, "/api/saved": {"folders": [{"id": "fld_commute", "name": "Commute", "created": 0, "items": 1}], "items": [{"id": "sav_1", "folder_id": "fld_commute", "query": "why semiconductor manufacturing is concentrated", "minutes": 2, "title": "Who Actually Makes the World's Chips", "source": "player", "created": 0, "last_played": 0}, {"id": "sav_2", "folder_id": "", "query": "how electricity grids handle intermittent renewable power", "minutes": 5, "title": "What the Grid Does When the Wind Drops", "source": "explore", "created": 0, "last_played": 0}]}, "/api/share/targets": {"targets": [{"key": "copy", "label": "Copy link", "kind": "copy", "needs_image": false, "max_chars": 0}, {"key": "sms", "label": "iMessage", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "email", "label": "Email", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "whatsapp", "label": "WhatsApp", "kind": "message", "needs_image": false, "max_chars": 0}, {"key": "x", "label": "X", "kind": "link", "needs_image": false, "max_chars": 240}, {"key": "facebook", "label": "Facebook", "kind": "link", "needs_image": false, "max_chars": 0}, {"key": "linkedin", "label": "LinkedIn", "kind": "link", "needs_image": false, "max_chars": 2800}, {"key": "instagram_story", "label": "Instagram story", "kind": "story", "needs_image": true, "max_chars": 0}, {"key": "snapchat_story", "label": "Snapchat story", "kind": "story", "needs_image": true, "max_chars": 0}]}};
   var SAMPLE_RATE = 22050;
   var ALGO = "2026-09-14.1";
   var TAG_WORDS = {"sports": ["nfl", "nba", "football", "basketball", "golf", "soccer", "tennis", "olympics", "coach", "playoff", "draft", "league", "match"], "business": ["startup", "founder", "company", "ceo", "ipo", "merger", "layoff", "strategy", "brand", "hiring", "venture"], "money": ["fed", "inflation", "rates", "market", "stocks", "economy", "tariff", "recession", "housing", "oil", "currency", "bond"], "tech": ["ai", "software", "chip", "robot", "app", "model", "data", "code", "computing", "algorithm", "internet"], "science": ["physics", "space", "rocket", "climate", "biology", "brain", "research", "study", "energy", "quantum", "genome"], "health": ["sleep", "diet", "exercise", "habit", "stress", "anxiety", "mindset", "motivation", "longevity", "cortisol", "mental", "therapy"], "culture": ["film", "movie", "music", "album", "book", "art", "hollywood", "song", "show", "artist", "fashion"], "world": ["election", "war", "treaty", "border", "sanctions", "summit", "government", "protest", "strait", "diplomacy", "policy"], "sports-business": ["nil", "salary", "cap", "transfer", "stadium", "contract", "sponsorship", "franchise", "wages"], "sports-performance": ["training", "fitness", "conditioning", "technique", "swing", "endurance", "recovery"], "sports-drama": ["rivalry", "upset", "comeback", "trade", "scandal"], "founders": ["founder", "startup", "ceo", "entrepreneur", "cofounder"], "media-business": ["streaming", "studio", "subscriber", "catalogue", "broadcast", "licensing"], "strategy": ["pricing", "margin", "moat", "positioning", "competition"], "supply-chain": ["supply", "logistics", "shipping", "factory", "warehouse", "distribution", "freight"], "macro": ["fed", "inflation", "rates", "recession", "gdp", "unemployment", "monetary"], "housing": ["housing", "mortgage", "rent", "property", "homes"], "commodities": ["oil", "gas", "copper", "wheat", "barrel", "commodity"], "consumer-prices": ["price", "prices", "cost", "checkout", "discount"], "ai": ["ai", "model", "agent", "llm", "training", "inference", "neural", "chatbot"], "chips": ["chip", "chips", "semiconductor", "fab", "foundry", "wafer", "lithography"], "platforms": ["platform", "feed", "algorithm", "app", "social", "viral", "engagement"], "space": ["space", "rocket", "orbit", "satellite", "launch", "mars", "moon"], "body-science": ["brain", "genome", "cell", "biology", "neuroscience", "metabolism", "immune"], "energy": ["grid", "solar", "wind", "nuclear", "battery", "renewable", "electricity"], "sleep": ["sleep", "insomnia", "circadian", "nap", "rest"], "mind": ["anxiety", "stress", "mindset", "motivation", "focus", "therapy", "mental", "worry"], "habits": ["habit", "habits", "routine", "discipline", "willpower", "morning"], "longevity": ["longevity", "ageing", "aging", "lifespan", "supplement"], "fitness": ["exercise", "workout", "strength", "cardio", "athlete"], "film-tv": ["film", "movie", "hollywood", "series", "actor", "director", "box"], "music": ["song", "album", "artist", "band", "chart", "tour"], "food": ["restaurant", "chef", "menu", "kitchen", "dining", "cuisine"], "internet-culture": ["meme", "creator", "influencer", "trend", "attention", "scroll"], "geopolitics": ["sanctions", "treaty", "strait", "border", "alliance", "diplomacy", "tariff"], "elections": ["election", "ballot", "vote", "voter", "poll", "campaign"], "cities": ["city", "transit", "infrastructure", "urban", "housing"]};   // topics.TAG_WORDS, verbatim
@@ -3141,7 +3225,7 @@
           title: String(s.query).charAt(0).toUpperCase() + String(s.query).slice(1),
           minutes: s.minutes, plays: s.hits || 0, thread: s.thread || "",
           age_seconds: Math.max(0, now() - s.created),
-          echoed_by: labels[s.query] || ""
+          vibed: !!labels[s.query]
         };
       });
     return { episodes: eps };
@@ -3368,9 +3452,18 @@
     // these is honestly empty rather than seeded with people who do not
     // exist. An empty friends list is a fact about this deployment; three
     // invented contacts would be a claim about the world.
+    //
+    // It is also why an Explore card here never carries `vibed_by`: that tag
+    // needs a *friend* who both generated the episode and vibed it, and there
+    // is nobody here to be one. The fixture build shows it instead.
     if (path === "/api/friends") {
       return json({ following: [], followers: [], friends: [],
+                    new_followers: [],
                     counts: { following: 0, followers: 0, friends: 0 } });
+    }
+    if (path === "/api/friends/seen") return json({ ok: true });
+    if (path === "/api/person") {
+      return json({ error: "There is nobody else in this preview's database." }, 404);
     }
     if (path === "/api/people") return json({ people: [] });
     if (path === "/api/friends/follow") {
@@ -5312,6 +5405,10 @@ window.FamAudio = (function () {
     if(cur) cur.textContent = formatTime(seconds);
     if(tot) tot.textContent = formatTime(total);
 
+    // Far enough through to count as heard. Checked here because this is the
+    // one function that runs on a clock and knows the position.
+    if(reportOutcomeIfHeard) reportOutcomeIfHeard(seconds, total);
+
     // The segmented player runs on the same FamAudio, so one ticker serves
     // both. Its bar used to be a placeholder - a fixed 44% fill in the CSS and
     // a time set to a fifth of the length, neither of which moved - which is
@@ -5327,6 +5424,26 @@ window.FamAudio = (function () {
       if(paTot) paTot.textContent = formatTime(total);
     }
   }
+
+  // --- when an episode counts as finished -----------------------------
+  //
+  // **Eighty-five per cent through is finished.** Waiting for the last sample
+  // counted almost nothing: the ending is the one part a listener skips, and
+  // an episode heard to the ninety-fifth percentile and then closed was
+  // recorded as a *play*, which is worth 1.0 against a completion's 2.5. So
+  // the strongest signal the taste model has was being thrown away by exactly
+  // the behaviour it should reward, and the profile's "episodes finished"
+  // undercounted for the same reason.
+  //
+  // It is a share rather than a number of seconds because episodes are one to
+  // ten minutes long, and "the last thirty seconds" is most of a one-minute
+  // episode and nothing of a ten-minute one.
+  var FINISHED_SHARE = 0.85;
+
+  //: Set by `speakText` for whatever is playing, and called by the progress
+  //: ticker - which is the only thing that knows how far through it is.
+  //: Cleared when the episode ends, so it can never fire against the next one.
+  var reportOutcomeIfHeard = null;
 
   function startProgress(totalSeconds){
     stopProgress();
@@ -5898,6 +6015,14 @@ window.FamAudio = (function () {
     rememberEpisode(title, minutes, context || "");
     var episodeTopicId = bankTopicId || "";
     var reportedOutcome = false;
+    reportOutcomeIfHeard = function(heard, whole){
+      if(reportedOutcome || !(whole > 0)) return;
+      if(heard / whole < FINISHED_SHARE) return;
+      reportedOutcome = true;
+      // The thread rides along, exactly as it does on the end-of-episode
+      // path, so Go Deeper can offer it back later without another lookup.
+      recordFamEvent("complete", episodeTopicId, title, episodeThread);
+    };
     setEchoed(false);
     // Both controls open dark and are corrected from the server, because the
     // episode may already be on the shelf or already vibed from another
@@ -5936,14 +6061,15 @@ window.FamAudio = (function () {
         refreshProgressNow();
         stopProgress();
         setPlayState(false);
+        reportOutcomeIfHeard = null;
         fetchEpisodeThread();
         fetchEpisodeSources();
         // Finishing is the strongest taste signal there is, and only the
-        // client knows it happened.
+        // client knows it happened. Usually already recorded by now - the
+        // ticker calls it at 85% - and this is the case where an episode ran
+        // out of substance and ended early, which is still finished.
         if(!reportedOutcome){
           reportedOutcome = true;
-          // The thread rides along on the completion, so Go Deeper can offer
-          // it back later without another lookup.
           recordFamEvent("complete", episodeTopicId, title, episodeThread);
         }
         noteResume(title, minutes, 0);   // finished: nothing left to resume
@@ -8076,13 +8202,12 @@ window.FamAudio = (function () {
   // to invent numbers, and every invented one is a promise to keep later.
   function openProfile(){
     setTab("profile");
-    viewingProfile = null;          // your own
     loadProfile();
   }
 
-  // Someone else's profile. Same page, different verbs: you can add them and
-  // message them, and the parts that are only yours - friends, listening time,
-  // the manage links - are simply not there.
+  // Who the person screen is currently showing. Only ever read by that
+  // screen: it decides *what is drawn there*, never which screen is on, which
+  // is the distinction the navigation bug turned on.
   var viewingProfile = null;
 
   // Who the server says we are. There is no way to work this out locally any
@@ -8163,12 +8288,45 @@ window.FamAudio = (function () {
     });
   }
 
+  // Log out, then land on the screen a new install lands on.
+  //
+  // It used to log out and leave the listener wherever they were - on the
+  // Settings screen of an app that was now somebody else's, with a toast. The
+  // packet asks for a loader over the screen and then the Sign up / Sign in
+  // page, which is also the honest answer: logging out is the one action that
+  // changes who the whole app belongs to, and the screen should say so.
+  //
+  // The overlay is the splash, which is already the FAM mark over everything.
+  // Half a second, so it reads as the app resetting rather than as a wait.
+  var LOGOUT_SPLASH_MS = 500;
+
   function logOut(){
-    postAuth("/api/auth/logout", {}, "Logged out").then(function(){
-      // A fresh anonymous listener, so the app keeps working with nothing of
-      // theirs on screen.
-      loadMyFam();
-    });
+    showSplash(LOGOUT_SPLASH_MS);
+    fetch("/api/auth/logout", { method: "POST" })
+      .then(function(){ return refreshAuth(); })
+      .catch(function(){})
+      .then(function(){
+        // Everything of theirs, off the screen and out of memory. A shelf or
+        // a friends list left in a variable is the previous listener's data
+        // sitting in the next one's app.
+        friendsData = { following: [], followers: [], friends: [], counts: {} };
+        newFollowers = [];
+        followerPopupShown = {};
+        savedCache = { items: [], folders: [] };
+        viewingProfile = null;
+        mixes = [];
+        try { localStorage.removeItem("fam.prefs"); } catch(e){}
+        stopSpeech();
+        hideNowBar();
+        // Back to the entry screen, the way a new install arrives - the
+        // welcome screen is not on the navigation stack, so it is shown by
+        // name and the stack is reset rather than pushed to.
+        stack = ["welcome"];
+        introMode = "first-run";
+        introSelection = [];
+        loadPrefChoices();
+        showScreen("welcome");
+      });
   }
 
   function changePassword(){
@@ -8193,7 +8351,11 @@ window.FamAudio = (function () {
   function loadProfile(){
     var el = document.getElementById("profileBody");
     if(!el) return;
-    if(viewingProfile){ renderFriendProfile(viewingProfile); return; }
+    // Who followed since they last looked - for the badge on the Friends
+    // tile, and for the popup. Asked here because opening the profile is
+    // when it is about to be drawn.
+    checkNewFollowers();
+
     fetch("/api/profile")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderProfile)
@@ -8220,6 +8382,12 @@ window.FamAudio = (function () {
       + 'stroke-linejoin="round" aria-hidden="true">'
       + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
       + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0"/></svg>';
+  }
+
+  // "1 vibe", "2 vibes". Regular plurals only, which is every noun a count
+  // on this page is ever attached to.
+  function plural(n, word){
+    return Number(n) === 1 ? word : word + "s";
   }
 
   function personSVG(size){
@@ -8549,19 +8717,26 @@ window.FamAudio = (function () {
       + hubTile("openSavedAll()", "Save for Later", "Episodes you kept",
           '<path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/>')
       + hubTile("openMyVibe()", "My Vibe",
-          vibes ? vibes + (vibes === 1 ? " episode" : " episodes") : "Nothing yet",
+          vibes ? vibes + " " + plural(vibes, "episode") : "Nothing yet",
           '<path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/>')
+      // How many people have followed since this listener last looked at who
+      // follows them. Read from the server, which answers it off the follow
+      // graph's own timestamps - so it is a count of a real thing, and opening
+      // the tab is what clears it.
       + hubTile("openFriends()", "Friends",
-          friends ? friends + (friends === 1 ? " friend" : " friends") : "Find people",
-          '<circle cx="9" cy="8" r="3.4"/><path d="M2.6 19a6.4 6.4 0 0112.8 0"/><path d="M16 5.6a3.4 3.4 0 010 6.8"/><path d="M17.5 19a6.5 6.5 0 00-2-4.7"/>')
+          friends ? friends + " " + plural(friends, "friend") : "Find people",
+          '<circle cx="9" cy="8" r="3.4"/><path d="M2.6 19a6.4 6.4 0 0112.8 0"/><path d="M16 5.6a3.4 3.4 0 010 6.8"/><path d="M17.5 19a6.5 6.5 0 00-2-4.7"/>',
+          newFollowers.length)
       + '</div>';
   }
 
-  function hubTile(action, name, sub, paths){
+  function hubTile(action, name, sub, paths, badge){
     return '<div class="pf-hub-tile" onclick="' + action + '">'
       + '<div class="pf-hub-icon"><svg width="16" height="16" viewBox="0 0 24 24" '
       + 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
-      + 'stroke-linejoin="round">' + paths + '</svg></div>'
+      + 'stroke-linejoin="round">' + paths + '</svg>'
+      + (badge ? '<span class="pf-hub-badge">' + badge + '</span>' : '')
+      + '</div>'
       + '<div class="pf-hub-name">' + escapeHtml(name) + '</div>'
       + '<div class="pf-hub-sub">' + escapeHtml(sub) + '</div></div>';
   }
@@ -8599,9 +8774,15 @@ window.FamAudio = (function () {
       // Friends is a real number now: the follow graph is built, and a mutual
       // follow is what a friend is. Every one of these comes from the event
       // log or that graph - nothing here is invented.
+      // Every one of these comes from the event log or the follow graph -
+      // nothing here is invented - and each is worded for the number it
+      // actually holds. "1 vibes" is the tell that a count was printed
+      // rather than read.
       + '<div class="pf-counts"><b>' + p.finished + '</b> finished · <b>'
-      + (p.echo_count || 0) + '</b> vibed · <b onclick="openFriends()">'
-      + (follows.friends || 0) + '</b> friends</div>'
+      + (p.echo_count || 0) + '</b> ' + plural(p.echo_count || 0, "vibe")
+      + ' · <b onclick="openFriends()">'
+      + (follows.friends || 0) + '</b> '
+      + plural(follows.friends || 0, "friend") + '</div>'
       + '</div></div>';
 
     html += '<div class="pf-acts">'
@@ -8831,18 +9012,114 @@ window.FamAudio = (function () {
       '<div class="pf-empty">Loading…</div>';
     navigate("friends");
     loadFriends();
+    // They are looking at who follows them, so nobody is new any more. Done
+    // **here** and never when the popup is drawn: a badge that cleared itself
+    // the moment a popup appeared would be a count nobody got to read.
+    fetch("/api/friends/seen", { method: "POST" })
+      .then(function(){ newFollowers = []; })
+      .catch(function(){});
   }
 
   var friendsData = { following: [], followers: [], friends: [], counts: {} };
 
+  //: Who followed since this listener last opened the Friends tab. Drives the
+  //: badge on the profile's Friends tile and the popup below.
+  var newFollowers = [];
+  //: Who has already been shown in a popup this session, so a refresh does
+  //: not raise the same person again. Deliberately in memory rather than
+  //: stored: the badge is the durable record, and this is only about not
+  //: repeating a popup between two fetches a minute apart.
+  var followerPopupShown = {};
+
   function loadFriends(){
-    fetch("/api/friends")
+    return fetch("/api/friends")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ friendsData = d; renderFriends(); })
+      .then(function(d){
+        friendsData = d;
+        newFollowers = d.new_followers || [];
+        renderFriends();
+        return d;
+      })
       .catch(function(){
         document.getElementById("friendsBody").innerHTML =
           '<div class="pf-empty">Could not load your friends list.</div>';
       });
+  }
+
+  // --- "___ started following you" -------------------------------------
+  //
+  // There is no push here and there is not going to be until the app exists,
+  // so the honest moment to say this is the next time the listener's own app
+  // asks - which is on open and whenever the profile loads. One popup at a
+  // time, oldest first, and it neither clears the badge nor marks anything
+  // seen: the Friends tab does both.
+  function checkNewFollowers(){
+    if(!AUTH.authenticated) return;
+    fetch("/api/friends")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        friendsData = d;
+        newFollowers = d.new_followers || [];
+        var next = newFollowers.filter(function(p){
+          return !followerPopupShown[p.user_id];
+        })[0];
+        if(next) showFollowerPopup(next);
+      })
+      .catch(function(){});
+  }
+
+  var followerNow = null;
+
+  function showFollowerPopup(person){
+    // Never two overlays deep. This and the what's-next popup are triggered
+    // from different places and could in principle land together.
+    closeNextUp();
+    followerNow = person;
+    followerPopupShown[person.user_id] = true;
+    var av = document.getElementById("nfAvatar");
+    av.style.background = personHue(person.handle || person.name);
+    av.innerHTML = avatarHTML(person, 64);
+    document.getElementById("nfName").innerHTML =
+      "<b>" + escapeHtml(person.name || ("@" + (person.handle || "someone")))
+      + "</b> started following you";
+    document.getElementById("nfHandle").textContent =
+      person.handle ? "@" + person.handle : "";
+    // Offering "Follow back" to somebody who is already a friend is a control
+    // that cannot do anything. The server says which, so this does not have
+    // to go and ask.
+    var back = document.getElementById("nfBack");
+    back.hidden = !!person.follows_back;
+    document.getElementById("nfAlready").hidden = !person.follows_back;
+    document.getElementById("followerOverlay").classList.add("active");
+  }
+
+  function closeFollowerPopup(){
+    document.getElementById("followerOverlay").classList.remove("active");
+    followerNow = null;
+  }
+
+  function followBack(){
+    if(!followerNow){ closeFollowerPopup(); return; }
+    var who = followerNow;
+    fetch("/api/friends/follow", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ user_id: who.user_id })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "Could not follow them back");
+        return d;
+      });
+    }).then(function(){
+      closeFollowerPopup();
+      toast("You and " + (who.name || "they") + " are friends now");
+      if(document.getElementById("screen-friends").classList.contains("active")){
+        loadFriends();
+      }
+      if(document.getElementById("screen-profile").classList.contains("active")){
+        loadProfile();
+      }
+    }).catch(function(e){ toast(e.message); });
   }
 
   function personRow(person, action, label){
@@ -8975,12 +9252,41 @@ window.FamAudio = (function () {
       .concat(friendsData.following || [], friendsData.followers || [])
       .filter(function(p){ return p.handle === handle; })[0];
     viewingProfile = known || { handle: handle, name: "", user_id: "" };
-    navigate("profile");
-    loadProfile();
+    navigate("person");
+    renderFriendProfile(viewingProfile);
+    // What they have chosen to publish: their public mixes, their vibes and
+    // the interests they have not hidden. Fetched after the screen is drawn,
+    // so tapping a row is never a wait.
+    loadPersonProfile(viewingProfile);
   }
 
-  function renderFriendProfile(person){
-    document.getElementById("pfTop").innerHTML =
+  function loadPersonProfile(person){
+    var handle = person.handle || "";
+    var query = handle ? "handle=" + encodeURIComponent(handle)
+                       : "user_id=" + encodeURIComponent(person.user_id || "");
+    fetch("/api/person?" + query)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        // They may have moved on, or opened somebody else, while this was in
+        // flight - the same guard every other late-arriving fetch here keeps.
+        if(!d || !viewingProfile || viewingProfile.handle !== handle) return;
+        if(!document.getElementById("screen-person").classList.contains("active")) return;
+        renderFriendProfile(viewingProfile, d);
+      })
+      .catch(function(){ /* the standing from the graph is still drawn */ });
+  }
+
+  // Their profile. Two sources, and the split is deliberate: the **standing**
+  // comes from the follow graph, which both sides can already see, and
+  // everything else comes from `/api/person`, which returns only what they
+  // actively chose to publish - public mixes, vibes, and the interests they
+  // have not hidden.
+  //
+  // What is still not here, and must not arrive: a play count, a completion
+  // total, or subjects inferred from behaviour. What somebody has listened to
+  // is theirs, and no endpoint hands one listener another one's history.
+  function renderFriendProfile(person, published){
+    document.getElementById("personTop").innerHTML =
       '<button class="pf-btn sq" onclick="goBack()" aria-label="Back">'
       + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>'
@@ -9000,16 +9306,18 @@ window.FamAudio = (function () {
     var standing = (following && followsYou) ? "friends"
                  : following ? "you follow them"
                  : followsYou ? "follows you" : "";
+    var pub = published || {};
+    var vibes = pub.vibe_count || 0;
 
     var html = '<div class="pf-id"><div class="pf-pic">'
-      + avatarHTML(person, 78) + '</div><div>'
+      + avatarHTML(pub.avatar ? pub : person, 78) + '</div><div>'
       + '<div class="pf-name">'
-      + escapeHtml(person.name || ("@" + (person.handle || ""))) + '</div>'
+      + escapeHtml(pub.name || person.name || ("@" + (person.handle || ""))) + '</div>'
       + '<div class="pf-at">@' + escapeHtml(person.handle || "") + '</div>'
-      // Nothing counted. What somebody has finished, or vibed, is on their own
-      // profile; no endpoint hands it to anybody else, and a number invented
-      // here would be a promise to keep later.
-      + (standing ? '<div class="pf-counts">' + standing + '</div>' : '')
+      + '<div class="pf-counts">'
+      + (vibes ? '<b>' + vibes + '</b> ' + plural(vibes, "vibe")
+                 + (standing ? ' · ' : '') : '')
+      + escapeHtml(standing) + '</div>'
       + '</div></div>';
 
     if(person.user_id){
@@ -9027,12 +9335,57 @@ window.FamAudio = (function () {
         + '</div>';
     }
 
-    html += famIsFam();
-    html += '<div class="pf-note">This is what the follow graph knows about '
-      + 'them, and no more. What somebody has listened to is theirs \u2014 FAM '
-      + 'has no endpoint that hands one listener another one\u2019s history, '
-      + 'and a number invented here would be a promise to keep later.</div>';
-    document.getElementById("profileBody").innerHTML = html;
+    // Their interests, as pills - the ones they have not hidden. Read from
+    // `interest_labels`, which speaks in the eight words a listener was
+    // actually offered rather than in ranking subtags.
+    var labels = pub.interest_labels || [];
+    if(labels.length){
+      html += '<div class="pf-tags">' + labels.map(function(t){
+        return '<div class="pf-tag">' + escapeHtml(t) + '</div>';
+      }).join("") + '</div>';
+    }
+
+    // Their public DailyFAM mixes. Private is the default, so anything here
+    // is a mix they switched on themselves.
+    html += foldersBlock(pub.mixes || [], false);
+
+    // And their vibes, which are by definition public: a vibe *is* the act of
+    // showing somebody an episode.
+    var theirVibes = pub.vibes || [];
+    html += '<div class="pf-rail">Vibes <em>' + vibes + '</em></div>';
+    if(theirVibes.length){
+      // The same card the listener's own vibes are drawn as, so two lists of
+      // the same thing look like the same thing.
+      html += '<div class="pf-echoes">' + theirVibes.slice(0, 4).map(function(v, i){
+        return '<div class="pf-echo" onclick="playPersonVibe(' + i + ')">'
+          + '<div class="t">' + escapeHtml(v.title || v.query) + '</div>'
+          + '<div class="m">vibed · ' + (v.minutes || 2) + ' min</div></div>';
+      }).join("") + '</div>';
+    } else {
+      html += '<div class="pf-empty">Nothing vibed yet.</div>';
+    }
+    personVibes = theirVibes;
+
+    html += '<div class="pf-note">This is what they have chosen to show: '
+      + 'public mixes, vibes, and the interests they share. What somebody has '
+      + 'listened to is theirs \u2014 FAM has no endpoint that hands one '
+      + 'listener another one\u2019s history, and a number invented here '
+      + 'would be a promise to keep later.</div>';
+    document.getElementById("personBody").innerHTML = html;
+  }
+
+  var personVibes = [];
+
+  function playPersonVibe(i){
+    var v = personVibes[i];
+    if(!v) return;
+    var key = "pvibe_" + i + "_" + Date.now();
+    TOPICS[key] = { title: v.title || v.query,
+                    source: "vibed by " + (viewingProfile && viewingProfile.name
+                                           ? viewingProfile.name : "a friend"),
+                    caption: "", prompt: v.query,
+                    exploreMinutes: v.minutes, titleOverridden: true };
+    generate(key);
   }
 
   function messagePerson(userId){
@@ -9745,13 +10098,31 @@ window.FamAudio = (function () {
     document.getElementById("reelTitle").textContent = title;
     document.getElementById("reelSub").textContent = sub || "";
     document.getElementById("reelKicker").textContent = kicker || "";
+    var vibeTag = document.getElementById("reelVibe");
+    if(vibeTag) vibeTag.hidden = true;
     document.getElementById("reelCount").textContent = "";
   }
 
   function renderReel(){
     if(!reelCurrent) return;
     var ep = reelCurrent;
-    document.getElementById("reelKicker").textContent = "Someone asked";
+    // A friend both generated this and vibed it. `vibed_by` is only ever
+    // present when both hold - the server decides that, so the card cannot
+    // claim a friendship the graph does not have.
+    var vibe = document.getElementById("reelVibe");
+    if(vibe){
+      var by = ep.vibed_by;
+      vibe.hidden = !by;
+      if(by){
+        var av = document.getElementById("reelVibeAv");
+        av.style.background = personHue(by.handle || by.name);
+        av.innerHTML = avatarHTML(by, 22);
+        document.getElementById("reelVibeT").innerHTML =
+          "<b>" + escapeHtml(by.name) + "</b> vibed with this episode";
+      }
+    }
+    document.getElementById("reelKicker").textContent =
+      ep.vibed_by ? "From a friend" : "Someone asked";
     document.getElementById("reelTitle").textContent = ep.title;
     document.getElementById("reelSub").textContent =
       relativeAge(ep.age_seconds) + " · " + ep.minutes + " min"
@@ -10757,13 +11128,13 @@ window.FamAudio = (function () {
   }
 
   // ---------------- Splash screen ----------------
-  function showSplash(){
+  function showSplash(ms){
     var splash = document.getElementById("splashScreen");
     if(!splash) return;
     splash.classList.remove("hide");
     setTimeout(function(){
       splash.classList.add("hide");
-    }, 1400);
+    }, ms || 1400);
   }
   showSplash();
   // The entry screens run once and then never again. Everything after them is
@@ -10773,6 +11144,9 @@ window.FamAudio = (function () {
     if(!entryComplete()){ startEntry(); return; }
     loadPrefChoices();
     loadMyFamFeed();
+    // There is no push, so the honest moment to say "___ started following
+    // you" is the next time this listener's own app asks.
+    checkNewFollowers();
   });
 </script>
 

@@ -142,20 +142,28 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "finishing the intro did not land in the app"
 
-        def nothing_pops_up_on_a_new_week():
+        def no_weekly_recap_pops_up():
             """The weekly recap popup is gone at the owner's direction, and
             its shelf is myFAM's "What you missed last week" rail.
 
             Checked as an absence because the failure it guards is the popup
             coming back: a recap that fires on the first open of a new week is
             an interruption in front of an app somebody opened to listen to
-            something, and a rail is not."""
+            something, and a rail is not.
+
+            The follower popup is deliberately *not* in this net. "___ started
+            following you" is an interruption somebody else caused and the
+            listener wants; a summary of their own week is neither."""
             page.wait_for_timeout(1200)
             assert not page.query_selector("#recapOverlay"), \
                 "the weekly recap popup came back"
             overlays = page.eval_on_selector_all(
                 ".modal-overlay.active", "e => e.map(x => x.id)")
-            assert overlays == [], f"something popped up unasked: {overlays}"
+            unexpected = [o for o in overlays if o != "followerOverlay"]
+            assert unexpected == [], f"something popped up unasked: {unexpected}"
+            # And clear whatever is up, so the next behaviour is clickable.
+            page.evaluate("closeFollowerPopup()")
+            page.wait_for_timeout(300)
 
         def myfam():
             """One rail per signal, and the count comes from the code.
@@ -643,6 +651,194 @@ def main() -> int:
             }""")
             assert page.text_content("#p-title").strip() == "Mine", \
                 "a title the listener set was overwritten"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_friends_vibe_is_named_on_an_explore_card():
+            """"<name> vibed with this episode", with their face, when a
+            *friend* both generated it and vibed it.
+
+            Driven through `renderReel` with a card of each kind rather than
+            read off the feed, because the live build has one listener in its
+            database and therefore honestly no friends - the tag is the same
+            code on both, and this checks the code."""
+            page.evaluate("showScreen('explore')")
+            page.evaluate("""() => {
+              reelCurrent = { query: 'why volcanoes erupt',
+                title: 'What Makes A Volcano Go', minutes: 2, thread: '',
+                age_seconds: 300, vibed: true,
+                vibed_by: { name: 'Rachel Solomon', handle: 'rachels',
+                            avatar: '' } };
+              renderReel();
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#reelVibe", "e => !e.hidden"), \
+                "the friend tag did not appear"
+            said = page.text_content("#reelVibe").strip()
+            assert "Rachel Solomon" in said and "vibed with this episode" in said, \
+                f"the tag says {said!r}"
+            assert page.eval_on_selector("#reelVibeAv", "e => e.innerHTML.length") > 0, \
+                "no picture beside the name"
+
+            # A stranger's vibe lifts a card and does not name anybody. Putting
+            # names the listener has never heard of under a card about their
+            # friends is the mistake §102 took off myFAM.
+            page.evaluate("""() => {
+              reelCurrent = { query: 'why bonds move', title: 'Bonds',
+                minutes: 2, thread: '', age_seconds: 300, vibed: true };
+              renderReel();
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#reelVibe", "e => e.hidden"), \
+                "a card with no friend behind it still showed the tag"
+            # Put Explore's own state back. This check reached into
+            # `reelCurrent` to drive the render, and leaving a synthetic card
+            # there breaks the reel for anything that runs after it.
+            page.evaluate("reelCurrent = null; reelQueue = []; reelHistory = []")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def friends_navigation_comes_back_to_your_own_profile():
+            """The bug the packet describes, in four symptoms with one cause:
+            a friend's profile was drawn into `screen-profile` with a variable
+            deciding whose it was. So back from the friend popped to Friends,
+            back again showed `screen-profile` still holding the *friend's*
+            DOM, back again fell through to search, and the Profile tab
+            flashed them. Two pages sharing one container is one bug, not a
+            routing bug with four fixes - the friend's profile has its own
+            screen now."""
+            ensure_account()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+                                   timeout=10000, state="attached")
+            mine = page.text_content("#profileBody")
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1200)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "Friends did not open"
+
+            # Opened by name rather than by tapping a row: the live build has
+            # one listener in its database and so honestly no friends to tap,
+            # and this is a check about the navigation, which is the same code
+            # on both builds.
+            page.evaluate("openPersonProfile('beth')")
+            page.wait_for_timeout(900)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-person", "a friend's profile is not its own screen"
+
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "back from a friend did not reach Friends"
+
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-profile", \
+                "back from Friends did not reach your own profile"
+            # And it is *yours*, not the last friend's left behind in the DOM.
+            assert page.text_content("#profileBody") == mine, \
+                "your own profile came back holding a friend's page"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_friends_profile_shows_what_they_published():
+            """Public mixes, vibes and interest pills - and nothing else. What
+            somebody has listened to is theirs; there is no endpoint that
+            hands one listener another one's history, and a number invented
+            here would be a promise to keep later."""
+            ensure_account()
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1000)
+            page.evaluate("openPersonProfile('beth')")
+            page.wait_for_timeout(1400)
+            body = page.text_content("#personBody") or ""
+            assert "Vibes" in body, "no vibes section on a friend's profile"
+            # The line that has to stay true of this screen, whether or not
+            # there is anything on it.
+            assert "no endpoint" in body, \
+                "the profile stopped saying what it deliberately does not know"
+
+            # The rest is about what a *filled* profile shows, and needs
+            # somebody in the graph to have published something. The live
+            # build has one listener in its database and so honestly nobody
+            # else at all - which is a fact about that deployment, and the
+            # reason this is a precondition rather than an assertion.
+            if not page.evaluate("(friendsData.followers || []).length"):
+                page.evaluate("goBack()")
+                page.evaluate("openMyFamTab()")
+                page.wait_for_timeout(400)
+                return
+            assert page.eval_on_selector_all("#personBody .pf-echo",
+                                             "e => e.length") >= 1, \
+                "their vibes are not listed"
+            assert page.eval_on_selector_all("#personBody .pf-tag",
+                                             "e => e.length") >= 1, \
+                "no interest pills on a friend's profile"
+            assert "DailyFAM mixes" in body, "no public mixes on their profile"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_new_follower_is_announced_and_can_be_followed_back():
+            """"___ started following you", with their picture, a Follow back
+            button and an X.
+
+            Driven with a synthetic follower rather than read off the graph,
+            because the live build has one listener in its database and so
+            honestly nobody to be one - the popup is the same code on both
+            builds, and this checks the code."""
+            ensure_account()
+            page.evaluate("""() => {
+              followerPopupShown = {};
+              showFollowerPopup({ user_id: 'u_test', name: 'Nadia Okoro',
+                                  handle: 'nadia', avatar: '',
+                                  follows_back: false });
+            }""")
+            page.wait_for_selector("#followerOverlay.active", timeout=8000)
+            said = page.text_content("#nfName").strip()
+            assert "Nadia Okoro" in said and "started following you" in said, \
+                f"the popup says {said!r}"
+            assert page.eval_on_selector("#nfAvatar", "e => e.innerHTML.length") > 0, \
+                "no picture at the top of the popup"
+            assert page.query_selector("#followerOverlay .modal-x"), \
+                "the popup cannot be ignored"
+            assert not page.eval_on_selector("#nfBack", "e => e.hidden"), \
+                "no way to follow back"
+
+            # Somebody already followed gets no button, because "Follow back"
+            # there is a control that cannot do anything.
+            page.evaluate("""() => {
+              showFollowerPopup({ user_id: 'u_test2', name: 'Beth Solomon',
+                                  handle: 'beth', avatar: '',
+                                  follows_back: true });
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#nfBack", "e => e.hidden"), \
+                "Follow back was offered to somebody already followed"
+            page.evaluate("closeFollowerPopup()")
+            page.wait_for_timeout(300)
+            assert not page.query_selector("#followerOverlay.active"), \
+                "the popup did not close"
+
+            # The unread count on the profile's Friends tile, and the rule
+            # that it clears on the *tab* and never when a popup is drawn -
+            # otherwise it is a number nobody got to read.
+            page.evaluate("""() => {
+              newFollowers = [{ user_id: 'u_test', name: 'Nadia Okoro',
+                                handle: 'nadia', avatar: '',
+                                follows_back: false }];
+              renderProfile(profileNow || { finished: 0, follows: {} });
+            }""")
+            page.wait_for_timeout(300)
+            badge = page.query_selector(".pf-hub-badge")
+            assert badge and int(badge.text_content()) == 1, \
+                "no unread follower count on the Friends tile"
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("newFollowers.length") == 0, \
+                "opening the Friends tab did not clear the count"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -1498,7 +1694,7 @@ def main() -> int:
 
         print(f"smoke test: {target.name}")
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
-        check("Nothing pops up on a new week", nothing_pops_up_on_a_new_week)
+        check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
@@ -1517,6 +1713,14 @@ def main() -> int:
         check("The player names its four icons", the_player_names_its_four_icons)
         check("An episode is titled by what it is about",
               an_episode_is_titled_by_what_it_is_about)
+        check("A friend's vibe is named on an Explore card",
+              a_friends_vibe_is_named_on_an_explore_card)
+        check("Friends navigation comes back to your own profile",
+              friends_navigation_comes_back_to_your_own_profile)
+        check("A friend's profile shows what they published",
+              a_friends_profile_shows_what_they_published)
+        check("A new follower is announced and can be followed back",
+              a_new_follower_is_announced_and_can_be_followed_back)
         check("Live captions show the script being read",
               live_captions_show_the_script_being_read)
         check("The sources cluster shows three in the corner",

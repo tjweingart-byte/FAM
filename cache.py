@@ -492,7 +492,8 @@ class MemoryScriptCache:
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
             {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
-             "plays": 0, "thread": v[2], "title": self._titles.get(k, "")}
+             "plays": 0, "thread": v[2], "title": self._titles.get(k, ""),
+             "author": self._authors.get(k, "")}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and not (exclude_author and self._authors.get(k) == exclude_author)
@@ -764,8 +765,8 @@ class SqliteScriptCache:
         """
         try:
             rows = self._conn().execute(
-                "SELECT key, query, minutes, created, hits, thread, title"
-                " FROM scripts"
+                "SELECT key, query, minutes, created, hits, thread, title,"
+                " author FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"
                 " ORDER BY created DESC LIMIT ?",
@@ -776,8 +777,15 @@ class SqliteScriptCache:
             log.exception("could not read recent scripts")
             return []
         return [
+            # `author` is here for exactly one display decision - whether a
+            # *friend* generated this - and must not leave the server as an
+            # id. `/api/explore` resolves it to a name and a picture and emits
+            # neither. Authorship is provenance, never identity: nothing about
+            # the key or the bucket reads it, and a listener id one field away
+            # from the key is one refactor away from being in it.
             {"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
-             "plays": r[4], "thread": r[5] or "", "title": r[6] or ""}
+             "plays": r[4], "thread": r[5] or "", "title": r[6] or "",
+             "author": r[7] or ""}
             for r in rows
         ]
 

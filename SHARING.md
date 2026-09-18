@@ -152,6 +152,63 @@ somebody's saved episodes because they tidied up is the kind of surprise that
 stops people using a feature. *(No interface exposes folders any more — see
 "In the interface" below. The rule stands for whatever puts them back.)*
 
+## Somebody else's profile
+
+`GET /api/person?handle=…` returns **only what they chose to publish**, and
+that is the whole specification:
+
+* **public mixes** — private by default, so anything here is a mix its owner
+  switched on;
+* **vibes** — a vibe *is* the act of showing somebody an episode, so a list of
+  them is a list of things they published;
+* **interests they have not hidden**.
+
+There is no play count, no completion total, no subjects inferred from
+behaviour and no history. What somebody has listened to is theirs. The
+endpoint exists because that line needed drawing in code rather than by having
+no endpoint at all — the screen was already there, describing people with
+nothing behind it.
+
+**The boundary is the graph.** A handle can be resolved by anybody, because
+handles are how people find each other; a bare `user_id` is only accepted for
+somebody already in the asking listener's following or followers, since an id
+is guessable in a way a handle search is not. And the response carries no
+`user_id` of its own: the follow buttons on that screen already have the id
+they need from the graph, and an id the client did not need is an id that can
+be sent back.
+
+**Hidden rather than shared** is how the interest choice is stored. Somebody's
+interests are the least private thing here and the whole premise of the social
+surfaces, so the honest default is that they are on their profile — and an
+empty column then means "all of them", which is what every existing row
+already says. Storing the *shared* set would default to nothing shared, so
+every profile in the app would show an empty pill row that reads as broken
+until each listener opted in one at a time.
+
+## New followers
+
+`GET /api/friends` carries `new_followers`: who followed since this listener
+last looked. It is a query over the follow graph's own timestamps against one
+column (`people.followers_seen`) saying when that was — not a second table
+with its own read state to get wrong.
+
+`POST /api/friends/seen` is what clears it, and it is called from the **Friends
+tab** and never when the popup is drawn: a badge that cleared itself the moment
+something drew it would be a count nobody got to read.
+
+`followers_seen` defaults to nought, so every follower a listener already has
+reads as new the first time they open the tab after this ships. That is the
+right direction — the alternative is defaulting to *now* and silently
+swallowing followers they were never told about.
+
+`follows_back` rides along on each one, so the popup knows whether to offer the
+button. Offering "Follow back" to somebody who is already a friend is a control
+that cannot do anything.
+
+There is no push and will not be until the app exists, so the honest moment to
+say "___ started following you" is the next time this listener's own app asks —
+on open, and when the profile loads.
+
 ## Where a share actually goes
 
 Every destination now carries a **hand-off URL** as well as its wording, and
@@ -215,6 +272,19 @@ That is the whole difference between a share sheet and an integration.
   with nothing behind it is worse than no control. `saved.py` still stores a
   folder, unused, because unfiling everybody's episodes to delete a column is
   a migration with a real cost and no benefit.
+* **A friend's profile is its own screen.** It used to be drawn into
+  `screen-profile` with a variable deciding whose it was, and that one fact
+  produced all four symptoms of the navigation bug: back from the friend
+  popped to Friends, back again showed `screen-profile` still holding the
+  *friend's* DOM, back again fell through to search, and the Profile tab
+  flashed them before `loadProfile` replaced it. Two pages sharing one
+  container is one bug, not a routing bug with four fixes.
+* **A friend's vibe is named on an Explore card.** "___ vibed with this
+  episode", with their face, when a *friend* both generated the episode and
+  vibed it. Two conditions because the card claims a friendship: a stranger's
+  vibe is not addressed to you, and a friend who generated something without
+  vibing it did not recommend it. A stranger's vibe still lifts a card in the
+  order and no longer puts their name on one.
 * **Every player** — search, play-all and Explore — has **share** and **save**.
   Explore included, so the surface where people find things is not the one
   where they cannot keep them.

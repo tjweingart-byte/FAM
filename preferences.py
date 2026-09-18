@@ -147,15 +147,34 @@ class Preferences:
 
     user_id: str
     interests: tuple[str, ...] = ()
+    #: Interests this listener has chosen **not** to show on their profile.
+    #:
+    #: Stored as the hidden set rather than the shared one, and that is the
+    #: decision worth writing down. Somebody's interests are the least private
+    #: thing here and the whole premise of the social surfaces, so the honest
+    #: default is that they are on their profile - and an empty column then
+    #: means "all of them", which is what every existing row already says.
+    #: Storing the *shared* set would default to nothing shared, so every
+    #: profile in the app would show an empty pill row that reads as broken
+    #: until each listener went and opted in one at a time.
+    hidden_interests: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
     recap_week: str = ""
     intro_done: bool = False
 
+    @property
+    def public_interests(self) -> tuple[str, ...]:
+        """What another listener may see. Derived, so the two cannot disagree."""
+        hidden = set(self.hidden_interests)
+        return tuple(t for t in self.interests if t not in hidden)
+
     def as_dict(self) -> dict:
         return {
             "interests": list(self.interests),
+            "hidden_interests": list(self.hidden_interests),
+            "public_interests": list(self.public_interests),
             "language": self.language,
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
@@ -181,6 +200,14 @@ class PreferenceStore:
                        updated      REAL NOT NULL
                    )"""
             )
+            # Added after the table shipped, so an existing row is widened
+            # rather than recreated. Empty means "none hidden", which is what
+            # every row written before this already meant.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " hidden_interests TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -196,7 +223,8 @@ class PreferenceStore:
             return Preferences("")
         try:
             row = self._conn().execute(
-                "SELECT interests, language, weekly_recap, recap_week, intro_done"
+                "SELECT interests, language, weekly_recap, recap_week,"
+                " intro_done, hidden_interests"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -213,12 +241,14 @@ class PreferenceStore:
             weekly_recap=bool(row[2]),
             recap_week=row[3] or "",
             intro_done=bool(row[4]),
+            hidden_interests=tuple(t for t in (row[5] or "").split(",") if t),
         )
 
     def save(
         self,
         user_id: str,
         interests: Optional[Iterable[str]] = None,
+        hidden_interests: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
@@ -238,6 +268,9 @@ class PreferenceStore:
             user_id=user_id,
             interests=(clean_interests(interests) if interests is not None
                        else current.interests),
+            hidden_interests=(clean_interests(hidden_interests)
+                              if hidden_interests is not None
+                              else current.hidden_interests),
             language=(clean_language(language) if language is not None
                       else current.language),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
@@ -249,10 +282,11 @@ class PreferenceStore:
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
-                    intro_done, updated)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+                    intro_done, updated, hidden_interests)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
-                   interests    = excluded.interests,
+                   interests        = excluded.interests,
+                   hidden_interests = excluded.hidden_interests,
                    language     = excluded.language,
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
@@ -260,7 +294,7 @@ class PreferenceStore:
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
-             at or time.time()),
+             at or time.time(), ",".join(merged.hidden_interests)),
         )
         return merged
 
