@@ -238,6 +238,15 @@ pool of six tiles all from one source is a browse page about one corner of the
 world. That is a configuration finding rather than a bug, and the fix is the
 next provider in the list.
 
+**And one step that is only possible once API-Sports has a real key**:
+`ApiSportsSignals` asks for one date per product and gets that day's fixtures
+from every league on earth, so the tiles it produces are stable but not
+necessarily interesting - a third-division match ranks exactly as a marquee
+one. Add a `league` (and, where the product needs it, `season`) parameter once
+you can see real responses, and decide which leagues this deployment serves.
+It is deliberately not guessed at from the documentation: the wrong parameter
+name does not fail, it returns somebody else's fixtures.
+
 ## Recommended order, and why
 
 1. **GDELT** — free, no account, and it is the only one that improves *every*

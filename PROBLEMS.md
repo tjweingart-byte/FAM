@@ -6615,3 +6615,101 @@ spent the lot on a page nobody opened. So a source declares
 sixth outcome, and the only one that is not a fault. Reporting it as `empty`
 would have made a working source look broken, which is the same "three
 sentences collapsed into one" mistake the outcome vocabulary exists to prevent.
+
+## 103. The pre-merge review of §102, and a clock that reset itself
+
+An audit before handing §102 to `Main`, in the shape §101 set. The branch is
+one commit, `origin/Main` is an ancestor, so it fast-forwards and no merge
+commit is needed. Working tree clean, nothing secret-shaped in the diff, no
+`console.log`, no `pdb`, **no schema change at all** - and the new code was
+still run against a database written by the pre-branch code, because "there is
+no migration" is exactly the sort of claim that is true right up until it is
+not. Old rows read, ranked and served.
+
+Seven findings. Four were real bugs, and the first one would have quietly
+undone the feature it was part of.
+
+### A story evicted by the variety cap came back as a brand new one
+
+`_diversified` ran when the pool was **written**, so a story it passed over was
+discarded. The next sweep saw that subject again, found no record of it, and
+admitted it as new: `first_seen = now`. Which means it never aged, never
+expired, never reached `SUBJECT_COOLDOWN`, and was **composed and paid for
+again every window**.
+
+Reproduced: five sports tiles admitted, three evicted; six hours later all
+three were back reporting an age of 0.0 hours. So the subjects most likely to
+be evicted - the ones from a busy facet - were exactly the ones that would
+have been shown forever, which is the failure `DOMAIN_SHELF_LIFE` and the
+cooldown exist to prevent, arriving through the one door the push model was
+not watching.
+
+Two changes, because one of them alone would leave the other hole open:
+
+* **The pool keeps more than it offers.** `POOL_STORE` holds everything
+  unexpired; `Pool.live` applies the variety cap on the way *out*. An
+  over-served story is now hidden rather than forgotten.
+* **`_FIRST_SEEN` remembers the clock regardless of pool membership**, so even
+  a story that falls out of the store entirely comes back with the age it had.
+  `_admissible` knows three states - never seen, seen and still inside its
+  shelf life, seen and past it - and only the first may start a clock.
+
+The general form, and it is the one worth keeping: **an eviction that forgets
+is a creation.** Anything with a lifecycle needs its clock kept somewhere that
+outlives its membership of the thing that displays it.
+
+### The composition budget counted the trolley and not the shelf
+
+`_worth_composing` capped per facet from an **empty** counter, so a window
+whose pool already held five sports tiles would happily buy five more - and
+`Pool.live` then showed the same five as yesterday. Money spent on tiles that
+could not be reached. Seeded from what is already held.
+
+### The outcome guard watched the two fields that are read, not the one that is used
+
+`_RESULT_WORDS` checked `title` and `angle` and not `query`. The title is what
+a listener reads; **the query is what the pipeline researches from**, so a
+result asserted there is one the episode inherits and then elaborates. It was
+the field the guard could least afford to miss and the only one it did.
+
+### An empty Trending rail blamed the sources for our own ordering
+
+Made for you fills first, so on a thin day it can take the whole pool and leave
+Trending empty - and the rail reported `stories.Pool.empty_reason`, which says
+things like "the live sources had nothing new this time". That is our own
+page's arrangement stated as a fact about the world: §89 with a new way in.
+`_world_empty_reason` now distinguishes the two, and says where the stories
+went.
+
+### Three smaller ones
+
+**A provider that raises in `diagnose()` stopped the pool forever.** `diagnose`
+ran outside the per-source `try`, and the refresh is scheduled and never
+awaited, so the exception became one log line and the pool never refreshed
+again with the page still looking normal. Guarded, and the endpoint's
+`create_task` now goes through the same wrapper the boot sweep uses.
+
+**API-Sports ordering was the provider's.** Three strength values over a whole
+day's card means most fixtures tie, and a stable sort hands a tie to whatever
+the API listed first - so the tiles changed between sweeps for no visible
+reason. Tie broken on the subject. The *bigger* problem underneath it is named
+rather than fixed: there is **no league filter**, so a day's card is every
+league on earth. The parameter wants a real key in front of the real API,
+because a wrong one does not fail - it returns somebody else's fixtures.
+
+**`tools/prefetch_report.py` under-reported.** It never got the `social_store`
+the feed source now needs, so its friends rail was always empty and the report
+claimed the server would warm less than it would.
+
+### And the check that was not failing
+
+`dev.sh check` printed `1 check(s) failed` and **exited 0**, because the smoke
+tests were run with `|| echo` and the mode exited zero unconditionally. It hid
+a real failure during §102 itself - the run said nothing was wrong and the
+shell agreed. The exit code carries the result now.
+
+Same finding one layer out, which is §101's exactly: **a check added to the
+local loop is not added to the gate.** `dev.sh` has built and smoke-tested
+*both* previews for a while; CI built and smoke-tested only the fixture one -
+and the live build is the one that gets published, and carries its own copy of
+`topics.SECTIONS`. Both are in `ci.yml` now.

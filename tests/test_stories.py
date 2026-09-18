@@ -94,6 +94,17 @@ def test_no_template_states_an_outcome():
         assert "won" not in text and "beat" not in text
 
 
+def test_the_outcome_guard_covers_the_query_and_not_only_the_words_shown():
+    """`query` is the one that reaches the pipeline. A result asserted in the
+    title is read; a result asserted in the query is *researched from*, and the
+    episode inherits it - so it is the field the guard could least afford to
+    miss."""
+    import inspect
+
+    body = inspect.getsource(stories.compose)
+    assert "_safe(query)" in body, "the query is not checked"
+
+
 def test_a_composed_tile_that_states_a_result_falls_back_to_its_template():
     """The prompt is what is supposed to hold. This is the check that says it
     did not - the same shape as `OpeningGuard`, and for the same reason: a
@@ -205,14 +216,82 @@ def test_a_story_survives_a_sweep_that_forgot_to_mention_it(monkeypatch):
 # --------------------------------------------------------------------------
 # variety
 # --------------------------------------------------------------------------
-def test_one_facet_cannot_take_over_the_pool(monkeypatch):
+def test_one_facet_cannot_take_over_what_the_pool_offers(monkeypatch):
     no_composer(monkeypatch)
     stories.register(Source([
         signal(f"game {n}", stories.SPORTS, tags=("sports",))
         for n in range(stories.MAX_PER_FACET + 4)
     ]))
     asyncio.run(stories.refresh())
-    assert len(stories.pool().stories) == stories.MAX_PER_FACET
+    assert len(stories.pool().live()) == stories.MAX_PER_FACET
+
+
+def test_the_pool_keeps_more_than_it_offers():
+    """The variety cap hides a story; it must not forget one.
+
+    Capping on the way *in* discarded the overflow, and the next sweep saw
+    those subjects again with no record of them - so each came back as brand
+    new, with a fresh clock, and could never age, expire or cool off. The cap
+    runs on the way out now, which is the difference between hidden and gone.
+    """
+    over = stories.MAX_PER_FACET + 4
+    stories.seed([stories.template(
+        signal(f"game {n}", stories.SPORTS, tags=("sports",)))
+        for n in range(over)])
+    assert len(stories.pool().live()) == stories.MAX_PER_FACET
+    assert len(stories.pool().held()) == over, "the overflow was thrown away"
+
+
+def test_a_story_that_falls_out_of_the_pool_does_not_come_back_as_a_new_one(monkeypatch):
+    """The reported bug, through the path that produced it.
+
+    `POOL_STORE` is a real ceiling, so a story can still leave the pool
+    altogether. When its subject turns up again it is the same story - and
+    before the ledger it arrived with `first_seen` set to now, which meant it
+    never aged, never expired, never reached the cooldown, and was paid for
+    again every window.
+    """
+    no_composer(monkeypatch)
+    monkeypatch.setattr(stories, "POOL_STORE", 2)
+    rows = [signal("one", tags=("tech",), strength=1.0),
+            signal("two", tags=("money",), strength=0.9),
+            signal("three", tags=("world",), strength=0.2),
+            signal("four", tags=("health",), strength=0.1)]
+    stories.register(Source(rows))
+
+    start = time.time()
+    asyncio.run(stories.refresh(now=start))
+    held = {s.subject for s in stories.pool().held(start)}
+    assert len(held) == 2, "POOL_STORE did not bite, so this proves nothing"
+    dropped = [r.subject for r in rows if r.subject not in held]
+
+    # They come back later. The clock they come back with is the first one.
+    later = start + 5 * 3600
+    monkeypatch.setattr(stories, "POOL_STORE", 8)
+    asyncio.run(stories.refresh(now=later))
+    by_subject = {s.subject: s for s in stories.pool().held(later)}
+    for subject in dropped:
+        assert by_subject[subject].first_seen == pytest.approx(start, abs=1), (
+            f"{subject!r} restarted its clock when it came back")
+
+    # And so they expire on time rather than living forever.
+    past = start + stories.DOMAIN_SHELF_LIFE[stories.ATTENTION] + 60
+    asyncio.run(stories.refresh(now=past))
+    assert stories.pool().held(past) == []
+
+
+def test_a_subject_dropped_for_room_keeps_its_clock(monkeypatch):
+    """Same rule one level down: `POOL_STORE` is a real ceiling, so something
+    can still fall out of the pool entirely - and the ledger is what stops
+    *that* one coming back new either."""
+    no_composer(monkeypatch)
+    key = stories.story_id("undersea cables")
+    start = time.time()
+    stories._FIRST_SEEN[key] = start
+    stories.register(Source([signal()]))
+    asyncio.run(stories.refresh(now=start + 3 * 3600))
+    story = stories.pool().stories[0]
+    assert story.first_seen == pytest.approx(start, abs=1)
 
 
 # --------------------------------------------------------------------------
@@ -316,6 +395,29 @@ def test_a_composer_that_fails_costs_quality_and_never_availability(monkeypatch)
     assert pool.stories[0].degraded
 
 
+def test_a_source_that_cannot_even_diagnose_itself_is_skipped(monkeypatch):
+    """`diagnose` runs outside the per-source try, so one that raised took the
+    whole sweep with it - permanently, because nothing awaits the refresh."""
+    no_composer(monkeypatch)
+
+    class Cursed(stories.StorySource):
+        name = "cursed"
+        domain = stories.ATTENTION
+
+        def diagnose(self):
+            raise RuntimeError("config blew up")
+
+        async def collect(self, limit):
+            return []
+
+    stories.register(Cursed())
+    stories.register(Source([signal()], name="working"))
+    pool = asyncio.run(stories.refresh())
+    assert [s.subject for s in pool.stories] == ["undersea cables"]
+    outcomes = {r.name: r.outcome for r in pool.sources}
+    assert outcomes["cursed"] == stories.SOURCE_FAILED
+
+
 def test_one_broken_source_does_not_empty_the_pool(monkeypatch):
     no_composer(monkeypatch)
     stories.register(Source([], name="broken", blow_up=True))
@@ -385,6 +487,33 @@ def test_two_sources_naming_the_same_subject_produce_one_tile(monkeypatch):
     stories.register(Source([signal()], name="two"))
     pool = asyncio.run(stories.refresh())
     assert len(pool.stories) == 1
+
+
+def test_the_compose_budget_counts_what_is_already_held(monkeypatch):
+    """An empty facet counter let a window buy more of a facet the pool was
+    already full of, and `Pool.live` then showed yesterday's five anyway. The
+    budget has to count the shelf, not just the trolley."""
+    composed = {"subjects": []}
+
+    async def fake_compose(signals, now=None):
+        composed["subjects"] = [s.subject for s in signals]
+        return [stories.template(s, now or time.time()) for s in signals]
+
+    monkeypatch.setattr(stories, "compose", fake_compose)
+    source = Source([signal(f"game {n}", stories.SPORTS, tags=("sports",))
+                     for n in range(stories.MAX_PER_FACET)])
+    stories.register(source)
+    asyncio.run(stories.refresh())
+    assert len(composed["subjects"]) == stories.MAX_PER_FACET
+
+    # The facet is full. A second window offering more of it buys nothing.
+    source.rows = source.rows + [
+        signal(f"late game {n}", stories.SPORTS, tags=("sports",))
+        for n in range(3)]
+    composed["subjects"] = []
+    asyncio.run(stories.refresh())
+    assert composed["subjects"] == [], (
+        f"paid for {composed['subjects']} into a facet that is already full")
 
 
 def test_nothing_is_composed_that_the_variety_cap_would_throw_away(monkeypatch):

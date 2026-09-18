@@ -381,3 +381,35 @@ def test_an_impression_on_a_live_story_is_recorded_with_its_tags(store):
     store.record_impressions("me", [("world_trending", hot.id)])
     shown = store.impressions_for("me")
     assert shown and shown[0].tags == ("tech", "chips")
+
+
+def test_an_empty_trending_rail_never_blames_the_sources_for_our_own_ordering(store):
+    """Made for you chooses first, so it can empty this rail on a day the pool
+    served perfectly well. Saying "the live sources had nothing" there would be
+    our own page's arrangement reported as a fact about the world - §89's
+    mistake with a new way in."""
+    play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
+    # One story, and it is one this listener's history claims.
+    stories.seed([story("the chip export rules", ("tech", "chips"))])
+
+    feed = T.build_feed(store, "me")
+    by_key = {s["key"]: s for s in feed["sections"]}
+    assert by_key["from_history"]["topics"], "the rail above did not claim it"
+    row = by_key["world_trending"]
+    assert row["topics"] == []
+    said = row["empty_reason"].lower()
+    assert "made for you" in said, f"the rail does not say where it went: {said}"
+    for blame in ("didn't answer", "had nothing", "isn't connected",
+                  "couldn't reach"):
+        assert blame not in said, (
+            f"an empty rail blamed the sources for our own ordering: {said}")
+
+
+def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
+    """The other half. With nothing in the pool the honest sentence is about
+    this deployment, and it is the pool's own - it knows which way it came up
+    empty."""
+    feed = T.build_feed(store, "me")
+    row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
+    assert row["empty_reason"] == stories.pool().empty_reason
+    assert "isn't connected" in row["empty_reason"]

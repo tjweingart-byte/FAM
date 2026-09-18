@@ -145,12 +145,28 @@ DOMAIN_SHELF_LIFE = {
 #: subject the world talks about all week from being the same tile all week.
 SUBJECT_COOLDOWN = 36 * 3600.0
 
-#: At most this many stories in the pool at once, and at most this many
+#: At most this many stories **offered** at once, and at most this many
 #: sharing one facet. The second is the variety rule applied before the
 #: rankers ever see the inventory: a busy Sunday in sport must not be able to
 #: crowd everything else out of the bank.
 POOL_SIZE = 24
 MAX_PER_FACET = 5
+
+#: At most this many stories **kept**, which is a different number on purpose.
+#:
+#: The variety cap used to be applied when the pool was written, so a story it
+#: passed over was discarded - and the next sweep saw the subject again, had no
+#: record of it, and admitted it as brand new. Its `first_seen` reset, so it
+#: never aged, never expired, never reached the cooldown, and was paid for
+#: again every window: the "shown the same thing forever" failure arriving
+#: through the one door the push model did not watch.
+#:
+#: So the pool keeps more than it shows. `Pool.live` applies the variety cap on
+#: the way out, where an over-served story is *hidden* rather than forgotten,
+#: and `_FIRST_SEEN` remembers the clock of anything that falls out of even
+#: this. What is shown is capped; what is remembered is what makes the cap
+#: honest.
+POOL_STORE = 48
 
 #: How many signals one source may contribute to a single refresh. Without it
 #: the provider with the chattiest endpoint decides what FAM is about.
@@ -340,11 +356,25 @@ class Pool:
         return bool(self.stories)
 
     def live(self, now: Optional[float] = None) -> list:
-        """The unexpired stories, loudest first. What every rail reads."""
+        """The stories worth offering: unexpired, loudest first, facet-capped.
+
+        The variety pass runs **here**, on the way out, rather than when the
+        pool is written - see `POOL_STORE`. A story it passes over is still
+        held, still ageing and still remembered, so it cannot come back round
+        as a brand new one.
+        """
         now = time.time() if now is None else now
-        rows = [s for s in self.stories if not s.expired(now)]
-        rows.sort(key=lambda s: (-s.push(now), s.id))
-        return rows
+        return _diversified([s for s in self.stories if not s.expired(now)], now)
+
+    def held(self, now: Optional[float] = None) -> list:
+        """Everything unexpired, including what the variety cap is hiding.
+
+        What the pool *knows*, as opposed to what it offers. Used when
+        deciding what is worth composing, because a subject already held costs
+        nothing and must not be bought twice.
+        """
+        now = time.time() if now is None else now
+        return [s for s in self.stories if not s.expired(now)]
 
     @property
     def empty_reason(self) -> str:
@@ -425,6 +455,14 @@ _REFRESHING = False
 #: subject id -> when it was retired. The cooldown that stops a long-running
 #: subject being the same tile for a week.
 _RETIRED: dict = {}
+#: subject id -> when FAM first saw it, kept **independently of the pool**.
+#:
+#: This is the clock the push model runs on, and it has to outlive pool
+#: membership: a story dropped for room or hidden by the variety cap and then
+#: seen again is the same story, not a new one. Without this ledger it came
+#: back with a fresh `first_seen` every time, which is an ageing model that
+#: never ages anything.
+_FIRST_SEEN: dict = {}
 #: source name -> when it was last asked. See `StorySource.min_interval_seconds`.
 _LAST_SWEPT: dict = {}
 
@@ -457,6 +495,7 @@ def reset() -> None:
     _POOL = Pool()
     _REFRESHING = False
     _RETIRED.clear()
+    _FIRST_SEEN.clear()
     _LAST_SWEPT.clear()
 
 
@@ -498,7 +537,19 @@ async def collect(limit: int = MAX_PER_SOURCE,
     reports: list = []
     ready: list = []
     for source in _SOURCES:
-        ok, why = source.diagnose()
+        # `diagnose` is supposed to be cheap and total, and one that raises
+        # would otherwise take the whole sweep with it - permanently, since
+        # the caller schedules this and never looks at the result. A provider
+        # that cannot even say why it is unwell is simply not asked.
+        try:
+            ok, why = source.diagnose()
+        except Exception as exc:  # noqa: BLE001 - one provider is not the sweep
+            log.warning("stories: %s could not diagnose itself: %s",
+                        source.name, exc, exc_info=True)
+            reports.append(SourceReport(
+                source.name, source.domain, SOURCE_FAILED, 0,
+                f"diagnose() raised {type(exc).__name__}: {exc}"))
+            continue
         if not ok:
             reports.append(SourceReport(source.name, source.domain,
                                         NOT_CONFIGURED, 0, why))
@@ -779,12 +830,17 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
         query = str(row.get("query") or "").strip()
         if not (title and query):
             continue
-        if not (_safe(title) and _safe(angle)):
+        if not (_safe(title) and _safe(angle) and _safe(query)):
             # The prompt is what is supposed to hold. It did not, so this one
             # falls back - and it is logged, because a guard that fires
             # quietly is a prompt nobody fixes.
+            #
+            # `query` is checked and is the one that would have mattered most:
+            # the title and the angle are read, but the query is what reaches
+            # the pipeline, so a result asserted there is a result researched
+            # *from*, and the episode inherits it.
             log.warning("stories: composed tile asserts an outcome, templating "
-                        "instead: %r / %r", title, angle)
+                        "instead: %r / %r / %r", title, angle, query)
             continue
         written[index] = (title, angle, query)
 
@@ -825,27 +881,36 @@ def _diversified(stories: list, now: float) -> list:
     return kept
 
 
-def _worth_composing(signals: list, already: int) -> list:
+def _worth_composing(signals: list, holding: list) -> list:
     """Which of the new signals to spend the composition on.
 
     The cheapest saving in the whole subsystem, because composing a tile that
-    the variety cap is about to drop is money spent on something nobody will
-    ever read. So the same cap is applied *before* the call rather than after:
-    strongest first, capped per facet, and only as many as the pool has room
-    for.
+    the variety cap is about to hide is money spent on something nobody will
+    read this window. So the same cap is applied *before* the call rather than
+    after: strongest first, capped per facet, and only as many as the pool has
+    room to offer.
+
+    **Seeded from what is already held**, which is the part that was wrong
+    first time round: an empty counter let a window buy five more sports tiles
+    on top of five it already had, and `Pool.live` then showed the same five it
+    showed yesterday. The budget has to count the shelf, not just the trolley.
 
     It is deliberately the same ordering `_diversified` uses. Two different
     ideas of "best" would mean composing one set and showing another, which is
     the expensive half of both mistakes.
     """
-    room = max(0, POOL_SIZE - already)
+    per_facet: dict = {}
+    for story in holding:
+        for facet in ({_facet(tag) for tag in story.tags} or {story.domain}):
+            per_facet[facet] = per_facet.get(facet, 0) + 1
+
+    room = max(0, POOL_SIZE - len(holding))
     if room <= 0 or not signals:
         return []
     ordered = sorted(
         signals,
         key=lambda s: (-(DOMAIN_WEIGHT.get(s.domain, 0.6) * max(0.0, s.strength)),
                        s.subject))
-    per_facet: dict = {}
     kept: list = []
     for signal in ordered:
         facets = {_facet(tag) for tag in signal.tags} or {signal.domain}
@@ -914,9 +979,11 @@ async def refresh(now: Optional[float] = None) -> Pool:
                 kept.append(replace(previous, strength=float(signal.strength),
                                     last_seen=now))
                 continue
-            retired_at = _RETIRED.get(key)
-            if retired_at is not None and now - retired_at < SUBJECT_COOLDOWN:
-                continue          # said its piece; not again this soon
+            # Not held - but possibly *known*. A subject dropped for room, or
+            # one whose story expired while nothing was looking, has a clock
+            # already running, and the ledger is what stops it starting again.
+            if not _admissible(key, signal.domain, now):
+                continue
             fresh.append(signal)
 
         # A story whose provider stopped mentioning it is kept until it
@@ -936,18 +1003,33 @@ async def refresh(now: Optional[float] = None) -> Pool:
         # window; on a cold pool with every source configured it would
         # otherwise be forty, two thirds of which `_diversified` would throw
         # away a moment later - paid for, and never read.
-        composed = await compose(_worth_composing(fresh, len(kept) + len(still)),
-                                 now)
+        composed = await compose(
+            _worth_composing(fresh, kept + still), now)
+        # Whatever the composer produced, the clock is the ledger's and not
+        # this moment's: a story that has been round before keeps the age it
+        # had. `setdefault` is what makes the first sighting the one that
+        # counts, for the life of the ledger entry.
+        composed = [replace(story,
+                            first_seen=_FIRST_SEEN.setdefault(story.id, now))
+                    for story in composed]
+        for story in kept:
+            _FIRST_SEEN.setdefault(story.id, story.first_seen)
 
+        # Capped by push and **not** facet-capped here: the variety rule runs
+        # in `Pool.live`, so an over-served story is hidden rather than
+        # forgotten. See `POOL_STORE`.
+        held = sorted(kept + composed + still,
+                      key=lambda story: (-story.push(now), story.id))
         _POOL = Pool(
-            stories=_diversified(kept + composed + still, now),
+            stories=held[:POOL_STORE],
             fetched_at=now,
             sources=reports,
             degraded=sum(1 for s in composed if s.degraded),
             composed=len(composed),
         )
-        log.info("stories: pool holds %d (%d new, %d templated) from %s",
-                 len(_POOL.stories), len(composed), _POOL.degraded,
+        log.info("stories: pool holds %d, offers %d (%d new, %d templated) from %s",
+                 len(_POOL.stories), len(_POOL.live(now)), len(composed),
+                 _POOL.degraded,
                  ", ".join(f"{r.name}:{r.outcome}" for r in reports) or "no sources")
         return _POOL
     finally:
@@ -961,6 +1043,40 @@ def _retire(existing: dict, now: float) -> None:
             _RETIRED.setdefault(key, story.first_seen + story.shelf_life)
     for key in [k for k, at in _RETIRED.items() if now - at > SUBJECT_COOLDOWN * 2]:
         _RETIRED.pop(key, None)
+    # The ledger outlives both, and is pruned on the longest clock there is:
+    # once a subject could have run its whole shelf life *and* cooled off, it
+    # is genuinely allowed to be new again.
+    oldest = max(DOMAIN_SHELF_LIFE.values()) + SUBJECT_COOLDOWN
+    for key in [k for k, at in _FIRST_SEEN.items() if now - at > oldest]:
+        _FIRST_SEEN.pop(key, None)
+
+
+def _admissible(key: str, domain: str, now: float) -> bool:
+    """Whether a subject FAM is not currently holding may be admitted.
+
+    Three states, and the middle one is the whole reason this exists:
+
+    * **never seen** - admit it, and the ledger starts its clock.
+    * **seen, and still inside its shelf life** - admit it, and it keeps the
+      clock it already had. This is the story that was dropped for room or
+      hidden by the variety cap; it is not new and must not be treated as new.
+    * **seen, and past its shelf life** - it has had its run. Retire it if
+      nothing else has, and hold it out until the cooldown is up.
+    """
+    seen_at = _FIRST_SEEN.get(key)
+    if seen_at is not None and now - seen_at >= DOMAIN_SHELF_LIFE.get(
+            domain, 24 * 3600.0):
+        _RETIRED.setdefault(key, seen_at + DOMAIN_SHELF_LIFE.get(
+            domain, 24 * 3600.0))
+    retired_at = _RETIRED.get(key)
+    if retired_at is None:
+        return True
+    if now - retired_at < SUBJECT_COOLDOWN:
+        return False              # said its piece; not again this soon
+    # Cooled off. This really is a new run, so the old clock goes with it.
+    _RETIRED.pop(key, None)
+    _FIRST_SEEN.pop(key, None)
+    return True
 
 
 # --------------------------------------------------------------------------

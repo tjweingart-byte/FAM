@@ -87,7 +87,10 @@ researched, so a result on one is a claim nobody checked.
   must write a tile that is true whichever way the thing turns out.
 * `_RESULT_WORDS` catches the case where the prompt did not hold, sends that
   one tile back to its template, and **logs it** — a guard that fires quietly
-  is a prompt nobody fixes.
+  is a prompt nobody fixes. It checks the **query** as well as the title and
+  the angle, and the query is the one it could least afford to miss: a title is
+  read, a query is what the pipeline researches *from*, so a result asserted
+  there is one the episode inherits.
 * The templates cannot say a result either, so the rule survives a total
   outage.
 
@@ -118,10 +121,26 @@ rather than as an editorial decision.
 
 ### Variety, twice
 
-* **In the pool**: `MAX_PER_FACET = 5` of 24, so a busy Sunday in sport cannot
-  crowd everything else out before a ranker sees it.
+* **In the pool**: `MAX_PER_FACET = 5` of the 24 it offers, so a busy Sunday in
+  sport cannot crowd everything else out before a ranker sees it.
 * **In each rail**: `topics.MAX_PER_FACET = 2` of 6, so no rail becomes one
   subject.
+
+**The pool keeps more than it offers** (`POOL_STORE`), and that is not a detail.
+The variety cap used to run when the pool was *written*, so a story it passed
+over was discarded — and the next sweep saw that subject again, had no record
+of it, and admitted it as brand new. Its `first_seen` reset, so it never aged,
+never expired, never reached the cooldown, and was paid for again every window:
+the "shown the same thing forever" failure, arriving through the one door the
+push model was not watching. The cap runs on the way out now, so an
+over-served story is **hidden rather than forgotten**.
+
+And `_FIRST_SEEN` is the backstop under that: a ledger of when FAM first saw
+each subject, kept independently of pool membership, so even a story that falls
+out of the store entirely comes back with the clock it already had. Anything
+not currently held goes through `_admissible`, which knows three states — never
+seen, seen and still inside its shelf life, seen and past it — and only the
+first is allowed to start a clock.
 
 The rail cap is a **cap on what is available and never a quota on what is
 not**. A listener whose entire history is sport has nothing else with any
@@ -196,6 +215,12 @@ five outcomes ever says "nothing is trending" or "nothing is happening".
 | `timeout` | it was asked and did not answer in time |
 | `empty` | it was asked and genuinely had nothing |
 | `skipped` | working, and deliberately not asked this window (see below) |
+
+There is a sixth sentence, and it belongs to the **rail** rather than the pool.
+Made for you chooses first, so on a thin day it can take everything and leave
+Trending empty while the pool served perfectly well. Saying "the live sources
+had nothing" there would be our own page's arrangement reported as a fact about
+the world, so `_world_empty_reason` says where the stories went instead.
 
 `skipped` is the one that is not an error. API-Sports allows a hundred requests
 a *day*, so it sweeps at most every two hours; a quota spent on a browse page

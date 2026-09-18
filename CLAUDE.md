@@ -742,6 +742,14 @@ the rest of this list it needs taste rather than a key.
   gets a full rail. And **nothing on the page-load path awaits anything**, so
   there is no route from opening myFAM to generating anything; a test reads
   `build_feed`'s own source to keep it that way.
+  One of those four has a general form worth carrying past this feature
+  (§103): **an eviction that forgets is a creation.** The variety cap used to
+  discard what it passed over, so the next sweep admitted the same subject as
+  brand new, reset its clock, and paid for it again - a story that could never
+  age, expire or cool off. The pool now keeps more than it offers and
+  `_FIRST_SEEN` holds the clock independently of membership. Anything here
+  with a lifecycle needs its clock kept somewhere that outlives its membership
+  of the thing that shows it.
   What that costs, stated: a wrong guess about what is worth offering costs
   one composed tile nobody taps, which is a fraction of a cent. What it must
   never cost is availability - no key, a timeout, a refusal and a broken
@@ -1173,8 +1181,8 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §102 is the
-most recent), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §102-103 are
+the most recent), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

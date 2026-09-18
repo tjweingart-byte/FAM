@@ -352,3 +352,29 @@ def test_the_status_vocabulary_is_the_one_live_facts_already_closed():
     assert set(story_sources.ApiSportsSignals.STRENGTH) <= {
         live_facts.SCHEDULED, live_facts.IN_PROGRESS, live_facts.FINAL}
     assert live_facts.UNKNOWN not in story_sources.ApiSportsSignals.STRENGTH
+
+
+def test_the_sports_card_is_ordered_deterministically(monkeypatch):
+    """Three strength values over a whole day's fixtures means most of them
+    tie, and a stable sort hands the tie to whatever the API happened to list
+    first - so the tiles changed between sweeps for no reason a listener could
+    see. The same card must produce the same tiles twice."""
+    first = sports(monkeypatch)
+    # The same fixtures, in the order a different response happened to use.
+    shuffled = {"response": list(reversed(CARD["response"]))}
+
+    async def _json(url, headers, params, timeout):
+        return shuffled
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+    second = run(story_sources.ApiSportsSignals().collect(8))
+    assert [s.subject for s in first] == [s.subject for s in second]
+
+
+def test_the_missing_league_filter_is_written_down_rather_than_guessed():
+    """A gap that names itself. Guessing the parameter from the documentation
+    does not fail - it returns somebody else's fixtures - so the decision is
+    deferred to a machine with a real key, and said out loud until then."""
+    said = story_sources.ApiSportsSignals.__doc__.lower()
+    assert "no league filter" in said
+    assert "provider_rollout" in said

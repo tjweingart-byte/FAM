@@ -2510,7 +2510,12 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # must be zero, and a news sweep is not worth spending it on - the rails
     # fall back to the bank on a cold first load and are full on the next.
     if stories_mod.is_stale():
-        asyncio.create_task(stories_mod.refresh())
+        # Through the same wrapper the boot sweep uses. A bare `create_task`
+        # drops its exception into a log line nobody reads, and this one runs
+        # on every page load - so a provider that raises would stop the pool
+        # refreshing for the life of the process with the page still looking
+        # normal.
+        asyncio.create_task(_warm_stories())
 
     written = _written_probe(minutes)
     feed = topics_mod.build_feed(

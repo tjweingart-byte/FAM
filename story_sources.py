@@ -488,6 +488,20 @@ class ApiSportsSignals(stories.StorySource):
     every two hours and asks for one date per sport rather than one per
     league: at fifteen-minute windows it would spend its whole daily quota on
     a browse page nobody had opened.
+
+    **The known gap, and it is a real one: there is no league filter.** One
+    date on one product returns that day's fixtures *everywhere* - so a
+    listener could be offered a third-division match they have never heard of
+    while the game they care about is three hundred rows further down. The
+    ordering below is by status and then deterministic, which makes the choice
+    stable rather than good, and `MAX_PER_SOURCE` plus the pool's facet cap
+    stop it swamping the page.
+    Closing it properly means a `league` (and for some products a `season`)
+    parameter and a decision about which leagues a deployment serves - both of
+    which want a real key in front of the real API to get right, and guessing
+    at them from the documentation is how the wrong parameter ships looking
+    like it works. `PROVIDER_ROLLOUT.md` carries it as the step to take when
+    this source is switched on for real.
     """
 
     name = "API-Sports"
@@ -546,7 +560,13 @@ class ApiSportsSignals(stories.StorySource):
                     out.append(signal)
         if not out:
             return []
-        out.sort(key=lambda s: -s.strength)
+        # Deterministic, because the provider's own order is not a ranking.
+        # Three strength values over a whole day's card means most fixtures
+        # tie, and a stable sort then hands the tie to whatever the API listed
+        # first - so the tiles changed between sweeps for no reason anybody
+        # could see. Sorting the tie by subject makes the same card produce the
+        # same tiles twice.
+        out.sort(key=lambda s: (-s.strength, s.subject))
         return out[:limit]
 
     #: How interesting each state of a game is to somebody browsing. Under way

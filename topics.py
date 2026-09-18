@@ -1554,6 +1554,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # would make it a second, laggier copy of the row below it.
     picked["world_trending"] = diversify(
         [t for t in live if t.id not in used and t.id not in mine], SECTION_SIZE)
+    # Why it is empty, when it is. The pool's own sentence is right only when
+    # the pool is empty; a pool that served perfectly well and was claimed by
+    # the rail above would otherwise make this row say the live sources had
+    # nothing - our own page's arrangement reported as a fact about the world,
+    # which is the §89 mistake with a new way in.
+    world_reason = ("" if picked["world_trending"]
+                    else _world_empty_reason(bool(live)))
 
     # An empty section is honest, not broken: a new listener genuinely has no
     # history and no friends, and a deployment with no live source genuinely
@@ -1564,7 +1571,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             "key": key,
             "title": title,
             "topics": [t.as_dict() for t in picked[key]],
-            "empty_reason": _empty_reason(key) if not picked[key] else "",
+            "empty_reason": (world_reason if key == "world_trending"
+                             else _empty_reason(key) if not picked[key] else ""),
         }
         for key, title in SECTIONS
     ]
@@ -1791,6 +1799,20 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
         "subjects": facets_only(tag for tag, weight in top if weight > 0)[:5],
         "since": min((e.at for e in events), default=0.0),
     }
+
+
+def _world_empty_reason(pool_had_stories: bool) -> str:
+    """What the Trending rail says when it has nothing in it.
+
+    Two different facts, and they must not share a sentence. With an empty
+    pool this is about the deployment - which source is missing, or which one
+    failed - and `stories.Pool.empty_reason` knows which. With a full pool it
+    is about this page: the rail above got there first, and saying the feed
+    had nothing would be describing our own ordering as the world's silence.
+    """
+    if pool_had_stories:
+        return "Everything the world is on today is already in Made for you."
+    return stories.pool().empty_reason
 
 
 def _empty_reason(key: str) -> str:
