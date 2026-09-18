@@ -1,4 +1,4 @@
-"""Interests, language, the weekly recap - and what "Skip for now" costs.
+"""Interests, language - and what "Skip for now" costs.
 
 Three separate claims are under test here, and they are worth naming because
 each was a product decision before it was code:
@@ -135,24 +135,19 @@ def test_a_week_is_named_by_the_sunday_that_started_it():
     assert P.week_start(NEXT_SUNDAY) == "2026-09-13"
 
 
-def test_a_recap_missed_on_sunday_is_still_owed_on_wednesday(store):
-    """The trigger is 'the first open on or after Sunday', which is why this
-    is a stored date and not a flag nobody would ever clear."""
-    assert store.recap_due("u", SUNDAY) is True
-    assert store.recap_due("u", WEDNESDAY) is True, "a missed Sunday must not be lost"
+def test_the_recap_scheduling_is_gone_and_the_week_function_is_not(store):
+    """The popup is removed - myFAM's "What you missed last week" rail is what
+    replaced it - so nothing asks whether a recap is due.
 
-
-def test_seeing_it_once_settles_the_week_but_not_the_next_one(store):
-    store.mark_recap_seen("u", WEDNESDAY)
-    assert store.recap_due("u", WEDNESDAY + 3600) is False
-    assert store.recap_due("u", NEXT_SUNDAY) is True
-
-
-def test_turning_weekly_notifications_off_stops_it_for_good(store):
-    """The popup's own link, and it has to outlive the popup that set it."""
-    store.save("u", weekly_recap=False)
-    assert store.recap_due("u", NEXT_SUNDAY) is False
-    assert store.recap_due("u", NEXT_SUNDAY + 86400 * 30) is False
+    `week_start` and the `recap_week` column stay. A pure function of the
+    clock and a stored date cost nothing to keep and are what a scheduled
+    digest would be built on; dropping the column is a migration with no
+    benefit.
+    """
+    assert not hasattr(store, "recap_due")
+    assert not hasattr(store, "mark_recap_seen")
+    assert P.week_start(WEDNESDAY) == "2026-09-06"
+    assert store.get("u").recap_week == ""
 
 
 # --- interests actually reach the feed ------------------------------------
@@ -256,43 +251,24 @@ def test_a_rubbish_interests_hint_costs_a_shelf_not_the_page(client):
     assert res.status_code == 200
 
 
-# --- the recap over HTTP --------------------------------------------------
+# --- the recap is gone from the API too -----------------------------------
 
 
-def test_the_recap_needs_an_account(client):
-    assert client.get("/api/recap").status_code == 401
-    assert client.post("/api/recap/seen").status_code == 401
+def test_nothing_serves_a_weekly_recap_any_more(client, app_mod=None):
+    """Removed rather than left unread, on the Piper reasoning: an endpoint
+    left behind is an invitation to draw a popup for it again."""
+    import app as appmod
+    paths = {getattr(route, "path", "") for route in appmod.app.routes}
+    assert not [p for p in paths if "recap" in p], \
+        "a recap route is still registered"
 
 
-def test_a_listener_who_heard_nothing_is_told_so_rather_than_shown_a_recap(client):
-    sign_up(client)
-    body = client.get("/api/recap").json()
-    assert body["empty"] is True and body["reason"]
-    assert body["played"] == 0 and not body["query"]
-
-
-def test_a_real_week_becomes_one_episode_about_the_subjects_they_played(client):
-    sign_up(client)
-    for _ in range(3):
-        client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
-    body = client.get("/api/recap").json()
-    assert body["empty"] is False
-    assert body["finished"] == 3 and "tech" in body["subjects"]
-    assert "technology" in body["query"].lower()
-
-
-def test_marking_it_seen_settles_the_week(client):
-    sign_up(client)
-    assert client.get("/api/recap").json()["due"] is True
-    client.post("/api/recap/seen")
-    assert client.get("/api/recap").json()["due"] is False
-
-
-def test_disabling_weekly_notifications_sticks(client):
+def test_the_preference_is_still_accepted_and_still_stored(client):
+    """Read by nothing, and kept: it is what a scheduled digest would read on
+    the day there is one, and dropping the column buys nothing."""
     sign_up(client)
     client.post("/api/preferences", json={"weekly_recap": False})
-    body = client.get("/api/recap").json()
-    assert body["enabled"] is False and body["due"] is False
+    assert client.get("/api/preferences").json()["weekly_recap"] is False
 
 
 # --- what skip mode still gets -------------------------------------------
@@ -318,4 +294,7 @@ def test_signing_up_later_keeps_what_they_already_did(client):
     before = client.get("/api/auth/me").json()["user_id"]
     sign_up(client)
     assert client.get("/api/auth/me").json()["user_id"] == before
-    assert client.get("/api/recap").json()["finished"] == 1
+    # The completion they recorded before signing up is still theirs, which is
+    # what "signing up does not start you over" means. Read off the feed,
+    # which is what reads the log now.
+    assert client.get("/api/myfam").json()["personalised"] is True

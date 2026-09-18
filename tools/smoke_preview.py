@@ -142,17 +142,20 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "finishing the intro did not land in the app"
 
-        def the_weekly_recap_pops_on_a_new_week():
-            """Fixture says this week's recap is still owed, so it fires on the
-            first open after the intro - and has to be dismissable."""
-            page.wait_for_selector("#recapOverlay.active", timeout=10000)
-            # A tile when there is a week to recap, a sentence saying so when
-            # there is not. Both are correct; an empty card is not.
-            assert page.text_content("#recapBody").strip(), "the recap card was blank"
-            page.evaluate("closeRecap()")
-            page.wait_for_timeout(400)
-            assert not page.query_selector("#recapOverlay.active"), \
-                "the recap could not be dismissed"
+        def nothing_pops_up_on_a_new_week():
+            """The weekly recap popup is gone at the owner's direction, and
+            its shelf is myFAM's "What you missed last week" rail.
+
+            Checked as an absence because the failure it guards is the popup
+            coming back: a recap that fires on the first open of a new week is
+            an interruption in front of an app somebody opened to listen to
+            something, and a rail is not."""
+            page.wait_for_timeout(1200)
+            assert not page.query_selector("#recapOverlay"), \
+                "the weekly recap popup came back"
+            overlays = page.eval_on_selector_all(
+                ".modal-overlay.active", "e => e.map(x => x.id)")
+            assert overlays == [], f"something popped up unasked: {overlays}"
 
         def myfam():
             """One rail per signal, and the count comes from the code.
@@ -183,6 +186,7 @@ def main() -> int:
             # these strings (`SECTION_TITLE`) and the two have drifted before.
             assert [t.strip().replace("\n", " ") for t in titles[1:]] == [
                 "Trending",
+                "What you missed last week",
                 "What FAM can't stop listening to",
                 "What your friends are listening to",
             ], f"the rails are not the ones the packet asks for: {titles}"
@@ -375,13 +379,18 @@ def main() -> int:
             page.reload()
             page.wait_for_timeout(1200)
 
-        def your_fam_offers_the_recap_and_explore_new():
+        def your_fam_is_messages_and_only_messages():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(500)
             page.click("#screen-myfam .myfam-msg-btn")
             page.wait_for_timeout(600)
-            tiles = page.eval_on_selector_all(".yf-tile-name", "e => e.map(x => x.textContent)")
-            assert tiles == ["Weekly Recap", "Save for Later"], f"saw {tiles}"
+            # The two tiles that sat above the threads both came off at the
+            # owner's direction: the weekly recap is gone entirely, and Save
+            # for Later is on the profile, where a listener's shelves live.
+            assert not page.query_selector(".yf-tile"), \
+                "the Your FAM tiles came back"
+            assert not page.query_selector("#recapOverlay"), \
+                "the weekly recap popup came back"
             # Explore New is off myFAM at the owner's direction, but the
             # ranking, the endpoint and the screen are all still here - which
             # is what makes putting the rail back a one-line change rather
@@ -1289,7 +1298,7 @@ def main() -> int:
 
         print(f"smoke test: {target.name}")
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
-        check("The weekly recap pops and closes", the_weekly_recap_pops_on_a_new_week)
+        check("Nothing pops up on a new week", nothing_pops_up_on_a_new_week)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
@@ -1308,8 +1317,8 @@ def main() -> int:
         check("The player names its four icons", the_player_names_its_four_icons)
         check("An episode can be shared outside FAM",
               an_episode_can_be_shared_outside_fam)
-        check("Your FAM offers the recap and Save for Later",
-              your_fam_offers_the_recap_and_explore_new)
+        check("Your FAM is messages and only messages",
+              your_fam_is_messages_and_only_messages)
         check("What's next offers four with a countdown",
               whats_next_offers_four_and_counts_down)
         check("The bar can be dragged to seek", the_bar_can_be_dragged_to_seek)

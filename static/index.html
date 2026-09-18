@@ -1378,42 +1378,6 @@
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
 
-  /* ============ WEEKLY RECAP ============ */
-  .recap-card{ background:var(--surface); border-radius:20px; padding:18px;
-    width:84%; border:1px solid var(--border-strong);
-    box-shadow:0 30px 60px -20px rgba(0,0,0,0.6); }
-  .recap-top{ display:flex; align-items:flex-start; justify-content:space-between;
-    gap:10px; margin-bottom:14px; }
-  .recap-h{ font-family:'Fraunces', serif; font-weight:600; font-size:17px;
-    color:var(--text); line-height:1.25; }
-  .recap-tile{ padding:14px; border-radius:15px; background:var(--bg);
-    border:1px solid var(--border); cursor:pointer; }
-  .recap-tile:active{ transform:scale(0.99); }
-  .recap-tile-title{ font-family:'Fraunces', serif; font-weight:600; font-size:14px;
-    color:var(--text); line-height:1.3; margin-bottom:6px; }
-  .recap-figs{ font-family:'JetBrains Mono', monospace; font-size:9px;
-    letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); }
-  .recap-empty{ font-size:12.5px; line-height:1.55; color:var(--text-muted); }
-  .recap-off{ display:block; width:100%; margin-top:13px; padding:10px;
-    border:none; background:none; color:var(--text-faint);
-    font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.06em;
-    text-transform:uppercase; cursor:pointer; }
-  .recap-off:active{ opacity:0.6; }
-
-  /* ============ YOUR FAM: two tiles above the threads ============ */
-  .yf-tiles{ display:grid; grid-template-columns:1fr 1fr; gap:10px;
-    margin:2px 0 18px; }
-  .yf-tile{ padding:14px 13px 15px; border-radius:15px; background:var(--surface);
-    border:1px solid var(--border); cursor:pointer; }
-  .yf-tile:active{ transform:scale(0.98); }
-  .yf-tile-icon{ width:30px; height:30px; border-radius:9px; background:var(--paper);
-    color:var(--ink); display:flex; align-items:center; justify-content:center;
-    margin-bottom:10px; }
-  .yf-tile-name{ font-family:'Fraunces', serif; font-weight:600; font-size:13px;
-    color:var(--text); margin-bottom:4px; }
-  .yf-tile-sub{ font-family:'JetBrains Mono', monospace; font-size:8px;
-    letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint);
-    line-height:1.5; }
 
   /* ============ EXPLORE NEW ============ */
   .xn-reason{ font-size:12.5px; line-height:1.55; color:var(--text-muted);
@@ -1545,7 +1509,7 @@
             </div>
             <div class="entry-h">Ask anything. Hear the answer.</div>
             <p class="entry-lede">An account keeps your mixes, your interests
-              and your weekly recap — on any device you sign in on. Listening
+              and what you save — on any device you sign in on. Listening
               works without one.</p>
             <div class="entry-acts">
               <button class="entry-btn primary" onclick="openAuth('signup')">Sign Up</button>
@@ -2136,21 +2100,12 @@
               </button>
             </div>
           </div>
-          <!-- Two destinations above the threads. The recap is the same
-               content the Sunday popup shows, reachable on demand rather than
-               only when it fires; Explore New is its own surface. -->
-          <div class="yf-tiles">
-            <div class="yf-tile" onclick="openRecapFromTile()">
-              <div class="yf-tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h11"/></svg></div>
-              <div class="yf-tile-name">Weekly Recap</div>
-              <div class="yf-tile-sub" id="yfRecapSub">Your week, in one episode</div>
-            </div>
-            <div class="yf-tile" onclick="openSavedAll()">
-              <div class="yf-tile-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></div>
-              <div class="yf-tile-name">Save for Later</div>
-              <div class="yf-tile-sub" id="yfSavedSub">Episodes you kept</div>
-            </div>
-          </div>
+          <!-- Nothing above the threads any more. The two tiles that were
+               here - Weekly Recap and Save for Later - both came off at the
+               owner's direction. The recap is gone entirely (myFAM's "What
+               you missed last week" rail replaced it) and Save for Later is
+               on the profile, which is where a listener's own shelves live.
+               Your FAM is messages, and only messages. -->
           <!-- A real filter over the threads already fetched. It used to
                toast "demo only", which is a control with nothing behind it -
                and filtering a list the page is holding costs nothing. -->
@@ -2207,18 +2162,6 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="recapOverlay">
-        <div class="recap-card">
-          <div class="recap-top">
-            <div class="recap-h">Here it is! my Weekly Recap</div>
-            <button class="sheet-close" onclick="closeRecap()" aria-label="Close the recap">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
-          </div>
-          <div id="recapBody"></div>
-          <button class="recap-off" onclick="disableWeeklyRecap()">Disable Weekly Notifications</button>
-        </div>
-      </div>
 
       <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
         <div class="sheet-card" id="sheetCard"></div>
@@ -4806,7 +4749,11 @@
     // the listener had never heard of.
     followers:      "What your friends are listening to",
     most_played:    "What FAM can't stop listening to",
-    world_trending: "Trending"
+    world_trending: "Trending",
+    // The weekly recap's replacement. A shelf rather than the popup it
+    // replaces: the recap was one episode *about* somebody's week, so a thin
+    // week produced an episode about having had a thin week.
+    missed:         "What you missed last week"
   };
 
   // Which rails open a fuller surface from the heading itself. Nothing does
@@ -4833,6 +4780,9 @@
     // falls through to the rail's reason, unchanged.
     if(topic && topic.angle) return escapeHtml(topic.angle);
     if(sectionKey === "from_history") return "Because of what you have played";
+    // True by construction: every tile on this rail is one this app put in
+    // front of this listener in the last week and they did not take.
+    if(sectionKey === "missed")       return "<b>Went past you</b> this week";
     if(sectionKey === "followers")    return "<b>Your friends</b> played this";
     // Says the opposite of the others on purpose. This is the one rail that is
     // not a reflection of an established taste, and a card that claimed
@@ -5558,9 +5508,6 @@
   // to navigate home.
   function openMessages(){
     renderThreadList();
-    var sub = document.getElementById("yfRecapSub");
-    if(sub) sub.textContent = AUTH.authenticated
-      ? "Your week, in one episode" : "Needs an account";
     navigate("messages");
     var dot = document.getElementById("msgUnread");
     if(dot) dot.hidden = true;
@@ -6182,10 +6129,11 @@
           "openMyFamLengthMenu()");
     html += '<div class="set-group">Account</div>';
     if(AUTH.authenticated){
+      // No "Weekly recap" row. The popup it switched off is gone - myFAM's
+      // "What you missed last week" rail replaced it - and a settings row
+      // that turns off something nothing shows is the control-with-nothing-
+      // behind-it failure with a longer fuse, because it reads as working.
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
-        + settingsRow("Weekly recap",
-            (recapData && recapData.enabled === false) ? "Off" : "On",
-            "toggleWeeklyRecap()")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
@@ -6196,8 +6144,8 @@
       html += settingsRow("Create account", "", "createAccount()")
         + settingsRow("Sign in", "", "signIn()")
         + '<div class="set-note">Listening needs no account. What one buys is '
-        + 'durability: saved mixes, your interests and language, and the weekly '
-        + 'recap. Everything you have done already comes with you.</div>';
+        + 'durability: saved mixes, your interests and language, and Save for '
+        + 'Later. Everything you have done already comes with you.</div>';
     }
 
     html += '<div class="set-group">This app</div>'
@@ -6218,16 +6166,6 @@
       showScreen("intro");
     });
   }
-  function toggleWeeklyRecap(){
-    var on = !(recapData && recapData.enabled === false);
-    savePreferences({ weekly_recap: !on }).then(function(){
-      return loadRecap();
-    }).then(function(){
-      renderSettings();
-      toast(on ? "Weekly recap off" : "Weekly recap on");
-    });
-  }
-
   function confirmDeleteAccount(){
     showActionSheet([
       { group: "This deletes everything FAM holds about you, now. It cannot be undone." },
@@ -7645,7 +7583,6 @@
           showScreen(back);
           if(back === "playfam") loadMixes();
           if(back === "myfam") loadMyFamFeed();
-          checkWeeklyRecap();
           return;
         }
         afterAccount();
@@ -8028,97 +7965,6 @@
     saveLocalPrefs({ entry: "done" });
     openMyFamTab();
     loadMyFamFeed();
-    checkWeeklyRecap();
-  }
-
-  // --- weekly recap --------------------------------------------------------
-  var recapData = null;
-
-  function loadRecap(){
-    return fetch("/api/recap").then(function(r){
-      if(r.status === 401) return { locked: true };
-      if(!r.ok) throw new Error("recap unavailable");
-      return r.json();
-    }).then(function(d){ recapData = d; return d; })
-      .catch(function(){ return null; });
-  }
-
-  // "The first time they open the app on or after Sunday" - so a Sunday that
-  // was missed still arrives on the Wednesday. The server answers that from a
-  // stored date; this only asks.
-  function checkWeeklyRecap(){
-    if(!AUTH.authenticated) return;
-    loadRecap().then(function(d){
-      if(!d || d.locked || !d.enabled || !d.due) return;
-      openRecap();
-      // Marked seen on display, not on dismissal: a listener who swipes the
-      // app away has still had their recap, and showing it again on Thursday
-      // would read as a bug.
-      fetch("/api/recap/seen", { method: "POST" }).catch(function(){});
-    });
-  }
-
-  function openRecap(){
-    // Never two overlays deep. They are triggered from different places and
-    // could in principle land together; one covering the other is a screen
-    // nobody designed.
-    closeNextUp();
-    renderRecap();
-    document.getElementById("recapOverlay").classList.add("active");
-  }
-  function closeRecap(){
-    document.getElementById("recapOverlay").classList.remove("active");
-  }
-
-  function openRecapFromTile(){
-    if(!AUTH.authenticated){
-      toast("The weekly recap needs an account");
-      return;
-    }
-    loadRecap().then(function(){ openRecap(); });
-  }
-
-  function renderRecap(){
-    var body = document.getElementById("recapBody");
-    var d = recapData;
-    if(!d || d.locked){
-      body.innerHTML = '<div class="recap-empty">The weekly recap needs an '
-        + 'account — it is built from listening the server keeps for you.</div>';
-      return;
-    }
-    if(d.empty){
-      // Nothing to recap is a sentence, not a tile. Inventing one would be
-      // the whole failure this page could have.
-      body.innerHTML = '<div class="recap-empty">' + escapeHtml(d.reason) + '</div>';
-      return;
-    }
-    body.innerHTML = '<div class="recap-tile" onclick="playRecap()">'
-      + '<div class="recap-tile-title">' + escapeHtml(d.title) + '</div>'
-      + '<div class="recap-figs">' + escapeHtml(d.subtitle || "") + '</div>'
-      + '</div>';
-  }
-
-  function playRecap(){
-    if(!recapData || !recapData.query) return;
-    closeRecap();
-    closeMessages();
-    var key = "recap_" + Date.now();
-    TOPICS[key] = {
-      title: recapData.title,
-      source: "your week",
-      caption: "Live captions will appear here as this plays—",
-      prompt: recapData.query,
-      titleOverridden: true
-    };
-    generate(key);
-  }
-
-  function disableWeeklyRecap(){
-    if(!AUTH.authenticated){ closeRecap(); return; }
-    savePreferences({ weekly_recap: false }).then(function(){
-      toast("Weekly recap turned off");
-      closeRecap();
-    });
   }
 
   // --- Explore New ---------------------------------------------------------
@@ -8326,7 +8172,6 @@
     if(!entryComplete()){ startEntry(); return; }
     loadPrefChoices();
     loadMyFamFeed();
-    checkWeeklyRecap();
   });
 </script>
 </body>

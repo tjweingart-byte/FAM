@@ -352,6 +352,14 @@ LIVE_SHIM = r"""
     });
     return s;
   }
+  // topics._affinity: how well one tile matches a taste profile, normalised
+  // by tag count so a tile with six tags is not simply worth more than one
+  // with two. Named rather than inlined because two rails score with it.
+  function affinity(t, profile) {
+    var s = 0;
+    (t.tags || []).forEach(function (g) { s += (profile[g] || 0); });
+    return s / Math.sqrt((t.tags || []).length || 1);
+  }
 
   function feed() {
     var profile = taste(UID, myPrefs().interests), mine = playedIds(UID),
@@ -365,8 +373,7 @@ LIVE_SHIM = r"""
       return got;
     }
     var scored = BANK.map(function (t) {
-      var s = 0; (t.tags || []).forEach(function (g) { s += (profile[g] || 0); });
-      return { t: t, s: s / Math.sqrt((t.tags || []).length || 1) };
+      return { t: t, s: affinity(t, profile) };
     }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; });
 
     var counts = {};
@@ -405,6 +412,35 @@ LIVE_SHIM = r"""
     return { picked: out, personalised: Object.keys(profile).length > 0 };
   }
 
+  // `topics.rank_missed`: what this listener was shown in the last week and
+  // did not take. The one rail on this page the live build can compute for
+  // real, because impressions are written into the database on every myFAM
+  // load - so opening the preview twice actually fills it.
+  //
+  // Bank only, like the server for anything it can no longer resolve: this
+  // page has no story pool, so a live tile offered last week has nothing
+  // behind it, and inventing one is the failure the whole subsystem is built
+  // against.
+  function missedRail(taken) {
+    var since = now() - 7 * 86400;
+    var shown = {};
+    rows("events").forEach(function (e) {
+      if (e.user_id !== UID || e.kind !== "impression" || !e.topic_id) return;
+      if (e.at < since) return;
+      shown[e.topic_id] = Math.max(shown[e.topic_id] || 0, e.at);
+    });
+    var mine = playedIds(UID);
+    var profile = taste(UID);
+    return Object.keys(shown)
+      .filter(function (id) { return !mine[id] && !taken[id] && BY_ID[id]; })
+      .map(function (id) {
+        return { t: BY_ID[id], s: affinity(BY_ID[id], profile), at: shown[id] };
+      })
+      .sort(function (a, b) { return (b.s - a.s) || (b.at - a.at); })
+      .map(function (x) { return x.t; })
+      .slice(0, 8);
+  }
+
   // `topics.SECTIONS`, in order. Trending sits second, where Explore New used
   // to - the row about today was under two rows about what the listener
   // already likes, which is the worst place on the page for it. Explore New
@@ -414,6 +450,7 @@ LIVE_SHIM = r"""
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
+    ["missed", "What you missed last week", "Nothing went past you this week."],
     ["most_played", "What FAM can't stop listening to", "Nothing has been played yet."],
     ["followers", "What your friends are listening to",
      "Follow some people and this fills up with what they play."]
@@ -477,6 +514,13 @@ LIVE_SHIM = r"""
 
   function myfamBody() {
     var f = feed(), shown = [];
+    // Filled after the rest, from what they were shown on previous loads and
+    // did not play, and never repeating a tile the page is already showing.
+    var claimed = {};
+    Object.keys(f.picked).forEach(function (k) {
+      (f.picked[k] || []).forEach(function (t) { claimed[t.id] = 1; });
+    });
+    f.picked.missed = missedRail(claimed);
     var sections = SECTIONS.map(function (s) {
       var list = f.picked[s[0]] || [];
       list.forEach(function (t) { shown.push({ id: t.id, section: s[0] }); });
@@ -540,7 +584,7 @@ LIVE_SHIM = r"""
       if (!tags.length) tags = tagsForText(e.text || "");
       tags.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; });
     });
-    // Facets, for the same reason as the recap: these are printed on the
+    // Facets, for the same reason the rails are: these are printed on the
     // profile as the subjects someone listens to.
     return facetsOnly(Object.keys(counts)
       .sort(function (a, b) {
@@ -570,7 +614,7 @@ LIVE_SHIM = r"""
     return out.slice(0, 8);
   }
 
-  // ------------------------------------------------- preferences and recap
+  // ------------------------------------------------------------ preferences
   // One row per listener, and - like the server - only read back for one with
   // an account. An anonymous listener's answers live in their own browser and
   // arrive as a hint on the request, which is what `hint` below is.
@@ -590,62 +634,6 @@ LIVE_SHIM = r"""
     // No cap - the vocabulary is the only bound, as on the server (§99).
     return String(qs.get("interests") || "").split(",")
       .filter(function (g) { return TAG_LABELS[g]; });
-  }
-
-  // The Sunday that started the week `t` falls in, in UTC - preferences.week_start.
-  function weekStart(t) {
-    var d = new Date((t || now()) * 1000);
-    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-    return d.toISOString().slice(0, 10);
-  }
-
-  function recapBody() {
-    var since = now() - 7 * 86400;
-    var week = behavioural(UID).filter(function (e) { return e.at >= since; });
-    var counts = {};
-    week.forEach(function (e) {
-      var w = WEIGHT[e.kind] || 0;
-      var tags = e.tags ? String(e.tags).split(",").filter(Boolean) : tagsForText(e.text || "");
-      tags.forEach(function (g) { counts[g] = (counts[g] || 0) + w; });
-    });
-    // Folded to facets before slicing, like topics.weekly_recap: a recap that
-    // said "your week in sleep, mind and habits" would be naming tags nobody
-    // was ever shown, and TAG_LABELS has no word for them.
-    var subjects = facetsOnly(
-      Object.keys(counts).filter(function (g) { return counts[g] > 0; })
-        .sort(function (a, b) { return counts[b] - counts[a]; })
-    ).slice(0, 3);
-    var played = week.filter(function (e) { return e.kind === "play" || e.kind === "complete"; }).length;
-    var finished = week.filter(function (e) { return e.kind === "complete"; }).length;
-    var searched = week.filter(function (e) { return e.kind === "search"; }).length;
-    var prefs = myPrefs();
-    var body = {
-      week: weekStart(), played: played, finished: finished, searched: searched,
-      subjects: subjects,
-      subject_labels: subjects.map(function (g) { return TAG_LABELS[g]; }),
-      minutes: 5, title: "Your week in FAM", subtitle: "", query: "",
-      empty: true, reason: "",
-      due: prefs.weekly_recap && prefs.recap_week !== weekStart(),
-      enabled: prefs.weekly_recap
-    };
-    if (!played && !searched) {
-      body.reason = "Nothing to recap yet \u2014 this fills in once you have "
-        + "listened to something this week.";
-      return body;
-    }
-    if (!subjects.length) {
-      body.reason = "You listened this week, but not to anything we could group "
-        + "into a subject \u2014 so there is nothing to recap.";
-      return body;
-    }
-    var labels = subjects.map(function (g) { return TAG_LABELS[g].toLowerCase(); });
-    var joined = labels.length === 1 ? labels[0]
-      : labels.slice(0, -1).join(", ") + " and " + labels[labels.length - 1];
-    body.empty = false;
-    body.query = "what happened this week in " + joined;
-    body.subtitle = (finished ? finished + " finished \u00b7 " : "")
-      + subjects.map(function (g) { return TAG_LABELS[g]; }).join(", ");
-    return body;
   }
 
   // topics.rank_next_up: the feed's own signals over a profile seeded with the
@@ -1008,7 +996,7 @@ LIVE_SHIM = r"""
                     algo: "live" });
     }
 
-    // ---- preferences, the recap, and what plays next
+    // ---- preferences and what plays next
     if (path === "/api/preferences" && method === "GET") {
       var stored = myPrefs();
       var mineNow = myFacets();
@@ -1056,19 +1044,6 @@ LIVE_SHIM = r"""
           ? (body.intro_done ? 1 : 0) : (was.intro_done ? 1 : 0),
         updated: now()
       }).then(function () { paint(); return json(myPrefs()); });
-    }
-    if (path === "/api/recap" && method === "GET") {
-      if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
-      return json(recapBody());
-    }
-    if (path === "/api/recap/seen") {
-      if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
-      var before = myPrefs();
-      return put("prefs", UID, {
-        interests: before.interests.join(","), language: before.language,
-        weekly_recap: before.weekly_recap ? 1 : 0, recap_week: weekStart(),
-        intro_done: before.intro_done ? 1 : 0, updated: now()
-      }).then(function () { paint(); return json({ ok: true }); });
     }
     if (path === "/api/nextup") {
       return json(nextUpBody(qs.get("topic_id") || "", qs.get("q") || "",

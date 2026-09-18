@@ -2010,7 +2010,7 @@ def _require_listener(request: Request) -> str:
 #: that mistake has already been avoided once here (see accounts.py).
 #:
 #: What *is* gated is everything the server keeps for you long-term - saved
-#: mixes, chosen interests and language, the weekly recap - on the product
+#: mixes, chosen interests and language, Save for Later - on the product
 #: decision that durable per-listener storage is what an account is for.
 #:
 #: The interaction log is deliberately NOT in that set. It is ambient
@@ -2169,12 +2169,18 @@ async def delete_mix(mix_id: str, request: Request):
 
 
 class PreferenceRequest(BaseModel):
-    """Every field optional: the intro saves one page at a time, and the recap
-    popup writes one flag from a screen that knows nothing about the rest."""
+    """Every field optional: the intro saves one page at a time, and a
+    settings row writes one flag from a screen that knows nothing about the
+    rest."""
 
     # No `user` field, for the same reason MixRequest has none.
     interests: Optional[list[str]] = None
     language: Optional[str] = Field(None, max_length=8)
+    #: Written by nothing in the interface any more. The weekly recap popup is
+    #: gone, replaced by myFAM's "What you missed last week" rail, and the
+    #: column stays for the same reason `language` does: dropping it is a
+    #: migration with no benefit, and it is what a scheduled digest would read
+    #: on the day one exists.
     weekly_recap: Optional[bool] = None
     intro_done: Optional[bool] = None
 
@@ -2220,7 +2226,7 @@ async def read_preferences(request: Request):
     # The six the picker shows, most played across FAM first. `interests_all`
     # is still every facet, because the picker narrowing is a screen decision
     # and the eight remain the whole pickable vocabulary - anything that
-    # *reads* a stored interest (settings, the recap) needs every label.
+    # *reads* a stored interest (Settings, the catalogue) needs every label.
     picker, picker_source = topics_mod.popular_facets(EVENTS)
     # And the six the *Settings* wheel shows, which is a different question
     # asked by a different person. The first run asks somebody with no history
@@ -2283,31 +2289,6 @@ async def write_preferences(req: PreferenceRequest, request: Request):
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return prefs.as_dict()
-
-
-@app.get("/api/recap")
-async def recap(request: Request):
-    """This listener's week, and whether they are still owed this one.
-
-    `due` is what decides the popup, and it is answered here rather than in the
-    browser because the rule is "the first open on or after Sunday" - a
-    question about a stored date, not about this session.
-    """
-    _read_limit(request)
-    user = _require_account(request)
-    body = topics_mod.weekly_recap(EVENTS, user)
-    prefs = PREFS.get(user)
-    body["due"] = PREFS.recap_due(user)
-    body["enabled"] = prefs.weekly_recap
-    return body
-
-
-@app.post("/api/recap/seen")
-async def recap_seen(request: Request):
-    """Mark this week's recap shown, so it does not appear again until Sunday."""
-    _read_limit(request)
-    PREFS.mark_recap_seen(_require_account(request))
-    return {"ok": True}
 
 
 @app.get("/api/nextup")

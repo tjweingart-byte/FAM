@@ -13,7 +13,8 @@ Three surfaces, all backed by generated audio:
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
-   pool refreshed in the background once for everybody.*
+   pool refreshed in the background once for everybody. A fifth rail, **What
+   you missed last week**, replaced the weekly recap popup.*
 2b. **DailyFAM** (was playFAM) — named daily mixes. A mix holds topic ids or
    questions the listener typed, never audio, so it is fresh every morning.
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
@@ -756,6 +757,29 @@ the rest of this list it needs taste rather than a key.
   provider all fall back to a templated tile and say so, which is the same
   rule episode intelligence lives by.
 
+- **The weekly recap is a rail, not a popup.** *(`topics.rank_missed`,
+  `MYFAM.md`.)* It was one episode *about* somebody's week, fired on the first
+  open on or after Sunday - so a thin week produced an episode about having had
+  a thin week, in front of somebody who opened the app to listen to something
+  else. **What you missed last week** is a shelf of episodes they can still
+  have: what FAM put in front of them in the last seven days and they did not
+  take.
+  Three things keep it honest and generalise past it. **It is what was
+  actually offered** - the impression log minus everything they played - so
+  there is no top-up from the bank and a short rail is short, because the
+  heading is a claim about what this app did. **An impression still never
+  becomes taste**: it decides *membership*, which is a fact about the feed, and
+  `_affinity` decides the *order*. And **it can only offer what it can still
+  resolve** - the bank plus what the pool still holds - because a tile invented
+  to stand in for an expired story is §102 with a heading on it.
+  The empty sentence claims neither of the two nothings: somebody who was not
+  here last week was offered nothing, somebody who played everything missed
+  nothing, and the rail cannot tell them apart.
+  What went with the popup: `/api/recap`, `topics.weekly_recap`, the
+  scheduling in `preferences.py`, the Settings row that switched it off, and
+  the two tiles above Your FAM's threads. The `weekly_recap` and `recap_week`
+  *columns* stay, read by nothing, on the same reasoning as the language field
+  - they are what a scheduled digest would read on the day there is one.
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
   `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key
@@ -862,7 +886,7 @@ the rest of this list it needs taste rather than a key.
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
-  Saved mixes, chosen interests and language, and the weekly recap need an
+  Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
   audio path do not. The interaction log is deliberately outside the gate - it
   is ambient personalisation rather than something the listener made and can

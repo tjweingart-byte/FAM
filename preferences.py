@@ -13,8 +13,12 @@ interface now needs cannot be inferred at all:
   folds them in at roughly the weight of one play, so real listening overtakes
   a declared interest within an evening rather than being fought by it.
 * **Language**, which is stored and not yet acted on - see LANGUAGES.
-* **Whether they want the weekly recap.** "Do you want this popup" is a
-  question with an answer; deriving it from behaviour would be a guess.
+* **Whether they want a weekly digest.** Stored, and read by nothing: the
+  weekly recap popup that used to read it is gone, replaced by myFAM's "What
+  you missed last week" rail, which needs no preference because a rail is not
+  an interruption. The column stays for the same reason `language` does -
+  dropping one is a migration with no benefit, and it is what a scheduled
+  digest would read on the day there is one to schedule.
 
 Being *stored* is the whole reason this is gated on having an account. Nothing
 here works for an anonymous listener, by decision: a preference the server
@@ -23,13 +27,11 @@ listener still sees the intro - their answers stay in their own browser, are
 passed to the ranker for that request only, and the interface says so plainly
 rather than implying they were saved.
 
-**Why the recap week is a date and not a flag.** "Show it the first time they
-open on or after Sunday" cannot be a boolean, because nothing clears it: a
-listener who does not open the app until Wednesday must still get Sunday's
-recap, and must not then get it again on Thursday. Storing the Sunday that
-started the week they last saw it answers both - it is due whenever the
-current week's Sunday differs from the stored one - and it needs no scheduled
-job, which this app has no way to run anyway.
+**`recap_week` and `week_start` are kept for the same reason.** They were the
+answer to "show it the first time they open on or after Sunday", which cannot
+be a boolean because nothing clears it. Nothing asks the question now. They
+are a stored date and a pure function of the clock, and both are what a
+scheduled digest would be built on.
 """
 from __future__ import annotations
 
@@ -94,8 +96,8 @@ def week_start(now: Optional[float] = None) -> str:
     """The Sunday that began the week `now` falls in, as YYYY-MM-DD (UTC).
 
     UTC rather than local time, because the server has no idea where the
-    listener is and a recap that arrives a few hours early is a smaller wrong
-    than one that arrives twice.
+    listener is and something that arrives a few hours early is a smaller
+    wrong than something that arrives twice.
     """
     now = time.time() if now is None else now
     stamp = time.gmtime(now)
@@ -261,20 +263,6 @@ class PreferenceStore:
              at or time.time()),
         )
         return merged
-
-    def recap_due(self, user_id: str, now: Optional[float] = None) -> bool:
-        """Is this week's recap still owed to this listener?
-
-        True on the first open of a new week and false thereafter, whichever
-        day of the week that open happens on.
-        """
-        prefs = self.get(user_id)
-        if not prefs.weekly_recap:
-            return False
-        return prefs.recap_week != week_start(now)
-
-    def mark_recap_seen(self, user_id: str, now: Optional[float] = None) -> Preferences:
-        return self.save(user_id, recap_week=week_start(now))
 
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.

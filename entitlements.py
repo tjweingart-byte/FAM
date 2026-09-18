@@ -307,8 +307,6 @@ FEATURES: tuple[Feature, ...] = (
     Feature("mixes", "Daily mixes", "free",
             "Already gated on having an account, which is a different axis. "
             "A mix holds topic ids and no audio, so it costs storage."),
-    Feature("weekly_recap", "Weekly recap", "free",
-            "Reads the event log. Account-gated already."),
     Feature("explore_new", "Explore New", "free",
             "The only surface offering anything outside an established taste. "
             "Gating discovery makes the free tier a smaller world, not a "

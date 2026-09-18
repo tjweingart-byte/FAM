@@ -106,6 +106,15 @@ def load_fixtures() -> dict:
         # a bug - so a fixture that repeated them would preview a page the app
         # does not build.
         "world_trending": live_tiles[2:],
+        # What this listener was shown last week and did not take. Eight,
+        # because the rail's own size is eight and a fixture that showed six
+        # would preview a shorter row than the app builds. Bank topics only:
+        # a live story that was offered last week has usually expired and
+        # fallen out of the pool by now, and the real rail cannot resolve one
+        # it no longer holds - so neither should the preview.
+        "missed": ["sleep-science", "longevity-claims", "song-breaks-internet",
+                   "restaurant-scene", "space-race", "morning-mindset",
+                   "the-trade", "pricing-psychology"],
     }
     missing = [k for k, _ in topics_mod.SECTIONS if k not in myfam_picks]
     if missing:
@@ -115,7 +124,7 @@ def load_fixtures() -> dict:
             f"app builds")
     myfam = {
         "personalised": True,
-        "minutes": 3,
+        "minutes": 2,
         "sections": [section(key, title, myfam_picks[key])
                      for key, title in topics_mod.SECTIONS],
     }
@@ -297,18 +306,6 @@ def load_fixtures() -> dict:
             "account_required": "You need an account for this.",
             "interests": [], "language": "en", "weekly_recap": True,
             "recap_week": "", "intro_done": False,
-        },
-        # Due, so opening the preview for the first time shows the Sunday
-        # popup - the whole behaviour, which a `due: false` fixture would
-        # hide. The shim flips it once /api/recap/seen is posted.
-        "/api/recap": {
-            "week": "2026-09-06", "played": 9, "finished": 6, "searched": 4,
-            "subjects": ["tech", "money", "science"],
-            "subject_labels": ["Technology", "Money & markets", "Science"],
-            "minutes": 5, "title": "Your week in FAM",
-            "subtitle": "6 finished · Technology, Money & markets, Science",
-            "query": "what happened this week in technology, money & markets and science",
-            "empty": False, "reason": "", "due": True, "enabled": True,
         },
         "/api/nextup": {
             "topics": [by_id[i] for i in
@@ -516,14 +513,7 @@ SHIM = """
       ["interests", "language", "weekly_recap", "intro_done"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
       });
-      if (stored.weekly_recap === false) FIXTURES["/api/recap"].enabled = false;
       return json(stored);
-    }
-    // Settles the week, the way the stored date does on the server: the popup
-    // must not come back on the next reload of the same preview.
-    if (path === "/api/recap/seen") {
-      FIXTURES["/api/recap"].due = false;
-      return json({ ok: true });
     }
     // --- people, messages and vibes -----------------------------------
     // The prototype used to hold three invented contacts in the page itself.

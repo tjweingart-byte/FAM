@@ -1,6 +1,6 @@
 # myFAM — the browse page, and what fills it
 
-Four rails, two inventories, and one rule that decides the shape of all of it:
+Five rails, two inventories, and one rule that decides the shape of all of it:
 **a tile is a title and an angle; the script is written when somebody taps it.**
 
 ## The rails
@@ -9,10 +9,11 @@ Four rails, two inventories, and one rule that decides the shape of all of it:
 |---|---|---|---|---|
 | 1 | **Made for you** | what would *you* want today | live stories **and** the bank | `rank_from_history` |
 | 2 | **Trending** | what is the world on | live stories only | `stories.pool()` |
-| 3 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays, cached first | `rank_most_played` |
-| 4 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
+| 3 | **What you missed last week** | what did you scroll past | what was *offered* to you | `rank_missed` |
+| 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays, cached first | `rank_most_played` |
+| 5 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
 
-A fifth ranking, `rank_might_like`, is computed and has no rail. It serves the
+A sixth ranking, `rank_might_like`, is computed and has no rail. It serves the
 Explore New screen and still takes its turn in `FILL_ORDER`, so the tiles it
 would show are held back from the crowd rows. `topics.UNSHELVED` is what marks
 it — anything iterating `FILL_ORDER` and then looking the key up in the drawn
@@ -21,9 +22,50 @@ sections must skip it, or it is a `KeyError` rather than a finding.
 **Order matters and was chosen.** Personal first, because somebody opening
 myFAM is more likely to want what was chosen for them than what is popular.
 Trending second, because it is the one rail with a reason to be looked at
-*today* and a row nobody scrolls to is a row nobody reads. Then the two crowd
-rows, FAM's own popularity above the friends row — that row always has
-something in it, and the friends row is empty until somebody follows anybody.
+*today* and a row nobody scrolls to is a row nobody reads. "What you missed"
+third — under Trending rather than over it, because it is a third rail about
+what somebody already likes, a week older, and the argument that moved the
+world row up applies against it too. Then the two crowd rows, FAM's own
+popularity above the friends row — that row always has something in it, and
+the friends row is empty until somebody follows anybody.
+
+## What you missed last week
+
+The weekly recap's replacement, at the owner's direction, and deliberately a
+different *kind* of thing. The recap was one episode **about** somebody's week,
+written from their own log and fired as a popup on the first open on or after
+Sunday — so a thin week produced an episode about having had a thin week, in
+front of somebody who had opened the app to listen to something else. This is
+a shelf of episodes they can still have.
+
+Three rules hold it honest.
+
+**It is what was actually offered.** The membership test is the impression log
+for the last seven days — tiles this app put on a screen in front of this
+person — minus everything they played. The heading is a claim about what FAM
+did, so every tile under it has to be something they could have taken and did
+not. There is no top-up from the bank, and a short rail is short.
+
+**An impression still never becomes taste.** Being shown something says nothing
+about whether you wanted it, and CLAUDE.md is emphatic that letting it into the
+taste model is how a feed teaches itself its own preferences. The impression
+decides *membership*, which is a fact about the feed; `_affinity` against the
+same profile every other personal rail uses decides the *order*.
+
+**It can only offer what it can still resolve.** A live story that expired and
+fell out of the pool has no title, no angle and no question, and a tile invented
+to stand in for one is exactly the failure this page is built against. So the
+candidates are the bank plus `stories.pool().held()` — `held` rather than `live`,
+so a story the variety cap is hiding is still resolvable — and a story that has
+aged out is simply not in the rail.
+
+It fills **first** in `FILL_ORDER`, which is the one ordering decision worth
+writing down: its inventory is the narrowest on the page, so it cannot starve
+anything, and letting Made for you choose ahead of it took the *best* of the
+missed tiles and left the rail whose heading is about relevance holding the
+leftovers.
+
+`MISSED_SECTION_SIZE` is 8 and `MISSED_WINDOW` is a week.
 
 ## The two inventories
 
@@ -216,7 +258,13 @@ five outcomes ever says "nothing is trending" or "nothing is happening".
 | `empty` | it was asked and genuinely had nothing |
 | `skipped` | working, and deliberately not asked this window (see below) |
 
-There is a sixth sentence, and it belongs to the **rail** rather than the pool.
+"What you missed last week" has an empty sentence of its own, and the thing to
+notice about it is what it does *not* say. A listener who was not here last
+week was offered nothing; one who played everything missed nothing. The rail
+cannot tell those apart from where it stands, so its sentence has to be true of
+both and claims neither: *"Nothing went past you this week."*
+
+There is a sixth pool sentence, and it belongs to the **rail** rather than the pool.
 Made for you chooses first, so on a thin day it can take everything and leave
 Trending empty while the pool served perfectly well. Saying "the live sources
 had nothing" there would be our own page's arrangement reported as a fact about
