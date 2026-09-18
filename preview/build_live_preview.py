@@ -633,6 +633,8 @@ LIVE_SHIM = r"""
     var row = rows("prefs").filter(function (r) { return r.id === UID; })[0];
     return {
       interests: row && row.interests ? String(row.interests).split(",").filter(Boolean) : [],
+      hidden_interests: row && row.hidden_interests
+        ? String(row.hidden_interests).split(",").filter(Boolean) : [],
       language: (row && row.language) || "en",
       weekly_recap: row ? row.weekly_recap !== 0 : true,
       recap_week: (row && row.recap_week) || "",
@@ -1066,6 +1068,11 @@ LIVE_SHIM = r"""
         account: !!EMAIL, saved: !!EMAIL,
         account_required: ACCOUNT_REQUIRED,
         interests: EMAIL ? stored.interests : [],
+        hidden_interests: EMAIL ? stored.hidden_interests : [],
+        public_interests: EMAIL
+          ? stored.interests.filter(function (g) {
+              return stored.hidden_interests.indexOf(g) === -1; })
+          : [],
         language: EMAIL ? stored.language : "en",
         weekly_recap: stored.weekly_recap, recap_week: stored.recap_week,
         intro_done: EMAIL ? stored.intro_done : false
@@ -1077,8 +1084,13 @@ LIVE_SHIM = r"""
       var chosen = (body.interests !== undefined && body.interests !== null)
         ? body.interests.filter(function (g) { return TAG_LABELS[g]; })
         : was.interests;
+      var hidden = (body.hidden_interests !== undefined
+                    && body.hidden_interests !== null)
+        ? body.hidden_interests.filter(function (g) { return TAG_LABELS[g]; })
+        : was.hidden_interests;
       return put("prefs", UID, {
         interests: chosen.join(","),
+        hidden_interests: hidden.join(","),
         language: body.language !== undefined && body.language !== null
           ? body.language : was.language,
         weekly_recap: body.weekly_recap !== undefined && body.weekly_recap !== null

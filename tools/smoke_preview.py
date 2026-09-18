@@ -111,6 +111,28 @@ def main() -> int:
             assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
                 "the country code did not default to +1"
             page.evaluate("submitAuthForm()")
+
+            # Who they are, before what they want to hear. A name, a handle
+            # and a picture are about *them* and take a moment; the interests
+            # are the last thing before the app, so asking for them first
+            # would put a form between somebody and the episode they came for.
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+            assert page.query_selector("#identityPic"), \
+                "no way to add a picture in the setup"
+            assert page.query_selector("#identitySkip:not([hidden])"), \
+                "there was no way past the identity step"
+            # And the editor-only half is not in the first run: there is no
+            # password to change yet and nothing chosen to share.
+            assert page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
+                "the editor's own rows are in the first run"
+            page.fill("#identityName", "Smoke Tester")
+            page.fill("#identityHandle", "@Smoke.Tester")
+            # Stored lower-case and stripped, so it is shown that way while
+            # it is being typed rather than corrected on save.
+            assert page.input_value("#identityHandle") == "smoketester", \
+                "the handle field did not clean what was typed into it"
+            page.evaluate("saveIdentity()")
+
             page.wait_for_selector("#screen-intro.active .intro-chip",
                                    timeout=10000, state="attached")
             # Six discs on the wheel, as the designs draw them.
@@ -842,6 +864,61 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def edit_profile_is_a_screen_with_everything_on_it():
+            """The Edit profile pill used to open two chained modals - a name,
+            then a handle - with no way back between them, no picture, and
+            placeholders reading "e.g. Ian Solomon" and "iansolomon": a real
+            name and handle offered to every listener in the app.
+
+            It is one screen now, with the picture, the name, the username,
+            the password row and the choice of which interests are shared."""
+            ensure_account()
+            # Somebody with a profile to edit. A listener who has never set
+            # one gets the same screen with empty fields, which is correct and
+            # is not what this check is about.
+            page.evaluate("""() => fetch('/api/me', { method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ name: 'Smoke Tester',
+                                     handle: 'smoketester' }) })""")
+            page.wait_for_timeout(600)
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(1100)
+            page.evaluate("editIdentity()")
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+
+            assert page.query_selector("#identityPic"), "no picture to change"
+            assert page.query_selector("#identityName"), "no name field"
+            assert page.query_selector("#identityHandle"), "no username field"
+            assert not page.eval_on_selector("#identityEditOnly", "e => e.hidden"), \
+                "the editor's own rows are hidden in the editor"
+            rows = page.text_content("#identityAccountRows") or ""
+            assert "Change password" in rows, "no way to change a password"
+            shared = page.text_content("#identityShared") or ""
+            assert shared.strip(), "nothing about which interests are shared"
+
+            # Prefilled from what is stored, so an editor opens on the current
+            # state rather than on empty fields somebody has to retype.
+            assert page.input_value("#identityName").strip(), \
+                "the editor opened with an empty name"
+
+            # A handle under three characters is refused under the field
+            # rather than in a toast that is gone before it is read.
+            page.fill("#identityHandle", "ab")
+            page.evaluate("saveIdentity()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-identity", "a bad handle was saved anyway"
+            assert page.eval_on_selector(
+                "#identityHandleNote", "e => e.classList.contains('bad')"), \
+                "the refusal was not shown under the field"
+
+            page.evaluate("closeIdentity()")
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-profile", "the X on Edit profile did not return"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def the_player_names_its_four_icons():
             """Share, vibe, save and captions. Unlabelled, a bookmark, a
             two-way arrow and a speech rectangle are three guesses - and the
@@ -1228,15 +1305,22 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-settings", "saving interests left Settings behind"
 
-            # Every modal a settings row opens closes the same way.
-            page.evaluate("editIdentity()")
+            # Edit profile is a screen now rather than two chained modals
+            # that asked for a name and then a handle with no way back
+            # between them - and it closes the way every other editor does.
+            page.evaluate("openIdentity('edit', 'settings')")
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+            assert not page.eval_on_selector("#identityTop", "e => e.hidden"), \
+                "the editor gave no way out"
+            assert page.query_selector("#identityTop .sheet-close"), \
+                "Edit profile has no X at the top right"
+            assert page.eval_on_selector("#identityNextBtn",
+                                         "e => e.textContent.trim()") == "Save", \
+                "the editor's docked button is not a save"
+            page.evaluate("closeIdentity()")
             page.wait_for_timeout(400)
-            assert page.query_selector("#modalOverlay.active .modal-x"), \
-                "the name modal has no X"
-            page.evaluate("closeModal()")
-            page.wait_for_timeout(300)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
-                == "screen-settings", "closing the name modal left Settings"
+                == "screen-settings", "the X on Edit profile did not return"
 
         def the_interests_wheel_turns_and_stays_tappable():
             """The first run's wheel: six discs orbiting "View more".
@@ -1721,6 +1805,8 @@ def main() -> int:
               a_friends_profile_shows_what_they_published)
         check("A new follower is announced and can be followed back",
               a_new_follower_is_announced_and_can_be_followed_back)
+        check("Edit profile is a screen with everything on it",
+              edit_profile_is_a_screen_with_everything_on_it)
         check("Live captions show the script being read",
               live_captions_show_the_script_being_read)
         check("The sources cluster shows three in the corner",

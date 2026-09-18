@@ -1250,6 +1250,24 @@
     font-family:'JetBrains Mono', monospace; font-size:12px; }
   .phone-num{ flex:1 1 auto; min-width:0; }
 
+  /* ============ WHO YOU ARE: name, handle, picture ============ */
+  .id-pic-row{ display:flex; align-items:center; gap:14px; margin:4px 0 20px; }
+  .id-pic-say{ font-family:'JetBrains Mono', monospace; font-size:9px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint); }
+  /* The @ sits inside the field, so the handle reads as a handle while it is
+     being typed rather than becoming one on save. */
+  .id-handle{ position:relative; }
+  .id-at{ position:absolute; left:13px; top:50%; transform:translateY(-50%);
+    font-family:'JetBrains Mono', monospace; font-size:13px;
+    color:var(--text-faint); pointer-events:none; }
+  .id-handle .modal-input{ padding-left:27px; }
+  .id-note{ font-family:'Space Grotesk', sans-serif; font-size:10.5px;
+    line-height:1.5; color:var(--text-faint); margin-top:7px; }
+  .id-note.bad{ color:var(--coral); }
+  /* An interest kept private. Same pill, struck through rather than removed,
+     so the choice is visible and reversible in one tap. */
+  .pf-tag.off{ opacity:0.45; text-decoration:line-through; }
+
   /* ============ INTRO: interests, then language ============ */
   .intro-top{ flex:none; display:flex; justify-content:flex-end;
     padding:14px 16px 0; }
@@ -1696,6 +1714,77 @@
                Hidden when Settings opened this: there is nothing to skip past,
                and "skip" over an existing choice would read as discarding it. -->
           <div class="entry-skip" id="introSkip" onclick="skipInterests()">Skip for now</div>
+        </div>
+      </section>
+
+      <!-- ============ WHO YOU ARE ============
+           A step of the first run, and the Edit profile screen, from one
+           piece of markup - the same arrangement `screen-intro` already has
+           with Settings, and for the same reason: these are the same three
+           fields, and a second copy of them would be a second copy to keep
+           in step.
+
+           `identityMode` decides three things and nothing else: whether there
+           is an X, what the docked button says, and where saving goes. The
+           two blocks that are only an editor's business - a password change
+           and which interests are shared - are hidden during the first run,
+           where there is no password to change yet and nothing chosen to
+           share. -->
+      <section class="screen" id="screen-identity">
+        <div class="intro-top" id="identityTop" hidden>
+          <button class="sheet-close" onclick="closeIdentity()"
+                  aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="entry-wrap" style="min-height:0;">
+            <div class="entry-h" id="identityHeading">Who are you?</div>
+            <p class="entry-lede" id="identityLede">A name and a handle are how
+              your friends find you, and how a vibe you send says who it is
+              from. Both can change later.</p>
+
+            <div class="id-pic-row">
+              <div class="pf-pic" id="identityPic" onclick="pickAvatar()"
+                   role="button" aria-label="Choose a profile picture">
+                <span class="pf-cam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h3.5L8 5.5h8L17.5 8H21v11H3z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+              </div>
+              <div class="id-pic-say" id="identityPicSay">Add a photo</div>
+            </div>
+
+            <div class="auth-field">
+              <div class="auth-label">Your name</div>
+              <input class="modal-input" id="identityName" type="text"
+                     autocomplete="off" autocorrect="off" autocapitalize="words"
+                     spellcheck="false" placeholder="Your name"
+                     style="margin-bottom:0;">
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">Username</div>
+              <div class="id-handle">
+                <span class="id-at">@</span>
+                <input class="modal-input" id="identityHandle" type="text"
+                       autocomplete="off" autocorrect="off" autocapitalize="off"
+                       spellcheck="false" placeholder="yourhandle"
+                       oninput="cleanHandleInput(this)" style="margin-bottom:0;">
+              </div>
+              <div class="id-note" id="identityHandleNote">Letters, numbers and
+                underscores. This is what people search for.</div>
+            </div>
+
+            <div id="identityEditOnly" hidden>
+              <div class="set-group">Shared on your profile</div>
+              <p class="id-note">Your interests are on your profile. Tap one to
+                keep it to yourself &mdash; it still ranks what you hear.</p>
+              <div class="pf-tags" id="identityShared"></div>
+
+              <div class="set-group">Account</div>
+              <div id="identityAccountRows"></div>
+            </div>
+          </div>
+        </div>
+        <div class="entry-dock">
+          <button class="entry-btn primary" id="identityNextBtn"
+                  onclick="saveIdentity()">Next</button>
+          <div class="entry-skip" id="identitySkip" onclick="skipIdentity()">Skip for now</div>
         </div>
       </section>
 
@@ -6436,9 +6525,28 @@
   function saveAvatar(dataUrl){
     // Name and handle ride along because `/api/me` writes all three: sending
     // a picture on its own would clear a name somebody had already set.
+    //
+    // **On the identity screen they come from the fields, not from what is
+    // stored.** During the first run nothing is stored yet, and the whole
+    // point of that step is that the picture is part of it - reading the
+    // stored name there would refuse the photo and send somebody back to the
+    // screen they are already on.
+    var onIdentity = document.getElementById("screen-identity")
+                       .classList.contains("active");
     var name = (profileNow && profileNow.name) || "";
     var handle = (profileNow && profileNow.handle) || "";
-    if(!name || !handle){
+    if(onIdentity){
+      name = document.getElementById("identityName").value.trim() || name;
+      handle = (document.getElementById("identityHandle").value.trim() || handle)
+                 .replace(/^@+/, "").toLowerCase();
+    }
+    if(!name || handle.length < 3){
+      if(onIdentity){
+        var note = document.getElementById("identityHandleNote");
+        note.textContent = "A name and a handle first \u2014 then the photo.";
+        note.classList.add("bad");
+        return;
+      }
       toast("Set your name and handle first");
       editIdentity();
       return;
@@ -6451,8 +6559,19 @@
         if(!r.ok) throw new Error(d.error || "Could not save that picture");
         return d;
       });
-    }).then(function(){ loadProfile(); toast("Picture saved"); })
-      .catch(function(err){ toast(err.message); });
+    }).then(function(saved){
+      profileNow = profileNow || {};
+      profileNow.name = saved.name;
+      profileNow.handle = saved.handle;
+      profileNow.avatar = saved.avatar || "";
+      if(onIdentity){
+        drawIdentityPicture(profileNow);
+        toast("Picture saved");
+        return;
+      }
+      loadProfile();
+      toast("Picture saved");
+    }).catch(function(err){ toast(err.message); });
   }
 
   function removeAvatar(){
@@ -7160,31 +7279,189 @@
     openThreadWith(person);
   }
 
-  function editIdentity(){
-    showModal({
-      title: "Your name",
-      placeholder: "Your name",
-      confirmLabel: "Next",
-      onConfirm: function(name){
-        showModal({
-          title: "Pick a handle",
-          placeholder: "yourhandle",
-          confirmLabel: "Save",
-          onConfirm: function(handle){
-            fetch("/api/me", {
-              method: "POST", headers: {"Content-Type": "application/json"},
-              body: JSON.stringify({ name: name, handle: handle })
-            }).then(function(r){
-              return r.json().then(function(d){
-                if(!r.ok) throw new Error(d.error || "Could not save that");
-                return d;
-              });
-            }).then(function(){ loadProfile(); toast("Saved"); })
-              .catch(function(err){ toast(err.message); });
-          }
-        });
-      }
+  // ---------------- Who you are ----------------
+  //
+  // Name, handle and picture, on one screen, used two ways - the same
+  // arrangement `screen-intro` has with Settings and for the same reason:
+  // these are the same three fields, and a second copy of them is a second
+  // copy to keep in step.
+  //
+  // It replaces two chained modals that asked for a name and then a handle
+  // with no way back between them, no picture, and placeholders reading
+  // "e.g. Ian Solomon" and "iansolomon" - a real-looking name and handle
+  // offered to every listener in the app.
+  //
+  // `identityMode` decides three things and nothing else: whether there is an
+  // X, what the docked button says, and where saving goes. It is the lesson
+  // `introMode` already carries - see the settled constraint about the intro
+  // screen not being on the navigation stack, which is the trap this screen
+  // would otherwise fall into as the fourth one.
+  var identityMode = "first-run";
+  //: Where an editor returns to, recorded by *name* when it is opened. The
+  //: identity screen is shown with `showScreen` and never pushed, so a
+  //: `goBack()` from it pops whatever was under it - which is the trap the
+  //: intro screen fell into three times.
+  var identityReturn = "profile";
+  //: Which interests this listener has chosen to keep off their profile.
+  //: Edited here, sent as `hidden_interests`.
+  var identityHidden = [];
+
+  function openIdentity(mode, returnTo){
+    identityMode = mode || "first-run";
+    identityReturn = returnTo || "profile";
+    var editing = identityMode === "edit";
+    document.getElementById("identityTop").hidden = !editing;
+    document.getElementById("identitySkip").hidden = editing;
+    document.getElementById("identityEditOnly").hidden = !editing;
+    document.getElementById("identityNextBtn").textContent =
+      editing ? "Save" : "Next";
+    document.getElementById("identityHeading").textContent =
+      editing ? "Edit profile" : "Who are you?";
+    document.getElementById("identityLede").textContent = editing
+      ? "This is what your friends see. Nothing here is on anybody else's "
+        + "screen unless you put it there."
+      : "A name and a handle are how your friends find you, and how a vibe "
+        + "you send says who it is from. Both can change later.";
+
+    // Prefilled from whatever is already stored, so an editor opens on the
+    // current state rather than on empty fields somebody has to retype.
+    var p = profileNow || {};
+    document.getElementById("identityName").value = p.name || "";
+    document.getElementById("identityHandle").value = p.handle || "";
+    drawIdentityPicture(p);
+    identityHidden = (PREF_CHOICES.hidden_interests || []).slice();
+    renderSharedInterests();
+    renderIdentityAccountRows();
+    showScreen("identity");
+    if(!editing) setTimeout(function(){
+      document.getElementById("identityName").focus();
+    }, 80);
+  }
+
+  function drawIdentityPicture(p){
+    var box = document.getElementById("identityPic");
+    if(!box) return;
+    var cam = box.querySelector(".pf-cam");
+    box.innerHTML = avatarHTML(p, 78);
+    if(cam) box.appendChild(cam);
+    document.getElementById("identityPicSay").textContent =
+      (p && p.avatar) ? "Tap to change" : "Add a photo";
+  }
+
+  // A handle is stored lower-case and stripped of its @, so it is shown that
+  // way while it is being typed. Otherwise somebody types "Ian" and is shown
+  // "ian" only after saving, which reads as the app correcting them.
+  function cleanHandleInput(input){
+    var at = input.selectionStart;
+    var before = input.value;
+    input.value = before.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
+    if(input.value.length === before.length){
+      try { input.setSelectionRange(at, at); } catch(e){}
+    }
+  }
+
+  // Their interests, with the ones kept private struck through. A tap
+  // toggles. Struck rather than removed, so the choice is visible and
+  // reversible in one tap instead of being a list of what is left.
+  function renderSharedInterests(){
+    var box = document.getElementById("identityShared");
+    if(!box) return;
+    var mine = (PREF_CHOICES.saved ? (PREF_CHOICES.interests || [])
+                                   : (localPrefs().interests || []));
+    var labels = {};
+    (PREF_CHOICES.interests_all || []).forEach(function(row){
+      labels[row.id] = row.label;
     });
+    if(!mine.length){
+      box.innerHTML = '<div class="id-note">Nothing chosen yet. Pick a few '
+        + 'under Interests and they show up here.</div>';
+      return;
+    }
+    box.innerHTML = mine.map(function(id){
+      var off = identityHidden.indexOf(id) !== -1;
+      return '<div class="pf-tag' + (off ? " off" : "") + '" '
+        + 'onclick="toggleSharedInterest(\'' + id + '\')">'
+        + escapeHtml(labels[id] || id) + '</div>';
+    }).join("");
+  }
+
+  function toggleSharedInterest(id){
+    var at = identityHidden.indexOf(id);
+    if(at === -1) identityHidden.push(id); else identityHidden.splice(at, 1);
+    renderSharedInterests();
+  }
+
+  function renderIdentityAccountRows(){
+    var box = document.getElementById("identityAccountRows");
+    if(!box) return;
+    box.innerHTML = AUTH.authenticated
+      ? settingsRow("Signed in as", escapeHtml(AUTH.email), "")
+        + settingsRow("Change password", "", "changePassword()")
+      : '<div class="set-note">Create an account and your name, handle and '
+        + 'picture follow you to any device you sign in on.</div>';
+  }
+
+  function saveIdentity(){
+    var name = document.getElementById("identityName").value.trim();
+    var handle = document.getElementById("identityHandle").value.trim()
+                   .replace(/^@+/, "").toLowerCase();
+    var note = document.getElementById("identityHandleNote");
+    note.classList.remove("bad");
+    if(!name){ toast("A name, please"); return; }
+    if(handle.length < 3){
+      note.textContent = "A handle needs at least three characters.";
+      note.classList.add("bad");
+      return;
+    }
+    var body = { name: name, handle: handle };
+    fetch("/api/me", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "Could not save that");
+        return d;
+      });
+    }).then(function(saved){
+      profileNow = profileNow || {};
+      profileNow.name = saved.name;
+      profileNow.handle = saved.handle;
+      // The sharing choice, only from the editor - the first run has nothing
+      // chosen yet to share or hide.
+      if(identityMode === "edit" && AUTH.authenticated){
+        savePreferences({ hidden_interests: identityHidden });
+      }
+      if(identityMode === "edit"){
+        showScreen(identityReturn);
+        if(identityReturn === "profile") loadProfile();
+        toast("Saved");
+        return;
+      }
+      // The first run carries on to the interests, which is the last step.
+      afterIdentity();
+    }).catch(function(err){
+      // A taken handle is the common one, and it belongs under the field
+      // rather than in a toast that is gone before they have read it.
+      if(/taken/i.test(err.message)){
+        note.textContent = err.message;
+        note.classList.add("bad");
+        return;
+      }
+      toast(err.message);
+    });
+  }
+
+  function skipIdentity(){ afterIdentity(); }
+
+  function closeIdentity(){
+    showScreen(identityReturn);
+    if(identityReturn === "profile") loadProfile();
+  }
+
+  // Kept as a name because the profile's pill calls it, and because this is
+  // what the two chained modals used to be.
+  function editIdentity(){
+    openIdentity("edit", "profile");
   }
 
 
@@ -8099,6 +8376,8 @@
       .then(function(r){ return r.json(); })
       .then(function(d){
         PREF_CHOICES = d;
+        // The editor draws the pills off `interests` and strikes through
+        // whatever is in `hidden_interests`, so both have to be here.
         if(d.saved){
           introSelection = (d.interests || []).slice();
         } else {
@@ -8298,21 +8577,62 @@
 
   function skipAccount(){
     saveLocalPrefs({ entry: "skipped" });
-    afterAccount();
+    // Skipping the account step skips the name-and-handle step with it.
+    // "Skip for now" is one decision about setup, and asking who they are
+    // immediately after they declined to say is the gate they just refused.
+    afterAccount({ askWhoTheyAre: false });
   }
 
   // The intro runs after either path, which is what the packet asks for: the
   // questions are about what to play, not about who is paying.
-  function afterAccount(){
+  // After credentials, before interests: who they are.
+  //
+  // The order is the one the packet asks for and it is the right way round.
+  // A name, a handle and a picture are about *them* and take a moment; the
+  // interests are about what they want to hear and are the last thing before
+  // the app. Asking for interests first and identity afterwards would put a
+  // form between somebody and the episode they came for.
+  function afterAccount(opts){
+    var ask = !(opts && opts.askWhoTheyAre === false);
     loadPrefChoices().then(function(){
       if(localPrefs().intro === "done" || PREF_CHOICES.intro_done){
         finishEntry();
         return;
       }
-      introMode = "first-run";
-      renderIntro();
-      showScreen("intro");
+      // A handle is for other people to find somebody by, which is worth
+      // nothing without an account to find - so this step belongs after
+      // signing up and nowhere else.
+      if(!ask || !AUTH.authenticated){ afterIdentity(); return; }
+      // Already named, so there is nothing to ask - somebody who set a name
+      // and stopped before the interests, or who signed in rather than up.
+      if(profileNow && profileNow.name && profileNow.handle){
+        afterIdentity();
+        return;
+      }
+      loadProfileQuietly().then(function(){
+        if(profileNow && profileNow.name && profileNow.handle){
+          afterIdentity();
+          return;
+        }
+        openIdentity("first-run", "intro");
+      });
     });
+  }
+
+  // The profile, read without drawing it. The identity step needs to know
+  // whether there is already a name before it decides to ask for one, and
+  // `loadProfile` paints a screen that is not on yet.
+  function loadProfileQuietly(){
+    return fetch("/api/profile")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) profileNow = d; return d; })
+      .catch(function(){ return null; });
+  }
+
+  function afterIdentity(){
+    introMode = "first-run";
+    renderIntro();
+    showScreen("intro");
   }
 
   // --- intro ---------------------------------------------------------------

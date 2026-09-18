@@ -556,6 +556,26 @@ the rest of this list it needs taste rather than a key.
    everything changeable in one place - it was spread across a modal, the
    first-run screens nobody sees twice, and an action sheet inside the player,
    so "where do I change that" had three answers and two of them were wrong.
+   **The first run asks who they are, and Edit profile is a screen** *(§104).*
+   After credentials and before the interests there is a step for a name, a
+   username and a picture - in that order, because a name and a handle are
+   about *them* and the interests are the last thing before the app, so asking
+   for interests first would put a form between somebody and the episode they
+   came for. It is asked **only after signing up**: a handle is for other
+   people to find somebody by, which is worth nothing without an account to
+   find, and "Skip for now" is one decision about setup rather than two.
+   The Edit profile pill opens the same screen as an editor - `identityMode`
+   decides whether there is an X, what the docked button says and where
+   saving goes, exactly as `introMode` does, which is the trap the intro
+   screen fell into three times. It carries the picture, the name, the
+   username, Change password, and **which interests are shared**: stored as
+   the *hidden* set, and hiding one changes the profile and never the ranker,
+   because an interest is a statement about what to play and hiding it is a
+   statement about a screen.
+   What it replaces: two chained modals asking for a name and then a handle,
+   with no way back between them, no picture at all, and placeholders reading
+   "e.g. Ian Solomon" and "iansolomon" - a real-looking name and handle
+   offered to every listener in the app.
    **A settings row is an editor, never the first run happening again**
    *(§98).* Interests and Language have no editor of their own and reuse the
    intro screen, and reusing the screen meant reusing the flow: Next chained

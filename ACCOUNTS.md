@@ -31,6 +31,19 @@ the tier system below applies to anonymous listeners too. They are on `free`.
 | `google` | a signed identity token | yes, fully |
 | `apple` | a signed identity token | yes, fully |
 
+**An email sign-up takes a number as well.** Both land on one account row, so
+either one logs in later - and the sign-up screen asks for both, formats the
+number as it is typed, and picks the country code from a select rather than
+having it typed, because the server stores exactly one form (E.164) and
+refuses to guess a country. This used to be an *exclusive* choice: filling in
+the number the form itself offered came back as "send either an email address
+or a phone number, not both", which is a rule about how the server stores
+things told to somebody who was answering the fields in front of them.
+Logging in is still one identifier, because two would be two lookups with
+nothing to do when they disagree.
+
+**Passwords are at least 8 characters**, down from 10.
+
 One person can have several. `identities` is a separate table keyed on
 `(provider, subject)`, which matters most for Apple: **Apple sends an email
 address on the first authorization only.** An account keyed on email would
@@ -46,6 +59,29 @@ Two consequences worth stating plainly:
 * **An Apple address may be a private relay.** It forwards today and its owner
   can switch it off tomorrow, so nothing may promise to reach somebody there.
   The provider endpoint returns `private_relay` so the interface can say so.
+
+### After the credentials: who they are
+
+Sign-up is followed by one step for a **name, a username and a picture**, and
+then the interests. The order is deliberate: a name and a handle are about
+*them* and take a moment, and the interests are the last thing before the app,
+so asking for interests first would put a form between somebody and the
+episode they came for.
+
+It is asked **only after signing up**. A handle is how other people find
+somebody, which is worth nothing without an account to find, and "Skip for
+now" on the account step is one decision about setup rather than two.
+
+The same screen is the **Edit profile** editor, reached from the pill on the
+profile — `identityMode` decides whether there is an X, what the docked button
+says, and where saving goes, exactly as `introMode` does for the interests
+screen. As an editor it also carries **Change password** and **which interests
+are shared**, stored as the hidden set (`SHARING.md` has why that direction).
+
+What it replaces: two chained modals asking for a name and then a handle, with
+no way back between them, no picture at all, and placeholders reading "e.g.
+Ian Solomon" and "iansolomon" — a real-looking name and handle offered to
+every listener in the app.
 
 ### What is deliberately not verified, and say so out loud
 

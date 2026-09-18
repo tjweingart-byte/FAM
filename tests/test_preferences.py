@@ -298,3 +298,48 @@ def test_signing_up_later_keeps_what_they_already_did(client):
     # what "signing up does not start you over" means. Read off the feed,
     # which is what reads the log now.
     assert client.get("/api/myfam").json()["personalised"] is True
+
+
+# --- which interests reach a profile --------------------------------------
+
+
+def test_hiding_an_interest_changes_the_profile_and_not_the_ranking(client):
+    """"Which topics they choose to publicly share", from the edit screen.
+
+    It must not touch the ranker. An interest is a statement about what to
+    play; hiding it is a statement about a screen, and conflating the two
+    would quietly change somebody's feed when they tidied their profile."""
+    sign_up(client)
+    client.post("/api/preferences", json={"interests": ["tech", "sports", "money"]})
+    client.post("/api/preferences", json={"hidden_interests": ["sports"]})
+
+    stored = client.get("/api/preferences").json()
+    assert stored["interests"] == ["tech", "sports", "money"], \
+        "hiding an interest removed it"
+    assert stored["hidden_interests"] == ["sports"]
+    assert stored["public_interests"] == ["tech", "money"]
+
+    # And the feed still ranks on all three - the ranker reads `interests`.
+    feed = client.get("/api/myfam").json()
+    assert feed["personalised"] is True
+
+
+def test_nothing_hidden_means_everything_shared(client):
+    """Which is what every row written before this column existed says. The
+    shared set stored instead would default every profile in the app to an
+    empty pill row that reads as broken."""
+    sign_up(client)
+    client.post("/api/preferences", json={"interests": ["tech", "money"]})
+    body = client.get("/api/preferences").json()
+    assert body["hidden_interests"] == []
+    assert body["public_interests"] == ["tech", "money"]
+
+
+def test_an_unknown_facet_cannot_be_hidden(client):
+    """Refused the same way an unknown interest is, by the same cleaner.
+    Hiding something that is not a facet is a client bug, and one that
+    silently stored would make the editor's pills disagree with the store."""
+    sign_up(client)
+    r = client.post("/api/preferences", json={"hidden_interests": ["astrology"]})
+    assert r.status_code == 400
+    assert client.get("/api/preferences").json()["hidden_interests"] == []

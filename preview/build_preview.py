@@ -286,7 +286,12 @@ def load_fixtures() -> dict:
             "searched": 12, "open_threads": 2,
             "subjects": ["tech", "money", "science", "health"],
             "since": _time.time() - 63 * 86400,
-            "name": "Ian Solomon", "handle": "iansolomon",
+            # **Unnamed to start**, which is what a first run actually is.
+            # It used to be "Ian Solomon" / "iansolomon", so the preview
+            # showed a first run to somebody who already had a name and a
+            # handle - and offered that name as a placeholder to everybody
+            # else. `POST /api/me` fills these in, the way the app does.
+            "name": "", "handle": "",
             "joined": _time.time() - 63 * 86400,
             "echo_count": 7,
             # The picture and the follow graph the profile now draws. Both
@@ -354,7 +359,8 @@ def load_fixtures() -> dict:
             "language_active": prefs_mod.LANGUAGE_ACTIVE,
             "account": True, "saved": True,
             "account_required": "You need an account for this.",
-            "interests": [], "language": "en", "weekly_recap": True,
+            "interests": [], "hidden_interests": [], "public_interests": [],
+            "language": "en", "weekly_recap": True,
             "recap_week": "", "intro_done": False,
         },
         "/api/nextup": {
@@ -602,7 +608,8 @@ SHIM = """
     if (path === "/api/preferences" && method === "POST") {
       var chosen = JSON.parse((init && init.body) || "{}");
       var stored = FIXTURES["/api/preferences"];
-      ["interests", "language", "weekly_recap", "intro_done"].forEach(function (k) {
+      ["interests", "hidden_interests", "language", "weekly_recap",
+       "intro_done"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
       });
       return json(stored);
