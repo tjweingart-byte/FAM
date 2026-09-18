@@ -20,8 +20,12 @@ one script. That makes the *shared* guesses structurally cheaper to warm than
 the personal ones:
 
 * **Trending** is the same list for every listener, so one warmed script can be
-  taken by everybody who taps it. Best value per dollar in the app, and the
-  only source that is worth running with no listener in mind at all.
+  taken by everybody who taps it. Best value per dollar in the app, and one of
+  the two sources worth running with no listener in mind at all.
+* **The live story pool** is the other. It is composed once for everybody
+  (PROBLEMS.md §102), so a warm is shared the same way - and it is the
+  inventory where a pre-built brief buys most, because a story tile is a title
+  and an angle and the subject still has to be resolved on the tap.
 * **A mix member** is the strongest prediction FAM has: somebody wrote down
   that they want this subject, every day. A bank topic in a mix is shared with
   everyone else who has it; a typed one is a script a day for one person, which
@@ -45,7 +49,7 @@ from prefetch import Candidate
 
 log = logging.getLogger(__name__)
 
-#: The length a warmed episode is written at.
+#: The length a warmed episode is written at, when nothing says otherwise.
 #:
 #: Duration is part of the cache key - a 3-minute script is written
 #: differently from a 10-minute one, not cut down from it - so a warm at the
@@ -54,6 +58,11 @@ log = logging.getLogger(__name__)
 #: listeners mostly pick something else should change that rather than warm
 #: several lengths, which multiplies the spend by the number of lengths and
 #: the waste along with it.
+#:
+#: **A cycle scheduled by a browse surface overrides it** with the length that
+#: surface is actually showing - `Prefetcher.plan(minutes=...)`. myFAM has a
+#: length control of its own (PROBLEMS.md §95), so a listener browsing at five
+#: minutes would otherwise get warms at two and never find one of them.
 DEFAULT_MINUTES = config.DEFAULT_MINUTES
 
 
@@ -95,6 +104,64 @@ class TrendingSource:
                 # Deliberately blank: this guess is not about one listener, and
                 # marking it with one would make the ledger report a shared win
                 # as a personal one.
+                listener="",
+            ))
+        return out
+
+
+class StoriesSource:
+    """Today's stories, from the pool myFAM's top two rails are drawn from.
+
+    **The rail that most needs this and had no source at all.** `FeedSource`
+    warms the personal rails and `TrendingSource` warms FAM's own most-played
+    row; the live story pool (PROBLEMS.md §102, `stories.py`) was warmed by
+    nothing, and it is the inventory where a pre-built brief is worth most:
+    a story tile is a title and an angle, so the subject still has to be
+    resolved and the why-now still has to be worked out on the tap, which is
+    exactly the call episode intelligence makes.
+
+    Shared, like trending and for the same reason: the pool is fetched and
+    composed once for everybody, so one warmed brief is used by every listener
+    who taps that tile. `listener` is therefore blank - marking a shared win
+    as a personal one would make the ledger report the wrong thing.
+
+    **Asking costs nothing**, which is the rule every source here keeps: the
+    pool is already in memory, refreshed in the background by whichever
+    request found it stale. This reads it and never triggers a sweep.
+    """
+
+    name = "stories"
+
+    def __init__(self, minutes: int = DEFAULT_MINUTES) -> None:
+        self.minutes = minutes
+
+    def candidates(self, listener: str = "", limit: int = 6) -> list:
+        import stories
+
+        try:
+            live = stories.pool().live()
+        except Exception as exc:  # noqa: BLE001 - a source must not break a cycle
+            log.warning("prefetch: the story pool could not be read: %s", exc)
+            return []
+
+        out: list = []
+        for rank, story in enumerate(live[:limit]):
+            query = (story.query or "").strip()
+            if not query:
+                continue
+            hours = story.age() / 3600.0
+            out.append(Candidate(
+                query=query,
+                minutes=self.minutes,
+                source=self.name,
+                # What kind of guess this is, in words: which story, how hot,
+                # and how old - the three things that decide whether warming
+                # the pool is paying for itself at all.
+                reason=(f"#{rank + 1} in the live story pool "
+                        f"({story.domain}, {hours:.0f}h old, "
+                        f"the same tile for everyone)"),
+                topic_id=story.id,
+                weight=float(len(live) - rank),
                 listener="",
             ))
         return out
@@ -269,10 +336,16 @@ def install(event_store=None, mix_store=None,
     """
     import prefetch
 
-    for name in ("trending", "feed", "threads", "mixes"):
+    for name in ("trending", "stories", "feed", "threads", "mixes"):
         prefetch.unregister(name)
 
     installed: list = []
+    # No store to check: the story pool is a module-level singleton, and an
+    # empty one simply produces no candidates - which is what a deployment
+    # with no live source configured should do.
+    stories_source = StoriesSource(minutes)
+    prefetch.register(stories_source)
+    installed.append(stories_source.name)
     if event_store is not None:
         for source in (TrendingSource(event_store, minutes),
                        FeedSource(event_store, minutes,
@@ -304,7 +377,7 @@ def report(installed: Optional[list] = None) -> dict:
     import prefetch
 
     live = [getattr(s, "name", "?") for s in prefetch.sources()]
-    known = ["trending", "mixes", "feed", "threads"]
+    known = ["trending", "stories", "mixes", "feed", "threads"]
     return {
         "available": known,
         "installed": live,

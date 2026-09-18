@@ -6941,3 +6941,116 @@ container, so the `<<TITLE:>>` line has never produced a title, the captions
 panel has never shown a real script, and the sources cluster has never drawn a
 real publisher. Everything above is verified against tests, the interface
 checks and both browser smoke runs; the parts that need a key need a key.
+
+## 105. The prefetch framework was built, shipped, reported on — and called by nothing
+
+myFAM's tap path was the same as searchFAM's, which meant it paid what search
+pays. Every uncached tile ran episode intelligence in front of its first word:
+one model call between the tap and the retrieval, on the one surface CLAUDE.md
+says must wait for nothing. And the machinery for avoiding that had existed
+since §83 — `prefetch.py`, four candidate sources, a budget, a ledger, a brief
+store, `understand()` already asking for a warmed brief before paying for one.
+
+The thing missing was the caller. `Prefetcher.run_once` was referenced by its
+own tests, by `tools/prefetch_report.py`, and by nothing else in the app. So
+the seam was right, the mechanism worked, and no listener had ever been half a
+second better off for it. §83 said "nothing schedules a cycle yet - that is the
+next decision, not an oversight". This is that decision, taken at the owner's
+direction, for the browse surfaces only.
+
+### What was turned on, and what deliberately was not
+
+**`PREFETCH=1`, at `brief` level.** That split is the whole of why switching it
+on is a small decision rather than a large one:
+
+* a **brief** is one small model call. It resolves the subject, works out the
+  why-now, decides the retrieval and the freshness window - the part that costs
+  a browse tap its seconds. Warming one that nobody taps costs a fraction of a
+  cent.
+* a **script** is a whole episode, written speculatively. Warming one nobody
+  taps costs a full episode, and the hit rate that says how often that happens
+  still does not exist.
+
+So the cheap half is on by default and the expensive half is still opt-in
+(`PREFETCH_LEVEL=script`), which is exactly the shape of the request: warm what
+makes the tap fast, don't write the episodes before anybody has asked for one.
+A tap on a warmed tile still pays retrieval and writing, and still gets a
+*fresh* episode - which is the other reason not to warm scripts on a browse
+page whose top rails are today's news.
+
+### The four things that had to be built, not just switched on
+
+**1. Something has to schedule a cycle.** `prefetch.schedule_cycle` is called
+by `/api/myfam` when the page is drawn, and never awaited - the same shape as
+the story sweep two lines above it, and for the same reason: a page that waited
+for speculation would have spent the latency the speculation was buying. It
+refuses itself in a dictionary lookup when prefetch is off, when there is no
+prefetcher, or when this listener was warmed recently, because it runs on every
+draw. Neither the scheduling nor the cycle can raise into the request: somebody
+who asked for a browse page gets a browse page, and a failed guess goes to the
+log.
+
+**2. A browse page is drawn far more often than it is acted on.** Opening the
+tab, coming back from a player, a pull to refresh - without a clock on it, one
+listener flicking between tabs would spend the daily ceiling on the same six
+tiles. `PREFETCH_CYCLE_SECONDS` is 300 and the clock is **per listener**, so
+the busiest person on the server does not become the only one whose guesses get
+warmed.
+
+**3. A warm at the wrong length is a warm nobody finds.** A brief is keyed by
+`(query, minutes, context)` and a script by `pipeline.key_for`, which carries
+minutes too - and every source warmed at `config.DEFAULT_MINUTES` while myFAM
+has had a **length control of its own** since §95. A listener browsing at five
+minutes would have had briefs warmed at two: paid for, held for an hour, and
+never looked up once. `Prefetcher.plan(minutes=...)` overrides every source's
+default with the length the surface is actually showing, and `/api/myfam`
+passes the one it already receives.
+
+**4. The inventory with most to gain had no source at all.** `FeedSource`
+warms the personal rails, `TrendingSource` warms FAM's own most-played row -
+and the live story pool (§102), which fills the top two rails of the page, was
+warmed by nothing. It is the inventory where a brief buys most, because a story
+tile is a title and an angle: the subject still has to be resolved on the tap,
+which is the call EI makes. `StoriesSource` reads `stories.pool()`, which is
+already in memory, so asking costs nothing - the rule every source here keeps.
+Its candidates carry no listener, like trending's: the pool is composed once
+for everybody, so a warmed brief is used by whoever taps that tile.
+
+### And one thing that would have quietly eaten the saving
+
+A brief keeps for an hour; a browse can schedule a cycle every five minutes. So
+`_warm` would have re-bought the same six briefs twelve times over - a
+prefetcher whose entire saving went on re-buying its own work, visible from
+outside only as a bill. A held, unexpired brief is now a `cached` skip, counted
+like any other. The `script` level is unaffected: there the cache check above it
+is the one that matters, and a held brief makes that warm *cheaper*, because
+`understand()` reads the same store.
+
+### The ledger had to learn to count the cheap half
+
+"Never pretend it is paying" was written when a warm meant a script, so the
+ledger counted scripts: keys warmed, keys taken, per source. Shipping `brief`
+as the level would have made every deployment report `hit rate: no data yet`
+forever - the same failure with the sign flipped, a prefetcher spending money
+and reporting nothing about whether it was worth it. Briefs are now counted
+beside scripts, warmed and taken, per source.
+
+Two differences from the script counters, both deliberate. A brief is counted
+**every time a tap uses one**, where a script key is counted once: the brief
+store is in-process rather than the shared cache, so each tap that finds one is
+a separate several seconds nobody waited, and the brief rate can exceed 1. And a
+**degraded brief is never counted as warmed**, because the store drops it -
+counting it would report a saving no tap can collect.
+
+### What this does not change
+
+The tap path. Nothing was added to it, which is the property §83 built the
+whole design around: prefetch writes into the same store, under the same key,
+and a warmed tap is an ordinary lookup. `EPISODE_INTELLIGENCE=0` and
+`PREFETCH=0` each still restore exactly what they restored before.
+
+And the numbers still have to be read. `/api/health` now reports
+`listeners_cycled` beside the hit rate, because sources installed with nothing
+scheduling a cycle looks identical from outside to sources installed and
+warming every browse - which is precisely the state this had been in since it
+was written.

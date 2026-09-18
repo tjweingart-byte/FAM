@@ -224,22 +224,24 @@ def test_every_source_gives_a_reason_and_a_length(store, mix_store):
 # --------------------------------------------------------------------------
 def test_install_registers_every_source_it_can_answer(store, mix_store):
     installed = prefetch_sources.install(event_store=store, mix_store=mix_store)
-    assert set(installed) == {"trending", "mixes", "feed", "threads"}
+    assert set(installed) == {"trending", "stories", "mixes", "feed", "threads"}
     assert prefetch_sources.report()["missing"] == []
 
 
 def test_a_missing_store_is_named_rather_than_silently_skipped(store):
-    """A prefetcher running on three surfaces out of four looks identical from
+    """A prefetcher running on four surfaces out of five looks identical from
     outside to one running on all of them."""
     prefetch_sources.install(event_store=store, mix_store=None)
     assert prefetch_sources.report()["missing"] == ["mixes"]
 
 
 def test_installing_nothing_is_reported_rather_than_looking_healthy():
+    """With no stores at all, only the story pool - which needs none - is
+    left, and everything that is missing has to be named."""
     prefetch_sources.install(event_store=None, mix_store=None)
     report = prefetch_sources.report()
-    assert report["installed"] == []
-    assert set(report["missing"]) == set(report["available"])
+    assert report["installed"] == ["stories"]
+    assert set(report["missing"]) == set(report["available"]) - {"stories"}
 
 
 def test_no_source_calls_a_model_or_the_network():
@@ -254,3 +256,79 @@ def test_no_source_calls_a_model_or_the_network():
         assert banned not in text, (
             f"a candidate source reaches for {banned!r}; asking what somebody "
             "might want must not itself cost anything")
+
+
+# --------------------------------------------------------------------------
+# the live story pool: shared, and the one with most to gain
+# --------------------------------------------------------------------------
+# It had no source at all until PROBLEMS.md §105, which made it the one myFAM
+# inventory where every tap paid for its own brief - and it is the inventory
+# where a brief is worth most, because a story tile is a title and an angle and
+# the subject still has to be resolved on the tap.
+@pytest.fixture
+def pool():
+    import stories as stories_mod
+
+    stories_mod.reset()
+    yield stories_mod
+    stories_mod.reset()
+
+
+def story(subject="the rate decision", domain="markets", **kw):
+    import stories as stories_mod
+
+    return stories_mod.Story(
+        subject=subject,
+        title=kw.pop("title", "The rate decision"),
+        angle=kw.pop("angle", "what moved"),
+        query=kw.pop("query", f"what is driving {subject}"),
+        domain=domain,
+        first_seen=kw.pop("first_seen", __import__("time").time() - 3600),
+        strength=kw.pop("strength", 0.9),
+        **kw)
+
+
+def test_the_live_story_pool_is_a_source(pool):
+    pool.seed([story()])
+    candidates = prefetch_sources.StoriesSource().candidates()
+    assert [c.query for c in candidates] == ["what is driving the rate decision"]
+
+
+def test_a_story_guess_is_shared_like_trending(pool):
+    """The pool is fetched and composed once for everybody, so one warmed brief
+    is used by every listener who taps that tile. Marking it with a listener
+    would make the ledger report a shared win as a personal one."""
+    pool.seed([story()])
+    candidates = prefetch_sources.StoriesSource().candidates(listener="anyone")
+    assert candidates and all(c.listener == "" for c in candidates)
+
+
+def test_a_story_guess_says_which_story_and_how_old(pool):
+    """The reason is the contextual-relevance claim: which story, how hot, how
+    old - the three things that say whether warming the pool is paying."""
+    pool.seed([story()])
+    reason = prefetch_sources.StoriesSource().candidates()[0].reason
+    assert "story pool" in reason and "markets" in reason and "h old" in reason
+
+
+def test_an_expired_story_is_never_warmed(pool):
+    """`Pool.live` is what the rails draw, so warming anything else would be
+    paying for a tile nobody can tap."""
+    import time as _time
+
+    pool.seed([story(first_seen=_time.time() - 48 * 3600, shelf_life=3600.0)])
+    assert prefetch_sources.StoriesSource().candidates() == []
+
+
+def test_an_empty_pool_produces_nothing_rather_than_raising(pool):
+    """A deployment with no live source configured has no stories, and that is
+    an ordinary state rather than a broken one."""
+    assert prefetch_sources.StoriesSource().candidates() == []
+
+
+def test_the_story_source_needs_no_store_to_install(store, mix_store):
+    """It reads a module-level pool, so it installs on every deployment - and
+    the report has to know it exists or a missing one looks like a healthy one."""
+    installed = prefetch_sources.install(event_store=store, mix_store=mix_store)
+    assert "stories" in installed
+    assert prefetch_sources.report()["missing"] == []

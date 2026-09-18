@@ -2598,6 +2598,21 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
          for section in feed["sections"] for topic in section["topics"]],
     )
     feed["algo"] = topics_mod.ALGO_VERSION
+
+    # Guess what this listener might tap, and pay for the *understanding* of it
+    # now rather than when they are waiting (PROBLEMS.md §105).
+    #
+    # Scheduled, never awaited, for the same reason as the story sweep above:
+    # this page is the one place CLAUDE.md says the wait must be zero, and a
+    # page that waited for speculation would have spent the latency the
+    # speculation was buying. It refuses itself cheaply - off, no prefetcher,
+    # or this listener warmed recently - so calling it on every draw is a
+    # dictionary lookup in the ordinary case.
+    #
+    # `minutes` is passed because it is part of the key. The browse length is
+    # this header's own control, so warming at the interface default would
+    # produce briefs nobody ever looks up for any listener who changed it.
+    prefetch.schedule_cycle(user, minutes)
     return feed
 
 

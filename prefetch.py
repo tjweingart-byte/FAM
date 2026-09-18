@@ -40,10 +40,18 @@ what a report has to print for anyone to judge whether prefetching is paying.
 Sources are registered, so myFAM and DailyFAM plug in when they are ready
 without this module learning anything about them.
 
-Three are built in because they can be answered from what exists today:
-trending (the same list for everyone, so one script serves every listener -
-by far the best value per dollar), mixes (the strongest prediction in the
-app: somebody said "play this every morning"), and a listener's own feed.
+Four are built in because they can be answered from what exists today:
+trending and the live story pool (both the same list for everyone, so one
+warm serves every listener - by far the best value per dollar), mixes (the
+strongest prediction in the app: somebody said "play this every morning"),
+and a listener's own feed.
+
+What drives it
+--------------
+`schedule_cycle` - called by myFAM when the page is drawn, never awaited. For
+as long as this module existed nothing called `run_once` at all, so every
+source, budget and ledger in it was inert: a prefetcher installed, reported
+and never asked to guess. See PROBLEMS.md §105.
 
 What this must never do
 -----------------------
@@ -59,14 +67,19 @@ What this must never do
   because "how much to prefetch" cannot be answered by anything except the hit
   rate, and a prefetcher that is never checked is a standing bill.
 
-It ships off (`PREFETCH=0`), like the tier system and for the same reason: the
-mechanism is worth having ready and the policy is worth deciding with numbers.
-`/api/health` reports which state a deploy is in, because a prefetcher that is
-off looks exactly like one that is on and missing.
+It **ships on at `brief` level** (PROBLEMS.md §105). It shipped off on the tier
+system's reasoning, and the level is what made switching it on the small
+decision rather than the large one: a brief is one small model call, so being
+wrong costs a fraction of a cent and being right removes the seconds episode
+intelligence puts in front of a browse tap. `script` - paying for whole
+episodes nobody has asked for - is still opt-in and still wants the hit rate
+first. `/api/health` reports which state a deploy is in, because a prefetcher
+that is off looks exactly like one that is on and missing.
 """
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
@@ -75,6 +88,9 @@ from typing import Optional, Protocol
 from config import PREFETCH_LEVELS, settings
 
 log = logging.getLogger(__name__)
+
+#: How many listeners' cycle clocks are kept at once. See `note_cycle`.
+_MAX_TRACKED_LISTENERS = 2000
 
 #: Warm levels, cheapest first. `off` is not a level - it is `PREFETCH=0`.
 #: Re-exported from config so there is one definition and the validator, this
@@ -257,15 +273,41 @@ class Ledger:
     skipped_volatile: int = 0
     failures: int = 0
 
+    #: How many briefs were warmed, and how many taps used one. Counted apart
+    #: from scripts because they are a different bet with a different price -
+    #: and because `brief` is the shipped level, so a ledger that counted only
+    #: scripts would report "no data yet" forever on the default deployment,
+    #: which is the "pretend it is paying" failure with the sign flipped.
+    briefs_warmed: int = 0
+    briefs_taken: int = 0
+
     def _row(self, source: str) -> dict:
         return self.by_source.setdefault(
-            source, {"warmed": 0, "taken": 0, "dollars": 0.0})
+            source, {"warmed": 0, "taken": 0, "dollars": 0.0,
+                     "briefs_warmed": 0, "briefs_taken": 0})
 
     def note_warmed(self, key: str, candidate: Candidate, dollars: float) -> None:
         self.warmed[key] = candidate
         row = self._row(candidate.source)
         row["warmed"] += 1
         row["dollars"] = round(row["dollars"] + max(0.0, dollars), 4)
+
+    def note_brief_warmed(self, candidate: Candidate, dollars: float) -> None:
+        self.briefs_warmed += 1
+        row = self._row(candidate.source)
+        row["briefs_warmed"] += 1
+        row["dollars"] = round(row["dollars"] + max(0.0, dollars), 4)
+
+    def note_brief_taken(self, source: str) -> None:
+        """A tap used a brief that was warmed before it.
+
+        Counted **every time**, unlike a script: a brief is held in this
+        process rather than in the shared cache, so each tap that finds one is
+        a separate several seconds nobody waited. The two numbers therefore
+        answer different questions and a brief hit rate can exceed 1.
+        """
+        self.briefs_taken += 1
+        self._row(source or "unknown")["briefs_taken"] += 1
 
     def note_consumed(self, key: str) -> bool:
         """Record that a cache hit was on something prefetch put there.
@@ -294,6 +336,12 @@ class Ledger:
             # nothing has been warmed: a rate of zero out of zero reads as a
             # failing prefetcher and is actually no data at all.
             "hit_rate": round(taken / warmed, 3) if warmed else None,
+            "briefs_warmed": self.briefs_warmed,
+            "briefs_taken": self.briefs_taken,
+            # Same rule as above: None is "nothing warmed yet", which is not
+            # the same statement as "warmed and never taken".
+            "brief_hit_rate": (round(self.briefs_taken / self.briefs_warmed, 3)
+                               if self.briefs_warmed else None),
             "skipped_already_cached": self.skipped_already_cached,
             "skipped_volatile": self.skipped_volatile,
             "failures": self.failures,
@@ -308,6 +356,11 @@ class Ledger:
 class _WarmBrief:
     brief: object
     expires: float
+    #: Which candidate source guessed this. Carried so that a tap which uses
+    #: the brief can be attributed - the per-source hit rate is the number the
+    #: open question turns on, and one that counted only scripts would be
+    #: blind on the level that actually ships.
+    source: str = ""
 
 
 class BriefStore:
@@ -343,7 +396,7 @@ class BriefStore:
         return f"{int(minutes)}|{context.strip().lower()}|{' '.join(query.lower().split())}"
 
     def put(self, query: str, minutes: int, brief, context: str = "",
-            now: Optional[float] = None) -> None:
+            now: Optional[float] = None, source: str = "") -> None:
         # A degraded brief is the raw query with nothing worked out. Keeping one
         # would mean a tap *skips* contextual relevance and gets the pre-EI
         # behaviour, having paid for a call that failed - worse than not
@@ -352,10 +405,11 @@ class BriefStore:
             return
         now = now if now is not None else time.time()
         self._items[self.key(query, minutes, context)] = _WarmBrief(
-            brief, now + self.ttl)
+            brief, now + self.ttl, source)
 
-    def get(self, query: str, minutes: int, context: str = "",
-            now: Optional[float] = None):
+    def entry(self, query: str, minutes: int, context: str = "",
+              now: Optional[float] = None):
+        """The held record, or None. `get` is this without the bookkeeping."""
         now = now if now is not None else time.time()
         item = self._items.get(self.key(query, minutes, context))
         if item is None:
@@ -363,7 +417,12 @@ class BriefStore:
         if item.expires <= now:
             self._items.pop(self.key(query, minutes, context), None)
             return None
-        return item.brief
+        return item
+
+    def get(self, query: str, minutes: int, context: str = "",
+            now: Optional[float] = None):
+        item = self.entry(query, minutes, context, now)
+        return None if item is None else item.brief
 
     def purge(self, now: Optional[float] = None) -> int:
         now = now if now is not None else time.time()
@@ -406,6 +465,12 @@ class Prefetcher:
         #: waiting listener needs, which is the failure this exists to avoid.
         self._lock = asyncio.Lock()
         self._running = False
+        #: listener -> when a cycle was last warmed for them. A browse page is
+        #: drawn far more often than it is acted on, so without this a
+        #: listener flicking between tabs would spend the daily ceiling on the
+        #: same six tiles. Keyed per listener rather than globally: one
+        #: person's browsing must not stop everybody else's warming.
+        self._cycles: dict = {}
 
     # --- staying out of the way ------------------------------------------
     def note_live_generation(self) -> None:
@@ -425,14 +490,53 @@ class Prefetcher:
             return True
         return (now - self._last_live) >= settings.prefetch_quiet_seconds
 
+    def due(self, listener: str = "", now: Optional[float] = None) -> bool:
+        """Whether this listener is owed a cycle yet.
+
+        Separate from `quiet_enough`, which is about the *server*: that one
+        says "somebody is waiting, stand aside", this one says "we already
+        guessed for this person recently, and nothing they have done since
+        makes the guess different". Both have to hold.
+        """
+        now = now if now is not None else time.monotonic()
+        last = self._cycles.get(listener or "")
+        if last is None:
+            return True
+        return (now - last) >= settings.prefetch_cycle_seconds
+
+    def note_cycle(self, listener: str = "",
+                   now: Optional[float] = None) -> None:
+        """Start this listener's clock. Called when a cycle is *scheduled*,
+        not when it finishes - a cycle that is refused for budget or quiet
+        still means we have just asked, and re-asking on the next page draw
+        would be a loop that logs the same refusal."""
+        self._cycles[listener or ""] = (now if now is not None
+                                        else time.monotonic())
+        # Bounded, because this is a process-lifetime dict keyed by listener
+        # and a busy server has a lot of them. Dropping the oldest half costs
+        # nothing worse than an early extra cycle for whoever was dropped.
+        if len(self._cycles) > _MAX_TRACKED_LISTENERS:
+            keep = sorted(self._cycles.items(), key=lambda kv: -kv[1])
+            self._cycles = dict(keep[:_MAX_TRACKED_LISTENERS // 2])
+
     # --- what to warm ------------------------------------------------------
-    def plan(self, listener: str = "", limit: int = 0) -> list:
+    def plan(self, listener: str = "", limit: int = 0,
+             minutes: int = 0) -> list:
         """Candidates to warm, best first, deduped and already-cached removed.
 
         Sources are **interleaved**, not concatenated, so one source cannot
         take the whole budget. A prefetcher that spends everything on trending
         is a prefetcher with no evidence about whether personalised guesses pay
         - and the hit rate per source is the number the open question needs.
+
+        `minutes` overrides every source's default length, and warming at the
+        wrong length is the same as not warming at all: a brief is keyed by
+        `(query, minutes, context)` and a script by `pipeline.key_for`, which
+        both carry it. Sources cannot know it - the browse length is a control
+        on the myFAM header (PROBLEMS.md §95), deliberately separate from the
+        search player's - so it is passed down from the request that schedules
+        the cycle. Zero means "leave each source's default alone", which is
+        what a cycle run from a tool or a test wants.
         """
         limit = limit or settings.prefetch_per_cycle
         per_source = [list(s.candidates(listener, limit) or []) for s in _SOURCES]
@@ -451,6 +555,10 @@ class Prefetcher:
             query = (candidate.query or "").strip()
             if not query:
                 continue
+            # Before the dedupe, because length is part of what makes two
+            # guesses the same guess.
+            if minutes and candidate.minutes != int(minutes):
+                candidate = dataclasses.replace(candidate, minutes=int(minutes))
             # The same rule a live episode obeys. A question that is nobody
             # else's business must not be written speculatively either - it
             # would be a script nobody can be served, paid for in advance.
@@ -510,6 +618,18 @@ class Prefetcher:
             self.ledger.skipped_already_cached += 1
             return "cached"
 
+        # Held already, and not yet stale. Without this every cycle would
+        # re-pay for briefs this process is already holding: a brief keeps for
+        # an hour and a browse can schedule a cycle every five minutes, so the
+        # same six tiles would be bought twelve times over. Only at `brief`
+        # level - at `script` the cache check above is the one that matters,
+        # and a held brief makes the warm below cheaper rather than pointless,
+        # because `understand` reads this same store.
+        if level == "brief" and self.briefs.get(candidate.query,
+                                                candidate.minutes) is not None:
+            self.ledger.skipped_already_cached += 1
+            return "cached"
+
         # Contextual relevance, ahead of the tap. This is the half that costs
         # the listener seconds on search and can cost them nothing here.
         #
@@ -519,14 +639,29 @@ class Prefetcher:
         # into a script served hours later. The live state is fetched on the
         # tap path or not at all. PROBLEMS.md §89.
         plan = await self.generator.understand(plan, notes)
+        kept = plan.brief is not None and not getattr(plan.brief, "degraded", True)
         if plan.brief is not None:
-            self.briefs.put(candidate.query, candidate.minutes, plan.brief)
+            self.briefs.put(candidate.query, candidate.minutes, plan.brief,
+                            source=candidate.source)
 
         if level == "brief":
-            self.budget.spend(_dollars(notes))
+            spent = _dollars(notes)
+            self.budget.spend(spent)
+            # Only a brief that was actually kept counts as warmed. A degraded
+            # one is dropped by the store, so counting it would report a
+            # saving that no tap can ever collect.
+            if kept:
+                self.ledger.note_brief_warmed(candidate, spent)
             log.info("prefetch warmed a brief for %r (%s: %s)",
                      candidate.query, candidate.source, candidate.reason)
             return "brief"
+
+        # A `script` warm keeps its brief too, and a tap can take that brief
+        # before it ever reaches the cache - so it is counted here as well, but
+        # with no dollars of its own: the whole cost of this warm is recorded
+        # once, below, against the script.
+        if kept:
+            self.ledger.note_brief_warmed(candidate, 0.0)
 
         # **A script may not be warmed for a question whose answer is a
         # result.** The brief above is a claim about what is being asked and
@@ -590,7 +725,7 @@ class Prefetcher:
         return bucket_for(plan)
 
     # --- a cycle -----------------------------------------------------------
-    async def run_once(self, listener: str = "") -> dict:
+    async def run_once(self, listener: str = "", minutes: int = 0) -> dict:
         """Warm one cycle's worth. Returns what happened to each candidate.
 
         Stops early on `budget` or `busy` - both mean every later candidate
@@ -605,7 +740,7 @@ class Prefetcher:
         self._running = True
         outcomes: dict = {}
         try:
-            for candidate in self.plan(listener):
+            for candidate in self.plan(listener, minutes=minutes):
                 result = await self.warm(candidate)
                 outcomes[result] = outcomes.get(result, 0) + 1
                 if result in ("budget", "busy", "off"):
@@ -621,6 +756,12 @@ class Prefetcher:
             "level": settings.prefetch_level,
             "per_cycle": settings.prefetch_per_cycle,
             "quiet_seconds": settings.prefetch_quiet_seconds,
+            "cycle_seconds": settings.prefetch_cycle_seconds,
+            # How many listeners have had a cycle warmed in this process. The
+            # number that says whether anything is *driving* the prefetcher:
+            # sources installed and nothing scheduled looks identical from
+            # outside to sources installed and warming every browse.
+            "listeners_cycled": len(self._cycles),
             "sources": [getattr(s, "name", "?") for s in _SOURCES],
             "budget": self.budget.as_dict(),
             "briefs_held": len(self.briefs),
@@ -663,6 +804,9 @@ def _dollars(notes) -> float:
 # --------------------------------------------------------------------------
 _PREFETCHER: Optional[Prefetcher] = None
 
+#: In-flight background cycles. See `schedule_cycle`.
+_CYCLES: set = set()
+
 
 def prefetcher(generator=None, cache=None) -> Prefetcher:
     """The one this process uses, built on first ask.
@@ -686,6 +830,7 @@ def reset() -> None:
     """Drop the process-wide prefetcher. For tests."""
     global _PREFETCHER
     _PREFETCHER = None
+    _CYCLES.clear()
 
 
 def warm_brief(query: str, minutes: int, context: str = ""):
@@ -697,7 +842,76 @@ def warm_brief(query: str, minutes: int, context: str = ""):
     """
     if _PREFETCHER is None or not settings.prefetch:
         return None
-    return _PREFETCHER.briefs.get(query, minutes, context)
+    item = _PREFETCHER.briefs.entry(query, minutes, context)
+    if item is None:
+        return None
+    # Recorded here because this is the only place that knows a *tap* used it,
+    # which is the same rule `note_consumed` keeps for scripts: warmed and
+    # taken are counted separately or the ledger is describing intentions.
+    _PREFETCHER.ledger.note_brief_taken(item.source)
+    return item.brief
+
+
+def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
+    """Warm a cycle in the background. Returns whether one was started.
+
+    **The thing that was missing.** `run_once` has existed since the framework
+    was built and nothing ever called it, so every candidate source, budget,
+    ledger and brief store in this module was inert - a prefetcher installed,
+    reported on `/api/health`, and never once asked to guess. This is what a
+    browse surface calls when it is drawn.
+
+    Three properties it has to have, because it is called from a request:
+
+    * **Nothing awaits it.** myFAM renders from what already exists; a page
+      that waited for speculation would have spent the very latency the
+      speculation was buying. Same shape as the story sweep beside it.
+    * **It cannot raise into the caller**, at either end - neither the
+      scheduling nor the cycle itself. A guess that fails must not reach a
+      listener who asked for a browse page; they get the browse page, and the
+      failure goes to the log where it is somebody's to fix.
+    * **It refuses cheaply and often.** Off, no prefetcher, no running loop,
+      or this listener warmed recently - each is a dictionary lookup or a
+      subtraction, because this runs on every page draw.
+    """
+    if _PREFETCHER is None or not settings.prefetch:
+        return False
+    try:
+        if not _PREFETCHER.due(listener):
+            return False
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop - a test, a tool, or a synchronous caller. Not an
+        # error, and deliberately not "run it here": a cycle is model calls,
+        # and blocking a synchronous caller on them is exactly the wait this
+        # module exists to remove.
+        return False
+    except Exception:  # noqa: BLE001 - see docstring
+        log.exception("prefetch: a cycle could not be scheduled")
+        return False
+
+    # Before the task rather than after it, so a page drawn twice in the same
+    # tick schedules one cycle and not two.
+    _PREFETCHER.note_cycle(listener)
+
+    async def _cycle() -> None:
+        try:
+            outcome = await _PREFETCHER.run_once(listener, minutes=minutes)
+            if outcome.get("outcomes"):
+                log.info("prefetch cycle for %s: %s", listener or "everybody",
+                         outcome["outcomes"])
+        except asyncio.CancelledError:  # pragma: no cover - shutdown
+            raise
+        except Exception:  # noqa: BLE001 - see docstring
+            log.exception("prefetch: a scheduled cycle failed")
+
+    task = loop.create_task(_cycle())
+    # Held, because a task referenced by nothing can be garbage collected
+    # mid-flight - and a cycle that vanishes halfway looks exactly like one
+    # that decided not to warm anything.
+    _CYCLES.add(task)
+    task.add_done_callback(_CYCLES.discard)
+    return True
 
 
 def note_consumed(key: str) -> bool:
@@ -721,6 +935,8 @@ def report() -> dict:
             "level": settings.prefetch_level,
             "per_cycle": settings.prefetch_per_cycle,
             "quiet_seconds": settings.prefetch_quiet_seconds,
+            "cycle_seconds": settings.prefetch_cycle_seconds,
+            "listeners_cycled": 0,
             "sources": [getattr(s, "name", "?") for s in _SOURCES],
             "built": False,
         }
