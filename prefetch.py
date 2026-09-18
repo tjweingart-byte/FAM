@@ -204,39 +204,73 @@ class Budget:
 
     max_episodes: int = 0
     max_dollars: float = 0.0
+    #: Briefs have a ceiling of their own, and that is not a refinement - it
+    #: is what stops the shipped level switching itself off within the hour.
+    #: A brief costs a fraction of a script, so counting one against the
+    #: episode ceiling made 50 *briefs* the day's allowance: six per cycle,
+    #: a cycle per browse, and a deployment stops warming before lunch with
+    #: five cents of a two-dollar budget spent. Zero means "use the episode
+    #: ceiling", which is what every Budget built before this did.
+    max_briefs: int = 0
     window_seconds: float = 86400.0
 
     episodes: int = 0
+    briefs: int = 0
     dollars: float = 0.0
     started: float = field(default_factory=time.time)
 
     def _roll(self, now: Optional[float] = None) -> None:
         now = now if now is not None else time.time()
         if now - self.started >= self.window_seconds:
-            self.episodes, self.dollars, self.started = 0, 0.0, now
+            self.episodes, self.briefs, self.dollars = 0, 0, 0.0
+            self.started = now
+
+    @property
+    def brief_ceiling(self) -> int:
+        return self.max_briefs if self.max_briefs > 0 else self.max_episodes
 
     def remaining(self, now: Optional[float] = None) -> tuple[int, float]:
         self._roll(now)
         return (max(0, self.max_episodes - self.episodes),
                 max(0.0, self.max_dollars - self.dollars))
 
-    def allows(self, now: Optional[float] = None) -> bool:
-        episodes, dollars = self.remaining(now)
-        return episodes > 0 and dollars > 0
-
-    def spend(self, dollars: float, now: Optional[float] = None) -> None:
+    def briefs_left(self, now: Optional[float] = None) -> int:
         self._roll(now)
-        self.episodes += 1
+        return max(0, self.brief_ceiling - self.briefs)
+
+    def allows(self, now: Optional[float] = None, level: str = "") -> bool:
+        """Whether there is room for one more warm of this kind.
+
+        **The dollars bound both**, because that is the currency the two kinds
+        of warm actually share; the counts are the per-kind backstop for the
+        case the dollars cannot see, which is a model with no price in
+        `metering.PRICES`.
+        """
+        episodes, dollars = self.remaining(now)
+        if dollars <= 0:
+            return False
+        return self.briefs_left(now) > 0 if level == "brief" else episodes > 0
+
+    def spend(self, dollars: float, now: Optional[float] = None,
+              level: str = "") -> None:
+        self._roll(now)
+        if level == "brief":
+            self.briefs += 1
+        else:
+            self.episodes += 1
         self.dollars += max(0.0, float(dollars or 0.0))
 
     def as_dict(self) -> dict:
         episodes, dollars = self.remaining()
         return {
             "max_episodes": self.max_episodes,
+            "max_briefs": self.brief_ceiling,
             "max_dollars": round(self.max_dollars, 4),
             "episodes_used": self.episodes,
+            "briefs_used": self.briefs,
             "dollars_used": round(self.dollars, 4),
             "episodes_left": episodes,
+            "briefs_left": self.briefs_left(),
             "dollars_left": round(dollars, 4),
             "window_seconds": self.window_seconds,
         }
@@ -455,6 +489,7 @@ class Prefetcher:
         self.briefs = briefs if briefs is not None else BriefStore()
         self.budget = budget if budget is not None else Budget(
             max_episodes=settings.prefetch_daily_episodes,
+            max_briefs=settings.prefetch_daily_briefs,
             max_dollars=settings.prefetch_daily_dollars,
         )
         self.ledger = Ledger()
@@ -590,7 +625,7 @@ class Prefetcher:
             return "off"
         if not self.quiet_enough():
             return "busy"
-        if not self.budget.allows():
+        if not self.budget.allows(level=level):
             return "budget"
 
         async with self._lock:
@@ -646,7 +681,7 @@ class Prefetcher:
 
         if level == "brief":
             spent = _dollars(notes)
-            self.budget.spend(spent)
+            self.budget.spend(spent, level="brief")
             # Only a brief that was actually kept counts as warmed. A degraded
             # one is dropped by the store, so counting it would report a
             # saving that no tap can ever collect.
@@ -670,7 +705,9 @@ class Prefetcher:
         # current, which is §88's failure with a cache in front of it. The
         # brief is still kept, so the tap keeps the latency saving.
         if getattr(plan.brief, "outcome_dependent", False):
-            self.budget.spend(_dollars(notes))
+            # Charged as a brief, because a brief is what it bought: the warm
+            # stopped before a word was written.
+            self.budget.spend(_dollars(notes), level="brief")
             self.ledger.skipped_volatile += 1
             log.info("prefetch kept only the brief for %r (%s): the answer is a "
                      "result, so a warmed script would be stale on arrival",
@@ -876,8 +913,13 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     """
     if _PREFETCHER is None or not settings.prefetch:
         return False
+    # Bound now rather than read inside the task: the process-wide prefetcher
+    # can be replaced or dropped between scheduling a cycle and running it,
+    # and a task that reached for it later would warm into whatever had taken
+    # its place - or fall over on a None.
+    pf = _PREFETCHER
     try:
-        if not _PREFETCHER.due(listener):
+        if not pf.due(listener):
             return False
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -892,11 +934,11 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
 
     # Before the task rather than after it, so a page drawn twice in the same
     # tick schedules one cycle and not two.
-    _PREFETCHER.note_cycle(listener)
+    pf.note_cycle(listener)
 
     async def _cycle() -> None:
         try:
-            outcome = await _PREFETCHER.run_once(listener, minutes=minutes)
+            outcome = await pf.run_once(listener, minutes=minutes)
             if outcome.get("outcomes"):
                 log.info("prefetch cycle for %s: %s", listener or "everybody",
                          outcome["outcomes"])

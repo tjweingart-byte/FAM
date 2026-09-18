@@ -789,3 +789,42 @@ def test_a_script_warm_counts_its_brief_once_and_its_cost_once(on):
                                 level="script"))
     row = prefetcher.report()["by_source"]["trending"]
     assert row["briefs_warmed"] == 1 and row["warmed"] == 1
+
+
+def test_the_brief_ceiling_is_not_the_episode_ceiling(on, monkeypatch):
+    """The defect this exists to stop: a brief costs a fraction of a script,
+    so counting one against the episode ceiling made 50 *briefs* a day's
+    warming - six per cycle, one cycle per browse. A deployment on the shipped
+    level would have stopped before lunch with most of the dollar budget
+    unspent, and the only sign of it would be `budget` in a log line."""
+    monkeypatch.setattr(prefetch, "settings",
+                        dataclasses.replace(config.settings, prefetch=True,
+                                            prefetch_level="brief"))
+    budget = prefetch.Budget(max_episodes=2, max_briefs=5, max_dollars=10.0)
+    pf = prefetch.Prefetcher(generator=FakeGenerator(),
+                             cache=cache_mod.MemoryScriptCache(), budget=budget)
+
+    for n in range(5):
+        assert asyncio.run(pf.warm(candidate(f"question {n}"))) == "brief"
+    assert budget.as_dict()["episodes_used"] == 0, (
+        "a brief was charged to the episode ceiling")
+    assert asyncio.run(pf.warm(candidate("question 6"))) == "budget", (
+        "the brief ceiling is not enforced at all")
+
+
+def test_a_budget_with_no_brief_ceiling_falls_back_to_the_episode_one(on):
+    """Zero means "use the episode ceiling", so a Budget built before this
+    existed bounds briefs exactly as it always did rather than not at all."""
+    budget = prefetch.Budget(max_episodes=1, max_dollars=10.0)
+    assert budget.brief_ceiling == 1
+    budget.spend(0.0, level="brief")
+    assert budget.allows(level="brief") is False
+
+
+def test_the_dollar_ceiling_still_bounds_both_kinds(on):
+    """The counts are the per-kind backstop; the dollars are the currency the
+    two share, and a brief that spends the day's money must stop too."""
+    budget = prefetch.Budget(max_episodes=99, max_briefs=99, max_dollars=0.01)
+    budget.spend(0.02, level="brief")
+    assert budget.allows(level="brief") is False
+    assert budget.allows() is False

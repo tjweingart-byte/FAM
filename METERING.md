@@ -183,6 +183,13 @@ cost.
   real cost at scale (CLAUDE.md) and is not in these numbers. `audio_seconds`
   is the quantity it would be computed from when there is a CDN bill to
   compare against.
+* **It does not see speculative spend.** Prefetch warms briefs before anybody
+  taps (PROBLEMS.md §105), and that spend belongs to no listener by
+  construction - attributing a shared warm to whoever was browsing would be
+  the same mistake as putting a listener id near the cache key. It is bounded
+  and reported separately: `PREFETCH_DAILY_DOLLARS`, and the budget block
+  `/api/health` prints. A month reconciled against the invoice has to add the
+  two.
 * **It has never run against a real bill.** Every figure in this document comes
   from the published rate card and a synthetic ledger. The first month of real
   usage should be reconciled against the Anthropic and Exa invoices, and this

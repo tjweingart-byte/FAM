@@ -327,6 +327,8 @@ source look broken.
     PREFETCH_LEVEL=brief            # script = write whole episodes in advance
     PREFETCH_CYCLE_SECONDS=300.0    # at most one cycle per listener this often
     PREFETCH_PER_CYCLE=6            # candidates per cycle, shared across sources
+    PREFETCH_DAILY_BRIEFS=400       # counted apart from episodes; they cost far less
+    PREFETCH_DAILY_DOLLARS=2.0      # the ceiling both kinds of warm share
 
 **Nothing live is configured by default**, and that is deliberately not the
 same as nothing being here — the same doctrine `live_facts` and `trending`

@@ -53,6 +53,7 @@ def show_plan(listener: str, minutes: int = 0) -> int:
           f"   ·   per cycle: {settings.prefetch_per_cycle}"
           f"   ·   {'ON' if settings.prefetch else 'OFF (PREFETCH=0)'}")
     print(f"budget:  {settings.prefetch_daily_episodes} episodes / "
+          f"{settings.prefetch_daily_briefs} briefs / "
           f"${settings.prefetch_daily_dollars:.2f} a day")
     print(f"cycle:   at most one per listener every "
           f"{settings.prefetch_cycle_seconds:.0f}s, scheduled when myFAM is "
@@ -111,7 +112,9 @@ def show_live(base: str) -> int:
 
     budget = report.get("budget") or {}
     print(f"budget:   {budget.get('episodes_used')}/{budget.get('max_episodes')} "
-          f"episodes, ${budget.get('dollars_used', 0):.3f}/"
+          f"episodes, {budget.get('briefs_used', 0)}/"
+          f"{budget.get('max_briefs', 0)} briefs, "
+          f"${budget.get('dollars_used', 0):.3f}/"
           f"${budget.get('max_dollars', 0):.2f} today")
 
     warmed, taken = report.get("warmed", 0), report.get("taken", 0)

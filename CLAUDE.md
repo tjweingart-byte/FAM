@@ -984,8 +984,10 @@ the rest of this list it needs taste rather than a key.
   at all, since that would be a tap silently skipping EI after paying for it.
   Four things it may never do: **compete with a live listener** (the serving
   path marks itself, prefetch stands aside, one warm at a time), **spend past
-  its ceiling** (episodes *and* dollars, because a 10-minute researched episode
-  costs several times a 1-minute one), **warm anything personal** (the same
+  its ceiling** (episodes, briefs *and* dollars - a 10-minute researched
+  episode costs several times a 1-minute one and a brief a fraction of
+  either, so one count for all three binds on the wrong thing: §105 found 50
+  *briefs* being a whole day's warming with the dollar budget untouched), **warm anything personal** (the same
   `is_shareable` rule a live episode obeys), and **pretend it is paying** -
   warmed and taken are counted separately per source, recorded from the
   serving path with the key that actually hit, and reported as `None` rather

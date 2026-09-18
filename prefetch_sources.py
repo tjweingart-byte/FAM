@@ -160,8 +160,12 @@ class StoriesSource:
                 reason=(f"#{rank + 1} in the live story pool "
                         f"({story.domain}, {hours:.0f}h old, "
                         f"the same tile for everyone)"),
+                # On the same scale every other source uses. Weight is only
+                # ever compared within one source's own output, and a scale
+                # that ran to the length of the pool would be the first thing
+                # to mislead anybody who forgot that.
                 topic_id=story.id,
-                weight=float(len(live) - rank),
+                weight=float(limit - rank),
                 listener="",
             ))
         return out

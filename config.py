@@ -687,6 +687,12 @@ class Settings:
     # expensive - a 10-minute researched episode costs several times a
     # 1-minute one, so counting episodes alone does not bound the bill.
     prefetch_daily_episodes: int = _env_int("PREFETCH_DAILY_EPISODES", 50)
+    # Briefs are counted apart from episodes and have their own ceiling,
+    # because they cost a fraction of one. Counting a brief as an episode made
+    # 50 briefs the whole day's warming - six per cycle, one cycle per browse -
+    # so a deployment on the shipped level would stop before lunch with five
+    # cents of the two dollars below spent, and nothing would say why.
+    prefetch_daily_briefs: int = _env_int("PREFETCH_DAILY_BRIEFS", 400)
     prefetch_daily_dollars: float = _env_float("PREFETCH_DAILY_DOLLARS", 2.0)
     # How long the server must have gone without generating for a real
     # listener before it will spend on a guess. A speculative episode that

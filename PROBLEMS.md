@@ -7042,6 +7042,38 @@ a separate several seconds nobody waited, and the brief rate can exceed 1. And a
 **degraded brief is never counted as warmed**, because the store drops it -
 counting it would report a saving no tap can collect.
 
+### The ceiling was denominated in the wrong thing
+
+Found in the pre-merge review, and it would have switched the feature off
+within the hour rather than breaking it - which is worse, because nothing
+looks wrong. `Budget` counted every warm as one "episode" against
+`PREFETCH_DAILY_EPISODES=50`, a number chosen when a warm *was* an episode at
+about three cents. A brief costs a fraction of that, and myFAM warms six per
+cycle, one cycle per browse: a handful of listeners exhausts fifty inside an
+hour, warming stops for the rest of the day, and the dollar ceiling it was
+really meant to respect has five cents of two dollars gone.
+
+Briefs are counted apart from episodes now, against `PREFETCH_DAILY_BRIEFS`
+(400), and **the dollars still bound both** - that is the currency the two
+kinds of warm actually share, and the per-kind counts are the backstop for the
+one thing dollars cannot see, a model with no price in `metering.PRICES`. A
+`Budget` built without a brief ceiling falls back to the episode one, so
+nothing that existed before this bounds less than it used to.
+
+### Two things the review named rather than changed
+
+**Speculative spend is in no listener's ledger, and that is correct.** A
+warmed brief was nobody's tap - attributing it to whoever happened to be
+browsing would be the same mistake as putting a listener id near the cache
+key. It is bounded by `PREFETCH_DAILY_DOLLARS` and reported by the budget
+block on `/api/health`, and `METERING.md` now says that a month reconciled
+against the invoice has to add the two. **And a warm can start while somebody
+is about to tap**: `quiet_enough` looks backwards, so the first cycle after a
+page draw begins immediately. That is the accepted shape - the check runs
+before *every* candidate, so a listener who taps two seconds later stops the
+rest of the cycle, and the one small call already in flight is the price of
+not delaying the warming itself by a fixed wait.
+
 ### What this does not change
 
 The tap path. Nothing was added to it, which is the property §83 built the
