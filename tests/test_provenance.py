@@ -222,3 +222,64 @@ def test_a_source_with_no_date_says_so_rather_than_being_filled_in():
     dated is how an old article becomes "last night"."""
     found = P.from_results([FakeResult("https://example.com/a", "T", "")])
     assert found.items[0].at == ""
+
+
+# --------------------------------------------------------------------------
+# live captions read the same cache, and never write to it
+# --------------------------------------------------------------------------
+def _pipe(store):
+    """A pipeline with nothing in it but a cache. `script_for` reads the cache
+    and nothing else, which is the whole point of it."""
+    import pipeline as pipeline_mod
+
+    pipe = pipeline_mod.PodcastPipeline.__new__(pipeline_mod.PodcastPipeline)
+    pipe.cache = store
+    # `_cache_key` reaches the generator for the semantic-key client, which is
+    # off here; an object with no `client` is exactly what it is written to
+    # tolerate.
+    pipe.generator = object()
+    return pipe
+
+
+def test_the_transcript_is_read_from_the_cache(tmp_path):
+    """What the captions panel shows. The same key the script is stored under,
+    and the same read `sources_for` and `thread_for` make."""
+    import asyncio
+
+    import pipeline as pipeline_mod
+    import script_generator
+
+    store = cache_mod.SqliteScriptCache(str(tmp_path / "c.db"))
+    plan = script_generator.plan_episode("why bonds move", 2)
+    key = asyncio.run(pipeline_mod.key_for(plan))
+    store.put(key, ["One.", "Two."], 60, plan.query, "", plan.minutes, "", "")
+    assert asyncio.run(_pipe(store).script_for(plan)) == ["One.", "Two."]
+
+
+def test_an_uncached_episode_has_no_transcript_rather_than_a_new_one(tmp_path):
+    """The rule the whole feature rests on: captions that could trigger a
+    write would be a second full Claude call for every episode somebody chose
+    to read along with - the expensive half of an episode, paid twice for one
+    listen. So a miss is an empty list, never a generation."""
+    import asyncio
+
+    import script_generator
+
+    store = cache_mod.SqliteScriptCache(str(tmp_path / "c.db"))
+    plan = script_generator.plan_episode("nothing is cached for this", 2)
+    assert asyncio.run(_pipe(store).script_for(plan)) == []
+
+
+def test_an_attachment_episode_has_no_transcript():
+    """An attached episode is never cached, so there is nothing to read back -
+    which is the privacy rule working, not a failure. A listener's own
+    document must not reach another listener through a caption track any more
+    than through Explore."""
+    import asyncio
+
+    import script_generator
+
+    store = cache_mod.MemoryScriptCache()
+    plan = script_generator.plan_episode(
+        "what does my contract say", 2, attachments=(object(),))
+    assert asyncio.run(_pipe(store).script_for(plan)) == []

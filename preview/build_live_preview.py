@@ -49,7 +49,15 @@ OUT_ARTIFACT = HERE / "fam-live-artifact.html"
 STATIC_PATHS = ("/api/topics", "/api/voices", "/api/health", "/api/attach",
                 # The tier table. Reference data: it is the same for every
                 # viewer, and nothing in the database changes it.
-                "/api/plans")
+                "/api/plans",
+                # Provenance and the transcript. Both are read off a script
+                # that a published page never writes - there is no Claude here
+                # and no cache to write into - so they come from the fixtures,
+                # like the silence that stands in for the audio. What is worth
+                # looking at on a phone is the corner cluster, the overlap and
+                # the caption highlight walking the script, and a page with
+                # neither would preview none of it.
+                "/api/sources", "/api/transcript")
 
 
 LIVE_SHIM = r"""

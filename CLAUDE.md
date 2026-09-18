@@ -685,6 +685,31 @@ the rest of this list it needs taste rather than a key.
   leaving silence**. Every drop is logged, carried on
   `ScriptNotes.meta_openings` and printed by `write.py`: the guard firing means
   the prompt did not hold, which is a thing to fix rather than to absorb.
+- **Live captions read the cache, and the sources cluster is in the corner.**
+  *(§104, `PROVENANCE.md`.)* Both were drawn and neither worked. The captions
+  tab showed `t.caption` - a line of prototype copy ending in an em dash - so
+  turning captions on produced a sentence about captions; the sources strip was
+  fetched when an episode *ended* and when Go Deeper opened, and nowhere else,
+  so the one moment it is for was the one moment nothing asked for it.
+  `/api/transcript` is `/api/sources`' sibling and reads the same key, and the
+  rule that makes it affordable is that **it never generates**: captions that
+  could trigger a write would be a second full Claude call for every episode
+  somebody chose to read along with. A miss is an empty list, an attachment
+  episode has no captions at all because it is deliberately uncacheable, and
+  the panel says which. Which sentence is highlighted is **estimated from
+  character count, not measured** - the audio is one PCM stream with no
+  sentence marks in it - and the denominator is the planned length, because
+  `duration()` grows as the stream arrives.
+  The cluster shows **three** marks, overlapped, in the player's corner, and
+  an empty answer never clears a strip that is already showing: the first try
+  often lands before the script has finished.
+- **Nothing on the player generates an episode except a button.** *(§104.)*
+  `.mini-stage` is `flex:1`, so it is most of the player, and it carried a tap
+  handler that jumped to the next episode in the album or - with no album -
+  generated a **random** myFAM topic: an episode nobody asked for, costing a
+  model call and a GPU, in place of whatever was playing. Removed with nothing
+  in its place; the swipe-up gesture still moves through an album and is the
+  one the `next-hint` label actually advertises.
 - **An article index is the wrong instrument for a scoreboard, and the seam is
   now built out.** *(§82, §89, `live_facts.py`, `live_sources.py`,
   `LIVE_FACTS.md`.)* A game ends and the scoreboard knows instantly; the recap

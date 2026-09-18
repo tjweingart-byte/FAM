@@ -1004,6 +1004,27 @@ class PodcastPipeline:
             return ""
         return reader(await self._cache_key(plan))
 
+    async def script_for(self, plan: EpisodePlan) -> list:
+        """The written sentences for an episode already generated, or [].
+
+        What live captions read. Mirrors `sources_for` and `thread_for`
+        exactly, including the part that matters most: **it never generates.**
+        A caption track that could trigger a write would be a second full
+        Claude call for every episode somebody chose to read along with, which
+        is the expensive half of an episode paid twice for one listen.
+
+        So captions are available once the script is in the cache, which is
+        well before the audio finishes - the script is written far faster than
+        it is spoken - and are honestly unavailable for an episode that is not
+        cached at all, which is what an attachment episode is by design.
+        """
+        if not self.cache or not is_shareable(plan.query):
+            return []
+        reader = getattr(self.cache, "get", None)
+        if reader is None:
+            return []
+        return list(reader(await self._cache_key(plan)) or [])
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:

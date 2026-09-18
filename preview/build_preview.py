@@ -190,6 +190,45 @@ def load_fixtures() -> dict:
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
         "/api/next": {"thread": "why the shipping lanes run through Omani water"},
+        # Who this episode drew on. Invented, like every fixture here - the
+        # point on a phone is the corner cluster, the overlap and the popup,
+        # none of which a preview with no sources would ever draw. A live
+        # feed and an article read differently in the list, so there is one
+        # of each.
+        "/api/sources": {
+            "known": True,
+            "retrievers": ["exa", "gdelt"],
+            "items": [
+                {"label": "reuters.com", "kind": "article", "tier": "wire service",
+                 "at": "2026-09-16", "title": "Shipping rates climb as tankers reroute",
+                 "url": "https://www.reuters.com/"},
+                {"label": "ft.com", "kind": "article", "tier": "national paper",
+                 "at": "2026-09-16", "title": "Insurers widen the war-risk zone",
+                 "url": "https://www.ft.com/"},
+                {"label": "apnews.com", "kind": "article", "tier": "wire service",
+                 "at": "2026-09-15", "title": "Two more cargoes divert south",
+                 "url": "https://apnews.com/"},
+                {"label": "Polymarket", "kind": "live", "tier": "live feed",
+                 "at": "2026-09-17T08:40:00", "title": "", "url": ""},
+            ],
+        },
+        # The sentences the voice is reading, for live captions. The preview's
+        # audio is silence of the right length, so the highlight walks the
+        # script on the same clock it would against a real voice.
+        "/api/transcript": {"known": True, "sentences": [
+            "Tanker traffic through the strait is down about a fifth this week.",
+            "The reason is not the shooting, it is the paperwork.",
+            "War-risk insurance is priced daily, and on Monday the underwriters "
+            "widened the zone by ninety miles.",
+            "That pushed a dozen ships outside the cover they had already paid for.",
+            "A captain with no cover does not sail, whatever the cargo is worth.",
+            "So the queue at the southern end is now four days long.",
+            "Freight rates followed within hours, because the ships that are "
+            "still moving can name their price.",
+            "The oil price barely moved, which is the part worth sitting with.",
+            "Traders have been reading this strait for fifty years and they "
+            "price the insurance, not the headlines.",
+        ]},
         # Two open threads; the shim seeds two part-heard episodes alongside
         # them, so Go Deeper opens as a full grid rather than one lonely card.
         "/api/godeeper": {"threads": [

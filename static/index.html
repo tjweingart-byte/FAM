@@ -649,7 +649,7 @@
   .reel-act.saved-on svg{ background:var(--sage); border-color:var(--sage);
     color:var(--ink); }
   .reel-act.saved-on span{ color:var(--sage); }
-  .mini-stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
+  .mini-stage{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 30px; text-align:center; }
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
@@ -696,7 +696,8 @@
      a listener reaches for when they want to check, not something to read
      while listening. Empty and unknown are different states and say so - an
      episode with no stored provenance is not an episode with no sources. */
-  .src-panel{ margin:8px 18px 0; flex:none; }
+  /* In the corner of the player, over the stage rather than under it. */
+  .src-panel{ position:absolute; top:0; right:0; z-index:2; }
   /* Required by tools/check_css.py: a class that sets display must say what
      [hidden] means, or the attribute stops working. Deleting CSS from this
      file has broken the app twice; the checker is not optional. */
@@ -704,13 +705,13 @@
   /* The strip: who this episode drew on, as marks, under the player. Small
      on purpose - it is provenance, not a bibliography, and the list is one
      tap away. */
-  .src-strip{ width:100%; display:flex; align-items:center; gap:9px;
-    background:var(--surface); border:1px solid var(--border); border-radius:12px;
-    padding:8px 13px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;
+  .src-strip{ display:flex; align-items:center; gap:7px;
+    background:var(--surface); border:1px solid var(--border); border-radius:999px;
+    padding:4px 9px 4px 5px; color:var(--text-muted);
+    font-family:'JetBrains Mono', monospace;
     font-size:9px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; }
   .src-panel:active .src-strip{ transform:scale(0.99); }
-  .src-lab{ flex:none; }
-  .src-marks{ flex:1; display:flex; align-items:center; }
+  .src-marks{ display:flex; align-items:center; }
   /* Overlapped like a row of faces: it reads as "these several", where a
      spaced row reads as a list somebody has to count. */
   .src-marks .src-mark{ margin-left:-6px; border:1.5px solid var(--surface); }
@@ -1926,25 +1927,30 @@
           <span class="x" onclick="goBack()">✕</span>
         </div>
         <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
-        <div class="mini-stage" id="playerStage" onclick="playerTapAdvance(event)">
+        <div class="mini-stage" id="playerStage">
+          <!-- Where this episode's facts came from: the first three
+               publishers' marks, overlapped, in the corner. Tapping opens the
+               whole list with headlines and links - see `openSources`.
+
+               In the corner rather than as a full-width strip under the title
+               because it is a thing a listener glances at, not a line of the
+               page. It is hidden until there is something to show, so an
+               episode answered from knowledge has an uncluttered corner
+               rather than an empty label. -->
+          <div class="src-panel" id="srcPanel" hidden onclick="openSources()"
+               role="button" tabindex="0" aria-label="Show this episode's sources">
+            <div class="src-strip">
+              <span class="src-marks" id="srcMarks"></span>
+              <span class="src-count" id="srcCount">—</span>
+            </div>
+          </div>
           <div class="mini-title" id="p-title">Title</div>
           <div class="mini-src" id="p-src">Source</div>
           <div class="next-hint" id="nextHint"></div>
         </div>
         <div class="captions-panel off" id="ccPanel">
-          <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="toast('Transcript copied ✓')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
+          <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="copyTranscript()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
           <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
-        </div>
-        <!-- Where this episode's facts came from, as a strip of publisher
-             marks. Tapping it opens the list, with the headlines and a link
-             to each - see `openSources`. -->
-        <div class="src-panel" id="srcPanel" hidden onclick="openSources()"
-             role="button" tabindex="0" aria-label="Show this episode's sources">
-          <div class="src-strip">
-            <span class="src-lab">Sources</span>
-            <span class="src-marks" id="srcMarks"></span>
-            <span class="src-count" id="srcCount">—</span>
-          </div>
         </div>
         <div class="progress-wrap">
           <div class="progress-bar"><div class="buffered"></div><div class="fill"></div><div class="knob"></div></div>
@@ -3262,6 +3268,185 @@
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
   }
+  // ---------------- live captions ----------------
+  //
+  // The script the voice is reading, on screen, moving with it.
+  //
+  // It used to show `t.caption` - a one-line piece of prototype copy ending in
+  // an em dash - so turning captions on produced a sentence about captions.
+  // Nothing was wired to the actual episode at all.
+  //
+  // **The sentences come from the cache and are never generated.** They are
+  // read through `/api/transcript`, which is `/api/sources` and `/api/next`'s
+  // sibling and, like both, reads the key the script is already stored under.
+  // Asking a model for them would be a second full Claude call for every
+  // episode somebody chose to read along with - the expensive half of an
+  // episode, paid twice for one listen.
+  //
+  // The script is written far faster than it is spoken, so it is usually in
+  // the cache within a few seconds of the first word. Until it is, the panel
+  // says it is waiting rather than showing nothing, and an episode that is
+  // never cached - an attachment episode, which is deliberately private -
+  // says that instead of waiting forever.
+  var captionSentences = [];
+  var captionStamp = "";
+  var captionTimer = null;
+  var captionPolls = 0;
+
+  //: How often to ask for a script that has not landed yet, and how many
+  //: times. Six tries over about twelve seconds: the script finishes well
+  //: before the audio does, and an episode whose script is not cached by then
+  //: is one that is not going to be.
+  var CAPTION_POLL_MS = 2000;
+  var CAPTION_POLL_MAX = 6;
+
+  function captionsOn(){
+    var panel = document.getElementById("ccPanel");
+    return !!(panel && panel.classList.contains("on"));
+  }
+
+  function resetCaptions(){
+    captionSentences = [];
+    captionStamp = "";
+    captionPolls = 0;
+    if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
+  }
+
+  function fetchCaptions(){
+    if(!episodeStamp) return;
+    if(captionStamp === episodeStamp && captionSentences.length) return;
+    if(captionPolls >= CAPTION_POLL_MAX){ renderCaptions(); return; }
+    captionPolls++;
+    var parts = episodeStamp.split("|");
+    var stamp = episodeStamp;
+    fetch("/api/transcript?q=" + encodeURIComponent(parts[0]) +
+          "&minutes=" + encodeURIComponent(parts[1]) +
+          "&context=" + encodeURIComponent(parts[2] || ""))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        // The listener may have moved on while this was in flight.
+        if(!data || stamp !== episodeStamp) return;
+        if((data.sentences || []).length){
+          captionSentences = data.sentences;
+          captionStamp = stamp;
+          captionPolls = CAPTION_POLL_MAX;   // stop asking
+        }
+        renderCaptions();
+      })
+      // Captions that fail to load must never disturb playback, which is the
+      // same rule the sources panel keeps.
+      .catch(function(){});
+  }
+
+  // Which sentence is being spoken, near enough to read along with.
+  //
+  // Estimated from characters rather than measured, and that is a real
+  // approximation worth naming: the audio is one PCM stream with no sentence
+  // marks in it, so there is nothing to measure against. Speech time is close
+  // to proportional to character count at a fixed rate, which is what the
+  // pace controller is holding it to - so the highlight lands within a
+  // sentence or so, and a listener reading along never notices.
+  //
+  // The denominator is the *planned* length rather than what has buffered:
+  // `FamAudio.duration()` grows as the stream arrives, so dividing by it
+  // would keep the highlight pinned near the end for the whole episode.
+  function captionIndexNow(){
+    if(!captionSentences.length) return 0;
+    var total = 0, lengths = [];
+    captionSentences.forEach(function(line){
+      var n = String(line || "").length || 1;
+      lengths.push(n); total += n;
+    });
+    var spoken = FamAudio.position();
+    var whole = FamAudio.isComplete() ? FamAudio.duration()
+                                      : captionTotalSeconds();
+    if(!(whole > 0)) return 0;
+    var through = Math.max(0, Math.min(1, spoken / whole)) * total;
+    var running = 0;
+    for(var i = 0; i < lengths.length; i++){
+      running += lengths[i];
+      if(through <= running) return i;
+    }
+    return lengths.length - 1;
+  }
+
+  function captionTotalSeconds(){
+    var parts = (episodeStamp || "").split("|");
+    var minutes = parseInt(parts[1], 10);
+    if(!(minutes > 0)) minutes = selectedLengthMinutes;
+    return minutes * 60;
+  }
+
+  function renderCaptions(){
+    var box = document.getElementById("cc-text");
+    if(!box) return;
+    if(!captionsOn()){
+      box.innerHTML = "Displayed here when captions are turned on.";
+      return;
+    }
+    if(!captionSentences.length){
+      // Three states, and they are different. Still being written is a wait;
+      // an episode that is never cached has no captions at all and saying
+      // "waiting" about it would wait forever.
+      box.innerHTML = captionPolls >= CAPTION_POLL_MAX
+        ? "No transcript for this one \u2014 an episode you attached a file to "
+          + "is never stored, so there is nothing to read back."
+        : "Catching up with the script\u2026";
+      return;
+    }
+    var here = captionIndexNow();
+    // A window rather than the whole script. The panel is four lines tall, and
+    // a transcript that scrolls itself is a reading surface - which a player
+    // is not (CLAUDE.md, on what the cold open got wrong).
+    var from = Math.max(0, here - 1);
+    var lines = captionSentences.slice(from, here + 3);
+    box.innerHTML = lines.map(function(line, i){
+      var text = escapeHtml(String(line || "").trim());
+      return (from + i === here) ? "<mark>" + text + "</mark>" : text;
+    }).join(" ");
+  }
+
+  // Runs only while the panel is open. A timer redrawing a hidden element on
+  // every episode would be the whole app paying for a feature nobody turned
+  // on.
+  function startCaptionTicker(){
+    if(captionTimer) clearInterval(captionTimer);
+    captionTimer = setInterval(function(){
+      if(!captionsOn()){ clearInterval(captionTimer); captionTimer = null; return; }
+      if(!captionSentences.length){ fetchCaptions(); return; }
+      renderCaptions();
+    }, captionSentences.length ? 400 : CAPTION_POLL_MS);
+  }
+
+  // The copy button on the captions panel. It used to toast "Transcript
+  // copied" and copy nothing at all, which is the control-with-nothing-behind
+  // -it failure in its worst form: it said the thing had happened.
+  function copyTranscript(){
+    if(!captionSentences.length){
+      toast("No transcript for this one yet");
+      return;
+    }
+    var text = captionSentences.join(" ");
+    var done = function(){ toast("Transcript copied \u2713"); };
+    var failed = function(){ toast("Could not copy that"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(failed);
+      return;
+    }
+    // Older WebKit, and any context where the async clipboard is unavailable.
+    try {
+      var box = document.createElement("textarea");
+      box.value = text;
+      box.style.position = "fixed";
+      box.style.opacity = "0";
+      document.body.appendChild(box);
+      box.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(box);
+      ok ? done() : failed();
+    } catch(e){ failed(); }
+  }
+
   function showThreadSuggestion(){
     var chip = document.getElementById("goDeeperSuggestion");
     if(!chip) return;
@@ -3450,6 +3635,17 @@
         // thread is usually already in the cache and the chip is ready
         // before the listener thinks to reach for Go Deeper.
         setTimeout(fetchEpisodeThread, 6000);
+        // And the sources, for the same reason and on the same clock.
+        //
+        // This is why the strip was never on screen: it was fetched in
+        // `onEnd` and when Go Deeper opened, and nowhere else - so the one
+        // moment it is actually for, somebody listening and wondering where
+        // this came from, was the one moment it was never asked for. Tried
+        // twice, because provenance lands with the finished script and a
+        // 10-minute episode's script takes longer to write than a 2-minute
+        // one's.
+        setTimeout(fetchEpisodeSources, 6000);
+        setTimeout(fetchEpisodeSources, 20000);
       },
       onEnd: function(){
         awaitingFirstAudio = "";
@@ -3516,7 +3712,8 @@
     currentPlayingTopicKey = key;
     document.getElementById("p-title").textContent = t.title;
     document.getElementById("p-src").textContent = "from " + t.source;
-    document.getElementById("cc-text").innerHTML = t.caption;
+    document.getElementById("cc-text").innerHTML =
+      "Displayed here when captions are turned on.";
     var isFromSearch = pendingFromSearch;
     pendingFromSearch = false;
     // Decides where the popup's "Back to ..." goes, so it names the place the
@@ -3539,6 +3736,7 @@
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
+    resetCaptions();
     document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
     clearSources();
     panel.dataset.key = key;
@@ -3585,15 +3783,15 @@
     var nextKey = topics[nextIndex];
     generate(nextKey, currentAlbumForPlayer);
   }
-  function playerTapAdvance(e){
-    if(currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer]){
-      playNextInAlbum();
-      return;
-    }
-    var ids = Object.keys(myFamTopics);
-    if(!ids.length){ toast("Nothing queued yet"); return; }
-    startBankTopic(ids[Math.floor(Math.random() * ids.length)]);
-  }
+  // `playerTapAdvance` used to live here, wired to the whole of `.mini-stage` -
+  // which is `flex:1`, so it was most of the player. A tap anywhere that was
+  // not a button either jumped to the next episode in the album or, with no
+  // album, **generated a random topic off myFAM**: an episode nobody asked
+  // for, costing a model call and a GPU, in place of whatever was playing.
+  //
+  // Removed at the owner's direction, and there is nothing to put back in its
+  // place: the swipe-up gesture below still moves through an album, and it is
+  // the one the `next-hint` label actually advertises.
 
   (function(){
     var playerScreen = document.getElementById("screen-player");
@@ -3628,17 +3826,23 @@
     var on = panel.classList.contains("on");
     if(on){
       panel.classList.remove("on"); panel.classList.add("off");
-      document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
-    clearSources();
-      clearSources();
+      // Note what is *not* here any more: two calls to `clearSources()`, one
+      // of them mis-indented under the line above. Switching captions off
+      // wiped the sources strip, which is a different control on a different
+      // row about a different thing.
+      if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
+      renderCaptions();
       icon.classList.remove("on");
-    } else {
-      var key = panel.dataset.key;
-      var t = TOPICS[key];
-      panel.classList.remove("off"); panel.classList.add("on");
-      document.getElementById("cc-text").innerHTML = t.caption;
-      icon.classList.add("on");
+      return;
     }
+    panel.classList.remove("off"); panel.classList.add("on");
+    icon.classList.add("on");
+    // Ask immediately, then keep asking until it lands. The script is written
+    // far faster than it is spoken, so this usually resolves on the first try
+    // even when captions are turned on during the opening sentence.
+    renderCaptions();
+    fetchCaptions();
+    startCaptionTicker();
   }
 
   // One episode, one transport.
@@ -5096,13 +5300,15 @@
     }
 
     panel.hidden = false;
-    // Four marks and a number. More than that on a phone is a row of dots
-    // nobody can tell apart, and the popup is one tap away.
-    marks.innerHTML = sourcesNow.slice(0, 4).map(function(item){
-      return srcMark(item, 22);
+    // Three marks and a number, overlapped. Three at the owner's direction,
+    // and it is the right number for the corner it now sits in: more than
+    // that at this size is a row of dots nobody can tell apart, and the whole
+    // list is one tap away.
+    marks.innerHTML = sourcesNow.slice(0, 3).map(function(item){
+      return srcMark(item, 20);
     }).join("");
-    count.textContent = sourcesNow.length > 4
-      ? "+" + (sourcesNow.length - 4) : String(sourcesNow.length);
+    count.textContent = sourcesNow.length > 3
+      ? "+" + (sourcesNow.length - 3) : String(sourcesNow.length);
   }
 
   function renderSourceList(){
@@ -5186,6 +5392,12 @@
       .then(function(data){
         // The listener may have moved on while this was in flight.
         if (!data || stamp !== episodeStamp) return;
+        // The first try often lands before the script has finished, so the
+        // answer is "nothing known yet". Leaving what is already on screen is
+        // the only safe direction: a later try replaces it, and an empty
+        // answer that wiped a strip already showing four publishers would be
+        // this panel disappearing halfway through an episode.
+        if (!(data.items || []).length && sourcesNow.length) return;
         renderSources(data);
       })
       // A provenance panel that fails to load must never disturb playback.

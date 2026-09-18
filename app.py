@@ -2731,6 +2731,38 @@ async def episode_sources(
     return body
 
 
+@app.get("/api/transcript")
+async def episode_transcript(
+    request: Request,
+    q: str = Query(..., description="What the listener asked"),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    context: str = Query("", description="Topic the listener just heard"),
+    search: bool = Query(True),
+):
+    """The sentences this episode is made of, for live captions.
+
+    Read from the cache under the same key the script is stored under, like
+    `/api/sources` and `/api/next` - and for the same reason as both: what an
+    episode *says* is only settled once the script has been written, which is
+    after the audio response headers have gone out.
+
+    **It never generates.** Captions that could trigger a write would be a
+    second full Claude call for every episode somebody chose to read along
+    with - the expensive half of an episode, paid twice for one listen. So the
+    honest states are "here are the sentences" and "not written down yet", and
+    `known` is which. An attachment episode is deliberately never cached, so
+    it never has captions; that is a fact about privacy, not a failure.
+    """
+    _read_limit(request)
+    plan = _validated_plan(q, minutes, context, search)
+    try:
+        pipeline = _make_pipeline()
+    except TTSUnavailable:
+        return {"sentences": [], "known": False}
+    sentences = await pipeline.script_for(plan)
+    return {"sentences": sentences, "known": bool(sentences)}
+
+
 @app.get("/api/next")
 async def next_thread(
     request: Request,

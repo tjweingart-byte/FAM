@@ -483,6 +483,107 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def live_captions_show_the_script_being_read():
+            """The captions tab did nothing. It showed `t.caption` - a line of
+            prototype copy ending in an em dash - so turning captions on
+            produced a sentence about captions, and nothing was ever wired to
+            the episode.
+
+            The sentences come from `/api/transcript`, which reads the cache
+            the script is already stored under and never generates: captions
+            that could trigger a write would be a second full Claude call for
+            every episode somebody chose to read along with."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.evaluate("rememberEpisode('why bonds move', 2, '')")
+            page.evaluate("resetCaptions()")
+
+            before = page.text_content("#cc-text")
+            assert "turned on" in before.lower(), \
+                f"the panel said something other than 'off': {before!r}"
+
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(1500)
+            assert page.eval_on_selector("#ccPanel", "e => e.classList.contains('on')"), \
+                "the captions panel did not open"
+            text = page.text_content("#cc-text")
+            assert "\u2014" not in text or len(text) > 80, \
+                f"the panel is still showing the prototype line: {text!r}"
+            assert len(text.strip()) > 40, f"the panel stayed empty: {text!r}"
+            # One sentence marked as the one being spoken. Without a highlight
+            # it is a transcript, not captions.
+            assert page.query_selector("#cc-text mark"), \
+                "no sentence was marked as the one being read"
+
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(400)
+            assert not page.eval_on_selector(
+                "#ccPanel", "e => e.classList.contains('on')"), \
+                "the captions panel did not close"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_sources_cluster_shows_three_in_the_corner():
+            """It was fetched when an episode *ended* and when Go Deeper
+            opened, and nowhere else - so the one moment it is for, somebody
+            listening and wondering where this came from, was the one moment
+            nothing asked for it."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.evaluate("rememberEpisode('why bonds move', 2, '')")
+            page.evaluate("fetchEpisodeSources()")
+            page.wait_for_selector("#srcPanel:not([hidden])", timeout=8000)
+
+            marks = page.eval_on_selector_all("#srcMarks .src-mark", "e => e.length")
+            assert marks == 3, f"the corner showed {marks} publisher marks, not three"
+            # Overlapped, which is what makes it read as "these several"
+            # rather than as a list somebody has to count.
+            overlap = page.eval_on_selector(
+                "#srcMarks .src-mark:nth-child(2)",
+                "e => getComputedStyle(e).marginLeft")
+            assert overlap.startswith("-"), \
+                f"the marks are not overlapped: margin-left {overlap}"
+            # In the corner of the player, not a strip across it.
+            box = page.eval_on_selector("#srcPanel", "e => {"
+                                        " var r = e.getBoundingClientRect();"
+                                        " var p = e.closest('.mini-stage')"
+                                        "   .getBoundingClientRect();"
+                                        " return {w: r.width, pw: p.width,"
+                                        "  right: p.right - r.right}; }")
+            assert box["w"] < box["pw"] * 0.6, \
+                "the sources panel is still a full-width strip"
+            assert box["right"] < 4, "the sources panel is not in the corner"
+
+            # And the whole list is one tap away, with the ones that are
+            # hidden in the corner still in it.
+            page.evaluate("openSources()")
+            page.wait_for_selector("#sourcesOverlay.active", timeout=6000)
+            rows = page.eval_on_selector_all("#srcList .src-row", "e => e.length")
+            assert rows >= 4, f"the popup listed {rows} sources"
+            page.evaluate("closeSources()")
+            page.wait_for_timeout(300)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def tapping_the_player_generates_nothing():
+            """A tap anywhere on the stage that was not a button either jumped
+            to the next episode in the album or, with no album, generated a
+            random myFAM topic - an episode nobody asked for, costing a model
+            call and a GPU, in place of whatever was playing."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(
+                "#playerStage", "e => !e.getAttribute('onclick')"), \
+                "the player stage still has a tap handler on it"
+            assert page.evaluate("typeof playerTapAdvance") == "undefined", \
+                "playerTapAdvance is still defined"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def the_player_names_its_four_icons():
             """Share, vibe, save and captions. Unlabelled, a bookmark, a
             two-way arrow and a speech rectangle are three guesses - and the
@@ -1315,6 +1416,12 @@ def main() -> int:
               the_photo_editor_crops_what_it_shows)
         check("Saving is a toggle on every player", saving_is_a_toggle_on_every_player)
         check("The player names its four icons", the_player_names_its_four_icons)
+        check("Live captions show the script being read",
+              live_captions_show_the_script_being_read)
+        check("The sources cluster shows three in the corner",
+              the_sources_cluster_shows_three_in_the_corner)
+        check("Tapping the player generates nothing",
+              tapping_the_player_generates_nothing)
         check("An episode can be shared outside FAM",
               an_episode_can_be_shared_outside_fam)
         check("Your FAM is messages and only messages",
