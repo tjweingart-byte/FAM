@@ -106,6 +106,31 @@ that passes it will speak; one that does not will say why in a sentence.
 `python verify_voice.py` goes further and actually synthesises, which is the
 difference between "Chatterbox is installed" and "this machine can speak".
 
+## "Everyone's accounts were erased when I deployed"
+
+Ask the server, rather than reading this file. `/api/health` reports
+`storage`, and it is **measured** — a mounted volume is a different
+filesystem, so a database on the same device as the application code is inside
+the container image and goes when the image is replaced:
+
+    curl -s https://<your-host>/api/health | python -m json.tool | grep -A 20 '"storage"'
+
+`ephemeral` names every store that will not survive the next push, and `note`
+says what to do. Two things it distinguishes that reading configuration cannot:
+
+* **A store pointed at `/data` with no disk actually attached** reports
+  `image`. This is the common case on Render and the likely cause of accounts
+  disappearing: `render.yaml` declares the disk, but a blueprint only applies
+  to a service *created from it*. A service made by hand in the dashboard has
+  no disk however many times that file says it should, and nothing anywhere
+  says so. Fix it under the service's **Disks** tab: add one, mount it at
+  `/data`, redeploy. The first deploy after that starts empty one last time.
+* **A store nobody remembered to pin.** Four were missing until §107 —
+  messages, saved, shares and quotas — so conversations, saved episodes and
+  share links were discarded on every push while accounts survived. They are
+  in the `Dockerfile` now, and `tests/test_data_paths.py` derives its list from
+  the code so a store added later cannot be left out quietly.
+
 ## Renaming the Render URL
 
 Render derives `<something>.onrender.com` from the **service name**, which was
