@@ -31,6 +31,7 @@ import argparse
 import asyncio
 import time
 
+import research
 from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
@@ -95,7 +96,22 @@ async def main() -> int:
     # identical. `stream_sentences` calls this again and it no-ops, so the
     # production path is still what runs.
     prep_started = time.perf_counter()
-    plan = await generator.prepare(plan, notes)
+    try:
+        plan = await generator.prepare(plan, notes)
+    except research.NoEvidence as refused:
+        # The one outcome this loop has to show rather than crash on: every
+        # retriever came back empty on a question that turns on current
+        # facts, so FAM refuses instead of writing it from memory (§109).
+        # Printed as the finding it is - the ladder is what to look at, not
+        # the prompt.
+        print(f"  REFUSED after {time.perf_counter() - prep_started:.1f}s")
+        print(f"    {refused}")
+        print("    Every rung of the retrieval ladder came back empty. Check "
+              "EXA_API_KEY, then the log for which rungs ran.")
+        # Non-zero: a refused episode and a written one must not look the
+        # same to whatever ran this - a sweep over twenty prompts reads exit
+        # codes, not prose.
+        return 1
     prep_seconds = time.perf_counter() - prep_started
 
     brief = plan.brief
@@ -107,6 +123,8 @@ async def main() -> int:
         print(f"    why now     {brief.why_now or '-'} ({brief.why_now_confidence})")
         print(f"    searched    {brief.retrieval!r}"
               f"{f' · last {brief.recency_days}d' if brief.recency_days else ' · no window'}")
+        if brief.broader:
+            print(f"    if empty    {brief.broader!r}")
         if brief.must_establish:
             print(f"    must answer {'; '.join(brief.must_establish)}")
         if brief.cautions:

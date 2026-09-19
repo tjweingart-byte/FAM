@@ -48,6 +48,7 @@ GOOD = {
     "why_now": "they played last night",
     "why_now_confidence": "high",
     "search_query": "49ers final score result",
+    "search_fallback": "San Francisco 49ers game",
     "must_establish": ["final score", "who scored"],
     "recency_days": 3,
     "structure": "sports_recap",
@@ -105,6 +106,74 @@ def test_the_brief_is_asked_for_as_a_closed_schema(model):
     assert fmt["schema"]["additionalProperties"] is False
     assert set(fmt["schema"]["required"]) == set(fmt["schema"]["properties"])
     assert fmt["schema"]["properties"]["intent"]["enum"] == list(ei.INTENTS)
+
+
+def test_the_brief_carries_a_broader_query_to_fall_back_to(model):
+    """An empty search is the worst outcome retrieval has, and the commonest
+    cause is a query too specific for the index rather than a subject nothing
+    was published about. The cheapest possible rephrasing is the one written
+    in the call that is already being made. §109."""
+    brief = asyncio.run(ei.understand("who won the 49ers game", 3))
+    assert brief.search_fallback == "San Francisco 49ers game"
+    assert brief.broader == "San Francisco 49ers game"
+    assert "search_fallback" in ei.BRIEF_SCHEMA["required"], (
+        "an optional field is one the model may simply not write"
+    )
+
+
+def test_the_broader_query_is_never_the_one_that_just_failed(model):
+    """Searching the same string twice is a second search that cannot find
+    anything new. It falls through to the subject, then the raw query."""
+    same = ei.Brief(query="who won", subject="who won",
+                    search_query="who won", search_fallback="who won")
+    assert same.broader == ""
+    subject_only = ei.Brief(query="who won", subject="the 49ers game",
+                            search_query="who won")
+    assert subject_only.broader == "the 49ers game"
+
+
+def test_a_degraded_brief_still_has_something_broader_to_try():
+    """The fallback query is the one field a degraded brief cannot have, and
+    the ladder still needs a wider net than the raw query it is searching."""
+    degraded = ei.fallback_brief("49ers game last night", "EI timed out")
+    assert degraded.search_fallback == ""
+    assert degraded.broader == "", (
+        "a degraded brief searched the raw query, so subject and query are "
+        "the same string and there is genuinely nothing wider to try"
+    )
+
+
+def test_a_recency_window_is_never_narrower_than_the_floor(model, monkeypatch):
+    """The window is a filter: nothing outside it is considered at all. A
+    one-day window on a subject nothing was published about yesterday returns
+    zero results, and widening it costs nothing because the evidence is
+    sorted newest-first inside the window anyway."""
+    _, state = model
+    state["reply"] = fake_reply({**GOOD, "recency_days": 1})
+    widened = asyncio.run(ei.understand("who won", 3))
+    assert widened.recency_days == ei.RECENCY_FLOOR_DAYS
+    # Visible, like every other thing the gate changes about a brief.
+    assert any("widened to" in note for note in widened.notes)
+
+    # Evergreen is untouched: zero means no window at all, not a short one.
+    # (An `explainer`, because the gate gives a windowless *recap* 14 days of
+    # its own - a different rule, and one this floor must not disturb.)
+    state["reply"] = fake_reply({**GOOD, "intent": "explainer",
+                                 "recency_days": 0})
+    assert asyncio.run(ei.understand("how a heat pump works", 3)).recency_days == 0
+
+    # And a window wider than the floor is EI's to choose.
+    state["reply"] = fake_reply({**GOOD, "recency_days": 30})
+    assert asyncio.run(ei.understand("what changed this month", 3)).recency_days == 30
+
+
+def test_the_prompt_says_an_empty_search_is_the_worst_outcome(model):
+    """The reason both of the above exist, stated where the model reads it -
+    a rule with no reason attached is a rule a rewrite drops."""
+    assert "worst outcome" in ei.EI_SYSTEM
+    prompt = " ".join(ei.build_ei_prompt("who won", 3, "", "today").split())
+    assert "widest window that is still honest" in prompt
+    assert "hard for this one to return nothing at all" in prompt
 
 
 def test_understanding_runs_at_low_effort_because_the_listener_is_waiting(model):

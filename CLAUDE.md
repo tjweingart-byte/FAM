@@ -774,11 +774,18 @@ the rest of this list it needs taste rather than a key.
   on a request still wins. This no longer has to defend the one-sentence spec
   either way: §108 amended it, and research is now openly one of the things
   paid for in front of the first word.
-  **And an empty search is a ladder, never a shrug** *(§109).* The rungs, in
-  cost order, stopping at the first with evidence: the configured backend, the
-  same backend with the recency window dropped, **GDELT** (keyless, one HTTP
-  call - promoted from additive cross-check to a retriever of its own), then
-  the model's own search, last because it is 10-25 seconds. **No rung may
+  **And an empty search is a ladder, never a shrug** *(§109, §110).* The
+  rungs, in cost order, stopping at the first with evidence: the configured
+  backend, the same backend with the recency window dropped, **GDELT**
+  (keyless, one HTTP call - promoted from additive cross-check to a retriever
+  of its own), then the model's own search, last because it is 10-25 seconds.
+  `research.ladder()` is the **one** definition of that order and it lists
+  only rungs that can actually serve - a GDELT switched off is not a rung -
+  and the runtime, `/api/health` and the startup warning all read it rather
+  than keeping a second copy. Every rung that runs is metered even when its
+  packet is discarded, every rung gets the same sufficiency check, and
+  evidence means a source was *read*: a model's prose about having found
+  nothing is not a packet. **No rung may
   raise** - `research.retrieve` raises whatever the vendor raised, and with one
   stream that is the whole episode, so a 502 at a search vendor used to be a
   listener hearing nothing. Every fallback is recorded (`fell_back_from` on the
@@ -795,7 +802,16 @@ the rest of this list it needs taste rather than a key.
   provider answers the question whether or not an article exists yet. And a
   refused episode is refunded whatever was billed, the one exception to
   `_refund_if_unspent`'s rule: the spend was FAM's decision, not the
-  listener's.
+  listener's. An **attachment is evidence** and is never refused - the
+  listener supplied the document the episode is built on.
+  **And EI is where an empty search is cheapest to prevent** *(§110).* It is
+  a model call that is already being made, so it writes a second, broader
+  query in the same breath as the precise one (`Brief.broader`, which every
+  rung after the first asks), and sets the recency window to the widest span
+  that is still honest, with `RECENCY_FLOOR_DAYS` as the floor - the window
+  is a filter, so one that is too narrow returns nothing while one that is
+  too wide costs nothing. That is the only latency this layer may spend on
+  the problem: a handful of output tokens, never a second call.
   **And the research finishes before the writing starts — on both backends**
   *(§108, replacing §77's "a tool is not an instruction").* When no evidence
   packet came back — `RESEARCH_BACKEND=claude`, or Exa finding nothing usable
@@ -1574,9 +1590,10 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §108 is the
-most recent, and is where the opening of every researched episode turned out
-to be written by the half that knew least), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§110 are
+the most recent: the opening of every researched episode turned out to be
+written by the half that knew least, and what happens when the search comes
+back empty turned out to be "write it from memory anyway"), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

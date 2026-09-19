@@ -509,6 +509,49 @@ def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_search)
     assert notes.research["fell_back_from"] == "exa"
 
 
+def test_a_report_of_having_found_nothing_is_not_evidence(monkeypatch):
+    """Asked to search and report, a model that finds nothing sometimes
+    writes a sentence saying so. A sentence is non-empty, so it would satisfy
+    `Packet.__bool__`, stop the ladder, suppress the refusal, and land inside
+    the <evidence> block as though it were a source. The test is whether it
+    reported a URL it actually read."""
+    class _Message:
+        stop_reason = "end_turn"
+        usage = None
+        content = [types.SimpleNamespace(
+            type="text",
+            text="I searched and no source reports a result for this yet.")]
+
+    class _Client:
+        messages = types.SimpleNamespace(create=lambda **kw: _answer(_Message()))
+
+    async def _answer(value):
+        return value
+
+    monkeypatch.setattr(research, "research_client", lambda: _Client())
+    packet = asyncio.run(research.retrieve_with_claude("who won"))
+    assert not packet, "prose about finding nothing was taken for evidence"
+    assert packet.context == ""
+
+
+def test_the_searching_client_is_built_once_per_credential(monkeypatch):
+    """Each `AsyncAnthropic` carries its own httpx connection pool, so one
+    per retrieval leaks a pool per researched episode."""
+    built: list = []
+
+    monkeypatch.setattr(research, "_CLIENT", ("", None))
+    monkeypatch.setattr(research.credentials if hasattr(research, "credentials")
+                        else __import__("credentials"), "active",
+                        lambda name: "sk-one")
+    import anthropic_client
+    monkeypatch.setattr(anthropic_client, "build_async_client",
+                        lambda key=None: built.append(key) or object())
+
+    first = research.research_client()
+    assert research.research_client() is first
+    assert len(built) == 1, "a client was built per call"
+
+
 def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
                                                                  fake_search):
     """The availability rule, applied to what replaced the thing it was
@@ -739,7 +782,20 @@ def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
         pytest.skip("this machine can research; nothing to announce")
     messages = [record.getMessage() for record in caplog.records]
     assert any("RESEARCH UNAVAILABLE" in m for m in messages), messages
-    assert any("will FAIL rather than search another way" in m for m in messages)
+    # **What it says changed with §109 and the test had to change with it.**
+    # It used to promise that researched episodes would FAIL; they now fall
+    # down the ladder instead, so the warning names the rungs that will
+    # actually serve. A warning that describes a failure mode the code no
+    # longer has sends the next person looking for the wrong thing.
+    assert any("fall down the ladder" in m for m in messages), messages
+    # Named from `research.ladder()` rather than from a list written out
+    # here, so the warning stays true of whatever this deployment has
+    # switched on - with GDELT=0, the shipped default, it is claude alone.
+    rungs = research.ladder()[1:]
+    assert rungs, "a deployment with no fallback rung at all"
+    assert any(all(rung in m for rung in rungs) for m in messages), (
+        f"the warning must name the rungs that will actually serve: {rungs}")
+    assert not any("will FAIL" in m for m in messages)
     assert any("RESEARCH_BACKEND=claude" in m for m in messages), (
         "the warning must name the working configuration to move to")
 

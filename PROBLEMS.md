@@ -7836,3 +7836,94 @@ A rare question now fails instead of producing a confident episode about
 nothing. That is the trade, taken deliberately at the owner's direction, and it
 is bounded by the ladder above it: reaching the refusal takes four retrievals
 finding nothing, on a question that needs today's facts.
+
+### Nine more, found by reviewing the above rather than by running it
+
+The ladder and the refusal were written, tested green, and then read back
+against the rest of the app. Everything below was uncovered by tests, and
+three of them were introduced by §108 and §109 themselves - which is the
+argument for the review being part of the change rather than a later pass.
+
+1. **`/api/script` reserved an episode and had no failure path.** Its own
+   comment said so, and that stopped being true the moment `NoEvidence`
+   existed: a refusal there was a bare 500 with the unit still spent. It
+   refunds and answers 503 now, like `/api/audio`.
+2. **An attachment was not counted as evidence.** With `SEARCH_MODE=always`
+   an attached document is researched too, so an empty retrieval could refuse
+   an episode whose evidence the listener had supplied themselves - the one
+   kind of episode with *more* to go on than a researched one.
+3. **The ladder promised a rung that cannot serve.** `GDELT=0` is the shipped
+   default and `gdelt.retrieve` returns `[]` when it is off, so
+   `/api/health` and the startup warning were describing a wish.
+   `research.ladder()` now lists only rungs that can actually fetch, the
+   runtime walks that same function rather than a second hard-coded list, and
+   `report()["unavailable"]` asks about the configured backend rather than
+   only about Exa - `RESEARCH_BACKEND=gdelt` with `GDELT=0` used to report
+   healthy and retrieve nothing, for ever.
+4. **A discarded rung was a free rung.** Only the winning packet was metered,
+   and the `claude` rung is a real model call with a web search in it that is
+   *most* likely to be discarded on the episodes that then get refused and
+   refunded. Every rung that ran is metered now; the rungs keep their own
+   numbers rather than rolling them into the winner, so nothing is counted
+   twice.
+5. **GDELT skipped the sufficiency check.** `thin_on` was therefore always
+   empty on that backend, and GDELT is the rung most likely to produce a
+   packet of headlines with no passages under them - the §88 shape `thin_on`
+   exists to prevent. One `_note_gaps` helper runs on every rung now.
+6. **A report of having found nothing was taken for evidence.** Asked to
+   search and report, a model that finds nothing sometimes writes a sentence
+   saying so; a sentence is non-empty, so it satisfied `Packet.__bool__`,
+   stopped the ladder, suppressed the refusal and landed inside the
+   `<evidence>` block. The test is now whether it reported a URL it read.
+7. **Everything was counted as an Exa search.** `Usage.exa_searches` was
+   fed by every backend, making the one retrieval number `usage_report.py`
+   prints a mixture of three things.
+8. **A client per retrieval.** `research_client()` built a fresh
+   `AsyncAnthropic`, each with its own httpx pool, and never closed it.
+   Cached on the credential, so a rotated key still reaches a later call.
+9. **`write.py` exited 0 on a refusal.** A sweep over twenty prompts reads
+   exit codes; a refused episode and a written one must not look the same.
+
+And the same review found the one piece of copy the change had made false:
+the startup warning still said researched episodes would **FAIL** rather than
+search another way. They fall down the ladder now. A warning describing a
+failure mode the code no longer has sends the next person looking for the
+wrong thing, so it names the rungs that will actually serve - read from
+`research.ladder()`, not written out a second time.
+
+## 110. What EI can do about an empty search, for no extra latency
+
+§109 built the ladder that runs *after* a search comes back empty. This is
+what happens before one: the layer that decides what to search for is also
+the cheapest place to stop the search failing, because it is a model call
+that is already being made.
+
+**Two fields and a floor**, none of which costs a round trip:
+
+* **`search_fallback`** - the same search, broader, written in the same call
+  as the precise one. An empty search is most often a query too specific for
+  the index rather than a subject nothing was published about, and the
+  cheapest rephrasing is the one that costs no second call. `Brief.broader`
+  picks it, then the resolved subject, then the raw query, and never returns
+  the string that just failed. This is what §82's "one more search, never a
+  model call to rephrase" always wanted and could not have.
+* **The ladder uses it.** The precise query already found nothing, so asking
+  a second index the same string is a second search that can only fail the
+  same way. Every rung after the first asks the broader question.
+* **A recency floor.** The window is a *filter* - nothing outside it is
+  considered - so a one-day window on a subject nothing was published about
+  yesterday returns zero results. Widening costs almost nothing, because
+  `rank_results` sorts newest-first inside the window anyway and the packet
+  carries every date, so a two-day-old source is still spoken of as two days
+  old. `RECENCY_FLOOR_DAYS = 2`, applied in `gate` where every other field of
+  the brief is normalised, and the widening is recorded in `Brief.notes` like
+  everything else the gate changes. Zero is untouched: evergreen means no
+  window at all, not a short one.
+
+The prompt says why, not just what - "a search that comes back empty is the
+worst outcome here, worse than one that comes back broad" - because a rule
+with no reason attached is the first thing a later rewrite drops.
+
+What this does not do is make the refusal unreachable. It makes it rarer, for
+a handful of output tokens on a call already being made, which is the only
+kind of latency this layer is allowed to spend.

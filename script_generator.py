@@ -1006,29 +1006,67 @@ class ScriptGenerator:
         # a model call. Trying the expensive one earlier would make a rare
         # miss expensive for everybody.
         packet = await self._retrieve(query, plan.brief, configured)
-        for rung in ("gdelt", "claude"):
-            if packet or rung == configured:
-                continue
-            log.info("%s found nothing usable for %r; trying %s before writing",
-                     configured, query, rung)
-            better = await self._retrieve(query, plan.brief, rung)
+        spent = [packet]
+
+        # **Every rung after the first asks the broader question.** The first
+        # rung already searched the precise one and found nothing, so asking
+        # a second index the same string is a second search that can only
+        # fail the same way. `Brief.broader` is EI's own wider phrasing,
+        # written in the same call as the precise one and costing nothing
+        # extra to have. §109.
+        wider = (getattr(plan.brief, "broader", "") or "").strip() or query
+        # `research.ladder()` is the one definition of which rungs exist and
+        # in what order, and it leaves out any that cannot serve - a GDELT
+        # that is switched off is not a rung. The health report and the
+        # startup warning read the same function, so what a deployment is
+        # told will happen is what happens.
+        for rung in research_mod.ladder(configured)[1:]:
+            if packet:
+                break
+            log.info("%s found nothing usable for %r; trying %s on %r before "
+                     "writing", configured, query, rung, wider)
+            better = await self._retrieve(wider, plan.brief, rung)
+            spent.append(better)
             if better:
                 better.fell_back_from = configured
-                better.searches += packet.searches
-                better.cost += packet.cost
-                better.seconds += packet.seconds
                 packet = better
 
         if notes is not None:
+            # The winning packet describes what the writer actually reads;
+            # the totals below describe what the whole ladder cost. Each rung
+            # keeps its own numbers rather than rolling them into the winner,
+            # so nothing is counted twice when they are metered one by one.
             notes.research = packet.as_dict()
-            # Exa's own reported cost where it gave one, its published rate
-            # otherwise - `research.retrieve` has already made that choice.
-            notes.usage.add_research(packet.searches, packet.cost)
-            # And the searching call's tokens, on the backend that spends
-            # them. A research call this size is not free and was invisible
-            # for as long as the searching happened inside the writing turn.
-            if packet.usage is not None:
-                notes.usage.add_model_call(settings.model, packet.usage)
+            notes.research["rungs"] = [r.backend for r in spent if r is not None]
+            notes.research["searches"] = sum(
+                r.searches for r in spent if r is not None)
+            notes.research["cost"] = round(
+                sum(r.cost for r in spent if r is not None), 4)
+            notes.research["seconds"] = round(
+                sum(r.seconds for r in spent if r is not None), 3)
+            # **Every rung that ran is metered, including the ones that came
+            # back empty.** A rung whose packet is discarded still spent: the
+            # `claude` rung is a real model call with a web search in it, and
+            # it is *most* likely to be discarded on exactly the episodes
+            # that then get refused. Recording only the winner would report
+            # the expensive failures as free.
+            for rung in spent:
+                if rung is None:
+                    continue
+                # Exa's own reported cost where it gave one, its published
+                # rate otherwise. **Only for Exa**: `Usage.exa_searches` is a
+                # count of Exa searches, and filing GDELT's fetches or the
+                # model's web searches under it would make the one number
+                # `usage_report.py` prints about retrieval a mixture of three
+                # things.
+                if rung.backend == "exa":
+                    notes.usage.add_research(rung.searches, rung.cost)
+                # The searching call's tokens, on the backend that spends
+                # them. A research call this size is not free and was
+                # invisible for as long as the searching happened inside the
+                # writing turn.
+                if rung.usage is not None:
+                    notes.usage.add_model_call(settings.model, rung.usage)
         if not packet:
             return plan
         if notes is not None and packet.provenance is not None:
@@ -1207,6 +1245,15 @@ class ScriptGenerator:
         episode. §109.
         """
         if not plan.search or plan.evidence:
+            return
+        # **An attachment is evidence, and it is the listener's own.** They
+        # handed FAM the document the episode is to be built on, and
+        # `build_prompt` puts it in front of the writer outranking anything
+        # recalled - so refusing here would refuse an episode that has more
+        # to go on than most researched ones. With SEARCH_MODE=always an
+        # attached question is researched too, which is the only reason this
+        # path can be reached at all.
+        if plan.attachments:
             return
         live = getattr(plan, "live", None)
         if live is not None and getattr(live, "facts", None) is not None:

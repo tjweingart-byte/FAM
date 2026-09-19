@@ -193,6 +193,14 @@ def _announce_research() -> None:
     Not fatal. Most questions are not researched, and an app that refuses to
     start because one path is unconfigured is worse than one that starts and
     says which path is unavailable.
+
+    **What it says changed with §109**, and this is the kind of line that goes
+    stale silently: it used to say researched episodes would FAIL rather than
+    search another way, which was true when the configured backend was the
+    only one. They now fall down a ladder - GDELT, then the model's own search
+    - so the consequence is slower and weaker research rather than no episode,
+    and saying otherwise would send somebody looking for failures that are not
+    happening.
     """
     report = research_report()
     if not report["unavailable"]:
@@ -202,10 +210,12 @@ def _announce_research() -> None:
         "RESEARCH UNAVAILABLE: RESEARCH_BACKEND=%s but %s.", report["backend"],
         report["exa_detail"])
     log.warning(
-        "  Researched episodes will FAIL rather than search another way.")
+        "  Every researched episode will fall down the ladder to %s - slower, "
+        "weaker evidence, and the episode still gets made.",
+        " then ".join(report["ladder"][1:]) or "nothing else")
     log.warning(
-        "  Set EXA_API_KEY, or set RESEARCH_BACKEND=claude to let the model "
-        "search instead.")
+        "  Set EXA_API_KEY, or set RESEARCH_BACKEND=claude to make the "
+        "fallback the configured path.")
     log.warning("  Every tab says the same thing; /api/health carries it too.")
 
 
@@ -2139,13 +2149,24 @@ async def script(req: ScriptRequest, request: Request) -> dict:
     # A script is a Claude call, which is the expensive half of an episode.
     # Counted against the same allowance rather than a second one: from the
     # allowance's point of view this *is* an episode, minus the audio.
-    # Kept only so the shape matches /api/audio: there is no failure path here
-    # between the reservation and the response, so nothing is ever refunded.
-    _reserve(request, "episode", surface="script")
+    # **There is one failure path here now** (§109): FAM refuses a question
+    # that turns on current facts when every retriever came back empty, so
+    # this endpoint refunds on that exactly as `/api/audio` does. The comment
+    # this replaces said there was no failure path between the reservation
+    # and the response, which was true when it was written and silently
+    # stopped being true.
+    reserved = _reserve(request, "episode", surface="script")
     plan = _validated_plan(req.query, req.minutes, "", req.search)
     generator = DemoGenerator() if DEMO_MODE else ScriptGenerator()
     notes = ScriptNotes()
-    text = " ".join([s async for s in generator.stream_sentences(plan, notes)])
+    try:
+        text = " ".join([s async for s in generator.stream_sentences(plan, notes)])
+    except NoEvidence as exc:
+        log.warning("refused a script for lack of evidence: %s", exc)
+        _record_usage(_listener(request), notes.usage, surface="script",
+                      minutes=plan.minutes)
+        _refund(reserved, _listener(request))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     # No audio, but a full script call - the same money as an episode, minus
     # the synthesis. Left out, a tool or a probe hammering this endpoint would
     # be the one kind of spend the ledger could not see.

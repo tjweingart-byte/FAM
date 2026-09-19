@@ -8,8 +8,18 @@ looking - **both finish before the first word is written**:
 * **claude** - the model is given Anthropic's server-side `web_search` tool in
   a call of its own whose entire job is to come back with evidence. What it
   reports is shaped into the same packet and goes into the writing prompt the
-  same way. Used where there is no Exa key, and as the second attempt when Exa
-  comes back with nothing usable.
+  same way. Used where there is no Exa key, and as the last rung of the ladder
+  below.
+* **gdelt** - a keyless article index. Thinner than either - titles, dates and
+  grades, no passages - and available to a deployment with no retrieval
+  credential at all.
+
+**Which one runs is a ladder, not a setting** (§109). The configured backend
+goes first; if it comes back with nothing the rest are tried in cost order
+(`ladder()` is the one definition of that), each asking `Brief.broader` rather
+than the precise query that just failed. No rung may raise. If every rung is
+empty and the question turns on something current, `NoEvidence` refuses the
+episode rather than letting it be written from memory.
 
 **`claude` used to mean something else, and that is the change here**
 (PROBLEMS.md §108). The tool was attached to the *writing* call, so the model
@@ -558,6 +568,21 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
         return None
 
 
+def _note_gaps(packet: "Packet", must_establish: list) -> "Packet":
+    """Name what the brief asked for and this packet does not appear to hold.
+
+    Every rung runs this. A packet that answers half the brief is still worth
+    writing from, and the writer is told which half is missing rather than
+    filling it from memory in the same confident voice - §88. Additive: a
+    retriever that already named its own gaps keeps them.
+    """
+    _, missing = packet_covers(packet.context, must_establish)
+    for item in missing:
+        if item not in packet.missing:
+            packet.missing.append(item)
+    return packet
+
+
 async def retrieve(query: str, backend: Optional[str] = None,
                    brief=None, **overrides: Any) -> Packet:
     """Research `query` with the configured backend.
@@ -599,10 +624,17 @@ async def retrieve(query: str, backend: Optional[str] = None,
         raise ResearchUnavailable("nothing to research: the query is empty")
 
     if chosen == "gdelt":
-        return await retrieve_with_gdelt(
+        packet = await retrieve_with_gdelt(
             query, brief=brief,
             recency_days=int(overrides.get(
                 "recency_days", getattr(brief, "recency_days", 0) or 0)))
+        # The same sufficiency check every other rung runs. Skipping it left
+        # `thin_on` empty on this backend, so a packet of headlines with no
+        # passages under them reached the writer as though it answered the
+        # brief - which is the §88 shape `thin_on` exists to prevent, and
+        # GDELT is the rung most likely to produce it.
+        return _note_gaps(packet, list(overrides.get(
+            "must_establish", getattr(brief, "must_establish", []) or [])))
 
     if chosen == "claude":
         packet = await retrieve_with_claude(
@@ -615,12 +647,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # question from opposite sides - what it noticed it was missing, and
         # what the brief asked for and the text does not appear to contain.
         # Both are kept: the writer is told a part is thin either way.
-        _, missing = packet_covers(packet.context, list(overrides.get(
+        return _note_gaps(packet, list(overrides.get(
             "must_establish", getattr(brief, "must_establish", []) or [])))
-        for item in missing:
-            if item not in packet.missing:
-                packet.missing.append(item)
-        return packet
 
     num_results = int(overrides.get("num_results", settings.exa_num_results))
     packet_sources = int(overrides.get("packet_sources", settings.exa_packet_sources))
@@ -649,10 +677,17 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # in that window returns zero results, and the second look is the one that
     # drops the window.
     if (not packet or not covered) and settings.research_retry:
-        subject = (getattr(brief, "subject", "") or "").strip() or query
+        # **EI's own broader phrasing first**, then the resolved subject, then
+        # the raw query - `Brief.broader` picks whichever exists and differs
+        # from what was just searched. The fallback query is written in the
+        # same call as the precise one, so this stays what §82 required: one
+        # more *search*, never a model call to rephrase. §109.
+        broader = (getattr(brief, "broader", "") or "").strip()
+        if not broader:
+            broader = (getattr(brief, "subject", "") or "").strip() or query
         log.info("exa packet missed %s for %r; one more search on %r with no "
-                 "window", missing, query, subject)
-        second = await _second_look(subject, num_results, packet_sources,
+                 "window", missing, query, broader)
+        second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source, search_type)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
@@ -906,18 +941,29 @@ def shape_claude_packet(text: str, now: Optional[datetime] = None
     return shaped.strip(), hosts, missing
 
 
+#: The one client the searching call uses, and the key it was built for.
+#: Cached because each `AsyncAnthropic` carries its own httpx connection
+#: pool: one per retrieval would leak a pool per researched episode.
+_CLIENT: tuple = ("", None)
+
+
 def research_client():
     """The client the searching call uses.
 
     Its own function so a test can replace it without reaching inside the
     coroutine, and so the credential is read at call time rather than at
     import - a key rotated in the secrets manager must reach a call made
-    later in the life of the process.
+    later in the life of the process, which is why the cache is keyed on the
+    key rather than simply built once.
     """
+    global _CLIENT
     import credentials
     from anthropic_client import build_async_client
 
-    return build_async_client(credentials.active("ANTHROPIC_API_KEY"))
+    key = credentials.active("ANTHROPIC_API_KEY") or ""
+    if _CLIENT[0] != key or _CLIENT[1] is None:
+        _CLIENT = (key, build_async_client(key))
+    return _CLIENT[1]
 
 
 async def retrieve_with_claude(query: str, brief=None, recency_days: int = 0,
@@ -963,6 +1009,16 @@ async def retrieve_with_claude(query: str, brief=None, recency_days: int = 0,
         if getattr(block, "type", "") == "text"
     )
     shaped, hosts, missing = shape_claude_packet(text)
+    # **A report of having found nothing is not evidence.** Asked to search
+    # and report, a model that finds nothing sometimes writes a sentence
+    # saying so - and a sentence is non-empty, so it would satisfy
+    # `Packet.__bool__`, stop the ladder, suppress the refusal and land
+    # inside the <evidence> block as though it were a source. The test is
+    # whether it reported a URL it read: `shape_claude_packet` takes those
+    # out of the packet and hands them back here, so no hosts means nothing
+    # was read, whatever prose came with it.
+    if not hosts:
+        shaped = ""
     packet.context = shaped
     packet.sources = hosts
     packet.missing = missing
@@ -987,6 +1043,47 @@ async def retrieve_with_claude(query: str, brief=None, recency_days: int = 0,
     return packet
 
 
+#: The rungs below the configured backend, in the order they are tried. Cost
+#: order, not quality order: GDELT is one keyless HTTP call, the model's own
+#: search is 10-25 seconds and a model call.
+FALLBACK_RUNGS = ("gdelt", "claude")
+
+
+def ladder(backend: Optional[str] = None) -> list:
+    """The rungs a researched episode will actually try, in order.
+
+    One definition, walked by `ScriptGenerator.research` and reported by the
+    health report and the startup warning. A second hand-written copy of it
+    is the shape CLAUDE.md calls a decorative guard.
+
+    **Only rungs that can serve are listed**, which is the difference between
+    a ladder and a wish: GDELT returns `[]` whenever `GDELT=0`, which is the
+    shipped default, so listing it unconditionally would have had
+    `/api/health` promising a fallback that cannot fetch anything. A rung that
+    is configured off is not a rung.
+    """
+    chosen = (backend or settings.research_backend or "").strip().lower()
+    rungs = [chosen] if chosen else []
+    for rung in FALLBACK_RUNGS:
+        if rung == chosen or not _rung_available(rung):
+            continue
+        rungs.append(rung)
+    return rungs
+
+
+def _rung_available(rung: str) -> bool:
+    """Whether a fallback rung could return anything if it were asked."""
+    if rung == "gdelt":
+        import gdelt
+
+        return gdelt.available()[0]
+    if rung == "exa":
+        return available()
+    # The model's own search needs the credential the app already cannot run
+    # without, so there is nothing separate to check.
+    return True
+
+
 def report() -> dict:
     """What the server can actually do for research right now - for /api/health."""
     ok, detail = diagnose()
@@ -995,10 +1092,14 @@ def report() -> dict:
         "backends": list(RESEARCH_BACKENDS),
         "exa_configured": ok,
         "exa_detail": detail,
-        # True when the configured backend cannot run. A researched episode
-        # will fail rather than quietly search another way, so this is worth
-        # seeing on a tab rather than discovering in a log.
-        "unavailable": settings.research_backend == "exa" and not ok,
+        # True when the *configured* backend cannot run - whichever it is.
+        # It used to ask only about Exa, so `RESEARCH_BACKEND=gdelt` with
+        # `GDELT=0` reported healthy and retrieved nothing, for ever.
+        # A researched episode no longer fails when this is true (it falls
+        # down the ladder), but it is not being researched the way this
+        # deployment asked, which is worth seeing on a tab.
+        "unavailable": not _rung_available(settings.research_backend),
+        "gdelt_configured": _rung_available("gdelt"),
         # Whether evidence reaches the writer dated and attributed. Reported
         # because an undated packet does not look broken from outside - it
         # produces an episode that is confidently wrong about *when*, which is
@@ -1011,8 +1112,13 @@ def report() -> dict:
         # searching mid-sentence look identical until you hear the first ten
         # seconds of one. PROBLEMS.md §108.
         "search_during_writing": False,
-        # What happens when the configured backend comes back with nothing:
-        # the model's own search runs as a second retrieval, still before the
-        # first word, and the episode's record says it did.
-        "fallback_backend": "claude",
+        # The rungs an episode will actually try, in the order it tries them,
+        # starting with whatever this deployment configured. Reported rather
+        # than described in prose anywhere, because "what happens when the
+        # search finds nothing" is the question a health tab is being asked,
+        # and the answer depends on what is configured here. §109.
+        "ladder": ladder(),
+        # And what happens at the bottom of it: a question that turns on
+        # current facts is refused rather than written from memory.
+        "refuses_without_evidence": True,
     }

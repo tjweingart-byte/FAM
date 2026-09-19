@@ -27,10 +27,19 @@ import script_generator as sg  # noqa: E402
 from script_generator import ScriptNotes, plan_episode  # noqa: E402
 
 
-def backend(monkeypatch, value):
-    patched = dataclasses.replace(sg.settings, research_backend=value)
+def backend(monkeypatch, value, gdelt=True):
+    """Configure the backend, and whether the keyless rung is switched on.
+
+    `GDELT=0` is the shipped default and a rung that is off is not a rung -
+    `research.ladder` leaves it out, so a test about the ladder has to say
+    which deployment it is describing.
+    """
+    patched = dataclasses.replace(sg.settings, research_backend=value,
+                                  gdelt=gdelt)
     monkeypatch.setattr(research, "settings", patched)
     monkeypatch.setattr(sg, "settings", patched)
+    import gdelt as gdelt_mod
+    monkeypatch.setattr(gdelt_mod, "settings", patched)
 
 
 def rungs(monkeypatch, answers: dict):
@@ -38,7 +47,7 @@ def rungs(monkeypatch, answers: dict):
     tried: list = []
 
     async def retrieve(query, backend=None, brief=None):
-        tried.append(backend)
+        tried.append((backend, query))
         packet = answers.get(backend)
         if isinstance(packet, Exception):
             raise packet
@@ -54,11 +63,13 @@ def found(name):
 
 
 BRIEF_CURRENT = types.SimpleNamespace(
-    retrieval="who won", subject="the game", recency_days=1,
-    outcome_dependent=True, must_establish=[], degraded=False, live_domain="")
+    retrieval="who won", broader="the game, result", subject="the game",
+    recency_days=2, outcome_dependent=True, must_establish=[], degraded=False,
+    live_domain="")
 BRIEF_EVERGREEN = types.SimpleNamespace(
-    retrieval="how a heat pump works", subject="heat pumps", recency_days=0,
-    outcome_dependent=False, must_establish=[], degraded=False, live_domain="")
+    retrieval="how a heat pump works", broader="heat pumps",
+    subject="heat pumps", recency_days=0, outcome_dependent=False,
+    must_establish=[], degraded=False, live_domain="")
 
 
 def research_with(plan, notes=None):
@@ -69,13 +80,26 @@ def research_with(plan, notes=None):
 # --------------------------------------------------------------------------
 # the ladder
 # --------------------------------------------------------------------------
+def test_a_rung_that_is_switched_off_is_not_a_rung(monkeypatch):
+    """`GDELT=0` ships as the default, and a health report that promised a
+    fallback which cannot fetch anything would be describing a wish."""
+    backend(monkeypatch, "exa", gdelt=False)
+    tried = rungs(monkeypatch, {})
+    plan = dataclasses.replace(plan_episode("who won", 3, search=True),
+                               brief=BRIEF_CURRENT)
+    with pytest.raises(research.NoEvidence):
+        prepared_without_live(monkeypatch, plan)
+    assert [b for b, _ in tried] == ["exa", "claude"], "gdelt was asked anyway"
+    assert research.ladder("exa") == ["exa", "claude"]
+
+
 def test_the_ladder_stops_at_the_first_rung_that_finds_anything(monkeypatch):
     backend(monkeypatch, "exa")
     tried = rungs(monkeypatch, {"exa": found("exa")})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert "from exa" in research_with(plan).evidence
-    assert tried == ["exa"], "a rung ran after one that had already succeeded"
+    assert tried == [("exa", "who won")], "a rung ran after a success"
 
 
 def test_an_empty_backend_falls_to_the_keyless_one_before_the_expensive_one(
@@ -88,7 +112,10 @@ def test_an_empty_backend_falls_to_the_keyless_one_before_the_expensive_one(
                                brief=BRIEF_CURRENT)
     notes = ScriptNotes()
     assert "from gdelt" in research_with(plan, notes).evidence
-    assert tried == ["exa", "gdelt"], "the expensive rung ran unnecessarily"
+    assert [b for b, _ in tried] == ["exa", "gdelt"], "the expensive rung ran"
+    # The precise query already found nothing, so the second index is asked
+    # the wider question rather than the same one again.
+    assert tried[0][1] == "who won" and tried[1][1] == "the game, result"
     assert notes.research["fell_back_from"] == "exa", "the fallback was silent"
 
 
@@ -98,7 +125,7 @@ def test_the_model_s_own_search_is_the_last_rung(monkeypatch):
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert "from claude" in research_with(plan).evidence
-    assert tried == ["exa", "gdelt", "claude"]
+    assert [b for b, _ in tried] == ["exa", "gdelt", "claude"]
 
 
 def test_a_rung_that_raises_is_a_rung_that_failed(monkeypatch):
@@ -110,7 +137,7 @@ def test_a_rung_that_raises_is_a_rung_that_failed(monkeypatch):
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert "from gdelt" in research_with(plan).evidence
-    assert tried == ["exa", "gdelt"]
+    assert [b for b, _ in tried] == ["exa", "gdelt"]
 
 
 def test_the_configured_backend_is_never_tried_twice(monkeypatch):
@@ -119,7 +146,7 @@ def test_the_configured_backend_is_never_tried_twice(monkeypatch):
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     research_with(plan)
-    assert tried == ["gdelt", "claude"]
+    assert [b for b, _ in tried] == ["gdelt", "claude"]
 
 
 # --------------------------------------------------------------------------
@@ -128,6 +155,12 @@ def test_the_configured_backend_is_never_tried_twice(monkeypatch):
 def prepared(plan):
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     return asyncio.run(generator.prepare(plan))
+
+
+def prepared_without_live(monkeypatch, plan):
+    monkeypatch.setattr(sg.live_facts, "lookup",
+                        lambda brief, notes=None: _none())
+    return prepared(plan)
 
 
 def test_a_question_that_needs_today_is_refused_rather_than_guessed(monkeypatch):
@@ -231,6 +264,90 @@ def test_the_refusal_is_not_an_unavailable_backend():
     that found nothing."""
     assert not issubclass(research.NoEvidence, research.ResearchUnavailable)
     assert not issubclass(research.ResearchUnavailable, research.NoEvidence)
+
+
+# --------------------------------------------------------------------------
+# what the ladder costs, and what it counts as evidence
+# --------------------------------------------------------------------------
+def test_an_attachment_is_evidence_and_is_never_refused(monkeypatch):
+    """The listener handed FAM the document. `build_prompt` puts it in front
+    of the writer outranking anything recalled, so refusing here would refuse
+    the episode with the most to go on."""
+    backend(monkeypatch, "exa")
+    rungs(monkeypatch, {})
+    attached = types.SimpleNamespace(
+        kind="document", as_prompt_block=lambda: "THEIR DOCUMENT")
+    plan = dataclasses.replace(
+        plan_episode("what does this say about next quarter", 3, search=True,
+                     attachments=(attached,)),
+        brief=BRIEF_CURRENT)
+    assert prepared_without_live(monkeypatch, plan).evidence == ""
+
+
+def test_every_rung_that_ran_is_metered_even_when_it_is_discarded(monkeypatch):
+    """The claude rung is a real model call with a web search in it, and it
+    is most likely to be discarded on exactly the episodes that then get
+    refused and refunded. Recording only the winner reports the expensive
+    failures as free."""
+    backend(monkeypatch, "exa")
+    usage = types.SimpleNamespace(input_tokens=900, output_tokens=200,
+                                  cache_read_input_tokens=0,
+                                  cache_creation_input_tokens=0)
+    empty_but_paid = research.Packet(backend="claude", usage=usage)
+    rungs(monkeypatch, {"claude": empty_but_paid})
+
+    notes = ScriptNotes()
+    plan = dataclasses.replace(plan_episode("who won", 3, search=True),
+                               brief=BRIEF_CURRENT)
+    research_with(plan, notes)
+    assert notes.usage.model_calls == 1, "a rung that spent was reported free"
+    assert notes.usage.input_tokens == 900
+
+
+def test_only_exa_searches_are_counted_as_exa_searches(monkeypatch):
+    """`Usage.exa_searches` is a count of Exa searches. Filing GDELT's
+    fetches or the model's web searches under it makes the one retrieval
+    number `usage_report.py` prints a mixture of three things."""
+    backend(monkeypatch, "exa")
+    rungs(monkeypatch, {"claude": research.Packet(
+        context="SOURCE 1\nTitle: x", backend="claude", searches=3)})
+    notes = ScriptNotes()
+    plan = dataclasses.replace(plan_episode("who won", 3, search=True),
+                               brief=BRIEF_CURRENT)
+    research_with(plan, notes)
+    assert notes.usage.exa_searches == 0
+    # But the episode's own record still says what the whole ladder did.
+    assert notes.research["searches"] == 3
+    assert notes.research["rungs"] == ["exa", "gdelt", "claude"]
+
+
+def test_the_script_endpoint_refuses_and_refunds_like_the_audio_one(monkeypatch):
+    """`/api/script` reserved an episode and had no failure path between the
+    reservation and the response - which was true when that comment was
+    written and stopped being true here. A refusal would have been a bare
+    500 with the unit still spent."""
+    from fastapi.testclient import TestClient
+
+    import app as app_mod
+
+    refused = research.NoEvidence("FAM could not reach a single source.")
+
+    class Refuses:
+        async def stream_sentences(self, plan, notes=None):
+            raise refused
+            yield ""  # pragma: no cover
+
+    refunds: list = []
+    monkeypatch.setattr(app_mod, "DEMO_MODE", False)
+    monkeypatch.setattr(app_mod, "ScriptGenerator", lambda *a, **k: Refuses())
+    monkeypatch.setattr(app_mod, "_refund", lambda verdict, user: refunds.append(user))
+
+    with TestClient(app_mod.app) as client:
+        answer = client.post("/api/script", json={"query": "who won",
+                                                  "minutes": 2})
+    assert answer.status_code == 503
+    assert "could not reach a single source" in answer.text
+    assert refunds, "the listener was charged for an episode they never got"
 
 
 async def _none():
