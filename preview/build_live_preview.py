@@ -97,6 +97,15 @@ LIVE_SHIM = r"""
      "prefs"];
   var cache = {}; COLS.forEach(function (c) { cache[c] = []; });
   var UID = "", EMAIL = "", TOKEN = "";
+  //: Conversations, for the life of the page only - see the note on
+  //: `/api/messages` below for why they are not in the artifact db.
+  var THREADS = {}, NEXT_MSG_ID = 1;
+  var NOTIFY = { head: 0, pending: [], follows: [] };
+
+  window.famPreviewNotify = function (item) {
+    if (item && item.follow) { NOTIFY.follows.push(item.follow); return; }
+    NOTIFY.pending.push(item);
+  };
   var badge = null;
 
   function now() { return Date.now() / 1000; }
@@ -638,8 +647,24 @@ LIVE_SHIM = r"""
       language: (row && row.language) || "en",
       weekly_recap: row ? row.weekly_recap !== 0 : true,
       recap_week: (row && row.recap_week) || "",
+      // Newline-separated, like the server's column and for the same reason:
+      // a typed topic may perfectly reasonably contain a comma, and a
+      // separator a value can contain is a value that silently becomes two.
+      topics: row && row.topics
+        ? String(row.topics).split("\n").filter(Boolean) : [],
       intro_done: !!(row && row.intro_done)
     };
+  }
+
+  // `topics_chosen`: what they chose, resolved for display. Derived here the
+  // way the server derives it rather than stored resolved, so a subject added
+  // to the catalogue later starts resolving for whoever typed it first.
+  function chosenTopicsBody(ids) {
+    return (ids || []).map(function (id) {
+      var listed = CATALOGUE.filter(function (c) { return c.id === id; })[0];
+      return { id: id, label: listed ? listed.label : id,
+               icon: listed ? listed.icon : "news", typed: !listed };
+    });
   }
 
   function hintedInterests(qs) {
@@ -986,15 +1011,72 @@ LIVE_SHIM = r"""
     if (path === "/api/friends/follow") {
       return json({ error: "There is nobody else in this preview's database." }, 404);
     }
+    // ---- conversations
+    //
+    // This database has one listener in it, so there is genuinely nobody to
+    // talk to - and that is what the inbox says. What is *not* honest is
+    // refusing to send: the thing worth driving here is the conversation
+    // updating itself (§107), and a shim that 404s every send would report a
+    // working chat as broken and a broken one as working, because neither
+    // ever draws a message.
+    //
+    // So a thread is kept in memory for the life of the page, with the same
+    // `since`/`head` contract the server answers. Nothing is written to the
+    // artifact db: a conversation with yourself is not this store's business,
+    // and the panel beside the page would show it as data somebody has.
     if (path === "/api/messages" && method === "GET") {
-      return json({ threads: [], unread: 0 });
+      var open = Object.keys(THREADS).filter(function (k) {
+        return THREADS[k].length; });
+      return json({
+        threads: open.map(function (k) {
+          return { thread: k, with: k, name: "Someone", handle: "",
+                   last: THREADS[k][THREADS[k].length - 1], unread: 0 };
+        }),
+        unread: 0
+      });
     }
     if (path === "/api/messages/thread") {
-      return json({ with: { user_id: qs.get("with") || "", name: "", handle: "" },
-                    messages: [] });
+      var withId = qs.get("with") || "";
+      var since = Number(qs.get("since") || 0);
+      var all = THREADS[withId] || [];
+      var head = all.length ? all[all.length - 1].id : since;
+      return json({
+        with: { user_id: withId, name: "Someone", handle: "" },
+        messages: since ? all.filter(function (m) { return m.id > since; })
+                        : all.slice(),
+        partial: !!since, head: head
+      });
     }
     if (path === "/api/messages" && method === "POST") {
-      return json({ error: "There is nobody else in this preview's database." }, 404);
+      var to = body.to || "";
+      if (!to) return json({ error: "There is nobody to send that to." }, 400);
+      if (!THREADS[to]) THREADS[to] = [];
+      var written = {
+        id: NEXT_MSG_ID++, thread: to, mine: true,
+        kind: body.query ? "episode" : "text", text: body.text || "",
+        query: body.query || "", minutes: body.minutes || 3,
+        title: body.title || "", at: now()
+      };
+      THREADS[to].push(written);
+      // The written row: the sender draws their message immediately and swaps
+      // this in for it, because it carries the id the poll de-duplicates on.
+      return json({ ok: true, message: written });
+    }
+    // The drop-down's poll. Nothing arrives on its own - there is no second
+    // listener here - so this reports silence, which is the honest answer and
+    // the one the banner has to survive. `famPreviewNotify` makes something
+    // arrive, and is how the smoke check drives the poll rather than the
+    // banner: calling the banner directly would pass with the poll unplugged.
+    if (path === "/api/notifications") {
+      if (qs.get("bootstrap")) {
+        return json({ messages: [], follows: [], head: NOTIFY.head, unread: 0 });
+      }
+      var pending = NOTIFY.pending.splice(0, NOTIFY.pending.length);
+      pending.forEach(function (m) {
+        NOTIFY.head = Math.max(NOTIFY.head, m.id || 0); });
+      return json({ messages: pending,
+                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length),
+                    head: NOTIFY.head, unread: 0 });
     }
 
     // ---- "View more": one rail, at full length
@@ -1075,6 +1157,8 @@ LIVE_SHIM = r"""
           : [],
         language: EMAIL ? stored.language : "en",
         weekly_recap: stored.weekly_recap, recap_week: stored.recap_week,
+        topics: EMAIL ? stored.topics : [],
+        topics_chosen: chosenTopicsBody(EMAIL ? stored.topics : []),
         intro_done: EMAIL ? stored.intro_done : false
       });
     }
@@ -1088,9 +1172,25 @@ LIVE_SHIM = r"""
                     && body.hidden_interests !== null)
         ? body.hidden_interests.filter(function (g) { return TAG_LABELS[g]; })
         : was.hidden_interests;
+      // Not filtered against the catalogue, which is the point of item 13:
+      // a listener may type a subject that is not on the list, and refusing
+      // it is the app telling them their interest is invalid. Emptied and
+      // de-duplicated the way `preferences.clean_topics` does.
+      var subjects = (body.topics !== undefined && body.topics !== null)
+        ? body.topics.map(function (t) { return String(t || "").trim(); })
+            .filter(Boolean)
+        : was.topics;
+      var seenTopic = {};
+      subjects = subjects.filter(function (t) {
+        var k = t.toLowerCase();
+        if (seenTopic[k]) return false;
+        seenTopic[k] = true;
+        return true;
+      });
       return put("prefs", UID, {
         interests: chosen.join(","),
         hidden_interests: hidden.join(","),
+        topics: subjects.join("\n"),
         language: body.language !== undefined && body.language !== null
           ? body.language : was.language,
         weekly_recap: body.weekly_recap !== undefined && body.weekly_recap !== null

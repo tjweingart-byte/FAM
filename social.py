@@ -581,7 +581,21 @@ class SocialStore:
     def follow_counts(self, user_id: str) -> dict:
         """Numbers for a profile. Counted rather than kept in a column, because
         a denormalised counter is a number that can be wrong, and this app has
-        a rule about inventing numbers on the profile page."""
+        a rule about inventing numbers on the profile page.
+
+        **`friends` is counted here, and it was the missing one.** Two screens
+        read `follows.friends` - the profile's own line beside the picture and
+        the Friends tab's header - and this returned only the two directions.
+        A missing key reads as `undefined`, and `undefined || 0` prints zero,
+        so a listener who followed somebody who followed them back was shown
+        "0 friends · 1 following · 1 follower": three numbers that contradict
+        each other, from the one page with a rule against inventing any.
+
+        Derived by the same intersection `friends()` uses rather than a second
+        definition of what a friend is - SQL here and a set intersection there
+        would be two answers to one question, which is the shape of bug this
+        module already avoids by never storing mutuality.
+        """
         try:
             following = self._conn().execute(
                 "SELECT COUNT(*) FROM follows WHERE follower = ?",
@@ -589,10 +603,16 @@ class SocialStore:
             followers = self._conn().execute(
                 "SELECT COUNT(*) FROM follows WHERE followee = ?",
                 (user_id,)).fetchone()[0]
+            friends = self._conn().execute(
+                "SELECT COUNT(*) FROM follows a JOIN follows b"
+                "  ON a.followee = b.follower AND a.follower = b.followee"
+                " WHERE a.follower = ?",
+                (user_id,)).fetchone()[0]
         except Exception:
             log.exception("could not count follows")
-            return {"following": 0, "followers": 0}
-        return {"following": int(following), "followers": int(followers)}
+            return {"following": 0, "followers": 0, "friends": 0}
+        return {"following": int(following), "followers": int(followers),
+                "friends": int(friends)}
 
     def find_people(self, term: str, exclude_user: str = "",
                     limit: int = 20) -> list[dict]:

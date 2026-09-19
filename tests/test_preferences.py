@@ -343,3 +343,70 @@ def test_an_unknown_facet_cannot_be_hidden(client):
     r = client.post("/api/preferences", json={"hidden_interests": ["astrology"]})
     assert r.status_code == 400
     assert client.get("/api/preferences").json()["hidden_interests"] == []
+
+
+# --- the subjects a listener chose, which were not stored at all (§107) ----
+#
+# Adding one from the catalogue wrote a `pick` event into the append-only log
+# and kept no list. So the choice taught the ranker something and left nothing
+# to show anybody afterwards, nothing to remove, and nothing for a wheel that
+# is supposed to be a reflection of what somebody chose to draw from.
+
+
+def test_chosen_topics_are_stored_and_read_back(store):
+    saved = store.save("u", topics=["soccer", "my own thing"])
+    assert saved.topics == ("soccer", "my own thing")
+    assert store.get("u").topics == ("soccer", "my own thing")
+
+
+def test_a_topic_that_is_not_in_the_catalogue_is_kept(store):
+    """The whole point of item 13: the catalogue search used to filter the
+    list and nothing else, so searching for something absent produced an empty
+    screen and no way forward - a search that can only fail."""
+    assert store.save("u", topics=["nineteenth century canal engineering"]).topics \
+        == ("nineteenth century canal engineering",)
+
+
+def test_typing_the_name_of_a_listed_subject_adds_the_listed_one(store):
+    """Two rows that read identically on screen, only one of which carries the
+    catalogue's tags - so the other teaches the ranker less for no visible
+    reason."""
+    import topics as topics_mod
+
+    entry = topics_mod.INTEREST_CATALOGUE[0]
+    assert store.save("u", topics=[entry.id, entry.label.upper()]).topics == (entry.id,)
+
+
+def test_topics_are_deduplicated_case_insensitively(store):
+    assert store.save("u", topics=["Rocketry", "rocketry"]).topics == ("Rocketry",)
+
+
+def test_a_topic_may_contain_a_comma(store):
+    """Stored newline-separated for this reason: the facet columns beside it
+    hold slugs from a fixed vocabulary, and this holds whatever was typed. A
+    separator a value can contain is a value that silently becomes two."""
+    assert store.save("u", topics=["rocketry, but the engines"]).topics \
+        == ("rocketry, but the engines",)
+
+
+def test_a_topic_is_a_subject_rather_than_a_sentence(store):
+    long_one = "x" * (P.MAX_TOPIC + 50)
+    assert len(store.save("u", topics=[long_one]).topics[0]) == P.MAX_TOPIC
+
+
+def test_topics_are_bounded(store):
+    many = [f"topic {i}" for i in range(P.MAX_TOPICS + 40)]
+    assert len(store.save("u", topics=many).topics) <= P.MAX_TOPICS
+
+
+def test_not_passing_topics_leaves_them_alone(store):
+    """Partial saves are the whole shape of this store: one screen writes one
+    thing and knows nothing about the rest."""
+    store.save("u", topics=["soccer"])
+    assert store.save("u", interests=["tech"]).topics == ("soccer",)
+
+
+def test_an_existing_row_reads_as_no_topics_chosen(store):
+    """Every row written before the column existed meant exactly that."""
+    store.save("u", interests=["tech"])
+    assert store.get("u").topics == ()

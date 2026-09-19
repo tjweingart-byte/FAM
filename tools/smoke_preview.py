@@ -1072,6 +1072,227 @@ def main() -> int:
             page.evaluate("finishIntro()")
             page.wait_for_timeout(700)
 
+        def the_catalogue_saves_what_was_chosen():
+            """Adding a topic used to take effect the instant it was tapped
+            and there was nothing to press afterwards, so the screen could not
+            tell a choice somebody had made from one they were considering -
+            and there was no way to back out of either. §107 adds a Save.
+
+            The X still leaves without saving, which is what makes the Save
+            button mean anything.
+            """
+            page.evaluate("openTopicCatalog()")
+            page.wait_for_selector("#screen-catalog.active .cat-row",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#catalogDock", "e => e.hidden"), \
+                "Save is offered before anything has been chosen"
+
+            page.evaluate("document.querySelectorAll('.cat-row')[0].click()")
+            page.wait_for_timeout(300)
+            assert not page.eval_on_selector("#catalogDock", "e => e.hidden"), \
+                "choosing a topic did not offer a way to save it"
+
+            # Out by the X: nothing kept, because nothing was saved.
+            page.evaluate("closeTopicCatalog()")
+            page.wait_for_timeout(300)
+            assert page.evaluate("chosenTopics.length") == 0, \
+                "the X kept a topic that was never saved"
+
+            # And again, this time pressing Save.
+            page.evaluate("openTopicCatalog()")
+            page.wait_for_selector("#screen-catalog.active .cat-row",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
+            page.evaluate("document.querySelectorAll('.cat-row')[0].click()")
+            page.wait_for_timeout(200)
+            page.evaluate("saveTopicCatalog()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("chosenTopics.length") == 1, \
+                "Save kept nothing"
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                != "screen-catalog", "Save did not leave the screen"
+
+        def the_catalogue_search_can_add_what_it_did_not_find():
+            """The search used to filter the list and nothing else, so
+            searching for something absent produced an empty screen and a
+            sentence telling the listener to go and ask somewhere else - a
+            search that can only fail, on the screen whose whole job is
+            collecting what somebody is interested in (§107, item 13)."""
+            page.evaluate("openTopicCatalog()")
+            page.wait_for_selector("#screen-catalog.active", timeout=10000)
+            page.wait_for_timeout(300)
+            page.fill("#catalogSearch", "nineteenth century canals")
+            page.wait_for_timeout(400)
+            add = page.query_selector(".cat-add-typed")
+            assert add, "a search that matched nothing offered no way forward"
+            assert "nineteenth century canals" in add.inner_text()
+
+            before = page.evaluate("chosenTopics.length")
+            page.evaluate("addTypedTopic()")
+            page.wait_for_timeout(300)
+            assert page.evaluate("chosenTopics.length") == before + 1, \
+                "adding what was typed kept nothing"
+            labels = page.evaluate("chosenTopicLabels()")
+            assert "nineteenth century canals" in labels, labels
+
+            # Typing the name of something that *is* listed adds the listed
+            # entry rather than a second row that reads the same and carries
+            # none of the catalogue's tags.
+            page.fill("#catalogSearch", "Formula 1")
+            page.wait_for_timeout(300)
+            assert not page.query_selector(".cat-add-typed"), \
+                "offered to add a topic that is already on the list"
+            page.evaluate("closeTopicCatalog()")
+            page.wait_for_timeout(300)
+
+        def the_app_opens_on_the_front_door_rather_than_flashing_myfam():
+            """§107, items 1 and 9. myFAM was the screen marked `active` in the
+            markup, so it was on screen from the moment the page parsed - and
+            who the listener is is not known until `/api/auth/me` answers. A
+            listener without an account saw myFAM flash and be replaced.
+
+            Checked against the markup rather than by racing the boot, because
+            that is where the bug was: a default screen is a guess at an
+            answer that has not come back, and the fix is that there is no
+            default."""
+            import re as _re
+
+            markup = target.read_text()
+            active = _re.findall(r'<section class="screen([^"]*)" id="screen-([a-z]+)"',
+                                 markup)
+            lit = [name for cls, name in active if "active" in cls]
+            assert not lit, f"a screen is active before the app knows who is here: {lit}"
+            # And the decision itself: signed out lands on the front door.
+            page.evaluate("AUTH = { authenticated: false }; bootToFirstScreen();")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-welcome", "a signed-out listener did not land on sign-up"
+            # The door through it is still there: listening needs no account,
+            # and this screen is the one place that could quietly become a wall.
+            assert page.query_selector(".entry-skip"), \
+                "the front door has no way past it"
+            page.evaluate("AUTH = { authenticated: true }; bootToFirstScreen();")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-myfam", "a signed-in listener did not go straight in"
+
+        def a_message_arrives_without_being_asked_for():
+            """§107, item 3. Messages appeared only when the chat screen was
+            opened, so two people talking had to leave and come back to see
+            each other - and nothing at all announced one while you were
+            elsewhere in the app.
+
+            Driven through the poll rather than by calling the banner, because
+            the bug being guarded against is the poll never reaching it: a
+            test that drew the banner by hand would pass with the poll
+            unplugged."""
+            page.evaluate("startNotificationPolling()")
+            page.wait_for_timeout(500)
+            page.evaluate("""
+                window.famPreviewNotify({
+                  id: 9001, kind: "text", text: "are you hearing this",
+                  from: { user_id: "u_beth", name: "Beth Solomon", handle: "beth" }
+                });
+                pollNotifications();
+            """)
+            page.wait_for_selector("#notifBanner.show", timeout=8000)
+            assert "Beth" in page.text_content("#notifTitle")
+            assert "are you hearing this" in page.text_content("#notifText")
+
+            # Tapping it opens that conversation, which is the whole reason it
+            # is a control rather than a toast.
+            page.evaluate("openNotification()")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-thread", "tapping the banner did not open the chat"
+            assert page.evaluate("currentThread && currentThread.user_id") == "u_beth"
+
+            # And a follow goes to Friends, where following back lives.
+            page.evaluate("""
+                window.famPreviewNotify({ follow: {
+                  user_id: "u_nadia", name: "Nadia Okoro", handle: "nadia" } });
+                pollNotifications();
+            """)
+            page.wait_for_selector("#notifBanner.show", timeout=8000)
+            assert "started following you" in page.text_content("#notifTitle")
+            page.evaluate("openNotification()")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "tapping a follow did not reach Friends"
+            page.evaluate("stopNotificationPolling(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def a_sent_message_appears_before_the_server_answers():
+            """It used to wait for the POST and then re-fetch the whole
+            conversation - two round trips before your own words appeared,
+            which is where "a few seconds of latency when I send" came from."""
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(500)
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.wait_for_timeout(500)
+            before = page.eval_on_selector_all(".msg-row", "e => e.length")
+            page.fill("#threadInput", "typed and drawn at once")
+            page.evaluate("sendThreadMessage()")
+            # No wait: the point is that it is on screen in the same turn.
+            rows = page.eval_on_selector_all(".msg-row", "e => e.length")
+            assert rows == before + 1, \
+                "a sent message waited for the server before appearing"
+            assert "typed and drawn at once" in page.text_content("#thread-body")
+            # And once acknowledged it stops being pending, and is not drawn
+            # twice when the poll hands the same message back.
+            page.wait_for_timeout(1200)
+            assert not page.query_selector(".msg-row.pending"), \
+                "an acknowledged message is still drawn as pending"
+            page.wait_for_timeout(2500)
+            after = page.eval_on_selector_all(".msg-row", "e => e.length")
+            assert after == before + 1, \
+                f"the poll drew the same message again: {before + 1} -> {after}"
+            page.evaluate("stopThreadPolling(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def the_profile_says_what_its_pills_are():
+            """§107, item 6. A bare row of words with nothing naming them, so
+            a listener had to work out from the words themselves whether they
+            were looking at what they chose, what they played, or something
+            the app decided about them."""
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .pf-tags", timeout=10000)
+            page.wait_for_timeout(400)
+            assert page.text_content(".pf-tags-lab").strip().rstrip(":") == "Interests"
+            edit = page.query_selector(".pf-tags-edit")
+            assert edit, "there is no way to change what is on show"
+            page.evaluate("document.querySelector('.pf-tags-edit').click()")
+            page.wait_for_selector("#screen-intro.active", timeout=10000)
+            page.wait_for_timeout(400)
+            # And it comes back to the profile it was opened from, rather than
+            # to Settings - the trap this app has now hit three times.
+            page.evaluate("closeIntroToSettings()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-profile", "editing from the profile landed elsewhere"
+
+        def a_phone_number_says_which_country(  ):
+            """§107, item 7. Composed from the ISO code rather than drawn, so
+            forty-five flags cost no assets - and the code and the letters stay
+            beside it, because a platform with no flag font would otherwise
+            leave a mystery box where the country was."""
+            page.evaluate("fillCountryCodes('authPhoneCC')")
+            page.wait_for_timeout(200)
+            options = page.eval_on_selector_all(
+                "#authPhoneCC option", "e => e.map(x => x.textContent)")
+            assert options, "the country picker is empty"
+            assert "\U0001F1FA\U0001F1F8" in options[0], \
+                f"no flag on the first country: {options[0]!r}"
+            assert "+1" in options[0] and "US" in options[0], \
+                f"the dialling code or the letters went missing: {options[0]!r}"
+            # The one that disagrees: dialled +44, written UK, ISO GB. Reading
+            # the flag off the label would put the wrong flag beside it.
+            uk = [o for o in options if "+44" in o][0]
+            assert "\U0001F1EC\U0001F1E7" in uk, f"the UK flag is wrong: {uk!r}"
+            assert "UK" in uk, f"the UK is labelled something else: {uk!r}"
+
         def an_episode_can_be_shared_outside_fam():
             """FAM posts nothing: the server writes the link and the wording,
             and the phone does the sending. What has to be on screen is a
@@ -1456,10 +1677,20 @@ def main() -> int:
                     f"ring {rebuilt['ring']}deg")
 
         def the_settings_wheel_is_the_listeners_own():
-            """Two wheels, two questions (§100). Settings shows what this
-            listener listens to, and says so; the first run shows what
-            everybody plays, and says nothing because there is nothing yet to
-            say. The language page is gone from both.
+            """Two wheels, two questions - and Settings now answers with what
+            this listener *chose* (§107, revising §100).
+
+            It used to draw `interests_yours`: their most-played facets,
+            topped up from their choices and then from a declared order so the
+            wheel always had six discs. Three of those four sources are the
+            app's answer rather than the listener's, and a screen called Your
+            interests that shows a recommendation is answering a question
+            nobody asked. So the filler is gone, and what fills an empty wheel
+            is the hub in the middle of it - which now says "Edit/add topics"
+            rather than "View more", and is the only route to that list.
+
+            The first run is unchanged and still draws the crowd's six, which
+            is the honest answer to somebody with no history.
 
             Both halves are checked through `renderIntro`, which is the thing
             that decides, rather than by restarting the first run - that flow
@@ -1473,20 +1704,67 @@ def main() -> int:
                 ".set-row", "e => e.map(x => x.textContent)")
             assert not any("Language" in r for r in rows), \
                 f"the Language row is back in Settings: {rows}"
+            # The second door to the catalogue came off with this change: the
+            # hub inside the wheel is the way there now, and two rows opening
+            # one screen under two different names is one of them being wrong.
+            assert not any("More topics" in r for r in rows), \
+                f"the More topics row is back in Settings: {rows}"
+            # And the first run is not something a listener replays from here.
+            assert not any("first run" in r.lower() for r in rows), \
+                f"Replay the first run is back in Settings: {rows}"
+            # Subscription is, though - it used to be reachable only from the
+            # screen somebody sees after they have already hit a limit.
+            assert any("Subscription" in r for r in rows), \
+                f"there is no way to the plans from Settings: {rows}"
 
+            # Opened the way a listener opens it, then given a known
+            # selection: `openInterestsFromSettings` re-reads preferences, so
+            # setting the state first would have it overwritten a moment later.
             page.evaluate("openInterestsFromSettings()")
-            page.wait_for_selector("#screen-intro.active .intro-chip",
-                                   timeout=10000, state="attached")
+            page.wait_for_selector("#screen-intro.active", timeout=10000)
+            page.wait_for_timeout(400)
+            page.evaluate("""
+                introSelection = ['tech', 'sport'];
+                chosenTopics = [{ id: 'my typed thing', label: 'my typed thing',
+                                  typed: true }];
+                introMode = 'settings';
+                renderIntro();
+            """)
             page.wait_for_timeout(300)
             assert not page.eval_on_selector("#introSub", "e => e.hidden"), \
                 "the settings wheel does not say what it is showing"
-            assert page.eval_on_selector_all(".intro-chip", "e => e.length") == 6
             shown = page.eval_on_selector_all(
                 ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            yours = page.evaluate(
-                """() => (PREF_CHOICES.interests_yours || [])
+            assert len(shown) == 3, f"the wheel drew {shown}, not the three chosen"
+            assert "my typed thing" in shown, \
+                f"a subject the listener typed is not on their own wheel: {shown}"
+            crowd = page.evaluate(
+                """() => (PREF_CHOICES.interests_available || [])
                        .map(function(i){ return i.short || i.label; })""")
-            assert shown == yours, f"settings drew {shown}, not {yours}"
+            assert shown != crowd, "settings is still drawing the crowd's six"
+            assert page.eval_on_selector("#orbitMore", "e => e.textContent.trim()") \
+                == "Edit/add topics", "the hub does not offer to edit them"
+
+            # Tapping a subject removes it. It cannot be toggled back on from
+            # here - the wheel only ever shows what was chosen - so the disc
+            # goes rather than changing colour.
+            page.evaluate("toggleInterest('topic:my typed thing')")
+            page.wait_for_timeout(250)
+            after = page.eval_on_selector_all(
+                ".intro-chip", "e => e.map(x => x.textContent.trim())")
+            assert "my typed thing" not in after, \
+                f"tapping a subject did not remove it: {after}"
+
+            # An empty wheel is possible now, and says so rather than filling
+            # itself with an answer nobody gave.
+            page.evaluate("""
+                introSelection = []; chosenTopics = []; renderIntro();
+            """)
+            page.wait_for_timeout(250)
+            assert page.eval_on_selector_all(".intro-chip", "e => e.length") == 0, \
+                "the wheel filled itself when the listener had chosen nothing"
+            assert "Nothing chosen" in page.text_content("#introSub"), \
+                "an empty wheel does not say it is empty"
 
             # The same screen in the other mode draws the other list, and
             # stops explaining itself.
@@ -1871,6 +2149,20 @@ def main() -> int:
               every_settings_screen_comes_back_to_settings)
         check("The interest catalogue is the whole list",
               the_interest_catalogue_is_the_whole_list)
+        check("The catalogue saves what was chosen",
+              the_catalogue_saves_what_was_chosen)
+        check("The catalogue search adds what it did not find",
+              the_catalogue_search_can_add_what_it_did_not_find)
+        check("The app opens on the front door, not on myFAM",
+              the_app_opens_on_the_front_door_rather_than_flashing_myfam)
+        check("A message arrives without being asked for",
+              a_message_arrives_without_being_asked_for)
+        check("A sent message appears before the server answers",
+              a_sent_message_appears_before_the_server_answers)
+        check("The profile says what its pills are",
+              the_profile_says_what_its_pills_are)
+        check("A phone number says which country",
+              a_phone_number_says_which_country)
         check("VIBE! is on every real player", echo_button)
         check("The mini bar offers no VIBE", the_mini_bar_offers_no_vibe)
         check("One transport for one episode", one_transport_for_one_episode)

@@ -226,7 +226,12 @@ def load_fixtures() -> dict:
         # The sentences the voice is reading, for live captions. The preview's
         # audio is silence of the right length, so the highlight walks the
         # script on the same clock it would against a real voice.
-        "/api/transcript": {"known": True, "sentences": [
+        # `live` and `done` are what the panel stops polling on now - a poll
+        # count could only ever say "we have asked enough times", which is not
+        # the same claim as "there is nothing here". The fixture is a finished
+        # episode, so it is done.
+        "/api/transcript": {"known": True, "live": False, "done": True,
+                            "sentences": [
             "Tanker traffic through the strait is down about a fifth this week.",
             "The reason is not the shooting, it is the paperwork.",
             "War-risk insurance is priced daily, and on Monday the underwriters "
@@ -453,6 +458,20 @@ SHIM = """
      a preview rather than presented as a contact list: the real app reads
      `/api/friends`, and this stands in for it so the flow can be walked on a
      phone. */
+  // What the notification poll has waiting. Empty in ordinary use - a fixture
+  // has no second listener typing into it - and filled by
+  // `window.famPreviewNotify`, which is how the smoke test makes a message or
+  // a follow *arrive* rather than asserting that a banner can be drawn by
+  // hand. The difference matters: the bug being guarded against is the poll
+  // never reaching the banner, and a test that calls the banner directly
+  // would pass with the poll unplugged.
+  var NOTIFY = { head: 0, pending: [], follows: [] };
+
+  window.famPreviewNotify = function (item) {
+    if (item && item.follow) { NOTIFY.follows.push(item.follow); return; }
+    NOTIFY.pending.push(item);
+  };
+
   var PEOPLE = {
     all: [
       { user_id: "u_beth", name: "Beth Solomon", handle: "beth" },
@@ -608,9 +627,21 @@ SHIM = """
     if (path === "/api/preferences" && method === "POST") {
       var chosen = JSON.parse((init && init.body) || "{}");
       var stored = FIXTURES["/api/preferences"];
-      ["interests", "hidden_interests", "language", "weekly_recap",
+      ["interests", "hidden_interests", "topics", "language", "weekly_recap",
        "intro_done"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
+      });
+      // `topics_chosen` is the resolved form the interface draws, and the
+      // real server derives it from `topics` rather than being told it. The
+      // preview does the same derivation so the two cannot disagree about the
+      // shape - a fixture that returned a hand-written list would go on
+      // passing after the server stopped producing that list.
+      stored.topics_chosen = (stored.topics || []).map(function (id) {
+        var listed = (stored.catalogue || []).filter(function (c) {
+          return c.id === id;
+        })[0];
+        return { id: id, label: listed ? listed.label : id,
+                 icon: listed ? listed.icon : "news", typed: !listed };
       });
       return json(stored);
     }
@@ -662,22 +693,51 @@ SHIM = """
     if (path === "/api/messages" && method === "GET") return json(PEOPLE.inbox());
     if (path === "/api/messages/thread") {
       var withId = qs.get("with") || "";
+      // `since` is what makes an open conversation live, so the preview has
+      // to answer it the way the server does: only what arrived after that
+      // id, and a cursor back either way. A stub that ignored it would let
+      // the poll look like it was working while replacing the conversation
+      // with itself every two seconds.
+      var since = Number(qs.get("since") || 0);
+      var all = (PEOPLE.threads[withId] || []).slice();
+      var fresh = since ? all.filter(function (m) { return m.id > since; }) : all;
+      var head = all.length ? all[all.length - 1].id : since;
       return json({
         with: PEOPLE.byId(withId) || { user_id: withId, name: "Someone", handle: "" },
-        messages: (PEOPLE.threads[withId] || []).slice()
+        messages: fresh, partial: !!since, head: head
       });
+    }
+    // The drop-down's poll. Nothing arrives on its own in a fixture - there
+    // is no second listener typing - so this reports the cursor and silence,
+    // which is the honest fixture answer and the one the banner has to
+    // survive. `famPreviewNotify` below is how the smoke test makes something
+    // happen.
+    if (path === "/api/notifications") {
+      if (qs.get("bootstrap")) {
+        return json({ messages: [], follows: [], head: NOTIFY.head,
+                      unread: PEOPLE.inbox().unread });
+      }
+      var pending = NOTIFY.pending.splice(0, NOTIFY.pending.length);
+      pending.forEach(function (m) { NOTIFY.head = Math.max(NOTIFY.head, m.id); });
+      return json({ messages: pending,
+                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length),
+                    head: NOTIFY.head, unread: PEOPLE.inbox().unread });
     }
     if (path === "/api/messages" && method === "POST") {
       var sent = JSON.parse((init && init.body) || "{}");
       var to = sent.to || "";
       if (!PEOPLE.threads[to]) PEOPLE.threads[to] = [];
-      PEOPLE.threads[to].push({
+      var written = {
         id: PEOPLE.threads[to].length + 1, thread: to, mine: true,
         kind: sent.query ? "episode" : "text", text: sent.text || "",
         query: sent.query || "", minutes: sent.minutes || 3,
         title: sent.title || "", at: Date.now() / 1000
-      });
-      return json({ ok: true });
+      };
+      PEOPLE.threads[to].push(written);
+      // The written row, because the sender draws their message immediately
+      // and then swaps this in for it - it carries the id the poll
+      // de-duplicates on, and without it the same message arrives twice.
+      return json({ ok: true, message: written });
     }
     if (path === "/api/vibes") {
       return json({ vibes: PEOPLE.vibes, count: PEOPLE.vibes.length });

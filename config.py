@@ -766,14 +766,34 @@ class Settings:
     # lookup costs a local scan (microseconds) rather than the model call
     # CACHE_SEMANTIC_KEY pays on every request. See embeddings.py.
     #
-    # Off by default, and the reason is not cost: a false near match plays a
-    # confident answer to a question nobody asked, and the shipped embedding
-    # backend is lexical rather than semantic (no model is bundled yet), so
-    # the thresholds below are tuned against measured pairs and not against
-    # meaning. Turn it on once tools/bench_vector_cache.py has been run on
-    # traffic that looks like yours.
+    # **On by default since §107**, which reverses the note this comment used
+    # to carry. That note said to turn it on "once tools/bench_vector_cache.py
+    # has been run on traffic that looks like yours", and the bench has now
+    # been run:
+    #
+    #     without it   9 of 41 re-phrasings found an existing episode
+    #     with it     23 of 41, with no false match at any threshold
+    #     cost        8.93 ms scanning 400 vectors, on the miss path only
+    #
+    # Fourteen episodes not written, at roughly a cent each, for nine
+    # milliseconds spent only when the exact key already missed. Nothing here
+    # calls a model, so this is the one place in FAM where sharing more costs
+    # nothing to try.
+    #
+    # The risk it accepts, unchanged and worth restating: a false near match
+    # plays a confident answer to a question nobody asked, which breaks the
+    # first duty of an episode. What makes it acceptable is *what refuses the
+    # wrong pairs*. In the bench every must-not-collapse pair is refused by a
+    # guard - identical numbers, lexical overlap, agreement about needing
+    # today's facts - rather than by the cosine sitting just above it. The
+    # cosine is the weak half and is measurably carrying nothing: the control
+    # line, guards alone with the vector ignored, finds the same 23. That is
+    # what a lexical embedding is worth, and it is the number to re-read on
+    # the day a real sentence model is installed in ~/.fam/embed.
+    #
+    # `CACHE_VECTOR=0` restores the old behaviour exactly.
     cache_vector: bool = field(
-        default_factory=lambda: os.environ.get("CACHE_VECTOR", "0") not in ("0", "false", "False")
+        default_factory=lambda: os.environ.get("CACHE_VECTOR", "1") not in ("0", "false", "False")
     )
     # Cosine a near match must clear, and the share of words it must literally
     # share. Both measured, not chosen: tools/bench_vector_cache.py sweeps them

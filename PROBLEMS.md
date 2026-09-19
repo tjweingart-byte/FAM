@@ -7313,3 +7313,269 @@ the computed font, size and line height, and whether webfonts had settled.
 Nothing about what passes or fails changed. A layout assertion that can differ
 between machines has to report its measurement, or a failure on a machine you
 do not have is unactionable - which is exactly the position this one is in.
+
+---
+
+## 107. Eighteen items off a second review of the running app
+
+An implementation list, worked through in order. Five of the eighteen turned
+out to be the *same* class of bug wearing different clothes, and that is the
+part worth carrying forward rather than the individual fixes.
+
+### The class: a list maintained by hand, beside a guard that reads the same list
+
+**The reported symptom** was "when I deploy render with the latest updates,
+the accounts that were created are erased". Accounts were fine. `Dockerfile`
+pins every database to the mounted disk so it survives a redeploy, and
+`ACCOUNTS_DB=/data/accounts.db` was in there.
+
+What was *not* in there: `MESSAGES_DB`, `SAVED_DB`, `SHARES_DB`, `QUOTAS_DB` —
+four stores added after that list was written. So every push discarded every
+conversation, every saved episode and every share link, while the accounts
+beside them survived. From outside, a wiped database and a new install look
+identical, so nothing said so.
+
+The guard that exists precisely to catch this did not, and the reason is the
+finding. `tests/test_data_paths.py` compared the Dockerfile against its own
+`STORES` list — **also maintained by hand**. A store missing from both looked
+perfectly consistent, and the test passed while asserting nothing about four
+of the twelve databases. Two hand-written lists agreeing with each other is
+not a check; it is the same mistake made twice and then compared to itself.
+
+`ALL_VARS` is now derived, by reading every `data_path("VAR", "file")` call out
+of the modules. A store is discovered the moment it calls that function,
+whether or not anybody remembered this file. `STORES` stays by hand because a
+class cannot be discovered from a string, and a second test asserts it has not
+fallen behind the derived set.
+
+**Generalises to**: any guard whose subject is enumerated. If the check and
+the thing checked are both lists somebody types, the check is decorative.
+
+### The corollary: the server now answers the question itself
+
+Reading the Dockerfile is how anybody would have answered "will a redeploy
+erase this", and the Dockerfile was wrong twice. Worse, it can be right and
+still wrong: a store pointed at `/data` on a host with no disk actually
+attached is ephemeral, and no amount of reading configuration reveals that.
+
+`/api/health` reports `storage` now, and it is **measured rather than
+configured** — §52's rule applied to durability. A mounted volume is a
+different filesystem, so `st_dev` answers it: a database on the same device as
+the application code is inside the container image and goes when the image is
+replaced. Three states, not two, because "could not tell" is real and
+reporting it as either of the others is the confident wrong answer this
+project keeps paying for.
+
+    "storage": {
+      "durable": [...], "ephemeral": [...], "unknown": [...],
+      "note": "These are inside the application filesystem and a redeploy
+               replaces them: messages, saved, shares, quotas. ..."
+    }
+
+The note names the stores rather than counting them. A number nobody can act
+on is the shape of report this project keeps replacing.
+
+### The same shape again: polling a place the answer is not in
+
+**"The captions/transcript is still not working or loading."** The panel
+polled `/api/transcript` six times over twelve seconds and then said *"No
+transcript for this one — an episode you attached a file to is never stored"*.
+Every word of that sentence was wrong about the episode in front of it.
+
+`/api/transcript` reads the script **cache**, which is written once, at the
+end. On a first listen the sentences do not exist under that key until after
+the last word has been spoken — which is the one moment a caption panel is no
+use. Twelve seconds is roughly a two-minute episode's script and nothing like
+a researched ten-minute one's, so *every* long episode read back as having no
+transcript.
+
+**The bug was not the poll count.** Polling a place the answer is not yet in
+cannot be fixed by polling it more, and this is the trap: the failure looks
+like a tuning problem and has a tempting one-line non-fix (raise the count),
+which would have made it rarer and no less wrong.
+
+`live_captions.py` is the other half. Sentences are published as they are
+handed to the voice, under the cache key, so the transcript builds up while
+the episode is spoken — which is what was asked for, and cheaper than what was
+there: it holds text already paid for, on its way to the engine.
+
+Three things make it small. It is **in-process with no store behind it**,
+because a live track describes a generation happening in *this* worker now and
+is worthless to another one — by the time a second worker could read it, the
+episode is in the cache, which is the thing to read instead. It is keyed on
+the **cache key**, so a live track and the cached script are the same episode
+by construction and an episode with no key (an attachment) gets no track,
+which keeps "an attachment episode has no captions" one rule rather than a
+special case. And it says **`done`**, because "still being written" and "that
+is the whole thing" are different answers and the poll count was a guess at
+which.
+
+### And a third time, in the sources panel
+
+**"The sources icons are still not showing up on the audioplayer."** The panel
+was fine. Provenance was built from the Exa packet, from live facts and from
+attachments — and from nothing else.
+
+But FAM has a second, entirely ordinary way of researching an episode: when no
+evidence packet comes back, `_request_kwargs` attaches Anthropic's
+`web_search` tool and the model does the looking itself. That is not an edge
+case. It is **every episode on a deployment with no Exa key**, which is what
+the Render service has always been — `render.yaml` has never carried one. So
+the panel correctly hid an empty list, on every episode, and the cause looked
+like a rendering bug.
+
+`provenance.from_web_search` reads the results off the final message, which
+`stream_sentences` already fetches for the usage accounting. It claims **no
+grade and no date**: `research.credibility` reads an Exa result's own fields
+and a web_search result carries none, and `page_age` is prose ("2 days ago")
+rather than the ISO date `at` is documented as. Inventing either would put a
+confidence on the panel that nothing measured.
+
+The second half is the same fix as the captions: sources are published to the
+live track as soon as they are known. On the retrieval path the packet exists
+*before the first sentence*, and storing it only in the cache meant a panel
+that could not appear until the episode had finished — forty seconds after
+"where is this coming from?" stopped being interesting.
+
+### A chat that did not work, described as a chat that was slow
+
+**"When I stay in the chat with someone, the messages they send don't
+automatically appear."** They did not appear at all. The thread was fetched
+once, when the screen opened, so two people talking had to leave and come back
+to see each other.
+
+The cursor is the **row id**, not a timestamp. Two messages can share a
+`time.time()`, and a `> at` cursor silently drops the second of any such pair —
+which on a chat is a lost message.
+
+The drop-down notifications are one endpoint for both kinds, because the
+interface asks both questions from the same timer. The rule worth keeping is
+about **whose cursor it is**: a message's *read* state is a fact about a
+conversation somebody opened, and whether it has been *announced* is a fact
+about a banner this client raised. Deriving the second from the first would
+mean opening one chat silenced the notifications for every other — so the
+client holds the cursor and the server answers only what it was asked. A
+`bootstrap` call establishes where "new" starts and announces nothing, without
+which opening the app raises a banner for every message ever sent to you.
+
+And the "few seconds of latency when I send a message" was two round trips: the
+POST, and then a full re-fetch of the conversation. The message is drawn when
+it is typed and the written row swaps in for it, carrying the id the poll
+de-duplicates on.
+
+### A count that was missing rather than wrong
+
+**"0 friends, 1 following, 1 follower"** — three numbers contradicting each
+other on the one page with a rule against inventing any. `follow_counts`
+returned `{following, followers}` and two screens read `follows.friends`. A
+missing key is `undefined`, and `undefined || 0` prints a zero that looks
+exactly like a measurement.
+
+Counted in SQL by the same intersection `friends()` uses, with a test that the
+number and the list can never disagree — two definitions of what a friend is
+would be the bug this module already avoids by never storing mutuality.
+
+### A search that could only fail
+
+The topic catalogue's search filtered the list and nothing else, so searching
+for something absent produced an empty screen and a sentence telling the
+listener to go and ask for it somewhere else — on the one screen whose whole
+job is collecting what somebody is interested in. Seventy-three strings
+somebody wrote down is not the set of things a person can be interested in,
+and refusing anything outside it is the app telling them their interest is
+invalid.
+
+Typed topics are stored now, which required noticing that **nothing was**:
+adding one wrote a `pick` event into the append-only log and kept no list. The
+log is what the ranker reads and is the right home for behaviour, but it
+cannot be read back as "here is what you chose" — so there was nothing to
+show, nothing to remove, and nothing for a wheel meant to reflect somebody's
+choices to draw from. Both now happen: the list is a statement, the log is
+behaviour, and `topics.py` stays a pure query over the second.
+
+### Two reversals, both deliberate
+
+**The Settings wheel no longer fills itself.** §100 gave it three sources —
+what they played, then what they chose, then a declared order as filler — so
+that it always had six discs, on the reasoning that "a wheel is six discs or
+it is a broken wheel". Three of those are the app's answer rather than the
+listener's, and a screen called *Your interests* that shows a recommendation
+is answering a question nobody asked. The filler is gone, an empty wheel is
+possible, and what fills it is the hub in the middle — which now says
+"Edit/add topics" and is the only route to the catalogue, the second door in
+Settings having come off.
+
+**The app opens on sign-up rather than myFAM.** myFAM was the screen marked
+`active` in the markup, so it was on screen from the moment the page parsed —
+and who the listener is is not known until `/api/auth/me` answers. A default
+screen is a guess at an answer that has not come back, and it was the wrong
+guess for everybody without an account: they saw myFAM flash and be replaced.
+There is no default now; the splash is held open until the answer arrives.
+
+This sits against a settled constraint and is worth naming as a trade rather
+than a fix. CLAUDE.md says listening needs no account, and that a login screen
+in front of the product is exactly what this app avoided becoming. What keeps
+that true is the door: "Skip for now" is on this screen, one tap, and
+everything behind it still works with nothing signed in. What changed is which
+side of the door the app opens on. **If that starts costing listeners, this is
+the line to revisit** — it is one branch in `bootToFirstScreen`.
+
+### Near-match caching, measured rather than argued
+
+"Is there a way to efficiently reuse/cache the topics/titles across the
+platform… so that it is not generating a brand new myFAM page every time?"
+
+The browse page already cost no model call: both inventories are shared, the
+evergreen bank is fixed, the live story pool is composed once per refresh
+window *for the whole deployment*, and two listeners tapping a tile share one
+script through `cache.py`. That half needed no change.
+
+The half that did was the cache's exactness. `config.py` said to turn near
+matching on "once `tools/bench_vector_cache.py` has been run on traffic that
+looks like yours". It has now been run:
+
+    without it   9 of 41 re-phrasings found an existing episode
+    with it     23 of 41, with no false match at any threshold
+    cost        8.93 ms scanning 400 vectors, miss path only, no model call
+
+Fourteen episodes not written, at roughly a cent each, for nine milliseconds
+spent only when the exact key already missed. It ships on; `CACHE_VECTOR=0`
+restores the old behaviour exactly.
+
+The bench's control line is the part to keep reading: **guards alone, with the
+cosine ignored, find the same 23.** The vector is carrying nothing, and every
+must-not-collapse pair is refused by a guard — identical numbers, lexical
+overlap, agreement about needing today's facts — rather than by the threshold
+sitting just above it. That is what a lexical embedding is worth here, and it
+is the number that will change on the day a real sentence model is installed
+in `~/.fam/embed`.
+
+### Answered without a change
+
+* **"Will Morning, At the gym and Wind down remain once the dummy data is
+  scrubbed?"** Yes. They are `mixes.STARTER_MIXES` — three suggestions in
+  code, offered on an empty DailyFAM page, whose members are real bank topic
+  ids (verified: all nine resolve). They are not seeded rows and scrubbing
+  demo data does not touch them.
+* **"Is Go Deeper on myFAM wired on the backend?"** Yes, end to end and at no
+  extra cost: the model writes a trailing `<<NEXT:>>` line that is stripped
+  before synthesis, `extract_thread` reads it, the pipeline stores it beside
+  the script, `/api/next` returns it for free, the `complete` event carries
+  it, and `EventStore.open_threads` reads it back — dropping any thread the
+  listener has since asked about, which is why it queries the log rather than
+  keeping a list. It fills as episodes are finished, and the bank fills the
+  grid before any have been.
+* **Renaming the Render URL.** Not a code change; `DEPLOY.md` now carries the
+  procedure and the one thing that actually bites — the old URL stops
+  resolving the moment the rename takes effect, and every share link already
+  posted anywhere is built from it.
+
+### The part nobody has verified
+
+The same caveat this log carries every time, and it applies to most of the
+above. There is **no API key and no GPU in this container**, so nothing here
+has been heard. The live caption track, the web-search provenance and the
+near-match cache are covered by tests and by the browser smoke checks against
+fixtures; what none of that proves is that an episode on a real machine now
+shows its sources and builds its transcript while it plays. That is one
+session with a key, and it is the first thing to do with one.

@@ -583,6 +583,12 @@
   .msg-bubble{ max-width:75%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.4; }
   .msg-row.in .msg-bubble{ background:var(--surface); color:var(--text); border-bottom-left-radius:4px; }
   .msg-row.out .msg-bubble{ background:var(--copper); color:var(--ink); font-weight:600; border-bottom-right-radius:4px; }
+  /* Typed and drawn, not yet acknowledged by the server. Faded rather than
+     marked with a word: it is one round trip long in the ordinary case, and a
+     label that appears and vanishes that fast is noise. This is deliberately
+     not a delivery receipt - whether *they* got it is a promise about
+     somebody else's attention, which this app does not invent. */
+  .msg-row.pending .msg-bubble{ opacity:0.55; }
   .msg-fam-card{ max-width:78%; background:var(--surface-2); border:1px solid var(--border-strong); border-radius:14px; padding:10px 12px; display:flex; align-items:center; gap:10px; cursor:pointer; }
   .msg-row.out .msg-fam-card{ background:rgba(224,181,99,0.14); border-color:rgba(224,181,99,0.35); }
   .msg-fam-card .mf-play{ width:28px; height:28px; border-radius:50%; background:var(--ink); flex:none; display:flex; align-items:center; justify-content:center; }
@@ -827,6 +833,17 @@
   /* Public / private on a mix. Private is the default: a mix is a routine,
      and a routine is personal until someone decides otherwise. */
   .mix-public{ color:var(--copper); }
+  /* The profile's interest row, named and editable. */
+  .pf-tags-lab{ align-self:center; font-family:'JetBrains Mono', monospace;
+    font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--text-muted); font-weight:700; margin-right:2px; }
+  .pf-tag.muted{ color:var(--text-muted); font-style:italic; }
+  .pf-tags-edit{ align-self:center; margin-left:auto; padding:5px 11px;
+    border-radius:999px; background:transparent; border:1px solid var(--border-strong);
+    color:var(--text-muted); font-family:'JetBrains Mono', monospace;
+    font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase;
+    font-weight:700; cursor:pointer; }
+
   .mix-private{ color:var(--text-muted); }
   .mix-vis{ display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:13px 14px; margin:14px 0 10px; border-radius:12px; background:var(--surface);
@@ -1081,6 +1098,41 @@
     border:1px solid var(--border-strong);
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* -------- the drop-down notification --------
+     Above everything except the splash, because it is the one thing that may
+     appear over a player. It translates rather than animating `top`, so it
+     runs on the compositor like the wheel does. */
+  .notif{
+    position:absolute; top:42px; left:12px; right:12px; z-index:600;
+    display:flex; align-items:center; gap:11px; padding:11px 12px;
+    border-radius:16px; background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:0 22px 44px -18px rgba(0,0,0,0.75);
+    transform:translateY(-140%); opacity:0; pointer-events:none;
+    transition:transform .28s cubic-bezier(.2,.8,.3,1), opacity .2s ease;
+    cursor:pointer;
+  }
+  .notif.show{ transform:translateY(0); opacity:1; pointer-events:auto; }
+  .notif-av{
+    flex:none; width:34px; height:34px; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:700;
+    color:var(--ink); background:var(--copper); background-size:cover;
+    background-position:center;
+  }
+  .notif-body{ flex:1; min-width:0; }
+  .notif-title{ font-size:12.5px; font-weight:700; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .notif-text{ font-size:11px; color:var(--text-muted); margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .notif-x{
+    flex:none; width:24px; height:24px; border-radius:50%; border:none;
+    background:transparent; color:var(--text-muted); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .notif{ transition:opacity .2s ease; transform:none; }
+  }
 
   .chat-input-row{ flex:none; display:flex; gap:8px; padding:10px 16px 18px; border-top:1px solid var(--border); }
   .chat-input-row input{
@@ -1353,6 +1405,21 @@
   /* One line, in the body face. Two lines of uppercase mono under every row
      made a list of twenty-eight read as a wall and left the rows at three
      different heights. */
+  /* The catalogue's docked Save. Outside the scroll, like the intro's, and
+     for the same reason: a primary action you have to scroll seventy rows to
+     reach is not a primary action. */
+  .cat-dock{ flex:none; padding:10px 18px 18px; border-top:1px solid var(--border);
+    background:var(--bg); }
+  /* Adding whatever was typed, when it is not on the list. The row that says
+     so, above the results rather than under them - a listener who searched for
+     something absent should not have to scroll past everything that does not
+     match to find out they can have it anyway. */
+  .cat-add-typed{ display:flex; align-items:center; gap:11px; padding:12px 4px;
+    cursor:pointer; border-bottom:1px solid var(--border); }
+  .cat-add-typed .cat-art{ background:transparent; border:1px dashed var(--border-strong); }
+  .cat-add-typed b{ color:var(--text); font-weight:700; }
+  .cat-add-lab{ flex:1; min-width:0; font-size:12.5px; color:var(--text-muted);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cat-name em{ display:block; font-style:normal; font-size:10.5px;
     font-weight:400; line-height:1.35; color:var(--text-faint); margin-top:3px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1693,7 +1760,16 @@
               <div class="orbit-wrap">
                 <div class="orbit" id="introOrbit">
                   <div class="orbit-ring" id="orbitRing"></div>
-                  <button class="orbit-more" onclick="openTopicCatalog()">View more</button>
+                  <!-- The hub's words are the mode's, because the two
+                       screens are asking different things of it. On the first
+                       run this is "View more" - there is a list behind the six
+                       discs and that is all it needs to say. From Settings the
+                       wheel is a reflection of what this listener chose, so
+                       the hub is the way to change it: "Edit/add topics". It
+                       is also now the *only* way to that list, which is why
+                       the second door beside it in Settings came off. -->
+                  <button class="orbit-more" id="orbitMore"
+                          onclick="openTopicCatalog()">View more</button>
                 </div>
               </div>
               <div class="intro-picked" id="introPicked"></div>
@@ -1803,9 +1879,19 @@
         <div style="padding:0 18px 12px;">
           <input class="modal-input" id="catalogSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics" oninput="renderTopicCatalog()"
+                 onkeydown="if(event.key === 'Enter') addTypedTopic();"
                  style="margin-bottom:0;">
         </div>
         <div class="scroll" id="catalogBody" style="padding-top:2px;"></div>
+        <!-- Docked, and only there once something has changed.
+             Adding a topic used to take effect the instant it was tapped and
+             there was nothing to press afterwards, so the screen gave a
+             listener no way to tell a choice they had made from one they were
+             still considering - and no way to back out of either. The X is
+             still here and still leaves without saving. -->
+        <div class="cat-dock" id="catalogDock" hidden>
+          <button class="entry-btn primary" onclick="saveTopicCatalog()">Save</button>
+        </div>
       </section>
 
       <!-- ============ EXPLORE NEW ============
@@ -1934,7 +2020,15 @@
       </section>
 
       <!-- ============ MYFAM HOME (renamed Branches) ============ -->
-      <section class="screen active" id="screen-myfam">
+      <!-- No screen is `active` in the markup, deliberately.
+           myFAM used to be, so a listener who was not signed in saw it flash
+           before the welcome screen replaced it: the markup decides what is on
+           screen the moment the page parses, and who this listener *is* is not
+           known until `/api/auth/me` answers. A default screen is a guess at
+           an answer that has not come back yet, and it was the wrong guess for
+           everybody without an account. The splash covers the gap instead and
+           `bootToFirstScreen` is the only thing that opens a screen. -->
+      <section class="screen" id="screen-myfam">
         <div class="scroll">
           <div class="myfam-header">
             <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
@@ -2527,6 +2621,26 @@
 
   <div class="footnote">Prototype scope: episodes are generated live and streamed as raw audio — no file is created and nothing is converted to MP3 — and myFAM here refers to the renamed Branches feature — the separate social layer (posts, friends, comments) isn't wired up since it isn't part of the initial rollout.</div>
 
+  <!-- The drop-down. One banner at a time, from the top, tappable.
+       Inside `.phone` rather than fixed to the window, so it drops from the
+       top of the app the way it does on a phone rather than from the top of a
+       desktop browser - the whole interface is a phone-shaped box on this
+       page and a notification that ignored that would float somewhere else
+       entirely. -->
+  <div class="notif" id="notifBanner" role="status" aria-live="polite"
+       onclick="openNotification()">
+    <div class="notif-av" id="notifAvatar"></div>
+    <div class="notif-body">
+      <div class="notif-title" id="notifTitle"></div>
+      <div class="notif-text" id="notifText"></div>
+    </div>
+    <button class="notif-x" aria-label="Dismiss"
+            onclick="event.stopPropagation(); dismissNotification();">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 
@@ -3106,6 +3220,35 @@
   }
 
   // ---------------- Plans ----------------
+  //
+  // What the server last said this listener is on. Held so the Settings row
+  // can show it without a round trip every time that screen is drawn, and
+  // deliberately not defaulted to a tier name: "Free" printed before anything
+  // has been asked is the interface inventing an answer, and this app has the
+  // same rule about that on every other screen.
+  var currentPlan = null;
+
+  function planLabel(){
+    return currentPlan ? (currentPlan.label || currentPlan.name) : "\u2014";
+  }
+
+  // Asked for once, by whatever screen needs it first. Cheap - it reads the
+  // tier table and this listener's own row - and it must never be the reason
+  // a settings screen does not draw, so a failure leaves the dash.
+  function loadPlan(){
+    return fetch("/api/plans")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return null;
+        var current = d.current || "free";
+        currentPlan = (d.tiers || []).filter(function(t){
+          return t.name === current;
+        })[0] || { name: current, label: current };
+        return currentPlan;
+      })
+      .catch(function(){ return null; });
+  }
+
   function openPlans(){
     var list = document.getElementById("plansList");
     list.innerHTML = '<div class="plan-note">Loading your plan\u2026</div>';
@@ -3545,14 +3688,34 @@
   var captionSentences = [];
   var captionStamp = "";
   var captionTimer = null;
-  var captionPolls = 0;
+  //: True once the server has said this episode is finished being written.
+  //: The one thing that stops the polling, and the one thing that lets the
+  //: panel tell "still being written" from "there is nothing to read".
+  var captionDone = false;
 
-  //: How often to ask for a script that has not landed yet, and how many
-  //: times. Six tries over about twelve seconds: the script finishes well
-  //: before the audio does, and an episode whose script is not cached by then
-  //: is one that is not going to be.
-  var CAPTION_POLL_MS = 2000;
-  var CAPTION_POLL_MAX = 6;
+  //: How often to ask. There is no longer a *count*, and that is the fix.
+  //:
+  //: It used to give up after six tries over twelve seconds, on the reasoning
+  //: that a script finishes well before its audio does. True, and it was
+  //: measuring the wrong thing: the panel was reading the script **cache**,
+  //: which is written once, at the end. Twelve seconds is roughly how long a
+  //: two-minute episode takes to finish and nothing like a researched
+  //: ten-minute one, so every long episode read back as having no transcript
+  //: at all - and said so in a sentence about attached files.
+  //:
+  //: `/api/transcript` now answers from the live track first and says `done`
+  //: when the episode has stopped being written. So this stops when the
+  //: server says there is nothing more coming, rather than when a number
+  //: somebody guessed runs out.
+  var CAPTION_POLL_MS = 1200;
+
+  //: How often the highlight moves, and how many of those ticks pass between
+  //: asks. Redrawing is free - it is a slice of an array this page already
+  //: holds - and asking is a round trip, so the two want different rates and
+  //: used to share one.
+  var CAPTION_REDRAW_MS = 400;
+  var CAPTION_EVERY = Math.max(1, Math.round(CAPTION_POLL_MS / CAPTION_REDRAW_MS));
+  var captionTick = 0;
 
   function captionsOn(){
     var panel = document.getElementById("ccPanel");
@@ -3562,15 +3725,16 @@
   function resetCaptions(){
     captionSentences = [];
     captionStamp = "";
-    captionPolls = 0;
+    captionDone = false;
+    captionTick = 0;
     if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
   }
 
   function fetchCaptions(){
     if(!episodeStamp) return;
-    if(captionStamp === episodeStamp && captionSentences.length) return;
-    if(captionPolls >= CAPTION_POLL_MAX){ renderCaptions(); return; }
-    captionPolls++;
+    // Finished means finished: the whole script is here and asking again
+    // would be asking the same question of the same cache entry forever.
+    if(captionDone && captionStamp === episodeStamp) return;
     var parts = episodeStamp.split("|");
     var stamp = episodeStamp;
     fetch("/api/transcript?q=" + encodeURIComponent(parts[0]) +
@@ -3580,11 +3744,20 @@
       .then(function(data){
         // The listener may have moved on while this was in flight.
         if(!data || stamp !== episodeStamp) return;
+        // Replaced rather than appended: the server returns the whole track
+        // each time, and it is the one place that knows what order the
+        // sentences were spoken in. Appending here would need this side to
+        // keep a cursor and to be right about it, for no benefit - a script
+        // is kilobytes.
         if((data.sentences || []).length){
           captionSentences = data.sentences;
           captionStamp = stamp;
-          captionPolls = CAPTION_POLL_MAX;   // stop asking
         }
+        // `live` is on the response and deliberately not kept: the panel's
+        // three states turn on whether there are sentences and whether more
+        // are coming, and which of the two places they came from changes
+        // nothing it draws. A variable nobody reads is a claim nobody checks.
+        captionDone = !!data.done;
         renderCaptions();
       })
       // Captions that fail to load must never disturb playback, which is the
@@ -3639,10 +3812,13 @@
       return;
     }
     if(!captionSentences.length){
-      // Three states, and they are different. Still being written is a wait;
-      // an episode that is never cached has no captions at all and saying
-      // "waiting" about it would wait forever.
-      box.innerHTML = captionPolls >= CAPTION_POLL_MAX
+      // Three states, and they are different - but which one this is is the
+      // server's answer now rather than a guess made from a poll count. A
+      // count could only ever say "we have asked enough times", which is not
+      // the same claim as "there is nothing here", and saying the second when
+      // the first was true is what put a sentence about attached files under
+      // every long episode.
+      box.innerHTML = captionDone
         ? "No transcript for this one \u2014 an episode you attached a file to "
           + "is never stored, so there is nothing to read back."
         : "Catching up with the script\u2026";
@@ -3665,11 +3841,16 @@
   // on.
   function startCaptionTicker(){
     if(captionTimer) clearInterval(captionTimer);
+    // One timer at the redraw rate, asking for more only while more is
+    // coming. It used to pick its interval once, from whether any sentences
+    // had arrived *at the moment it was started* - which was always none - so
+    // an episode whose captions did land kept redrawing at the slow rate and
+    // the highlight lagged the voice for the whole episode.
     captionTimer = setInterval(function(){
       if(!captionsOn()){ clearInterval(captionTimer); captionTimer = null; return; }
-      if(!captionSentences.length){ fetchCaptions(); return; }
+      if(!captionDone && (captionTick++ % CAPTION_EVERY) === 0) fetchCaptions();
       renderCaptions();
-    }, captionSentences.length ? 400 : CAPTION_POLL_MS);
+    }, CAPTION_REDRAW_MS);
   }
 
   // The copy button on the captions panel. It used to toast "Transcript
@@ -6165,6 +6346,17 @@
         friendsData = { following: [], followers: [], friends: [], counts: {} };
         newFollowers = [];
         followerPopupShown = {};
+        // Including the notifications. A banner about the previous listener's
+        // messages, on the next listener's screen, is the same class of leak
+        // as a friends list left in a variable.
+        stopNotificationPolling();
+        stopThreadPolling();
+        hideNotification();
+        notifQueue = [];
+        notifCursor = 0;
+        notifAnnouncedFollows = {};
+        threadMessages = [];
+        currentThread = null;
         savedCache = { items: [], folders: [] };
         viewingProfile = null;
         mixes = [];
@@ -6229,12 +6421,55 @@
       + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
       + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0v3.1"/></svg>';
   }
+  // The open one, swung clear of the body rather than merely missing a leg.
+  //
+  // It used to be the closed glyph with the right-hand descent removed, so
+  // the shackle still sat centred over the lock and the whole difference
+  // between "private" and "public" was three pixels of stroke at 9px. Hinged
+  // over to the right it reads as open at a glance: there is a visible gap
+  // where the shackle used to meet the body, which is the thing a lock being
+  // open actually looks like.
   function lockOpenSVG(){
     return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
       + 'stroke-linejoin="round" aria-hidden="true">'
       + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
-      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0"/></svg>';
+      + '<path d="M13 10.5V7a4 4 0 0 1 8 0v1.6"/></svg>';
+  }
+
+  // What the profile's pills hold, and in which order.
+  //
+  // What they *chose* comes first - facets and subjects - because this row is
+  // labelled "Interests" and an interest is a statement somebody made. What
+  // the log inferred (`subjects`) fills in behind it, which is what the row
+  // used to be entirely: honest, and not what the label now claims, so it is
+  // no longer allowed to be the whole of it.
+  //
+  // `hidden_interests` is respected here as well as on somebody else's
+  // profile. Hiding one is a statement about a screen, and this is that
+  // screen - showing it to its owner while hiding it from everybody else
+  // would make "shared" mean two different things on one page.
+  function profileInterestPills(p){
+    var labels = {};
+    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
+      .forEach(function(i){ labels[i.id] = i.label; });
+    var hidden = {};
+    (PREF_CHOICES.hidden_interests || []).forEach(function(t){ hidden[t] = true; });
+    var out = [];
+    var seen = {};
+    var push = function(name){
+      if(!name) return;
+      var key = String(name).toLowerCase();
+      if(seen[key]) return;
+      seen[key] = true;
+      out.push(name);
+    };
+    (PREF_CHOICES.interests || []).forEach(function(tag){
+      if(!hidden[tag]) push(labels[tag] || tag);
+    });
+    chosenTopicLabels().forEach(push);
+    (p.subjects || []).forEach(push);
+    return out.slice(0, 12);
   }
 
   // "1 vibe", "2 vibes". Regular plurals only, which is every noun a count
@@ -6680,11 +6915,23 @@
 
     html += hubTiles(p);
 
-    if(p.subjects && p.subjects.length){
-      html += '<div class="pf-tags">' + p.subjects.map(function(t){
-        return '<div class="pf-tag">' + escapeHtml(t) + '</div>';
-      }).join("") + '</div>';
-    }
+    // The pills, said to be what they are.
+    //
+    // They used to be a bare row of words with nothing naming them, so a
+    // listener had to work out from the words themselves whether they were
+    // looking at what they had chosen, what they had listened to, or
+    // something the app had decided about them. "Interests:" says which, and
+    // Edit opens the screen that changes it - the same one Settings opens,
+    // because two editors for one thing is two things to keep in step.
+    var pills = profileInterestPills(p);
+    html += '<div class="pf-tags"><span class="pf-tags-lab">Interests:</span>'
+      + (pills.length
+          ? pills.map(function(t){
+              return '<div class="pf-tag">' + escapeHtml(t) + '</div>';
+            }).join("")
+          : '<div class="pf-tag muted">None chosen yet</div>')
+      + '<button class="pf-tags-edit" onclick="openInterestsFromSettings()">Edit</button>'
+      + '</div>';
 
     html += '<div class="pf-time"><div class="pf-time-lab">This month</div>'
       + '<div class="pf-time-big">' + p.finished + '</div>'
@@ -6719,6 +6966,9 @@
     // Loaded after the screen is up, because both of these are optional
     // detail and neither should hold the page.
     loadPrefChoices().then(renderSettings);
+    // Redrawn when it lands rather than awaited with everything else: the plan
+    // is one row's value and should not hold the screen.
+    loadPlan().then(function(plan){ if(plan) renderSettings(); });
   }
 
   function settingsRow(label, value, action, danger){
@@ -6751,19 +7001,30 @@
           (profileNow && profileNow.avatar) ? "Set" : "None",
           "pickAvatar()");
 
+    // No "More topics" row. The way to that list is now the hub in the middle
+    // of the Your interests wheel, which says "Edit/add topics" - so this was
+    // a second door to the same screen, sitting beside the first one and
+    // describing it differently.
     html += '<div class="set-group">Listening</div>'
-      + settingsRow("Interests",
-          chosen.length
-            ? escapeHtml(chosen.map(function(t){ return labels[t] || t; }).join(", "))
-            : "None chosen",
+      + settingsRow("Your interests",
+          chosenSummary(chosen, labels),
           "openInterestsFromSettings()")
-      + settingsRow("More topics", "", "openTopicCatalog()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
       + settingsRow("Episode length on myFAM", myfamLengthMinutes + " min",
           "openMyFamLengthMenu()");
-    html += '<div class="set-group">Account</div>';
+    html += '<div class="set-group">Account settings</div>'
+      // Subscription lives here rather than only behind a refusal. It used to
+      // be reachable from exactly one place - the screen a listener sees when
+      // they have already hit a limit - so the only way to look at what the
+      // plans are was to run out first.
+      //
+      // The value is the plan they are on. `planLabel` reads what the server
+      // said rather than naming a tier here, for the same reason the sheet
+      // does: the tiers are the server's, and a second copy in the interface
+      // is the one that is wrong.
+      + settingsRow("Subscription", escapeHtml(planLabel()), "openPlans()");
     if(AUTH.authenticated){
       // No "Weekly recap" row. The popup it switched off is gone - myFAM's
       // "What you missed last week" rail replaced it - and a settings row
@@ -6784,16 +7045,45 @@
         + 'Later. Everything you have done already comes with you.</div>';
     }
 
-    html += '<div class="set-group">This app</div>'
-      + settingsRow("Replay the first run", "", "restartFirstRun()");
+    // No "Replay the first run" row, and no "This app" group left to hold it.
+    // Replaying the first run is not something a listener wants from Settings
+    // - it is a development affordance, and it is still one tap away on the
+    // button at the top of the page, which is where it belongs.
     el.innerHTML = html;
+  }
+
+  // What the Interests row says it holds. Their chosen facets and their chosen
+  // subjects are two different vocabularies (see `wheelItems`), and the row
+  // above the wheel has to describe the same set the wheel draws - a row
+  // saying "Tech, Sport" over a wheel showing Formula 1 and Fed policy reads
+  // as one of the two being wrong.
+  function chosenSummary(facets, labels){
+    var names = (facets || []).map(function(t){ return labels[t] || t; })
+      .concat(chosenTopicLabels());
+    if(!names.length) return "None chosen";
+    return escapeHtml(names.slice(0, 3).join(", ")
+      + (names.length > 3 ? " +" + (names.length - 3) : ""));
   }
 
   // The intro's two pages, reachable again from settings. They are the only
   // editors these two settings have, and they were previously shown once and
   // then unreachable for the life of the install.
+  //: Where the interests editor was opened from, by name.
+  //:
+  //: The intro is drawn with `showScreen` and never joins the navigation
+  //: stack (see the note on `closeIntroToSettings`), so it cannot pop back -
+  //: it has to be told. It used to be told "settings" unconditionally, which
+  //: was right while Settings was the only way in; the profile's Edit button
+  //: is a second one, and landing somebody in Settings after editing from
+  //: their profile is the fourth version of the trap this app has now hit
+  //: three times.
+  var introReturn = "settings";
+
   function openInterestsFromSettings(){
     introMode = "settings";
+    var here = document.querySelector(".screen.active");
+    var from = here ? here.id.replace(/^screen-/, "") : "";
+    introReturn = (from && from !== "intro") ? from : "settings";
     // Re-read rather than trusting what was loaded at entry: this is an
     // editor, and saving what the screen last happened to hold would quietly
     // overwrite a change made on another device.
@@ -7567,19 +7857,90 @@
     loadThread();
   }
 
+  // Where this conversation has been read up to, so a poll asks for what is
+  // new rather than for the whole history. The server's own `head`, never a
+  // number derived here: two messages can share a timestamp, so a cursor that
+  // is not the row id silently drops one of any such pair.
+  var threadCursor = 0;
+  var threadTimer = null;
+
+  //: How often an open conversation asks whether anything arrived. Two
+  //: seconds: fast enough to read as immediate in a back-and-forth, and
+  //: cheap, because an idle poll is a primary-key comparison that returns an
+  //: empty list. It runs only while the thread screen is open - a timer
+  //: polling for a screen nobody is looking at is the whole app paying for a
+  //: conversation that ended.
+  var THREAD_POLL_MS = 2000;
+
   function loadThread(){
     if(!currentThread) return;
+    threadCursor = 0;
     fetch("/api/messages/thread?with=" + encodeURIComponent(currentThread.user_id))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         threadMessages = d.messages || [];
+        threadCursor = d.head || 0;
         if(d["with"]) currentThread = d["with"];
         renderThreadBody();
+        startThreadPolling();
       })
       .catch(function(){
         document.getElementById("thread-body").innerHTML =
           '<div class="pf-empty">Could not open that conversation.</div>';
       });
+  }
+
+  // The other half of a conversation, arriving without being asked for.
+  //
+  // It used to arrive only when the screen was opened, so two people talking
+  // had to leave the chat and come back to see each other - which is not a
+  // slow chat, it is a chat that does not work.
+  function pollThread(){
+    if(!currentThread || !threadScreenOpen()){ stopThreadPolling(); return; }
+    var who = currentThread.user_id;
+    fetch("/api/messages/thread?with=" + encodeURIComponent(who)
+          + "&since=" + encodeURIComponent(threadCursor))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        // They moved to another conversation while this was in flight.
+        if(!d || !currentThread || currentThread.user_id !== who) return;
+        threadCursor = d.head || threadCursor;
+        if(!(d.messages || []).length) return;
+        appendThreadMessages(d.messages);
+      })
+      // A poll that fails is a poll that failed. The next one is two seconds
+      // away, and putting an error in front of somebody mid-conversation
+      // would be the network's bad day becoming theirs.
+      .catch(function(){});
+  }
+
+  // Added rather than replaced, and de-duplicated by id: a message sent from
+  // this device is drawn the instant it is typed, and the poll that follows
+  // will hand the same message back.
+  function appendThreadMessages(incoming){
+    var have = {};
+    threadMessages.forEach(function(m){ if(m.id) have[m.id] = true; });
+    var added = false;
+    incoming.forEach(function(m){
+      if(m.id && have[m.id]) return;
+      threadMessages.push(m);
+      added = true;
+    });
+    if(added) renderThreadBody();
+  }
+
+  function threadScreenOpen(){
+    var screen = document.getElementById("screen-thread");
+    return !!(screen && screen.classList.contains("active"));
+  }
+
+  function startThreadPolling(){
+    stopThreadPolling();
+    threadTimer = setInterval(pollThread, THREAD_POLL_MS);
+  }
+
+  function stopThreadPolling(){
+    if(threadTimer){ clearInterval(threadTimer); threadTimer = null; }
   }
 
   function renderThreadBody(){
@@ -7602,7 +7963,8 @@
           + escapeHtml(m.title || m.query) + '</div>'
           + '<div class="mf-src">' + m.minutes + ' min</div></div></div></div>';
       }
-      return '<div class="msg-row ' + dirCls + '"><div class="msg-bubble">'
+      return '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "")
+        + '"><div class="msg-bubble">'
         + escapeHtml(m.text || "") + '</div></div>';
     }).join("");
     body.scrollTop = body.scrollHeight;
@@ -7625,16 +7987,47 @@
     var val = input.value.trim();
     if(!val || !currentThread) return;
     input.value = "";
+
+    // On screen now, before the round trip.
+    //
+    // It used to wait for the POST and then re-fetch the entire conversation
+    // - two round trips before your own words appeared, which is where the
+    // "few seconds of latency when I send a message" came from. Nothing is
+    // being guessed at here: the text is already typed, and the only thing
+    // the server adds is an id.
+    //
+    // `pending` is not a delivery receipt. It says "this has not been
+    // acknowledged yet", which is a fact about this device; whether they read
+    // it is a promise about somebody else's attention, and this app has a
+    // rule against inventing that.
+    var draft = { id: 0, mine: true, kind: "text", text: val, pending: true };
+    threadMessages.push(draft);
+    renderThreadBody();
+
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: currentThread.user_id, text: val })
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "Could not send that");
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
         return d;
       });
-    }).then(function(){ loadThread(); })
-      .catch(function(err){ input.value = val; toast(err.message); });
+    }).then(function(d){
+      // Replaced in place rather than re-fetching: it now carries the id the
+      // poll de-duplicates on, so the same message cannot arrive twice.
+      var at = threadMessages.indexOf(draft);
+      if(at !== -1 && d.message){ threadMessages[at] = d.message; }
+      else if(at !== -1){ draft.pending = false; }
+      renderThreadBody();
+    }).catch(function(err){
+      // Taken back off the screen, because leaving it there would be the app
+      // showing somebody a message that was never sent.
+      var at = threadMessages.indexOf(draft);
+      if(at !== -1) threadMessages.splice(at, 1);
+      renderThreadBody();
+      input.value = val;
+      toast(err.message);
+    });
   }
 
   function openNewChatModal(){
@@ -8383,6 +8776,17 @@
         } else {
           introSelection = (localPrefs().interests || []).slice();
         }
+        // Their chosen subjects, resolved to labels by the server so this
+        // screen does not have to carry a copy of the catalogue to draw a
+        // disc - the same reason `interests_all` is served beside the six.
+        //
+        // An anonymous listener's stay on the device, like their interests
+        // do: nothing here is stored for somebody without an account, and
+        // saying so is `d.saved`.
+        chosenTopics = (d.saved ? (d.topics_chosen || [])
+                                : (localPrefs().topics || [])).slice();
+        catalogPicked = {};
+        chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
         return d;
       })
       .catch(function(){ return PREF_CHOICES; });
@@ -8452,8 +8856,15 @@
   // otherwise own "the same" account. So the country is picked here and the
   // rest is digits, and what is *shown* while typing is the national
   // formatting people recognise rather than the form that gets stored.
+  //: `[dialling code, what to show, ISO 3166-1 alpha-2]`.
+  //:
+  //: The third field is only ever the ISO code, and it is separate from the
+  //: second because those two disagree exactly where people expect them to:
+  //: the United Kingdom dials +44, is written "UK" by everybody, and is "GB"
+  //: to ISO. The flag is built from the ISO code, so the two cannot be
+  //: conflated without the wrong flag appearing beside a right label.
   var COUNTRY_CODES = [
-    ["+1", "US"], ["+44", "UK"], ["+61", "AU"], ["+64", "NZ"], ["+353", "IE"],
+    ["+1", "US", "US"], ["+44", "UK", "GB"], ["+61", "AU"], ["+64", "NZ"], ["+353", "IE"],
     ["+33", "FR"], ["+49", "DE"], ["+34", "ES"], ["+39", "IT"], ["+31", "NL"],
     ["+46", "SE"], ["+47", "NO"], ["+45", "DK"], ["+351", "PT"], ["+41", "CH"],
     ["+43", "AT"], ["+32", "BE"], ["+48", "PL"], ["+30", "GR"], ["+52", "MX"],
@@ -8464,13 +8875,39 @@
     ["+60", "MY"], ["+66", "TH"], ["+84", "VN"], ["+852", "HK"], ["+886", "TW"]
   ];
 
+  // A country's flag, from its ISO code and nothing else.
+  //
+  // Composed rather than drawn or downloaded: a flag emoji is its two letters
+  // shifted into the regional-indicator block, so forty-five flags cost no
+  // image assets, no sprite sheet and no bytes over the wire, and a country
+  // added later needs nothing but its code. `String.fromCodePoint` rather
+  // than `fromCharCode`: these are above the basic plane and the older
+  // function would produce two broken halves of one character.
+  //
+  // A platform with no flag font renders the two letters instead, which is
+  // why the code and the label stay beside it - the row reads correctly with
+  // or without the picture, rather than becoming a mystery box.
+  function flagFor(iso){
+    if(!iso || iso.length !== 2) return "";
+    try {
+      return String.fromCodePoint(
+        0x1F1E6 + iso.toUpperCase().charCodeAt(0) - 65,
+        0x1F1E6 + iso.toUpperCase().charCodeAt(1) - 65);
+    } catch(e){ return ""; }
+  }
+
   function fillCountryCodes(id){
     var sel = document.getElementById(id);
     if(!sel || sel.options.length) return;
     COUNTRY_CODES.forEach(function(row){
       var o = document.createElement("option");
       o.value = row[0];
-      o.textContent = row[0] + " " + row[1];
+      // The flag, then the code, then the letters. The code is what is being
+      // chosen, so it stays legible: a select collapsed to its selected row
+      // has to show which number is about to be dialled, not only which
+      // country somebody picked.
+      var flag = flagFor(row[2] || row[1]);
+      o.textContent = (flag ? flag + " " : "") + row[0] + " " + row[1];
       sel.appendChild(o);
     });
     sel.value = "+1";
@@ -8648,6 +9085,26 @@
   // what the docked button says, and where saving goes back to.
   var introMode = "first-run";
 
+  //: The subjects this listener has chosen - catalogue entries and anything
+  //: they typed into its search that was not on the list. Held here as
+  //: `{id, label, typed}` and saved as a plain list of ids.
+  //:
+  //: It is stored on the server now (`/api/preferences`, `topics`), which it
+  //: was not: adding one used to write a `pick` event into the append-only
+  //: log and keep no list. The log is what the ranker reads and it is the
+  //: right place for behaviour, but it cannot be read back as "here is what
+  //: you chose" - so there was nothing to draw, nothing to remove, and a
+  //: wheel that could not be a reflection of anybody's choices.
+  var chosenTopics = [];
+
+  function chosenTopicLabels(){
+    return chosenTopics.map(function(t){ return t.label; });
+  }
+
+  function hasChosenTopic(id){
+    return chosenTopics.some(function(t){ return t.id === id; });
+  }
+
   function renderIntro(){
     var fromSettings = introMode === "settings";
     document.getElementById("introTop").hidden = !fromSettings;
@@ -8662,9 +9119,19 @@
     // sentence, or it reads as the app losing their answer.
     var sub = document.getElementById("introSub");
     sub.hidden = !fromSettings;
+    // The line under the heading had to change with what the wheel draws. It
+    // used to say "what you listen to most, kept up to date as you listen",
+    // which was true of a measurement and is a lie about a list of choices -
+    // and a wheel that said it was keeping itself up to date while showing
+    // exactly what somebody picked would read as the app having lost their
+    // answer the first time it did not change.
     sub.textContent = fromSettings
-      ? "What you listen to most, kept up to date as you listen."
+      ? (wheelItems().length
+          ? "What you chose. Tap one to remove it, or add more in the middle."
+          : "Nothing chosen yet \u2014 tap the middle to pick some topics.")
       : "";
+    var hub = document.getElementById("orbitMore");
+    if(hub) hub.textContent = fromSettings ? "Edit/add topics" : "View more";
     renderPickedSummary();
     renderInterestWheel();
     var note = document.getElementById("introSaveNote");
@@ -8680,11 +9147,47 @@
   // somebody who has been using the app, where their own listening is the
   // better answer and keeps changing - which is what makes that wheel worth
   // opening twice (`my_facets`).
+  // Which discs the wheel draws, and it is two different questions.
+  //
+  // **The first run** asks somebody with no history what they like, so the
+  // honest answer is what everybody plays - `interests_available`, the six
+  // most-played facets across FAM.
+  //
+  // **Settings** asks a listener what *they* chose, and now answers with
+  // exactly that: the facets they picked, plus the subjects they added from
+  // the catalogue or typed into its search. Nothing else.
+  //
+  // That is a deliberate reversal and it costs something worth naming. It
+  // used to draw `interests_yours` - their most-played facets, topped up from
+  // their choices and then from a declared order, so that the wheel always
+  // had six discs ("a wheel is six discs or it is a broken wheel"). But three
+  // of those sources are the app's answer rather than the listener's, and a
+  // screen called Your interests that shows a recommendation is answering a
+  // question nobody asked. So the filler is gone, an empty wheel is possible,
+  // and what fills it is the hub in the middle of it - which is one tap and
+  // now says so.
   function wheelItems(){
-    if(introMode === "settings" && (PREF_CHOICES.interests_yours || []).length){
-      return PREF_CHOICES.interests_yours;
-    }
-    return PREF_CHOICES.interests_available || [];
+    if(introMode !== "settings") return PREF_CHOICES.interests_available || [];
+    var labels = {};
+    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
+      .forEach(function(i){ labels[i.id] = i; });
+    var out = [];
+    // Their facets first, in the order they chose them, with the short form
+    // the discs are sized for.
+    (introSelection || []).forEach(function(tag){
+      var known = labels[tag];
+      out.push({ id: tag, label: (known && known.label) || tag,
+                 short: (known && known.short) || (known && known.label) || tag });
+    });
+    // Then their subjects. `topic:` prefixed so a disc can say which of the
+    // two vocabularies it belongs to when it is tapped - a facet toggles a
+    // ranking tag, a subject is removed from a stored list, and the two are
+    // not the same act however alike they look.
+    chosenTopics.forEach(function(t){
+      out.push({ id: "topic:" + t.id, label: t.label, short: t.label,
+                 topic: true });
+    });
+    return out;
   }
 
   // The wheel. Each disc is placed by its own static transform - out to the
@@ -8752,6 +9255,17 @@
   // In place, deliberately: a rebuild would restart every disc's counter-
   // rotation and tilt six labels to fix one class attribute.
   function toggleInterest(id){
+    // A subject disc is not a facet disc. It cannot be toggled *on* from
+    // here - the wheel only ever shows subjects that were chosen - so tapping
+    // one removes it, and the wheel is redrawn because a disc has gone rather
+    // than changed colour.
+    if(id.indexOf("topic:") === 0){
+      var topicId = id.slice(6);
+      chosenTopics = chosenTopics.filter(function(t){ return t.id !== topicId; });
+      delete catalogPicked[topicId];
+      renderIntro();   // which redraws the wheel and the line above it
+      return;
+    }
     var at = introSelection.indexOf(id);
     if(at !== -1){ introSelection.splice(at, 1); }
     else { introSelection.push(id); }
@@ -8777,9 +9291,14 @@
   // writes `intro: "done"` and calls `finishEntry`, which is the first run
   // ending. Editing a setting is not the first run ending.
   function saveIntroFromSettings(){
-    saveLocalPrefs({ interests: introSelection.slice() });
+    // Both vocabularies, because the wheel now draws both and a disc removed
+    // from it has to stay removed. Saving only the facets would silently put
+    // every subject back the next time this screen was opened.
+    var topicIds = chosenTopics.map(function(t){ return t.id; });
+    saveLocalPrefs({ interests: introSelection.slice(),
+                     topics: chosenTopics.slice() });
     if(AUTH.authenticated){
-      savePreferences({ interests: introSelection });
+      savePreferences({ interests: introSelection, topics: topicIds });
     }
     toast("Saved");
     closeIntroToSettings();
@@ -8791,8 +9310,10 @@
   // `closeTopicCatalog`, and the same trap.
   function closeIntroToSettings(){
     introMode = "first-run";
-    showScreen("settings");
-    renderSettings();
+    showScreen(introReturn || "settings");
+    if(introReturn === "profile") loadProfile();
+    else renderSettings();
+    introReturn = "settings";
   }
 
   // "Skip for now", under Next. Choosing nothing is a real answer rather than
@@ -8805,16 +9326,26 @@
   }
 
   // ---- the topic catalogue ------------------------------------------------
-  // Behind "View more", in the middle of the wheel. The eight facets are the
-  // whole *pickable tag* vocabulary and stay that way - six of them are on the
-  // wheel; this is a list of real subjects, and a subject is not a tag. Adding one writes a `pick` event carrying that
-  // topic's own tags - which are far finer than eight - so a listener on
-  // their first run can say something the buttons cannot express, without
-  // ever being shown a tag name.
   //
-  // It costs nothing and generates nothing: one row in the event log.
+  // Behind the wheel's hub - "View more" on the first run, "Edit/add topics"
+  // from Settings, and the only route to this list either way. The eight
+  // facets are the whole *pickable tag* vocabulary and stay that way; this is
+  // a list of real subjects, and a subject is not a tag. Adding one carries
+  // that topic's own tags - far finer than eight - so a listener can say
+  // something the buttons cannot express without ever being shown a tag name.
+  //
+  // **Saved, now, and not only logged.** Adding one used to write a `pick`
+  // event into the append-only log and keep no list, so the choice taught the
+  // ranker something and left nothing to show, nothing to remove, and nothing
+  // for a wheel meant to reflect it to draw from. Save writes both: the list
+  // is the statement, the event is the behaviour.
+  //
+  // It still generates nothing, which is the part that keeps it free.
   var catalogTopics = [];
   var catalogPicked = {};
+  //: What was chosen when this screen opened, so "changed" is a comparison
+  //: rather than a flag somebody has to remember to clear.
+  var catalogSavedIds = "";
 
   // The catalogue's icons. Line glyphs on a dark tile, at one weight, the way
   // the designs draw them - and several interests share one on purpose: every
@@ -8890,6 +9421,9 @@
     var from = document.querySelector(".screen.active");
     catalogReturn = from ? from.id.replace(/^screen-/, "") : "";
     document.getElementById("catalogSearch").value = "";
+    // The baseline "changed" is measured against, taken as the screen opens.
+    catalogSavedIds = chosenTopics.map(function(t){ return t.id; }).join("\u0000");
+    renderCatalogDock();
     // The catalogue arrives with `/api/preferences`, which the intro has
     // already fetched. Fetched again only if this was opened some other way -
     // from Settings, say - where that call may not have happened yet.
@@ -8916,26 +9450,67 @@
     // which also stops the audio - closing a list of topics is not a reason
     // to end an episode somebody is listening to.
     if(stack[stack.length - 1] === "catalog") stack.pop();
-    showScreen(catalogReturn || stack[stack.length - 1] || "home");
-    renderPickedSummary();
+    // The X leaves without saving, so anything chosen and not saved is put
+    // back. Keeping it would be the screen having saved after all, which is
+    // the thing the Save button exists to make explicit.
+    if(catalogDirty()){
+      var keep = {};
+      catalogSavedIds.split("\u0000").forEach(function(id){ if(id) keep[id] = true; });
+      chosenTopics = chosenTopics.filter(function(t){ return keep[t.id]; });
+      catalogPicked = {};
+      chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
+    }
+    var back = catalogReturn || stack[stack.length - 1] || "home";
+    showScreen(back);
+    // The wheel behind it is drawn from these, so it has to be redrawn - and
+    // through `renderIntro`, which also fixes the line above it. Only when
+    // that is the screen being returned to: `renderIntro` on the way back to
+    // Settings would draw the intro over it.
+    if(back === "intro") renderIntro();
+    else renderPickedSummary();
   }
 
   function renderTopicCatalog(){
     var body = document.getElementById("catalogBody");
     if(!body) return;
-    var term = (document.getElementById("catalogSearch").value || "")
-                 .trim().toLowerCase();
+    var raw = (document.getElementById("catalogSearch").value || "").trim();
+    var term = raw.toLowerCase();
     var shown = catalogTopics.filter(function(t){
       if(!term) return true;
       return String(t.label || "").toLowerCase().indexOf(term) !== -1;
     });
+
+    // "Add <what they typed>", when what they typed is not already on the
+    // list or already chosen.
+    //
+    // The search used to filter the catalogue and nothing else, so searching
+    // for something absent produced an empty screen and a sentence telling
+    // the listener to go and ask for it somewhere else - a search that can
+    // only fail, on the one screen whose whole job is collecting what
+    // somebody is interested in. Seventy-three strings somebody wrote down is
+    // not the set of things a person can be interested in, and refusing
+    // anything outside it is the app telling them their interest is invalid.
+    var exact = catalogTopics.some(function(t){
+      return String(t.label || "").toLowerCase() === term;
+    });
+    var head = "";
+    if(raw && !exact && !hasChosenTopic(raw)){
+      head = '<div class="cat-add-typed" onclick="addTypedTopic()">'
+        + '<div class="cat-art">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
+        + 'stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+        + '</div><div class="cat-add-lab">Add <b>' + escapeHtml(raw)
+        + '</b> as a topic</div></div>';
+    }
+
     if(!shown.length){
-      body.innerHTML = '<div class="cat-empty">Nothing here matches “'
-        + escapeHtml(term) + '”. This is the whole list — anything else, ask '
-        + 'for it in search and it gets made.</div>';
+      body.innerHTML = head + '<div class="cat-empty">Nothing on the list matches “'
+        + escapeHtml(term) + '”'
+        + (head ? ' — add it above and it becomes one of yours.'
+                : '.') + '</div>';
       return;
     }
-    body.innerHTML = shown.map(function(t){
+    body.innerHTML = head + shown.map(function(t){
       var on = !!catalogPicked[t.id];
       return '<div class="cat-row" onclick="toggleCatalogTopic(\'' + t.id + '\')">'
         + '<div class="cat-art">' + catIcon(t.icon) + '</div>'
@@ -8951,24 +9526,95 @@
       + 'it actually learns comes from what you play.</div>';
   }
 
+  // Chosen, and not yet saved.
+  //
+  // Tapping one used to take effect immediately - it wrote a `pick` event and
+  // that was the whole of it - so the screen could not tell a listener which
+  // of their taps had counted, and there was no way to change their mind
+  // about one. Now it changes this screen and nothing else until Save.
   function toggleCatalogTopic(id){
     if(catalogPicked[id]){
-      // Nothing to undo on the server: a pick is one row in an append-only
-      // log, and un-saying it is not something the log can express. What the
-      // list stops claiming is that it is still selected.
       delete catalogPicked[id];
-      renderTopicCatalog();
-      return;
+      chosenTopics = chosenTopics.filter(function(t){ return t.id !== id; });
+    } else {
+      catalogPicked[id] = true;
+      var known = catalogTopics.filter(function(t){ return t.id === id; })[0];
+      chosenTopics.push({ id: id, label: (known && known.label) || id,
+                          typed: !known });
     }
-    catalogPicked[id] = true;
     renderTopicCatalog();
-    recordFamEvent("pick", id, "");
+    renderCatalogDock();
+  }
+
+  // Whatever is in the search field, added as a topic of its own.
+  //
+  // Reached by the row above the results and by Enter, because a search field
+  // with a visible "add this" row that ignores the return key is a control
+  // that works one of the two ways a thumb will try it.
+  function addTypedTopic(){
+    var box = document.getElementById("catalogSearch");
+    var raw = ((box && box.value) || "").trim();
+    if(!raw) return;
+    // Typing the name of something that *is* on the list adds the list's
+    // entry, which carries the catalogue's own tags. The server folds these
+    // together too - this is here so the screen agrees with what gets stored
+    // rather than briefly showing a second row that then vanishes on save.
+    var listed = catalogTopics.filter(function(t){
+      return String(t.label || "").toLowerCase() === raw.toLowerCase();
+    })[0];
+    var id = listed ? listed.id : raw;
+    if(!hasChosenTopic(id)){
+      catalogPicked[id] = true;
+      chosenTopics.push({ id: id, label: listed ? listed.label : raw,
+                          typed: !listed });
+    }
+    if(box) box.value = "";
+    renderTopicCatalog();
+    renderCatalogDock();
+  }
+
+  // The Save button appears once something has changed, and only then. A
+  // button that is always there invites a tap that does nothing; one that
+  // arrives when there is something to keep says what it is for.
+  function renderCatalogDock(){
+    var dock = document.getElementById("catalogDock");
+    if(!dock) return;
+    dock.hidden = !catalogDirty();
+  }
+
+  function catalogDirty(){
+    var now = chosenTopics.map(function(t){ return t.id; }).join("\u0000");
+    return now !== catalogSavedIds;
+  }
+
+  //: What was chosen when this screen opened, so "changed" is a comparison
+  //: rather than a flag somebody has to remember to clear.
+  // Save, and leave. Both, because the packet asks for both and because they
+  // are one decision: the listener has finished choosing.
+  function saveTopicCatalog(){
+    var ids = chosenTopics.map(function(t){ return t.id; });
+    catalogSavedIds = ids.join("\u0000");
+    renderCatalogDock();
+    saveLocalPrefs({ topics: chosenTopics.slice() });
+    if(AUTH.authenticated){
+      savePreferences({ topics: ids }).then(function(saved){
+        // Read back rather than assumed: the server folds a typed name onto
+        // a listed entry and drops anything empty, so what it stored is not
+        // always what was sent - and the wheel behind this screen is drawn
+        // from what is stored.
+        if(saved) loadPrefChoices().then(function(){ renderIntro(); });
+      });
+      toast("Saved to your account");
+    } else {
+      toast("Saved on this device");
+    }
+    closeTopicCatalog();
   }
 
   function renderPickedSummary(){
     var el = document.getElementById("introPicked");
     if(!el) return;
-    var n = Object.keys(catalogPicked).length;
+    var n = chosenTopics.length;
     el.textContent = n ? n + (n === 1 ? " topic added" : " topics added") : "";
   }
 
@@ -8981,17 +9627,25 @@
   }
 
   function finishIntro(){
-    saveLocalPrefs({ interests: introSelection.slice(), intro: "done" });
+    var topicIds = chosenTopics.map(function(t){ return t.id; });
+    saveLocalPrefs({ interests: introSelection.slice(),
+                     topics: chosenTopics.slice(), intro: "done" });
     if(AUTH.authenticated){
-      savePreferences({ interests: introSelection, intro_done: true });
+      savePreferences({ interests: introSelection, topics: topicIds,
+                        intro_done: true });
     }
     finishEntry();
   }
 
   function finishEntry(){
     saveLocalPrefs({ entry: "done" });
-    openMyFamTab();
-    loadMyFamFeed();
+    openMyFamTab();   // which loads the feed and Go Deeper
+    // Somebody who just signed up or skipped in gets the same notifications a
+    // returning listener does. Started here as well as in `bootToFirstScreen`
+    // because those are the two ways into the app and neither passes through
+    // the other; `startNotificationPolling` clears its own timer, so arriving
+    // by both cannot leave two running.
+    startNotificationPolling();
   }
 
   // --- Explore New ---------------------------------------------------------
@@ -9216,22 +9870,227 @@
     var splash = document.getElementById("splashScreen");
     if(!splash) return;
     splash.classList.remove("hide");
-    setTimeout(function(){
+    clearTimeout(splash._timer);
+    // `0` holds it open until something releases it. Used by the boot, where
+    // the thing being waited for is an answer rather than an interval.
+    if(ms === 0) return;
+    splash._timer = setTimeout(function(){
       splash.classList.add("hide");
     }, ms || 1400);
   }
-  showSplash();
-  // The entry screens run once and then never again. Everything after them is
-  // the app as it was, so a returning listener pays nothing for their
-  // existence - not even the fetch, which only the intro needs.
-  refreshAuth().then(function(){
+
+  function hideSplash(){
+    var splash = document.getElementById("splashScreen");
+    if(!splash) return;
+    clearTimeout(splash._timer);
+    splash.classList.add("hide");
+  }
+
+  // Which screen the app opens on, decided once and only when it can be.
+  //
+  // **Signed in on this device goes straight to myFAM; anybody else starts at
+  // sign-up.** That is a deliberate change and worth naming, because it sits
+  // against a settled constraint: listening needs no account, and a login
+  // screen in front of the product is exactly what CLAUDE.md says stopped
+  // this from being one. What keeps that true is the door - "Skip for now" is
+  // on this screen, one tap, and everything behind it still works with no
+  // account. What changed is which side of the door the app opens on.
+  //
+  // It runs after `refreshAuth` because it cannot run before: being signed in
+  // is a fact on the server, held in an HttpOnly cookie this script cannot
+  // read. Guessing it from anything the page *can* read is what produced the
+  // flash - a guess drawn confidently and corrected a moment later.
+  function bootToFirstScreen(){
+    hideSplash();
+    if(!AUTH.authenticated){
+      // Not "the first run", which is a different thing and runs after
+      // signing up. This is the front door, and somebody who has been here
+      // before and skipped still lands on it.
+      loadPrefChoices();
+      showScreen("welcome");
+      return;
+    }
     if(!entryComplete()){ startEntry(); return; }
+    openMyFamTab();   // which loads the feed and Go Deeper
     loadPrefChoices();
-    loadMyFamFeed();
     // There is no push, so the honest moment to say "___ started following
     // you" is the next time this listener's own app asks.
     checkNewFollowers();
-  });
+    startNotificationPolling();
+  }
+
+  // ---------------- drop-down notifications ----------------
+  //
+  // A message arriving, or somebody following you, announced at the top of the
+  // app while you are somewhere else in it - and tappable, because an
+  // announcement you cannot act on is just an interruption.
+  //
+  // **Polled, and honest about being polled.** There is no push here and will
+  // not be until the iOS app exists, so "as it happens" means "the next time
+  // this listener's own app asks". `/api/notifications` answers both kinds in
+  // one call because the interface asks both questions from the same timer.
+  //
+  // The cursor is this client's and is never derived from read state: whether
+  // a message has been *read* is a fact about a conversation somebody opened,
+  // and whether it has been *announced* is a fact about a banner this client
+  // raised. Deriving the second from the first would mean opening one chat
+  // silenced the notifications for every other.
+  var notifCursor = 0;
+  var notifTimer = null;
+  var notifQueue = [];
+  var notifShowing = null;
+  var notifHideTimer = null;
+  //: Which followers have already been put on screen.
+  //:
+  //: Follows have no id to page on - the graph stores timestamps, and the
+  //: server answers "who is new since you last opened Friends", which stays
+  //: true until that tab is opened. So the *client* has to remember, or the
+  //: same follower is announced every ten seconds until somebody visits it.
+  var notifAnnouncedFollows = {};
+
+  //: How often to ask. Ten seconds rather than the chat's two: an open
+  //: conversation is somebody waiting for a reply, and this is somebody who
+  //: is not - the cost of being a few seconds late to a banner is nothing,
+  //: and the cost of asking six times a minute for the life of a session is
+  //: real. The open thread polls faster on its own timer.
+  var NOTIF_POLL_MS = 10000;
+
+  //: How long a banner stays before it withdraws. Long enough to read a name
+  //: and a line and decide, short enough that it is not in the way.
+  var NOTIF_SHOW_MS = 6000;
+
+  function startNotificationPolling(){
+    stopNotificationPolling();
+    // The first call establishes where "new" starts and announces nothing.
+    // Without it, opening the app raises a banner for every message ever sent
+    // to this listener - which is the usual way this is got wrong.
+    fetch("/api/notifications?bootstrap=1")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        notifCursor = d.head || 0;
+        setUnreadDot(d.unread);
+        notifTimer = setInterval(pollNotifications, NOTIF_POLL_MS);
+      })
+      .catch(function(){});
+  }
+
+  function stopNotificationPolling(){
+    if(notifTimer){ clearInterval(notifTimer); notifTimer = null; }
+  }
+
+  function pollNotifications(){
+    fetch("/api/notifications?since=" + encodeURIComponent(notifCursor))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        notifCursor = d.head || notifCursor;
+        setUnreadDot(d.unread);
+        (d.messages || []).forEach(function(m){
+          // Not while you are already looking at that conversation. A banner
+          // announcing a message that is on screen underneath it is the app
+          // telling somebody about something they can already see.
+          if(threadScreenOpen() && currentThread
+             && currentThread.user_id === (m.from && m.from.user_id)) return;
+          queueNotification({
+            kind: "message",
+            who: m.from || {},
+            title: (m.from && m.from.name) || "Someone",
+            text: m.kind === "episode"
+              ? "Shared: " + (m.title || m.query || "an episode")
+              : (m.text || "")
+          });
+        });
+        (d.follows || []).forEach(function(person){
+          if(notifAnnouncedFollows[person.user_id]) return;
+          notifAnnouncedFollows[person.user_id] = true;
+          queueNotification({
+            kind: "follow",
+            who: person,
+            title: (person.name || "Someone") + " started following you",
+            text: person.handle ? "@" + person.handle : "Tap to follow back"
+          });
+        });
+      })
+      .catch(function(){});
+  }
+
+  function queueNotification(item){
+    notifQueue.push(item);
+    if(!notifShowing) showNextNotification();
+  }
+
+  // One at a time, in order. Two banners stacked is a notification centre,
+  // which is a different feature and one nobody asked for.
+  function showNextNotification(){
+    var banner = document.getElementById("notifBanner");
+    if(!banner) return;
+    var item = notifQueue.shift();
+    if(!item){ notifShowing = null; return; }
+    notifShowing = item;
+    var av = document.getElementById("notifAvatar");
+    if(item.who && item.who.avatar){
+      av.style.backgroundImage = "url('" + item.who.avatar + "')";
+      av.textContent = "";
+    } else {
+      av.style.backgroundImage = "";
+      av.style.background = personHue(item.who && (item.who.handle || item.who.name));
+      av.textContent = deriveInitials((item.who && (item.who.name || item.who.handle)) || "?");
+    }
+    document.getElementById("notifTitle").textContent = item.title;
+    document.getElementById("notifText").textContent = item.text;
+    banner.classList.add("show");
+    clearTimeout(notifHideTimer);
+    notifHideTimer = setTimeout(hideNotification, NOTIF_SHOW_MS);
+  }
+
+  function hideNotification(){
+    var banner = document.getElementById("notifBanner");
+    if(banner) banner.classList.remove("show");
+    clearTimeout(notifHideTimer);
+    notifShowing = null;
+    // A short pause between two, so a second banner reads as a second thing
+    // rather than as the first one's text changing under your thumb.
+    if(notifQueue.length) setTimeout(showNextNotification, 420);
+  }
+
+  function dismissNotification(){ hideNotification(); }
+
+  // Tapping it does the thing it is about. A message opens that conversation;
+  // a follow opens Friends, which is where following back lives - and which
+  // is also what clears the new-follower badge, so the two cannot disagree.
+  function openNotification(){
+    var item = notifShowing;
+    hideNotification();
+    if(!item) return;
+    if(item.kind === "message" && item.who && item.who.user_id){
+      closeMessages();
+      openThreadWith({ user_id: item.who.user_id,
+                       name: item.who.name, handle: item.who.handle });
+      return;
+    }
+    if(item.kind === "follow"){
+      setTab("profile");
+      openFriends();
+    }
+  }
+
+  // The dot on the profile's Messages control. Drawn from the same poll that
+  // raises the banners, so an unread count and a notification cannot be two
+  // different claims about the same inbox.
+  function setUnreadDot(unread){
+    var dot = document.getElementById("msgUnread");
+    if(dot) dot.hidden = !(unread > 0);
+  }
+
+  // Held open rather than timed: what it is covering is one request, and a
+  // fixed interval is either longer than the answer takes (a wait nobody
+  // needed) or shorter (the flash this replaces).
+  showSplash(0);
+  // A failed auth check is answered the same way as a negative one - by
+  // showing the front door - rather than by leaving the splash up forever,
+  // which is the one outcome with nothing behind it.
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen);
 </script>
 </body>
 </html>

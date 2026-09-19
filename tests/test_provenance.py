@@ -353,3 +353,134 @@ def test_explore_cards_carry_the_title_and_fall_back_to_the_question(tmp_path):
     by_key = {e["key"]: e for e in store.recent(10)}
     assert by_key["named"]["title"] == "What Moves A Bond"
     assert by_key["unnamed"]["title"] == ""
+
+
+# --- the model's own search counts as a source too (§107) ------------------
+#
+# The reported bug was "the sources icons are still not showing up on the
+# audioplayer". The panel was fine. Provenance was built from the Exa packet,
+# from live facts and from attachments - and a deployment with no Exa key
+# researches through the model's `web_search` tool instead, so on that machine
+# every episode recorded nothing and the panel correctly hid an empty list.
+
+
+class _Block:
+    def __init__(self, type, content):
+        self.type = type
+        self.content = content
+
+
+class _Result:
+    def __init__(self, url, title="", page_age=""):
+        self.type = "web_search_result"
+        self.url = url
+        self.title = title
+        self.page_age = page_age
+
+
+class _Message:
+    def __init__(self, content):
+        self.content = content
+
+
+def test_a_tool_search_is_recorded_as_provenance():
+    found = P.from_web_search(_Message([
+        _Block("text", "some prose"),
+        _Block("web_search_tool_result", [
+            _Result("https://www.reuters.com/world/thing", "A thing happened"),
+            _Result("https://apnews.com/article/other", "Another thing"),
+        ]),
+    ]))
+    assert [i.label for i in found.items] == ["reuters.com", "apnews.com"]
+    assert [i.title for i in found.items] == ["A thing happened", "Another thing"]
+    assert found.retrievers == ["web search"]
+
+
+def test_a_tool_search_claims_no_grade_and_no_date():
+    """`research.credibility` reads an Exa result's own fields and a web_search
+    result carries none, so a tier here would be a confidence nothing measured.
+    `page_age` is prose ("2 days ago"), not the ISO date `at` is documented as."""
+    found = P.from_web_search(_Message([
+        _Block("web_search_tool_result", [
+            _Result("https://example.com/x", "X", page_age="2 days ago")]),
+    ]))
+    assert found.items[0].tier == ""
+    assert found.items[0].at == ""
+
+
+def test_the_same_publisher_twice_is_one_line():
+    found = P.from_web_search(_Message([
+        _Block("web_search_tool_result", [
+            _Result("https://www.bbc.co.uk/news/one"),
+            _Result("https://bbc.co.uk/news/two"),
+        ]),
+    ]))
+    assert [i.label for i in found.items] == ["bbc.co.uk"]
+
+
+def test_a_failed_tool_search_contributes_nothing():
+    """An error block carries an object rather than a list of results, and it
+    means the search did not happen - there is nothing to attribute."""
+    found = P.from_web_search(_Message([
+        _Block("web_search_tool_result", {"type": "web_search_tool_result_error",
+                                          "error_code": "max_uses_exceeded"}),
+    ]))
+    assert not found
+    assert found.retrievers == []
+
+
+def test_a_message_with_no_search_in_it_contributes_nothing():
+    assert not P.from_web_search(_Message([_Block("text", "prose")]))
+    assert not P.from_web_search(_Message(None))
+    assert not P.from_web_search(None)
+
+
+def test_dict_shaped_blocks_are_read_too():
+    """Provider objects arrive as attributes or as mappings depending on the
+    SDK version, and a provenance panel is the last thing that should be able
+    to take an episode down."""
+    found = P.from_web_search({"content": [
+        {"type": "web_search_tool_result",
+         "content": [{"type": "web_search_result",
+                      "url": "https://ft.com/content/x", "title": "T"}]},
+    ]})
+    assert [i.label for i in found.items] == ["ft.com"]
+
+
+def test_a_result_with_no_usable_url_is_skipped():
+    found = P.from_web_search(_Message([
+        _Block("web_search_tool_result", [
+            _Result(""), _Result("not-a-url"), _Result("https://ok.com/x")]),
+    ]))
+    assert [i.label for i in found.items] == ["not-a-url", "ok.com"]
+    # ...and only a real web address is ever made tappable.
+    assert [i.url for i in found.items] == ["", "https://ok.com/x"]
+
+
+def test_merging_keeps_what_was_already_there():
+    """`prepare` may have attached live facts before the model searched, and a
+    tool search adds to an episode's sources rather than replacing them."""
+    import script_generator
+
+    notes = script_generator.ScriptNotes()
+    notes.provenance = P.Provenance(
+        items=[P.Attribution(label="a-provider", kind=P.LIVE)],
+        retrievers=["exa"])
+    script_generator._merge_search_provenance(notes, _Message([
+        _Block("web_search_tool_result", [_Result("https://reuters.com/x")]),
+    ]))
+    assert [i.label for i in notes.provenance.items] == ["a-provider", "reuters.com"]
+    assert notes.provenance.retrievers == ["exa", "web search"]
+
+
+def test_unreadable_search_results_never_reach_the_episode():
+    """A sources panel must not be the reason an episode does not play."""
+    import script_generator
+
+    class Exploding:
+        @property
+        def content(self):
+            raise RuntimeError("the SDK changed shape")
+
+    notes = script_generator.ScriptNotes()
+    script_generator._merge_search_provenance(notes, Exploding())

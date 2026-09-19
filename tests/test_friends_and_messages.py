@@ -58,7 +58,40 @@ def test_counts_are_derived_rather_than_kept(graph):
     a rule about inventing numbers on a profile page."""
     graph.follow("a", "b")
     graph.follow("c", "b")
-    assert graph.follow_counts("b") == {"following": 0, "followers": 2}
+    assert graph.follow_counts("b") == {"following": 0, "followers": 2,
+                                        "friends": 0}
+
+
+def test_the_counts_include_friends(graph):
+    """The reported bug: a mutual follow read back as "0 friends, 1 following,
+    1 follower". Two screens print `follows.friends` and this returned only the
+    two directions, so `undefined || 0` put a zero next to the pair that make
+    it a one - three numbers contradicting each other on the one page with a
+    rule against inventing any."""
+    graph.follow("a", "b")
+    assert graph.follow_counts("a")["friends"] == 0, "one-way is not a friend"
+    graph.follow("b", "a")
+    assert graph.follow_counts("a")["friends"] == 1
+    assert graph.follow_counts("b")["friends"] == 1
+
+
+def test_the_friend_count_and_the_friend_list_can_never_disagree(graph):
+    """Counted in SQL, listed as a set intersection. Two definitions of what a
+    friend is would be the bug this module avoids by never storing mutuality,
+    so every arrangement is checked against the list rather than a number."""
+    graph.follow("a", "b")
+    graph.follow("b", "a")
+    graph.follow("a", "c")
+    graph.follow("c", "b")
+    for who in ("a", "b", "c"):
+        assert graph.follow_counts(who)["friends"] == len(graph.friends(who)), who
+
+
+def test_a_missing_listener_counts_zero_friends_rather_than_nothing(graph):
+    """A key that is absent and a key that is zero read the same in Python and
+    differently in JavaScript, which is exactly how this shipped."""
+    assert graph.follow_counts("nobody") == {"following": 0, "followers": 0,
+                                             "friends": 0}
 
 
 def test_people_can_be_found_by_handle_or_name(graph):
@@ -83,7 +116,8 @@ def test_deleting_a_listener_removes_them_from_both_directions(graph):
     graph.follow("a", "b")
     graph.follow("b", "a")
     graph.forget("b")
-    assert graph.follow_counts("a") == {"following": 0, "followers": 0}
+    assert graph.follow_counts("a") == {"following": 0, "followers": 0,
+                                       "friends": 0}
 
 
 # --- messages -------------------------------------------------------------
@@ -349,3 +383,138 @@ def test_a_person_nobody_can_find_is_a_404(client):
     assert client.get("/api/person?handle=nobody").status_code == 404
     # And an id alone is not a way in: the graph is the boundary.
     assert client.get("/api/person?user_id=anon_made_up").status_code == 404
+
+
+# --- a conversation that updates itself (§107) -----------------------------
+#
+# The reported bug: "when I stay in the chat with someone, the messages they
+# send don't automatically appear". They did not appear at all - the thread was
+# fetched once, when the screen opened, so two people talking had to leave the
+# chat and come back to see each other. That is not a slow chat; it is a chat
+# that does not work.
+
+
+def test_a_thread_can_be_topped_up_from_a_cursor(store):
+    first = store.send("a", "b", text="one")
+    second = store.send("b", "a", text="two")
+    assert [m.text for m in store.thread("a", "b")] == ["one", "two"]
+    assert [m.text for m in store.thread("a", "b", after_id=first.id)] == ["two"]
+    assert store.thread("a", "b", after_id=second.id) == []
+
+
+def test_the_cursor_is_an_id_rather_than_a_timestamp(store):
+    """Two messages can share a `time.time()`, and a `> at` cursor silently
+    drops the second of any such pair - which on a chat is a lost message."""
+    a = store.send("a", "b", text="one", at=1000.0)
+    b = store.send("b", "a", text="two", at=1000.0)
+    assert a.at == b.at
+    assert [m.text for m in store.thread("a", "b", after_id=a.id)] == ["two"]
+
+
+def test_only_what_arrived_for_this_listener_raises_a_banner(store):
+    """A notification about your own message only looks obviously wrong after
+    it ships."""
+    mine = store.send("a", "b", text="from me")
+    theirs = store.send("b", "a", text="to me")
+    assert [m.id for m in store.arrived_for("a")] == [theirs.id]
+    assert [m.id for m in store.arrived_for("b")] == [mine.id]
+    assert store.arrived_for("a", after_id=theirs.id) == []
+
+
+def test_the_starting_cursor_is_the_newest_message_already_there(store):
+    """Without it, opening the app raises a banner for every message ever sent
+    to this listener - the standard way this feature is got wrong."""
+    assert store.latest_id("a") == 0
+    store.send("a", "b", text="from me")
+    assert store.latest_id("a") == 0, "your own message is not news to you"
+    theirs = store.send("b", "a", text="to me")
+    assert store.latest_id("a") == theirs.id
+
+
+def test_the_thread_endpoint_returns_only_what_is_new(client):
+    ana = signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    client.post("/api/messages", json={"to": ana, "text": "first"})
+
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
+    them = client.get("/api/messages").json()["threads"][0]["with"]
+    opened = client.get("/api/messages/thread", params={"with": them}).json()
+    assert [m["text"] for m in opened["messages"]] == ["first"]
+    assert opened["partial"] is False and opened["head"] == opened["messages"][-1]["id"]
+
+    quiet = client.get("/api/messages/thread",
+                       params={"with": them, "since": opened["head"]}).json()
+    assert quiet["messages"] == []
+    assert quiet["partial"] is True
+    assert quiet["head"] == opened["head"], \
+        "an empty poll must still hand back a cursor, or the client has none"
+
+
+def test_notifications_report_a_message_and_a_follow_together(client):
+    """One poll for both, because the interface asks both questions from the
+    same timer and two endpoints is two things to keep in step."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    start = client.get("/api/notifications", params={"bootstrap": True}).json()
+    assert start["messages"] == [] and start["follows"] == []
+
+    nadia = TestClient(appmod.app)
+    with nadia:
+        signed_in(nadia, "nadia@b.com", "Nadia", "nadia")
+        nadia.post("/api/friends/follow", json={"user_id": me})
+        nadia.post("/api/messages", json={"to": me, "text": "hello"})
+
+    news = client.get("/api/notifications", params={"since": start["head"]}).json()
+    assert [m["text"] for m in news["messages"]] == ["hello"]
+    assert news["messages"][0]["from"]["name"] == "Nadia"
+    assert news["messages"][0]["from"]["handle"] == "nadia", \
+        "tapping the banner opens the chat, so it has to say who with"
+    assert [p["handle"] for p in news["follows"]] == ["nadia"]
+    assert news["unread"] == 1
+
+    # And the same poll again says nothing new, rather than saying it twice.
+    assert client.get("/api/notifications",
+                      params={"since": news["head"]}).json()["messages"] == []
+
+
+def test_bootstrapping_never_announces_what_was_already_there(client):
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    nadia = TestClient(appmod.app)
+    with nadia:
+        signed_in(nadia, "nadia@b.com", "Nadia", "nadia")
+        nadia.post("/api/messages", json={"to": me, "text": "sent while away"})
+
+    start = client.get("/api/notifications", params={"bootstrap": True}).json()
+    assert start["messages"] == [], "the app announced a message it had already"
+    assert start["head"] > 0
+    assert start["unread"] == 1, "it is still unread, it is just not news"
+    assert client.get("/api/notifications",
+                      params={"since": start["head"]}).json()["messages"] == []
+
+
+def test_reading_one_conversation_does_not_silence_another(client):
+    """Read state is about a thread somebody opened; announced state is about a
+    banner this client raised. Deriving one from the other means opening a chat
+    loses the notifications for every other."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    start = client.get("/api/notifications", params={"bootstrap": True}).json()
+    for who in ("nadia", "beth"):
+        other = TestClient(appmod.app)
+        with other:
+            signed_in(other, f"{who}@b.com", who.title(), who)
+            other.post("/api/messages", json={"to": me, "text": f"from {who}"})
+
+    threads = client.get("/api/messages").json()["threads"]
+    client.get("/api/messages/thread", params={"with": threads[0]["with"]})
+
+    news = client.get("/api/notifications", params={"since": start["head"]}).json()
+    assert len(news["messages"]) == 2, \
+        "opening one conversation swallowed the other's notification"
+
+
+def test_an_anonymous_listener_polls_quietly(client):
+    """Polled on a timer, and a timer that 401s every few seconds is an app
+    that looks broken in the console for no reason."""
+    body = client.get("/api/notifications").json()
+    assert body == {"messages": [], "follows": [], "head": 0, "unread": 0}

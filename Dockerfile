@@ -26,15 +26,23 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 
 COPY . .
 
-# All seven databases live on a mounted disk where the host provides one, so
-# they survive a redeploy. Without a disk they are ephemeral and every deploy
-# is a fresh start - which is fine for a preview and not for real listeners.
+# Every database lives on a mounted disk where the host provides one, so they
+# survive a redeploy. Without a disk they are ephemeral and every deploy is a
+# fresh start - which is fine for a preview and not for real listeners.
 #
-# Every one of the five is named here on purpose. Three used to be, and the two
-# that were missing (social, attachments) were written to the image's WORKDIR
-# instead of the disk, so every redeploy silently discarded every listener's
-# name, handle and echo. A store added later must be added here too, and
-# tests/test_data_paths.py fails if one is not.
+# Every one of them is named here on purpose, and the list has now been
+# incomplete twice. The first time it was social and attachments, written to
+# the image's WORKDIR instead of the disk, so every redeploy silently
+# discarded every listener's name, handle and echo. The second time it was
+# messages, saved, shares and quotas - four stores added after this list was
+# written - so a deployment lost every conversation, every saved episode and
+# every share link on each push while the accounts beside them survived.
+#
+# The guard that was supposed to catch it did not, and that is the part worth
+# remembering: `tests/test_data_paths.py` compared this file against its own
+# `STORES` list, which is also maintained by hand, so a store missing from
+# both looked consistent. It now derives the list from the modules that call
+# `data_path`, which cannot be forgotten because it is not written down twice.
 ENV CACHE_PATH=/data/scripts.db \
     MYFAM_DB=/data/myfam.db \
     MIXES_DB=/data/mixes.db \
@@ -43,6 +51,10 @@ ENV CACHE_PATH=/data/scripts.db \
     ACCOUNTS_DB=/data/accounts.db \
     PREFS_DB=/data/preferences.db \
     METERING_DB=/data/metering.db \
+    MESSAGES_DB=/data/messages.db \
+    SAVED_DB=/data/saved.db \
+    SHARES_DB=/data/shares.db \
+    QUOTAS_DB=/data/quotas.db \
     PORT=8000
 RUN mkdir -p /data
 
