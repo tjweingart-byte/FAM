@@ -41,16 +41,16 @@ import pytest
 #: Kept as a literal list rather than derived at runtime so that adding a
 #: setting is a deliberate two-line change and not an invisible one.
 FAM_ENVIRONMENT = (
-    "ALLOW_TOPUPS", "ANSWER_FIRST", "ANSWER_FIRST_SHARE", "ANTHROPIC_API_KEY",
+    "ALLOW_TOPUPS", "ANTHROPIC_API_KEY",
     "CACHE_BACKEND", "CACHE_ENABLED", "CACHE_SEMANTIC_KEY",
     "CACHE_TTL_SECONDS", "CACHE_TTL_VOLATILE", "CACHE_VECTOR",
     "CACHE_VECTOR_OVERLAP", "CACHE_VECTOR_SCAN", "CACHE_VECTOR_THRESHOLD",
     "CANONICAL_KEY_MODEL",
     "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "DURATION_TOLERANCE",
-    "ANSWER_FIRST_MAX_SHARE", "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN",
+    "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN",
     "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
     "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
-    "RESEARCH_RETRY",
+    "RESEARCH_MAX_TOKENS", "RESEARCH_RETRY",
     # Episode intelligence: whether the layer in front of retrieval runs, and
     # how. A developer with EPISODE_INTELLIGENCE=0 set must not run a suite
     # that quietly skips every EI behaviour and still reports green.

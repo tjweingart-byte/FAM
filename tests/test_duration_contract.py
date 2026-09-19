@@ -456,8 +456,8 @@ def test_topups_fill_a_short_episode_when_enabled(monkeypatch):
     """The legacy semantics this must not disturb.
 
     `Settings` is frozen, so the flag is swapped by replacing the object
-    `pipeline` reads - which is also how `experiments` and `_answer_first`
-    override settings, and it keeps `__post_init__` validation in play.
+    `pipeline` reads - which is also how `experiments` overrides settings, and
+    it keeps `__post_init__` validation in play.
     """
     import dataclasses
 
@@ -490,24 +490,21 @@ def test_a_topup_into_no_remaining_time_speaks_nothing():
 
 
 # ==========================================================================
-# 8. answer_first
+# 8. Two streams in one episode
+#
+# There used to be a from-knowledge half racing the researched one, with a
+# share of the episode reserved for each (§108 deleted it). One episode is
+# still capable of running a second stream - the body and a top-up - and the
+# duration contract across two of them is what these hold.
 # ==========================================================================
-def test_answer_first_still_divides_the_episode_by_its_share():
-    assert 0.0 < settings.answer_first_share <= 1.0
-    plan = plan_episode("q", 3)
-    ceiling = plan.target_seconds * settings.answer_first_share
-    assert ceiling == pytest.approx(90.0)
-
-
 def test_two_streams_need_two_assemblers_and_do_not_share_state():
-    """`_answer_first` runs an instant and a researched stream at once. One
-    assembler across both would interleave two scripts into one chunk, which is
-    a text-integrity failure, not just a pacing one."""
+    """One assembler across both would interleave two scripts into one chunk,
+    which is a text-integrity failure, not just a pacing one."""
     instant = SpeechAssembler(policy=AssemblyPolicy())
     research = SpeechAssembler(policy=AssemblyPolicy())
 
-    instant.offer("The durable half of the answer starts here.")
-    research.offer("The researched half starts here instead.")
+    instant.offer("The first stream starts here.")
+    research.offer("The second stream starts here instead.")
 
     assert instant.seen != research.seen
     assert instant.released == 1 and research.released == 1
@@ -515,25 +512,25 @@ def test_two_streams_need_two_assemblers_and_do_not_share_state():
 
 
 def test_each_stream_accounts_for_only_its_own_words():
-    """The handover shares one PaceController, so the two streams must not
-    double-count: what each contributes is exactly what it spoke."""
-    instant = sentences_of(10, 2)
-    research = sentences_of(12, 3)
-    a = fit_to_budget(instant, 30.0, 150.0, SENTENCE_GAP, OVERRUN_GRACE)
-    b = fit_to_budget(research, 30.0 - a.estimated_seconds, 150.0, SENTENCE_GAP,
+    """Two streams share one PaceController, so they must not double-count:
+    what each contributes is exactly what it spoke."""
+    first = sentences_of(10, 2)
+    second = sentences_of(12, 3)
+    a = fit_to_budget(first, 30.0, 150.0, SENTENCE_GAP, OVERRUN_GRACE)
+    b = fit_to_budget(second, 30.0 - a.estimated_seconds, 150.0, SENTENCE_GAP,
                       OVERRUN_GRACE)
-    assert a.words == sum(count_words(s) for s in instant)
+    assert a.words == sum(count_words(s) for s in first)
     assert a.estimated_seconds + b.estimated_seconds <= 30.0 + OVERRUN_GRACE
 
 
-def test_the_handover_ceiling_is_a_time_not_a_chunk_count():
-    """Whatever assembly does to grouping, the instant half's ceiling stays the
-    share of the episode it always was."""
-    plan = plan_episode("q", 5)
-    ceiling = plan.target_seconds * settings.answer_first_share
-    fit = fit_to_budget(sentences_of(30, 20), ceiling, 150.0, SENTENCE_GAP,
-                        OVERRUN_GRACE)
-    assert fit.estimated_seconds <= ceiling + OVERRUN_GRACE
+def test_nothing_reserves_a_share_of_the_episode_any_more():
+    """The share existed to stop the from-knowledge half speaking the whole
+    episode before the research arrived. With one stream there is no half to
+    ration, and a setting left behind is one somebody sets."""
+    import config
+
+    for gone in ("answer_first", "answer_first_share", "answer_first_max_share"):
+        assert not hasattr(config.settings, gone)
 
 
 # ==========================================================================

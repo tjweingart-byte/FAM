@@ -336,11 +336,12 @@ def test_topups_on_behave_the_same_on_both_paths(minutes):
 
 
 # ==========================================================================
-# answer_first: two streams, two assemblers
+# Two streams, two assemblers
 # ==========================================================================
 def test_two_phase6_pumps_never_share_assembler_state():
-    """`_answer_first` runs an instant and a researched stream at once. One
-    assembler across both would interleave two scripts into one chunk."""
+    """An episode can run a second stream - a top-up after the body, and once
+    a from-knowledge half racing the researched one. One assembler across both
+    would interleave two scripts into one chunk."""
     async def main():
         pipeline = PodcastPipeline(generator=None, engine=ENGINE, cache=None)
         instant = pipeline._start_phase6(
@@ -364,11 +365,6 @@ def test_two_phase6_pumps_never_share_assembler_state():
     assert "b0" in research_text and "a0" not in research_text
     for chunk in got["instant"] + got["research"]:
         assert not ("a0" in chunk.text and "b0" in chunk.text)
-
-
-def test_the_answer_first_share_is_unchanged_by_assembly():
-    assert 0.0 < settings.answer_first_share <= 1.0
-    assert plan_episode("q", 3).target_seconds * settings.answer_first_share == 90.0
 
 
 # ==========================================================================
@@ -477,15 +473,14 @@ def test_both_architectures_are_reached_only_through_the_selector():
     source = inspect.getsource(pipeline_module)
     for name in ("_start_phase6", "_speak_phase6"):
         assert len(re.findall(rf"self\.{name}\s*\(", source)) == 1, name
-    # `_speak_chunk` and `_speak_one` each appear twice: inside their own
-    # speaker's loop, and in `_speak_item` for the one item `_answer_first`
-    # pulls by hand during the handover.
+    # Each appears exactly once, inside its own speaker's loop. `_speak_item`
+    # was the second site - the one item the old handover pulled by hand - and
+    # it went with the handover (§108).
     for name in ("_speak_chunk", "_speak_one"):
-        assert len(re.findall(rf"self\.{name}\s*\(", source)) == 2, name
-    for site in ("stream_pcm", "_answer_first"):
-        body = inspect.getsource(getattr(PodcastPipeline, site))
-        assert "phase6" not in body, f"{site} names an architecture directly"
-        assert "_pump_for(" in body
+        assert len(re.findall(rf"self\.{name}\s*\(", source)) == 1, name
+    body = inspect.getsource(PodcastPipeline.stream_pcm)
+    assert "phase6" not in body, "stream_pcm names an architecture directly"
+    assert "_pump_for(" in body
 
 
 def test_stream_pcm_routes_every_pump_through_the_selector():
@@ -507,9 +502,9 @@ def test_legacy_start_differs_from_trunk_only_by_three_deliberate_changes():
        sentinel arrives, so it was usually never marked at all.
 
     3. The stream's own first sentence is marked, when a caller asks for it by
-       name. `_answer_first` runs two streams at once, and without a mark per
-       stream there is no way to tell research being slow apart from the
-       assembler holding its output.
+       name. An episode can run more than one stream, and without a mark per
+       stream there is no way to tell a slow model apart from the assembler
+       holding its output.
 
     Everything else about the method, including the queue and its depth, is
     untouched: the legacy path must keep behaving exactly as it shipped. Both

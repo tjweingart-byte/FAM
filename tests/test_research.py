@@ -82,6 +82,51 @@ def exa(monkeypatch):
     return calls
 
 
+#: What the searching call comes back with: text blocks in the shape it was
+#: asked for, and the tool-result blocks provenance is read off. Shaped like
+#: the SDK's objects rather than like a convenient dict, because the code
+#: under test reads `block.type` and `block.text`.
+CLAUDE_REPORT = (
+    "SOURCE 1\n"
+    "Title: Fed holds rates\n"
+    "URL: https://reuters.com/a\n"
+    "Published: 2026-09-18\n"
+    "Key evidence:\n"
+    "Rates held at 4.25%, the third hold running.\n"
+)
+
+
+@pytest.fixture
+def fake_search(monkeypatch):
+    """The model's own search, without a credential or the network."""
+    calls: list = []
+
+    class _Message:
+        stop_reason = "end_turn"
+        usage = types.SimpleNamespace(input_tokens=900, output_tokens=200,
+                                      cache_read_input_tokens=0,
+                                      cache_creation_input_tokens=0)
+        content = [
+            types.SimpleNamespace(
+                type="web_search_tool_result",
+                content=[types.SimpleNamespace(
+                    url="https://reuters.com/a", title="Fed holds rates",
+                    page_age="1 day ago")]),
+            types.SimpleNamespace(type="text", text=CLAUDE_REPORT),
+        ]
+
+    class _Messages:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            return _Message()
+
+    class _Client:
+        messages = _Messages()
+
+    monkeypatch.setattr(research, "research_client", lambda: _Client())
+    return calls
+
+
 def use_backend(monkeypatch, value: str):
     patched = dataclasses.replace(settings, research_backend=value)
     monkeypatch.setattr(research, "settings", patched)
@@ -348,14 +393,62 @@ def test_evidence_reaches_the_prompt_and_the_tool_does_not(exa, monkeypatch):
         "the search tool was attached on top of an evidence packet")
 
 
-def test_the_claude_backend_keeps_the_tool_and_adds_no_evidence(monkeypatch):
+def test_the_claude_backend_retrieves_before_the_writing_call(monkeypatch,
+                                                               fake_search):
+    """It used to hand the writing call a tool and let it search mid-episode,
+    which is how a first sentence came to be written before anything had been
+    looked up. It is a retrieval of its own now. PROBLEMS.md §108."""
     use_backend(monkeypatch, "claude")
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
+    notes = ScriptNotes()
+    researched = asyncio.run(generator.research(plan, notes))
+
+    assert "Rates held at 4.25%" in researched.evidence
+    assert "<evidence>" in build_prompt(researched)
+    assert "tools" not in generator._request_kwargs(researched), (
+        "the call that speaks was given a search tool")
+    assert notes.research["backend"] == "claude"
+    assert notes.research["sources"] == ["reuters.com"]
+    # The searching call's tokens are the episode's, and were invisible for as
+    # long as the searching happened inside the writing turn.
+    assert notes.usage.model_calls == 1
+
+
+def test_the_packet_the_model_writes_is_graded_and_dated_in_code(monkeypatch,
+                                                                 fake_search):
+    """Three rules from the Exa path, applied to evidence that arrives as
+    prose: no hostname reaches the writer, the grade is computed from the URL
+    rather than taken from the model, and the relative phrase is subtraction."""
+    use_backend(monkeypatch, "claude")
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    researched = asyncio.run(generator.research(
+        plan_episode("what did the fed do today", 3, search=True), ScriptNotes()))
+
+    assert "reuters.com" not in researched.evidence
+    assert "URL:" not in researched.evidence
+    assert ("Source type: " + research.TIER_LABELS["primary"]
+            in researched.evidence)
+    # The model wrote "Published: 2026-09-18" and nothing else; "yesterday" is
+    # subtraction done here, which is the rule §82 paid for.
+    assert "Published: 2026-09-18 (" in researched.evidence
+
+
+def test_a_search_that_cannot_run_leaves_the_episode_answerable(monkeypatch):
+    """A layer that adds quality must not subtract availability. No key, a
+    refusal, a timeout - all of them are an unresearched episode, which is a
+    thing this app already knows how to be."""
+    use_backend(monkeypatch, "claude")
+
+    def broken():
+        raise RuntimeError("no credential")
+
+    monkeypatch.setattr(research, "research_client", broken)
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    plan = plan_episode("what did the fed do today", 3, search=True)
     researched = asyncio.run(generator.research(plan, ScriptNotes()))
-    assert researched.evidence == ""
-    assert "<evidence>" not in build_prompt(researched)
-    assert generator._request_kwargs(researched)["tools"][0]["name"] == "web_search"
+    assert researched is plan
+    assert "tools" not in generator._request_kwargs(researched)
 
 
 def test_an_unresearched_episode_never_retrieves(exa, monkeypatch):
@@ -367,10 +460,16 @@ def test_an_unresearched_episode_never_retrieves(exa, monkeypatch):
     assert not [c for c in exa if "query" in c], "an unresearched episode searched"
 
 
-def test_an_empty_packet_leaves_the_tool_attached(monkeypatch):
-    """Retrieval succeeded and found nothing. The episode is still answerable,
-    and the model searches after all rather than being handed an empty packet
-    and told it is research."""
+def test_an_empty_packet_asks_the_model_to_look_before_writing(monkeypatch,
+                                                                fake_search):
+    """Retrieval succeeded and found nothing usable.
+
+    The old behaviour was to leave the search tool attached to the writing
+    call, which is a fallback to the model's own search that nobody could see
+    and that happened while the episode was being spoken. The same fallback
+    now happens as a retrieval, before the first word, and the episode's own
+    record names the backend that could not serve it.
+    """
     class Empty:
         def __init__(self, key):
             pass
@@ -386,9 +485,169 @@ def test_an_empty_packet_leaves_the_tool_attached(monkeypatch):
 
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("todays news", 3, search=True)
+    notes = ScriptNotes()
+    researched = asyncio.run(generator.research(plan, notes))
+    assert "Rates held at 4.25%" in researched.evidence
+    assert "tools" not in generator._request_kwargs(researched)
+    assert notes.research["fell_back_from"] == "exa"
+
+
+def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_search):
+    """Exa with no key used to raise, and the episode failed. What made that
+    survivable was the cover half speaking underneath it, which is gone - so
+    the other retriever gets one go, and says on the record that it did."""
+    use_backend(monkeypatch, "exa")
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.setitem(sys.modules, "exa_py", None)
+
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    notes = ScriptNotes()
+    researched = asyncio.run(generator.research(
+        plan_episode("todays news", 3, search=True), notes))
+    assert researched.evidence
+    assert notes.research["backend"] == "claude"
+    assert notes.research["fell_back_from"] == "exa"
+
+
+def test_a_report_of_having_found_nothing_is_not_evidence(monkeypatch):
+    """Asked to search and report, a model that finds nothing sometimes
+    writes a sentence saying so. A sentence is non-empty, so it would satisfy
+    `Packet.__bool__`, stop the ladder, suppress the refusal, and land inside
+    the <evidence> block as though it were a source. The test is whether it
+    reported a URL it actually read."""
+    class _Message:
+        stop_reason = "end_turn"
+        usage = None
+        content = [types.SimpleNamespace(
+            type="text",
+            text="I searched and no source reports a result for this yet.")]
+
+    class _Client:
+        messages = types.SimpleNamespace(create=lambda **kw: _answer(_Message()))
+
+    async def _answer(value):
+        return value
+
+    monkeypatch.setattr(research, "research_client", lambda: _Client())
+    packet = asyncio.run(research.retrieve_with_claude("who won"))
+    assert not packet, "prose about finding nothing was taken for evidence"
+    assert packet.context == ""
+
+
+def test_the_searching_client_is_built_once_per_credential(monkeypatch):
+    """Each `AsyncAnthropic` carries its own httpx connection pool, so one
+    per retrieval leaks a pool per researched episode."""
+    built: list = []
+
+    monkeypatch.setattr(research, "_CLIENT", ("", None))
+    monkeypatch.setattr(research.credentials if hasattr(research, "credentials")
+                        else __import__("credentials"), "active",
+                        lambda name: "sk-one")
+    import anthropic_client
+    monkeypatch.setattr(anthropic_client, "build_async_client",
+                        lambda key=None: built.append(key) or object())
+
+    first = research.research_client()
+    assert research.research_client() is first
+    assert len(built) == 1, "a client was built per call"
+
+
+def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
+                                                                 fake_search):
+    """The availability rule, applied to what replaced the thing it was
+    written for.
+
+    `research.retrieve` raises `ResearchUnavailable` for a missing key and
+    raises *whatever the vendor raised* for everything else - a 500, a
+    timeout, a rate limit, a malformed reply. While the from-knowledge cover
+    existed, that was survivable: the cover was already speaking and the
+    researched half simply never arrived. With one stream it is the whole
+    episode, so a blip at a search vendor would be a listener getting no
+    audio at all.
+    """
+    class Broken:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            raise RuntimeError("502 from the index")
+
+    module = types.ModuleType("exa_py")
+    module.Exa = Broken
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    notes = ScriptNotes()
+    researched = asyncio.run(generator.research(
+        plan_episode("todays news", 3, search=True), notes))
+
+    # It did not raise, and it did not give up either: the next rung ran.
+    assert "Rates held at 4.25%" in researched.evidence
+    assert notes.research["fell_back_from"] == "exa"
+
+
+def test_every_rung_failing_is_an_unresearched_episode_not_a_dead_one(monkeypatch):
+    """The bottom of the ladder. Nothing retrieved, and the episode still
+    exists - which is the state an unresearched episode has always been in."""
+    class Broken:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            raise RuntimeError("502 from the index")
+
+    module = types.ModuleType("exa_py")
+    module.Exa = Broken
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    def broken_client():
+        raise RuntimeError("no credential either")
+
+    monkeypatch.setattr(research, "research_client", broken_client)
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    plan = plan_episode("todays news", 3, search=True)
     researched = asyncio.run(generator.research(plan, ScriptNotes()))
-    assert researched.evidence == ""
-    assert "tools" in generator._request_kwargs(researched)
+    assert researched is plan
+    assert "tools" not in generator._request_kwargs(researched)
+
+
+def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
+    """The retry was gated on the brief naming something to establish, and
+    `packet_covers("", [])` is True - so a search that found *absolutely
+    nothing* counted as satisfied and the one retry that exists for this case
+    never ran. The commonest way in is the recency window."""
+    calls: list = []
+
+    class WindowedMiss:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            calls.append(kwargs.get("start_published_date"))
+            # Nothing inside the window; everything outside it.
+            if kwargs.get("start_published_date"):
+                return FakeReply([])
+            return FakeReply(RESULTS, cost=0.0031)
+
+    module = types.ModuleType("exa_py")
+    module.Exa = WindowedMiss
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    packet = asyncio.run(research.retrieve(
+        "what happened overnight",
+        brief=types.SimpleNamespace(recency_days=1, subject="the thing",
+                                    retrieval="what happened overnight",
+                                    must_establish=[])))
+    assert len(calls) == 2, "the windowless second look never ran"
+    assert calls[0] and not calls[1], "the second look must drop the window"
+    assert packet, "the retry found sources and they did not reach the packet"
+    assert packet.retried
 
 
 def test_the_prompt_tells_the_model_not_to_read_sources_aloud(exa, monkeypatch):
@@ -523,7 +782,20 @@ def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
         pytest.skip("this machine can research; nothing to announce")
     messages = [record.getMessage() for record in caplog.records]
     assert any("RESEARCH UNAVAILABLE" in m for m in messages), messages
-    assert any("will FAIL rather than search another way" in m for m in messages)
+    # **What it says changed with §109 and the test had to change with it.**
+    # It used to promise that researched episodes would FAIL; they now fall
+    # down the ladder instead, so the warning names the rungs that will
+    # actually serve. A warning that describes a failure mode the code no
+    # longer has sends the next person looking for the wrong thing.
+    assert any("fall down the ladder" in m for m in messages), messages
+    # Named from `research.ladder()` rather than from a list written out
+    # here, so the warning stays true of whatever this deployment has
+    # switched on - with GDELT=0, the shipped default, it is claude alone.
+    rungs = research.ladder()[1:]
+    assert rungs, "a deployment with no fallback rung at all"
+    assert any(all(rung in m for rung in rungs) for m in messages), (
+        f"the warning must name the rungs that will actually serve: {rungs}")
+    assert not any("will FAIL" in m for m in messages)
     assert any("RESEARCH_BACKEND=claude" in m for m in messages), (
         "the warning must name the working configuration to move to")
 
@@ -636,17 +908,12 @@ def test_a_researched_episode_plays_with_claude_reading_the_exa_packet(exa,
     this suite - the model and the voice. In particular the pipeline, the
     Phase 6 assembler and the duration contract are the real ones.
     """
-    import pipeline as pipeline_mod
     from pipeline import GenerationStats, PodcastPipeline
     from tts import DebugEngine
 
     use_backend(monkeypatch, "exa")
     monkeypatch.setattr(research, "settings",
                         dataclasses.replace(settings, research_backend="exa"))
-    # This test is about the split, so it asks for the cover. Unset,
-    # ANSWER_FIRST now follows the backend and Exa does not get one.
-    monkeypatch.setattr(pipeline_mod, "settings", dataclasses.replace(
-        pipeline_mod.settings, answer_first=True))
 
     seen_prompts: list = []
 
@@ -680,27 +947,19 @@ def test_a_researched_episode_plays_with_claude_reading_the_exa_packet(exa,
 
     assert total > 0, "no audio was produced"
     assert stats.sentences > 0
-    assert seen_prompts, "the generator never ran"
 
-    # This is a researched question, so ANSWER_FIRST split it in two and both
-    # halves came through here. Which half got the evidence is the thing worth
-    # asserting, and it is not the first one:
-    #
-    #   the cover      search=False, answers from knowledge, no retrieval
-    #   the research   search=True, reads the packet
-    #
-    # A single assertion on `seen_prompts[0]` would have been checking the
-    # cover and calling it the researched half.
-    covers = [p for p in seen_prompts if "<evidence>" not in p]
-    researched = [p for p in seen_prompts if "<evidence>" in p]
-    assert covers, "no from-knowledge half ran; the listener waited on Exa"
-    assert researched, "the packet never reached the model"
-    assert "Rates held at 4.25%." in researched[0]
-    assert "Yields fell 6bp." in researched[0], "only one source reached the prompt"
+    # **One prompt, and it has the evidence in it.** This used to be two - a
+    # cover half with no packet, whose words were the ones a listener heard
+    # first, and the researched half behind it. Asserting on `seen_prompts[0]`
+    # was checking the cover and calling it the researched half; now there is
+    # only the one, and the first thing spoken comes out of it. §108.
+    assert len(seen_prompts) == 1
+    assert "<evidence>" in seen_prompts[0]
+    assert "Rates held at 4.25%." in seen_prompts[0]
+    assert "Yields fell 6bp." in seen_prompts[0], "only one source reached the prompt"
 
-    # One retrieval for the episode - not one per sentence, and not one per half.
+    # One retrieval for the episode - not one per sentence.
     assert len([c for c in exa if "query" in c]) == 1
-    assert stats.answered_first is True
     assert stats.audio_seconds <= 60 + 5, "the duration ceiling did not hold"
 
 
@@ -721,21 +980,21 @@ def test_research_runs_once_per_episode_not_once_per_sentence(exa, monkeypatch):
     assert len([c for c in exa if "query" in c]) == 1
 
 
-def test_the_evidence_survives_the_answer_first_split(exa, monkeypatch):
-    """`_answer_first` replaces the plan twice - once for each half. The
-    researched half must keep its evidence through that."""
+def test_the_evidence_survives_being_replaced_onto_the_plan(exa, monkeypatch):
+    """`research` returns a copy rather than mutating, and several steps in
+    `prepare` do the same. The packet must survive all of them."""
     use_backend(monkeypatch, "exa")
     monkeypatch.setattr(research, "settings",
                         dataclasses.replace(settings, research_backend="exa"))
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
 
-    # The cover half: search off, so it must never retrieve.
-    instant = dataclasses.replace(plan, search=False, role="opening")
-    assert asyncio.run(generator.research(instant, ScriptNotes())) is instant
-    assert not [c for c in exa if "query" in c], "the cover half searched"
+    # An unresearched plan never retrieves, whatever the backend is set to.
+    unresearched = dataclasses.replace(plan, search=False)
+    assert asyncio.run(generator.research(unresearched, ScriptNotes())) is unresearched
+    assert not [c for c in exa if "query" in c], "an unresearched episode searched"
 
-    # The researched half retrieves and keeps the packet through `replace`.
-    continuation = dataclasses.replace(plan, search=True, role="continuation")
-    done = asyncio.run(generator.research(continuation, ScriptNotes()))
-    assert done.evidence and done.role == "continuation"
+    done = asyncio.run(generator.research(plan, ScriptNotes()))
+    assert done.evidence
+    assert dataclasses.replace(done, minutes=5).evidence == done.evidence
+

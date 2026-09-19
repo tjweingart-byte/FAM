@@ -161,18 +161,26 @@ def main() -> int:
     # something to discover by asking about today's news.
     research_ok, research_detail = research.diagnose()
     backend = settings.research_backend
+    rungs = research.ladder()
     if backend == "claude":
-        say(f"  research   {BOLD}claude{RESET} - the model searches during the call "
-            f"(costs 10-25s before the first word)")
+        say(f"  research   {BOLD}claude{RESET} - one search call before the writing "
+            f"call (costs 10-25s before the first word)")
     elif research_ok:
         say(f"  research   {BOLD}exa{RESET} - retrieves first, then Claude writes "
             f"from the packet")
     else:
+        # **Not "will FAIL" any more** (§109). Every researched episode falls
+        # down the ladder instead, so this says what will actually serve -
+        # and a preflight describing a failure mode the code no longer has is
+        # exactly the thing this file exists to prevent.
         say(f"  research   {BOLD}UNAVAILABLE{RESET} - backend is \"exa\" but "
             f"{research_detail}.")
-        say(f"{DIM}             A time-sensitive question ('latest', 'today', a score) "
-            f"will FAIL,")
-        say(f"             not fall back. Everything else is unaffected.")
+        say(f"{DIM}             Researched questions fall to "
+            f"{' then '.join(rungs[1:]) or 'nothing else'} - slower, weaker "
+            f"evidence.")
+        say(f"             A question that turns on today's facts and finds "
+            f"nothing is refused,")
+        say(f"             not guessed. Everything else is unaffected.")
         say(f"             Fix: pip install -r requirements-exa.txt and set "
             f"EXA_API_KEY,")
         say(f"             or set RESEARCH_BACKEND=claude.{RESET}")
@@ -192,7 +200,8 @@ def main() -> int:
 
     say(f"\n{BOLD}What each tab will do{RESET}")
     fresh = "writes a real episode" if live else "plays the canned sample"
-    researched = ("  ·  a time-sensitive question will FAIL (research unavailable)"
+    researched = ("  ·  research falls back to "
+                  f"{' then '.join(research.ladder()[1:]) or 'nothing'}"
                   if settings.research_backend == "exa" and not research_ok else "")
     say(f"  search     type anything, pick a length  ->  {fresh}{researched}")
     say(f"  myFAM      tap a tile  ->  {fresh}; rails rank the shared bank")

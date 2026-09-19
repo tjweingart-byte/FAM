@@ -82,28 +82,23 @@ ENV FAM_STATE=/state \
 # that sets nothing still gets the configuration that was validated.
 ENV STREAMING_PIPELINE=phase6 \
     RESEARCH_BACKEND=exa \
-    CHATTERBOX_DEVICE=auto \
-    ANSWER_FIRST=1
+    CHATTERBOX_DEVICE=auto
 
-# Why ANSWER_FIRST is pinned here and not left to the code default.
+# **ANSWER_FIRST is gone, and this image is where it did its damage.**
 #
-# `config.py` derives it from the research backend: Claude's own search is slow
-# enough to need the from-knowledge cover, Exa is not, so `exa` implies
-# `answer_first=False`. That reasoning is sound and is left alone - the RunPod
-# run behind it measured the cover speaking 85.8 seconds before research took
-# over, which is most of an episode spent on what the model already knew.
+# It pinned on a from-knowledge cover: a second model call with no tools that
+# started speaking immediately while research was still reading. The line was
+# added because the configuration that had been *listened to* ran with the
+# cover on, and the code default had since flipped the other way - so the
+# image reproduced what was validated.
 #
-# But the configuration that was *listened to* and judged good - Phase 6,
-# Chatterbox, reference_3, ~4.5s and ~2.992s to first audio, research handing
-# off mid-episode - ran with the cover ON. It predates that derivation
-# (commit 91d9dad), and `tools/pod_production_test.sh` never set the variable,
-# so it inherited a default that has since flipped. Deploying without pinning
-# it would ship a configuration nobody has heard.
-#
-# So the image reproduces what was validated, and the code default keeps its
-# own reasoning for everything else. Remove this line once
-# `ANSWER_FIRST=1 bash tools/pod_production_test.sh` has been run on a card and
-# the numbers say which behaviour belongs in `config.py`.
+# What that shipped was an opening written with no brief, no evidence and no
+# idea what the episode was about, in front of a researched episode that was
+# fine. The listener's report was exactly that: the first ten seconds make no
+# sense, and the rest is almost perfect. The whole mechanism is deleted in
+# PROBLEMS.md §108 - and this line is the reason it had to be deleted rather
+# than defaulted off, because a knob left behind gets turned back on, and this
+# one was turned back on here.
 
 RUN mkdir -p /state/hf /state/voices /state/data
 

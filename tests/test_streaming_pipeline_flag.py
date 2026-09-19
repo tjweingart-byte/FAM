@@ -109,8 +109,9 @@ def test_the_refusal_names_the_value_and_the_alternatives(monkeypatch):
 
 
 def test_validation_also_catches_a_replaced_settings_object():
-    """`pipeline._answer_first` builds its plans with dataclasses.replace, so
-    validation that only ran on the environment would have a hole in it."""
+    """Several call sites build their plans and settings with
+    dataclasses.replace, so validation that only ran on the environment would
+    have a hole in it."""
     import dataclasses
 
     with pytest.raises(ValueError, match="not a pipeline"):

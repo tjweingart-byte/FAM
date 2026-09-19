@@ -85,6 +85,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
+import research
 from config import PREFETCH_LEVELS, settings
 
 log = logging.getLogger(__name__)
@@ -305,6 +306,12 @@ class Ledger:
     #: the kind of episode that keeps. A prefetcher whose refusals look like
     #: faults cannot be tuned.
     skipped_volatile: int = 0
+    #: Warms that stopped because every retriever came back empty on a
+    #: question that turns on current facts - `research.NoEvidence`. Counted
+    #: beside `skipped_volatile` and for the same reason: nothing went wrong,
+    #: and a refusal filed as a fault makes the one number this module exists
+    #: to produce read as a broken prefetcher. §109.
+    skipped_unevidenced: int = 0
     failures: int = 0
 
     #: How many briefs were warmed, and how many taps used one. Counted apart
@@ -378,6 +385,7 @@ class Ledger:
                                if self.briefs_warmed else None),
             "skipped_already_cached": self.skipped_already_cached,
             "skipped_volatile": self.skipped_volatile,
+            "skipped_unevidenced": self.skipped_unevidenced,
             "failures": self.failures,
             "by_source": {k: dict(v) for k, v in sorted(self.by_source.items())},
         }
@@ -631,6 +639,14 @@ class Prefetcher:
         async with self._lock:
             try:
                 return await self._warm(candidate, level)
+            except research.NoEvidence:
+                # Not a fault. FAM declined to write this episode from
+                # memory, which is the same answer a live tap would get.
+                self.ledger.skipped_unevidenced += 1
+                log.info("prefetch found nothing to write %r from (%s); "
+                         "leaving it for the tap", candidate.query,
+                         candidate.source)
+                return "no_evidence"
             except Exception as exc:  # noqa: BLE001 - see docstring
                 self.ledger.failures += 1
                 log.warning("prefetch failed for %r (%s): %s",

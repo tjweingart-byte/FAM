@@ -7,8 +7,9 @@ draining - swallowing the cancellation and blocking forever. `close()` then
 never returned.
 
 Reachable wherever `_speak` leaves early with the producer still mid-stream: a
-truncated episode, a failure part-way through, and every `_answer_first`
-handover, which closes its instant pump early by design.
+truncated episode, and a failure part-way through. It was reachable on every
+answer-first handover too, which closed its cover pump early by design; that
+path is gone (§108) and these two remain.
 
 Every close below is bounded by the clock. `wait_for` alone would not reveal
 the bug - `close()` swallows the timeout cancellation and returns normally - so
@@ -223,32 +224,3 @@ def test_a_truncated_episode_does_not_hang():
 
     truncated, total = asyncio.run(asyncio.wait_for(main(), 10))
     assert truncated and total > 0
-
-
-def test_the_answer_first_handover_does_not_hang():
-    """`_answer_first` closes its instant pump the moment research is ready.
-    That producer is mid-stream by construction."""
-    class Instant(Endless):
-        async def stream_sentences(self, plan, notes=None):
-            if getattr(plan, "role", "") == "continuation":
-                for _ in range(30):
-                    await asyncio.sleep(0)
-                    yield sized(12)
-                return
-            async for s in Endless.stream_sentences(self, plan, notes):
-                yield s
-
-    async def main():
-        pipe = PodcastPipeline(generator=Instant(), engine=ENGINE, cache=None)
-        plan = plan_episode("q", 3)
-        plan = type(plan)(**{**plan.__dict__, "search": True})
-        stats = GenerationStats()
-        pace = PaceController(target_seconds=180.0, total_words=450,
-                              sample_rate=ENGINE.sample_rate)
-        total = 0
-        async for chunk in pipe._answer_first(plan, pace, stats, ScriptNotes()):
-            total += len(chunk)
-        return stats.answered_first, total
-
-    answered, total = asyncio.run(asyncio.wait_for(main(), 10))
-    assert answered and total > 0

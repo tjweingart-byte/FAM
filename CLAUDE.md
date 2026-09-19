@@ -58,15 +58,22 @@ Corollary: **latency is answered by starting earlier, never by filling the
 gap.** The cold open tried to fill it and was removed. Prefetch on the browse
 surfaces; on search, keep the work small enough that there is no gap to fill.
 
-**On search, that is now literal** (PROBLEMS.md §56). A question that needs
-today's facts starts two calls at once: one with no tools that begins writing
-immediately, one with search that is still reading. The first is spoken while
-the second works and hands over the moment research has a sentence. The wait is
-covered by the answer rather than by filler - which is exactly what the cold
-open could not be, since it was told to state no facts. `ANSWER_FIRST_SHARE`
-caps the instant half at half the episode, because synthesis outruns research
-and without a ceiling the from-knowledge half finishes the whole episode and the
-research is never heard.
+**On search that once meant two calls at once, and no longer does**
+*(PROBLEMS.md §56, reversed by §108).* A question that needed today's facts
+started a from-knowledge call that began speaking immediately and a researched
+call that was still reading, and handed over mid-episode. It covered the wait
+with an answer rather than with filler, which is more than the cold open ever
+managed - and the half a listener heard **first** was the half that had been
+given no brief, no evidence and no idea what the episode was about. Heard on a
+real machine that is a confusing opening in front of a good episode, which is
+exactly what came back from listening.
+
+So the whole mechanism is deleted. **On search, the wait is now in front of
+the first word and is honest about it**: the brief, the retrieval and the
+writer's own planning all happen before anything is spoken. Starting earlier
+is still the answer to latency - it is just that on search there is nothing
+left to start earlier than the tap, which is why the browse surfaces, where
+there is, matter more than they did.
 
 ## The one-sentence spec
 
@@ -96,13 +103,30 @@ seconds is.
 > `EPISODE_INTELLIGENCE=0` restores the old latency exactly, and with it the
 > old behaviour: the raw query goes to Exa, with no structure, no why-now and
 > no temporal cautions.
+>
+> **Amended again, on the same terms and at the same direction**
+> *(PROBLEMS.md §108).* Every guardrail that traded the opening's quality for
+> time to first audio is gone: nothing is written before the retrieval
+> finishes, on either backend, and the writing call reasons at `EFFORT=high`
+> before its first token rather than starting to talk and deciding as it
+> goes. **So search now waits for the whole picture, and says so while it
+> waits.** The thing that was bought with those seconds was an opening written
+> by a model that had been told nothing, in front of an episode that was fine
+> - and a listener judges the product on the first ten seconds. Again: the
+> writing is the product.
+>
+> **This amendment is also for search only**, for exactly the reason above -
+> a browse tap's brief is warmed before the finger lands, and Explore
+> generates nothing.
 
-What that rules out, learned the hard way: live web search on every query (it
-front-loads 10-25 seconds), the slowest model by default, and any form of
-preamble used to disguise a wait. Search is now opt-in per request; the default
-answers from what the model already knows, immediately.
+What that rules out, learned the hard way: any form of preamble used to
+disguise a wait, and any text spoken before the material it is about has
+arrived. Both were tried; the cold open (§55) filled the wait with nothing and
+the from-knowledge cover (§108) filled it with the wrong thing.
 
-Measured on the current build: **0.5s to first audio, no gaps.**
+Measured before §82 and §108 put research and planning in front of the first
+word: **0.5s to first audio, no gaps.** Nobody has measured it since, and it
+is now several seconds by construction.
 
 **A slow answer is a scheduling choice, not a property of the work.** The wait
 only exists if generation starts when the button is pressed - measured, starting
@@ -267,6 +291,19 @@ more words on the same material. **No amount of prompt work would have fixed
 any of those.** `episode_intelligence.py` decides what to search for before Exa
 is called, `research.build_packet` now dates and grades every source, and
 `DEPTH_BANDS` says what each band of minutes is *for*.
+
+**And a third cause, which was the largest of the three and was also not the
+prompt** *(PROBLEMS.md §108).* The reported failure was specific: the first
+couple of sentences make no sense as a response to what was typed, and the
+rest of the episode is almost perfect. That shape is two texts written under
+two conditions, and FAM was producing exactly that - a from-knowledge cover
+half with no brief and no evidence, speaking while the researched half read.
+**Everything that traded the opening for time to first audio is now gone**:
+the cover, the search tool on the writing call, the EI skip on unresearched
+episodes, and `EFFORT=low`. Nothing is written until the writer holds the
+brief and the evidence, and the prompt asks it to decide the whole piece
+before it opens. Unheard - there is no key here - and it is the first thing
+to listen for.
 
 **`write.py` now prints the brief above the script, and that split is the
 point.** A weak episode is either a weak brief or a weak script written from a
@@ -695,6 +732,25 @@ the rest of this list it needs taste rather than a key.
   the case that proved it: its button returned early whenever `isActive()` was
   false, which is exactly the state that bar is in most often - still on
   screen after the episode finished, with a play button that did nothing.
+- **Nothing speaks before the thing it is about has arrived, and no setting
+  buys that back.** *(PROBLEMS.md §108, at the owner's explicit direction.)*
+  Twice now this product has tried to spend the opening on latency: the cold
+  open filled the wait with contentless speech, and the answer-first cover
+  filled it with an answer written by a call that had been given no brief and
+  no evidence. Both were deleted rather than switched off, both had to be
+  deleted twice because a knob left behind was turned back on - an example
+  file the first time, `Dockerfile.gpu` the second.
+  So the rule is on the *order*, not on any one mechanism: **the writer holds
+  the brief and the evidence before its first token, and has the budget to
+  decide what the whole episode is before it writes the first sentence of
+  it.** Retrieval before writing on both backends, no tools on the call that
+  speaks, episode intelligence on every episode, `EFFORT=high`. A change that
+  reintroduces a text produced before its material is a regression however
+  much time it saves, because the first ten seconds are the only part a
+  listener uses to decide whether there will be an eleventh.
+  What may still be spent on latency: anything **before** the tap. That is
+  what prefetch is, and it is why the browse surfaces get to be instant while
+  search waits.
 - **No filler, ever, and no setting for it.** The cold open was deleted, not
   disabled - a knob left behind is an invitation to turn it back on, and this
   one was turned back on by an example file. Nothing plays until the real
@@ -715,16 +771,58 @@ the rest of this list it needs taste rather than a key.
   word, and the next question it misses is already written.
   `auto` and `never` are kept and are **not production** — offline `write.py`,
   `tools/compare_search.py`, a deployment with no Exa key. `search=1`/`search=0`
-  on a request still wins. This does not reopen the one-sentence spec: half a
-  second is not seconds in front of the first word, and if that ever stops being
-  true the answer is `ANSWER_FIRST=1`, not guessing again.
-  **And a tool is not an instruction** *(§77).* When an episode is researched
-  and no evidence packet came back — `RESEARCH_BACKEND=claude`, or Exa finding
-  nothing usable — `_request_kwargs` attaches the `web_search` tool, and
-  `build_prompt` must *ask the model to use it*. It did not, for as long as the
-  tool has existed; always-on research turned that from a rare case into every
-  episode, which is how it was finally seen. The packet and the tool stay
-  alternatives, never both.
+  on a request still wins. This no longer has to defend the one-sentence spec
+  either way: §108 amended it, and research is now openly one of the things
+  paid for in front of the first word.
+  **And an empty search is a ladder, never a shrug** *(§109, §110).* The
+  rungs, in cost order, stopping at the first with evidence: the configured
+  backend, the same backend with the recency window dropped, **GDELT**
+  (keyless, one HTTP call - promoted from additive cross-check to a retriever
+  of its own), then the model's own search, last because it is 10-25 seconds.
+  `research.ladder()` is the **one** definition of that order and it lists
+  only rungs that can actually serve - a GDELT switched off is not a rung -
+  and the runtime, `/api/health` and the startup warning all read it rather
+  than keeping a second copy. Every rung that runs is metered even when its
+  packet is discarded, every rung gets the same sufficiency check, and
+  evidence means a source was *read*: a model's prose about having found
+  nothing is not a packet. **No rung may
+  raise** - `research.retrieve` raises whatever the vendor raised, and with one
+  stream that is the whole episode, so a 502 at a search vendor used to be a
+  listener hearing nothing. Every fallback is recorded (`fell_back_from` on the
+  packet, `notes.research` on the episode): the rule was never "do not fall
+  back", it is **never fall back silently**.
+  At the bottom, `research.NoEvidence` refuses the episode rather than writing
+  it from memory - **and only when the question turns on something current**,
+  by the precedence `cache.ttl_for` already uses: a live state ends the
+  question, then `outcome_dependent`, then any recency window, then the keyword
+  floor for a degraded brief. An evergreen question is never refused, because
+  there the model's knowledge is accurate and a refusal is the worse answer.
+  The check lives in `prepare`, not `research`, because that is the first point
+  where the live lookup and the retrieval have both answered - a score from a
+  provider answers the question whether or not an article exists yet. And a
+  refused episode is refunded whatever was billed, the one exception to
+  `_refund_if_unspent`'s rule: the spend was FAM's decision, not the
+  listener's. An **attachment is evidence** and is never refused - the
+  listener supplied the document the episode is built on.
+  **And EI is where an empty search is cheapest to prevent** *(§110).* It is
+  a model call that is already being made, so it writes a second, broader
+  query in the same breath as the precise one (`Brief.broader`, which every
+  rung after the first asks), and sets the recency window to the widest span
+  that is still honest, with `RECENCY_FLOOR_DAYS` as the floor - the window
+  is a filter, so one that is too narrow returns nothing while one that is
+  too wide costs nothing. That is the only latency this layer may spend on
+  the problem: a handful of output tokens, never a second call.
+  **And the research finishes before the writing starts — on both backends**
+  *(§108, replacing §77's "a tool is not an instruction").* When no evidence
+  packet came back — `RESEARCH_BACKEND=claude`, or Exa finding nothing usable
+  — the `web_search` tool used to be attached to the **writing** call, so the
+  model searched while it wrote and the first sentence was composed before
+  anything had been read. §77 made the prompt ask it to search first, which is
+  a mitigation of an ordering. The ordering is fixed instead: the model's own
+  search is a **retrieval of its own** (`research.retrieve_with_claude`), its
+  report is shaped into the same packet Exa produces, and **the call that
+  speaks carries no tools at all**. A packet is now the only way evidence
+  reaches the writer, which is one path rather than two.
 - **Something decides what to search for, before the search.** *(PROBLEMS.md
   §82.)* `episode_intelligence.py` runs one model call between the typed
   question and Exa and produces a `Brief`: intent, resolved subject, a why-now
@@ -798,30 +896,34 @@ the rest of this list it needs taste rather than a key.
   live game. Situating is different from orienting: it says where the listener
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
-- **The opening is written before the facts land, and it must not say so.**
-  *(PROBLEMS.md §94.)* A researched episode's first words are produced while
-  the sources are still being read - by `_answer_first`'s cover half, which
-  has no packet by construction, or by a model that has not yet called the
-  search tool. Asked what happened last night while holding nothing about last
-  night, a lone answerer should say so; **it is not a lone answerer**, and
-  nothing had told it that. So the opening brief now says plainly that the
-  specifics are already on their way and its job is the runway they land on,
-  and it is given the thing to write instead - the situation, which is true
-  whatever the result was. A ban with no alternative is what produced the
-  disclaimer: there is no "what this is and how it works" under `Dodgers game
-  last night`.
-  The line the ban must respect, because §88 was paid for in a wrong final
-  score: **where something stands in the world is the episode - "the game is in
-  the seventh" - and where it stands in our notes never is.** Not having
-  something is a fact about our own reading.
-  And `OpeningGuard` enforces it in code, because this rule was already in the
-  prompt when the Dodgers episode broke it. It looks only at the head of a
-  stream, switches off permanently once one real sentence is through, takes a
-  dangling justification with the disclaimer it belongs to, ignores quoted
-  speech, and **speaks a half that is nothing but disclaimer rather than
-  leaving silence**. Every drop is logged, carried on
-  `ScriptNotes.meta_openings` and printed by `write.py`: the guard firing means
-  the prompt did not hold, which is a thing to fix rather than to absorb.
+- **The opening is written last in the order that matters: nothing is spoken
+  until the writer holds the whole picture.** *(PROBLEMS.md §94, and §108,
+  which fixed its cause rather than its symptom.)* A researched episode's
+  first words used to be produced while the sources were still being read - by
+  the answer-first cover half, which had no packet by construction, or by a
+  model that had not yet called the search tool. Asked what happened last
+  night while holding nothing about last night, a lone answerer should say so,
+  and one of them did, on air.
+  §94 told it that it was not a lone answerer. **§108 stopped putting it in
+  that position**: the cover is deleted, the model's own search is a retrieval
+  that finishes first, and the writing call reasons at `EFFORT=high` before
+  its first token - so it decides what the whole episode is, from the brief
+  and the evidence, and *then* opens. The prompt says exactly that, and adds
+  the test the opening has to pass: read the first two sentences back against
+  what the listener typed, and if they would also open an episode about
+  something else, it has not started yet.
+  The line this all respects, because §88 was paid for in a wrong final score:
+  **where something stands in the world is the episode - "the game is in the
+  seventh" - and where it stands in our notes never is.** Not having something
+  is a fact about our own reading.
+  And `OpeningGuard` stays, because a packet can still come back thin. It
+  looks only at the head of a stream, switches off permanently once one real
+  sentence is through, takes a dangling justification with the disclaimer it
+  belongs to, ignores quoted speech, and **speaks a half that is nothing but
+  disclaimer rather than leaving silence**. Every drop is logged, carried on
+  `ScriptNotes.meta_openings` and printed by `write.py` - and now means
+  something sharper than it did: the retrieval came back thin, not that the
+  writer was guessing.
 - **Live captions are live now, and so are the sources.** *(§107, revising
   §104's "captions read the cache", `live_captions.py`, `PROVENANCE.md`.)*
   §104 wired both panels to the script cache. That was right for a replay and
@@ -1488,9 +1590,10 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §107 is the
-most recent, and is where four databases turned out to be discarded on every
-redeploy and captions turned out to be reading a cache that is written last), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§110 are
+the most recent: the opening of every researched episode turned out to be
+written by the half that knew least, and what happens when the search comes
+back empty turned out to be "write it from memory anyway"), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

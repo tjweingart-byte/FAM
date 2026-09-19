@@ -12,11 +12,15 @@ minutes, factually perfect from its fifth sentence onwards - opened like this:
 and then gave the score, the pitcher, both home runs and the magic number.
 
 The writing was not the problem. The *order of events* was: on a researched
-episode the opening words are written before the sources land, so the half
-writing them is answering a question it does not yet hold the answer to - and
-a lone answerer in that position is right to say so. It is not a lone
-answerer. These tests hold both halves of the fix: the prompt telling it that,
-and the guard that catches it when the prompt does not hold.
+episode the opening words were written before the sources landed, so the half
+writing them was answering a question it did not yet hold the answer to - and
+a lone answerer in that position is right to say so.
+
+§108 removed the order of events rather than the sentence. Nothing writes
+before retrieval finishes now, on either backend, and the call that speaks
+carries no search tool. These tests hold that - and they keep the guard,
+because a packet can still come back thin, and a model handed one can still
+reach for a disclaimer.
 """
 from __future__ import annotations
 
@@ -31,8 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import script_generator as sg  # noqa: E402
 from script_generator import (  # noqa: E402
-    ROLE_BRIEFS, OpeningGuard, ScriptNotes, build_prompt, is_meta_sentence,
-    plan_episode,
+    OpeningGuard, ScriptNotes, build_prompt, is_meta_sentence, plan_episode,
 )
 
 # The reported opener, sentence by sentence, exactly as it was spoken.
@@ -189,7 +192,7 @@ def _generator(text):
 
 def test_the_pipeline_never_sees_the_dropped_sentences():
     """`stream_sentences` is where every entry point meets the model - the
-    pipeline, the cover half, `write.py` - so the guard lives there and nothing
+    pipeline, `write.py`, a top-up - so the guard lives there and nothing
     downstream has to know about it."""
     gen = _generator(" ".join(DODGERS))
     notes = ScriptNotes()
@@ -208,31 +211,54 @@ def test_the_pipeline_never_sees_the_dropped_sentences():
 
 
 # --------------------------------------------------------------------------
-# the prompt, which is the half that stops it being written at all
+# the order of events, which is the half that stops it being written at all
 # --------------------------------------------------------------------------
-def test_the_opening_is_told_the_facts_are_coming():
-    """The user's own reading of the failure, and the right one: the half
-    writing the first sentences does not know that the rest of the episode is
-    already being retrieved underneath it."""
-    brief = ROLE_BRIEFS["opening"]
-    assert "already on their way" in brief
-    assert "take over from you" in brief
-    assert "runway" in brief
+def test_the_call_that_speaks_never_carries_a_search_tool():
+    """The whole of §108 in one assertion.
+
+    While the tool was attached to the writing call, the model could - and
+    did - emit a sentence before calling it, and that sentence was spoken.
+    Retrieval is its own call now, so by the time this one runs the looking
+    is over.
+    """
+    gen = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    for plan in (
+        dataclasses.replace(plan_episode("dodgers game last night", 3),
+                            search=True),
+        dataclasses.replace(plan_episode("dodgers game last night", 3),
+                            search=True, evidence="SOURCE 1\nTitle: x"),
+        plan_episode("what is the NASDAQ", 3),
+    ):
+        assert "tools" not in gen._request_kwargs(plan)
 
 
-def test_the_opening_is_told_not_to_narrate_what_it_lacks():
-    brief = ROLE_BRIEFS["opening"]
-    assert "Never say what you do not have" in brief
-    for banned in ("I don't have", "I can't confirm", "I'm not going to guess"):
-        assert banned in brief, f"{banned!r} is not named as the failure it was"
+def test_nothing_tells_the_writer_to_go_and_search():
+    """The `research_now` block went with the tool. A prompt that asks the
+    model to search would now be asking it to do again, mid-episode, what has
+    already been done - at 10-25 seconds a time, with the listener waiting."""
+    plan = dataclasses.replace(plan_episode("dodgers game last night", 3),
+                               search=True)
+    text = build_prompt(plan)
+    for gone in ("Write nothing at all until you have searched",
+                 "you have a web search tool",
+                 "Search first, then write"):
+        assert gone not in text
 
 
-def test_the_opening_is_given_something_to_write_instead():
-    """A ban with no alternative is why it hedged: for "Dodgers game last
-    night" there is no "what this is and how it works" to fall back on."""
-    brief = ROLE_BRIEFS["opening"]
-    assert "put them in the situation" in brief
-    assert "whatever the result was" in brief
+def test_there_is_no_opening_half_to_brief():
+    """`role` and ROLE_BRIEFS are deleted, not defaulted off. A half written
+    from nothing cannot be prompted into knowing something."""
+    assert not hasattr(sg, "ROLE_BRIEFS")
+    assert "role" not in {f.name for f in dataclasses.fields(sg.EpisodePlan)}
+
+
+def test_the_writer_is_told_to_decide_the_episode_before_it_opens():
+    """The positive half of the fix. The opening is still written first and
+    heard first; what changed is that everything needed to write it is now in
+    front of the model when it does."""
+    text = build_prompt(plan_episode("dodgers game last night", 3))
+    assert "Decide the whole piece before you write the first word" in text
+    assert "would also open an episode about something else" in text
 
 
 def test_the_house_rules_draw_the_line_where_it_actually_falls():
@@ -243,18 +269,3 @@ def test_the_house_rules_draw_the_line_where_it_actually_falls():
     assert "Never say what you do not have" in prompt
     assert "where it stands in your notes never is" in prompt
     assert "the game is in the seventh" in prompt
-
-
-def test_the_searching_half_is_told_to_search_before_it_writes():
-    """The other path that writes before it knows: the tool is attached and the
-    model can emit a sentence before it calls it."""
-    plan = dataclasses.replace(plan_episode("dodgers game last night", 3),
-                               search=True)
-    text = build_prompt(plan)
-    assert "Write nothing at all until you have searched" in text
-    assert "before any of the rest exists" in text
-
-
-def test_a_whole_episode_is_still_never_handed_the_opening_brief():
-    text = build_prompt(plan_episode("what is the NASDAQ", 3))
-    assert "runway" not in text

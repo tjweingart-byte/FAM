@@ -138,7 +138,7 @@ is *published* as a finished episode.
 
 The volatility facts reach the write site on `ScriptNotes`, not on the plan:
 the caller holds the **unprepared** plan (`stream_sentences` rebinds it via
-`prepare`, and `_answer_first` derives two more), so `plan.brief` and
+`prepare`), so `plan.brief` and
 `plan.live` are always `None` there.
 
 ## Entity-level caching

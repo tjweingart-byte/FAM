@@ -222,6 +222,11 @@ class Brief:
     why_now_confidence: str = "low"
     #: What actually goes to Exa. The single highest-value field here.
     search_query: str = ""
+    #: The same search, broader, for when the first comes back with nothing.
+    #: Written in the same call as `search_query` and costing a handful of
+    #: output tokens, which is what makes it affordable: §82 ruled out a model
+    #: call to rephrase a thin search, and this is not one. §109.
+    search_fallback: str = ""
     #: What the evidence has to contain for this episode to be worth making.
     #: Read by the sufficiency check, which retries once when the packet
     #: mentions none of it.
@@ -262,8 +267,51 @@ class Brief:
         """The string to actually search for. Never empty."""
         return (self.search_query or self.query).strip()
 
+    @property
+    def broader(self) -> str:
+        """What to search when `retrieval` came back with nothing.
+
+        EI's own broader phrasing, then the resolved subject, then the raw
+        query - in that order, because each is a wider net than the one
+        before and the last two exist for a degraded brief, which has no
+        fallback of its own. Never equal to `retrieval`: searching the same
+        string twice is a second search that cannot find anything new.
+        """
+        for candidate in (self.search_fallback, self.subject, self.query):
+            text = (candidate or "").strip()
+            if text and text.lower() != self.retrieval.lower():
+                return text
+        return ""
+
     def as_dict(self) -> dict:
         return dataclasses.asdict(self)
+
+
+#: The narrowest recency window FAM will actually apply, in days.
+#:
+#: The window is a *filter*: nothing published outside it is even considered.
+#: A one-day window on a subject nothing was published about yesterday returns
+#: zero results, and an empty search is the worst outcome retrieval has (§109).
+#: Widening it costs almost nothing, because `rank_results` sorts newest-first
+#: within a grade anyway - so a two-day window still answers "last night" with
+#: last night's report when one exists, and answers it at all when one does
+#: not. The packet carries every source's date and the writer computes the
+#: relative phrase from it, so a two-day-old source is spoken of as two days
+#: old rather than as last night.
+#:
+#: Zero is untouched and means evergreen: no window at all.
+RECENCY_FLOOR_DAYS = 2
+
+
+def _window(days) -> int:
+    """The recency window to apply, with the floor above enforced."""
+    try:
+        asked = int(days or 0)
+    except (TypeError, ValueError):
+        return 0
+    if asked <= 0:
+        return 0
+    return max(asked, RECENCY_FLOOR_DAYS)
 
 
 def fallback_brief(query: str, reason: str) -> Brief:
@@ -396,11 +444,20 @@ def gate(brief: Brief, query: str) -> Brief:
             f"the question; searching what was asked instead")
         brief.search_query = query.strip()
 
+    # **One place decides the window**, and this is it - the gate is where
+    # every other field of the brief is normalised, so a floor applied at
+    # parse time would have been a second rule in a second place, with the
+    # 14-day default below able to walk past it.
     try:
-        brief.recency_days = max(0, int(brief.recency_days))
+        asked = max(0, int(brief.recency_days))
     except (TypeError, ValueError):
         problems.append("recency window was not a number")
-        brief.recency_days = 0
+        asked = 0
+    brief.recency_days = _window(asked)
+    if brief.recency_days != asked:
+        problems.append(
+            f"a {asked}-day window is narrow enough to return nothing; "
+            f"widened to {brief.recency_days}")
 
     # A recap or an update is a question about a moment. Retrieved without a
     # window it competes against every well-ranked article ever written on the
@@ -410,7 +467,7 @@ def gate(brief: Brief, query: str) -> Brief:
         problems.append(
             f"a {brief.intent} with no recency window; defaulting to "
             f"{settings.ei_default_recency_days} days")
-        brief.recency_days = settings.ei_default_recency_days
+        brief.recency_days = _window(settings.ei_default_recency_days)
 
     # A question whose answer is a result is outcome-dependent whether or not
     # the model said so. Both of these are asking for something that does not
@@ -463,6 +520,14 @@ BRIEF_SCHEMA = {
         "why_now": {"type": "string"},
         "why_now_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "search_query": {"type": "string"},
+        # **The broader one, written in the same breath as the precise one.**
+        # An empty search is most often a query that was too specific for the
+        # index rather than a subject nothing was published about, and the
+        # cheapest possible rephrasing is the one that costs no second call:
+        # EI already has the request in front of it, so it writes both. §109,
+        # and it is the reason §82's "never a model call to rephrase" is
+        # untouched - this is not another call.
+        "search_fallback": {"type": "string"},
         "must_establish": {"type": "array", "items": {"type": "string"}},
         "recency_days": {"type": "integer"},
         "structure": {"type": "string", "enum": list(PICKABLE_STRUCTURES)},
@@ -481,8 +546,9 @@ BRIEF_SCHEMA = {
         "outcome_dependent": {"type": "boolean"},
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
-                 "search_query", "must_establish", "recency_days", "structure",
-                 "cautions", "live_domain", "outcome_dependent"],
+                 "search_query", "search_fallback", "must_establish",
+                 "recency_days", "structure", "cautions", "live_domain",
+                 "outcome_dependent"],
     "additionalProperties": False,
 }
 
@@ -499,6 +565,12 @@ to a neural search engine over news and web content. Write what a good \
 researcher would type - the resolved subject, the specific event or figure \
 wanted, and the words that would appear in a report of it. Not a question, not \
 a sentence, and never just the listener's words repeated back.
+
+**A search that comes back empty is the worst outcome here**, worse than one \
+that comes back broad: the episode is then written from memory of unknown age, \
+or not written at all. So you write two queries - the precise one, and a \
+broader one to fall back to - and you set the recency window to the widest \
+span that still answers the question.
 
 Judge the "why now" honestly. If a dominant recent event plausibly explains the \
 question, say so and mark it high. If several might, say the most likely one \
@@ -544,12 +616,23 @@ Work out:
   if any, and **why_now_confidence** for how sure that is. Nothing plausible
   means empty and low. Do not claim to know their motive.
 - **search_query** - what to actually search for. See the rules above.
+- **search_fallback** - the same search, broader, for when the first one comes
+  back with nothing. Drop the qualifiers and keep the subject: if the first is
+  "Bank of England November rate decision vote split", this is "Bank of England
+  interest rate decision". It should be hard for this one to return nothing at
+  all. Never identical to the first, and never so broad it is a different
+  subject.
 - **must_establish** - the two to four things the evidence has to contain for
   this episode to work. Short noun phrases, not sentences. These are checked
   against what comes back, so make them things a report would actually say.
 - **recency_days** - how recent evidence must be to answer this. A question
   about a specific recent event is days; a question about how something works
-  is 0, meaning age does not matter.
+  is 0, meaning age does not matter. **Give the widest window that is still
+  honest**, not the narrowest that would do. This filters what the search may
+  even consider, and the evidence is sorted newest-first inside it anyway - so
+  a window that is too wide costs nothing and a window that is too narrow
+  returns nothing at all. "Last night" is answered as well by two days as by
+  one.
 - **structure** - the shape this story takes. Pick the one that fits the
   material, not the one that sounds most dramatic; `general` if none fits.
 - **cautions** - what the writer must not assume, especially about time. If
@@ -636,6 +719,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         why_now=str(data.get("why_now", "")),
         why_now_confidence=str(data.get("why_now_confidence", "")),
         search_query=str(data.get("search_query", "")),
+        search_fallback=str(data.get("search_fallback", "")),
         must_establish=list(data.get("must_establish") or []),
         recency_days=data.get("recency_days", 0),
         structure=str(data.get("structure", "")),
@@ -645,9 +729,11 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     )
     brief = gate(brief, query)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
-             "why_now=%s(%s) search=%r", query, brief.intent, brief.structure,
-             brief.recency_days, "pending" if brief.outcome_dependent else "n/a",
-             brief.why_now or "-", brief.why_now_confidence, brief.retrieval)
+             "why_now=%s(%s) search=%r fallback=%r", query, brief.intent,
+             brief.structure, brief.recency_days,
+             "pending" if brief.outcome_dependent else "n/a",
+             brief.why_now or "-", brief.why_now_confidence, brief.retrieval,
+             brief.broader)
     return brief
 
 

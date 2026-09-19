@@ -38,7 +38,7 @@ def flag(monkeypatch):
     """Set `settings.streaming_pipeline` as a running server would see it.
 
     `Settings` is frozen and read at import, so the object `pipeline` holds is
-    replaced - the same mechanism `_answer_first` uses for its plans, and the
+    replaced - the same mechanism several call sites use for their plans, and the
     one that keeps `__post_init__` validation in play.
     """
     def choose(value=None):
@@ -411,60 +411,55 @@ def _bounded(coro, timeout: float = 20.0):
 
 
 # ==========================================================================
-# 9. answer_first
+# 9. One episode, one stream
 # ==========================================================================
-def test_answer_first_under_phase6_keeps_its_two_streams_apart(flag):
-    """Two pumps, so two buffers and two assemblers. No chunk may hold text
-    from both halves, and the instant half must come first.
+def test_a_researched_episode_speaks_one_stream(flag):
+    """There is no second half racing this one.
 
-    Asks for the cover explicitly. It is no longer the default - it follows
-    RESEARCH_BACKEND, and Exa needs no covering - so a test about the cover has
-    to turn it on rather than inherit it.
+    A researched episode used to start two model calls at once: one with no
+    tools that began speaking immediately, and one that was still reading.
+    The first wrote the opening, and it wrote it knowing nothing about the
+    episode. §108 deleted it, so what reaches the voice is one stream that
+    started after the evidence did.
     """
     flag("phase6")
-    import dataclasses
 
-    import pipeline as _pipeline
-    _pipeline.settings = dataclasses.replace(_pipeline.settings,
-                                             answer_first=True)
+    class OneStream:
+        def __init__(self):
+            self.streams = 0
 
-    class TwoHalves:
         async def stream_sentences(self, plan, notes=None):
-            marker = "b" if getattr(plan, "role", "") == "continuation" else "a"
-            if marker == "b":
-                for _ in range(4):
-                    await asyncio.sleep(0)
+            self.streams += 1
             for _ in range(12):
                 await asyncio.sleep(0)
-                yield sized(12, marker)
+                yield sized(12, "a")
 
-        async def top_up(self, plan, spoken_so_far, words_needed, notes=None):
-            async for s in self.stream_sentences(plan):
-                yield s
+        async def top_up(self, plan, spoken_so_far, words_needed, notes=None):  # pragma: no cover
+            raise AssertionError("no top-up was asked for")
+
+    generator = OneStream()
 
     async def main():
-        plan = plan_episode("q", 3)
-        plan = dataclasses.replace(plan, search=True)
-        pipe = PodcastPipeline(generator=TwoHalves(), engine=ENGINE, cache=None)
+        plan = dataclasses.replace(plan_episode("q", 3), search=True)
+        pipe = PodcastPipeline(generator=generator, engine=ENGINE, cache=None)
         stats = GenerationStats()
         async for _ in pipe.stream_pcm(plan, stats):
             pass
         return stats
 
     stats = _bounded(main())
-    assert stats.answered_first
-    for sentence in stats.script:
-        assert not ("a0" in sentence and "b0" in sentence), (
-            f"the two halves were assembled into one chunk: {sentence!r}")
-    assert stats.script[0].startswith("a0"), "the instant half did not go first"
-    assert any(s.startswith("b0") for s in stats.script), "research never spoke"
+    assert generator.streams == 1
+    assert stats.script and stats.script[0].startswith("a0")
 
 
-def test_answer_first_builds_a_separate_pump_for_each_half():
+def test_the_body_is_the_only_generation_stream_in_stream_pcm():
+    """Three pumps and three speakers - replay, body, top-up - and nothing
+    else. A fourth would be a second opinion about what the episode is."""
     import inspect
 
-    source = inspect.getsource(PodcastPipeline._answer_first)
-    assert source.count("self._pump_for(") == 2
+    source = inspect.getsource(PodcastPipeline.stream_pcm)
+    assert source.count("self._pump_for(") == 3
+    assert not hasattr(PodcastPipeline, "_answer_first")
 
 
 # ==========================================================================
