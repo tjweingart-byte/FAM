@@ -7579,3 +7579,59 @@ near-match cache are covered by tests and by the browser smoke checks against
 fixtures; what none of that proves is that an episode on a real machine now
 shows its sources and builds its transcript while it plays. That is one
 session with a key, and it is the first thing to do with one.
+
+### Postscript: the §106 CI failure, diagnosed
+
+Preparing this branch to merge meant reading the gate, and the gate has been
+red on `Main` for six consecutive merges with one check failing:
+
+    FAIL  Go Deeper titles are not cut off: ['What happens to the grid
+          operators when the subsidy expires next year']
+    worst: {'scrollHeight': 53, 'clientHeight': 39}
+    rendered with: Fraunces, serif at 10.5px/13.125px (webfonts: loaded)
+
+§106 could not reproduce it and left it deliberately, with the reading that
+*"the runner falls back to its own serif, which is wider than the one this
+container falls back to"*. That guess was right, and the font now has a name.
+Measured in the local browser by forcing each candidate onto the element:
+
+    font stack                                 scrollH  clientH  fits?
+    'Fraunces', serif                               39       39  yes
+    serif                                           39       39  yes
+    'Liberation Serif', serif                       39       39  yes
+    'DejaVu Serif', serif                           53       39  NO
+    'FreeSerif', serif                              39       39  yes
+    'Fraunces', 'Liberation Serif', …, serif        39       39  yes
+
+**DejaVu Serif produces exactly 53** - the number the runner reports, to the
+pixel. So the runner's generic `serif` binds to DejaVu Serif and this
+container's binds to Liberation Serif, and that one difference is the whole
+failure. Fraunces itself loads on both (`document.fonts.check('12px Fraunces')`
+is true here), so nothing is wrong with the webfont; it is purely what happens
+when Fraunces is *absent*.
+
+Which makes §106's more interesting reading concrete rather than speculative:
+**a listener whose browser has no Fraunces and a DejaVu-metric default serif
+sees these titles shortened.** Not cut mid-word - `-webkit-line-clamp:3`
+ellipsises cleanly, which is the designed overflow - but shortened, and the
+guard is right to call it.
+
+The fix is one declaration and measured at 39px:
+
+    .gd-card-title{ font-family:'Fraunces', 'Liberation Serif',
+                    'Times New Roman', Times, serif; … }
+
+It changes nothing where Fraunces loads, touches neither the card height nor
+the clamp, and does **not** loosen the tolerance - which §106 rules out, and
+which remains ruled out.
+
+**Not applied here, and the reason generalises.** Fraunces is named in about
+ten places in `static/index.html`. Fixing the one the guard happens to measure
+leaves every other display element still falling through to the OS generic, so
+it would turn a known failure into a hidden one - the guard would go green
+while the product fact it is reporting stayed true everywhere else on the page.
+The honest version is a single statement about what the brand face falls back
+to, applied everywhere it is named and looked at through `tools/shots.py`, and
+that is a typography decision rather than a CI repair. §106 said it belongs to
+whoever owns that guard; what is added here is the cause, so that whoever picks
+it up is choosing rather than guessing.
