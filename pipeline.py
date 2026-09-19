@@ -31,6 +31,7 @@ from cache import (ScriptCache, build_cache, cache_key, canonical_key, is_sharea
 import metering
 from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
+import live_captions
 from script_buffer import ASSEMBLER_TICK, ScriptBuffer
 from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_words
 from speech_assembly import (AssembledChunk, AssemblyPolicy,
@@ -233,6 +234,16 @@ class GenerationStats:
     #: listener hears.
     marks: EpisodeMarks = field(default_factory=EpisodeMarks)
     script: list[str] = field(default_factory=list)
+    #: The cache key live captions are published under while this episode is
+    #: being spoken, or "" for an episode that has none (an attachment, which
+    #: is deliberately uncacheable and therefore deliberately uncaptioned).
+    #:
+    #: It is the *cache* key rather than a key of its own, so a live track and
+    #: the cached script that replaces it a few seconds later are the same
+    #: episode by construction - `/api/transcript` reads one and then the
+    #: other under one key, and two key schemes could not silently disagree
+    #: about which episode a caption belonged to.
+    caption_key: str = ""
     #: The thread the episode left open, phrased as the follow-up a listener
     #: would ask for. Drives the one-tap suggestion in Go Deeper; empty when
     #: the model named none.
@@ -616,6 +627,11 @@ class PodcastPipeline:
         stats.sentences += len(fit.spoken)
         stats.words += fit.words
         stats.script.extend(fit.spoken)
+        # On screen the moment it is handed to the voice, rather than when the
+        # finished script reaches the cache. Captions used to poll the cache
+        # and give up after twelve seconds, which is nothing like how long a
+        # researched ten-minute episode takes to write - see live_captions.py.
+        live_captions.publish(stats.caption_key, fit.spoken)
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
             log.info("first audio ready after %.2fs", stats.first_audio_at)
@@ -710,6 +726,7 @@ class PodcastPipeline:
         stats.sentences += 1
         stats.words += words
         stats.script.append(sentence)
+        live_captions.publish(stats.caption_key, (sentence,))
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
             log.info("first audio ready after %.2fs", stats.first_audio_at)
@@ -1015,12 +1032,23 @@ class PodcastPipeline:
         drew on is only known once the script has been written, which is after
         the audio response headers have gone out.
         """
-        if not self.cache or not is_shareable(plan.query):
+        if not is_shareable(plan.query):
+            return ""
+        key = await self._cache_key(plan) if self.cache else ""
+        # In flight first, for the same reason captions read their live track
+        # first: on the retrieval path the evidence packet exists before the
+        # first sentence does, and the cache does not have it until the
+        # episode has finished. A panel that can only appear after the last
+        # word has answered "where is this coming from?" too late to matter.
+        live = live_captions.read_sources(key)
+        if live:
+            return live
+        if not self.cache:
             return ""
         reader = getattr(self.cache, "sources", None)
         if reader is None:
             return ""
-        return reader(await self._cache_key(plan))
+        return reader(key)
 
     async def script_for(self, plan: EpisodePlan) -> list:
         """The written sentences for an episode already generated, or [].
@@ -1042,6 +1070,32 @@ class PodcastPipeline:
         if reader is None:
             return []
         return list(reader(await self._cache_key(plan)) or [])
+
+    async def captions_for(self, plan: EpisodePlan) -> tuple:
+        """`(sentences, live, done)` for live captions. Never generates.
+
+        The live track first, the cache behind it - and that order is the
+        whole point. `script_for` reads the cache, which is written once when
+        the episode finishes, so on a first listen it holds nothing under this
+        key until after the last word has been spoken. That is the one moment
+        a caption panel is no use, and it is why the panel used to say "no
+        transcript for this one" about perfectly ordinary long episodes.
+
+        A live track is *this* generation; a cache entry may be an older one
+        under the same key while a re-write is in flight. So a live track wins
+        where both exist, rather than being a fallback for a cache miss.
+
+        `done` distinguishes "still being written" from "that is all of it",
+        which is what lets a client stop asking. Anything with no live track
+        is finished as far as this process can tell - it is either cached, or
+        an attachment episode, which has no captions by design.
+        """
+        key = await self._cache_key(plan) if is_shareable(plan.query) else ""
+        live = live_captions.read(key)
+        if live is not None:
+            sentences, done = live
+            return list(sentences), True, bool(done)
+        return list(await self.script_for(plan)), False, True
 
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
@@ -1067,6 +1121,14 @@ class PodcastPipeline:
         shareable = is_shareable(plan.query)
         key = await self._cache_key(plan) if shareable else ""
         bucket = self._bucket(plan) if shareable else ""
+        # Captions are published under the cache key, so they are available
+        # while the episode is being spoken rather than only once the finished
+        # script has been written. Opened here - before the cache is consulted
+        # - so that a replay publishes too: the same panel reads both, and a
+        # replayed episode that produced no live track would be the one case
+        # where the sentences existed and nothing showed them.
+        stats.caption_key = key
+        live_captions.open_track(key)
         if self.cache and shareable:
             cached = self.cache.get(key)
             if cached:
@@ -1135,6 +1197,10 @@ class PodcastPipeline:
         # Nothing is spoken until the real script arrives. The opener that used
         # to cover this wait is gone: see PROBLEMS.md 55.
         notes = ScriptNotes()
+        # So the generator can publish sources the moment retrieval produces
+        # them, rather than leaving the panel waiting for the cache write at
+        # the end of the episode. Same key as the captions beside them.
+        notes.caption_key = key
         # Pointed at the live accumulator *now*, not when generation finishes.
         # `Usage` is mutable and shared, so this makes `stats.usage` track the
         # episode as it goes - which is the difference between an episode that
@@ -1215,7 +1281,14 @@ class PodcastPipeline:
 
         A second or two of quiet at the end reads as the episode finishing; a
         hard cut reads as a bug.
+
+        Also where the live caption track is closed, because this is the one
+        place both paths reach - a replay returns straight after it, and a
+        generation ends with it. Before the empty-episode return below, so an
+        episode that produced no speech is reported as finished rather than
+        leaving a caption panel waiting for sentences that are not coming.
         """
+        live_captions.close(stats.caption_key)
         # Never pad an episode that has no speech in it. Doing so manufactures
         # a few seconds of silence that looks like a valid episode to every
         # layer above, which is how an empty script reached listeners as

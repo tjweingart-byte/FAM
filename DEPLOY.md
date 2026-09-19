@@ -106,6 +106,66 @@ that passes it will speak; one that does not will say why in a sentence.
 `python verify_voice.py` goes further and actually synthesises, which is the
 difference between "Chatterbox is installed" and "this machine can speak".
 
+## "Everyone's accounts were erased when I deployed"
+
+Ask the server, rather than reading this file. `/api/health` reports
+`storage`, and it is **measured** — a mounted volume is a different
+filesystem, so a database on the same device as the application code is inside
+the container image and goes when the image is replaced:
+
+    curl -s https://<your-host>/api/health | python -m json.tool | grep -A 20 '"storage"'
+
+`ephemeral` names every store that will not survive the next push, and `note`
+says what to do. Two things it distinguishes that reading configuration cannot:
+
+* **A store pointed at `/data` with no disk actually attached** reports
+  `image`. This is the common case on Render and the likely cause of accounts
+  disappearing: `render.yaml` declares the disk, but a blueprint only applies
+  to a service *created from it*. A service made by hand in the dashboard has
+  no disk however many times that file says it should, and nothing anywhere
+  says so. Fix it under the service's **Disks** tab: add one, mount it at
+  `/data`, redeploy. The first deploy after that starts empty one last time.
+* **A store nobody remembered to pin.** Four were missing until §107 —
+  messages, saved, shares and quotas — so conversations, saved episodes and
+  share links were discarded on every push while accounts survived. They are
+  in the `Dockerfile` now, and `tests/test_data_paths.py` derives its list from
+  the code so a store added later cannot be left out quietly.
+
+## Renaming the Render URL
+
+Render derives `<something>.onrender.com` from the **service name**, which was
+taken from the repository when the service was created — hence
+`search-no-mp3-prompt-to-text-to-audio.onrender.com`. It is not in any file
+here; `render.yaml` names the service `fam`, but that only applies to a service
+created *from the blueprint*, and renaming an existing one is a dashboard
+action.
+
+**Read the warning before doing it**, because this is the part that bites: the
+old address stops resolving the moment the rename takes effect. There is no
+redirect. Every `/s/<id>` share link anybody has already posted — in a message,
+on a timeline, in a preview card a crawler has already cached — is built from
+the old host and dies with it. That is the only real cost, and it is smallest
+right now.
+
+1. Render dashboard → the service → **Settings**.
+2. **Name** → change it to `fam` → **Save**.
+3. The URL becomes `https://fam.onrender.com` within a minute or so. Render
+   refuses the name if another account already holds it — the subdomain is
+   global, not per account — in which case pick something else here rather
+   than working around it elsewhere.
+4. Update anything that hard-codes the old host. In this repo that is
+   `APP_STORE_URL`'s neighbours and any `FAM_PUBLIC_URL`-style setting on the
+   service; `grep -ri onrender.com` over the repo is the check, and it should
+   come back empty.
+5. Re-check `/api/health` on the new address. It reports `build`, so this also
+   confirms the rename did not quietly land you on a different deploy.
+
+If the links already in the wild matter more than the name, the alternative is
+a **custom domain** — Settings → Custom Domains — which Render serves
+*alongside* the `onrender.com` one rather than instead of it. That is the
+option that costs nobody a broken link, and it is what a real launch wants
+anyway.
+
 ## What is deliberately still manual
 
 **The voice and its rights record.** They are per-machine state and stay out

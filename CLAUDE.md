@@ -408,11 +408,31 @@ the rest of this list it needs taste rather than a key.
    puts every disc's `Animation.currentTime` on the ring's. **Anything that
    redraws the wheel has to go through that**, and the smoke behaviour reads
    each label's net angle after a tap rather than trusting the claim.
-   **There are two wheels, and they answer two questions** *(§100).* The first
-   run draws `popular_facets` - somebody with no history, so the honest signal
-   is what everybody plays. Settings draws `my_facets`: what *this* listener
-   plays, then what they chose, then the declared order as filler, because a
-   wheel is six discs or it is a broken wheel. `interests_yours_source` says
+   **There are two wheels, and they answer two questions** *(§100, revised by
+   §107).* The first run draws `popular_facets` - somebody with no history, so
+   the honest signal is what everybody plays. **Settings now draws what this
+   listener *chose*** - their facets, plus the subjects they added from the
+   catalogue or typed into its search - and nothing else. It used to draw
+   `my_facets`: what they play, then what they chose, then the declared order
+   as filler, so the wheel always had six discs. Three of those four sources
+   are the app's answer rather than the listener's, and a screen called *Your
+   interests* that shows a recommendation is answering a question nobody
+   asked. The filler is gone and an empty wheel is possible; what fills it is
+   the hub in the middle, which says **"Edit/add topics"** and is the only
+   route to the catalogue now - the second door in Settings came off with it.
+   `my_facets` is still computed and still served as `interests_yours`,
+   because it is an honest signal and the answer to a real question; nothing
+   draws it today.
+   **And what somebody chose is stored now, which it was not.** Adding a
+   catalogue topic wrote a `pick` event into the append-only log and kept no
+   list, so the choice taught the ranker something and left nothing to show,
+   nothing to remove, and nothing for a wheel meant to reflect it to draw
+   from. Both happen now - `preferences.topics` is the statement, the event is
+   the behaviour, and `topics.py` stays a pure query over the second. The
+   catalogue's search can add **whatever was typed**, because seventy-three
+   strings somebody wrote down is not the set of things a person can be
+   interested in, and a search that can only fail is the worst control on the
+   one screen whose job is collecting interests. `interests_yours_source` says
    which of the three decided it, and only the Settings wheel carries a line
    of copy - one that changes on its own without a word reads as the app
    having lost somebody's answer. **And there is no cap on how many
@@ -529,7 +549,27 @@ the rest of this list it needs taste rather than a key.
    taste model has was being thrown away by exactly the behaviour it should
    reward. A share rather than a number of seconds, because "the last thirty
    seconds" is most of a one-minute episode and nothing of a ten-minute one.
-8. **The social layer generates nothing, and now there is more of it.**
+8. **The social layer generates nothing, and it updates itself now** *(§107).*
+   Messages appeared only when the chat screen was opened, so two people
+   talking had to leave the conversation and come back to see each other -
+   which is not a slow chat, it is a chat that does not work. `/api/messages/
+   thread?since=` tops one up from a cursor and `/api/notifications` answers
+   both drop-downs - a message, a new follower - from one poll, because the
+   interface asks both questions from the same timer.
+   Two rules hold it up. **The cursor is a row id, never a timestamp**: two
+   messages can share a `time.time()` and a `> at` cursor silently drops the
+   second of any such pair, which on a chat is a lost message. And **the
+   cursor is the client's**: whether a message has been *read* is a fact about
+   a conversation somebody opened, whether it has been *announced* is a fact
+   about a banner this client raised, and deriving the second from the first
+   would mean opening one chat silenced every other's notifications. A
+   `bootstrap` call establishes where "new" starts and announces nothing,
+   without which opening the app raises a banner for every message ever sent
+   to you. Sending draws the message before the round trip and swaps the
+   written row in for it - it used to wait for the POST and then re-fetch the
+   whole conversation, which is where "a few seconds of latency when I send"
+   came from.
+   None of this generates anything, which is the point of the section:
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,
    and they are the same row. `/api/vibe` and `/api/echo` are one handler over
@@ -782,24 +822,51 @@ the rest of this list it needs taste rather than a key.
   leaving silence**. Every drop is logged, carried on
   `ScriptNotes.meta_openings` and printed by `write.py`: the guard firing means
   the prompt did not hold, which is a thing to fix rather than to absorb.
-- **Live captions read the cache, and the sources cluster is in the corner.**
-  *(§104, `PROVENANCE.md`.)* Both were drawn and neither worked. The captions
-  tab showed `t.caption` - a line of prototype copy ending in an em dash - so
-  turning captions on produced a sentence about captions; the sources strip was
-  fetched when an episode *ended* and when Go Deeper opened, and nowhere else,
-  so the one moment it is for was the one moment nothing asked for it.
-  `/api/transcript` is `/api/sources`' sibling and reads the same key, and the
-  rule that makes it affordable is that **it never generates**: captions that
-  could trigger a write would be a second full Claude call for every episode
-  somebody chose to read along with. A miss is an empty list, an attachment
-  episode has no captions at all because it is deliberately uncacheable, and
-  the panel says which. Which sentence is highlighted is **estimated from
-  character count, not measured** - the audio is one PCM stream with no
-  sentence marks in it - and the denominator is the planned length, because
-  `duration()` grows as the stream arrives.
-  The cluster shows **three** marks, overlapped, in the player's corner, and
-  an empty answer never clears a strip that is already showing: the first try
-  often lands before the script has finished.
+- **Live captions are live now, and so are the sources.** *(§107, revising
+  §104's "captions read the cache", `live_captions.py`, `PROVENANCE.md`.)*
+  §104 wired both panels to the script cache. That was right for a replay and
+  wrong for a first listen, and the difference is when the cache is written:
+  **once, at the end.** So on a fresh episode the sentences did not exist
+  under that key until after the last word had been spoken, which is the one
+  moment a caption panel is no use - and the interface papered over it by
+  polling six times over twelve seconds and then saying "no transcript for
+  this one", a sentence about attachments, under every researched episode
+  anybody read along with.
+  **The bug was not the poll count.** Polling a place the answer is not yet in
+  cannot be fixed by polling it more, and the tempting one-line non-fix
+  (raise the count) would have made it rarer and no less wrong.
+  `live_captions.py` publishes each sentence as it is handed to the voice, so
+  the transcript builds up while the episode plays, and `/api/transcript`
+  reads that first and the cache behind it. Three things keep it small: it is
+  **in-process with nothing behind it** (a live track describes a generation
+  in *this* worker, and by the time another could read it the cache has it);
+  it is keyed on the **cache key**, so a live track and the cached script are
+  the same episode by construction and an attachment - which has no key - has
+  no captions, one rule rather than a special case; and it says **`done`**,
+  because "still being written" and "that is the whole thing" are different
+  answers and a poll count was a guess at which.
+  The rule that makes it affordable is unchanged: **it never generates.**
+  Captions that could trigger a write would be a second full Claude call for
+  every episode somebody chose to read along with. Which sentence is
+  highlighted is still **estimated from character count, not measured** - the
+  audio is one PCM stream with no sentence marks in it - and the denominator
+  is the planned length, because `duration()` grows as the stream arrives.
+  The sources cluster shows **three** marks, overlapped, in the player's
+  corner, an empty answer never clears a strip already showing publishers, and
+  it is published to the same live track: on the retrieval path the evidence
+  packet exists *before the first sentence*, so keeping it only in the cache
+  meant a panel that could not appear until the episode had finished.
+- **Every way an episode is researched records who it read.** *(§107.)*
+  Provenance was built from the Exa packet, from live facts and from
+  attachments, and from nothing else - so the sources panel was empty on every
+  episode of a deployment with no Exa key, which is what Render has always
+  been. That is not an edge case: with no packet, `_request_kwargs` attaches
+  the `web_search` tool and the model does the looking, and
+  `provenance.from_web_search` now reads the results off the final message the
+  usage accounting already fetches. It claims **no grade and no date** -
+  `research.credibility` reads an Exa result's own fields and a web_search
+  result carries none, and `page_age` is prose rather than the ISO date `at`
+  is documented as. A confidence nothing measured is worse than a blank.
 - **Nothing on the player generates an episode except a button.** *(§104.)*
   `.mini-stage` is `flex:1`, so it is most of the player, and it carried a tap
   handler that jumped to the next episode in the album or - with no album -
@@ -1036,6 +1103,20 @@ the rest of this list it needs taste rather than a key.
   `ACCOUNT_REQUIRED` in `app.py` holds the reasoning beside the code that
   enforces it. Nothing is lost by signing up late: a mix made before the gate
   is still under the same id and appears the moment credentials are attached.
+  **The app now *opens* on sign-up, and that is a trade rather than a
+  contradiction** *(§107, at the owner's direction).* myFAM was the screen
+  marked `active` in the markup, so it was drawn from the moment the page
+  parsed - and who the listener is is not known until `/api/auth/me` answers,
+  so somebody without an account saw it flash and be replaced. There is no
+  default screen now; the splash is held until the answer arrives, and
+  `bootToFirstScreen` sends a signed-in listener to myFAM and everybody else
+  to the front door.
+  What keeps the constraint above true is **the door**: "Skip for now" is on
+  that screen, it is one tap, and everything behind it still works with
+  nothing signed in. What changed is which side of it the app opens on - not
+  what an account is required for, which is unchanged. If it starts costing
+  listeners, it is one branch in `bootToFirstScreen` and this is the line to
+  read first.
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   `ENFORCE_QUOTAS=0` is the default: every tier, limit, counter, reservation,
   refund and refusal exists and is tested, and none of them refuses anybody.
@@ -1216,6 +1297,26 @@ the rest of this list it needs taste rather than a key.
   server now asks Claude at startup whether the credential is actually accepted
   and says so on every tab. Anything that reports readiness must perform the
   real action, not confirm that it was configured.
+- **A running server says whether a redeploy will erase its listeners.**
+  *(§107.)* Every database is pinned to the mounted disk in the `Dockerfile`,
+  and that list has now been incomplete twice - the second time it was
+  messages, saved, shares and quotas, four stores added after it was written,
+  so a deployment discarded every conversation, saved episode and share link
+  on each push while the accounts beside them survived. Nothing said so,
+  because from outside a wiped database and a new install look identical.
+  Two things follow. The guard is **derived**: `tests/test_data_paths.py`
+  reads every `data_path("VAR", ...)` call out of the modules rather than
+  comparing the Dockerfile to a second hand-written list, because two lists
+  somebody types agreeing with each other is the same mistake made twice and
+  then compared to itself. That generalises past this feature: **a guard whose
+  subject is enumerated by hand is decorative.**
+  And `/api/health` reports `storage`, **measured rather than configured** -
+  §52 applied to durability. A mounted volume is a different filesystem, so
+  `st_dev` answers it: a database on the same device as the code is inside the
+  image and goes when the image is replaced. Three states, because "could not
+  tell" is real, and a store pointed at `/data` on a host with no disk
+  actually attached reports `image` - which is exactly the case a settings
+  check cannot see and the one somebody needs telling about.
 - **Per-machine state lives in `~/.fam/`, never in the project.** Voice models
   (`~/.fam/voices`) and the API key (`~/.fam/env`, written by
   `python setup_key.py`) are set once and found by every later copy of the app.
@@ -1321,14 +1422,22 @@ which is the go/no-go for all of it.
   yet, and both are one class each: DailyFAM's mixes are warmed only when
   their owner opens myFAM, and no cycle is scheduled for a listener who is not
   looking.
-- **Is a local embedding model worth installing?** The near-match cache
-  (PROBLEMS.md §68) is built, measured and off by default. It raises the share
-  of re-phrasings that find an existing episode from 22% to 56% on a measured
-  corpus - but the bench's own control line shows the *vector* earning none of
-  that: a free token-overlap guard finds everything the lexical embedding
-  finds. A real sentence model in `~/.fam/embed` is the only thing that changes
-  that answer, and it is the same trade as the voices - ship a model with the
-  app, or pay a service per call. Nobody has run one yet.
+- **Is a local embedding model worth installing?** *Half answered (§107): the
+  near-match cache is **on** now, and the embedding is still the part earning
+  nothing.* The mechanism raises the share of re-phrasings that find an
+  existing episode from 22% to 56% on a measured corpus - 9 of 41 to 23 of 41
+  - with no false match at any threshold and 8.93 ms of local scanning, on the
+  miss path only, with no model call anywhere. Fourteen episodes not written
+  at roughly a cent each, so it ships on; `CACHE_VECTOR=0` restores the old
+  behaviour exactly.
+  The bench's control line is what is still open: **guards alone, with the
+  cosine ignored, find the same 23.** Every must-not-collapse pair is refused
+  by a guard - identical numbers, lexical overlap, agreement about needing
+  today's facts - rather than by the threshold sitting above it, so the vector
+  is carrying none of the gain. A real sentence model in `~/.fam/embed` is the
+  only thing that changes that, and it is the same trade as the voices - ship
+  a model with the app, or pay a service per call. Nobody has run one yet, and
+  re-running `tools/bench_vector_cache.py` is how anybody will know it helped.
 
 ## How to ship a change (standing instruction)
 
@@ -1379,8 +1488,9 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §106 is the
-most recent, and is where a share link stopped handing strangers the whole app), `MYFAM.md` for the browse page and the live story pool that fills
+`PROBLEMS.md` for every problem hit and its cause (newest last — §107 is the
+most recent, and is where four databases turned out to be discarded on every
+redeploy and captions turned out to be reading a cache that is written last), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1400,12 +1510,12 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **forty-five** named smoke
+**twice** - once per preview build - and **fifty-two** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 45 as of §104.)
+prose does not fail when somebody adds a behaviour. (It is 52 as of §107.)
 
 **There is a third browser run, and it is not one of those two** (§106). The
 share landing page is a different page from `static/index.html` - one episode,

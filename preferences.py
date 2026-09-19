@@ -132,6 +132,65 @@ def clean_interests(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(seen)
 
 
+#: The longest a typed topic may be. A topic is a subject, not a sentence -
+#: somebody pasting a paragraph into the search field has not chosen an
+#: interest, and storing it would put a paragraph on their profile.
+MAX_TOPIC = 60
+
+#: How many a listener may keep. Unlike `clean_interests`, which is bounded by
+#: the vocabulary itself, a typed topic is free text and so has no natural
+#: ceiling - and a list nothing bounds is a list that eventually breaks a
+#: screen. High enough that nobody choosing honestly meets it.
+MAX_TOPICS = 200
+
+
+def clean_topics(values: Iterable[str]) -> tuple[str, ...]:
+    """The named subjects a listener chose, de-duplicated, order preserved.
+
+    **Deliberately not validated against the catalogue**, which is the whole
+    point of it. Two kinds of thing live in here and they are not
+    distinguished on the way in:
+
+    * a `topics.INTEREST_CATALOGUE` id, added from the list of 70-odd
+      subjects; and
+    * a word somebody typed into the search field on that screen and added
+      because it was not on the list.
+
+    The second is the reason this exists. The catalogue search used to filter
+    the list and nothing else, so searching for something absent produced an
+    empty screen and no way forward - a search that can only fail. What a
+    listener types there is a real statement about what they want, and
+    refusing it because it is not one of seventy-three strings somebody wrote
+    down is the app telling them their interest is invalid.
+
+    Resolution happens on the way *out* (`topics.tags_for_id` already looks a
+    string up in the catalogue and falls back to the words), so nothing here
+    needs to know which kind it is holding, and a subject added to the
+    catalogue later starts resolving for the listeners who typed it first.
+    """
+    by_label = {i.label.lower(): i.id for i in topics.INTEREST_CATALOGUE}
+    seen: list[str] = []
+    for raw in values or ():
+        topic = " ".join(str(raw or "").split())[:MAX_TOPIC]
+        if not topic:
+            continue
+        # Typing the name of something that *is* on the list adds the list's
+        # entry, rather than a second copy of it under the listener's own
+        # capitalisation. Without this, searching "Formula 1", not spotting it
+        # in the results and adding it anyway leaves two rows that read
+        # identically on screen - and only one of them carries the catalogue's
+        # tags, so the other teaches the ranker less for no visible reason.
+        topic = by_label.get(topic.lower(), topic)
+        # Compared case-insensitively so "formula 1" and "Formula 1" are one
+        # interest, and kept as typed so it reads back the way it was written.
+        if topic.lower() in {t.lower() for t in seen}:
+            continue
+        seen.append(topic)
+        if len(seen) >= MAX_TOPICS:
+            break
+    return tuple(seen)
+
+
 def clean_language(code: str) -> str:
     lang = (code or "").strip().lower()
     if not lang:
@@ -158,6 +217,18 @@ class Preferences:
     #: profile in the app would show an empty pill row that reads as broken
     #: until each listener went and opted in one at a time.
     hidden_interests: tuple[str, ...] = ()
+    #: The named subjects chosen from the catalogue, plus anything typed there
+    #: that was not on it. Distinct from `interests`, which is the eight-facet
+    #: ranking vocabulary: an interest is what the *ranker* scores, a topic is
+    #: what a *listener* recognises, and the catalogue exists precisely so the
+    #: second can be seventy-odd entries without widening the first by a word.
+    #:
+    #: Stored at all because they were not, and that was the bug: adding one
+    #: wrote a `pick` event into the append-only log and kept no list, so the
+    #: choice taught the ranker something and there was nothing to *show*
+    #: anybody afterwards, nothing to remove, and nothing for a wheel that is
+    #: meant to be a reflection of what somebody chose to draw from.
+    topics: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
@@ -175,6 +246,7 @@ class Preferences:
             "interests": list(self.interests),
             "hidden_interests": list(self.hidden_interests),
             "public_interests": list(self.public_interests),
+            "topics": list(self.topics),
             "language": self.language,
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
@@ -208,6 +280,20 @@ class PreferenceStore:
                              " hidden_interests TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # Added later again, same treatment. Empty means "none chosen",
+            # which is what every row written before this already meant: the
+            # catalogue kept no list at all, only `pick` events in the log.
+            #
+            # Newline-separated rather than comma, unlike the columns above:
+            # those hold facet slugs from a fixed vocabulary, and this holds
+            # whatever somebody typed - which may perfectly reasonably contain
+            # a comma ("rocketry, but the engines"). A separator a value can
+            # contain is a value that silently becomes two.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " topics TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -224,7 +310,7 @@ class PreferenceStore:
         try:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
-                " intro_done, hidden_interests"
+                " intro_done, hidden_interests, topics"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -242,6 +328,7 @@ class PreferenceStore:
             recap_week=row[3] or "",
             intro_done=bool(row[4]),
             hidden_interests=tuple(t for t in (row[5] or "").split(",") if t),
+            topics=tuple(t for t in (row[6] or "").split("\n") if t),
         )
 
     def save(
@@ -249,6 +336,7 @@ class PreferenceStore:
         user_id: str,
         interests: Optional[Iterable[str]] = None,
         hidden_interests: Optional[Iterable[str]] = None,
+        topics: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
@@ -271,6 +359,8 @@ class PreferenceStore:
             hidden_interests=(clean_interests(hidden_interests)
                               if hidden_interests is not None
                               else current.hidden_interests),
+            topics=(clean_topics(topics) if topics is not None
+                    else current.topics),
             language=(clean_language(language) if language is not None
                       else current.language),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
@@ -282,11 +372,12 @@ class PreferenceStore:
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
-                    intro_done, updated, hidden_interests)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    intro_done, updated, hidden_interests, topics)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
+                   topics       = excluded.topics,
                    language     = excluded.language,
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
@@ -294,7 +385,8 @@ class PreferenceStore:
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
-             at or time.time(), ",".join(merged.hidden_interests)),
+             at or time.time(), ",".join(merged.hidden_interests),
+             "\n".join(merged.topics)),
         )
         return merged
 

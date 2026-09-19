@@ -193,19 +193,86 @@ class MessageStore:
 
     # --- reading ----------------------------------------------------------
 
-    def thread(self, user_id: str, other_id: str, limit: int = 200) -> list[Message]:
-        """One conversation, oldest first - which is the order it is read in."""
+    def thread(self, user_id: str, other_id: str, limit: int = 200,
+               after_id: int = 0) -> list[Message]:
+        """One conversation, oldest first - which is the order it is read in.
+
+        `after_id` returns only what has arrived since that message, which is
+        what makes an open conversation update on its own affordable. The
+        client polls with the highest id it holds and almost always gets an
+        empty list back, so keeping a chat live costs a primary-key comparison
+        rather than the whole history every couple of seconds.
+
+        The cursor is the **row id** rather than a timestamp. Two messages can
+        share a timestamp - this app writes `time.time()`, not a monotonic
+        counter - and a `> at` cursor silently drops the second of any such
+        pair. An id is allocated by the database and cannot collide.
+        """
         tid = thread_id(user_id, other_id)
+        sql = ("SELECT id, thread, sender, recipient, kind, text, query,"
+               " minutes, title, at FROM messages WHERE thread = ?")
+        args: list = [tid]
+        if after_id:
+            sql += " AND id > ?"
+            args.append(int(after_id))
+        # Newest-first with a LIMIT, then reversed: the limit has to cut the
+        # *oldest* messages off a long conversation, not the newest.
+        sql += " ORDER BY at DESC, id DESC LIMIT ?"
+        args.append(int(limit))
         try:
-            rows = self._conn().execute(
-                "SELECT id, thread, sender, recipient, kind, text, query,"
-                " minutes, title, at FROM messages WHERE thread = ?"
-                " ORDER BY at DESC, id DESC LIMIT ?", (tid, int(limit)),
-            ).fetchall()
+            rows = self._conn().execute(sql, tuple(args)).fetchall()
         except Exception:
             log.exception("could not read a thread")
             return []
         return [Message(*r) for r in reversed(rows)]
+
+    def arrived_for(self, user_id: str, after_id: int = 0,
+                    limit: int = 20) -> list[Message]:
+        """Messages sent *to* this listener since `after_id`, oldest first.
+
+        What raises the drop-down. Deliberately narrower than the inbox: this
+        answers "has anything new arrived", so it never includes what the
+        listener sent themselves - a banner announcing your own message is
+        the kind of thing that only looks obviously wrong after it ships.
+
+        Read-state is not consulted. Whether a message has been *seen* is a
+        question about a thread somebody opened; whether it has been
+        *announced* is a question about a notification this client already
+        raised, and the client's own cursor is the only thing that knows it.
+        Mixing the two would mean opening a conversation silenced the banners
+        for a different conversation.
+        """
+        if not user_id:
+            return []
+        try:
+            rows = self._conn().execute(
+                "SELECT id, thread, sender, recipient, kind, text, query,"
+                " minutes, title, at FROM messages"
+                " WHERE recipient = ? AND id > ? ORDER BY id ASC LIMIT ?",
+                (user_id, int(after_id), int(limit)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read new messages")
+            return []
+        return [Message(*r) for r in rows]
+
+    def latest_id(self, user_id: str) -> int:
+        """The newest message id addressed to this listener, or 0.
+
+        The cursor a client starts from. Without it a listener opening the app
+        would be shown a banner for every message ever sent to them, which is
+        the standard way this feature is got wrong.
+        """
+        if not user_id:
+            return 0
+        try:
+            row = self._conn().execute(
+                "SELECT MAX(id) FROM messages WHERE recipient = ?",
+                (user_id,)).fetchone()
+        except Exception:
+            log.exception("could not read the latest message id")
+            return 0
+        return int(row[0] or 0)
 
     def inbox(self, user_id: str, limit: int = 50) -> list[dict]:
         """Every conversation this listener is in, most recent first.

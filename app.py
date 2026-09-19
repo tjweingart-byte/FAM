@@ -440,6 +440,23 @@ def _database_report() -> list[dict]:
     it reporting a corrupt database as readable - the same mistake §52 is about,
     made inside the code meant to prevent it. `writable` is a permission check and is labelled as one; writing on
     every health poll would cost more than it tells anyone.
+
+    **Each entry also says whether a redeploy would erase it** (§107). That
+    question was answered by reading the Dockerfile and hoping, and reading the
+    Dockerfile was wrong twice: four stores were never pinned to the mounted
+    disk at all, so a deployment lost every conversation, saved episode and
+    share link on each push while the accounts beside them survived. Nothing
+    said so, because from outside a fresh database and a new install look
+    identical.
+
+    `persistence` is measured rather than configured, which is the same rule
+    the rest of this function keeps. A mounted volume is a different
+    filesystem, so `st_dev` answers it: a file on the same device as the
+    application code is *inside the container image* and goes when the image
+    is replaced. That is a real property of the running machine, not an echo
+    of an environment variable - a store pointed at `/data` with no disk
+    actually attached reports `image`, which is exactly the case somebody
+    needs to be told about and the case a settings check cannot see.
     """
     stores = [
         ("scripts", "CACHE_PATH", getattr(SCRIPT_CACHE, "path", "")),
@@ -449,7 +466,16 @@ def _database_report() -> list[dict]:
         ("attachments", "ATTACHMENTS_PATH", ATTACHMENTS.path),
         ("accounts", "ACCOUNTS_DB", ACCOUNTS.path),
         ("preferences", "PREFS_DB", PREFS.path),
+        ("messages", "MESSAGES_DB", MESSAGES.path),
+        ("saved", "SAVED_DB", SAVED.path),
+        ("shares", "SHARES_DB", SHARES.path),
+        ("quotas", "QUOTAS_DB", QUOTAS.path),
+        ("metering", "METERING_DB", METER.path),
     ]
+    try:
+        code_device = os.stat(PROJECT_ROOT).st_dev
+    except OSError:
+        code_device = None
     report = []
     for name, env_var, path in stores:
         entry = {
@@ -462,6 +488,10 @@ def _database_report() -> list[dict]:
         if not path:
             entry["readable"] = True  # the memory backend has no file to open
             entry["writable"] = True
+            # Nothing on disk at all. Not "ephemeral because the disk is
+            # missing" - there is no file to lose - so it is named for what it
+            # is rather than folded into either answer.
+            entry["persistence"] = "memory"
             report.append(entry)
             continue
         try:
@@ -475,8 +505,52 @@ def _database_report() -> list[dict]:
         target = path if os.path.exists(path) else os.path.dirname(path) or "."
         entry["writable"] = os.access(target, os.W_OK)
         entry["bytes"] = os.path.getsize(path) if os.path.exists(path) else 0
+        entry["persistence"] = _persistence_of(target, code_device)
         report.append(entry)
     return report
+
+
+def _persistence_of(target: str, code_device) -> str:
+    """"disk", "image" or "unknown" for one database's location.
+
+    Three answers rather than a boolean, because "we could not tell" is a real
+    state and reporting it as either of the others is the kind of confident
+    wrong answer this project keeps paying for. `unknown` is what a machine
+    with no readable device number gives, and it is never read as safe.
+
+    A laptop reports `image` for the project root and that is correct there
+    too: nothing is mounted, so nothing is separately durable. It matters on a
+    container host, where `image` means the file is replaced with the image.
+    """
+    if code_device is None:
+        return "unknown"
+    try:
+        return "image" if os.stat(target).st_dev == code_device else "disk"
+    except OSError:
+        return "unknown"
+
+
+def _storage_summary(databases: list[dict]) -> dict:
+    """One sentence's worth of "will a redeploy erase this".
+
+    Named separately from the per-database list because the question is asked
+    about the deployment, not about a file: somebody looking at this wants to
+    know whether their listeners' accounts survive the next push, and counting
+    twelve entries by hand to find out is how the answer gets skipped.
+    """
+    at_risk = [d["name"] for d in databases if d.get("persistence") == "image"]
+    unknown = [d["name"] for d in databases if d.get("persistence") == "unknown"]
+    if not at_risk and not unknown:
+        note = "Every database is on a volume separate from the code, so a redeploy keeps them."
+    elif at_risk:
+        note = ("These are inside the application filesystem and a redeploy replaces them: "
+                + ", ".join(at_risk)
+                + ". On a container host that erases them - mount a disk and point their "
+                  "environment variables at it. On a laptop this is normal and expected.")
+    else:
+        note = "Could not tell where some databases live: " + ", ".join(unknown)
+    return {"durable": [d["name"] for d in databases if d.get("persistence") == "disk"],
+            "ephemeral": at_risk, "unknown": unknown, "note": note}
 
 
 def _limit_key(request: Request) -> str:
@@ -874,6 +948,10 @@ def _build_report() -> dict:
 
 @app.get("/api/health")
 async def health() -> dict:
+    # Built once and read twice: the list and the summary over it have to
+    # describe the same moment, and calling the report a second time would
+    # stat every database again to say the same thing.
+    _databases = _database_report()
     return {
         "status": "ok",
         # Which commit is serving this request. Without it, "the fix is
@@ -964,7 +1042,11 @@ async def health() -> dict:
             "tiers": list(entitlements.TIERS),
         },
         # Every database, its resolved path, and a real read against each.
-        "databases": _database_report(),
+        "databases": _databases,
+        # And the question a deployment actually asks of that list: does a
+        # redeploy keep the accounts people made? Measured from where the
+        # files are, not from what was configured - see `_persistence_of`.
+        "storage": _storage_summary(_databases),
         "voice_store": VOICE_STORE["dir"],
         # The public API surface, so a client can ask rather than assume.
         "api": {"version": API_VERSION, "prefix": API_PREFIX,
@@ -1537,7 +1619,12 @@ def _decorate(people: list[dict]) -> dict:
     out = {}
     for person in people:
         out[person["user_id"]] = {"name": person.get("name") or "",
-                                  "handle": person.get("handle") or ""}
+                                  "handle": person.get("handle") or "",
+                                  # Carried because a notification draws a
+                                  # face, and the graph read already has it -
+                                  # fetching it per banner would be one
+                                  # round trip to avoid copying a string.
+                                  "avatar": person.get("avatar") or ""}
     return out
 
 
@@ -1557,24 +1644,110 @@ async def messages_inbox(request: Request) -> dict:
 
 @app.get("/api/messages/thread")
 async def messages_thread(request: Request,
-                          with_: str = Query(..., alias="with", max_length=64)) -> dict:
+                          with_: str = Query(..., alias="with", max_length=64),
+                          since: int = Query(0, ge=0)) -> dict:
     """One conversation, and reading it marks it read.
 
     Marking on read rather than on a separate call, because the two would drift
     the moment a client crashed between them - and a thread that stays unread
     after somebody has read it is the more annoying direction.
+
+    **`since` is what makes an open conversation live** (§107). Messages used
+    to appear only when the screen was opened, so two people talking had to
+    leave the chat and come back to see each other - which is not a slow chat,
+    it is a chat that does not work. A client holding the conversation polls
+    with the highest id it has and gets back only what arrived after it, so
+    staying current costs a primary-key comparison rather than the whole
+    history every couple of seconds.
+
+    `head` is the cursor to send next time, and it is returned whether or not
+    anything came back: a client that derived it from the last message would
+    have no cursor at all on an empty poll and would have to fall back to
+    re-reading everything - which is the thing being removed.
     """
     _read_limit(request)
     user = _require_account(request)
     try:
-        thread = MESSAGES.thread(user, with_)
+        thread = MESSAGES.thread(user, with_, after_id=since)
     except messages_mod.MessageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     MESSAGES.mark_read(user, with_)
     person = SOCIAL.person(with_)
+    head = max([m.id for m in thread] + [since])
     return {"with": {"user_id": with_, "name": person.get("name") or "Someone",
                      "handle": person.get("handle") or ""},
-            "messages": [m.as_dict(user) for m in thread]}
+            "messages": [m.as_dict(user) for m in thread],
+            # True for the ordinary open, False for a poll that is topping one
+            # up. The client replaces the conversation on one and appends on
+            # the other, and guessing from `since` in two places is how those
+            # two get out of step.
+            "partial": bool(since),
+            "head": head}
+
+
+@app.get("/api/notifications")
+async def notifications(request: Request,
+                        since: int = Query(0, ge=0),
+                        bootstrap: bool = Query(False)) -> dict:
+    """What has happened to this listener since they last asked.
+
+    One endpoint for both kinds of drop-down - a message arriving and somebody
+    following you - because the interface asks both questions at the same
+    moment, from the same timer, and two polls to answer one question is two
+    things to keep in step for no benefit.
+
+    **The cursor is the client's, and that is the whole design.** A message's
+    *read* state is a fact about a conversation somebody opened; whether it
+    has been *announced* is a fact about a banner this client already raised.
+    Deriving the second from the first would mean opening one chat silenced
+    the notifications for every other - so the client holds `since` and the
+    server only answers what it was asked.
+
+    `bootstrap` is the first call after the app loads: it returns the cursor
+    and deliberately nothing else. Without it, opening the app would raise a
+    banner for every message ever sent to this listener, which is the usual
+    way this feature is got wrong.
+
+    Follows have no id to page on - the graph stores timestamps - so they are
+    answered by the same `new_followers` query the Friends badge already uses,
+    which is cleared by opening the Friends tab and by nothing else.
+    """
+    _read_limit(request)
+    user = _listener(request)
+    # Anonymous listeners have no messages and no followers by construction:
+    # both need an account, which is the boundary ACCOUNT_REQUIRED draws. An
+    # empty answer rather than a 401, because this is polled on a timer and a
+    # timer that logs an error every few seconds is a broken-looking app.
+    listener = getattr(request.state, "listener", None)
+    if not (listener is not None and listener.is_authenticated):
+        return {"messages": [], "follows": [], "head": 0, "unread": 0}
+
+    head = MESSAGES.latest_id(user)
+    if bootstrap:
+        return {"messages": [], "follows": [], "head": head,
+                "unread": MESSAGES.unread_total(user)}
+
+    arrived = MESSAGES.arrived_for(user, after_id=since)
+    known = _decorate(SOCIAL.following(user) + SOCIAL.followers(user))
+    out = []
+    for message in arrived:
+        person = known.get(message.sender) or SOCIAL.person(message.sender)
+        row = message.as_dict(user)
+        row["from"] = {"user_id": message.sender,
+                       "name": person.get("name") or "Someone",
+                       "handle": person.get("handle") or "",
+                       "avatar": person.get("avatar") or ""}
+        out.append(row)
+    return {
+        "messages": out,
+        # The same list the follower popup draws, so the two cannot disagree
+        # about who is new. Tapping one goes to Friends, which is also what
+        # marks them seen - a badge cleared by something merely being drawn is
+        # a count nobody got to read.
+        "follows": SOCIAL.new_followers(user),
+        "head": max([head] + [m.id for m in arrived]),
+        "unread": MESSAGES.unread_total(user),
+    }
 
 
 @app.post("/api/messages")
@@ -2397,6 +2570,11 @@ class PreferenceRequest(BaseModel):
     #: profile. The hidden set rather than the shared one - see
     #: `preferences.Preferences.hidden_interests` for why that direction.
     hidden_interests: Optional[list[str]] = None
+    #: The named subjects chosen from the catalogue, plus anything typed there
+    #: that was not on it. Capped at the model boundary as well as in
+    #: `preferences.clean_topics`, because an oversized body should be refused
+    #: before a database round trip rather than after one.
+    topics: Optional[list[str]] = Field(None, max_length=prefs_mod.MAX_TOPICS)
     #: Written by nothing in the interface any more. The weekly recap popup is
     #: gone, replaced by myFAM's "What you missed last week" rail, and the
     #: column stays for the same reason `language` does: dropping it is a
@@ -2491,6 +2669,23 @@ async def read_preferences(request: Request):
         # rather than left implicit: a setting that silently changes nothing is
         # the failure mode this project has paid for most often.
         "language_active": prefs_mod.LANGUAGE_ACTIVE,
+        # What they chose from the catalogue, resolved for display: a stored
+        # entry is either a catalogue id or a word somebody typed, and a screen
+        # needs the label either way. Resolved here rather than in the client
+        # so the iOS app does not have to carry a copy of the catalogue to
+        # render a pill - the same reason `interests_all` is served.
+        "topics_chosen": [
+            {"id": topic,
+             "label": (topics_mod.CATALOGUE_BY_ID[topic].label
+                       if topic in topics_mod.CATALOGUE_BY_ID else topic),
+             "icon": (topics_mod.CATALOGUE_BY_ID[topic].icon
+                      if topic in topics_mod.CATALOGUE_BY_ID else "news"),
+             # True for something they typed rather than picked off the list.
+             # Shown identically; carried because "this is not one of ours" is
+             # worth being able to see when reading the data back.
+             "typed": topic not in topics_mod.CATALOGUE_BY_ID}
+            for topic in stored.topics
+        ],
         "account": authed,
         "saved": authed,
         "account_required": ACCOUNT_REQUIRED,
@@ -2507,9 +2702,23 @@ async def write_preferences(req: PreferenceRequest, request: Request):
     try:
         prefs = PREFS.save(user, interests=req.interests, language=req.language,
                            hidden_interests=req.hidden_interests,
+                           topics=req.topics,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Saved topics are also *picks*, and the log is what the ranker reads.
+    #
+    # Both, rather than one: the stored list is what a screen draws - what to
+    # show, what to remove, what the Settings wheel is a reflection of - and
+    # the event is what `taste` scores. The list is a statement, the log is
+    # behaviour, and `topics.py` is deliberately a pure query over behaviour.
+    # Recording only the list would leave the ranker exactly as ignorant as it
+    # was before anybody chose anything.
+    if req.topics is not None:
+        for topic in prefs.topics:
+            EVENTS.record(topics_mod.Event(
+                user, "pick", topic, "",
+                topics_mod.tags_for_id(topic, topic)))
     return prefs.as_dict()
 
 
@@ -3025,15 +3234,33 @@ async def episode_transcript(
     honest states are "here are the sentences" and "not written down yet", and
     `known` is which. An attachment episode is deliberately never cached, so
     it never has captions; that is a fact about privacy, not a failure.
+
+    **It reads the live track first** (§107). The cache is written once, at the
+    end, so on a first listen the sentences do not exist under this key until
+    after the last word has been spoken - which is the one moment captions are
+    no use. `live_captions` holds what has been handed to the voice so far, so
+    the transcript builds up as it is read rather than arriving whole or not at
+    all. Same key, so the two cannot describe different episodes, and the
+    fallback order is the only one that can be right: a live track is *this*
+    generation and the cache may hold an older one under the same key while a
+    re-write is in flight.
+
+    `done` is what stops the client asking. Without it "still being written"
+    and "that was the whole episode" are the same answer, and the interface
+    guessed at the difference with a poll count - six tries over twelve
+    seconds, which is roughly a two-minute episode's script and nothing like a
+    researched ten-minute one's, so every long episode read back as having no
+    transcript at all.
     """
     _read_limit(request)
     plan = _validated_plan(q, minutes, context, search)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"sentences": [], "known": False}
-    sentences = await pipeline.script_for(plan)
-    return {"sentences": sentences, "known": bool(sentences)}
+        return {"sentences": [], "known": False, "live": False, "done": True}
+    sentences, live, done = await pipeline.captions_for(plan)
+    return {"sentences": sentences, "known": bool(sentences),
+            "live": live, "done": done}
 
 
 @app.get("/api/next")

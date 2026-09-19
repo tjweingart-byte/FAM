@@ -28,6 +28,7 @@ import metering
 import prefetch
 from anthropic_client import build_async_client
 from cache import research_reason
+import live_captions
 from config import settings
 
 import research as research_mod
@@ -462,6 +463,14 @@ class ScriptNotes:
     #: by the pipeline, cached beside the script and shown in the app. FAM
     #: already collected all of this and discarded it; see `provenance.py`.
     provenance: object = None
+    #: The cache key this episode is being generated under, or "".
+    #:
+    #: Set by the pipeline, and used for exactly one thing: publishing sources
+    #: to `live_captions` the moment they are known rather than when the
+    #: finished script is cached. On the retrieval path the evidence packet is
+    #: built *before the first sentence*, so the difference is the sources
+    #: panel appearing while the episode plays instead of after it ends.
+    caption_key: str = ""
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -1187,6 +1196,7 @@ class ScriptGenerator:
                 notes.provenance.add(live_source)
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
+            _publish_sources(notes)
         return plan
 
     async def stream_sentences(
@@ -1253,6 +1263,18 @@ class ScriptGenerator:
             # the text: cache reads and writes are invisible in the output.
             if notes is not None:
                 notes.usage.add_model_call(settings.model, getattr(final, "usage", None))
+                # And who the model itself read, when it did the looking.
+                #
+                # The packet and the tool are alternatives (CLAUDE.md, "a tool
+                # is not an instruction"), so exactly one of them produced this
+                # episode's evidence - but only the packet was ever recorded.
+                # On a deployment with no Exa key that is *every* episode, so
+                # the sources panel had nothing to show and hid itself, which
+                # read as a broken panel rather than as missing provenance.
+                #
+                # Merged rather than assigned: `prepare` may have attached live
+                # facts already, and a tool search does not replace them.
+                _merge_search_provenance(notes, final)
             if final.stop_reason == "refusal":
                 detail = getattr(final, "stop_details", None)
                 reason = getattr(detail, "explanation", None) or "the request was declined"
@@ -1318,3 +1340,50 @@ async def _demo() -> None:  # pragma: no cover - manual check
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(_demo())
+
+
+def _merge_search_provenance(notes: "ScriptNotes", message) -> None:
+    """Fold the model's own `web_search` results into this episode's sources.
+
+    Separate from the call site so that "what a tool search contributed" is
+    one readable thing, and so that a failure to read a provider object can be
+    swallowed *here* rather than inside the stream - a sources panel must never
+    be the reason an episode does not play, which is the rule every other
+    provenance path in this file keeps.
+    """
+    try:
+        import provenance as provenance_mod
+
+        found = provenance_mod.from_web_search(message)
+        if not found:
+            return
+        if notes.provenance is None:
+            notes.provenance = provenance_mod.Provenance()
+        for item in found.items:
+            notes.provenance.add(item)
+        for retriever in found.retrievers:
+            if retriever not in notes.provenance.retrievers:
+                notes.provenance.retrievers.append(retriever)
+        _publish_sources(notes)
+    except Exception:
+        log.exception("could not read the search results; the episode is unaffected")
+
+
+def _publish_sources(notes: "ScriptNotes") -> None:
+    """Make this episode's sources readable while it is still being spoken.
+
+    Called wherever provenance changes rather than once at the end, because
+    the two paths learn it at opposite moments: a retrieval packet is built
+    before the first sentence, and the model's own tool search is only
+    reported on the final message. One call site would have to be the later of
+    the two, which would give back exactly the delay this removes.
+
+    Never raises: the sources panel is not allowed to be the reason an episode
+    stops playing.
+    """
+    try:
+        if notes.caption_key and notes.provenance is not None:
+            live_captions.publish_sources(notes.caption_key,
+                                          notes.provenance.to_json())
+    except Exception:
+        log.exception("could not publish sources; the episode is unaffected")

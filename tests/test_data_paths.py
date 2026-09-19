@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 import pathlib
 import sys
 
@@ -22,16 +23,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import accounts as ACC
 import metering as ME  # noqa: E402
 import attachments as A  # noqa: E402
+import messages as MSG  # noqa: E402
 import mixes as M  # noqa: E402
 import paths  # noqa: E402
 import preferences as P  # noqa: E402
+import quotas as Q  # noqa: E402
+import saved as SV  # noqa: E402
+import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
 import topics as T  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-#: Every store, as (env var, filename, constructor). One list so a store added
-#: later has to be added here, and every check below covers it automatically.
+#: Every store, as (env var, filename, constructor). The constructors are named
+#: here because a class cannot be discovered from a string, but **the list of
+#: paths is not**: see `DECLARED_VARS` below.
 STORES = [
     ("MYFAM_DB", "myfam.db", T.EventStore),
     ("SOCIAL_DB", "social.db", S.SocialStore),
@@ -40,9 +46,37 @@ STORES = [
     ("ACCOUNTS_DB", "accounts.db", ACC.AccountStore),
     ("PREFS_DB", "preferences.db", P.PreferenceStore),
     ("METERING_DB", "metering.db", ME.MeterStore),
+    ("MESSAGES_DB", "messages.db", MSG.MessageStore),
+    ("SAVED_DB", "saved.db", SV.SavedStore),
+    ("SHARES_DB", "shares.db", SH.ShareStore),
+    ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
 ]
 
-ALL_VARS = [v for v, _f, _c in STORES] + ["CACHE_PATH"]
+#: Every `data_path(...)` call in the app, read out of the source.
+#:
+#: **This is the guard, and the hand-written list above is not.** The
+#: deployment check used to compare the Dockerfile against `STORES`, which is
+#: also maintained by hand - so four stores added after both were written
+#: (messages, saved, shares, quotas) were missing from each, and the two
+#: agreed with each other about a set that was wrong. A deployment therefore
+#: discarded every conversation, saved episode and share link on each redeploy
+#: while the accounts beside them survived, and nothing failed.
+#:
+#: Derived, this cannot happen: a store is discovered the moment it calls
+#: `data_path`, whether or not anybody remembered this file.
+_CALL = re.compile(r'data_path\(\s*"([A-Z_]+)"\s*,\s*"([^"]+)"')
+
+
+def _declared() -> dict:
+    found = {}
+    for module in sorted(ROOT.glob("*.py")):
+        for var, filename in _CALL.findall(module.read_text()):
+            found[var] = filename
+    return found
+
+
+DECLARED = _declared()
+ALL_VARS = sorted(DECLARED)
 
 
 @pytest.fixture(autouse=True)
@@ -145,12 +179,32 @@ def test_the_cache_path_follows_the_same_rule(monkeypatch, tmp_path):
 
 
 def test_the_dockerfile_puts_every_database_on_the_mounted_disk():
-    """Three of the five were named; social and attachments were not, so every
-    redeploy discarded every listener's name, handle and echo. A store added
-    later must be added to the Dockerfile too."""
+    """A store added later must be added to the Dockerfile too, and `ALL_VARS`
+    is now read out of the source so that this cannot be satisfied by two
+    hand-written lists agreeing with each other about the wrong set - which is
+    how messages, saved, shares and quotas were discarded on every redeploy."""
     dockerfile = (ROOT / "Dockerfile").read_text()
     missing = [v for v in ALL_VARS if f"{v}=/data/" not in dockerfile]
     assert not missing, f"not pinned to the mounted disk in the Dockerfile: {missing}"
+
+
+def test_the_hand_written_list_covers_every_declared_store():
+    """`STORES` names constructors, which cannot be discovered from a string,
+    so it stays by hand - but it must not fall behind the derived set, or the
+    per-store resolution tests above quietly stop covering a new store."""
+    # The script cache is the one exemption, by name rather than by silence:
+    # it has two backends (memory and sqlite) so there is no single
+    # constructor to parametrise, and `test_the_cache_path_follows_the_same_rule`
+    # covers it on its own terms.
+    missing = sorted(set(DECLARED) - {v for v, _f, _c in STORES} - {"CACHE_PATH"})
+    assert not missing, f"declared by a module but not tested here: {missing}"
+
+
+def test_every_declared_store_is_discovered_by_filename_too():
+    """The derived list has to carry the filename as well as the variable: the
+    Dockerfile check only needs the name, and the resolution checks need both."""
+    for var, filename in DECLARED.items():
+        assert filename.endswith(".db"), f"{var} -> {filename}"
 
 
 def test_the_example_ships_no_literal_database_path():
@@ -241,7 +295,8 @@ def test_health_reports_every_database_with_a_real_read(monkeypatch, tmp_path):
 
     reported = {entry["name"] for entry in body["databases"]}
     assert reported == {"scripts", "events", "social", "mixes", "attachments",
-                        "accounts", "preferences"}
+                        "accounts", "preferences", "messages", "saved",
+                        "shares", "quotas", "metering"}
     for entry in body["databases"]:
         assert entry["readable"] is True, f"{entry['name']} did not open: {entry}"
         assert entry["writable"] is True
@@ -265,3 +320,80 @@ def test_health_says_a_broken_database_is_broken(monkeypatch, tmp_path):
     events = next(e for e in body["databases"] if e["name"] == "events")
     assert events["readable"] is False
     assert "error" in events, "a broken database must say what went wrong"
+
+
+# --- and whether a redeploy would erase them -------------------------------
+#
+# §107. The Dockerfile was read by hand to answer this and was wrong twice, and
+# from outside a wiped database and a new install look identical. So the
+# running server measures it: a mounted volume is a different filesystem, and
+# `st_dev` is a fact about the machine rather than an echo of a setting.
+
+
+def test_every_database_says_whether_it_survives_a_redeploy(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    body = TestClient(appmod.app).get("/api/health").json()
+    for entry in body["databases"]:
+        assert entry["persistence"] in {"disk", "image", "memory", "unknown"}, entry
+
+
+def test_a_database_on_the_code_s_own_filesystem_goes_with_the_image(monkeypatch):
+    """The application filesystem is the container image. On a laptop that is
+    normal; on a container host it is every listener's account, erased on the
+    next push.
+
+    Asserted as the relationship rather than as a location, because the suite's
+    own fixtures move these stores to a tmp directory - which is on the same
+    device here, and so is exactly the case being claimed.
+    """
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    body = TestClient(appmod.app).get("/api/health").json()
+    code_device = os.stat(ROOT).st_dev
+    checked = 0
+    for entry in body["databases"]:
+        if entry["persistence"] == "memory":
+            continue
+        target = entry["path"]
+        if not os.path.exists(target):
+            target = os.path.dirname(target)
+        if os.stat(target).st_dev != code_device:
+            continue
+        checked += 1
+        assert entry["persistence"] == "image", entry
+        assert entry["name"] in body["storage"]["ephemeral"], entry
+    assert checked, "no database shared a filesystem with the code; nothing was proved"
+
+
+def test_the_summary_names_what_would_be_lost_rather_than_counting_it(monkeypatch):
+    """A number nobody can act on is the shape of report this project keeps
+    replacing: the sentence has to say which stores and what to do."""
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    storage = TestClient(appmod.app).get("/api/health").json()["storage"]
+    assert set(storage) == {"durable", "ephemeral", "unknown", "note"}
+    assert storage["note"], "an empty sentence is not a report"
+    for name in storage["ephemeral"]:
+        assert name in storage["note"], f"{name} is at risk and unnamed"
+
+
+def test_persistence_is_measured_from_the_filesystem_not_from_the_setting():
+    """A store pointed at /data with no disk actually mounted is exactly the
+    case somebody needs told about, and a configuration check cannot see it."""
+    import app as appmod
+
+    same = os.stat(ROOT).st_dev
+    assert appmod._persistence_of(str(ROOT), same) == "image"
+    assert appmod._persistence_of(str(ROOT), same + 1) == "disk"
+    assert appmod._persistence_of(str(ROOT), None) == "unknown"
+    assert appmod._persistence_of(str(ROOT / "no-such-directory"), same) == "unknown"
