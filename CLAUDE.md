@@ -541,6 +541,15 @@ the rest of this list it needs taste rather than a key.
    and lit for Private, open for Public. It used to mean public, so the lit
    position was the one where other people could see your mix - read backwards
    by everybody who has ever used a phone.
+   **And the picker can be given a topic somebody typed again** *(§111).* It
+   could not, for as long as the interests catalogue has existed: both screens
+   declared a top-level `addTypedTopic`, the later one won, and every tap on a
+   typed row in the picker ran the catalogue's function against a search box
+   that is not on that screen. Legal JavaScript, so nothing threw and nothing
+   failed - the button was simply inert. The names say which screen they serve
+   now, and `tools/check_js.py` fails on any top-level name declared twice,
+   because every control in this interface is an inline `onclick` naming a
+   global and nothing else can see one being quietly replaced.
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
    - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
    asymmetric, like the copy always said, and a **friend is the mutual case,
@@ -1590,10 +1599,11 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§110 are
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§111 are
 the most recent: the opening of every researched episode turned out to be
-written by the half that knew least, and what happens when the search comes
-back empty turned out to be "write it from memory anyway"), `MYFAM.md` for the browse page and the live story pool that fills
+written by the half that knew least, what happens when the search comes
+back empty turned out to be "write it from memory anyway", and a DailyFAM mix
+turned out to be unable to accept a topic anybody typed), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1654,6 +1664,12 @@ What is true but not obvious from the code:
   because a claim was once made without it and was wrong.
 - Deleting CSS from `static/index.html` has broken this app twice. Use
   `tools/check_css.py` and `tools/shots.py`, not judgement.
+- **A name declared twice at the top level of `static/index.html` is a button
+  that silently does somebody else's job** (§111). Every control here is an
+  inline `onclick` naming a global, the later declaration wins, and nothing
+  throws. `tools/check_js.py` fails on it now. The same section is the reason
+  to distrust a smoke check that only asserts a control is *on screen*:
+  `.typed-offer` was always on screen and had stopped doing anything.
 - **A setting is settled only where it is copied.** `.env.example` shipped the
   cold open and web search *on* while `config.py` had them off with the
   reasoning attached (PROBLEMS.md §54), so following the documented setup

@@ -1879,7 +1879,7 @@
         <div style="padding:0 18px 12px;">
           <input class="modal-input" id="catalogSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics" oninput="renderTopicCatalog()"
-                 onkeydown="if(event.key === 'Enter') addTypedTopic();"
+                 onkeydown="if(event.key === 'Enter') addTypedInterest();"
                  style="margin-bottom:0;">
         </div>
         <div class="scroll" id="catalogBody" style="padding-top:2px;"></div>
@@ -2123,7 +2123,7 @@
         <div style="padding:0 18px 10px;">
           <input class="modal-input" id="pickerSearch" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search topics, or type your own"
-                 oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedTopic()">
+                 oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedMixTopic()">
         </div>
         <div class="connect-sub" style="margin:0 18px 12px;" id="pickerCount">Nothing chosen yet.</div>
         <div class="scroll" id="pickerBody"></div>
@@ -5248,7 +5248,17 @@
 
   // Anything they type is a valid topic - there is no "no results". The bank
   // is a shortcut, not a menu, so an unmatched search offers to add itself.
-  function addTypedTopic(){
+  //
+  // **Named for the screen it belongs to, and that is the whole of the bug it
+  // fixes.** This was `addTypedTopic`, and so was the interests catalogue's
+  // version four thousand lines below it - two top-level declarations of one
+  // name in one script, so the later one won and this one never ran. The row
+  // rendered, the tap landed, and the catalogue's copy read `#catalogSearch`,
+  // found nothing on a screen that does not have it, and returned. Nothing
+  // threw: a mix could not be given a topic anybody typed, silently. A name
+  // that says which surface it serves cannot collide with the other one by
+  // accident, and `tools/check_js.py` now fails on any pair that does.
+  function addTypedMixTopic(){
     var box = document.getElementById("pickerSearch");
     var text = box.value.trim();
     if(!text) return;
@@ -5283,7 +5293,7 @@
       var typedId = "typed:" + term;
       var already = selectionIndex(typedId) !== -1;
       html += '<div class="mix-topic typed-offer' + (already ? " chosen" : "") + '" '
-        + 'onclick="addTypedTopic()">'
+        + 'onclick="addTypedMixTopic()">'
         + '<div class="mix-topic-body">'
         + '<div class="mix-topic-title">' + escapeHtml(document.getElementById("pickerSearch").value.trim()) + '</div>'
         + '<div class="mix-topic-sub">' + (already ? "Already in this mix" : "Add this as your own topic") + '</div>'
@@ -9499,7 +9509,7 @@
     });
     var head = "";
     if(raw && !exact && !hasChosenTopic(raw)){
-      head = '<div class="cat-add-typed" onclick="addTypedTopic()">'
+      head = '<div class="cat-add-typed" onclick="addTypedInterest()">'
         + '<div class="cat-art">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
         + 'stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
@@ -9555,7 +9565,7 @@
   // Reached by the row above the results and by Enter, because a search field
   // with a visible "add this" row that ignores the return key is a control
   // that works one of the two ways a thumb will try it.
-  function addTypedTopic(){
+  function addTypedInterest(){
     var box = document.getElementById("catalogSearch");
     var raw = ((box && box.value) || "").trim();
     if(!raw) return;

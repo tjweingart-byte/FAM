@@ -1129,7 +1129,7 @@ def main() -> int:
             assert "nineteenth century canals" in add.inner_text()
 
             before = page.evaluate("chosenTopics.length")
-            page.evaluate("addTypedTopic()")
+            page.evaluate("addTypedInterest()")
             page.wait_for_timeout(300)
             assert page.evaluate("chosenTopics.length") == before + 1, \
                 "adding what was typed kept nothing"
@@ -1486,14 +1486,55 @@ def main() -> int:
             assert page.eval_on_selector_all(".mix-card", "e => e.length") >= 1
 
         def picker():
+            """Typing a topic into a mix and tapping it puts it in the mix.
+
+            This used to stop at "the offer is on screen", which is the half
+            that worked: the row rendered, the tap landed, and nothing
+            happened, because two top-level functions in one script shared the
+            name `addTypedTopic` and the catalogue's copy won. Asserting a
+            control exists is not asserting it does anything - so the click
+            and its effect are checked here, on the screen, the way a listener
+            meets it."""
             page.evaluate("document.querySelectorAll('.mix-card')[0].click()")
             page.wait_for_timeout(400)
             page.evaluate("editMixTopics()")
             page.wait_for_selector("#screen-mixpicker.active .mix-topic",
                                    timeout=10000, state="attached")
-            page.fill("#pickerSearch", "a topic nobody has in the bank")
+            typed = "a topic nobody has in the bank"
+            before = page.evaluate("pickerSelection.length")
+            page.fill("#pickerSearch", typed)
             page.wait_for_timeout(300)
-            assert page.query_selector(".typed-offer"), "typing offers no way to add it"
+            offer = page.query_selector(".typed-offer")
+            assert offer, "typing offers no way to add it"
+
+            offer.click()
+            page.wait_for_timeout(300)
+            assert page.evaluate("pickerSelection.length") == before + 1, \
+                "tapping the add button on a typed topic kept nothing"
+            assert page.evaluate(
+                "pickerSelection.some(function(s){ return s && s.query === "
+                + repr(typed).replace("'", '"') + "; })"), \
+                "what was typed is not what was added"
+
+            # And it is on the screen, under its own heading, with the search
+            # box cleared - a selection the listener cannot see is the same
+            # failure one step later. Lower-cased because `.mix-meta` is
+            # uppercased in CSS and innerText reports what is rendered.
+            body = page.inner_text("#pickerBody").lower()
+            assert typed in body, "the typed topic is not shown in the picker"
+            assert "your own topics" in body, "the typed topic has no heading"
+            assert page.eval_on_selector("#pickerSearch", "e => e.value") == "", \
+                "adding a typed topic left the search box full"
+            chosen = page.evaluate("pickerSelection.length")
+            assert f"{chosen} topic" in page.inner_text("#pickerCount"), \
+                "the count did not notice the topic"
+
+            # A bank topic is the other half of the same screen.
+            page.evaluate("document.querySelectorAll('#pickerBody .mix-topic')"
+                          "[document.querySelectorAll('#pickerBody .mix-topic').length - 1].click()")
+            page.wait_for_timeout(300)
+            assert page.evaluate("pickerSelection.length") == before + 2, \
+                "tapping a bank topic kept nothing"
 
         def messages_sheet():
             # The sheet has to be leavable. A tab that cannot be left is the

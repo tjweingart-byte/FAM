@@ -7927,3 +7927,64 @@ with no reason attached is the first thing a later rewrite drops.
 What this does not do is make the refusal unreachable. It makes it rarer, for
 a handful of output tokens on a call already being made, which is the only
 kind of latency this layer is allowed to spend.
+
+## 111. A mix could not be given a topic anybody typed, and nothing said so
+
+**Reported:** create a DailyFAM album, type a subject into the picker, and the
+add button does nothing. "AI updates" appears as a row with a `+` on it, the
+tap lands, and the topic is not added - no toast, no error, no console
+message, on the one screen whose entire job is collecting topics.
+
+**The cause is one word, declared twice.** `static/index.html` had two
+top-level `function addTypedTopic()` declarations four thousand lines apart:
+the DailyFAM picker's, which reads `#pickerSearch` and pushes onto
+`pickerSelection`, and the interests catalogue's (§100, "the catalogue's
+search can add whatever was typed"), which reads `#catalogSearch` and pushes
+onto `chosenTopics`. Function declarations hoist and the later one wins, so
+the picker's version was dead code from the moment the catalogue's was
+written. Every tap on a typed row in the picker ran the catalogue's function,
+which looked for a search box that does not exist on that screen, found
+nothing, and returned on its own `if(!raw) return`.
+
+So the failure was *silent by construction*. Nothing threw - the catalogue's
+function is a perfectly good function doing exactly what it says, on the
+wrong screen. And it is legal JavaScript, so `node --check` passed, the tests
+passed, and the browser smoke test passed too.
+
+**The smoke test is the more interesting half.** There was a check for this
+screen, and it read:
+
+```python
+page.fill("#pickerSearch", "a topic nobody has in the bank")
+assert page.query_selector(".typed-offer"), "typing offers no way to add it"
+```
+
+It asserted the control was *on screen* and stopped there. The control was
+always on screen; it had just stopped doing anything. That is the shape to
+watch for in every check in `tools/smoke_preview.py`: **asserting a control
+exists is not asserting it works**, and the gap between the two is exactly
+where a silently-inert button lives. The check now types, clicks the offer,
+and asserts the selection grew, that what was added is what was typed, that
+it is drawn under its own heading, that the box was cleared, and that a bank
+row still toggles beside it.
+
+**The fix is names that say which screen they serve** - `addTypedMixTopic`
+and `addTypedInterest` - rather than one of them keeping the generic name and
+waiting for the next collision.
+
+**And the guard is derived** (§107's rule, applied to a different subject).
+`tools/check_js.py` already parses the interface on every `./dev.sh check`;
+it now also reads every `function NAME(` declaration out of the sources and
+fails on any name declared twice at the shallowest indent - the top level,
+where the survivor is a global and every inline `onclick` in the markup
+follows it. Indentation standing in for scope is a proxy rather than a parse,
+and it is deliberately narrowed to the top level: a nested function shadowing
+a name is ordinary, two globals sharing one is this bug. It was run against
+the pre-fix file first, and it finds `addTypedTopic`.
+
+This matters past one button because of how this interface is wired. Every
+control in `static/index.html` is an inline `onclick` naming a global. There
+is no import graph, no bundler and no linter that can see a name being
+quietly replaced, so a duplicated top-level name is not a style problem - it
+is a control that silently calls somebody else's function. The check that
+catches it costs a regex.
