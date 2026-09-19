@@ -642,25 +642,36 @@ def test_a_contradiction_is_never_resolved_by_inventing_a_reason_for_it():
 # --------------------------------------------------------------------------
 # where it runs, and where it must not
 # --------------------------------------------------------------------------
-def test_the_cover_half_never_waits_for_a_brief(model):
-    """`role="opening"` is defined as the half that starts immediately from
-    what the model already knows. A model call in front of it is precisely the
-    wait it exists to cover."""
-    calls, _ = model
-    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
-    plan = dataclasses.replace(plan_episode("who won", 3, search=True),
-                               role="opening")
-    returned = asyncio.run(generator.understand(plan))
-    assert returned.brief is None and not calls
+def test_an_unresearched_episode_is_understood_too(model):
+    """It used to be skipped, and the reason was time.
 
-
-def test_an_unresearched_episode_does_not_pay_for_a_brief(model):
-    """EI's largest single product is the retrieval query, and an episode that
-    retrieves nothing cannot spend it."""
+    EI's largest single product is the retrieval query, and an episode that
+    retrieves nothing cannot spend it - so the rest of the brief, which is the
+    intent, the resolved subject, the story shape and what the writer must not
+    assume, was thrown away to save a second in front of the first word. That
+    is the part the opening is made of. §108.
+    """
     calls, _ = model
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("how does a heat pump work", 3, search=False)
-    assert asyncio.run(generator.understand(plan)).brief is None
+    assert asyncio.run(generator.understand(plan)).brief is not None
+    assert len(calls) == 1
+
+
+def test_episode_intelligence_off_is_still_the_way_out(model):
+    """One switch, and it is the same one it always was."""
+    import config
+    import dataclasses as dc
+
+    calls, _ = model
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    plan = plan_episode("how does a heat pump work", 3, search=False)
+    original = sg.settings
+    sg.settings = dc.replace(config.settings, episode_intelligence=False)
+    try:
+        assert asyncio.run(generator.understand(plan)).brief is None
+    finally:
+        sg.settings = original
     assert not calls
 
 

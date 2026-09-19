@@ -174,8 +174,8 @@ def test_the_wait_says_what_it_is_waiting_for():
 
     The line used to read "Answering now - checking sources underneath", which
     was true while the from-knowledge cover spoke over the research. It is not
-    true now: the cover is off on the Exa backend, and episode intelligence
-    deliberately put seconds back in front of the first word. A line claiming
+    true now: the cover is deleted (§108), and both episode intelligence and
+    the retrieval deliberately sit in front of the first word. A line claiming
     audio had started would be a new lie in the place PROBLEMS.md 55 removed
     the old one from, so the three stages are named in the order they happen.
     """

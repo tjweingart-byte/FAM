@@ -89,8 +89,9 @@ def test_usage_from_a_missing_field_is_zero_not_a_crash():
 
 
 def test_two_calls_on_one_episode_add_up():
-    """A researched episode runs the cover and the research at once. Counting
-    one of them would have reported the expensive episodes at half price."""
+    """A researched episode runs a brief, a search and the writing. Counting
+    one of them would have reported the expensive episodes at a fraction of
+    their price."""
     u = metering.Usage()
     u.add_model_call("claude-sonnet-5", {"input_tokens": 100, "output_tokens": 200})
     u.add_model_call("claude-sonnet-5", {"input_tokens": 300, "output_tokens": 400})

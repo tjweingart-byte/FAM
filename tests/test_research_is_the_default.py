@@ -40,7 +40,9 @@ import app as app_mod  # noqa: E402
 import config as config_mod  # noqa: E402
 import research as research_mod  # noqa: E402
 import script_generator as sg  # noqa: E402
-from script_generator import ScriptGenerator, build_prompt, plan_episode  # noqa: E402
+from script_generator import (  # noqa: E402
+    ScriptGenerator, ScriptNotes, build_prompt, plan_episode,
+)
 
 #: The question from the Render log, and four more that no keyword list would
 #: ever flag. These are the ones the old default got wrong.
@@ -134,21 +136,32 @@ def test_the_retrieval_really_runs_for_both_kinds_of_question(monkeypatch, query
     assert researched.evidence == Packet.context
 
 
-def test_a_research_failure_surfaces_instead_of_silently_answering(monkeypatch):
+def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
     """The one thing worse than waiting for research is being told you got it.
 
-    A backend that cannot run must reach the listener as a sentence they can
-    act on. Falling back to model knowledge here would restore exactly the
-    behaviour this change removed, and would do it invisibly."""
-    async def broken(q, brief=None):
-        raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
+    This used to raise all the way to the listener, and what made that
+    affordable was the from-knowledge half already speaking underneath it.
+    With one stream, raising means no episode at all - so the other retriever
+    gets one go and the episode's own record names the backend that failed.
+    Still not silent, which was always the actual rule. §108.
+    """
+    from research import Packet
 
-    monkeypatch.setattr(research_mod, "retrieve", broken)
-    plan = plan_episode("what is the NASDAQ", 3)
+    async def retrieve(q, backend=None, brief=None):
+        if backend != "claude":
+            raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
+        return Packet(context="SOURCE 1\nTitle: x", backend="claude",
+                      sources=["reuters.com"])
 
-    with pytest.raises(research_mod.ResearchUnavailable):
-        asyncio.run(ScriptGenerator(api_key="").research(plan))
+    monkeypatch.setattr(research_mod, "retrieve", retrieve)
+    notes = ScriptNotes()
+    researched = asyncio.run(ScriptGenerator(api_key="").research(
+        plan_episode("what is the NASDAQ", 3), notes))
 
+    assert researched.evidence
+    assert notes.research["fell_back_from"] == "exa"
+
+    # And the sentence still names the remedy where one does reach a listener.
     said = app_mod.friendly_error(
         research_mod.ResearchUnavailable("EXA_API_KEY is not set"))
     assert "EXA_API_KEY is not set" in said, "the remedy was thrown away"
@@ -233,51 +246,53 @@ def _no_packet_plan(query="49ers game last night"):
     return plan
 
 
-def test_an_episode_with_no_packet_still_gets_the_search_tool():
-    kwargs = ScriptGenerator.__new__(ScriptGenerator)._request_kwargs(_no_packet_plan())
-    assert [t["name"] for t in kwargs.get("tools", [])] == ["web_search"]
+def test_no_episode_is_written_with_a_search_tool_attached():
+    """The bypass in its last hiding place, closed by moving the search.
+
+    The tool used to be attached whenever an episode was researched and no
+    packet came back, and `build_prompt` then spent a paragraph asking the
+    model to please search before writing. It is a retrieval of its own now
+    (§108), so the call that speaks has no tool to forget to use and no
+    paragraph about using it.
+    """
+    generator = ScriptGenerator.__new__(ScriptGenerator)
+    assert "tools" not in generator._request_kwargs(_no_packet_plan())
+    assert "tools" not in generator._request_kwargs(
+        dataclasses.replace(_no_packet_plan(), evidence="SOURCE 1\nTitle: x"))
+    assert "tools" not in generator._request_kwargs(
+        plan_episode("how does a heat pump work", 3, search=False))
 
 
-def test_and_is_actually_told_to_use_it():
-    """The half that was missing. Attaching a tool is not asking for research."""
-    prompt = build_prompt(_no_packet_plan())
-    assert "web search tool" in prompt, (
-        "the model was handed a search tool and never asked to search")
-    assert "Search first" in prompt
+def test_nothing_in_the_prompt_asks_the_model_to_go_and_look():
+    """An instruction to search would now be asking for a second search, mid
+    episode, with the listener already listening."""
+    for plan in (_no_packet_plan(),
+                 dataclasses.replace(_no_packet_plan(), evidence="SOURCE 1"),
+                 plan_episode("how does a heat pump work", 3, search=False)):
+        prompt = build_prompt(plan)
+        assert "web search tool" not in prompt
+        assert "Search first" not in prompt
 
 
-def test_the_exact_answer_production_gave_is_named_as_unacceptable():
-    """Pinned to the symptom. A model that will not search should at least have
-    been told that refusing to look is the one answer that is not allowed."""
-    prompt = build_prompt(_no_packet_plan())
-    assert "I can't confirm" in prompt
-    assert "don't have that information" in prompt
+def test_the_claude_backend_retrieves_like_any_other(monkeypatch):
+    """`research()` used to return the plan untouched on `claude`, which is
+    what put that backend on the write-while-searching path for *every*
+    episode it served."""
+    from research import Packet
 
+    seen: list = []
 
-def test_an_episode_that_has_evidence_is_not_told_to_search():
-    """The tool and the packet are alternatives - never both, or the model
-    searches on top of what it was handed and the episode is unattributable."""
-    plan = dataclasses.replace(_no_packet_plan(), evidence="SOURCE 1\nTitle: x")
-    prompt = build_prompt(plan)
-    assert "web search tool" not in prompt
-    kwargs = ScriptGenerator.__new__(ScriptGenerator)._request_kwargs(plan)
-    assert "tools" not in kwargs
+    async def retrieve(q, backend=None, brief=None):
+        seen.append(backend)
+        return Packet(context="SOURCE 1\nTitle: x", backend="claude")
 
-
-def test_an_unresearched_episode_is_told_nothing_about_searching():
-    prompt = build_prompt(plan_episode("how does a heat pump work", 3, search=False))
-    assert "web search tool" not in prompt
-
-
-def test_the_claude_backend_reaches_the_same_instruction(monkeypatch):
-    """`research()` returns the plan untouched on `claude` - the model does its
-    own looking - so that backend lands on this path for *every* episode."""
     monkeypatch.setattr(
         sg, "settings", dataclasses.replace(sg.settings, research_backend="claude"))
-    plan = plan_episode("what is the NASDAQ", 3)
-    returned = asyncio.run(ScriptGenerator(api_key="").research(plan))
-    assert returned.evidence == "", "the claude backend must retrieve nothing"
-    assert "web search tool" in build_prompt(returned)
+    monkeypatch.setattr(research_mod, "retrieve", retrieve)
+    returned = asyncio.run(ScriptGenerator(api_key="").research(
+        plan_episode("what is the NASDAQ", 3)))
+    assert returned.evidence, "the claude backend retrieved nothing"
+    assert seen == [None], "it should run the configured backend, not a fallback"
 
 
 # --- the server can say which code it is running ----------------------------

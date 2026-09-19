@@ -201,9 +201,9 @@ def test_headroom_never_delays_a_chunk_only_hastens_it():
 #
 # The 4090 reported `sentence -> synthesis: -26.13s` on a researched episode -
 # synthesis apparently beginning 26 seconds before a sentence existed. The mark
-# lived in the pump-draining loops, and `_answer_first` speaks the cover
-# through `_speak_item`, which enters neither. So `first_sentence` recorded the
-# first *researched* item while `first_tts_start` correctly recorded the cover.
+# lived in the pump-draining loops, and the answer-first cover was spoken
+# through a path that entered neither. So `first_sentence` recorded the first
+# *researched* item while `first_tts_start` correctly recorded the cover.
 # An impossible number is how a misplaced mark announces itself, and it sent a
 # session looking for a pipeline fault that was not there.
 # --------------------------------------------------------------------------
@@ -225,5 +225,5 @@ def test_the_first_sentence_mark_is_taken_where_speaking_happens():
     for name in ("_speak_phase6", "_speak"):
         source = inspect.getsource(getattr(pipeline_mod.PodcastPipeline, name))
         assert 'mark("first_sentence")' not in source, (
-            f"{name} marks it again; the cover path would still be missed and "
-            "the two marks would disagree")
+            f"{name} marks it again; a path that does not enter the loop "
+            "would still be missed and the two marks would disagree")

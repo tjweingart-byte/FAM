@@ -126,9 +126,10 @@ PLANS = entitlements.TIERS
 class Usage:
     """What one episode consumed. Accumulated during generation, written once.
 
-    Mutable and shared on purpose: a researched episode runs two model calls at
-    once (`_answer_first`), and both must land in the same total. A per-call
-    copy would report the cover as free.
+    Mutable and shared on purpose: a researched episode runs several model
+    calls - the brief, the searching call where the model does its own looking,
+    and the writing call - and all of them must land in the same total. A
+    per-call copy would report research as free.
     """
 
     model: str = ""

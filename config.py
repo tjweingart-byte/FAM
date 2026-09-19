@@ -210,48 +210,17 @@ DEFAULT_MINUTES = 2
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.
 PREFETCH_LEVELS = ("brief", "script")
 
-#: Backends slow enough that the from-knowledge cover earns its second call.
+#: **There is no from-knowledge cover any more.** `ANSWER_FIRST` used to start
+#: a second, tool-less model call that began speaking immediately while
+#: research was still reading, and hand over mid-episode. It was deleted in
+#: PROBLEMS.md §108, not switched off: the cover half wrote the first ten
+#: seconds of every researched episode with no brief, no evidence and no idea
+#: what the episode was about, which is exactly the "confusing opening" the
+#: listener reported - and a knob left behind gets turned back on, which this
+#: one was, by a line in `Dockerfile.gpu`.
 #:
-#: `answer_first` exists for exactly one reason: Claude's server-side search
-#: costs 10-25 seconds before a word can be written, and a listener will not
-#: wait that long in silence. The cover is what fills it - with the durable
-#: half of the answer rather than filler, which is the one thing the deleted
-#: cold open could never be.
-#:
-#: Exa is not that. It retrieves in about half a second, and Claude then writes
-#: from the packet immediately, so there is no gap to cover. Running the cover
-#: anyway costs a second model call, delays the first word, and - the part that
-#: matters most - means most of a researched episode is the *unresearched*
-#: half: the RunPod run measured the cover speaking 85.8 seconds before
-#: research took over. Someone who asked a question that needed today's facts
-#: got mostly what the model already knew.
-#:
-#: So the cover follows the wait rather than the setting. `ANSWER_FIRST=1` or
-#: `=0` still wins, because a deployment that has measured its own numbers
-#: should not be argued with.
-SLOW_RESEARCH_BACKENDS = ("claude",)
+#: Nothing is spoken now until the writer holds the whole picture.
 
-
-def _answer_first_default() -> bool:
-    """Cover the wait when there is a wait to cover.
-
-    Reads the environment directly rather than a sibling field: a
-    `default_factory` cannot see the rest of the dataclass, and reaching for
-    `__post_init__` would overwrite an explicit
-    `dataclasses.replace(settings, answer_first=...)`, which several tests and
-    `_answer_first` itself depend on.
-
-    The consequence worth knowing: this is derived once, at process start, from
-    the environment. `dataclasses.replace(settings, research_backend="claude")`
-    does not re-derive it - that is a deliberate in-process override, not a
-    deployment being configured.
-    """
-    raw = os.environ.get("ANSWER_FIRST")
-    if raw is not None and raw.strip():
-        return raw.strip().lower() not in ("0", "false", "no", "off")
-    backend = os.environ.get(
-        "RESEARCH_BACKEND", DEFAULT_RESEARCH_BACKEND).strip().lower()
-    return backend in SLOW_RESEARCH_BACKENDS
 
 #: Which generation pipeline a request runs through.
 #:
@@ -304,9 +273,25 @@ class Settings:
     anthropic_http2: bool = field(
         default_factory=lambda: os.environ.get("ANTHROPIC_HTTP2", "0") not in ("0", "false", "False", "")
     )
-    # low | medium | high | xhigh | max. Script writing is not a hard reasoning
-    # task and effort directly costs time-to-first-audio, so keep it low.
-    effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
+    # low | medium | high | xhigh | max. **This was `low`, and the reason
+    # given was speed** - "script writing is not a hard reasoning task and
+    # effort directly costs time-to-first-audio". Both halves of that were
+    # wrong in the way that matters here (PROBLEMS.md §108).
+    #
+    # The first sentence is written before any of the rest exists, and it is
+    # the one a listener uses to decide whether there will be a second. To
+    # write it well the model has to have decided what the whole episode is:
+    # which angle, what the evidence actually establishes, where it lands.
+    # That is a planning task, it happens entirely before the first token, and
+    # effort is the only budget there is for it. At `low` the model started
+    # talking before it had worked out what it was going to say - which is a
+    # confusing opening followed by a good episode, the exact shape reported.
+    #
+    # What it costs is seconds in front of the first word, once, and those
+    # seconds are now explicitly the trade this product makes: the writing is
+    # the product, and an episode that opens on the wrong thing is worth less
+    # than one that starts later and opens on the right thing.
+    effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "high"))
     # Padding a short script back to length reintroduces the filler the opener
     # was removed for. Off by default: a briefing that ends when it runs out of
     # substance is better than one stretched to fill the slider.
@@ -347,41 +332,12 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # Answer first, research underneath. When an episode is going to be
-    # researched, run a second call with no tools that starts writing
-    # immediately, speak that while the search runs, and hand over the moment
-    # the researched half has a sentence ready. Costs a second model call on
-    # researched episodes only.
-    #
-    # **Unset, this now follows the research backend** - see
-    # SLOW_RESEARCH_BACKENDS above. It covers a wait, and with Exa retrieving
-    # in about half a second there is no wait to cover; on `claude`, where the
-    # model's own search costs 10-25 seconds, there is. ANSWER_FIRST=1 or =0
-    # still wins outright.
-    answer_first: bool = field(default_factory=_answer_first_default)
-    # The most of an episode the instant half may speak before it must give way.
-    #
-    # Without a ceiling this design quietly defeats itself: synthesis runs far
-    # faster than research, so the from-knowledge half can finish the entire
-    # episode in the time the search takes, and the listener gets an
-    # unresearched answer to a question that was researched *because* it needed
-    # today's facts. Reserving the rest means the research always gets said.
-    answer_first_share: float = _env_float("ANSWER_FIRST_SHARE", 0.5)
-    # How far past that ceiling the cover may go when research is *still not
-    # ready*, as a share of the episode.
-    #
-    # The ceiling above is about sharing. Enforced as a deadline it produced
-    # the failure this pair exists to balance: the cover stopped, research had
-    # nothing yet, and the pipeline blocked on it - silence in the middle of an
-    # episode that had already started. Dead air is worse than an over-long
-    # opening, and the opening is a real answer rather than filler.
-    #
-    # So past the ceiling the cover keeps speaking, and this is where that
-    # stops: at 0.8 the researched half still gets a fifth of the episode,
-    # which is enough for it to be worth having said. Beyond here, covering has
-    # stopped buying anything - research would have nothing left to speak into
-    # - so the gap is accepted and logged rather than hidden.
-    answer_first_max_share: float = _env_float("ANSWER_FIRST_MAX_SHARE", 0.8)
+    # How much the searching call may write back. It reports evidence rather
+    # than an episode - a few sources with their passages - so this is small
+    # on purpose: it is a ceiling on a research note, not on a script, and a
+    # large one would let a model that misread the job write the episode here
+    # instead. See `research.retrieve_with_claude`.
+    research_max_tokens: int = _env_int("RESEARCH_MAX_TOKENS", 4000)
     # claude | exa - see RESEARCH_BACKENDS above. Only consulted when an
     # episode is actually being researched; an unresearched one costs nothing
     # either way.
@@ -1007,8 +963,8 @@ class Settings:
         """Refuse a configuration that names a pipeline that does not exist.
 
         Deliberately at construction, so it also catches
-        `dataclasses.replace(settings, ...)` - which `pipeline._answer_first`
-        uses - and not only the environment. The app failing to start is the
+        `dataclasses.replace(settings, ...)`, which several call sites use,
+        and not only the environment. The app failing to start is the
         correct outcome: a misconfigured deployment that serves the wrong
         generation path is worse than one that refuses to serve.
         """

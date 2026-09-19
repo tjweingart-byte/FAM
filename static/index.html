@@ -3108,11 +3108,14 @@
     //
     // This used to say 'Answering now, checking sources underneath', which
     // was true while the from-knowledge cover was speaking over the research.
-    // It is not true now. The cover is off on the Exa backend (there was no
-    // wait to cover), and episode intelligence deliberately put seconds back
-    // in front of the first word - so a line claiming audio had started would
-    // be a new lie in the place the old one was removed from, which is the one
-    // thing this overlay exists not to do.
+    // It is not true now: that cover is deleted (PROBLEMS.md §108), and the
+    // brief, the retrieval and the writer's own planning all happen before a
+    // word is spoken - so a line claiming audio had started would be a new lie
+    // in the place the old one was removed from, which is the one thing this
+    // overlay exists not to do.
+    //
+    // Every episode is understood first now, researched or not, so both lists
+    // start on the same stage.
     //
     // The boundaries are estimated from elapsed time rather than reported by
     // the server, and that is a real limitation worth knowing: each stage
@@ -3125,7 +3128,8 @@
       ? [[0, "Working out what you're asking"],
          [4, "Reading today's sources"],
          [7, "Writing your episode"]]
-      : [[0, "Writing your episode"]];
+      : [[0, "Working out what you're asking"],
+         [3, "Writing your episode"]];
     var started = Date.now();
     function leadAt(seconds){
       var lead = stages[0][1];

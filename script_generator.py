@@ -128,19 +128,24 @@ _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 # first ten seconds of it, and the first ten seconds are the only part a
 # listener uses to decide whether there will be an eleventh.
 #
-# The cause is structural rather than a lapse: the words are written *before*
-# the facts arrive. The cover half of `_answer_first` runs with `search=False`
-# and no packet; the `research_now` path writes into a tool call it has not
-# made yet. In both, the model is asked a question whose answer it does not yet
-# hold, and the honest thing for a lone answerer to do is say so. It is not the
-# lone answerer. The rest of the episode is already being written underneath
-# it.
+# The cause was structural rather than a lapse: the words were written
+# *before* the facts arrived. The cover half of the old answer-first path ran
+# with `search=False` and no packet, and the tool path wrote into a search it
+# had not made yet. In both, the model was asked a question whose answer it
+# did not yet hold, and the honest thing for a lone answerer to do is say so.
 #
-# So the prompt now tells it that (ROLE_BRIEFS["opening"], `research_now`, and
-# the system prompt's "Never say what you do not have"), and this guard makes
-# the rule hold even when the wording does not. A prompt rule that fails
-# silently is not a fix - and this one had already been written, as "no hedging
-# about not having looked anything up", when the Dodgers episode hedged.
+# **Both of those are gone** (PROBLEMS.md §108). Nothing is written before the
+# retrieval finishes now, on either backend, so the model is never in that
+# position in the first place - which is a fix where the prompt wording and
+# this guard were both mitigations.
+#
+# The guard stays, because thin evidence still exists and a model handed a
+# packet that misses the part it was asked about can still reach for a
+# disclaimer. A prompt rule that fails silently is not a fix - the rule "no
+# hedging about not having looked anything up" was already written when the
+# Dodgers episode hedged - and every drop is still logged and carried on
+# `ScriptNotes.meta_openings`, where it now means something different and
+# sharper: the retrieval came back thin, not that the writer was guessing.
 #
 # What it may drop is narrow on purpose: sentences about the *writer's own
 # access* to information, and only while nothing real has been said yet. Once a
@@ -430,19 +435,17 @@ class ScriptNotes:
     #: Empty dict on the `claude` backend, where nothing was retrieved.
     research: dict = dataclasses.field(default_factory=dict)
     #: What this episode consumed, accumulated across every model call it
-    #: makes. Mutable and shared deliberately: a researched episode runs two
-    #: calls at once and both must land in the same total, so `_answer_first`
-    #: hands the cover half a ScriptNotes carrying *this* Usage object. A
-    #: per-call copy would report the cover as free, which is the half that
-    #: does most of the writing.
+    #: makes. Mutable and shared deliberately: a researched episode makes
+    #: three - the brief, the searching call on the `claude` backend, and the
+    #: writing call - and all of them must land in the same total. A per-call
+    #: copy would report research as free.
     usage: metering.Usage = dataclasses.field(default_factory=metering.Usage)
 
     # --- how long what this episode says stays true -----------------------
     #
     # **Here rather than on the plan, and that is not tidiness.** The caller
     # holds the *unprepared* plan: `stream_sentences` rebinds it
-    # (`plan = await self.prepare(plan, notes)`) and `_answer_first` derives
-    # two more that the pipeline never sees. So `plan.brief` and `plan.live`
+    # (`plan = await self.prepare(plan, notes)`). So `plan.brief` and `plan.live`
     # are `None` at the moment the pipeline writes to the cache, and always
     # would be. `ScriptNotes` is the channel that already crosses that
     # boundary - it is how `thread` and `research` get back - so the cache
@@ -537,12 +540,6 @@ class EpisodePlan:
     #: these is theirs alone: `pipeline` refuses to cache it, so it never
     #: reaches Explore or another listener.
     attachments: tuple = ()
-    #: "" for a whole episode. "opening" is the half written from what the
-    #: model already knows, which starts immediately; "continuation" is the
-    #: researched half, which takes over once its sources are in. Answer first,
-    #: research underneath: the listener never waits, and what covers the wait
-    #: is the answer rather than filler.
-    role: str = ""
     #: Retrieved evidence for a researched episode, when the `exa` backend
     #: fetched it. Empty on the `claude` backend, where the model searches
     #: inside its own turn and there is nothing to carry. Its presence is what
@@ -558,7 +555,7 @@ class EpisodePlan:
     evidence: str = ""
     #: What FAM EI worked out before anything was retrieved - intent, subject,
     #: why-now, story shape, depth, temporal cautions. `None` when EI did not
-    #: run (a cover half, an unresearched episode, EPISODE_INTELLIGENCE=0), and
+    #: run (EPISODE_INTELLIGENCE=0, or a brief that failed), and
     #: `build_prompt` then writes exactly the prompt it wrote before EI
     #: existed. See `episode_intelligence.Brief`.
     brief: object = None
@@ -672,58 +669,6 @@ def plan_episode(
         cached_only=cached_only,
         attachments=tuple(attachments or ()),
     )
-
-
-#: What each half of an answer-first episode is told about the other. The two
-#: are divided by *content*, not by text: the opening cannot know what the
-#: research will find, and the research cannot know the opening's exact words,
-#: but both can be told which job is whose.
-ROLE_BRIEFS = {
-    "opening": (
-        "\nYou are opening an episode that will continue after you. Answer from "
-        "what you already know, starting immediately - no waiting, no hedging "
-        "about not having looked anything up. Cover what this is, why it works "
-        "the way it does, and the history that explains it: the parts of the "
-        "answer that do not change week to week.\n"
-        "**The current facts are already on their way.** A second half of this "
-        "same episode is reading sources right now and will take over from you "
-        "mid-flow, within seconds, and give the listener the specifics - the "
-        "result, the numbers, what happened. That is its part. Yours is the "
-        "runway it lands on. So write as the first minute of a piece that is "
-        "about to have everything, not as the whole of a piece that is "
-        "missing something.\n"
-        "**Never say what you do not have.** Not \"I don't have\", not \"I "
-        "can't confirm\", not \"I'm not going to guess\", not \"here's what "
-        "is actually true instead\", not \"whichever one you mean\". You are "
-        "not declining the current facts, and you must not tell the listener "
-        "you are: a sentence about your own information is the one thing that "
-        "makes someone stop listening before the good half arrives, and it is "
-        "the first thing they hear. If you cannot establish something, write "
-        "the part you can and say nothing about the rest.\n"
-        "If they asked about something that just happened, this is easy and it "
-        "is not a hedge: put them in the situation. Who is involved, where it "
-        "sits, what was at stake going in, what the run-up was, what a result "
-        "either way would mean. All of that is true whatever the result was, "
-        "and it is exactly what the specifics need in front of them.\n"
-        "Do not state or guess a recent result, and do not promise that "
-        "anything is coming - no \"in a moment\", no \"we will get to\". "
-        "Write as much as the length allows; you may be cut off mid-episode, "
-        "which is expected and fine.\n"
-    ),
-    "continuation": (
-        "\nThe episode is already playing. The opening covered what this is, how "
-        "it works and the background - all from general knowledge, which may be "
-        "months out of date. You are taking over mid-episode.\n"
-        "Do not re-introduce the topic, define terms already defined, or write a "
-        "new opening line. Go straight to what your sources actually say, and "
-        "spend your length on what is current: what has happened lately, what "
-        "the numbers are now, what changed.\n"
-        "If what you found contradicts the general picture the opening would "
-        "have given, say so plainly and in passing - 'that figure has since "
-        "moved to X' - and carry on. A correction stated calmly is more useful "
-        "than a seam the listener can hear.\n"
-    ),
-}
 
 
 def build_prompt(plan: EpisodePlan) -> str:
@@ -887,44 +832,6 @@ Time, and this is where these go wrong most often:
 - An undated source cannot date anything. Do not use it to decide when.
 """
 
-    # The other half of a researched episode, and the one that was missing.
-    #
-    # `_request_kwargs` attaches the web_search tool whenever an episode is
-    # researched and no evidence packet came back - the `claude` backend, or
-    # Exa returning nothing usable. It attached the tool and said nothing
-    # about it, so the model was handed a capability it was never asked to
-    # use: it wrote from memory and said "I don't have any information on the
-    # 49ers game last night. I can't confirm the score, the opponent, or the
-    # plays." Which is honest, and is not research.
-    #
-    # A tool is not an instruction. This is the instruction.
-    research_now = ""
-    if plan.search and not plan.evidence:
-        research_now = """
-Nothing has been looked up for you, and you have a web search tool. Use it
-before you write - this question was routed for research, which means what you
-remember is not good enough on its own.
-
-Search first, then write from what you find. If the first search misses, try
-different words before giving up on it.
-
-Do not write "I don't have that information".
-Do not write "I can't confirm" anything.
-Neither is true: you have the means to find out, and declining to look is the
-one answer that is not available here.
-
-Write nothing at all until you have searched. Your first sentence is the first
-thing the listener hears, out loud, before any of the rest exists - so a
-sentence about what you were missing before you looked is the worst possible
-opening, and it is spoken whether or not you correct it two sentences later.
-
-If you genuinely searched and the answer is not out there, say what you did
-establish and what is not yet reported, plainly, and carry on.
-
-Never read a source's title, number or URL aloud. This is someone listening,
-not reading a citation list.
-"""
-
     follow_up = ""
     if plan.context:
         follow_up = f"""
@@ -940,7 +847,7 @@ straight into the narrower thing they asked for and stay on it.
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{live}{evidence}{research_now}{temporal}{brief_block}{follow_up}{ROLE_BRIEFS.get(plan.role, "")}
+{attached}{live}{evidence}{temporal}{brief_block}{follow_up}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 
@@ -977,6 +884,21 @@ The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch
 yourself saying a topic is complex, or restating something, the story is over -
 end it.
+
+One last thing, and it is the thing this episode is most likely to get wrong.
+**Decide the whole piece before you write the first word of it.** What the
+answer actually is, which angle carries it, what the evidence above does and
+does not establish, and the last line you are heading for. Then open.
+
+Your first sentence is spoken out loud before the rest of the episode exists,
+and it is the only part of this that cannot be repaired by what comes after -
+someone who does not recognise their own question in it stops listening there.
+So it must be the opening of *this* episode and no other: what they asked
+about, as it actually stands, in particulars. Not a way into the general
+subject, not the category the question belongs to, not a fact that is merely
+adjacent to it. Read your first two sentences back against what they typed
+above; if those sentences would also open an episode about something else, you
+have not started yet.
 
 Begin."""
 
@@ -1035,54 +957,79 @@ class ScriptGenerator:
             "output_config": {"effort": settings.effort},
             "messages": [{"role": "user", "content": content}],
         }
-        # The tool and the packet are alternatives. With evidence already in
-        # the prompt, attaching the tool would let the model search on top of
-        # what it was handed - paying the 10-25s this design exists to avoid,
-        # and making it impossible to tell which source an episode came from.
-        if plan.search and not plan.evidence:
-            kwargs["tools"] = [
-                {
-                    "type": "web_search_20260209",
-                    "name": "web_search",
-                    "max_uses": settings.max_web_searches,
-                }
-            ]
+        # **No tools, ever, on the call that speaks.** The searching is done
+        # by `research.retrieve` before this call is made - on either backend
+        # - so by the time the model writes its first word it is reading
+        # evidence rather than deciding to go and look for some. A tool here
+        # would put the search back inside the turn that produces the opening,
+        # which is the failure PROBLEMS.md §108 removed: the first sentence
+        # written before anything had been read, and a prompt paragraph and a
+        # regex guard trying to make that not sound like what it was.
         return kwargs
 
     async def research(self, plan: EpisodePlan,
                        notes: ScriptNotes | None = None) -> EpisodePlan:
-        """Retrieve evidence, if this episode is researched and Exa is the backend.
+        """Retrieve the evidence this episode is written from, before it is written.
 
-        Returns the plan to write from - the same one on the `claude` backend,
-        or a copy carrying the packet on `exa`. Separate from
-        `stream_sentences` so that the retrieval is a step a caller can see,
-        time and skip, rather than something buried inside the streaming call.
+        Returns the plan to write from: the same one when nothing was found,
+        or a copy carrying the packet. Separate from `stream_sentences` so
+        that the retrieval is a step a caller can see, time and skip, rather
+        than something buried inside the streaming call.
 
-        A retrieval that fails does not fall back to the model's own search.
-        The exception reaches the pipeline, which on a researched episode is
-        already the half `_answer_first` covers - the from-knowledge answer
-        keeps playing and the failure is logged, which is the designed
-        behaviour for a research half that dies. Substituting a different
-        source silently would make the episode unattributable.
+        **Both backends retrieve now.** `claude` used to mean "let the writing
+        call search while it writes", which is how an episode came to open on
+        a sentence composed before anything had been looked up. It is a
+        retrieval of its own now, and the writing call never carries a search
+        tool - see PROBLEMS.md §108.
+
+        **A backend that cannot serve falls back to the other one, and says
+        so.** That is a change from refusing, and the reasoning is that the
+        alternative on a deployment with no Exa key was never "no research" -
+        it was the search tool riding along on the writing call, silently.
+        Between two fallbacks, the one recorded on the episode
+        (`fell_back_from` in `notes.research`) beats the one nobody could see.
         """
         if not plan.search or plan.evidence:
             return plan
-        if settings.research_backend == "claude":
-            return plan
 
-        packet = await research_mod.retrieve(
-            (getattr(plan.brief, "retrieval", "") or plan.query),
-            brief=plan.brief)
+        query = (getattr(plan.brief, "retrieval", "") or plan.query)
+        configured = settings.research_backend
+        try:
+            packet = await research_mod.retrieve(query, brief=plan.brief)
+        except research_mod.ResearchUnavailable as exc:
+            log.warning("%s cannot retrieve (%s); the model's own search will "
+                        "do the looking instead, before writing", configured, exc)
+            packet = await research_mod.retrieve(query, backend="claude",
+                                                 brief=plan.brief)
+            packet.fell_back_from = configured
+
+        # Nothing usable came back from the backend that was asked. The
+        # episode is still answerable, but answering it from memory is the
+        # thing this whole path exists to avoid, so the other retriever gets
+        # one go before the writer is left with nothing.
+        if not packet and configured != "claude":
+            log.info("%s found nothing usable for %r; asking the model to "
+                     "search before writing", configured, query)
+            second = await research_mod.retrieve(query, backend="claude",
+                                                 brief=plan.brief)
+            if second:
+                second.fell_back_from = configured
+                second.searches += packet.searches
+                second.cost += packet.cost
+                second.seconds += packet.seconds
+                packet = second
+
         if notes is not None:
             notes.research = packet.as_dict()
             # Exa's own reported cost where it gave one, its published rate
             # otherwise - `research.retrieve` has already made that choice.
             notes.usage.add_research(packet.searches, packet.cost)
+            # And the searching call's tokens, on the backend that spends
+            # them. A research call this size is not free and was invisible
+            # for as long as the searching happened inside the writing turn.
+            if packet.usage is not None:
+                notes.usage.add_model_call(settings.model, packet.usage)
         if not packet:
-            # Nothing usable came back. The episode is still answerable, and
-            # without an evidence block the tool stays attached - so the model
-            # searches after all rather than being handed an empty packet and
-            # told it is research.
             return plan
         if notes is not None and packet.provenance is not None:
             notes.provenance = packet.provenance
@@ -1093,21 +1040,23 @@ class ScriptGenerator:
                          notes: ScriptNotes | None = None) -> EpisodePlan:
         """Work out what this request is, before anything is retrieved.
 
-        Skipped in three cases, each for its own reason:
+        Skipped in one case only: **a plan that already has a brief**, built
+        by prefetch before the tap, which is the whole point of prefetch.
 
-        * **A plan that already has a brief.** Prefetch built it before the tap
-          - which is the whole point of prefetch, and re-deriving it here would
-          throw away the latency that buying it early was for.
-        * **The cover half of an answer-first episode** (`role == "opening"`).
-          It is defined as the part that starts immediately from what the model
-          already knows; a model call in front of it is precisely the wait it
-          exists to cover.
-        * **An unresearched episode.** EI's largest single product is the
-          retrieval query, and an episode that retrieves nothing cannot spend
-          it. The framing would still be worth something, and it is not worth a
-          second of silence to get.
+        Two other skips used to live here and both were bought with quality.
+        The cover half of an answer-first episode was defined as the part
+        that started before anything was known, so a brief in front of it was
+        "precisely the wait it exists to cover" - there is no cover half now.
+        And an unresearched episode was skipped because "EI's largest single
+        product is the retrieval query, and an episode that retrieves nothing
+        cannot spend it", which left the rest of the brief - the intent, the
+        resolved subject, the story shape, what the writer must not assume -
+        on the table to save a second. That reasoning was written down
+        honestly ("the framing would still be worth something, and it is not
+        worth a second of silence to get") and it is the trade this change
+        reverses: the framing is what the opening is made of.
         """
-        if plan.brief is not None or plan.role == "opening" or not plan.search:
+        if plan.brief is not None:
             return plan
         if not settings.episode_intelligence:
             return plan
@@ -1209,17 +1158,16 @@ class ScriptGenerator:
         engine enough context for natural intonation.
 
         Research happens here rather than in the caller so that every entry
-        point gets it - the pipeline, `write.py`, the top-up path - and so that
-        it happens on this coroutine's own task. On a researched episode that
-        task is the half `_answer_first` runs underneath the cover, which is
-        the only reason a retrieval before the first token is affordable.
+        point gets it - the pipeline, `write.py`, the top-up path. It finishes
+        before the first token: what it costs is a wait in front of the first
+        word, paid deliberately, because the alternative was an opening
+        written without it (PROBLEMS.md §108).
         """
         plan = await self.prepare(plan, notes)
         buffer = ""
         emitted_words = 0
-        # One per stream, never per generator: `_answer_first` runs two of
-        # these concurrently and each half has its own opening to protect -
-        # the cover's, and the continuation's when it takes over mid-episode.
+        # One per stream, never per generator: one generator serves many
+        # concurrent episodes and each stream has its own opening to protect.
         guard = OpeningGuard()
 
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:

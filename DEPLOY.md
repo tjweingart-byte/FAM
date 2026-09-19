@@ -10,42 +10,36 @@ The split that makes it repeatable:
 | baked into the image | set once on the host | never anywhere |
 |---|---|---|
 | CUDA, torch, chatterbox, exa, the app | `FAM_SECRETS` (or the two keys) | credentials in the image |
-| the validated settings (phase6, exa, ANSWER_FIRST=1) | the persistent volume | the voice in the repo |
+| the validated settings (phase6, exa) | the persistent volume | the voice in the repo |
 
 **Prefer `FAM_SECRETS` to the two keys.** It is one *non-secret* variable that
 names where the credentials live, so the host template carries no secret at all,
 a new pod fetches its own, and rotating a key is a change in the manager rather
 than an edit to every template. `CREDENTIALS.md` has the recipes.
 
-## The one setting the image pins against the code default
+## The one setting the image used to pin, and why it is gone
 
-`ANSWER_FIRST=1`, and it is deliberate.
+`ANSWER_FIRST=1`.
 
-`config.py` derives that value from the research backend — Claude's own search
-is slow enough to need the from-knowledge cover, Exa is not, so `exa` implies
-`answer_first=False`. That reasoning stands, and the image does not change it.
+It turned on a from-knowledge cover: a second model call with no tools that
+started speaking immediately while the research was still reading, handing
+over mid-episode. The image pinned it because the configuration that had been
+*listened to* ran with the cover on, and `config.py` had since started
+deriving the value from the research backend - so an image without the line
+would have deployed something nobody had heard.
 
-But the configuration that was **listened to and judged good** — Phase 6,
-Chatterbox, `reference_3`, ~4.5s and ~2.992s to first audio, research handing
-off mid-episode — ran with the cover **on**. It predates that derivation
-(commit `91d9dad`), and `tools/pod_production_test.sh` never set the variable,
-so it inherited a default that has since flipped. An image without this line
-would deploy a configuration nobody has heard.
+What it actually deployed was an opening written with no brief, no evidence
+and no idea what the episode was going to be about, in front of a researched
+episode that was fine. That is precisely what came back from listening: the
+first ten seconds make no sense, the rest is almost perfect.
 
-So: the image reproduces what was validated; the code default keeps its own
-reasoning for every other deployment. A container from this image resolves
+The mechanism is deleted in PROBLEMS.md §108 - deleted rather than defaulted
+off, because this line is the proof that a leftover knob gets turned back on.
+A container from this image now resolves
 
-    answer_first True · answer_first_share 0.5 · phase6 · exa
+    phase6 · exa · one stream, written after the evidence lands
 
-which is the four settings the good run had.
-
-**This line is provisional.** Run
-
-    ANSWER_FIRST=1 bash tools/pod_production_test.sh
-
-on a card, compare against the same harness without it, and let the numbers
-decide whether the cover belongs in `config.py` — at which point this pin
-becomes redundant and should go.
+and there is no setting here to get wrong.
 
 ## Once, ever
 

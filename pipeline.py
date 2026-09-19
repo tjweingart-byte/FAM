@@ -187,29 +187,10 @@ class GenerationStats:
     #: on the serving path because a hit rate inferred anywhere else is a hit
     #: rate nobody should trust.
     prefetched: bool = False
-    answered_first: bool = False
-    handover_seconds: float = 0.0
-    #: Audio seconds the from-knowledge half covered before research took over.
-    cover_seconds: float = 0.0
-    #: True when the cover ran past ANSWER_FIRST_SHARE because research was
-    #: still reading. Sharing gave way to not going silent; recorded so the
-    #: trade is visible rather than assumed.
-    cover_overran: bool = False
-    #: Why the cover stopped: "research ready" is the healthy one. The others
-    #: name the case, so a gap in the artifact says which.
-    handover_reason: str = ""
-    #: How long the pipeline waited for research after the cover stopped.
-    handover_stall_seconds: float = 0.0
-    #: Seconds of audio the listener still had buffered when the cover stopped.
-    #: The stall is only audible where it exceeds this.
-    handover_buffer_seconds: float = 0.0
-    #: Silence the listener actually heard at the handover. Zero is the normal
-    #: result and the one the 4090 run produced, despite the warning it logged.
-    handover_gap_seconds: float = 0.0
     #: A mark name for the next synthesis to record, set once and consumed by
-    #: whichever of `_speak_chunk`/`_speak_one` runs next. Used to name the
-    #: first synthesis *after* the handover without threading a parameter
-    #: through call sites that do not otherwise care about it.
+    #: whichever of `_speak_chunk`/`_speak_one` runs next. Lets a caller name
+    #: one synthesis without threading a parameter through call sites that do
+    #: not otherwise care about it.
     pending_synthesis_mark: str = ""
 
     def take_synthesis_mark(self, marks: EpisodeMarks) -> None:
@@ -268,14 +249,6 @@ class GenerationStats:
             "voice": self.voice,
             "truncated": self.truncated,
             "topups": self.topups,
-            "answered_first": self.answered_first,
-            "handover_seconds": round(self.handover_seconds, 2),
-            "cover_seconds": round(self.cover_seconds, 2),
-            "cover_overran": self.cover_overran,
-            "handover_reason": self.handover_reason,
-            "handover_stall_seconds": round(self.handover_stall_seconds, 2),
-            "handover_buffer_seconds": round(self.handover_buffer_seconds, 2),
-            "handover_gap_seconds": round(self.handover_gap_seconds, 2),
             "cache": self.cache,
             "match": self.match,
             "match_score": round(self.match_score, 3),
@@ -586,12 +559,11 @@ class PodcastPipeline:
         if not fit.spoken:
             return
 
-        # Marked here, not in the pump loop, because `_answer_first` speaks the
-        # cover through `_speak_item` and never enters one. On a researched
-        # episode the loop's mark therefore recorded the first *researched*
-        # item, and `first_sentence_to_synthesis` came out at -26.13s on the
-        # 4090 - synthesis apparently beginning 26 seconds before a sentence
-        # existed. Impossible numbers are how a misplaced mark announces itself.
+        # Marked here, in the synthesis path itself, rather than in the pump
+        # loop. A mark placed in the loop once recorded the wrong item and
+        # produced `first_sentence_to_synthesis` of -26.13s on the 4090 -
+        # synthesis apparently beginning 26 seconds before a sentence existed.
+        # Impossible numbers are how a misplaced mark announces itself.
         stats.marks.mark("first_sentence")
         tts_start = stats.marks.mark("first_tts_start")
         stats.take_synthesis_mark(stats.marks)
@@ -793,9 +765,9 @@ class PodcastPipeline:
         """Start a sentence stream under whichever architecture is selected.
 
         Each call builds its own pump, and under Phase 6 its own script buffer
-        and assembler with it - which is what keeps `_answer_first`'s two
-        concurrent streams from ever sharing assembler state or interleaving
-        their text into one chunk.
+        and assembler with it, so two streams in one episode - the body and a
+        top-up - can never share assembler state or interleave their text into
+        one chunk.
         """
         marks = stats.marks if stats is not None else None
         if not self._phase6():
@@ -810,177 +782,6 @@ class PodcastPipeline:
                     stats: GenerationStats, fatal: bool = True) -> AsyncIterator[bytes]:
         return (self._speak_phase6(pump, pace, stats, fatal) if self._phase6()
                 else self._speak(pump, pace, stats, fatal))
-
-    def _speak_item(self, item, pace: PaceController,
-                    stats: GenerationStats) -> AsyncIterator[bytes]:
-        """One pulled item: a sentence under legacy, a chunk under Phase 6."""
-        return (self._speak_chunk(item, pace, stats) if self._phase6()
-                else self._speak_one(item, pace, stats))
-
-    async def _answer_first(
-        self,
-        plan: EpisodePlan,
-        pace: PaceController,
-        stats: GenerationStats,
-        notes: ScriptNotes,
-    ) -> AsyncIterator[bytes]:
-        """Answer immediately from knowledge; let research take over underneath.
-
-        The listener asked something that needs today's facts, and researching
-        it costs 10-25 seconds before a word can be written. Both halves start
-        at once: one with no tools, which begins writing straight away, and one
-        with web search, which is still reading. The first is spoken while the
-        second works, and the moment the researched half has a sentence ready
-        the episode moves to it.
-
-        This is the shape the cold open had and the content it lacked. The
-        opener was told to state no facts, so the seconds it covered were
-        worthless and there were only five of them. Here the cover *is* the
-        answer - the durable half of it - written by the same model at full
-        length, so a listener who never reaches the handover has still been
-        told something true.
-
-        The two halves are divided by **content, not by text**. The opening
-        cannot know what the research will find and the research cannot know
-        the opening's words, so neither is asked to: the opening takes what
-        does not change week to week, the continuation takes what is current
-        and is told to correct the opening in passing if its sources disagree.
-        """
-        instant_plan = dataclasses.replace(plan, search=False, role="opening")
-        research_plan = dataclasses.replace(plan, search=True, role="continuation")
-
-        stats.marks.mark("claude_start")
-        stats.marks.mark("research_start")
-        # Two streams, two completions. "Claude finished" means the half that
-        # carries the episode - the researched one - so the cover half marks a
-        # name of its own rather than winning the race to a shared one.
-        # A fresh ScriptNotes so the cover's predicted follow-up cannot beat
-        # the researched half's - but carrying the SAME Usage object, because
-        # the cover is a full model call that writes most of what is heard.
-        # Two accumulators here would have reported researched episodes at
-        # roughly half their real cost, on exactly the episodes that cost most.
-        instant = self._pump_for(
-            self.generator.stream_sentences(
-                instant_plan, ScriptNotes(usage=notes.usage)),
-            stats, pace, completion_mark="instant_complete",
-            first_sentence_mark="cover_first_sentence")
-        research = self._pump_for(
-            self.generator.stream_sentences(research_plan, notes), stats, pace,
-            first_sentence_mark="research_first_sentence")
-        stats.answered_first = True
-        handover = time.perf_counter()
-
-        # The instant half may cover at most this much of the episode before
-        # the researched half is owed the remainder - see answer_first_share in
-        # config.py for why the ceiling exists.
-        #
-        # It is a ceiling on *sharing*, not a deadline. Enforced as a deadline
-        # it produced the one thing this whole design exists to avoid: the
-        # cover stopped while research was still reading, and the next line
-        # blocked on `research.next()`, so the listener heard silence in the
-        # middle of an episode that had already started. Dead air is a worse
-        # outcome than an over-long opening, and the opening is a real answer
-        # rather than filler, so past the ceiling the cover keeps speaking
-        # until research is actually ready.
-        cover_ceiling = plan.target_seconds * settings.answer_first_share
-        # Where covering stops buying anything. Past here the researched half
-        # would have nothing left to speak into, so a gap is the better trade
-        # and is logged rather than hidden. Synthesis runs several times faster
-        # than research, so without this the cover can finish the whole episode
-        # while the search is still reading - which is the failure the ceiling
-        # was written to prevent, reintroduced by ignoring it.
-        cover_cap = plan.target_seconds * settings.answer_first_max_share
-        try:
-            # Speak the instant half one sentence at a time, checking after each
-            # whether research has arrived. Checking between sentences rather
-            # than mid-sentence is what makes the handover inaudible.
-            while not research.ready() and pace.elapsed < cover_cap:
-                if (pace.elapsed >= cover_ceiling
-                        and not stats.cover_overran):
-                    stats.cover_overran = True
-                    log.info(
-                        "the cover reached its %.0fs ceiling and research is "
-                        "still reading; continuing to %.0fs rather than going "
-                        "silent", cover_ceiling, cover_cap)
-                item = await instant.next()
-                if item is None or isinstance(item, Exception):
-                    # The instant half ended or failed before research landed.
-                    # There is nothing left to cover with: this is the one case
-                    # that still produces a gap, and it is recorded rather than
-                    # hidden so the artifact says which case a run hit.
-                    stats.handover_reason = ("instant half failed"
-                                             if isinstance(item, Exception)
-                                             else "instant half exhausted")
-                    if isinstance(item, Exception):
-                        log.warning("instant half failed; waiting for research",
-                                    exc_info=item)
-                    break
-                async for chunk in self._speak_item(item, pace, stats):
-                    yield chunk
-                if stats.truncated:
-                    stats.handover_reason = "episode filled by the cover"
-                    return
-            else:
-                stats.handover_reason = ("research ready" if research.ready()
-                                         else "cover cap reached")
-        finally:
-            await instant.close()
-
-        stats.handover_seconds = time.perf_counter() - handover
-        stats.cover_seconds = pace.elapsed
-        stats.marks.mark("cover_exhausted")
-
-        # Whether the listener hears the handover is not "is research ready"
-        # - that is a fact about the producer. It is whether the wait outlasts
-        # the audio already made and not yet played. The 4090 run warned of
-        # silence with 66.5s buffered against a 3.9s wait, and the same run's
-        # playback margin never went below +9.95s. A warning that fires on the
-        # wrong quantity is worse than none: it sends the next session looking
-        # for a fault that is not there.
-        buffered = self._headroom_probe(pace, stats)()
-        stats.handover_buffer_seconds = max(0.0, buffered)
-        waited_from = time.perf_counter()
-        if not research.ready():
-            # `peek` waits for the first item without consuming it, so the
-            # stall is measured rather than inferred and nothing about what is
-            # spoken changes.
-            await research.peek()
-        stats.handover_stall_seconds = time.perf_counter() - waited_from
-        stats.handover_gap_seconds = max(
-            0.0, stats.handover_stall_seconds - stats.handover_buffer_seconds)
-        stats.marks.mark("research_first_item")
-        # Name the first synthesis on the researched side, so "research
-        # arrived" and "research was spoken" are separable in the artifact.
-        stats.pending_synthesis_mark = "research_first_synthesis"
-
-        if stats.handover_gap_seconds > 0:
-            log.warning(
-                "GAP: the cover ran out after %.1fs (%s) and research took a "
-                "further %.1fs, with only %.1fs buffered. The listener heard "
-                "%.1fs of silence.",
-                pace.elapsed, stats.handover_reason,
-                stats.handover_stall_seconds, stats.handover_buffer_seconds,
-                stats.handover_gap_seconds)
-        elif stats.handover_stall_seconds > 0.05:
-            log.info(
-                "the handover waited %.1fs for research, covered by %.1fs of "
-                "buffer - no silence reached the listener",
-                stats.handover_stall_seconds, stats.handover_buffer_seconds)
-        stats.marks.handover = {
-            "reason": stats.handover_reason,
-            "cover_seconds": round(stats.cover_seconds, 2),
-            "cover_overran": stats.cover_overran,
-            "stall_seconds": round(stats.handover_stall_seconds, 2),
-            "buffer_seconds": round(stats.handover_buffer_seconds, 2),
-            "gap_seconds": round(stats.handover_gap_seconds, 2),
-            "listener_heard_a_gap": stats.handover_gap_seconds > 0,
-        }
-        log.info("research took over after %.1fs of answering from knowledge "
-                 "(%s, ceiling %.0fs%s)",
-                 stats.handover_seconds, stats.handover_reason, cover_ceiling,
-                 ", overran" if stats.cover_overran else "")
-        async for chunk in self._speak_pump(research, pace, stats):
-            yield chunk
 
     async def _cache_key(self, plan: EpisodePlan) -> str:
         """Where this episode lives in the shared cache. "" when caching is off."""
@@ -1207,15 +1008,17 @@ class PodcastPipeline:
         # dies after Exa has already billed being recorded and being free.
         stats.usage = notes.usage
 
-        if plan.search and settings.answer_first:
-            async for chunk in self._answer_first(plan, pace, stats, notes):
-                yield chunk
-        else:
-            stats.marks.mark("claude_start")
-            body = self._pump_for(
-                self.generator.stream_sentences(plan, notes), stats, pace)
-            async for chunk in self._speak_pump(body, pace, stats):
-                yield chunk
+        # One call, one stream, and it does not start until the writer has
+        # everything: the brief, the live state and the evidence are all
+        # settled inside `stream_sentences`' own `prepare` step before the
+        # first token. There used to be a second, tool-less call racing this
+        # one to the first word - see PROBLEMS.md §108 for why the thing it
+        # bought was not worth what it cost.
+        stats.marks.mark("claude_start")
+        body = self._pump_for(
+            self.generator.stream_sentences(plan, notes), stats, pace)
+        async for chunk in self._speak_pump(body, pace, stats):
+            yield chunk
 
         # The model under-wrote. Rather than pad minutes of silence, buy more
         # script: a top-up request is small, cheap and arrives while the

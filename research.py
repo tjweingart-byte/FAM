@@ -1,38 +1,50 @@
 """Retrieval that runs *before* Claude writes, so Claude reads rather than searches.
 
-Two ways to research an episode, and the difference is who does the looking:
+Two ways to research an episode, and the difference is only who does the
+looking - **both finish before the first word is written**:
 
-* **claude** - the model gets Anthropic's server-side `web_search` tool and
-  searches while it writes. One call, no second credential, and the searching
-  is inside the model's own turn.
-* **exa** - Exa retrieves first, this module builds an evidence packet, and the
-  packet goes into the prompt as context. Claude reads it. No tool, no
-  searching inside the turn.
+* **exa** - Exa retrieves, this module builds an evidence packet, and the
+  packet goes into the prompt as context.
+* **claude** - the model is given Anthropic's server-side `web_search` tool in
+  a call of its own whose entire job is to come back with evidence. What it
+  reports is shaped into the same packet and goes into the writing prompt the
+  same way. Used where there is no Exa key, and as the second attempt when Exa
+  comes back with nothing usable.
 
-The second is what this module is. The call and the packet are byte-for-byte
-the ones the manual benchmark measured on 2026-09-05 and the experiment layer
-then repeated - `search_and_contents(type="fast", num_results=8,
-highlights=True)`, top 3 results, 2 highlights each, formatted
-`SOURCE n / Title: / Key evidence:`. Keeping them identical is the point: the
-numbers already measured stay comparable, and a change of packet shape is a
-deliberate act rather than a drift.
+**`claude` used to mean something else, and that is the change here**
+(PROBLEMS.md §108). The tool was attached to the *writing* call, so the model
+searched while it wrote - which meant the first sentence, the one a listener
+uses to decide whether there will be a second, was produced before anything
+had been looked up. The prompt spent a paragraph asking it not to write until
+it had searched ("a tool is not an instruction", §77), a guard held back the
+disclaimers it wrote anyway (§94), and the episode still opened on the one
+thing it could say with nothing in hand. None of that is needed once the
+looking happens in its own call: the writer is handed evidence, exactly as on
+the Exa path, and the tool is never attached to the call that speaks.
+
+The packet shape is unchanged - `SOURCE n / Title: / Published: / Source type:
+/ Key evidence:` - and is byte-for-byte the one the manual benchmark measured
+on 2026-09-05 for the Exa path. Keeping it identical is the point: the numbers
+already measured stay comparable, a change of packet shape is a deliberate act
+rather than a drift, and the writing prompt has exactly one thing to read
+however the evidence was found.
 
 **Where this is allowed to cost time.** A retrieval in front of the first word
-is the one cost this product refuses (the one-sentence spec, and PROBLEMS.md
-§55 on the cold open). It is affordable here for one reason only: a researched
-episode already runs two calls at once. `_answer_first` speaks the
-from-knowledge half immediately while the researched half works underneath, and
-this retrieval happens on the researched half - so it is covered by an answer
-rather than by filler or by silence. With `ANSWER_FIRST=0` there is nothing
-covering it, and the wait is real; that is a deliberate trade of that setting,
-not of this module.
+used to be the one cost this product refused, and for a while it was covered by
+a second model call speaking from knowledge while this ran. That cover is gone
+(§108): it wrote the opening of every researched episode without a brief,
+without evidence, and without knowing what the episode was going to be about.
+So the wait is real and it is in front of the first word, deliberately - Exa
+answers in about half a second, and the `claude` pre-pass costs the 10-25
+seconds the model's own search has always cost, now spent before the episode
+starts instead of underneath it.
 
 **It does not block the event loop.** The experiment ran `exa_py` synchronously
 because trials were pinned to one at a time and a thread hand-off would have
 added its own time to a number meant to be Exa's. Production is the opposite
-case: the cover is speaking, the assembler is batching, and a synchronous HTTP
-call on the loop would stop both. So the call goes to a worker thread, exactly
-as speech synthesis does.
+case: other episodes are being served on this loop, and a synchronous HTTP call
+on it would stop all of them. So the call goes to a worker thread, exactly as
+speech synthesis does.
 """
 from __future__ import annotations
 
@@ -43,6 +55,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from config import RESEARCH_BACKENDS, settings
@@ -248,6 +261,16 @@ class Packet:
     #: deliberately contains grades and never hostnames, and this deliberately
     #: contains hostnames and never reaches a prompt.
     provenance: object = None
+    #: The backend that was asked for and could not serve, when this packet
+    #: came from the other one. Never empty silently: a deployment measuring
+    #: Exa and actually being served by the model's own search has to be able
+    #: to see that from the episode's own record.
+    fell_back_from: str = ""
+    #: The `usage` block of the model call that did the searching, on the
+    #: `claude` backend. `None` on Exa, which bills per search rather than per
+    #: token - the two costs are added to `metering.Usage` by different
+    #: methods and must not be conflated.
+    usage: object = None
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -264,6 +287,7 @@ class Packet:
             "window_days": self.window_days,
             "missing": list(self.missing),
             "retried": self.retried,
+            "fell_back_from": self.fell_back_from,
         }
 
 
@@ -517,15 +541,18 @@ async def retrieve(query: str, backend: Optional[str] = None,
                    brief=None, **overrides: Any) -> Packet:
     """Research `query` with the configured backend.
 
-    Returns an empty packet for the `claude` backend - not an error. There is
-    nothing to retrieve there because the model does its own searching inside
-    the turn, and an empty packet is exactly what tells `build_prompt` to leave
-    the tool attached and add no evidence block.
+    **The `claude` backend retrieves now**, in a call of its own that finishes
+    before the writing call starts - see `retrieve_with_claude`. It used to
+    return an empty packet and let the writing call carry the search tool,
+    which is how the first sentence of an episode came to be written before
+    anything had been looked up (PROBLEMS.md §108).
 
     Raises `ResearchUnavailable` when the *configured* backend cannot run. It
-    does not fall back to the other one: a deployment that asked for Exa and
-    silently got the model's own search would be measuring one thing while
+    does not fall back to the other one here: a deployment that asked for Exa
+    and silently got the model's own search would be measuring one thing while
     believing another, and this project has paid for that shape more than once.
+    The caller may fall back, and when it does the packet says so out loud in
+    `fell_back_from`.
 
     **The brief, when there is one**, supplies what to search for
     (`Brief.retrieval`), how fresh it has to be (`recency_days`) and what the
@@ -546,12 +573,27 @@ async def retrieve(query: str, backend: Optional[str] = None,
             f"RESEARCH_BACKEND={chosen!r} is not a backend. Use one of: "
             f"{', '.join(RESEARCH_BACKENDS)}. Refusing rather than falling "
             "back - an unrecognised value must never quietly pick one.")
-    if chosen == "claude":
-        return Packet(backend="claude")
-
     query = (query or "").strip()
     if not query:
         raise ResearchUnavailable("nothing to research: the query is empty")
+
+    if chosen == "claude":
+        packet = await retrieve_with_claude(
+            query, brief=brief,
+            recency_days=int(overrides.get(
+                "recency_days", getattr(brief, "recency_days", 0) or 0)),
+            must_establish=list(overrides.get(
+                "must_establish", getattr(brief, "must_establish", []) or [])))
+        # The model's own "NOT FOUND" line and this check answer the same
+        # question from opposite sides - what it noticed it was missing, and
+        # what the brief asked for and the text does not appear to contain.
+        # Both are kept: the writer is told a part is thin either way.
+        _, missing = packet_covers(packet.context, list(overrides.get(
+            "must_establish", getattr(brief, "must_establish", []) or [])))
+        for item in missing:
+            if item not in packet.missing:
+                packet.missing.append(item)
+        return packet
 
     num_results = int(overrides.get("num_results", settings.exa_num_results))
     packet_sources = int(overrides.get("packet_sources", settings.exa_packet_sources))
@@ -563,8 +605,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
     must_establish = list(overrides.get(
         "must_establish", getattr(brief, "must_establish", []) or []))
 
-    # Off the event loop: the cover is speaking and the assembler is batching
-    # while this runs, and a synchronous HTTP call on the loop would stop both.
+    # Off the event loop: other episodes are being served while this runs,
+    # and a synchronous HTTP call on the loop would stop all of them.
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
         highlights_per_source, search_type, recency_days)
@@ -642,6 +684,219 @@ async def retrieve(query: str, backend: Optional[str] = None,
     return packet
 
 
+# --------------------------------------------------------------------------
+# Claude's own search, as a retrieval
+# --------------------------------------------------------------------------
+#
+# One call whose only job is to come back with evidence. It is not the call
+# that writes the episode, and that separation is the whole of it: the writer
+# starts with the packet in front of it instead of with a tool it has been
+# asked to remember to use.
+
+#: What the searching call is for. Deliberately not the house voice - nothing
+#: this call writes is ever spoken, and asking one model call to both research
+#: and write is what produced an opening written before the research landed.
+CLAUDE_RESEARCH_SYSTEM = """You are a researcher. You search the web and report \
+what you found. You never write the piece that uses it - something else does \
+that, from your report, and it can only be as good as what you hand over.
+
+Search before you answer, and search more than once if the first query misses. \
+Report only what a source actually says. Never fill a gap from memory, never \
+soften a source, and never report something you did not read.
+
+Output nothing but the evidence blocks in the format asked for. No preamble, no \
+summary, no advice about how to write it."""
+
+
+def _claude_research_prompt(query: str, brief=None, recency_days: int = 0,
+                            must_establish=()) -> str:
+    """What to look for, in the words the brief already worked out."""
+    lines = [f"Research this so an episode can be written from it:\n\n{query}\n"]
+    subject = (getattr(brief, "subject", "") or "").strip()
+    if subject and subject.lower() != query.strip().lower():
+        lines.append(f"The subject, as far as it has been resolved: {subject}.")
+    why_now = (getattr(brief, "why_now", "") or "").strip()
+    if why_now:
+        lines.append(
+            f"The reason this is being asked now may be: {why_now}. That is a "
+            "hypothesis, not a fact - confirm it or drop it.")
+    wanted = [str(item).strip() for item in (must_establish or []) if str(item).strip()]
+    if wanted:
+        lines.append("The episode needs these established:\n- "
+                     + "\n- ".join(wanted))
+    if recency_days:
+        lines.append(
+            f"Only the last {recency_days} day(s) count as current here. Older "
+            "material is background and must be labelled with its own date.")
+    lines.append(
+        "It is currently " + _now_phrase() + ".\n\n"
+        "Report what you found as blocks in exactly this format, at most "
+        f"{settings.exa_packet_sources} of them, best source first:\n\n"
+        "SOURCE 1\n"
+        "Title: the headline or page title\n"
+        "URL: the full address you read it at\n"
+        "Published: YYYY-MM-DD, or unknown if the page does not say\n"
+        "Key evidence:\n"
+        "the specific sentences that matter - figures, names, what happened, "
+        "quoted or closely paraphrased, not your summary of them\n\n"
+        "Then, if and only if something the episode needs is genuinely not in "
+        "anything you found, one final line:\n\n"
+        "NOT FOUND: what is missing\n\n"
+        "A preview, odds, a projected line-up or a 'how to watch' page is "
+        "evidence that a thing has not happened yet. Report it as what it is; "
+        "do not report a result that no source states.")
+    return "\n\n".join(lines)
+
+
+def _now_phrase() -> str:
+    now = datetime.now(timezone.utc)
+    return now.strftime("%A %d %B %Y at %H:%M UTC").replace(" 0", " ")
+
+
+#: A `URL:` line in what the model reported. It is the one thing in the block
+#: the writer must never see - a domain in the packet is a domain the voice can
+#: read out - and the one thing that lets this module grade the source itself
+#: rather than taking the model's word for how reliable its own find was.
+_URL_LINE = re.compile(r"^\s*URL:\s*(\S+)\s*$", re.I | re.M)
+_PUBLISHED_LINE = re.compile(r"^\s*Published:\s*(.+?)\s*$", re.I | re.M)
+_NOT_FOUND_LINE = re.compile(r"^\s*NOT FOUND:\s*(.+?)\s*$", re.I | re.M)
+
+
+def shape_claude_packet(text: str, now: Optional[datetime] = None
+                        ) -> tuple[str, list, list]:
+    """Turn what the searching call reported into a packet the writer can read.
+
+    Three things happen here, and each is a rule from elsewhere in the project
+    applied to a source of evidence that did not exist when they were written:
+
+    * **The hostname comes out.** `build_packet` has never put one in the
+      packet, because a domain in the packet is a domain the voice can read
+      aloud. The model is asked for the URL precisely so that this can take it
+      back out again - and it is returned separately, which is what the
+      sources panel and the log are built from.
+    * **The grade is computed, never taken.** `credibility()` reads a closed
+      list of publishers; a model asked to rate its own find would be putting
+      a confidence on the panel that nothing measured.
+    * **The relative phrase is computed.** "Yesterday" is subtraction from a
+      date, which is code's job - the failure that rule exists for is an
+      episode asked to date events from evidence carrying no dates.
+
+    Returns the packet text, the hostnames behind it, and whatever the call
+    reported it could not find.
+    """
+    now = now or datetime.now(timezone.utc)
+    hosts: list = []
+
+    def _source_type(match) -> str:
+        url = match.group(1).strip().strip("<>,;")
+        probe = SimpleNamespace(url=url)
+        host = host_of(probe)
+        if host and host not in hosts:
+            hosts.append(host)
+        return f"Source type: {TIER_LABELS[credibility(probe)]}"
+
+    shaped = _URL_LINE.sub(_source_type, text or "")
+
+    def _dated(match) -> str:
+        stamp = match.group(1).strip()
+        found = _DATE.search(stamp)
+        if not found:
+            return "Published: unknown"
+        try:
+            when = datetime(int(found.group(1)), int(found.group(2)),
+                            int(found.group(3)), tzinfo=timezone.utc)
+        except ValueError:
+            return "Published: unknown"
+        return f"Published: {when:%Y-%m-%d} ({age_phrase(when, now)})"
+
+    shaped = _PUBLISHED_LINE.sub(_dated, shaped)
+
+    missing = [m.strip() for m in _NOT_FOUND_LINE.findall(shaped) if m.strip()]
+    shaped = _NOT_FOUND_LINE.sub("", shaped)
+    return shaped.strip(), hosts, missing
+
+
+def research_client():
+    """The client the searching call uses.
+
+    Its own function so a test can replace it without reaching inside the
+    coroutine, and so the credential is read at call time rather than at
+    import - a key rotated in the secrets manager must reach a call made
+    later in the life of the process.
+    """
+    import credentials
+    from anthropic_client import build_async_client
+
+    return build_async_client(credentials.active("ANTHROPIC_API_KEY"))
+
+
+async def retrieve_with_claude(query: str, brief=None, recency_days: int = 0,
+                               must_establish=()) -> Packet:
+    """Search with the model's own tool, in a call of its own, before writing.
+
+    Never raises. Every failure - no credential, a refusal, a timeout, a
+    provider error - comes back as an empty packet, because this is a layer
+    that adds quality and one of those must not be able to subtract
+    availability: the episode is still answerable, and an empty packet is
+    exactly what an unresearched one already looks like.
+    """
+    started = time.perf_counter()
+    packet = Packet(backend="claude", window_days=int(recency_days or 0))
+    try:
+        import provenance as provenance_mod
+
+        client = research_client()
+        message = await client.messages.create(
+            model=settings.model,
+            max_tokens=settings.research_max_tokens,
+            system=CLAUDE_RESEARCH_SYSTEM,
+            tools=[{
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": settings.max_web_searches,
+            }],
+            messages=[{
+                "role": "user",
+                "content": _claude_research_prompt(
+                    query, brief, recency_days, must_establish),
+            }],
+        )
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        packet.seconds = time.perf_counter() - started
+        log.warning("the model's own search could not run for %r: %s; the "
+                    "episode will be written without evidence", query, exc)
+        return packet
+
+    text = "\n".join(
+        str(getattr(block, "text", "") or "")
+        for block in getattr(message, "content", []) or []
+        if getattr(block, "type", "") == "text"
+    )
+    shaped, hosts, missing = shape_claude_packet(text)
+    packet.context = shaped
+    packet.sources = hosts
+    packet.missing = missing
+    packet.results_returned = len(hosts)
+    packet.seconds = time.perf_counter() - started
+    packet.usage = getattr(message, "usage", None)
+    try:
+        found = provenance_mod.from_web_search(message)
+        packet.provenance = found if found.items else None
+        packet.searches = len(found.items)
+    except Exception:  # noqa: BLE001 - provenance never fails an episode
+        log.warning("could not read provenance off the research call",
+                    exc_info=True)
+
+    if not packet:
+        log.warning("the model searched and reported no usable evidence for %r",
+                    query)
+    else:
+        log.info("claude search: %d chars from %d source(s) in %.2fs for %r%s",
+                 len(packet.context), len(packet.sources), packet.seconds,
+                 query, ", still thin" if packet.missing else "")
+    return packet
+
+
 def report() -> dict:
     """What the server can actually do for research right now - for /api/health."""
     ok, detail = diagnose()
@@ -660,4 +915,14 @@ def report() -> dict:
         # the one failure mode that reads as a writing problem and is not.
         "dated_packet": bool(settings.exa_dated_packet),
         "retry_on_thin_packet": bool(settings.research_retry),
+        # Whether anything searches while the episode is being spoken. It is
+        # always False now and is reported rather than assumed: from outside,
+        # an episode written from a packet and an episode written by a model
+        # searching mid-sentence look identical until you hear the first ten
+        # seconds of one. PROBLEMS.md §108.
+        "search_during_writing": False,
+        # What happens when the configured backend comes back with nothing:
+        # the model's own search runs as a second retrieval, still before the
+        # first word, and the episode's record says it did.
+        "fallback_backend": "claude",
     }

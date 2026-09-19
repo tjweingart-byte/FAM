@@ -7635,3 +7635,105 @@ to, applied everywhere it is named and looked at through `tools/shots.py`, and
 that is a typography decision rather than a CI repair. §106 said it belongs to
 whoever owns that guard; what is added here is the cause, so that whoever picks
 it up is choosing rather than guessing.
+
+---
+
+## 108. The first ten seconds were written by the half that knew least
+
+**Reported from listening, and the report contains the diagnosis.** *"The
+opening first couple of sentences doesn't make much sense and is a confusing
+response to the prompt that is typed in. After the start, the rest of the
+episode sounds almost perfect."*
+
+That shape - wrong at the start, right everywhere else - is not a writing
+problem, and no amount of prompt work would have fixed it. It is the signature
+of two different pieces of text produced under two different conditions, and
+FAM was producing exactly that on purpose.
+
+### What was actually happening
+
+`ANSWER_FIRST` started **two model calls at once** on every researched episode:
+
+* the **cover** - `search=False`, `role="opening"`, EI deliberately skipped,
+  no evidence by construction - which began speaking immediately;
+* the **researched half**, which was still reading, and took over mid-flow.
+
+So the first ten seconds of every researched episode were written by a call
+that had been given no brief, no evidence and no idea what the episode was
+going to be about. Then the good half arrived. The listener heard the seam
+exactly where they said they heard it.
+
+The setting's own default had already concluded this: unset, it followed the
+research backend, and Exa - half a second to retrieve - implied
+`answer_first=False`. **But `Dockerfile.gpu` pinned `ANSWER_FIRST=1`**, because
+the configuration that had been listened to on a card ran with the cover on.
+The knob that had been left behind was turned back on by a line in a
+Dockerfile, which is the second time this project has lost a session to
+exactly that (the cold open, §55, was turned back on by an example file).
+
+There was a second path with the same defect. When no evidence packet came back
+- `RESEARCH_BACKEND=claude`, or Exa finding nothing - the `web_search` tool was
+attached to the **writing** call, so the model searched while it wrote. §77
+added a prompt paragraph asking it to search before writing; §94 added
+`OpeningGuard` to hold back the disclaimers it wrote anyway. Both are
+mitigations of an ordering, and the ordering was the bug.
+
+### The fix, which is an ordering rather than a wording
+
+**Nothing is written until the writer holds the whole picture.**
+
+* The cover is **deleted** - `_answer_first`, `ANSWER_FIRST`,
+  `ANSWER_FIRST_SHARE`, `ANSWER_FIRST_MAX_SHARE`, `role`, `ROLE_BRIEFS`, the
+  handover marks and stats, the Dockerfile pin. Deleted rather than defaulted
+  off, on the Piper and cold-open reasoning, and this time with the receipt:
+  the default *was* off, and a deployment turned it back on.
+* **Both research backends retrieve before the writing call.** `claude` now
+  means a call of its own whose only job is to come back with evidence
+  (`research.retrieve_with_claude`), shaped into the same packet as Exa's. The
+  call that speaks is given **no tools at all**, and the `research_now`
+  paragraph is gone with them.
+* **Episode intelligence runs for every episode**, including unresearched
+  ones. The skip was worth a second of latency and cost the brief - the
+  intent, the resolved subject, the story shape, what the writer must not
+  assume - which is the material an opening is made of.
+* **`EFFORT` is `high`, was `low`.** The reason it was low was written down:
+  "effort directly costs time-to-first-audio". Deciding what the whole episode
+  is happens before the first token, and that is the only budget there is for
+  it. A model that starts talking before it has decided writes a confusing
+  opening and a good episode.
+* The prompt now says so in as many words: decide the whole piece before the
+  first word, and read the first two sentences back against what the listener
+  typed - if they would also open an episode about something else, it has not
+  started yet.
+
+### What this costs, stated rather than discovered
+
+Seconds in front of the first word, deliberately, and this is the second
+amendment to the one-sentence spec after §82's. On Exa the retrieval is about
+half a second and the new cost is mostly the effort budget; on the `claude`
+backend it is the 10-25 seconds the model's own search has always cost, moved
+from underneath the episode to in front of it. The interface already shows an
+honest wait that names what it is waiting for (§55), which is what makes that
+payable.
+
+Two rules were bent and one of them deliberately:
+
+* **A backend that cannot serve now falls back to the other one.** research.py
+  refused to, and was right to while an exception meant "the cover keeps
+  playing". With one stream it means "no episode". So the other retriever gets
+  one go and the packet records `fell_back_from`, which is visible in
+  `notes.research` and on the episode. The rule was never "do not fall back",
+  it was **never fall back silently** - and the behaviour being replaced was a
+  silent fallback: a tool quietly attached to the writing call.
+* **`OpeningGuard` stays.** It is not a speed guardrail. A thin packet is still
+  possible and a model handed one can still reach for a disclaimer. What
+  changes is what a drop now means: the retrieval came back thin, not that the
+  writer was guessing.
+
+### Unverified here, and this is the first thing to check
+
+There is no API key in the build container, so nobody has heard an episode
+written this way. `python write.py "<query>" --minutes 3` prints the brief and
+the script without audio and is the loop for judging it. The specific thing to
+listen for is the one that was reported: whether the first two sentences are
+recognisably about the question that was typed.
