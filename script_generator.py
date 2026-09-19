@@ -994,30 +994,30 @@ class ScriptGenerator:
 
         query = (getattr(plan.brief, "retrieval", "") or plan.query)
         configured = settings.research_backend
-        try:
-            packet = await research_mod.retrieve(query, brief=plan.brief)
-        except research_mod.ResearchUnavailable as exc:
-            log.warning("%s cannot retrieve (%s); the model's own search will "
-                        "do the looking instead, before writing", configured, exc)
-            packet = await research_mod.retrieve(query, backend="claude",
-                                                 brief=plan.brief)
-            packet.fell_back_from = configured
 
-        # Nothing usable came back from the backend that was asked. The
-        # episode is still answerable, but answering it from memory is the
-        # thing this whole path exists to avoid, so the other retriever gets
-        # one go before the writer is left with nothing.
-        if not packet and configured != "claude":
-            log.info("%s found nothing usable for %r; asking the model to "
-                     "search before writing", configured, query)
-            second = await research_mod.retrieve(query, backend="claude",
-                                                 brief=plan.brief)
-            if second:
-                second.fell_back_from = configured
-                second.searches += packet.searches
-                second.cost += packet.cost
-                second.seconds += packet.seconds
-                packet = second
+        # **The ladder**, in cost order, stopping at the first rung that
+        # brings back evidence. Each rung is the same call with a different
+        # retriever behind it, and none of them can raise - see `_retrieve`.
+        #
+        # The order is not a ranking of quality, it is what each one costs to
+        # try: the configured backend first because it is the one this
+        # deployment chose, then GDELT because it is keyless and takes one
+        # HTTP call, then the model's own search, which is 10-25 seconds and
+        # a model call. Trying the expensive one earlier would make a rare
+        # miss expensive for everybody.
+        packet = await self._retrieve(query, plan.brief, configured)
+        for rung in ("gdelt", "claude"):
+            if packet or rung == configured:
+                continue
+            log.info("%s found nothing usable for %r; trying %s before writing",
+                     configured, query, rung)
+            better = await self._retrieve(query, plan.brief, rung)
+            if better:
+                better.fell_back_from = configured
+                better.searches += packet.searches
+                better.cost += packet.cost
+                better.seconds += packet.seconds
+                packet = better
 
         if notes is not None:
             notes.research = packet.as_dict()
@@ -1035,6 +1035,37 @@ class ScriptGenerator:
             notes.provenance = packet.provenance
         return dataclasses.replace(plan, evidence=packet.context,
                                    thin_on=tuple(packet.missing))
+
+    async def _retrieve(self, query: str, brief, backend: str):
+        """One rung of the retrieval ladder. Never raises.
+
+        **Every failure is caught here, not just `ResearchUnavailable`.** A
+        missing key raises that; an Exa 500, a timeout, a DNS failure, a
+        rate limit and a malformed reply raise something else entirely, and
+        `research.retrieve` does not wrap them. While the from-knowledge
+        cover existed, an exception on this path was survivable - the cover
+        was already speaking and the researched half just never arrived. With
+        one stream it is the whole episode, so a five-second blip at a search
+        vendor became a listener getting no audio at all.
+
+        That is the availability rule this project already has, applied to
+        the layer that replaced the one it was written for: a retriever that
+        cannot serve produces an empty packet and the next rung is tried. It
+        is never silent - the reason is logged and `fell_back_from` rides
+        home on the packet, which reaches `notes.research` and the episode's
+        own record.
+        """
+        try:
+            return await research_mod.retrieve(query, backend=backend, brief=brief)
+        except research_mod.ResearchUnavailable as exc:
+            log.warning("%s cannot retrieve (%s)", backend or "the backend", exc)
+        except Exception:  # noqa: BLE001 - see the docstring
+            log.warning("%s failed while retrieving %r; continuing down the "
+                        "ladder rather than failing the episode",
+                        backend or "the backend", query, exc_info=True)
+        failed = research_mod.Packet(backend=backend or settings.research_backend)
+        failed.fell_back_from = backend or settings.research_backend
+        return failed
 
     async def understand(self, plan: EpisodePlan,
                          notes: ScriptNotes | None = None) -> EpisodePlan:
@@ -1119,6 +1150,8 @@ class ScriptGenerator:
             plan, live=live_plan.live, evidence=research_plan.evidence,
             thin_on=research_plan.thin_on)
 
+        self._refuse_without_evidence(plan)
+
         # What the episode turned out to be built from, sent home on `notes`
         # because the caller's plan is the unprepared one and cannot see any of
         # this. The cache TTL is decided from these - see `cache.ttl_for` and
@@ -1147,6 +1180,57 @@ class ScriptGenerator:
                 notes.provenance.add(attached)
             _publish_sources(notes)
         return plan
+
+    def _refuse_without_evidence(self, plan: EpisodePlan) -> None:
+        """Stop an episode that needs today's facts and has none of them.
+
+        **Here rather than in `research`, because a live state is evidence
+        too.** `prepare` runs the live lookup and the retrieval concurrently,
+        so this is the first point where both answers exist - and a question
+        about a game whose score came back from a scores provider is answered
+        even if no article about it has been indexed yet. Deciding this one
+        step earlier would refuse episodes FAM can actually write.
+
+        **What counts as needing today's facts**, in the same precedence
+        `cache.ttl_for` uses and for the same reason - each step is a better
+        signal than the one after it, and the last is a floor for paths that
+        have none of the others:
+
+        1. the brief says the listener asked for a *result*
+           (`outcome_dependent`), or named a freshness window at all;
+        2. failing that - a degraded brief, or EI switched off - the keyword
+           heuristic, which is the only signal left.
+
+        An evergreen question is never refused. "How does a heat pump work"
+        does not turn on anything current, the model's own knowledge is
+        accurate, and a refusal there would be a worse answer than the
+        episode. §109.
+        """
+        if not plan.search or plan.evidence:
+            return
+        live = getattr(plan, "live", None)
+        if live is not None and getattr(live, "facts", None) is not None:
+            return  # a live state is current evidence, whatever the index did
+
+        brief = plan.brief
+        why = ""
+        if getattr(brief, "outcome_dependent", False):
+            why = "it asks for a result"
+        elif int(getattr(brief, "recency_days", 0) or 0) > 0:
+            why = "it asks about something recent"
+        elif brief is None or getattr(brief, "degraded", False):
+            reason = research_reason(plan.query)
+            if reason:
+                why = reason
+        if not why:
+            return
+
+        log.warning("refusing %r: every retriever came back empty and %s",
+                    plan.query, why)
+        raise research_mod.NoEvidence(
+            "FAM could not reach a single source for this one, and it needs "
+            "current information to answer - so it is not going to guess. "
+            "Try again in a moment.")
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

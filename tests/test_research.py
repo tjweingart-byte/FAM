@@ -509,6 +509,104 @@ def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_search)
     assert notes.research["fell_back_from"] == "exa"
 
 
+def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
+                                                                 fake_search):
+    """The availability rule, applied to what replaced the thing it was
+    written for.
+
+    `research.retrieve` raises `ResearchUnavailable` for a missing key and
+    raises *whatever the vendor raised* for everything else - a 500, a
+    timeout, a rate limit, a malformed reply. While the from-knowledge cover
+    existed, that was survivable: the cover was already speaking and the
+    researched half simply never arrived. With one stream it is the whole
+    episode, so a blip at a search vendor would be a listener getting no
+    audio at all.
+    """
+    class Broken:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            raise RuntimeError("502 from the index")
+
+    module = types.ModuleType("exa_py")
+    module.Exa = Broken
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    notes = ScriptNotes()
+    researched = asyncio.run(generator.research(
+        plan_episode("todays news", 3, search=True), notes))
+
+    # It did not raise, and it did not give up either: the next rung ran.
+    assert "Rates held at 4.25%" in researched.evidence
+    assert notes.research["fell_back_from"] == "exa"
+
+
+def test_every_rung_failing_is_an_unresearched_episode_not_a_dead_one(monkeypatch):
+    """The bottom of the ladder. Nothing retrieved, and the episode still
+    exists - which is the state an unresearched episode has always been in."""
+    class Broken:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            raise RuntimeError("502 from the index")
+
+    module = types.ModuleType("exa_py")
+    module.Exa = Broken
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    def broken_client():
+        raise RuntimeError("no credential either")
+
+    monkeypatch.setattr(research, "research_client", broken_client)
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    plan = plan_episode("todays news", 3, search=True)
+    researched = asyncio.run(generator.research(plan, ScriptNotes()))
+    assert researched is plan
+    assert "tools" not in generator._request_kwargs(researched)
+
+
+def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
+    """The retry was gated on the brief naming something to establish, and
+    `packet_covers("", [])` is True - so a search that found *absolutely
+    nothing* counted as satisfied and the one retry that exists for this case
+    never ran. The commonest way in is the recency window."""
+    calls: list = []
+
+    class WindowedMiss:
+        def __init__(self, key):
+            pass
+
+        def search_and_contents(self, query, **kwargs):
+            calls.append(kwargs.get("start_published_date"))
+            # Nothing inside the window; everything outside it.
+            if kwargs.get("start_published_date"):
+                return FakeReply([])
+            return FakeReply(RESULTS, cost=0.0031)
+
+    module = types.ModuleType("exa_py")
+    module.Exa = WindowedMiss
+    monkeypatch.setitem(sys.modules, "exa_py", module)
+    monkeypatch.setenv("EXA_API_KEY", "k")
+    use_backend(monkeypatch, "exa")
+
+    packet = asyncio.run(research.retrieve(
+        "what happened overnight",
+        brief=types.SimpleNamespace(recency_days=1, subject="the thing",
+                                    retrieval="what happened overnight",
+                                    must_establish=[])))
+    assert len(calls) == 2, "the windowless second look never ran"
+    assert calls[0] and not calls[1], "the second look must drop the window"
+    assert packet, "the retry found sources and they did not reach the packet"
+    assert packet.retried
+
+
 def test_the_prompt_tells_the_model_not_to_read_sources_aloud(exa, monkeypatch):
     use_backend(monkeypatch, "exa")
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)

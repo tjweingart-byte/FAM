@@ -185,11 +185,19 @@ def _env_float(name: str, default: float) -> float:
 #: deployment without an Exa key has a working configuration to move to rather
 #: than a broken one to endure.
 #:
+#: **`gdelt` is the third, and it is the keyless one** (§109). It was already
+#: in the codebase as an additive cross-check beside Exa; it is a retriever in
+#: its own right now, because the ladder that runs when a search comes back
+#: empty needs a rung that costs nothing to try. Weaker than Exa - an article
+#: index with no highlights - and available to a deployment that has no
+#: retrieval credential at all.
+#:
 #: A value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
-#: - rather than falling back to either. A deployment that asked for one and
-#: silently got the other would be measuring one thing while believing another.
-RESEARCH_BACKENDS = ("claude", "exa")
+#: - rather than falling back to one silently. What the *ladder* does when a
+#: rung comes back empty is a different thing, and it is recorded on the
+#: packet every time (`fell_back_from`).
+RESEARCH_BACKENDS = ("claude", "exa", "gdelt")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.

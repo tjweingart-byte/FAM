@@ -774,6 +774,28 @@ the rest of this list it needs taste rather than a key.
   on a request still wins. This no longer has to defend the one-sentence spec
   either way: §108 amended it, and research is now openly one of the things
   paid for in front of the first word.
+  **And an empty search is a ladder, never a shrug** *(§109).* The rungs, in
+  cost order, stopping at the first with evidence: the configured backend, the
+  same backend with the recency window dropped, **GDELT** (keyless, one HTTP
+  call - promoted from additive cross-check to a retriever of its own), then
+  the model's own search, last because it is 10-25 seconds. **No rung may
+  raise** - `research.retrieve` raises whatever the vendor raised, and with one
+  stream that is the whole episode, so a 502 at a search vendor used to be a
+  listener hearing nothing. Every fallback is recorded (`fell_back_from` on the
+  packet, `notes.research` on the episode): the rule was never "do not fall
+  back", it is **never fall back silently**.
+  At the bottom, `research.NoEvidence` refuses the episode rather than writing
+  it from memory - **and only when the question turns on something current**,
+  by the precedence `cache.ttl_for` already uses: a live state ends the
+  question, then `outcome_dependent`, then any recency window, then the keyword
+  floor for a degraded brief. An evergreen question is never refused, because
+  there the model's knowledge is accurate and a refusal is the worse answer.
+  The check lives in `prepare`, not `research`, because that is the first point
+  where the live lookup and the retrieval have both answered - a score from a
+  provider answers the question whether or not an article exists yet. And a
+  refused episode is refunded whatever was billed, the one exception to
+  `_refund_if_unspent`'s rule: the spend was FAM's decision, not the
+  listener's.
   **And the research finishes before the writing starts — on both backends**
   *(§108, replacing §77's "a tool is not an instruction").* When no evidence
   packet came back — `RESEARCH_BACKEND=claude`, or Exa finding nothing usable

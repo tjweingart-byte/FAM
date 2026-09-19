@@ -232,6 +232,27 @@ class ResearchUnavailable(RuntimeError):
     """The configured backend cannot run, and says which part is missing."""
 
 
+class NoEvidence(RuntimeError):
+    """Every retriever came back empty on a question that needs today's facts.
+
+    Not the same as `ResearchUnavailable`, which is about configuration. This
+    is the end of the ladder: the retrievers ran, none of them found anything,
+    and the question is one whose answer *turns on* something current.
+
+    Writing it anyway is the failure this project has spent the most rules on
+    - "never infer a current-world fact from the absence of current-world
+    evidence" (§89) - because what the model would write from is training
+    data of unknown age, delivered in exactly the same confident voice as a
+    researched episode, with nothing a listener could use to tell them apart.
+    An episode that does not exist is a worse product than one that does; an
+    episode that is confidently wrong about today is a worse product than
+    both. §109.
+
+    It carries the sentence the listener sees, composed here so the web app
+    and the iOS client cannot word it differently.
+    """
+
+
 @dataclass
 class Packet:
     """What retrieval produced, and what it cost to produce it.
@@ -577,6 +598,12 @@ async def retrieve(query: str, backend: Optional[str] = None,
     if not query:
         raise ResearchUnavailable("nothing to research: the query is empty")
 
+    if chosen == "gdelt":
+        return await retrieve_with_gdelt(
+            query, brief=brief,
+            recency_days=int(overrides.get(
+                "recency_days", getattr(brief, "recency_days", 0) or 0)))
+
     if chosen == "claude":
         packet = await retrieve_with_claude(
             query, brief=brief,
@@ -613,7 +640,15 @@ async def retrieve(query: str, backend: Optional[str] = None,
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
-    if not covered and settings.research_retry:
+    # **An empty packet always buys the second look.** This used to be gated
+    # on `covered`, and `packet_covers("", [])` is `True` - so a brief that
+    # named nothing specific to establish turned a search that found
+    # *absolutely nothing* into a satisfied one, and the retry that exists for
+    # exactly this case never ran. The commonest way to get here is the
+    # recency window: a narrow one on a subject nothing was published about
+    # in that window returns zero results, and the second look is the one that
+    # drops the window.
+    if (not packet or not covered) and settings.research_retry:
         subject = (getattr(brief, "subject", "") or "").strip() or query
         log.info("exa packet missed %s for %r; one more search on %r with no "
                  "window", missing, query, subject)
@@ -623,7 +658,14 @@ async def retrieve(query: str, backend: Optional[str] = None,
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
             # the first, which was searched with the window and is fresher.
-            if second and len(second_missing) < len(missing):
+            #
+            # **`not packet` is the other half of that, and it was missing.**
+            # With no `must_establish` both packets "miss" nothing, so the tie
+            # rule kept the first - and the first is the one with nothing in
+            # it. A retry that finds sources and then discards them for an
+            # empty packet is worse than no retry: it pays for the search and
+            # reports it as thin.
+            if second and (not packet or len(second_missing) < len(missing)):
                 second.searches += packet.searches
                 second.cost += packet.cost
                 second.seconds += packet.seconds
@@ -681,6 +723,54 @@ async def retrieve(query: str, backend: Optional[str] = None,
                  len(packet.context), len(packet.sources), packet.seconds,
                  packet.cost, query, packet.window_days or "none",
                  packet.searches, ", still thin" if packet.missing else "")
+    return packet
+
+
+# --------------------------------------------------------------------------
+# GDELT, as a retriever rather than only as a second opinion
+# --------------------------------------------------------------------------
+async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
+                              ) -> Packet:
+    """An article index that needs no credential. Never raises.
+
+    It was already here as the additive cross-check beside an Exa packet. The
+    reason it is also a rung of its own (§109): when the configured retriever
+    comes back with nothing, the alternative rungs are the model's own search
+    at 10-25 seconds, or writing from memory. This costs one keyless HTTP call
+    and sometimes ends the ladder there.
+
+    What it cannot do is carry highlights: GDELT returns articles, so the
+    packet is titles, dates and grades, with no passages under them. That is
+    thinner evidence than Exa's and it is *evidence*, which is the distinction
+    the whole ladder turns on - the writer is reading what was published
+    rather than recalling what it read in training.
+    """
+    started = time.perf_counter()
+    packet = Packet(backend="gdelt", window_days=int(recency_days or 0))
+    try:
+        import gdelt
+        import provenance as provenance_mod
+
+        results = await gdelt.retrieve(query, recency_days=recency_days)
+    except Exception:  # noqa: BLE001 - a rung that raises is a rung that fails
+        packet.seconds = time.perf_counter() - started
+        log.warning("gdelt failed while retrieving %r", query, exc_info=True)
+        return packet
+
+    ranked = rank_results(list(results or []))[:settings.exa_packet_sources]
+    packet.context = build_packet(ranked, settings.exa_packet_sources,
+                                  settings.exa_highlights_per_source)
+    packet.sources = domains(ranked)
+    packet.results_returned = len(results or [])
+    packet.searches = 1 if results else 0
+    packet.seconds = time.perf_counter() - started
+    if ranked:
+        packet.provenance = provenance_mod.from_results(ranked, retriever="gdelt")
+    if packet:
+        log.info("gdelt: %d chars from %d source(s) in %.2fs for %r",
+                 len(packet.context), len(packet.sources), packet.seconds, query)
+    else:
+        log.warning("gdelt returned nothing usable for %r", query)
     return packet
 
 

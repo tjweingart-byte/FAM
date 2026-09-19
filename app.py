@@ -53,7 +53,7 @@ import provenance as provenance_mod
 import stories as stories_mod
 import trending as trending_mod
 from live_facts import report as live_facts_report
-from research import ResearchUnavailable, report as research_report
+from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
 import attachments as attachments_mod
@@ -328,6 +328,11 @@ def friendly_error(exc: Exception) -> str:
         return "Claude is rate limiting this key. Wait a moment and try again."
     if isinstance(exc, anthropic.APIConnectionError):
         return "Could not reach the Claude API. Check the server's network access."
+    if isinstance(exc, NoEvidence):
+        # The sentence is composed in `research.NoEvidence` rather than here,
+        # so the web app and the iOS client cannot word the same refusal two
+        # ways - the rule `entitlements.service_label` already follows.
+        return str(exc)
     if isinstance(exc, ResearchUnavailable):
         # This one already carries the remedy - "exa_py is not installed,
         # `pip install -r requirements-exa.txt`", or which key is missing.
@@ -3419,6 +3424,22 @@ async def audio(
         # The interface drops the card and moves on.
         _refund_if_unspent(reserved, user, stats.usage)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except NoEvidence as exc:
+        # FAM refused rather than guessing: every retriever came back empty on
+        # a question that turns on current facts (§109). The listener heard
+        # nothing, so they are not charged for an episode - and this one is
+        # refunded *whatever was billed*, which is the exception to the rule
+        # below. Research and the brief did spend money, but the spend was a
+        # decision FAM made and then declined to deliver on; charging a
+        # listener for a retrieval outage would let one bad afternoon at a
+        # search vendor eat a free tier's whole day.
+        log.warning("refused an episode for lack of evidence: %s", exc)
+        _record_usage(user, stats.usage,
+                      surface=_surface(cached_only, topic_id, context),
+                      minutes=plan.minutes, audio_seconds=0.0,
+                      cache_hit=False)
+        _refund(reserved, user)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         log.exception("generation failed before any audio was produced")
         # A failure is not a refund. Research may already have been billed, and

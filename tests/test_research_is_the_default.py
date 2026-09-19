@@ -124,7 +124,7 @@ def test_the_retrieval_really_runs_for_both_kinds_of_question(monkeypatch, query
         def as_dict(self):
             return {"context": self.context}
 
-    async def fake_retrieve(q, brief=None):
+    async def fake_retrieve(q, backend=None, brief=None):
         calls.append(q)
         return Packet()
 
@@ -292,7 +292,7 @@ def test_the_claude_backend_retrieves_like_any_other(monkeypatch):
     returned = asyncio.run(ScriptGenerator(api_key="").research(
         plan_episode("what is the NASDAQ", 3)))
     assert returned.evidence, "the claude backend retrieved nothing"
-    assert seen == [None], "it should run the configured backend, not a fallback"
+    assert seen == ["claude"], "it should run the configured backend once"
 
 
 # --- the server can say which code it is running ----------------------------

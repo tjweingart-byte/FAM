@@ -7737,3 +7737,102 @@ written this way. `python write.py "<query>" --minutes 3` prints the brief and
 the script without audio and is the loop for judging it. The specific thing to
 listen for is the one that was reported: whether the first two sentences are
 recognisably about the question that was typed.
+
+---
+
+## 109. What happens when the search comes back empty
+
+§108 made every episode wait for its evidence before a word is written. The
+question it left unanswered was asked immediately, and it is the right one:
+*how often does the search come back empty, and what happens then?*
+
+The answer to the second half was "FAM writes the episode from model memory
+and says nothing about it", which is §89's rule reached by a different road -
+**never infer a current-world fact from the absence of current-world
+evidence** - and it was worse after §108 than before, because there is no
+longer a from-knowledge half whose job that was.
+
+### Three defects found while checking, in order of severity
+
+**1. A retriever that raised took the episode with it.** `research.retrieve`
+raises `ResearchUnavailable` for a missing key and raises *whatever the vendor
+raised* for everything else - a 502, a timeout, a rate limit, a malformed
+reply. `ScriptGenerator.research` caught only the first. While the cover
+existed this was survivable: the cover was already speaking and the researched
+half simply never arrived. With one stream it is the whole episode, so a
+five-second blip at a search vendor was a listener getting no audio at all.
+
+**2. An empty packet did not buy the retry that exists for it.** The second
+look was gated on `not covered`, and `packet_covers("", [])` is `True` - so a
+brief that named nothing specific to establish turned a search that found
+*absolutely nothing* into a satisfied one. The commonest way in is the recency
+window: EI says the answer must be from the last day, nothing was published in
+that window, Exa returns zero results, and the one mechanism designed for this
+- search again with the window dropped - never ran.
+
+**3. And when it did run, its results were thrown away.** The merge keeps the
+second packet only when it misses fewer of `must_establish` than the first.
+With nothing to establish, both miss zero, so the tie rule kept the first -
+which is the empty one. A retry that finds sources and then discards them for
+an empty packet is worse than no retry: it pays for the search and reports the
+episode as thin.
+
+All three are the same shape: code that reasons about a packet being *thin*
+and does not consider it being *empty*.
+
+### When the search can actually come back empty
+
+With those fixed, and in rough order of how often they happen:
+
+* **A recency window nothing falls inside.** The brief asks for the last
+  1-3 days on something niche. Now retried without the window.
+* **A resolved subject that the index does not know by that name.** EI names
+  the subject, the query is that subject, and Exa has nothing under it.
+* **A vendor failure** - 5xx, timeout, rate limit, a rotated key. Was fatal,
+  now a rung.
+* **No retrieval credential at all.** `EXA_API_KEY` unset, which is what
+  `render.yaml` ships as. Was fatal for every researched episode.
+* **A question about something that genuinely has not been reported yet** -
+  the seam `live_facts.py` exists for. No amount of retrying fixes this one;
+  it is the case the refusal is for.
+
+### The fix: a ladder, then a refusal that is narrow on purpose
+
+The ladder, in **cost order**, stopping at the first rung with evidence:
+
+1. the configured backend (`exa` by default);
+2. the same backend again with the recency window dropped (inside `retrieve`);
+3. **GDELT** - promoted from additive cross-check to a retriever of its own,
+   because it is keyless and one HTTP call, so a deployment with no credential
+   at all still researches;
+4. the model's own `web_search`, last because it is 10-25 seconds and a model
+   call.
+
+No rung can raise. Every fallback is recorded on the packet (`fell_back_from`),
+which reaches `notes.research` and the episode's own record - the rule was
+never "do not fall back", it was **never fall back silently**.
+
+At the bottom, `research.NoEvidence` - the request fails with a sentence the
+listener can act on - **but only when the question turns on something
+current.** The precedence is the one `cache.ttl_for` already uses, for the same
+reason: a live state from a provider is evidence and ends the question; then
+`Brief.outcome_dependent`; then any recency window at all; then, for a degraded
+brief, the keyword heuristic as the floor. An evergreen question is never
+refused, because there the model's own knowledge is accurate and a refusal is a
+worse answer than the episode.
+
+Two placement details are load-bearing. The check is in **`prepare`, not
+`research`**, because `prepare` is the first point where the live lookup and
+the retrieval have both answered - a game whose score came back from a scores
+provider is answered whether or not anybody has indexed an article about it.
+And a refused episode is **refunded whatever was billed**, which is the one
+exception to `_refund_if_unspent`'s "was money spent" rule: the spend was a
+decision FAM made and then declined to deliver on, and charging for it would
+let one bad afternoon at a search vendor eat a free tier's whole day.
+
+### What this costs
+
+A rare question now fails instead of producing a confident episode about
+nothing. That is the trade, taken deliberately at the owner's direction, and it
+is bounded by the ladder above it: reaching the refusal takes four retrievals
+finding nothing, on a question that needs today's facts.
