@@ -20,6 +20,7 @@ look exactly like your own traffic in the metering log.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -29,7 +30,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Header, HTTPException, Request  # noqa: E402
 
-from voice_worker.synth import WorkerError, preflight, synthesise  # noqa: E402
+from voice_worker import register  # noqa: E402
+from voice_worker.synth import (  # noqa: E402
+    WorkerError, identity, preflight, synthesise)
 
 
 logging.basicConfig(
@@ -44,6 +47,16 @@ app = FastAPI(title="FAM voice worker")
 #: from the process environment: this is a single-purpose container, and a
 #: rotation is a restart.
 TOKEN = (os.environ.get("REMOTE_VOICE_TOKEN") or "").strip()
+
+#: The rate the loaded model actually emits, once it has been loaded. Reported
+#: rather than assumed: the app refuses a worker whose rate disagrees with the
+#: header it has already written, and it can only do that if the worker says.
+_RATE: int = 0
+
+#: A strong reference to the heartbeat, which asyncio keeps only weakly. A
+#: registration task that is collected mid-flight is a worker that announces
+#: itself once and then goes quiet, which is worse than one that never did.
+_BEATS: set = set()
 
 
 def _authorised(header: str | None) -> bool:
@@ -73,7 +86,34 @@ async def _startup() -> None:
     log.info("chatterbox ready (%s); loading the model", detail)
     from voice_worker.synth import _load
 
-    log.info("model resident, emitting %s Hz", await _load())
+    global _RATE
+    _RATE = await _load()
+    log.info("model resident, emitting %s Hz", _RATE)
+
+
+@app.on_event("startup")
+async def _register() -> None:
+    """Tell the app where this worker is, and keep telling it.
+
+    The pod knows its own address and the app does not - which is the whole of
+    PROBLEMS.md §112. A worker with no `FAM_APP_URL` skips this and serves
+    exactly as before: registration is a rung of the app's ladder, never a
+    dependency of speech.
+    """
+    problem = register.why_not()
+    if problem:
+        log.info("not announcing this worker to an app: %s", problem)
+        return
+    beat = asyncio.create_task(register.heartbeat_forever(
+        lambda: (*preflight(), _RATE)))
+    _BEATS.add(beat)
+    beat.add_done_callback(_BEATS.discard)
+
+
+@app.on_event("shutdown")
+async def _withdraw() -> None:
+    """Say it is going, so the app stops offering it before the TTL does."""
+    await register.withdraw()
 
 
 @app.on_event("startup")
@@ -94,10 +134,23 @@ async def _announce() -> None:
 
 @app.get("/health")
 async def health() -> dict:
-    """What this worker can actually do. Cheap enough to be a probe target."""
+    """What this worker can actually do, and which build of it is doing it.
+
+    Cheap enough to be a probe target, and it is one: `voice_control.verify`
+    calls this rather than asking for audio, because a health check that costs
+    a synthesis is a health check that gets switched off.
+
+    It carries the identity for the same reason `/api/health` carries `build`
+    (§77): "the fix is pushed" and "the fix is on the card" are the same
+    sentence from the app's side, and the difference has cost a day.
+    """
     ready, detail = preflight()
-    return {"ready": ready, "detail": detail, "engine": "chatterbox",
-            "authenticated": bool(TOKEN)}
+    body = {"ready": ready, "detail": detail, "engine": "chatterbox",
+            "authenticated": bool(TOKEN),
+            "sample_rate": _RATE or None,
+            "registering": not register.why_not()}
+    body.update(identity())
+    return body
 
 
 @app.post("/synth")

@@ -234,6 +234,52 @@ async def _warm_stories() -> None:
                       "evergreen bank until the next refresh")
 
 
+def _announce_voice_control() -> None:
+    """Say at startup how the voice will be found, and when it cannot be.
+
+    Read from `voice_control.ladder()`, which is the same list the runtime
+    walks and `/api/health` prints - so this line cannot describe an order the
+    app does not use. A deployment whose only rung is an address somebody
+    pasted is worth knowing about *before* RunPod moves the pod, which is the
+    only warning that arrives in time to be useful.
+    """
+    if settings.voice_backend != "remote":
+        return
+    import voice_control
+
+    warning = voice_control.startup_warning()
+    if warning:
+        log.warning("VOICE: %s", warning)
+        return
+    rungs = [rung for rung in voice_control.ladder() if rung.configured]
+    log.info("voice ladder: %s", ", ".join(f"{r.name} ({r.detail})" for r in rungs))
+    if [r.name for r in rungs] == ["pinned"]:
+        log.warning(
+            "  The only rung is REMOTE_VOICE_URL, so a pod that moves takes "
+            "the voice with it until somebody edits that variable. Set "
+            "VOICE_REGISTRY_TOKEN (and FAM_APP_URL on the pod) or RUNPOD_POD "
+            "with RUNPOD_API_KEY - see REMOTE_VOICE.md.")
+
+
+async def _supervise_voice() -> None:
+    """Keep the address of the voice correct while nobody is listening.
+
+    Scheduled, never awaited, and only when there is a remote voice to
+    supervise. It is the browse-surface argument applied to infrastructure: the
+    resolution that would otherwise happen in front of the first listener after
+    a pod moved has already happened by the time they arrive.
+    """
+    try:
+        import voice_control
+
+        await voice_control.supervise_forever()
+    except asyncio.CancelledError:  # pragma: no cover - shutdown
+        raise
+    except Exception:  # noqa: BLE001 - never worth a failed boot
+        log.exception("the voice supervisor stopped; the request path will "
+                      "still resolve an endpoint on demand")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Pay the voice model's load cost now rather than on the first listener.
@@ -278,6 +324,12 @@ async def lifespan(_: FastAPI):
         generator=None if DEMO_MODE else ScriptGenerator(),
         cache=SCRIPT_CACHE,
     )
+    # How the voice is found, and a loop that keeps that answer fresh. Both
+    # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
+    # somewhere that can move.
+    _announce_voice_control()
+    if settings.voice_backend == "remote" and settings.voice_supervise_seconds > 0:
+        _BACKGROUND.add(asyncio.create_task(_supervise_voice()))
     yield
 
 
@@ -391,6 +443,11 @@ def _wake_remote_voice() -> None:
 #: without this a wake can be collected mid-flight and silently never sent.
 _WAKES: set = set()
 
+#: The same, for loops that live as long as the process - the voice supervisor
+#: today. A collected supervisor is a deployment that stops noticing that its
+#: GPU moved, which is exactly the failure it exists to catch.
+_BACKGROUND: set = set()
+
 
 def _make_pipeline(voice: Optional[str] = None,
                    author: str = "") -> PodcastPipeline:
@@ -487,6 +544,18 @@ def _database_report() -> list[dict]:
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
     ]
+    # Opened lazily and only where workers register themselves, so it is
+    # reported only when it exists: a store listed as missing on every machine
+    # that never switched the feature on is a health page teaching people to
+    # ignore it.
+    try:
+        import voice_registry
+
+        held = voice_registry.opened()
+        if held is not None:
+            stores.append(("voice workers", "VOICE_REGISTRY_DB", held.path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -959,6 +1028,77 @@ def _build_report() -> dict:
             source = "unknown"
     return {"commit": commit or "unknown", "short": (commit or "unknown")[:7],
             "branch": branch or "unknown", "source": source}
+
+
+@app.post("/api/voice/register")
+async def voice_register(request: Request) -> dict:
+    """A voice worker saying where it is. The rung that survives a pod moving.
+
+    This is the inbound half of PROBLEMS.md §112: the pod knows its own address
+    and the app does not, so the pod says, on boot and on a heartbeat. A
+    replaced pod is back in service within one beat and nobody edits a
+    dashboard.
+
+    Three things make it safe to have at all:
+
+    * **It is off unless a secret is set.** No `VOICE_REGISTRY_TOKEN`, no
+      registration - not an open endpoint with a warning. An endpoint that
+      accepts "the voice is here" from anybody redirects every script FAM
+      writes to a machine of their choosing, and it would look like the
+      feature working.
+    * **A registration is a claim, never a promotion.** Nothing is spoken to
+      because it registered; `voice_control` still verifies it with a real
+      call first, exactly as it does the configured address.
+    * **It says nothing back.** The reply names no other worker and no
+      setting: the caller is a GPU on somebody else's network, and it needs to
+      know only whether it was heard.
+    """
+    import voice_control
+    import voice_registry
+
+    expected = (settings.voice_registry_token or "").strip()
+    if not expected:
+        # 404 rather than 403: a deployment that has not switched this on has
+        # no such endpoint, and saying "wrong token" to an unauthenticated
+        # caller tells them there is a token to find.
+        raise HTTPException(status_code=404, detail="Not found.")
+    sent = (request.headers.get("authorization") or "")
+    if sent.lower().startswith("bearer "):
+        sent = sent[len("bearer "):]
+    if not hmac.compare_digest(sent.strip(), expected):
+        raise HTTPException(status_code=401, detail="Bad registration token.")
+
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400,
+                            detail=f"Body is not JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Body is not an object.")
+
+    store = voice_registry.registry()
+    try:
+        if payload.get("leaving"):
+            store.forget(str(payload.get("url") or ""))
+            voice_control.demote(
+                voice_control.Endpoint(transport="http",
+                                       url=voice_registry.clean_url(
+                                           str(payload.get("url") or "")),
+                                       rung="registered", why="withdrawn"),
+                "the worker said it was shutting down")
+            return {"ok": True, "registered": False}
+        row = store.register(payload)
+    except voice_registry.RegistryError as exc:
+        # 422 rather than 500: everything this refuses is something the pod's
+        # own environment can fix, and the message says which part.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    log.info("voice worker registered: %s (%s, contract %s, %s Hz)",
+             row.url, row.mode, row.contract or "unknown",
+             row.sample_rate or "unknown")
+    return {"ok": True, "registered": True, "url": row.url,
+            "contract_expected": voice_control.CONTRACT_VERSION,
+            "ttl_seconds": settings.voice_registry_ttl}
 
 
 @app.get("/api/health")
@@ -2239,11 +2379,16 @@ async def carry_the_session(request: Request, call_next):
     has to move.
 
     Only paths that need identity mint one, so a monitoring poll on
-    /api/health does not accumulate a session row per request.
+    /api/health does not accumulate a session row per request. A voice worker's
+    heartbeat is the same case and was nearly the worse version of it: it
+    carries an `Authorization: Bearer` that is a *registration* token rather
+    than a session, so without this it would mint a listener every sixty
+    seconds, for ever, and each one would look like a person in the accounts
+    store.
     """
     path = request.url.path
     wants_identity = path == "/" or (
-        path.startswith("/api/") and path != "/api/health"
+        path.startswith("/api/") and path not in MACHINE_PATHS
     )
     token = _session_token(request)
     listener = ACCOUNTS.listener_for(token) if token else None
@@ -2271,6 +2416,13 @@ async def carry_the_session(request: Request, call_next):
     elif minted:
         _set_session_cookie(response, request, minted)
     return response
+
+
+#: Endpoints answered for a machine rather than for a listener, so no session
+#: is minted for them. `/api/health` is a monitor's poll; `/api/voice/register`
+#: is a GPU saying where it is. Both are called on a timer for ever, and a
+#: session row per call is a store full of listeners who are not people.
+MACHINE_PATHS = ("/api/health", "/api/voice/register")
 
 
 #: The public API's version. Every endpoint is reachable at `/api/v1/...` as

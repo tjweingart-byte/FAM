@@ -749,6 +749,13 @@ def engine_report() -> dict:
         # answers both separately - reporting only the first is the cheaper
         # question PROBLEMS.md §52 is about.
         import remote_voice
+        import voice_control
 
         report["remote"] = remote_voice.report()
+        # *How* the worker is found, beside whether it spoke. Two questions
+        # that fail differently and are fixed in different places: a red
+        # ladder is an infrastructure problem, and a green ladder with a
+        # failed synthesis is a worker problem. Reporting one as the other is
+        # what turns a five-minute fix into an afternoon (PROBLEMS.md §112).
+        report["control"] = voice_control.report()
     return report

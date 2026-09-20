@@ -598,3 +598,160 @@ def test_a_warm_job_loads_the_model_without_synthesising(worker):
     reply = run(worker.synthesise({"warm": True}))
     assert reply["ready"] is True and "audio" not in reply
     assert StubEngine.spoken == ["Ready."], "a wake pays the load, nothing more"
+
+
+# --- when the address moves under it ----------------------------------------
+#
+# The control plane (`voice_control.py`) decides *which* worker; this file's
+# job is to speak to it and to say so when it cannot. These pin the seam: a
+# configured address still costs nothing, a held one is used, and a chunk that
+# fails hands the problem back rather than failing the same way fifteen more
+# times in the same episode. PROBLEMS.md §112.
+
+
+@pytest.fixture(autouse=True)
+def _forget_held_endpoint():
+    import voice_control
+
+    voice_control.reset()
+    yield
+    voice_control.reset()
+
+
+def test_a_configured_endpoint_still_costs_no_lookup(monkeypatch):
+    """The happy path is unchanged, down to the number of requests: a
+    deployment that names its endpoint and works must not start paying a round
+    trip per episode for a mechanism it does not need."""
+    import voice_control
+
+    http_pod(monkeypatch)
+    client = install(monkeypatch, audio_reply())
+
+    async def refuse():
+        raise AssertionError("the ladder was walked on a working deployment")
+
+    monkeypatch.setattr(voice_control, "candidates", refuse)
+    assert speak() == PCM
+    assert [p["url"] for p in client.posts] == ["https://pod.example/synth"]
+
+
+def test_a_verified_endpoint_is_spoken_to_instead_of_the_stale_setting(monkeypatch):
+    """The whole point: REMOTE_VOICE_URL names a pod that moved, the control
+    plane has verified where it moved to, and the episode goes there."""
+    import voice_control
+
+    http_pod(monkeypatch, url="https://old-pod.example")
+    monkeypatch.setattr(
+        voice_control, "candidates",
+        _candidates("https://new-pod.example"))
+    monkeypatch.setattr(voice_control, "verify", _verify_ok)
+    run(voice_control.current())
+
+    client = install(monkeypatch, audio_reply())
+    assert speak() == PCM
+    assert [p["url"] for p in client.posts] == ["https://new-pod.example/synth"]
+
+
+def test_a_failed_chunk_moves_to_the_next_worker(monkeypatch):
+    """A worker whose /health is green and whose /synth is a 404 is the case
+    no health check can see in advance."""
+    import voice_control
+
+    http_pod(monkeypatch, url="https://dead-pod.example")
+    monkeypatch.setattr(
+        voice_control, "candidates",
+        _candidates("https://dead-pod.example", "https://live-pod.example"))
+    monkeypatch.setattr(voice_control, "verify", _verify_ok)
+
+    client = install(monkeypatch,
+                     FakeResponse({}, status_code=500, text="boom"),
+                     audio_reply())
+    assert speak() == PCM
+    assert [p["url"] for p in client.posts] == [
+        "https://dead-pod.example/synth", "https://live-pod.example/synth"]
+
+
+def test_one_worker_deployment_raises_its_own_error_rather_than_retrying(monkeypatch):
+    """A retry against the address that just failed would double every timeout
+    in front of a listener, and say nothing new."""
+    import voice_control
+
+    http_pod(monkeypatch)
+    monkeypatch.setattr(voice_control, "candidates",
+                        _candidates("https://pod.example"))
+    monkeypatch.setattr(voice_control, "verify", _verify_ok)
+    client = install(monkeypatch, FakeResponse({}, status_code=500, text="boom"))
+    with pytest.raises(remote_voice.RemoteVoiceError, match="500"):
+        speak()
+    assert len(client.posts) == 1
+
+
+def test_failing_over_never_becomes_a_different_voice(monkeypatch):
+    """Every rung is the same worker image and the same reference recording.
+    When none of them can speak, the episode fails - it does not become a
+    tone, a local engine or a second voice."""
+    import voice_control
+
+    http_pod(monkeypatch, url="https://dead-pod.example")
+    monkeypatch.setattr(
+        voice_control, "candidates",
+        _candidates("https://dead-pod.example", "https://also-dead.example"))
+    monkeypatch.setattr(voice_control, "verify", _verify_ok)
+    install(monkeypatch,
+            FakeResponse({}, status_code=500, text="boom"),
+            FakeResponse({}, status_code=500, text="boom too"))
+    with pytest.raises(remote_voice.RemoteVoiceError):
+        speak()
+
+
+def test_discovery_off_does_not_fail_over_at_all(monkeypatch):
+    """`VOICE_DISCOVERY=off` is exactly the behaviour before the ladder
+    existed, and that includes not looking for somewhere else to go."""
+    import voice_control
+
+    http_pod(monkeypatch, voice_discovery="off")
+    monkeypatch.setattr(voice_control, "candidates",
+                        _candidates("https://pod.example",
+                                    "https://other.example"))
+    client = install(monkeypatch, FakeResponse({}, status_code=500, text="boom"))
+    with pytest.raises(remote_voice.RemoteVoiceError):
+        speak()
+    assert len(client.posts) == 1
+
+
+def _candidates(*urls):
+    import voice_control
+
+    async def found():
+        return [voice_control.Endpoint(transport="http", url=url,
+                                       rung="registered", why="a test", token="shh")
+                for url in urls]
+
+    return found
+
+
+async def _verify_ok(candidate):
+    import voice_control
+
+    return voice_control.Verdict(True, "ready", contract=1, sample_rate=24000)
+
+
+def test_a_dead_configured_address_is_not_tried_again_every_chunk(monkeypatch):
+    """Fifteen chunks an episode, each starting again from the setting rather
+    than from what was learned two seconds ago, is fifteen paid timeouts."""
+    import voice_control
+
+    http_pod(monkeypatch, url="https://dead-pod.example")
+    monkeypatch.setattr(
+        voice_control, "candidates",
+        _candidates("https://dead-pod.example", "https://live-pod.example"))
+    monkeypatch.setattr(voice_control, "verify", _verify_ok)
+    client = install(monkeypatch,
+                     FakeResponse({}, status_code=500, text="boom"),
+                     audio_reply(), audio_reply())
+    assert speak() == PCM          # fails once, moves, speaks
+    assert speak() == PCM          # and stays moved
+    assert [p["url"] for p in client.posts] == [
+        "https://dead-pod.example/synth",
+        "https://live-pod.example/synth",
+        "https://live-pod.example/synth"]

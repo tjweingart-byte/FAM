@@ -50,6 +50,24 @@ log = logging.getLogger(__name__)
 #: deployed separately and can be different versions of this repo.
 WIRE_FORMAT = "pcm_s16le"
 
+
+def identity() -> dict:
+    """What this worker is: contract version, image, commit, mode, port.
+
+    Read from `voice_worker.register`, which is also what the heartbeat sends,
+    so the app cannot be told one thing by a registration and another by a
+    health check. Never raises - an identity that could fail would take the
+    health endpoint down with it.
+    """
+    try:
+        from voice_worker import register
+
+        return register.identity()
+    except Exception as exc:  # pragma: no cover - identity is never load-bearing
+        log.debug("could not describe this worker: %s", exc)
+        return {"contract": 0}
+
+
 #: How much text one request may carry. A generous ceiling on top of
 #: `speech_assembly`'s 45-word cap - it exists to refuse a runaway payload, not
 #: to second-guess the assembler, which is the only thing that should be
@@ -95,8 +113,14 @@ async def synthesise(payload: dict) -> dict:
         if not ready:
             raise WorkerError(detail)
         model_loaded = await _load()
-        return {"warm": True, "ready": True, "engine": "chatterbox",
-                "sample_rate": model_loaded, "detail": detail}
+        # The identity rides along on the one call a serverless endpoint makes
+        # for free: a warm job is the only thing the app sends a sleeping
+        # worker, so it is the only place the image and the contract version
+        # can be learned without paying for a second boot.
+        reply = {"warm": True, "ready": True, "engine": "chatterbox",
+                 "sample_rate": model_loaded, "detail": detail}
+        reply.update(identity())
+        return reply
 
     if len(text) > MAX_CHARACTERS:
         raise WorkerError(

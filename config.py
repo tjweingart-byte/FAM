@@ -256,6 +256,10 @@ VOICE_BACKENDS = ("chatterbox", "remote")
 #: How the app reaches a remote voice. Both are the same worker image.
 VOICE_TRANSPORTS = ("runpod", "http")
 
+#: Whether FAM may find a worker for itself (`voice_control.ladder()`) or must
+#: use only the address it was given. `off` is the pre-§112 behaviour.
+VOICE_DISCOVERY = ("auto", "off")
+
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, so "the default" is one fact in one place: `Settings`, the health
 #: report and the tests all read it from here.
@@ -864,6 +868,57 @@ class Settings:
     # each ask is a queued job.
     remote_voice_wake_interval: float = _env_float(
         "REMOTE_VOICE_WAKE_INTERVAL", 60.0)
+    # --- Finding the worker, rather than being told where it is ----------
+    # `voice_control.py` is the whole of this. The settings below decide how
+    # hard FAM works to keep its own address for the voice correct while
+    # RunPod moves pods around underneath it. PROBLEMS.md §112.
+    #
+    # auto | off. `off` is exactly the behaviour before the ladder existed:
+    # the configured transport and address, nothing discovered, no failover.
+    # An escape hatch for debugging, not a product decision - every rung of
+    # the ladder is the same worker image speaking the same voice.
+    voice_discovery: str = field(
+        default_factory=lambda: os.environ.get("VOICE_DISCOVERY", "auto"))
+    # The pod to look for through RunPod's API, by **name or id**, comma
+    # separated if there is more than one. A name survives a pod being
+    # destroyed and recreated from the same template; an id does not, which is
+    # why the name is the thing to set.
+    runpod_pod: str = field(
+        default_factory=lambda: (os.environ.get("RUNPOD_POD")
+                                 or os.environ.get("RUNPOD_POD_ID", "")))
+    runpod_rest_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "RUNPOD_REST_URL", "https://rest.runpod.io/v1"))
+    runpod_graphql_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "RUNPOD_GRAPHQL_URL", "https://api.runpod.io/graphql"))
+    # The port inside the worker container. RunPod's proxy URL is built from
+    # it, and a mismatch here is the 404 that reads like a missing route
+    # (PROBLEMS.md §78).
+    voice_worker_port: int = _env_int("VOICE_WORKER_PORT", 8001)
+    # A registration that has not been renewed inside this many seconds stops
+    # being offered. Five minutes is five missed heartbeats.
+    voice_registry_ttl: float = _env_float("VOICE_REGISTRY_TTL", 300.0)
+    # The shared secret a worker presents to say where it is. **Unset means
+    # registration is refused**, because an open registration endpoint lets
+    # anybody redirect every script FAM writes to a machine of their own.
+    voice_registry_token: str = field(
+        default_factory=lambda: os.environ.get("VOICE_REGISTRY_TOKEN", ""))
+    # How long a verified endpoint is trusted without being checked again.
+    # The synth path pays nothing inside this window.
+    voice_verify_ttl: float = _env_float("VOICE_VERIFY_TTL", 120.0)
+    # How often the supervisor re-checks, so a pod that died is known before
+    # a listener finds out. 0 switches the background loop off; the request
+    # path still resolves on demand.
+    voice_supervise_seconds: float = _env_float("VOICE_SUPERVISE_SECONDS", 60.0)
+    # A ceiling on a control-plane probe. These run in front of a listener on
+    # the first request after a change, so they are short by design: a health
+    # check that hangs is worse than one that fails.
+    voice_probe_timeout: float = _env_float("VOICE_PROBE_TIMEOUT", 8.0)
+    # How long a failed endpoint is sorted to the back of the ladder. Never
+    # dropped - if it is all there is, a stale failure must not be the reason
+    # nobody can speak.
+    voice_retry_seconds: float = _env_float("VOICE_RETRY_SECONDS", 60.0)
     # --- Chatterbox: the production voice --------------------------------
     # Where the model runs. `auto` picks cuda, then mps, and refuses cpu -
     # Chatterbox on a CPU is slower than speech, so an episode would starve.
@@ -1014,6 +1069,13 @@ class Settings:
                 raise ValueError(
                     f"REMOTE_VOICE_CONCURRENCY={self.remote_voice_concurrency} "
                     "must be at least 1; zero would deadlock every episode.")
+            if str(self.voice_discovery).strip().lower() not in VOICE_DISCOVERY:
+                # Refused rather than treated as `off`: a typo that quietly
+                # switched discovery off would look exactly like the old
+                # behaviour, which is the failure the ladder exists to end.
+                raise ValueError(
+                    f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
+                    f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
         if self.research_backend not in RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_BACKEND={self.research_backend!r} is not a research "

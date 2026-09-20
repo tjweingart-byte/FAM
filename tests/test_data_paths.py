@@ -32,6 +32,7 @@ import saved as SV  # noqa: E402
 import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
 import topics as T  # noqa: E402
+import voice_registry as VR  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -50,6 +51,7 @@ STORES = [
     ("SAVED_DB", "saved.db", SV.SavedStore),
     ("SHARES_DB", "shares.db", SH.ShareStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
+    ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.

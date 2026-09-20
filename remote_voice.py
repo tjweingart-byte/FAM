@@ -47,6 +47,26 @@ with a job id to poll. `voice_worker/` implements both entrypoints over one
   interface can show. This is the guard PROBLEMS.md §61 removed with WellSaid
   and said to re-add by hand for the next hosted engine; this is by hand.
 
+## Where the worker is, which is no longer this file's business
+
+This used to build the address out of `settings` on every call, which made the
+environment variable the single source of truth about a machine that RunPod can
+move without telling anybody. `voice_control.py` now answers *which* worker;
+this answers *what to say to it*. The split is the point (PROBLEMS.md §112):
+
+* A configured endpoint is still used directly and still costs no probe. The
+  happy path is unchanged, down to the number of requests.
+* When the control plane is holding a verified endpoint - because the
+  supervisor found the configured one dead, or because a pod registered itself
+  - that is what is spoken to.
+* A chunk that fails **demotes** the endpoint, so the next one re-resolves
+  instead of failing the same way fifteen more times in the same episode.
+
+Failing over is not falling back: every rung is the same worker image, the same
+weights and the same reference recording, and a worker whose sample rate
+disagrees with the header already written is refused rather than used. What
+moves is the address; what comes out of it does not.
+
 ## The cold start, and why it is answered by starting earlier
 
 A serverless worker that has scaled to zero pays container boot plus a ~10s
@@ -87,6 +107,34 @@ TRANSPORTS = ("runpod", "http")
 #: The route `voice_worker/server.py` serves the contract on, and the only part
 #: of the URL this side invents. `REMOTE_VOICE_URL` is the pod's *base* URL.
 SYNTH_ROUTE = "/synth"
+
+
+def synth_url(url: str) -> str:
+    """Where the POST actually goes, for any worker address.
+
+    A worker's URL is documented as its *base* and the route is this side's to
+    add - but an operator who pastes the URL they were testing with, the one
+    that already ends in `/synth`, has configured something unambiguous, and
+    appending a second `/synth` to it produces a 404 indistinguishable from a
+    worker that has no route at all.
+
+    Module-level rather than a method because the address no longer comes only
+    from `settings`: `voice_control` can hand this a pod that registered
+    itself, and two implementations of "where does the POST go" would be two
+    places for a trailing route to be handled differently.
+    """
+    url = (url or "").rstrip("/")
+    return url if url.endswith(SYNTH_ROUTE) else url + SYNTH_ROUTE
+
+
+def base_url(url: str) -> str:
+    """The origin of a worker address, whichever way it was written.
+
+    `/health` and `/openapi.json` hang off this, so an address that already
+    names `/synth` must not send the probes to `.../synth/health`.
+    """
+    url = (url or "").rstrip("/")
+    return url[:-len(SYNTH_ROUTE)] if url.endswith(SYNTH_ROUTE) else url
 
 
 class RemoteVoiceError(RuntimeError):
@@ -138,27 +186,12 @@ class RemoteConfig:
         )
 
     def synth_url(self) -> str:
-        """Where the POST actually goes.
-
-        `REMOTE_VOICE_URL` is documented as the pod's base URL and the route is
-        this side's to add - but an operator who pastes the URL they were
-        testing with, the one that already ends in `/synth`, has configured
-        something unambiguous, and appending a second `/synth` to it produces a
-        404 indistinguishable from a worker that has no route at all.
-        """
-        if self.url.endswith(SYNTH_ROUTE):
-            return self.url
-        return self.url + SYNTH_ROUTE
+        """Where the POST would go for the configured address."""
+        return synth_url(self.url)
 
     def base_url(self) -> str:
-        """The origin, whichever way the URL was written.
-
-        `/health` and `/openapi.json` hang off this, so a configured
-        `.../synth` must not send the probes to `.../synth/health`.
-        """
-        if self.url.endswith(SYNTH_ROUTE):
-            return self.url[:-len(SYNTH_ROUTE)]
-        return self.url
+        """The configured origin, whichever way the URL was written."""
+        return base_url(self.url)
 
     def problem(self) -> str:
         """Why this configuration cannot be used, or "" if it can.
@@ -344,15 +377,52 @@ class RemoteChatterboxEngine(TTSEngine):
             "format": WIRE_FORMAT,
         }
 
-    def _headers(self, config: RemoteConfig) -> dict:
+    @staticmethod
+    def _headers(token: str) -> dict:
         headers = {"Content-Type": "application/json"}
-        if config.api_key:
-            headers["Authorization"] = f"Bearer {config.api_key}"
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         return headers
+
+    # -- which worker ------------------------------------------------------
+
+    async def _endpoint(self, config: RemoteConfig):
+        """The worker to speak to, and why it is that one.
+
+        Three cases, in this order, and the middle one is what keeps the happy
+        path free:
+
+        1. **The control plane is holding a verified endpoint.** It is held
+           because something checked it - the supervisor on its timer, or a
+           failure that demoted whatever came before. Trust it.
+        2. **The configured transport is complete.** Use it, with no probe at
+           all. A deployment that names its endpoint and works must not start
+           paying a round trip per episode for a mechanism it does not need.
+        3. **Neither.** Resolve the ladder, which is the case where somebody
+           has set nothing but a registration token and the pods introduce
+           themselves.
+        """
+        import voice_control
+
+        held = voice_control.held()
+        if held is not None and voice_control.fresh():
+            return held
+        configured = voice_control.Endpoint(
+            transport=config.transport, url=config.url, rung="configured",
+            why="the transport named in the environment",
+            token=config.api_key, sample_rate=config.sample_rate)
+        if not config.problem() and not voice_control.recently_failed(
+                configured.key()):
+            return configured
+        try:
+            return await voice_control.current()
+        except voice_control.VoiceControlError as exc:
+            raise RemoteVoiceError(str(exc)) from exc
 
     # -- the two envelopes -------------------------------------------------
 
-    async def _call_runpod(self, payload: dict, config: RemoteConfig) -> dict:
+    async def _call_runpod(self, payload: dict, config: RemoteConfig,
+                           url: str = "", token: str = "") -> dict:
         """RunPod's queue API: submit, and poll if the sync wait ran out.
 
         `/runsync` answers directly when the job finishes inside its window and
@@ -361,9 +431,11 @@ class RemoteChatterboxEngine(TTSEngine):
         would turn every cold start into a broken episode.
         """
         client = self._http(config)
-        response = await client.post(f"{config.url}/runsync",
+        url = url or config.url
+        token = token or config.api_key
+        response = await client.post(f"{url}/runsync",
                                      json={"input": payload},
-                                     headers=self._headers(config))
+                                     headers=self._headers(token))
         body = self._decode_json(response, "runsync")
         deadline = time.monotonic() + config.timeout
         while True:
@@ -390,11 +462,12 @@ class RemoteChatterboxEngine(TTSEngine):
                     f"{config.timeout:.0f}s. A cold worker can exceed this - "
                     "raise REMOTE_VOICE_TIMEOUT, or keep a worker warm.")
             await asyncio.sleep(0.25)
-            polled = await client.get(f"{config.url}/status/{job_id}",
-                                      headers=self._headers(config))
+            polled = await client.get(f"{url}/status/{job_id}",
+                                      headers=self._headers(token))
             body = self._decode_json(polled, f"status/{job_id}")
 
-    async def _call_http(self, payload: dict, config: RemoteConfig) -> dict:
+    async def _call_http(self, payload: dict, config: RemoteConfig,
+                         url: str = "", token: str = "") -> dict:
         """A plain speech server: one POST, one answer, no envelope.
 
         The one thing that can go wrong here without going wrong on the card is
@@ -407,21 +480,24 @@ class RemoteChatterboxEngine(TTSEngine):
         with the two things that cause it.
         """
         client = self._http(config)
+        base = (url or config.url).rstrip("/")
+        token = token or config.api_key
         found = type(self)._found_route
-        url = found[1] if found and found[0] == config.url else config.synth_url()
-        response = await client.post(url, json=payload,
-                                     headers=self._headers(config))
+        route = found[1] if found and found[0] == base else synth_url(base)
+        response = await client.post(route, json=payload,
+                                     headers=self._headers(token))
         if response.status_code == 404:
-            route = await self._route_from_worker(config, url)
-            response = await client.post(route, json=payload,
-                                         headers=self._headers(config))
+            named = await self._route_from_worker(config, route, base, token)
+            response = await client.post(named, json=payload,
+                                         headers=self._headers(token))
             # Remembered only once it has answered something other than 404:
             # a second wrong route is worse than the first.
             if response.status_code != 404:
-                type(self)._found_route = (config.url, route)
+                type(self)._found_route = (base, named)
         return self._decode_json(response, "synth")
 
-    async def _route_from_worker(self, config: RemoteConfig, tried: str) -> str:
+    async def _route_from_worker(self, config: RemoteConfig, tried: str,
+                                 url: str = "", token: str = "") -> str:
         """Ask the worker which route takes the contract, or say why there is none.
 
         Bounded on purpose: one GET, only ever after a 404, never on the path a
@@ -430,10 +506,11 @@ class RemoteChatterboxEngine(TTSEngine):
         that is not this worker is a request to somebody else's service.
         """
         client = self._http(config)
-        base = config.base_url()
+        base = base_url(url or config.url)
+        token = token or config.api_key
         try:
             schema = await client.get(f"{base}/openapi.json",
-                                      headers=self._headers(config))
+                                      headers=self._headers(token))
         except Exception as exc:
             raise RemoteVoiceError(
                 f"remote voice synth returned HTTP 404 at {tried}, and asking "
@@ -503,20 +580,30 @@ class RemoteChatterboxEngine(TTSEngine):
         the voice up.
         """
         config = self.config()
-        problem = config.problem()
-        if problem:
-            raise RemoteVoiceError(f"remote voice is not configured: {problem}")
+        endpoint = await self._endpoint(config)
+        if not endpoint.url:
+            raise RemoteVoiceError(
+                f"remote voice is not configured: {config.problem()}")
 
         payload = self._payload(text, config)
         started = time.monotonic()
         async with self._semaphore(config.concurrency):
             try:
-                if config.transport == "runpod":
-                    output = await self._call_runpod(payload, config)
-                else:
-                    output = await self._call_http(payload, config)
-            except RemoteVoiceError:
-                raise
+                output = await self._speak(payload, config, endpoint)
+            except RemoteVoiceError as exc:
+                # A real call is the only thing that learns what a health check
+                # cannot - a worker whose /health is green and whose /synth is
+                # a 404. Tell the control plane, then try whatever it finds
+                # instead. Once: a second address that fails is a deployment
+                # problem, and an episode is not the place to work through a
+                # list of them.
+                replacement = await self._after_failure(endpoint, str(exc))
+                if replacement is None:
+                    raise
+                log.warning("remote voice: %s failed (%s); trying %s (%s)",
+                            endpoint.url, exc, replacement.url, replacement.rung)
+                output = await self._speak(payload, config, replacement)
+                endpoint = replacement
             except Exception as exc:
                 # Network errors arrive as a dozen different exception types.
                 # All of them mean the same thing to a listener, and none of
@@ -532,8 +619,43 @@ class RemoteChatterboxEngine(TTSEngine):
                   len(text.split()), seconds, elapsed,
                   seconds / elapsed if elapsed else 0)
         type(self)._reachability = Reachability(
-            state="ok", detail=config.transport, at=time.time(), latency=elapsed)
+            state="ok", detail=f"{endpoint.rung} via {endpoint.transport}",
+            at=time.time(), latency=elapsed)
         return pcm
+
+    async def _speak(self, payload: dict, config: RemoteConfig, endpoint) -> dict:
+        """One request to one worker, in that worker's envelope."""
+        if endpoint.transport == "runpod":
+            return await self._call_runpod(payload, config, endpoint.url,
+                                           endpoint.token)
+        return await self._call_http(payload, config, endpoint.url,
+                                     endpoint.token)
+
+    async def _after_failure(self, endpoint, detail: str):
+        """The next address to try, or `None` when there is not a different one.
+
+        `None` is the common answer and the important one: a single-endpoint
+        deployment must raise the worker's own error rather than a sentence
+        about failover, and a retry against the address that just failed would
+        double every timeout in front of a listener.
+        """
+        try:
+            import voice_control
+
+            voice_control.demote(endpoint, detail)
+            if not voice_control.discovery_enabled():
+                return None
+            # Not `force`: `demote` has already dropped whatever was held, so
+            # the first chunk to fail resolves and the other three in flight
+            # get its answer. Forcing would make four failing chunks walk the
+            # ladder four times, in front of the same listener.
+            replacement = await voice_control.current()
+        except Exception as exc:
+            log.debug("no replacement voice endpoint: %s", exc)
+            return None
+        if replacement.key() == endpoint.key():
+            return None
+        return replacement
 
     @classmethod
     def _pcm_from(cls, output: dict, config: RemoteConfig) -> bytes:
@@ -621,15 +743,33 @@ class RemoteChatterboxEngine(TTSEngine):
 
 
 def report() -> dict:
-    """What `/api/health` says about the remote voice, if one is configured."""
+    """What `/api/health` says about the remote voice, if one is configured.
+
+    `endpoint` is **where the next episode would actually go**, which is the
+    held address when the control plane is holding one and the configured one
+    otherwise. Reporting the setting while speaking to somewhere else would be
+    the §52 mistake made inside the report that exists to prevent it - and it
+    is exactly the confusion that made a moved pod take a day to find.
+    """
     ok, detail = RemoteChatterboxEngine.diagnose()
     config = RemoteChatterboxEngine.config()
+    endpoint, source = config.url, "configured"
+    try:
+        import voice_control
+
+        held = voice_control.held()
+        if held is not None:
+            endpoint, source = held.url, held.rung
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     return {
         "configured": ok,
         "detail": detail,
         "transport": config.transport,
         "sample_rate": config.sample_rate,
         # Where it points, never what authorises it.
-        "endpoint": config.url or None,
+        "endpoint": endpoint or None,
+        "endpoint_from": source,
+        "configured_endpoint": config.url or None,
         "reachable": RemoteChatterboxEngine.reachability(),
     }

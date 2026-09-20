@@ -4,10 +4,12 @@
 # the app can run where it is cheap - a Render CPU service - and the GPU exists
 # only while there is something to say. See REMOTE_VOICE.md.
 #
-# One image, two entrypoints, chosen at runtime:
+# One image, two entrypoints, chosen at runtime **by the platform rather than
+# by a variable somebody has to remember** (`voice_worker/start.py`):
 #
-#   VOICE_WORKER_MODE=serverless   RunPod Serverless; sleeps when idle
-#   VOICE_WORKER_MODE=http         a plain port on an always-on pod
+#   RUNPOD_ENDPOINT_ID set   RunPod Serverless; sleeps when idle
+#   RUNPOD_POD_ID set        a plain port on an always-on pod
+#   VOICE_WORKER_MODE=...    overrides both, for anything this cannot see
 #
 # That is deliberate. Two images would drift, and the whole premise of the
 # split is that moving between serverless and always-on is configuration
@@ -55,17 +57,46 @@ COPY . .
 #                  speak without both. A cloned voice is somebody's voice, and
 #                  a voice in a container registry is somebody's voice in a
 #                  container registry.
+# VOICE_WORKER_MODE is deliberately **not** set here any more. It defaulted to
+# `serverless`, and a pod started without `VOICE_WORKER_MODE=http` therefore
+# ran the handler and opened no port at all - a 404 on every path, which from
+# the app's side is indistinguishable from a missing route. That one-word
+# mistake has cost a day twice (PROBLEMS.md §78, §112). `voice_worker/start.py`
+# now derives the mode from the platform, and the variable overrides it.
 ENV HF_HOME=/state/hf \
     FAM_VOICES_DIR=/state/voices \
     CHATTERBOX_DEVICE=auto \
-    VOICE_WORKER_MODE=serverless \
     PORT=8001
 
 RUN mkdir -p /state/hf /state/voices
 
+# Which build this is, so the app can say whether the fix that was pushed is
+# the fix that is speaking (§77 across the split - the difference has cost a
+# day). Declared here, after the layers that matter for caching, so stamping a
+# build does not rebuild CUDA:
+#
+#   docker build -f Dockerfile.voice \
+#     --build-arg VOICE_IMAGE=<registry>/fam-voice:7 \
+#     --build-arg FAM_COMMIT=$(git rev-parse HEAD) -t <registry>/fam-voice:7 .
+ARG VOICE_IMAGE=unknown
+ARG FAM_COMMIT=unknown
+ENV VOICE_IMAGE=$VOICE_IMAGE \
+    FAM_COMMIT=$FAM_COMMIT
+
+# Where to announce itself, and the secret that lets it. Set on the pod, not
+# here: `FAM_APP_URL` is the app this worker serves and `VOICE_REGISTRY_TOKEN`
+# is a secret, and a worker with neither simply does not register - it serves
+# exactly as it always did, and the app finds it some other way or not at all.
+#
+#   FAM_APP_URL=https://<the app>
+#   VOICE_REGISTRY_TOKEN=<the same value the app has>
+#   PUBLIC_WORKER_URL=<only off RunPod; the proxy URL is derived from
+#                      RUNPOD_POD_ID and PORT>
+
 EXPOSE 8001
 
-# `exec` so signals reach Python: RunPod stops a worker with SIGTERM, and a
-# shell swallowing it means the platform waits out the grace period on every
-# scale-down.
-CMD ["sh", "-c", "if [ \"$VOICE_WORKER_MODE\" = http ]; then exec python -m uvicorn voice_worker.server:app --host 0.0.0.0 --port ${PORT:-8001}; else exec python -u voice_worker/handler.py; fi"]
+# One entrypoint that chooses the half this machine needs and says which and
+# why in the first line of the pod's log. No `sh -c`, so signals reach Python
+# directly: RunPod stops a worker with SIGTERM, and a shell swallowing it means
+# the platform waits out the grace period on every scale-down.
+CMD ["python", "-u", "voice_worker/start.py"]

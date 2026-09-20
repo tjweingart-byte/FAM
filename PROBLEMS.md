@@ -7988,3 +7988,155 @@ is no import graph, no bundler and no linter that can see a name being
 quietly replaced, so a duplicated top-level name is not a style problem - it
 is a control that silently calls somebody else's function. The check that
 catches it costs a regex.
+
+## 112. One failure on RunPod became a whole repair process
+
+The reported symptom was small and specific: **FAM writes the episode, Render
+reaches RunPod, Chatterbox is loaded on the card - and `POST /synth` answers
+404.** No audio, so the episode fails. The immediate fix is a corrected worker
+image on the pod, which is half an hour.
+
+The reported *problem* was the other thing: that fixing it takes a day, and
+takes a day again the next time anything on RunPod changes.
+
+    RunPod changes -> the address or the worker changes -> Render loses
+    compatibility -> a code fix -> a Docker rebuild -> a RunPod redeploy ->
+    a Render redeploy -> test
+
+Every arrow is a human keeping two systems in agreement by hand. That is the
+thing this section is about; the 404 is one symptom of it.
+
+### Why it kept happening
+
+The address of the voice was a **fact about the world, written down in a second
+place**. `REMOTE_VOICE_URL` (or the endpoint id) was correct until RunPod moved
+the pod, and then it was wrong in the one way that cannot be seen from the
+app's side: the address still resolves, something still answers, and what comes
+back is a 404 that reads exactly like a missing route - which is §78's finding,
+arrived at again from the other end.
+
+Three consequences, all of which cost time rather than audio:
+
+* **Nothing knew until a listener did.** The first thing that discovered the
+  mismatch was an episode failing, so the diagnosis started in the middle of a
+  stream rather than at the moment the pod changed.
+* **The diagnosis was spread over four consoles.** Render holds an address,
+  RunPod holds a pod, the pod holds a mode and a port, and the image on it
+  holds a version of this repo. No single screen answered "which of these
+  moved", so the answer was found by bisecting them.
+* **Every fix ended in a redeploy**, because the correction was an environment
+  variable, and an environment variable is part of the deployment.
+
+### What was built
+
+**`voice_control.py`: the address is discovered, verified and held.**
+`remote_voice.py` kept the conversation with a worker - sentences in, PCM out -
+and gave up the question of *which* worker. That question is now a ladder, and
+`ladder()` is its one definition, read by the runtime, `/api/health`, the
+startup log and the doctor, so the documented order cannot drift from the real
+one (`research.ladder()`'s rule, in a second place):
+
+    1. pinned       REMOTE_VOICE_URL, when somebody set one
+    2. registered   a worker that told us where it is, inside the TTL
+    3. runpod-pod   pods on the account, matched by NAME, resolved through
+                    RunPod's own API
+    4. serverless   RUNPOD_ENDPOINT_ID
+
+A rung is used because a **real call** to it came back correct, and that answer
+is held for `VOICE_VERIFY_TTL` - so the synth path pays nothing on a healthy
+deployment, which was the constraint that decided the shape. The check is
+deliberately the cheap real call (`/health`, or RunPod's endpoint health) and
+never a synthesis: waking a serverless worker to keep a health page green is a
+bill for a colour.
+
+**`voice_worker/register.py`: the pod says where it is.** Only it can. RunPod
+puts the pod id in the container's environment and fronts each port at
+`https://<pod id>-<port>.proxy.runpod.net`, so the address is derivable there
+and guessable nowhere else. On boot and every minute after, the worker posts
+its address, mode, port, contract version, sample rate, image and commit to
+`POST /api/voice/register`. **A replaced pod is back in service within one
+heartbeat and nobody edits anything** - which is the arrow this whole section
+exists to delete.
+
+**And the one-word mistake behind the reported 404 is gone.** The image had
+`VOICE_WORKER_MODE=serverless` as its default, so a pod started without
+`VOICE_WORKER_MODE=http` ran the handler and opened *no port at all* - 404 on
+every path, indistinguishable from a missing route, which is §78 exactly.
+`voice_worker/start.py` derives it instead: `RUNPOD_ENDPOINT_ID` means a
+Serverless worker (only one has an endpoint to belong to), `RUNPOD_POD_ID`
+alone means a pod and therefore a port, anything else means a port because it
+is the only way in, and `VOICE_WORKER_MODE` still overrides all three. The
+first line of the pod's log now says which half is running and why, because
+"the container is running the wrong half" has to be visible in the pod's own
+log rather than inferred from an app's 404 an hour later.
+
+**A supervisor, so the app finds out before a listener does.** One cheap probe
+every `VOICE_SUPERVISE_SECONDS`. It is the browse-surface argument applied to
+infrastructure: the resolution that would otherwise happen in front of the
+first listener after a pod moved has already happened by the time they arrive.
+
+**`tools/voice_doctor.py`: the whole chain on one screen.** What this app is
+configured to do, how it will look for a worker, what that search finds,
+whether each candidate is really there, which build is answering, and - with
+`--speak` - whether it can actually make audio. Every failure prints its fix
+beside it, because the answer to "the pod is in serverless mode" is one
+environment variable and nobody should have to go and find out which. It reads
+`voice_control.ladder()` rather than being a checklist in a document, so it
+cannot describe an order the app does not use.
+
+**`.github/workflows/voice-worker.yml`: the image builds itself.** The contract
+job runs on every push that touches the worker - seconds, no GPU - because the
+two halves are deployed separately and can be different versions of this repo,
+which is the failure neither side can see alone. The image build is opt-in, a
+CUDA image being ~10 GB. It deliberately does not deploy: a workflow that can
+replace the running voice on a push is a workflow that can take the voice down
+on a typo.
+
+### Three rules this had to obey, and one it had to not break
+
+**Failing over is not falling back.** CLAUDE.md is categorical that a hosted
+voice which fails must fail rather than become a different one, and that is
+untouched. Every rung is the same `Dockerfile.voice` image, the same weights
+and the same `reference_3.wav`, and a candidate whose `/health` reports a
+sample rate the stream header has not already claimed is **refused** rather
+than used - a wrong rate is a failure you hear. What moves is the address; what
+comes out of it does not. When no rung can speak, the episode fails with the
+reason attached, exactly as before.
+
+**Never fall back silently** (§109, in a second place). Every switch is
+recorded with what it moved from, why, and when, and it is on `/api/health` and
+in the log at WARNING.
+
+**A layer that adds quality must not subtract availability** (§82's rule). The
+worker now reports a contract version, and a mismatch is *reported and never
+refused*: an older worker that still serves `/synth` is a working voice, and
+taking it away over a version number would be this layer causing the outage it
+exists to prevent.
+
+**Registration is authenticated or it does not exist.** `VOICE_REGISTRY_TOKEN`
+unset means the endpoint answers 404 - not an open endpoint with a warning. An
+endpoint that accepts "the voice is at this URL" from anybody redirects every
+script FAM writes to a machine of their choosing, and it would look exactly
+like the feature working. And a registration is a *claim*, never a promotion:
+it makes a candidate, and the candidate is verified with a real call before a
+listener is sent to it.
+
+### What it does not do, deliberately
+
+**Nothing here starts, stops, resizes or pays for a pod.** The address is
+automatic; the machine is not. `.github/workflows/runpod-schedule.yml` is the
+one thing that starts and stops one, on a clock somebody set - and that
+schedule is why `_pods_from` records a pod it found and did not use: this
+deployment stops its pod at 23:00, so **"the voice cannot be found" and "the
+voice is asleep until 08:00" are different problems**, and an empty rung that
+said nothing made them look the same.
+
+### What is still unverified
+
+Nothing here has made a real request to RunPod from this container, which has
+no credentials and no GPU. The parsing of RunPod's answer is defensive for
+that reason - REST first, because `runpod-schedule.yml` already uses it with
+this project's key, GraphQL second, three response shapes accepted, and any
+failure costs a rung and a log line rather than the voice. `python
+tools/voice_doctor.py` against the real deployment is what turns that from
+careful into known.
