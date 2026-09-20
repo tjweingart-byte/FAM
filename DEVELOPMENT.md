@@ -100,6 +100,25 @@ has no server and therefore no pool — the rails fall back and say why, which i
 also what a deployment with no live source shows. This is how you see the real
 thing without opening the app, and `--dry` is the version that costs nothing.
 
+And a fifth, for the one part of the product that lives on somebody else's
+hardware:
+
+```sh
+python tools/voice_doctor.py           # the whole voice chain, on one screen
+python tools/voice_doctor.py --speak   # and make it produce real audio
+```
+
+The voice runs on a rented GPU whose address RunPod can change without telling
+anybody, and the symptom of a stale address is a 404 in the middle of an
+episode that reads exactly like a missing route. This asks every question in
+the chain - what this app is configured to do, how it will look for a worker,
+what that search finds, whether each candidate is really there, which build is
+answering, and whether it can speak - and prints the fix beside each failure.
+It answers in seconds what used to be found by bisecting four consoles
+(`REMOTE_VOICE.md`, PROBLEMS.md §112). Off a deployment with `VOICE_BACKEND`
+unset it says so and stops, which is the honest answer rather than a wall of
+red.
+
 ## Preview builds
 
 ```sh

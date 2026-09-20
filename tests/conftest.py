@@ -117,6 +117,14 @@ FAM_ENVIRONMENT = (
     "REMOTE_VOICE_CONNECT_TIMEOUT", "REMOTE_VOICE_CONCURRENCY",
     "REMOTE_VOICE_ID", "REMOTE_VOICE_WAKE_INTERVAL",
     "RUNPOD_ENDPOINT_ID", "RUNPOD_API_KEY", "RUNPOD_BASE_URL",
+    # How the worker is *found* rather than what it is (§112). A developer
+    # with VOICE_REGISTRY_TOKEN or RUNPOD_POD set must not run a suite whose
+    # ladder reaches their registry or RunPod account - the tests about which
+    # rung answers would then be about their machine.
+    "VOICE_DISCOVERY", "VOICE_REGISTRY_TOKEN", "VOICE_REGISTRY_TTL",
+    "VOICE_VERIFY_TTL", "VOICE_SUPERVISE_SECONDS", "VOICE_PROBE_TIMEOUT",
+    "VOICE_RETRY_SECONDS", "VOICE_WORKER_PORT", "RUNPOD_POD", "RUNPOD_POD_ID",
+    "RUNPOD_REST_URL", "RUNPOD_GRAPHQL_URL",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py
@@ -127,6 +135,7 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
+    "VOICE_REGISTRY_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the

@@ -59,6 +59,30 @@ services:
       # synthesis. A warm one answers a chunk in a couple of seconds.
       - key: REMOTE_VOICE_TIMEOUT
         value: "180.0"
+      # --- Finding the worker when RunPod moves it ----------------------
+      #
+      # The address of a rented GPU is not a constant, and an app holding a
+      # stale one fails with a 404 in the middle of an episode. These three
+      # are what stop that being a human's job (PROBLEMS.md §112).
+      #
+      # The pod to look for through RunPod's API, by **name**: a pod that is
+      # destroyed and recreated from the same template keeps its name and
+      # loses its id. Uses RUNPOD_API_KEY, which is already set above.
+      - key: RUNPOD_POD
+        sync: false
+      # The secret a worker presents to say where it is. Set the same value
+      # here and on the pod (with FAM_APP_URL pointing at this service) and a
+      # replaced pod is back in service within one heartbeat, with nothing
+      # edited. Unset means registration is refused, which is the safe
+      # default: an open registration endpoint redirects every script this
+      # app writes.
+      - key: VOICE_REGISTRY_TOKEN
+        sync: false
+      # Where the registry of self-registered workers lives. On the disk, like
+      # every other database: a redeploy must not cost the address of a pod
+      # that is up and working.
+      - key: VOICE_REGISTRY_DB
+        value: /data/voice_registry.db
       # --- Live facts: elections ----------------------------------------
       #
       # Polymarket. Keyless, so it is a plain `value` rather than a

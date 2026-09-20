@@ -82,26 +82,134 @@ makes serverless viable at all.
 | Max workers | 1–2 | one card serves one generation at a time |
 | Idle timeout | 60s | long enough that a second episode is warm |
 | FlashBoot | on | it is what makes a warm start ~instant |
-| Env | `VOICE_WORKER_MODE=serverless` | the image's default; set it anyway |
+| Env | nothing | the image sees `RUNPOD_ENDPOINT_ID` and runs the handler |
 
 Copy the **endpoint id**.
 
 *For an always-on pod instead:* deploy the same image as a Pod, set
-`VOICE_WORKER_MODE=http` and `REMOTE_VOICE_TOKEN=<a long random string>`,
+`REMOTE_VOICE_TOKEN=<a long random string>` (the mode is derived),
 expose port 8001, and use the proxy URL RunPod gives you as
 `REMOTE_VOICE_URL`.
 
 **Two things about that pod are the whole of what goes wrong** (PROBLEMS.md
 §78), and neither is visible from the app's side:
 
-* **`VOICE_WORKER_MODE=http` is not optional on a pod.** The image defaults to
-  `serverless`, which runs `handler.py` and opens *no port at all* - so the
-  proxy URL answers 404 on every path, including `/health`, and the app's log
-  reads exactly like a worker with a missing route.
+* **The mode used to be a variable, and forgetting it is what broke this.**
+  The image defaulted to `serverless`, which runs `handler.py` and opens *no
+  port at all* - so the proxy URL answered 404 on every path, including
+  `/health`, and the app's log read exactly like a worker with a missing
+  route. `voice_worker/start.py` now derives it: `RUNPOD_ENDPOINT_ID` means a
+  Serverless worker, `RUNPOD_POD_ID` alone means a pod and a port, and
+  `VOICE_WORKER_MODE` overrides both. **An image built before that change
+  still needs `VOICE_WORKER_MODE=http` on a pod**, and the first line of the
+  pod's log now says which half is running and why.
 * **The port in the proxy URL must be the port the worker listens on.** The
   container serves `${PORT:-8001}`, so a pod exposing 8002 needs `PORT=8002`
   in its environment as well. `https://<pod>-8002.proxy.runpod.net` with
   uvicorn on 8001 is a 404 from RunPod's proxy, not from the worker.
+
+## The address is found, not typed
+
+Everything above is the *once, ever* setup. What made this a day of work each
+time was not the setup - it was that every later change on RunPod needed a
+human to put two systems back into agreement:
+
+    pod migrates -> its address changes -> Render still points at the old one
+    -> 404 mid-episode -> read logs, edit a dashboard, redeploy
+
+`voice_control.py` removes the humans from all but the first arrow. It walks a
+**ladder** - one definition, in `voice_control.ladder()`, which the runtime,
+`/api/health`, the startup log and `tools/voice_doctor.py` all read rather than
+keeping copies of:
+
+| | Rung | What it is | Survives |
+|---|---|---|---|
+| 1 | `pinned` | `REMOTE_VOICE_URL` | nothing - it is a fact written down twice |
+| 2 | `registered` | a worker that said where it is | a pod being replaced |
+| 3 | `runpod-pod` | pods on the account, matched by **name**, resolved through RunPod's API | a pod being recreated, and a worker that cannot reach us |
+| 4 | `serverless` | `RUNPOD_ENDPOINT_ID` | everything; it is cold, not absent |
+
+A rung is used because a real call to it came back correct - a worker's
+`/health`, or RunPod's own endpoint health - and that answer is held for
+`VOICE_VERIFY_TTL`, so **the synth path pays nothing** on a healthy deployment.
+`supervise_forever()` re-checks on a timer, so a pod that died at 3am is known
+at 3am and the switch has already happened by the time somebody asks for an
+episode.
+
+**Failing over is not falling back.** Every rung is the same `Dockerfile.voice`
+image, the same weights and the same `reference_3.wav`; a candidate whose
+`/health` reports a sample rate this app has not already written into the
+stream header is *refused* rather than used. What moves is the address. When no
+rung can speak the episode fails with the reason attached, exactly as before -
+and every switch is recorded, on `/api/health` and in the log, because §109's
+rule holds here too: never fall back silently.
+
+### The rung that makes a replaced pod free: the worker registers itself
+
+Only the pod can know where it is. RunPod puts its id in `RUNPOD_POD_ID` inside
+the container and fronts each exposed port at
+`https://<pod id>-<port>.proxy.runpod.net`, so the address is derivable there
+and guessable nowhere else. Three variables on the pod, and it introduces
+itself on boot and every minute after:
+
+    FAM_APP_URL=https://<your Render service>
+    VOICE_REGISTRY_TOKEN=<the same long random string the app has>
+    PUBLIC_WORKER_URL=<only off RunPod>
+
+and one on the app:
+
+    VOICE_REGISTRY_TOKEN=<the same string>
+
+**Unset means registration is refused, not open.** An endpoint that accepts
+"the voice is at this URL" from anybody redirects every script FAM writes to a
+machine of their choosing, and it would look exactly like the feature working.
+A registration is also only ever a *claim*: it makes a candidate, and the
+candidate is verified with a real call before a listener is sent to it.
+
+A registration expires (`VOICE_REGISTRY_TTL`, five missed heartbeats), which is
+what makes a pod that was destroyed stop being offered without anything having
+to notice that it died.
+
+### Or, with nothing on the pod at all
+
+    RUNPOD_POD=fam-voice          # the pod's NAME, not its id
+    RUNPOD_API_KEY=...            # already set for the serverless transport
+
+FAM asks RunPod where that pod is and builds the proxy URL itself. Matched on
+name because a pod that is destroyed and recreated from the same template keeps
+its name and loses its id - and a pod that is *stopped* is reported as such
+rather than skipped in silence, which matters here because
+`.github/workflows/runpod-schedule.yml` stops this project's pod every night:
+"the voice cannot be found" and "the voice is asleep until 08:00" are different
+problems and now read differently.
+
+### One command when something is wrong
+
+    python tools/voice_doctor.py            # the whole chain, on one screen
+    python tools/voice_doctor.py --speak    # and make it produce real audio
+    python tools/voice_doctor.py --json     # for a script or a CI step
+
+It asks every question in the chain, in order - what this app is configured to
+do, how it will look for a worker, what that search finds, whether each
+candidate is really there, which build is answering, and whether it can
+actually speak - and prints the fix beside each failure. Exit 0 speaking, 1
+found but unable, 2 nothing found, 3 not configured for a remote voice.
+
+The line it exists to print is this one:
+
+    ! REMOTE_VOICE_URL names https://old-8001.proxy.runpod.net, but the worker
+      that is announcing itself is at https://new-8001.proxy.runpod.net
+
+### And the image builds itself
+
+`.github/workflows/voice-worker.yml` checks that the two halves still agree
+about the contract on every push that touches the worker, and builds and
+pushes `Dockerfile.voice` to GHCR tagged with the commit. The build is opt-in
+(`BUILD_VOICE_IMAGE=true`, or one click in the Actions tab) because a CUDA
+image is ~10 GB.
+
+It deliberately does **not** deploy. A workflow that can replace the running
+voice on a push is a workflow that can take the voice down on a typo.
 
 ## When it answers 404
 
@@ -124,7 +232,7 @@ Exit 0 only when real audio came back. The three outcomes:
 |---|---|---|
 | `POST /synth 200: ... bytes` | nothing; the voice works | - |
 | routes listed, but no `/synth` | the image serves a different route | rebuild from `Dockerfile.voice`; the app retries at the route the worker names, at the cost of one extra request per chunk |
-| `Nothing at ... is a FAM voice worker` | wrong port, or the pod is in serverless mode | set `PORT` to the exposed port and `VOICE_WORKER_MODE=http` on the pod |
+| `Nothing at ... is a FAM voice worker` | wrong port, or an old image running the serverless handler | set `PORT` to the exposed port; rebuild from `Dockerfile.voice`, or set `VOICE_WORKER_MODE=http` on the pod |
 
 The pod's own log now names both facts at boot, so the same question can be
 answered from RunPod's console without a probe:
@@ -141,6 +249,11 @@ Render dashboard (**Environment**):
     RUNPOD_ENDPOINT_ID=<from step 3>
     RUNPOD_API_KEY=<a RunPod API key>
     REMOTE_VOICE_SAMPLE_RATE=24000
+
+And, so that this is the last time an address is typed anywhere:
+
+    RUNPOD_POD=<the pod's name>      # or VOICE_REGISTRY_TOKEN, or both
+    VOICE_REGISTRY_TOKEN=<a long random string, also set on the pod>
 
 `RUNPOD_API_KEY` goes through the same credential chain as everything else, so
 `FAM_SECRETS` works instead and is better: rotating the key stops being an edit
@@ -213,8 +326,11 @@ make a rented GPU what every listener gets — §61's first guard, which is how
 WellSaid silently became the default voice on every machine without Piper.
 
 **Nothing here starts, stops, resizes or pays for a pod.** `RUNPOD_PRODUCTION.md`
-said that and it stays true. This makes the machine reproducible; it does not
-make it automatic.
+said that and it stays true - `.github/workflows/runpod-schedule.yml` is the
+one thing that starts and stops one, on a clock somebody set. What *is*
+automatic now is the **address**: FAM finds the worker wherever RunPod put it,
+verifies it before using it, and switches when it stops answering. Which
+machine exists, and what it costs, is still a decision somebody makes.
 
 **Bandwidth is unchanged and still the thing that bites at scale**: 2.65 MB/min
 per listener at 22050 Hz, more at Chatterbox's 24000. Opus over the stream is

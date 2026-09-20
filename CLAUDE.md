@@ -1408,6 +1408,51 @@ the rest of this list it needs taste rather than a key.
   server now asks Claude at startup whether the credential is actually accepted
   and says so on every tab. Anything that reports readiness must perform the
   real action, not confirm that it was configured.
+- **The address of the voice is discovered, never written down twice.**
+  *(PROBLEMS.md §112, `voice_control.py`, `REMOTE_VOICE.md`.)* `REMOTE_VOICE_URL`
+  was a fact about somebody else's infrastructure kept in this app's
+  environment, so every pod RunPod moved cost a chain nobody could shorten: a
+  404 mid-episode, four consoles to bisect, an environment edit and a redeploy.
+  FAM now walks a **ladder** - the pinned URL, then workers that registered
+  themselves, then pods found by **name** through RunPod's API, then the
+  serverless endpoint - and `voice_control.ladder()` is its one definition,
+  read by the runtime, `/api/health`, the startup log and
+  `tools/voice_doctor.py`.
+  Four things hold it up. **A rung is used because a real call to it came back
+  correct** (§52 again), held for `VOICE_VERIFY_TTL` so the synth path pays
+  nothing, and the check is the *cheap* real call - waking a serverless worker
+  to keep a health page green is a bill for a colour. **Failing over is not
+  falling back**: every rung is the same worker image, the same weights and the
+  same reference recording, a candidate whose sample rate disagrees with the
+  header already written is refused rather than used, and when nothing can
+  speak the episode still fails with the reason attached. **Every switch is
+  recorded** - §109's rule, in a second place. And **the worker says where it
+  is**, because only it can: RunPod gives the pod its own id and derives the
+  proxy URL from it, so a replaced pod is back in service within one heartbeat
+  with nothing edited. That registration is authenticated or it does not exist
+  (`VOICE_REGISTRY_TOKEN` unset means the endpoint is absent), and it is a
+  *claim* rather than a promotion - it makes a candidate, which is then
+  verified like any other.
+  The contract version the worker reports is **reported and never refused**: an
+  older worker that still serves `/synth` is a working voice, and a version
+  check that can take the voice away would be this layer causing the outage it
+  exists to prevent.
+  **And the mode is derived rather than remembered.** The worker image
+  defaulted to the serverless handler, so a pod started without
+  `VOICE_WORKER_MODE=http` opened no port at all - 404 on every path, which is
+  indistinguishable from a missing route and is what §78 and this section were
+  both paid for. `voice_worker/start.py` reads the platform instead
+  (`RUNPOD_ENDPOINT_ID` means Serverless, `RUNPOD_POD_ID` alone means a pod and
+  a port), the variable overrides it, and the first line of the pod's log says
+  which half is running and why.
+  What is automatic is the **address**. Nothing here starts, stops, resizes or
+  pays for a pod - `.github/workflows/runpod-schedule.yml` does that on a clock
+  somebody set, which is also why a pod that is found and stopped is *named*
+  rather than skipped: "the voice cannot be found" and "the voice is asleep
+  until 08:00" are different problems.
+  Nothing in it has made a real request to RunPod from the build container.
+  `python tools/voice_doctor.py` against the running deployment is what turns
+  that from careful into known.
 - **A running server says whether a redeploy will erase its listeners.**
   *(§107.)* Every database is pinned to the mounted disk in the `Dockerfile`,
   and that list has now been incomplete twice - the second time it was
@@ -1599,11 +1644,13 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§111 are
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§112 are
 the most recent: the opening of every researched episode turned out to be
 written by the half that knew least, what happens when the search comes
-back empty turned out to be "write it from memory anyway", and a DailyFAM mix
-turned out to be unable to accept a topic anybody typed), `MYFAM.md` for the browse page and the live story pool that fills
+back empty turned out to be "write it from memory anyway", a DailyFAM mix
+turned out to be unable to accept a topic anybody typed, and one change on
+RunPod turned out to cost a day because the address of the voice was a fact
+about somebody else's infrastructure kept in this app's environment), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
