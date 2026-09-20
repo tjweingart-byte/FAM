@@ -89,12 +89,16 @@ def probe(base: str, token: str, text: str, timeout: float) -> int:
                 _say("-", DIM, f"{verbs} {path}")
         if not answered:
             print(f"\n{RED}Nothing at {base} is a FAM voice worker.{RESET}")
-            print("  Two things cause this, and both are on the pod:")
-            print("   * the proxied port has nothing behind it. Dockerfile.voice")
-            print("     serves ${PORT:-8001}, so a URL naming another port needs")
-            print("     PORT set to it in the pod's environment.")
-            print("   * VOICE_WORKER_MODE is not http, so the container is running")
-            print("     the serverless handler, which opens no port at all.")
+            _whose_404(client, base, headers)
+            print("  Three things cause this, and all of them are on the pod:")
+            print("   * the port in this URL is not routed to the container.")
+            print("     The worker binds every port VOICE_WORKER_PORTS names")
+            print("     (8001 and 8002 by default), but RunPod only proxies the")
+            print("     ports the pod was created with - check its HTTP ports.")
+            print("   * the image predates voice_worker/entrypoint.py and serves")
+            print("     ${PORT:-8001} only, so a URL naming another port 404s.")
+            print("   * VOICE_WORKER_MODE names the serverless handler, which")
+            print("     opens no port at all. Unset it, or set it to http.")
             return 2
 
         # 3. Make it speak. The only question that cannot be answered by reading.
@@ -132,6 +136,45 @@ def probe(base: str, token: str, text: str, timeout: float) -> int:
     print(f"\n{GREEN}This worker speaks.{RESET} "
           f"REMOTE_VOICE_URL={base} is correct.\n")
     return 0
+
+
+def _whose_404(client, base: str, headers: dict) -> None:
+    """Say whether the worker answered or whether nothing reached it.
+
+    The one thing a 404 cannot say for itself, and the reason production could
+    not tell a missing route from an unrouted port (PROBLEMS.md §112). The
+    worker names itself in every 404 body; RunPod's proxy answers a port it is
+    not forwarding with its own plain-text page. And when the *sibling* port
+    answers, the address is the whole of what is wrong.
+    """
+    import re
+
+    try:
+        body = client.get(f"{base}/does-not-exist", headers=headers).text
+    except Exception:
+        body = ""
+    if "fam-voice-worker" in body:
+        _say("!", YELLOW, "the worker answered: it is up, and the route asked "
+                          "for is not one it serves")
+    elif body:
+        _say("-", DIM, f"whatever answered is not the worker: {body[:120]!r}")
+
+    match = re.match(r"^(https?://[^-]+-)(\d+)(\.proxy\.runpod\.net)$", base)
+    if not match:
+        return
+    for port in (8001, 8002, 8000):
+        if str(port) == match.group(2):
+            continue
+        sibling = f"{match.group(1)}{port}{match.group(3)}"
+        try:
+            probe_health = client.get(f"{sibling}/health", headers=headers,
+                                      timeout=10.0)
+        except Exception:
+            continue
+        if probe_health.status_code == 200:
+            _say("ok", GREEN, f"the worker is reachable on {sibling} - this "
+                              "pod proxies that port and not the one above")
+            return
 
 
 def main() -> int:

@@ -1599,11 +1599,13 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§111 are
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§112 are
 the most recent: the opening of every researched episode turned out to be
 written by the half that knew least, what happens when the search comes
-back empty turned out to be "write it from memory anyway", and a DailyFAM mix
-turned out to be unable to accept a topic anybody typed), `MYFAM.md` for the browse page and the live story pool that fills
+back empty turned out to be "write it from memory anyway", a DailyFAM mix
+turned out to be unable to accept a topic anybody typed, and the voice worker
+on a pod turned out to be choosing its entrypoint with a shell string
+comparison, so every near-miss opened no port at all), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

@@ -7988,3 +7988,108 @@ is no import graph, no bundler and no linter that can see a name being
 quietly replaced, so a duplicated top-level name is not a style problem - it
 is a control that silently calls somebody else's function. The check that
 catches it costs a regex.
+
+## 112. A worker with a loaded model, an open port, and 404 on everything
+
+Reported from production, on pod `n86q9611hepgw7`:
+
+    voice_worker model resident, emitting 24000 Hz
+    Uvicorn running on http://0.0.0.0:8002
+
+    POST https://n86q9611hepgw7-8002.proxy.runpod.net/synth      -> 404
+    GET  https://n86q9611hepgw7-8002.proxy.runpod.net/openapi.json -> 404
+
+Render was reaching the address - a 404 rather than a timeout - and
+`remote_voice.py` asks for `POST /synth`, which `voice_worker/server.py`
+serves. §78 said a 404 is the one voice failure that says nothing about the
+voice, and named the three halves of an address that can be wrong
+independently. This is the same 404 again, with one new observation that
+narrows it.
+
+### The second 404 is the one that reads
+
+**FastAPI serves `/openapi.json` for nothing.** It is not a route anybody
+wrote; it exists because `voice_worker/server.py` constructs a `FastAPI`. So a
+404 on it cannot have come from that app. Whatever answered was not the FAM
+voice worker, which leaves two shapes:
+
+* **the container was never running it.** `Dockerfile.voice` chose its
+  entrypoint in a shell string comparison - `if [ "$VOICE_WORKER_MODE" = http ]`
+  - against an image default of `serverless`. `HTTP`, `http ` with a trailing
+  space, `"http"` with the quotes a dashboard kept, or the variable simply not
+  set all fall to the `else`, which is `handler.py`. And `handler.py` logs
+  **the same line from the same logger**: `voice_worker model resident,
+  emitting 24000 Hz`, byte for byte. Neither quoted log line distinguishes the
+  two entrypoints - and the one line that would have, `serving on port …: GET
+  /health, POST /synth`, appears in neither mode's output as quoted.
+* **nothing was routed to it.** RunPod proxies the ports a pod was created
+  with, and answers a port it is not forwarding with its own
+  `404 page not found`. The container served `${PORT:-8001}`; the URL named
+  8002. A port with nothing behind it and a route that does not exist are the
+  same status code from outside.
+
+Both remained live: this container cannot reach `proxy.runpod.net` (§78's
+egress note), so the fix had to remove the causes rather than pick between
+them from here.
+
+### What changed
+
+**The mode is resolved in Python, and cannot resolve to "no port" on a pod.**
+`voice_worker/deployment.py` is two pure functions over an environment.
+`resolve_mode` accepts every spelling of "open a port" an operator might have
+written, defaults to `auto`, and under `auto` reads what RunPod itself set -
+`RUNPOD_WEBHOOK_GET_JOB`, `RUNPOD_ENDPOINT_ID`, `RUNPOD_REALTIME_PORT` - to
+decide. The asymmetry is deliberate and is the whole design: **a pod guessed as
+serverless is a dead endpoint, a serverless worker guessed as http is a port
+nobody dials.** An unrecognised value therefore opens a port rather than none,
+and says so. Every decision carries a sentence saying who made it, logged at
+boot, because a mode chosen silently is what cost the sessions.
+
+**The worker listens on every port this deployment has used.**
+`VOICE_WORKER_PORTS` defaults to `8001,8002` - `.env.example` documents 8001,
+production proxied 8002, and **which one is in the URL is not visible from
+inside the container**. One process, one resident model, one card, two
+sockets: `ChatterboxEngine`'s own `Semaphore(1)` is untouched, and the model
+load is guarded so several uvicorn servers over one app pay it once. A port
+that cannot be bound is logged with its reason and skipped - on a rented pod,
+something else on 8002 must not cost the voice - and only a container that
+bound *nothing* exits.
+
+**`voice_worker/entrypoint.py` is the process**, so the image's `CMD` is
+`python -u -m voice_worker.entrypoint`: no shell, signals reach Python
+directly, and the decision lives somewhere a test can ask about it.
+
+**A 404 from the worker now says it came from the worker.** It answers an
+unknown path with its own name, the route it does serve and the ports it is
+on, and `remote_voice._decode_json` already prints the body it got. So the
+next occurrence of this log line separates itself: a body naming
+`fam-voice-worker` is a route problem, RunPod's plain-text page is an address
+problem. `tools/probe_remote_voice.py` asks that question directly, and when
+the URL is a RunPod proxy address it also tries the sibling ports and says if
+one of them answers.
+
+### What this does not fix, and is the thing to check on the pod
+
+**RunPod only proxies the ports the pod was created with.** A container
+answering on 8002 does not make `https://<pod>-8002.proxy.runpod.net` reach
+it. That is the one half of the address the image cannot fix from inside, and
+it is now the *only* remaining explanation for a 404 on `/openapi.json`: after
+this change, a redeployed pod either answers on the proxied port or the pod's
+own HTTP ports list is missing it. `REMOTE_VOICE_URL` was deliberately left
+alone - the worker was moved to the address, not the address to the worker.
+
+### Verified, and what is still unverified
+
+On real sockets, with the card stubbed: the entrypoint binds two ports at
+once and both serve `POST /synth` returning 24 kHz PCM that
+`RemoteChatterboxEngine._pcm_from` accepts; both serve `/openapi.json` naming
+`/synth`; a port already taken costs only itself; a container that can bind
+nothing returns non-zero rather than booting quietly; the 404 body names the
+worker; and `voice_worker.server.SYNTH_ROUTE` is asserted equal to
+`remote_voice.SYNTH_ROUTE`, so the two halves cannot drift apart silently.
+The mode table pins all four spellings that used to open no port.
+
+What that does not prove is anything about `n86q9611hepgw7`: this container
+still cannot reach it, there is no GPU here, and the audio in that loop came
+from a stub. CLAUDE.md's open problem #1 is untouched - nobody has heard a FAM
+episode in this voice.

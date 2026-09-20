@@ -82,26 +82,54 @@ makes serverless viable at all.
 | Max workers | 1–2 | one card serves one generation at a time |
 | Idle timeout | 60s | long enough that a second episode is warm |
 | FlashBoot | on | it is what makes a warm start ~instant |
-| Env | `VOICE_WORKER_MODE=serverless` | the image's default; set it anyway |
+| Env | `VOICE_WORKER_MODE=serverless` | the image now defaults to `auto`, which detects this correctly; set it anyway, because an explicit answer beats a detected one |
 
 Copy the **endpoint id**.
 
 *For an always-on pod instead:* deploy the same image as a Pod, set
-`VOICE_WORKER_MODE=http` and `REMOTE_VOICE_TOKEN=<a long random string>`,
-expose port 8001, and use the proxy URL RunPod gives you as
-`REMOTE_VOICE_URL`.
+`REMOTE_VOICE_TOKEN=<a long random string>`, expose **8001 and 8002**, and use
+the proxy URL RunPod gives you as `REMOTE_VOICE_URL`.
 
-**Two things about that pod are the whole of what goes wrong** (PROBLEMS.md
-§78), and neither is visible from the app's side:
+**The pod used to be where all of this went wrong** (PROBLEMS.md §78, §112),
+and none of it was visible from the app's side. Two of the three causes are now
+the container's problem rather than the operator's:
 
-* **`VOICE_WORKER_MODE=http` is not optional on a pod.** The image defaults to
-  `serverless`, which runs `handler.py` and opens *no port at all* - so the
-  proxy URL answers 404 on every path, including `/health`, and the app's log
-  reads exactly like a worker with a missing route.
-* **The port in the proxy URL must be the port the worker listens on.** The
-  container serves `${PORT:-8001}`, so a pod exposing 8002 needs `PORT=8002`
-  in its environment as well. `https://<pod>-8002.proxy.runpod.net` with
-  uvicorn on 8001 is a 404 from RunPod's proxy, not from the worker.
+* **The mode is resolved, not string-matched.** `voice_worker/entrypoint.py`
+  reads `VOICE_WORKER_MODE` through `deployment.resolve_mode`, which accepts
+  `http`, `HTTP`, `"http"`, `pod` and `server`, defaults to `auto`, and under
+  `auto` opens a port unless RunPod's own environment says this is a serverless
+  worker. It used to be `if [ "$VOICE_WORKER_MODE" = http ]` in the image's
+  `CMD`, and everything except that exact token ran `handler.py`, which opens
+  *no port at all* - so the proxy URL answered 404 on every path, `/health`
+  included, and the app's log read exactly like a missing route.
+  An endpoint still sets `VOICE_WORKER_MODE=serverless` explicitly, because an
+  explicit answer beats a detected one.
+* **The worker listens on every port this deployment has used.**
+  `VOICE_WORKER_PORTS` defaults to `8001,8002`: one process, one resident
+  model, one card, two sockets. Which port is in the proxy URL cannot be seen
+  from inside the container, and a proxied port with nothing behind it returns
+  RunPod's own `404 page not found` - which is indistinguishable, in the app's
+  log, from a worker with no such route. A port that cannot be bound is logged
+  and skipped; a container that could bind *nothing* exits.
+* **What is still on the pod: RunPod only proxies the ports the pod was
+  created with.** The container answering on 8002 does not make
+  `https://<pod>-8002.proxy.runpod.net` reach it. This is the one half of the
+  address the image cannot fix, and it is the first thing to check when
+  `/openapi.json` 404s - FastAPI serves that route for free, so a 404 on it
+  means nothing reached the worker.
+
+**A 404 now says which 404 it is.** The worker answers an unknown path with its
+own name, the route it serves and the ports it is on:
+
+    {"error": "fam-voice-worker does not serve /speak; the contract is POST /synth",
+     "worker": "fam-voice-worker", "synth": "/synth", "ports": [8001, 8002], ...}
+
+`remote_voice._decode_json` prints that body in the app's log, so "the worker
+is up and the route is wrong" and "nothing was routed to the worker" stopped
+being the same line. The pod's own log says the rest at boot:
+
+    voice_worker mode http (nothing here names a serverless queue, so this is a pod ...)
+    voice_worker serving fam-voice-worker on 0.0.0.0:8001, 8002 - GET /health, POST /synth, ...
 
 ## When it answers 404
 
@@ -124,12 +152,13 @@ Exit 0 only when real audio came back. The three outcomes:
 |---|---|---|
 | `POST /synth 200: ... bytes` | nothing; the voice works | - |
 | routes listed, but no `/synth` | the image serves a different route | rebuild from `Dockerfile.voice`; the app retries at the route the worker names, at the cost of one extra request per chunk |
-| `Nothing at ... is a FAM voice worker` | wrong port, or the pod is in serverless mode | set `PORT` to the exposed port and `VOICE_WORKER_MODE=http` on the pod |
+| `Nothing at ... is a FAM voice worker` | nothing reached the container: the pod is not proxying this port, the image predates `voice_worker/entrypoint.py`, or `VOICE_WORKER_MODE` names the serverless handler | add the port to the pod's HTTP ports, redeploy the current image, unset `VOICE_WORKER_MODE` |
+| `the worker answered: it is up` | the container is fine and the route is not | rebuild from `Dockerfile.voice` |
 
 The pod's own log now names both facts at boot, so the same question can be
 answered from RunPod's console without a probe:
 
-    voice_worker serving on port 8001: GET /health, POST /synth, ...
+    voice_worker serving on port 8001, 8002: GET /health, POST /synth, ...
 
 ### 4. Point Render at it
 

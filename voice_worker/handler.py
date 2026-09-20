@@ -1,6 +1,7 @@
 """RunPod Serverless entrypoint: the voice, asleep until someone asks.
 
-    CMD ["python", "-u", "voice_worker/handler.py"]
+    python -m voice_worker.entrypoint   # with a serverless queue in the
+                                        # environment, this is what it runs
 
 RunPod hands the handler `{"input": {...}}` and publishes whatever it returns
 as `output`. That envelope is the *only* thing this file adds to

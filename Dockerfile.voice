@@ -4,14 +4,22 @@
 # the app can run where it is cheap - a Render CPU service - and the GPU exists
 # only while there is something to say. See REMOTE_VOICE.md.
 #
-# One image, two entrypoints, chosen at runtime:
+# One image, two entrypoints, chosen at runtime by `voice_worker/entrypoint.py`:
 #
 #   VOICE_WORKER_MODE=serverless   RunPod Serverless; sleeps when idle
 #   VOICE_WORKER_MODE=http         a plain port on an always-on pod
+#   VOICE_WORKER_MODE=auto         (the default) whichever this machine is
 #
 # That is deliberate. Two images would drift, and the whole premise of the
 # split is that moving between serverless and always-on is configuration
 # rather than a rebuild - on this side as well as on the app's.
+#
+# The choice is made in Python and not in this file, because it used to be a
+# shell string comparison and a shell can only compare strings: `HTTP`,
+# `"http"`, a trailing space or an unset variable all selected the serverless
+# handler, which opens no port at all, and a pod that opens no port answers 404
+# on every path - which reads in the app's log exactly like a missing route.
+# PROBLEMS.md §78 and §112.
 #
 #   docker build -f Dockerfile.voice -t <registry>/fam-voice:<tag> .
 #   docker push <registry>/fam-voice:<tag>
@@ -58,14 +66,19 @@ COPY . .
 ENV HF_HOME=/state/hf \
     FAM_VOICES_DIR=/state/voices \
     CHATTERBOX_DEVICE=auto \
-    VOICE_WORKER_MODE=serverless \
-    PORT=8001
+    VOICE_WORKER_MODE=auto \
+    PORT=8001 \
+    VOICE_WORKER_PORTS=8001,8002
 
 RUN mkdir -p /state/hf /state/voices
 
-EXPOSE 8001
+# Both, because which one is in the proxy URL is not visible from in here. The
+# worker binds every port `deployment.resolve_ports` names, so a pod exposing
+# 8002 while the container serves 8001 stops being a 404 nobody can read.
+EXPOSE 8001 8002
 
-# `exec` so signals reach Python: RunPod stops a worker with SIGTERM, and a
-# shell swallowing it means the platform waits out the grace period on every
-# scale-down.
-CMD ["sh", "-c", "if [ \"$VOICE_WORKER_MODE\" = http ]; then exec python -m uvicorn voice_worker.server:app --host 0.0.0.0 --port ${PORT:-8001}; else exec python -u voice_worker/handler.py; fi"]
+# No shell: the entrypoint is the process, so SIGTERM reaches Python directly
+# (RunPod stops a worker with it, and a shell swallowing it means the platform
+# waits out the grace period on every scale-down) and so the mode is decided
+# where it can be tested and logged rather than in a container's CMD string.
+CMD ["python", "-u", "-m", "voice_worker.entrypoint"]

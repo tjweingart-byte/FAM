@@ -1,6 +1,7 @@
 """Always-on entrypoint: the same voice, behind a plain HTTP port.
 
-    uvicorn voice_worker.server:app --host 0.0.0.0 --port 8001
+    python -m voice_worker.entrypoint          # what the image runs
+    uvicorn voice_worker.server:app --port 8001   # one port, by hand
 
 This is the other half of the switch `remote_voice.py` describes. Serverless
 sleeps and pays per second; a pod stays up and pays per hour, which becomes the
@@ -17,6 +18,18 @@ key to be queued at all. A pod's exposed port is authenticated by nobody. So
 at every boot rather than assumed to be deliberate - an open endpoint on a
 rented GPU is somebody else's free TTS service, billed to you, and it would
 look exactly like your own traffic in the metering log.
+
+## A 404 from here says it came from here
+
+`voice_worker/entrypoint.py` is what starts this, on every port
+`deployment.resolve_ports` names. The one thing that still cannot be resolved
+from inside the container is whether a request *arrived* - and production spent
+two sessions on a 404 that could have been the proxy, the port, the mode or a
+missing route (PROBLEMS.md §78, §112). So this worker answers an unknown path
+with its own name, the route it does serve, and the ports it is on. RunPod's
+proxy answers a port it is not routing with `404 page not found` and no such
+body, which makes the two tellable apart in a single line of the app's log -
+`remote_voice._decode_json` already prints the body it got.
 """
 from __future__ import annotations
 
@@ -28,7 +41,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Header, HTTPException, Request  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
+from voice_worker.deployment import resolve_ports  # noqa: E402
 from voice_worker.synth import WorkerError, preflight, synthesise  # noqa: E402
 
 
@@ -39,6 +54,32 @@ logging.basicConfig(
 log = logging.getLogger("voice_worker")
 
 app = FastAPI(title="FAM voice worker")
+
+#: What this container is, said in a word that nothing else on a rented host
+#: would answer with. It is in the identity page and in every 404, because
+#: "was that our worker or the proxy in front of it" is the question a 404
+#: cannot otherwise answer.
+IDENTITY = "fam-voice-worker"
+
+#: The route the app posts the contract to. The same string as
+#: `remote_voice.SYNTH_ROUTE`, asserted equal by a test rather than trusted:
+#: the two halves are deployed separately and can be different versions of
+#: this repo.
+SYNTH_ROUTE = "/synth"
+
+
+def route_table() -> list[str]:
+    """Every route this image serves, as `METHOD /path`."""
+    return sorted(f"{sorted(r.methods)[0]} {r.path}"
+                  for r in app.routes if getattr(r, "methods", None))
+
+
+def identity() -> dict:
+    """Who is answering, on what, with which route. No secrets, no state."""
+    return {"worker": IDENTITY, "engine": "chatterbox",
+            "synth": SYNTH_ROUTE, "routes": route_table(),
+            "ports": resolve_ports(os.environ)}
+
 
 #: Shared secret the app sends as `Authorization: Bearer ...`. Read at import
 #: from the process environment: this is a single-purpose container, and a
@@ -57,8 +98,17 @@ def _authorised(header: str | None) -> bool:
     return secrets.compare_digest(sent.strip(), TOKEN)
 
 
+#: One process serves several ports, so uvicorn runs this app's startup once
+#: per server. The load is paid once: a second `_load()` would be a second
+#: generation on the one card for nothing.
+_MODEL_READY = False
+
+
 @app.on_event("startup")
 async def _startup() -> None:
+    global _MODEL_READY
+    if _MODEL_READY:
+        return
     ready, detail = preflight()
     if not ready:
         # Loud, and then it keeps serving /health so an operator can see why.
@@ -73,7 +123,9 @@ async def _startup() -> None:
     log.info("chatterbox ready (%s); loading the model", detail)
     from voice_worker.synth import _load
 
-    log.info("model resident, emitting %s Hz", await _load())
+    rate = await _load()
+    _MODEL_READY = True
+    log.info("model resident, emitting %s Hz", rate)
 
 
 @app.on_event("startup")
@@ -86,10 +138,14 @@ async def _announce() -> None:
     own log is the one place all three are visible. So it is printed rather
     than left to be inferred from a Dockerfile.
     """
-    routes = sorted(f"{sorted(r.methods)[0]} {r.path}"
-                    for r in app.routes if getattr(r, "methods", None))
-    log.info("serving on port %s: %s", os.environ.get("PORT", "8001"),
-             ", ".join(routes))
+    ports = ", ".join(str(port) for port in resolve_ports(os.environ))
+    log.info("serving on port %s: %s", ports, ", ".join(route_table()))
+
+
+@app.get("/")
+async def root() -> dict:
+    """What this is, for whoever opened the proxy URL in a browser."""
+    return identity()
 
 
 @app.get("/health")
@@ -120,3 +176,21 @@ async def synth(request: Request,
         log.exception("synthesis failed")
         raise HTTPException(status_code=500,
                             detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+@app.exception_handler(404)
+async def _not_found(request: Request, exc) -> JSONResponse:
+    """A 404 that says which 404 it is.
+
+    The app's log prints the body of whatever it got (`_decode_json`), so this
+    is the difference between "the worker is up and the route is wrong" and
+    "nothing was routed to the worker at all" - which, from outside, are the
+    same status code. RunPod's proxy answers a port it is not forwarding with
+    its own `404 page not found`; this answers with its own name.
+    """
+    return JSONResponse(
+        status_code=404,
+        content={"error": f"{IDENTITY} does not serve {request.url.path}; the "
+                          f"contract is POST {SYNTH_ROUTE}",
+                 **identity()},
+    )
