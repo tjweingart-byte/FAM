@@ -605,7 +605,7 @@ rather than taking a month to be worth anything.
 All four changes shipped green: 2,289 tests, the full check twice, CI green.
 Running the tools and re-measuring then found four defects, three of them
 introduced by the work above, **none of them visible to any test** — because
-every one only appears at a size no test runs at. `PROBLEMS.md` §120 is the
+every one only appears at a size no test runs at. `PROBLEMS.md` §122 is the
 whole account; the short version:
 
 | Found | Was | Is |

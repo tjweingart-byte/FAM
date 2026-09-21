@@ -194,22 +194,51 @@ class RemoteConfig:
         return base_url(self.url)
 
     def problem(self) -> str:
-        """Why this configuration cannot be used, or "" if it can.
+        """Why this *configured address* cannot be used, or "" if it can.
 
         Configuration only - no network. `available()` is called from
         `/api/health` and must not become a request to a third party; the
         question "does this endpoint actually speak" is answered by making it
         speak, in `warm_up()`, and reported separately.
+
+        Note what this is and is not, because it used to be read as more than
+        it says. It answers "is the address in this environment complete",
+        which is what lets `_endpoint()` skip the ladder on a deployment that
+        names its worker. It does **not** answer "can this deployment find a
+        voice" - since §112 that is `voice_control.ladder()`'s question, and
+        answering it from here is what made the registered rung unreachable
+        (PROBLEMS.md §119).
         """
-        if self.transport not in TRANSPORTS:
-            return (f"REMOTE_VOICE_TRANSPORT={self.transport!r} is not a "
-                    f"transport. Use one of: {', '.join(TRANSPORTS)}")
+        fatal = self.fatal()
+        if fatal:
+            return fatal
         if not self.url:
             missing = ("RUNPOD_ENDPOINT_ID" if self.transport == "runpod"
                        else "REMOTE_VOICE_URL")
             return f"{missing} is not set"
         if self.transport == "runpod" and not self.api_key:
             return "RUNPOD_API_KEY is not set"
+        return ""
+
+    def fatal(self) -> str:
+        """Why no discovered address could rescue this, or "".
+
+        The half of `problem()` the ladder cannot answer. A transport that is
+        not a transport and a sample rate that cannot be a rate are wrong
+        wherever the worker turns out to be - the rate especially, since the
+        stream header is written from it before any audio exists, so a worker
+        found later would be refused for disagreeing with a number that was
+        wrong to begin with. A missing *address*, by contrast, is only a
+        problem when nothing can find one.
+
+        `Settings` refuses both at construction when the backend is remote, so
+        in production this is defence in depth. It is asked here anyway
+        because `diagnose()` must not report a voice on the strength of a
+        ladder while holding a setting no worker could satisfy.
+        """
+        if self.transport not in TRANSPORTS:
+            return (f"REMOTE_VOICE_TRANSPORT={self.transport!r} is not a "
+                    f"transport. Use one of: {', '.join(TRANSPORTS)}")
         if self.sample_rate <= 0:
             return f"REMOTE_VOICE_SAMPLE_RATE={self.sample_rate} must be positive"
         return ""
@@ -298,13 +327,55 @@ class RemoteChatterboxEngine(TTSEngine):
         return RemoteConfig.from_settings()
 
     @classmethod
+    def discovery(cls) -> list[str]:
+        """The rungs that could find a worker, named. Empty if none can.
+
+        `voice_control.ladder()` reads settings and does no I/O, which is what
+        lets an availability check ask it at all: `/api/health` calls this on
+        every poll, and a health check that makes a billed third-party request
+        is one somebody switches off.
+        """
+        try:
+            import voice_control
+
+            return [rung.name for rung in voice_control.ladder()
+                    if rung.configured]
+        except Exception:  # pragma: no cover - the ladder is optional here
+            return []
+
+    @classmethod
     def diagnose(cls) -> tuple[bool, str]:
-        """Why this engine can or cannot serve, in one sentence."""
+        """Why this engine can or cannot serve, in one sentence.
+
+        **A configured address is one way to have a voice and stopped being
+        the only one in §112.** This asked `RemoteConfig.problem()` and nothing
+        else, so a deployment set up exactly as REMOTE_VOICE.md documents - one
+        `VOICE_REGISTRY_TOKEN` on the app, and pods that introduce themselves -
+        reported `REMOTE_VOICE_URL is not set` and `build_engine()` handed back
+        the placeholder tone. The registered rung could never serve, and not
+        because anything on it was broken: the engine that walks the ladder was
+        ruled out before it was built, so nothing ever asked (PROBLEMS.md §119).
+        A worker could register, the supervisor could verify it and
+        `/api/health` could report it green, and every listener still got a
+        tone.
+
+        So the question is the ladder's rather than this file's: can anything
+        here find a worker. Whether one is *answering* is a different question,
+        asked by a real call and reported separately in `report()` - which is
+        why being generous here costs no honesty. §52's two questions stay two.
+        """
         config = cls.config()
+        fatal = config.fatal()
+        if fatal:
+            return False, fatal
         problem = config.problem()
-        if problem:
-            return False, problem
-        return True, f"{config.transport}, {config.sample_rate} Hz"
+        if not problem:
+            return True, f"{config.transport}, {config.sample_rate} Hz"
+        rungs = cls.discovery()
+        if rungs:
+            return True, (f"{config.sample_rate} Hz, address discovered: "
+                          + ", ".join(rungs))
+        return False, problem
 
     @classmethod
     def available(cls) -> bool:
@@ -312,11 +383,12 @@ class RemoteChatterboxEngine(TTSEngine):
 
         `ChatterboxEngine` caches this because importing torch and probing a
         card is expensive and its answer cannot change while the process runs.
-        Here the inputs are environment variables and a credential that
-        `credentials.refresh()` can replace mid-run, so caching would pin a
-        stale answer past a rotation.
+        Here the inputs are environment variables, a credential that
+        `credentials.refresh()` can replace mid-run, and now a ladder whose
+        rungs are read from settings - so caching would pin a stale answer past
+        a rotation.
         """
-        return not cls.config().problem()
+        return cls.diagnose()[0]
 
     @classmethod
     def voices(cls) -> list[Voice]:

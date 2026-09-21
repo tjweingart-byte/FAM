@@ -519,11 +519,10 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
         direct = _direct_endpoint(pod, name or pod_id)
         if direct is not None:
             out.append(direct)
-        port = _http_port(pod)
+        port, why_not = _http_port(pod)
         if not port:
-            if direct is None:
-                _note(f"pod {name or pod_id} exposes no http port; the image "
-                      "serves ${PORT:-8001}")
+            if direct is None and why_not:
+                _note(f"pod {name or pod_id} {why_not}")
             continue
         out.append(Endpoint(
             transport="http",
@@ -559,6 +558,16 @@ def _direct_endpoint(pod: dict, label: str) -> Optional[Endpoint]:
     wanted = int(settings.voice_worker_port or 0)
     ip, port = _tcp_mapping(pod, wanted)
     if not ip or not port:
+        # Silence here was half of §120. A pod that maps 22 and 8002 while
+        # this app is looking for 8001 returned `None` and said nothing, so
+        # the log showed a proxy URL being probed and no hint that the one
+        # address with no edge in front of it had been passed over for a
+        # reason anybody could fix.
+        published = _tcp_ports(pod)
+        if wanted and published and wanted not in published:
+            _note(f"pod {label} publishes TCP port {_ports(published)}; "
+                  f"VOICE_WORKER_PORT is {wanted}, so none of them is the "
+                  "worker's. Set it to the port the worker listens on")
         return None
     if not allow_plain_http():
         _note(f"pod {label} publishes {ip}:{port}, which needs no proxy, but "
@@ -602,6 +611,35 @@ def _tcp_mapping(pod: dict, wanted: int) -> tuple[str, int]:
     return "", 0
 
 
+def _tcp_ports(pod: dict) -> list[int]:
+    """Every private port the pod publishes over TCP, for the note above.
+
+    Reads the same three shapes `_tcp_mapping` reads, because a list that
+    disagreed with the lookup beside it would name ports the lookup cannot
+    find and read as a bug in the wrong place.
+    """
+    found: list[int] = []
+    mappings = pod.get("portMappings") or pod.get("port_mappings")
+    if isinstance(mappings, dict):
+        for private in mappings:
+            try:
+                found.append(int(private))
+            except (TypeError, ValueError):
+                continue
+    runtime = pod.get("runtime")
+    if isinstance(runtime, dict):
+        for entry in runtime.get("ports") or []:
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("type") or "").lower() != "tcp":
+                continue
+            try:
+                found.append(int(entry.get("privatePort") or 0))
+            except (TypeError, ValueError):
+                continue
+    return sorted({port for port in found if port > 0})
+
+
 def _note(line: str) -> None:
     """Something true about the pods that is not a candidate.
 
@@ -617,24 +655,35 @@ def _note(line: str) -> None:
     del _state.pod_notes[:-MAX_SWITCHES]
 
 
-def _http_port(pod: dict) -> int:
-    """The private port RunPod's proxy fronts, preferring the configured one.
+def _http_port(pod: dict) -> tuple[int, str]:
+    """The private port RunPod's proxy fronts, or `0` and why there is none.
 
     The proxy URL is built from the port *inside* the container, which is the
     detail §78 was paid for: a pod exposing 8002 with uvicorn on 8001 answers
     404 from the proxy, and the app cannot tell that from a missing route.
 
+    **It never substitutes another port for the configured one** (§120). It
+    used to fall back to the first http port the pod exposed, which on a pod
+    running the app beside the voice is *the app* - so FAM discovered its own
+    front door, health-checked it, and read the 404 as a broken worker. A pod
+    that exposes http ports and not the worker's is a fact about the pod, and
+    answering it with a different service's port is a guess that arrives
+    looking like a discovery. §78 again, one layer up: the port was picked by
+    something that could not know, instead of being named by something that
+    did.
+
     Two different nothings, and they get different answers. A pod that reports
     **no runtime at all** is one RunPod has not finished starting, so the
     configured port is used and the candidate is verified like any other - the
     cost of being wrong is one probe. A pod whose runtime lists ports and none
-    of them is http genuinely has nothing to talk to, and is skipped: that is
-    a fact, and inventing a port for it would be a guess that looks like one.
+    of them is the worker's genuinely has nothing to talk to over the proxy,
+    and the reason comes back with the refusal because it names the setting
+    that fixes it.
     """
     runtime = pod.get("runtime")
     preferred = int(settings.voice_worker_port or 0)
     if not isinstance(runtime, dict):
-        return preferred
+        return preferred, ""
     http_ports = []
     for entry in runtime.get("ports") or []:
         if not isinstance(entry, dict):
@@ -646,9 +695,20 @@ def _http_port(pod: dict) -> int:
             http_ports.append(int(private))
         except (TypeError, ValueError):
             continue
-    if preferred and preferred in http_ports:
-        return preferred
-    return http_ports[0] if http_ports else 0
+    if not http_ports:
+        return 0, "exposes no http port; the image serves ${PORT:-8001}"
+    if not preferred:
+        return http_ports[0], ""
+    if preferred in http_ports:
+        return preferred, ""
+    return 0, (f"exposes http port {_ports(http_ports)} and not {preferred}, "
+               f"which is what VOICE_WORKER_PORT says the worker listens on. "
+               f"The proxy fronts one private port, so an address built from "
+               f"{http_ports[0]} would reach whatever else this pod runs")
+
+
+def _ports(values) -> str:
+    return ", ".join(str(value) for value in values)
 
 
 # -- verifying -------------------------------------------------------------
@@ -712,14 +772,18 @@ async def _verify_http(client, endpoint: Endpoint) -> Verdict:
     latency = time.monotonic() - started
     if response.status_code == 404:
         return Verdict(False,
-                       f"nothing at {endpoint.url} answers /health. Two things "
-                       "cause that, both on the pod: a proxy URL naming a port "
-                       "the worker is not listening on (the image serves "
-                       "${PORT:-8001}), and an image old enough to default to "
-                       "the serverless handler, which opens no port at all - "
-                       "set VOICE_WORKER_MODE=http or rebuild from "
-                       "Dockerfile.voice, which now chooses for itself "
-                       "(REMOTE_VOICE.md, PROBLEMS.md §78 and §112).",
+                       f"nothing at {endpoint.url} answers /health. On a pod "
+                       "that runs anything besides the voice, the likeliest "
+                       "cause is that this address is a **different service**: "
+                       "the proxy fronts one private port, and "
+                       "VOICE_WORKER_PORT is what names the port the worker "
+                       "listens on - unset it defaults to 8001, which is the "
+                       "app's own port on a pod running both (§120). The "
+                       "others: a port the worker is not listening on, and an "
+                       "image old enough to default to the serverless handler, "
+                       "which opens no port at all - set VOICE_WORKER_MODE=http "
+                       "or rebuild from Dockerfile.voice, which now chooses for "
+                       "itself (REMOTE_VOICE.md, PROBLEMS.md §78, §112, §120).",
                        latency=latency)
     if response.status_code in (401, 403):
         return Verdict(False, _refused(endpoint, response), latency=latency)

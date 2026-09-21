@@ -133,3 +133,45 @@ def test_a_heartbeat_does_not_mint_a_listener(client, store, monkeypatch):
         lambda *a, **k: (minted.append(1), ("tok", "u-1"))[1])
     client.post("/api/voice/register", json={"url": POD}, headers=headers)
     assert minted == [], "a worker's heartbeat minted a listener"
+
+
+# --- a refusal is a diagnosis, and it used to go only to the pod -------------
+#
+# PROBLEMS.md §119. Everything this endpoint refuses travels in the response
+# body, which is read by a GPU on somebody else's network. From the app's side
+# a worker heartbeating every minute and being turned away every minute looked
+# exactly like no worker at all, and the only symptom anybody saw was the
+# supervisor's "no voice worker could be found".
+
+def test_a_refused_address_is_named_in_the_app_log(client, store, monkeypatch,
+                                                   caplog):
+    """The refusal that actually happens: since §117 a pod announces its
+    direct TCP address, which is plain HTTP, and an app left at
+    `VOICE_ALLOW_PLAIN_HTTP=0` says no to every heartbeat - correctly, and
+    until now silently."""
+    headers = with_token(monkeypatch)
+    monkeypatch.setattr(voice_control, "allow_plain_http", lambda: False)
+    with caplog.at_level("WARNING"):
+        answer = client.post("/api/voice/register",
+                             json={"url": "http://203.0.113.7:41234"},
+                             headers=headers)
+    assert answer.status_code == 422
+    said = "\n".join(record.getMessage() for record in caplog.records)
+    assert "203.0.113.7:41234" in said
+    assert "VOICE_ALLOW_PLAIN_HTTP" in said
+    assert store.all() == []
+
+
+def test_a_mismatched_token_says_so_without_printing_either_one(
+        client, store, monkeypatch, caplog):
+    """The other half a person has to be told about, and the one place in this
+    file where saying more would be worse: the log names the variable, never
+    the string on either side of the compare."""
+    with_token(monkeypatch, token="shared-secret")
+    with caplog.at_level("WARNING"):
+        answer = client.post("/api/voice/register", json={"url": POD},
+                             headers={"Authorization": "Bearer guess"})
+    assert answer.status_code == 401
+    said = "\n".join(record.getMessage() for record in caplog.records)
+    assert "VOICE_REGISTRY_TOKEN" in said
+    assert "shared-secret" not in said and "guess" not in said

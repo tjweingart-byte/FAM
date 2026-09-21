@@ -78,6 +78,22 @@ services:
       # app writes.
       - key: VOICE_REGISTRY_TOKEN
         sync: false
+      # Which port the *worker* listens on inside the pod.
+      #
+      # It matters only on the discovery rungs, and only on a pod that runs
+      # more than the voice - which this project's does: FAM on 8001, and
+      # Chatterbox on 8002. RunPod's proxy fronts one private port and the
+      # TCP mapping publishes one private port, so both rungs have to be
+      # told which one, and the default (8001) is the app's own on a pod
+      # running both. Left unset there, FAM discovers its own front door and
+      # health-checks it (PROBLEMS.md §120).
+      #
+      # A worker that registers itself needs none of this: it announces the
+      # port it is actually listening on, which is the only place that fact
+      # is known rather than declared. This is the fallback for a pod that
+      # cannot reach this service.
+      - key: VOICE_WORKER_PORT
+        value: "8002"
       # Where the registry of self-registered workers lives. On the disk, like
       # every other database: a redeploy must not cost the address of a pod
       # that is up and working.

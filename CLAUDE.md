@@ -399,7 +399,7 @@ the rest of this list it needs taste rather than a key.
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
 5. **The taste model is crude, and the vocabulary is no longer the ceiling.**
-   *(§119. Four changes, in the order they were asked for, and the fourth is
+   *(§121. Four changes, in the order they were asked for, and the fourth is
    the one that removes a limit rather than tuning under it.)*
    **Three signals were being collected and thrown away.** `app.py` has
    recorded a `share` event since the messages feature shipped; `EVENT_KINDS`
@@ -468,8 +468,8 @@ the rest of this list it needs taste rather than a key.
    spends nothing. **Nothing here has been run against a real event log** -
    the seeds above are synthetic, and what the tree looks like on real
    searches is the first thing to look at.
-   **And §120 is what happened when the work was checked rather than
-   re-read.** Four defects, three of them §119's own, none visible to any
+   **And §122 is what happened when the work was checked rather than
+   re-read.** Four defects, three of them §121's own, none visible to any
    test in the suite, all four found by running the thing at a realistic
    size: `storage_doctor` did not list the new store (and the guard that
    should have caught it compared one hand-written list to another, which is
@@ -1741,6 +1741,55 @@ the rest of this list it needs taste rather than a key.
   starting and stopping a retired machine while the live pod ran unmanaged.
   Both are derived now - the port from what the process was told, the pod
   from its **name**.
+  **And a mechanism is only built where every caller reads it** *(§119).*
+  The ladder had one definition and four documented readers, and the fifth -
+  the one that decides whether there is a voice at all - was still reading
+  the variable the ladder replaced. `RemoteChatterboxEngine.available()`
+  asked whether an address was *configured*, so a deployment set up exactly
+  as `REMOTE_VOICE.md` documents (one `VOICE_REGISTRY_TOKEN`, pods that
+  introduce themselves, deliberately no pinned URL) served a **placeholder
+  tone by construction**: the code that walks the ladder lives inside the
+  engine that had already been ruled out, so the registered rung could never
+  serve anybody. Nothing failed, because falling back to a tone is a
+  supported state - which is what made it survive two sessions about this
+  seam. It asks the ladder now, and **being generous there costs no
+  honesty**: `available()` has always meant *configured well enough to try*
+  and never *reachable*, so §52's two questions stay two and the second is
+  still answered by a real call. When nothing on the ladder can speak the
+  episode fails with the reason attached, which is more honest than a tone -
+  a tone is indistinguishable from a worker speaking badly.
+  **And a refusal is told to somebody who can act on it.** Everything
+  `POST /api/voice/register` rejects travelled only in the response body, to
+  a GPU on somebody else's network, so a pod heartbeating every minute and
+  being refused every minute looked from the app's logs exactly like no pod
+  at all. Both refusals are logged now - the address and the reason for a
+  422 (since §117, routinely `VOICE_ALLOW_PLAIN_HTTP=0` refusing the direct
+  TCP address a pod correctly announced), and for a 401 the *name* of the
+  variable whose two copies disagree and neither of the two strings.
+  **And a discovered address is a host *and a port*** *(§120).* §112 got the
+  host found rather than typed and §117 got the right *kind* of host; the
+  port was still being guessed. `_http_port` ended in "the first http port
+  the pod exposes", so on a pod running the app beside the voice - which is
+  this project's, FAM on 8001 and Chatterbox on 8002 - FAM discovered **its
+  own front door**, health-checked it through Cloudflare and reported the
+  404 as a broken worker. Twice over: the default `VOICE_WORKER_PORT` is
+  8001, so it matched the app by coincidence, and naming 8002 did not help
+  because the fallback returned 8001 anyway. **A port chosen by something
+  that cannot know is a guess**, and that one arrived dressed as a discovery,
+  with a URL and a reason in words. It substitutes nothing now: a configured
+  port the pod does not expose over HTTP yields no candidate and a sentence
+  naming both numbers, while an *unconfigured* port still takes the single
+  exposed one - "nothing was said" and "a port was named and the pod has not
+  got it" are different states. And the direct rung **says when it passes an
+  address over**: looking for 8001 on a pod that maps 22 and 8002 it used to
+  return nothing silently, so the one address with no edge in front of it was
+  skipped without a word. The honest fix for the port is the same as for the
+  host and already exists - **a worker that registers itself announces the
+  port it is listening on**, the only place that fact is known rather than
+  declared. `RUNPOD_POD` plus `VOICE_WORKER_PORT` is the fallback for a pod
+  that cannot reach this service, and it is declared in `render.yaml` now,
+  because nothing anywhere prompted for it (§114's `PUBLIC_BASE_URL` finding
+  in a second place).
   Nothing in it has made a real request to RunPod from the build container.
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
@@ -1972,13 +2021,20 @@ content and four empty-state sentences; and **§117**, the voice after the
 pod migration - the worker was healthy, the address was right, and the proxy
 in front of it refuses a server while serving a browser; and **§118**, the
 nightly pod schedule deleted at the owner's direction so the voice is up at
-all times; and **§119**, the recommender's inputs - three signals the app was
-collecting and discarding, a click-through rate thirty days deep that nothing
-had ever read, a location field the app had never had, and a ranking
-vocabulary whose thirty-seven hand-written keyword lists turned out to be the
-binding constraint rather than the scoring under them; and **§120**, what
-checking that work found - four defects none of the 2,289 tests could see,
-because every one of them only appears at a size no test runs at), `MYFAM.md` for the browse page, the
+all times; and **§119**, the ladder built and the engine that walks it never
+built - every commit through §118 was deployed and Render still served a
+placeholder tone, because the question "is there a voice" was still being
+answered by the variable §112 replaced; and **§120**, the pod found and the
+port guessed - on a pod running the app beside the voice, FAM discovered its
+own front door, health-checked it and read the 404 as a broken worker; and
+**§121**, the recommender's inputs - three signals the app was collecting and
+discarding, a click-through rate thirty days deep that nothing had ever read,
+a location field the app had never had, and a ranking vocabulary whose
+thirty-seven hand-written keyword lists turned out to be the binding
+constraint rather than the scoring under them; and **§122**, what checking
+that work found - four defects none of the 2,289 tests could see, because
+every one of them only appears at a size no test runs at),
+`MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
 screen, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
@@ -2005,7 +2061,7 @@ behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 58 as of §119,
+prose does not fail when somebody adds a behaviour. (It is 58 as of §121,
 which added the location editor's round trip.)
 
 **There is a third browser run, and it is not one of those two** (§106). The

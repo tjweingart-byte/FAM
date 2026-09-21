@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
 import remote_voice  # noqa: E402
 import tts  # noqa: E402
+import voice_control  # noqa: E402
 from remote_voice import RemoteChatterboxEngine, RemoteVoiceError  # noqa: E402
 
 
@@ -64,11 +65,19 @@ def configure(monkeypatch, **overrides):
         "remote_voice_concurrency": 2,
         "remote_voice_id": "",
         "remote_voice_wake_interval": 60.0,
+        # The ladder is part of this engine's configuration now: `diagnose()`
+        # asks it whether an address can be *found* when none is set. Pinned
+        # here rather than inherited from the environment so a test describes
+        # the whole question it is asking.
+        "voice_discovery": "auto",
+        "voice_registry_token": "",
+        "runpod_pod": "",
     }
     defaults.update(overrides)
     patched = dataclasses.replace(config.settings, **defaults)
-    # Each of these bound `settings` at import, so each has to be told.
-    for module in (config, remote_voice, tts):
+    # Each of these bound `settings` at import, so each has to be told -
+    # `voice_control` included, since §119 made it one of the inputs.
+    for module in (config, remote_voice, tts, voice_control):
         monkeypatch.setattr(module, "settings", patched)
     # `credentials.active` outranks the settings snapshot; keep it quiet so the
     # test is describing the settings it just set.
@@ -197,6 +206,90 @@ def test_a_missing_key_is_named_rather_than_tried(monkeypatch):
     configure(monkeypatch, runpod_api_key="")
     ok, detail = RemoteChatterboxEngine.diagnose()
     assert not ok and "RUNPOD_API_KEY" in detail
+
+
+# --- an address that is found is still an address ----------------------------
+#
+# PROBLEMS.md §119. `diagnose()` asked whether an address was *configured*,
+# which stopped being the same question as whether one can be *found* when the
+# ladder was built. A deployment set up the way REMOTE_VOICE.md documents got
+# a placeholder tone, and the rung it was relying on was never even tried.
+
+def test_a_registration_token_alone_is_a_voice(monkeypatch):
+    """The documented shape: one variable on the app, pods introduce themselves.
+
+    `REMOTE_VOICE_URL` is deliberately unset - REMOTE_VOICE.md says in as many
+    words not to paste a pod's address into it, because it changes on every
+    pod. So this configuration has to build the remote engine on the strength
+    of the ladder alone, or the rung that survives a pod being replaced is
+    decorative.
+    """
+    configure(monkeypatch, remote_voice_transport="http", remote_voice_url="",
+              runpod_endpoint_id="", runpod_api_key="",
+              voice_registry_token="shared-secret")
+    ok, detail = RemoteChatterboxEngine.diagnose()
+    assert ok, detail
+    assert "registered" in detail
+    assert isinstance(tts.build_engine(), RemoteChatterboxEngine)
+    assert [v.engine for v in tts.list_voices()] == ["remote"]
+
+
+def test_a_pinned_url_serves_a_deployment_that_left_the_transport_alone(monkeypatch):
+    """`REMOTE_VOICE_TRANSPORT` defaults to `runpod`, so an operator who sets
+    an always-on pod's URL and nothing else used to be told
+    `RUNPOD_ENDPOINT_ID is not set` and handed a tone. The pinned rung can
+    serve that deployment and now does."""
+    configure(monkeypatch, remote_voice_transport="runpod",
+              remote_voice_url="https://pod-8001.proxy.runpod.net",
+              runpod_endpoint_id="", runpod_api_key="")
+    ok, detail = RemoteChatterboxEngine.diagnose()
+    assert ok and "pinned" in detail
+
+
+def test_no_rung_at_all_is_still_the_tone(monkeypatch):
+    """The other half, and the one that keeps this honest: with nothing
+    configured and nothing discoverable there is no voice, and the two states
+    CLAUDE.md allows are Chatterbox or a tone that says so."""
+    configure(monkeypatch, remote_voice_transport="http", remote_voice_url="",
+              runpod_endpoint_id="", runpod_api_key="",
+              voice_registry_token="", runpod_pod="")
+    ok, detail = RemoteChatterboxEngine.diagnose()
+    assert not ok
+    assert "REMOTE_VOICE_URL" in detail
+    assert not isinstance(tts.build_engine(), RemoteChatterboxEngine)
+
+
+def test_discovery_switched_off_takes_the_registered_rung_with_it(monkeypatch):
+    """`VOICE_DISCOVERY=off` is the escape hatch back to one configured
+    address. It has to reach this too, or "stop being clever" would leave an
+    engine built on the cleverness it just switched off."""
+    configure(monkeypatch, remote_voice_transport="http", remote_voice_url="",
+              runpod_endpoint_id="", runpod_api_key="",
+              voice_registry_token="shared-secret", voice_discovery="off")
+    assert RemoteChatterboxEngine.available() is False
+
+
+def test_a_rate_no_worker_could_satisfy_is_refused_whatever_the_ladder_says():
+    """`fatal()` is the half discovery cannot answer. The sample rate is in the
+    stream header before any audio exists, so a worker found later is refused
+    for disagreeing with a number that was already wrong - reporting a voice
+    on the strength of a ladder would just move the failure later."""
+    broken = remote_voice.RemoteConfig(
+        transport="http", url="", api_key="", sample_rate=0, timeout=5.0,
+        connect_timeout=1.0, concurrency=1, voice="")
+    assert "REMOTE_VOICE_SAMPLE_RATE" in broken.fatal()
+    assert broken.fatal() == broken.problem()
+
+
+def test_the_ladder_is_asked_without_a_request(monkeypatch):
+    """`/api/health` calls `available()` on every poll and it now consults the
+    ladder, so the ladder's own no-I/O promise is load-bearing here."""
+    configure(monkeypatch, remote_voice_transport="http", remote_voice_url="",
+              runpod_endpoint_id="", runpod_api_key="",
+              voice_registry_token="shared-secret")
+    exploded = install(monkeypatch, AssertionError("availability made a call"))
+    assert RemoteChatterboxEngine.available() is True
+    assert exploded.posts == [] and exploded.gets == []
 
 
 def test_availability_never_reaches_the_network(monkeypatch):

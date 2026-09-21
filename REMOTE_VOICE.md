@@ -208,6 +208,31 @@ The proxy stays on the ladder underneath it. Failing over is not falling
 back: it is the same worker image, and a pod whose TCP port is firewalled
 must still be reachable.
 
+### On a pod that runs more than the voice, say which port is the voice
+
+**Read this if the app is probing a proxy URL and getting a 404.** A 404 from
+`https://<pod>-<port>.proxy.runpod.net/health` on such a pod usually does not
+mean the worker is broken. It means the address reached **something else the
+pod runs**, because the proxy fronts one private port and FAM was looking at
+the wrong one (PROBLEMS.md §120).
+
+This project's own pod is the case: FAM on 8001, Chatterbox on 8002. So
+
+    VOICE_WORKER_PORT=8002      # on the app
+
+and the discovery rungs look for 8002 in both the pod's HTTP ports and its
+TCP mappings. Unset, it defaults to 8001 — right for a pod running only the
+worker, and the app's own port on a pod running both. FAM will not substitute
+another port for the one you name: a configured port the pod does not expose
+over HTTP yields no candidate and a line in the log saying so, rather than an
+address that answers and is not the voice.
+
+Both discovery rungs need it, and neither can find it out: only the worker
+knows which port it bound. **A worker that registers itself does not need this
+setting at all** — it announces the port it is actually listening on. Set
+`FAM_APP_URL` and `VOICE_REGISTRY_TOKEN` on the pod and the question goes
+away.
+
 ### The port a worker announces is the port it is listening on
 
 `register.port()` reads `VOICE_WORKER_PORT`, then the `--port` the process was
@@ -356,6 +381,36 @@ about. From the Render service, `GET /api/health` reports the same thing:
 separately.** `configured: true, reachable: unknown` means nothing has ever
 actually spoken; `reachable: failed` carries the reason. A health check that
 only read configuration would answer the cheaper question and say OK.
+
+And `configured` means **a rung of the ladder is configured**, not that an
+address was typed into this environment. A deployment whose only setting is
+`VOICE_REGISTRY_TOKEN` is a configured deployment, and `interim` is `false`
+on it: the app has a way to find a worker, and whether one is answering is
+the `reachable` half. That was not true until PROBLEMS.md §119 — the engine
+asked whether an address was *set*, so the shape this page documents served a
+placeholder tone however healthy the pod was.
+
+### If the app says no worker could be found
+
+    voice supervisor: no voice worker could be found. Configured rungs:
+    registered.
+
+That sentence means the ladder was walked and nothing answered. Read the log
+for the line above it, because **a worker that is turned away now says so on
+this side too**:
+
+    voice worker registration refused from http://69.30.85.x:41234:
+      ... is not https; ... VOICE_ALLOW_PLAIN_HTTP=1 permits it deliberately
+    voice worker registration refused: the bearer token presented does not
+      match this app's VOICE_REGISTRY_TOKEN.
+
+Either line means the pod is alive and talking to the right service, and the
+fix is one variable. **No such line, repeating every supervisor interval,
+means nothing is knocking at all** — the pod is not running, or it has no
+`FAM_APP_URL`, or that URL is not this service. One pass finding nothing
+immediately after a redeploy is normal and not a fault: the registry is on
+the disk like every other database, and a live pod re-registers on its next
+heartbeat.
 
 ## The cold start, and what is done about it
 

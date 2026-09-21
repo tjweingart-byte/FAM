@@ -8871,7 +8871,231 @@ the `runpod-pod` rung of the ladder. The GitHub copy is the one that is now
 dead, which is the pleasant half of this change: §117's finding was an id
 kept in two places, and there is only one place left.
 
-## 119. Three signals collected and discarded, a question never asked, and a vocabulary with a ceiling
+## 119. The ladder was built, and the engine that walks it was never built
+
+Reported from a Render deployment carrying every commit up to §118, as two
+lines that had been in the log since the pod migration:
+
+    remote is unavailable (REMOTE_VOICE_URL is not set); serving a
+    placeholder tone, not a voice
+    voice supervisor: no voice worker could be found. Configured rungs:
+    registered.
+
+Read together they are contradictory, and the contradiction is the bug. The
+second line says the app knows about a rung and is walking it. The first says
+the app has already decided there is no voice, on the strength of a variable
+§112 exists to stop anybody setting.
+
+### The question that was asked instead of the one that mattered
+
+`RemoteChatterboxEngine.available()` was `not cls.config().problem()`, and
+`RemoteConfig.problem()` asks exactly one thing: **is an address written down
+in this environment** - `REMOTE_VOICE_URL` on the `http` transport,
+`RUNPOD_ENDPOINT_ID` on `runpod`. That was the whole of the question until
+§112, when finding a worker stopped being the same thing as being told where
+one is.
+
+The ladder was then wired into the synth path - `_endpoint()` resolves
+`voice_control.current()` when the configured address is incomplete - and into
+`/api/health`, the startup log and `tools/voice_doctor.py`. It was not wired
+into the question that decides whether the engine exists at all. So:
+
+    build_engine()
+      -> production_engines()            # (RemoteChatterboxEngine,) - correct
+      -> RemoteChatterboxEngine.available()
+           -> config.problem()           # "REMOTE_VOICE_URL is not set"
+      -> None
+      -> PLACEHOLDER_ENGINE()            # a tone
+
+`_endpoint()` is downstream of every one of those arrows. **The code that
+walks the ladder is inside the engine that was just ruled out**, so on a
+deployment configured the way `REMOTE_VOICE.md` documents - one
+`VOICE_REGISTRY_TOKEN` on the app, `FAM_APP_URL` and the same token on the
+pod, and deliberately no pinned URL - the registered rung could never serve
+anybody. Not because anything on it was broken: a worker could register, the
+supervisor could verify it, `/api/health` could report the ladder green, and
+every listener would still get a 220 Hz sine.
+
+That is the shape §117 had one layer down, and it is worth naming as a class:
+**a mechanism is only built where every caller reads it.** The ladder has one
+definition and four documented readers. The fifth reader - the one that
+decides whether there is a voice - was still reading the variable the ladder
+replaced, and nothing failed, because falling back to a tone is a supported
+state.
+
+### The fix, and why being generous here costs no honesty
+
+`diagnose()` asks the ladder. If the configured address is complete it is used
+as before with no probe; otherwise, if any rung is configured, the engine is
+available and says which rung will be asked (`24000 Hz, address discovered:
+registered`); if nothing is configured and nothing is discoverable, it is the
+tone, as it should be.
+
+The worry this had to clear is CLAUDE.md's rule that there are exactly two
+honest states, Chatterbox or a tone that says so. It clears it because
+`available()` has always meant *configured well enough to try* and never
+*reachable*: §52's two questions stay two, and the second is still answered by
+a real call and reported separately in `remote_voice.report()` and
+`voice_control.report()`. What changed is only which configurations count as
+worth trying. When nothing on the ladder can speak, the episode now fails with
+the reason attached - which is what `REMOTE_VOICE.md` already said happens,
+and is more honest than a tone, because a tone is indistinguishable from a
+worker that is speaking badly.
+
+`RemoteConfig.fatal()` is the half discovery cannot answer, and it is split
+out rather than folded in: a transport that is not a transport and a sample
+rate that cannot be a rate are wrong wherever the worker turns out to be. The
+rate especially - it goes into the stream header before any audio exists, so
+claiming a voice on the strength of a ladder would only move the failure
+later.
+
+A second deployment shape was fixed by the same change, unasked: the transport
+defaults to `runpod`, so setting `REMOTE_VOICE_URL` for an always-on pod and
+nothing else used to report `RUNPOD_ENDPOINT_ID is not set` and serve a tone.
+The pinned rung can serve that, and now does.
+
+### And a refusal was only ever told to the pod
+
+Found while reading the other half of the report - why nothing had registered.
+Everything `POST /api/voice/register` rejects is raised as a 401 or a 422, and
+the detail travels in the response body to a GPU on somebody else's network.
+Nothing was logged on this side. So a pod heartbeating every sixty seconds and
+being turned away every sixty seconds is, from the app's logs, identical to no
+pod at all - and the only symptom is the supervisor's "no voice worker could
+be found", which names the rung and not the reason.
+
+That is §51's rule (failures must be visible) with the twist that the failure
+was visible, to the one party that could do nothing about it. Both refusals
+are now logged at WARNING: the address and the reason for a 422 - which since
+§117 is routinely `VOICE_ALLOW_PLAIN_HTTP=0` refusing the direct TCP address a
+pod correctly announced - and, for a 401, the name of the variable whose two
+copies disagree and neither of the two strings.
+
+### The storage half of the same report, which is not a code problem
+
+The second thing in that log is `_announce_storage` doing its job:
+
+    STORAGE: 12 database(s) are inside the container image and a redeploy
+    will erase them
+
+§114 built that line for exactly this deployment and it is accurate. It is a
+Render service created outside the blueprint, so `render.yaml`'s disk was
+never attached - the `/data` paths come from the `Dockerfile`'s `ENV`, which
+is in the image, and the disk that should be under them is not. The fix is in
+the dashboard (add a disk, Mount Path `/data`, redeploy), and the app already
+says so in the line after it.
+
+Worth noting where the two halves of this report meet: `VOICE_REGISTRY_DB` is
+on `/data` like everything else, so on that deployment **every redeploy also
+empties the registry of workers**. A live pod re-registers on its next
+heartbeat, so it is self-healing within a minute - but it does mean the
+supervisor's first pass after a deploy reliably finds nothing, which is what
+the reported log line is timestamped one second after boot.
+
+### What is unverified
+
+Nobody has heard this. The fix makes the engine exist on a deployment that
+discovers its worker; whether that worker then speaks is the listening test
+open problem #1 has been waiting on since Piper was removed. What can be said
+from here is that the tone is no longer guaranteed by construction.
+
+## 120. FAM discovered its own front door and health-checked it
+
+`RUNPOD_API_KEY` reached Render, the `runpod-pod` rung woke up, RunPod's API
+answered `200 OK` - and the voice still failed, now on a different line:
+
+    GET https://<pod>-8001.proxy.runpod.net/health -> 404 Not Found
+
+The pod runs two things. FAM on **8001**, exposed over HTTP; Chatterbox on
+**8002**, exposed over TCP. So the address the ladder discovered, verified and
+reported as a dead worker was **this application's own front door**, reached
+the long way round through Cloudflare. The 404 is the app being honest: it
+serves `/api/health`, not `/health`.
+
+### Why the port was wrong, twice over
+
+`_http_port` ended in `return http_ports[0] if http_ports else 0`. Two
+separate failures met in that line.
+
+With `VOICE_WORKER_PORT` unset it defaults to **8001**, so `preferred in
+http_ports` matched - correctly, by the rules, and on the wrong service. The
+default is right for a pod running only the voice, which is what
+`Dockerfile.voice` serves on `${PORT:-8001}`, and it is exactly wrong on a pod
+that also runs the app.
+
+And setting it would not have helped. With `VOICE_WORKER_PORT=8002` the
+configured port is not among the pod's http ports, so the fallback returned
+`http_ports[0]` - **8001 again**. An operator who diagnosed this correctly and
+fixed their configuration would have got the identical 404 and concluded the
+port was not the problem.
+
+That fallback is the bug proper, and it is §78 one layer up. §78 was the
+*worker* announcing `$PORT` instead of the port it was listening on. This is
+the *app* picking a port from a list, when the only thing that makes a port
+the worker's is that the worker is listening on it. **A port chosen by
+something that cannot know is a guess, and this one arrived dressed as a
+discovery** - with a URL, a rung name and a reason in words.
+
+So it no longer substitutes. A configured port that the pod does not expose
+over HTTP returns no candidate and a sentence naming both numbers. An
+unconfigured port still takes the single exposed one, because "nothing was
+said about the worker's port" is a different state from "a port was named and
+the pod does not have it", and the candidate is verified before anyone is sent
+to it.
+
+### And the address that would have worked was passed over in silence
+
+`_direct_endpoint` looks for `VOICE_WORKER_PORT` among the pod's TCP mappings.
+Looking for 8001 on a pod that maps 22 and 8002, it found nothing and returned
+`None` - saying nothing at all. So the one address on that pod with no edge in
+front of it, the rung §117 was written to add, was skipped without a word, and
+the log showed only a proxy URL being probed.
+
+It says so now, and the note carries both halves of the diagnosis: which ports
+the pod publishes, and which one this app was told to look for. Three states,
+each naming the next thing to set:
+
+    VOICE_WORKER_PORT=8001 (the default)
+      -> pod fam-voice publishes TCP port 22, 8002; VOICE_WORKER_PORT is 8001,
+         so none of them is the worker's. Set it to the port the worker is
+         listening on
+    VOICE_WORKER_PORT=8002
+      -> pod fam-voice publishes 203.0.113.7:41234, which needs no proxy, but
+         VOICE_ALLOW_PLAIN_HTTP is not set so it is not offered
+      -> pod fam-voice exposes http port 8001 and not 8002 ...
+    VOICE_WORKER_PORT=8002, VOICE_ALLOW_PLAIN_HTTP=1
+      -> http://203.0.113.7:41234
+
+The 404 verdict names the cause it now knows about: on a pod that runs
+anything besides the voice, the likeliest reading of a 404 is not a broken
+worker but **a different service answering**.
+
+### The general form, which is this seam's third instance
+
+§112 said the address of the voice must be discovered, not written down twice.
+§117 said the discovered address has to be one a *server* can use. This one
+says: **a discovered address is a host and a port, and the port is as much a
+fact about somebody else's machine as the host is.** Discovery got the host
+right and kept guessing the port.
+
+The honest fix for the port is the same as for the host, and it already
+exists: **a worker that registers itself announces the port it is actually
+listening on** (§117 fixed `register.port()` to read that rather than `$PORT`).
+That is the only place the fact is known instead of declared. `RUNPOD_POD`
+plus `VOICE_WORKER_PORT` is the fallback for a pod that cannot reach this
+service, and it is now declared in `render.yaml` with the reasoning attached -
+because nothing anywhere prompted for it, which is §114's finding about
+`PUBLIC_BASE_URL` in a second place.
+
+### What this does not fix
+
+The deployment that reported it is running `Main`, which does not carry §119 -
+so even once the ladder finds the worker, `build_engine()` still returns the
+placeholder tone, because `available()` is still asking whether an address is
+configured. The two are independent and both are needed: §119 makes the engine
+exist, §120 makes the ladder find the right port. Neither has spoken on a real
+machine from this container.
+## 121. Three signals collected and discarded, a question never asked, and a vocabulary with a ceiling
 
 Four changes, asked for in this order and done in it. They are one entry
 because they are one argument: **the recommender's inputs were poorer than
@@ -9113,12 +9337,12 @@ what a deployment's vocabulary would become; `python tools/ctr_report.py`
 says what its rails actually convert at. Those two commands against the
 running deployment are what turn this entry from reasoned into known.
 
-## 120. Checking the work found four things the tests could not
+## 122. Checking the work found four things the tests could not
 
-§119 shipped green: 2,289 tests, `./dev.sh check` twice, CI green on the
+§121 shipped green: 2,289 tests, `./dev.sh check` twice, CI green on the
 branch. Then the instruction was to actually *run* the things §119 said to run
 and to double-check the work, and that turned up four defects - three of them
-introduced by §119 itself and none of them visible to any test in the suite.
+introduced by §121 itself and none of them visible to any test in the suite.
 
 They have one shape in common, which is the reason this entry exists: **every
 one of them was invisible at the scale the tests run at.** A unit test builds
@@ -9128,7 +9352,7 @@ realistic size to appear at all.
 ### 1. The one tool you were told to run would not have told you
 
 `tools/storage_doctor.py` is what answers "does a redeploy erase this
-deployment's listeners". Run for the first time after §119, it listed **twelve**
+deployment's listeners". Run for the first time after §121, it listed **twelve**
 stores. There are fourteen. `categories.db` - a brand new store, holding the
 ranking vocabulary the whole change is about - was not in it.
 
@@ -9181,7 +9405,7 @@ shares a thread with the product is not a background sweep.
 
 ### 3. A property that looked free, called a million times
 
-`taste()` is called on every browse page. With §119 it re-reads each event's
+`taste()` is called on every browse page. With §121 it re-reads each event's
 text against the category tree, and against a 1,500-node tree that measured
 **134 ms**.
 
@@ -9234,7 +9458,7 @@ would have got different results from CI, which is exactly the class of thing
 that file exists to prevent, arriving through a module-level cache instead of
 through the environment.
 
-### What this says about the tests in §119
+### What this says about the tests in §121
 
 They were not bad tests. They pinned every rule the feature has, and every one
 of them still passes. What they could not do is notice that the feature is
