@@ -102,7 +102,23 @@ difference between "Chatterbox is installed" and "this machine can speak".
 
 ## "Everyone's accounts were erased when I deployed"
 
-Ask the server, rather than reading this file. `/api/health` reports
+One command, which asks the running deployment and prints the fix:
+
+    python tools/storage_doctor.py --url https://<your-host>
+
+Exit 1 means at least one store will be erased by the next push. The answer
+is almost always the first bullet below.
+
+**The server now says it at boot too.** `_announce_storage` logs an error on
+startup when a store is ephemeral *and* its environment variable is set -
+that pair being the whole diagnosis, because it means this deployment asked
+for a mounted disk and did not get one. It is deliberately silent on a
+laptop, where nothing is configured and the databases sitting beside the code
+is correct: a warning every developer sees on every run is a warning nobody
+reads, which is how this went unnoticed while the measurement for it already
+existed.
+
+The long way round, which is what both of those read: `/api/health` reports
 `storage`, and it is **measured** — a mounted volume is a different
 filesystem, so a database on the same device as the application code is inside
 the container image and goes when the image is replaced:
@@ -124,6 +140,51 @@ says what to do. Two things it distinguishes that reading configuration cannot:
   share links were discarded on every push while accounts survived. They are
   in the `Dockerfile` now, and `tests/test_data_paths.py` derives its list from
   the code so a store added later cannot be left out quietly.
+
+## Taking the demonstration data back out
+
+`tools/seed_demo.py` writes three invented listeners and their plays so the
+browse surfaces have something to show on a fresh install. Right while
+*showing* the product, wrong while **measuring** it: every seeded play is a
+vote in the taste model, so "is myFAM recommending the right things" has an
+unknown share of its answer coming from people who do not exist.
+
+    python tools/wipe_demo_data.py --url https://<your-host>            # dry run
+    python tools/wipe_demo_data.py --url https://<your-host> --yes      # the seed
+    python tools/wipe_demo_data.py --url https://<your-host> --all --yes
+
+`--url` needs `FAM_ADMIN_TOKEN` set on the service and passed with `--token`
+(or in your own environment). Without that variable the endpoint returns 404
+rather than 401 - an unconfigured deployment should not advertise that it has
+a delete endpoint at all.
+
+Nothing happens without `--yes`, in both directions: the endpoint's own
+`dry_run` defaults to true, so a request body that forgot a field cannot be
+the one that empties the event log.
+
+`--all` empties the whole script cache and the whole event log, not just the
+seed. That is the true blank slate and it takes real listening with it. It
+costs nothing that cannot be regenerated - a script is about three cents and
+audio is never stored - and the taste model starts from nothing for
+everybody. Neither scope touches accounts, credentials or the metering
+ledger.
+
+## Sharing needs no setting any more
+
+`PUBLIC_BASE_URL` used to be the only way a share link could name a host, and
+nothing prompted for it - so every link was `/s/abc123`, which is a correct
+relative URL and a useless thing to send somebody. The host is read off the
+request now (`X-Forwarded-Proto` and `X-Forwarded-Host`, which is what
+Render's router sets), so sharing works on an unconfigured deployment.
+
+Set `PUBLIC_BASE_URL` only when the host people reach is **not** the one this
+service answers on - a custom domain in front of the Render URL. Check which
+of the three states a deployment is in:
+
+    curl -s https://<your-host>/api/health | python -m json.tool | grep -A 4 '"sharing"'
+
+`link_host` is `env` (PUBLIC_BASE_URL), `request` (derived, the normal case)
+or `none` (a loopback host, where there is no honest link to give).
 
 ## Renaming the Render URL
 

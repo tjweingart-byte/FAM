@@ -519,6 +519,31 @@ class MemoryScriptCache:
             return ""
         return self._titles.get(key, "")
 
+    def forget_author(self, author: str) -> int:
+        """The memory backend's half of `SqliteScriptCache.forget_author`.
+
+        Both exist because a wipe that silently did nothing on one backend
+        would be indistinguishable from one that worked - which is the class
+        of failure this project keeps a rule about.
+        """
+        if not author:
+            return 0
+        keys = [k for k, who in self._authors.items() if who == author]
+        for key in keys:
+            self._data.pop(key, None)
+            self._authors.pop(key, None)
+            self._sources.pop(key, None)
+            self._titles.pop(key, None)
+            self._vectors.pop(key, None)
+        return len(keys)
+
+    def clear(self) -> int:
+        removed = len(self._data)
+        for table in (self._data, self._authors, self._sources, self._titles,
+                      self._vectors):
+            table.clear()
+        return removed
+
     def stats(self) -> dict:
         return {"backend": "memory", "entries": len(self._data), "hits": self.hits, "misses": self.misses}
 
@@ -794,6 +819,49 @@ class SqliteScriptCache:
             cur = self._conn().execute("DELETE FROM scripts WHERE expires < ?", (time.time(),))
             return cur.rowcount or 0
         except Exception:
+            return 0
+
+    def forget_author(self, author: str) -> int:
+        """Drop every script one listener wrote first. For clearing seed data.
+
+        **Not part of account deletion, and it must not become part of it.**
+        The shared cache holds no identity - `author` is provenance, so that
+        Explore can leave a listener's own episodes off their own feed - and a
+        listener leaving does not un-write the episodes other people are
+        listening to. `erase_listener` says so and is right.
+
+        What this is for is the other thing: a deployment seeded with demo
+        episodes so the browse surfaces had something to show, now being
+        cleared so the recommendations can be judged on real listening. Those
+        episodes were written *by* the seed and are exactly identified by who
+        wrote them. Anything written before the column existed has no author
+        and is not touched by this, which is correct - a script nobody can
+        attribute is not demonstrably seed data.
+        """
+        if not author:
+            return 0
+        try:
+            cur = self._conn().execute(
+                "DELETE FROM scripts WHERE author = ?", (author,))
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("could not drop scripts authored by %r", author)
+            return 0
+
+    def clear(self) -> int:
+        """Empty the whole cache. Every entry, expired or not.
+
+        The one lever that makes "start seeing only new episode titles" true
+        on a deployment nobody can shell into. It costs one regeneration per
+        question anybody asks again, and nothing else: a script is the only
+        thing in here, audio is never stored, and every entry is
+        reproducible.
+        """
+        try:
+            cur = self._conn().execute("DELETE FROM scripts")
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("could not clear the script cache")
             return 0
 
     def stats(self) -> dict:

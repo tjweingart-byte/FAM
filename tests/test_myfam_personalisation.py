@@ -440,7 +440,7 @@ def _missed(store, user="u", now=None):
     return [sec for sec in feed["sections"] if sec["key"] == "missed"][0]
 
 
-def test_the_rail_is_what_was_offered_and_not_taken(store):
+def test_an_episode_they_played_is_never_one_they_missed(store):
     now = time.time()
     offered = list(T.TOPIC_BANK)[:5]
     _shown(store, offered, now - 3 * 86400)
@@ -449,20 +449,80 @@ def test_the_rail_is_what_was_offered_and_not_taken(store):
 
     ids = [t["id"] for t in _missed(store, now=now)["topics"]]
     assert offered[0].id not in ids, "an episode they played is not one they missed"
-    assert set(ids) == {t.id for t in offered[1:]}, \
-        "the rail is the rest of what was put in front of them"
+
+
+def test_the_rail_is_the_most_relevant_and_not_simply_the_rest(store):
+    """The owner's direction: "only have it display the ABSOLUTE MOST
+    RELEVANT stories they didn't click on".
+
+    It used to be every tile they were shown and did not take, in the order
+    they were shown - so a listener whose week included one thing they cared
+    about and seven they did not got all eight, and the row about relevance
+    was mostly the leftovers of the rows above it.
+    """
+    now = time.time()
+    close = [t for t in T.TOPIC_BANK if "sports" in t.tags][:2]
+    far = [t for t in T.TOPIC_BANK if "sports" not in t.tags][:4]
+    _shown(store, close + far, now - 2 * 86400)
+    play(store, "u", "seed-sport", kind="complete", tags=("sports", "sports-drama"),
+         at=now - 86400)
+
+    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
+    assert ids, "the rail dropped everything"
+    assert not (ids & {t.id for t in far}), \
+        "a tile with no affinity was offered as something they missed"
 
 
 def test_a_tile_nobody_was_ever_shown_is_not_a_tile_they_missed(store):
-    """The heading is a claim about what this app did, so every tile under it
-    has to be something the listener could have taken. A top-up from the bank
-    would make the row full and the heading false."""
+    """The bank is still not a top-up.
+
+    Membership widened to what was popular across FAM and what is trending -
+    both of which genuinely went past this listener last week - and pointedly
+    not to the standing bank. An evergreen explainer nobody was offered and
+    nobody played did not happen last week, and putting one here to make the
+    row look full is the padding this rail was built to avoid.
+    """
     now = time.time()
     offered = list(T.TOPIC_BANK)[:2]
     _shown(store, offered, now - 86400)
     ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert ids == {t.id for t in offered}
+    assert ids <= {t.id for t in offered}
     assert len(ids) < T.MISSED_SECTION_SIZE, "the rail padded itself out"
+
+
+def test_something_the_rest_of_fam_played_can_be_something_you_missed(store):
+    """"It could be stories that were popular throughout the app or trending
+    that the user never listened to." Membership is now three things, and
+    this is the second of them."""
+    now = time.time()
+    theirs = [t for t in T.TOPIC_BANK if "sports" in t.tags][0]
+    play(store, "u", "seed-sport", kind="complete", tags=("sports", "sports-drama"),
+         at=now - 86400)
+    # Never put in front of this listener. Played by other people, this week.
+    for other in ("a", "b", "c"):
+        play(store, other, theirs.id, kind="complete", tags=theirs.tags,
+             at=now - 2 * 86400)
+
+    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
+    assert theirs.id in ids or theirs.id in {
+        t["id"] for sec in T.build_feed(store, "u", now=now)["sections"]
+        for t in sec["topics"]}, "a popular episode they never saw went nowhere"
+
+
+def test_with_no_history_the_rail_is_still_what_was_put_in_front_of_them(store):
+    """A relevance floor over an empty taste profile rejects everything.
+
+    Impressions deliberately never reach `taste`, so a listener who has
+    chosen nothing and played nothing scores 0.0 against every tile - and the
+    rail that is most use to exactly that listener would be empty. With
+    nothing to rank on, the claim shrinks back to the one the evidence
+    supports: what was offered, newest first.
+    """
+    now = time.time()
+    offered = list(T.TOPIC_BANK)[:3]
+    _shown(store, offered, now - 86400)
+    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
+    assert ids == {t.id for t in offered}
 
 
 def test_the_window_is_a_week_because_that_is_what_the_rail_says(store):

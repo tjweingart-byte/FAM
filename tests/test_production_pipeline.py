@@ -83,9 +83,18 @@ def test_the_running_server_says_which_architecture_it_is():
     not, unless it says so."""
     import asyncio
 
+    from starlette.requests import Request
+
     import app
 
-    report = asyncio.run(app.health())
+    # `health` takes the request now, because a share link's host is read off
+    # it rather than off a setting nobody sets - see `app._public_base`. A
+    # bare scope is enough here: nothing in this assertion is about sharing.
+    report = asyncio.run(app.health(Request({
+        "type": "http", "method": "GET", "path": "/api/health",
+        "query_string": b"", "headers": [], "scheme": "http",
+        "server": ("testserver", 80), "client": ("testclient", 50000),
+    })))
     assert report["streaming_pipeline"] == "phase6"
     assert report["streaming_pipeline_default"] is True
 

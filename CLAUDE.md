@@ -399,6 +399,23 @@ the rest of this list it needs taste rather than a key.
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
 5. **The taste model is crude, and less crude than it was.**
+   *(§114 sharpened the scoring itself, which nothing before it had touched.
+   Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
+   `sports` and `sports-drama` counted the same, so the resolution §80 added
+   to the *vocabulary* was being thrown away by the *ranking*; `SUBTAG_WEIGHT`
+   is the other half of that change. `RELEVANCE_FLOOR` replaces `> 0` in
+   `rank_from_history`, which every tile sharing one barely-touched facet
+   cleared, so "Made for you" was very nearly the bank, sorted, under a
+   heading claiming it had been chosen. And `BROAD_MATCH_PENALTY` answers the
+   case the vocabulary **cannot express**: there is no tag for the NFL and
+   none for college football, both are `sports`, and no weighting
+   distinguishes them. What is knowable without inventing a vocabulary is
+   whether this listener has ever *said* the words on the tile -
+   `familiar_words` reads their own searches and plays out of the event log -
+   so a live story matching only a whole facet, on a subject they have never
+   been near, is damped. It damps and never excludes, and only live stories:
+   a rule would empty a new listener's rail in the name of relevance, and the
+   bank's twenty-eight subjects are broad on purpose.)*
    *(Two things on the surface changed in §95. The header's right-hand slot is
    now an **episode-length control of its own**, deliberately separate from the
    search player's: the length you want for a question you have just typed and
@@ -676,6 +693,33 @@ the rest of this list it needs taste rather than a key.
    where saving returns to. Everything a settings row opens closes back to
    Settings, by an X drawn the same way on all of them
    (`.sheet-close` on a screen, `.modal-x` on a modal).
+   **The interests row is four, ranked by listening, and edited where it is**
+   *(§114).* It was twelve pills - chosen facets, then chosen subjects, then
+   whatever the log had inferred - in that fixed order, so six words picked
+   in thirty seconds on the first run outranked a month of listening for
+   good, and the row grew with every episode until it listed everything
+   somebody had been near. `topics.ranked_interests` ranks it by the same
+   `taste` profile every myFAM rail uses, so it moves as they listen, and a
+   declared interest is not lost by that - `taste` folds it in at
+   `INTEREST_WEIGHT` before normalising, which is exactly a starting position
+   behaviour outvotes. `topics.profile_interests` cuts it to four and says
+   **which** decided it, because a pinned row and an automatic one look
+   identical on screen and the copy under them is only true of one.
+   The editor moved with it: "Shared on your profile" was inside Edit profile,
+   three taps from the row it changed and phrased as hiding rather than
+   choosing. It is on the profile now, beside the pills, and it is a choice
+   about **showing** and never about liking - nothing there writes
+   `interests` and nothing there touches the ranker.
+   The boundary that needed deciding: **their own page may be ranked off
+   their listening and `/api/person` may not.** §104's rule is that what
+   somebody has listened to is theirs, and an inferred pill row on a
+   stranger's view of them publishes exactly that, in a form that reads as a
+   statement they made. A pin is a statement; a declared interest is a
+   statement; a history is not. So the public view is the pinned set, or
+   declared-minus-hidden, capped at the same four - and pinning is how
+   somebody's own page becomes their public one. `hidden_interests` is still
+   honoured when nothing is pinned: somebody who turned an interest off
+   before the editor moved did not ask for it back.
    The rule it was built under is unchanged: a profile page is the easiest
    place in an app to invent a number, and every invented one is a promise to
    keep later.
@@ -1064,22 +1108,55 @@ the rest of this list it needs taste rather than a key.
   else. **What you missed last week** is a shelf of episodes they can still
   have: what FAM put in front of them in the last seven days and they did not
   take.
-  Three things keep it honest and generalise past it. **It is what was
-  actually offered** - the impression log minus everything they played - so
-  there is no top-up from the bank and a short rail is short, because the
-  heading is a claim about what this app did. **An impression still never
-  becomes taste**: it decides *membership*, which is a fact about the feed, and
-  `_affinity` decides the *order*. And **it can only offer what it can still
-  resolve** - the bank plus what the pool still holds - because a tile invented
-  to stand in for an expired story is §102 with a heading on it.
-  The empty sentence claims neither of the two nothings: somebody who was not
+  **What counts as "missed" is wider than what FAM showed you** *(§114, at
+  the owner's direction, reversing the line below it).* It used to be the
+  impression log and nothing else, and that made the rail a report on our own
+  delivery: a listener who did not open myFAM last week missed nothing, by
+  construction, however much happened. Membership is now three things, any of
+  which qualifies - **offered to them**, **played by other listeners this
+  week**, or **in the live story pool**. All three genuinely went past this
+  listener in the last seven days, which is what keeps the heading true.
+  **The standing bank is still not a source**: an evergreen explainer nobody
+  was offered and nobody played did not happen last week, and putting one
+  here to make the row look full is the padding this rail was built against.
+  **And relevance is a floor, not just a sort.** "Only the ABSOLUTE MOST
+  RELEVANT" is the whole of the instruction, so a tile this listener has no
+  affinity for is not offered at all - short beats padded. With **no profile
+  at all** it falls back to what it always was, offered-newest-first:
+  impressions never reach `taste`, so every score is zero, and a floor over
+  nothing would empty the rail for exactly the listener it is most use to.
+  Two rules survive the widening unchanged, and the fill order does not.
+  **An impression still never becomes taste**: it decides *membership*, which
+  is a fact about the feed, and `_affinity` decides the *order*. And **it can
+  only offer what it can still resolve** - the bank plus what the pool still
+  holds - because a tile invented to stand in for an expired story is §102
+  with a heading on it. What moved is that **trending is the rail's last
+  source rather than its first**: `missed` still fills before the crowd rows,
+  with the live pool excluded, and is topped up from the leftovers afterwards,
+  because a brand-new story nobody has been shown is one *Made for you* exists
+  to offer and a tile already on the page is not one anybody missed.
+  The empty sentence claims none of the three nothings: somebody who was not
   here last week was offered nothing, somebody who played everything missed
-  nothing, and the rail cannot tell them apart.
+  nothing, somebody for whom nothing was relevant is shown nothing, and the
+  rail cannot tell them apart.
   What went with the popup: `/api/recap`, `topics.weekly_recap`, the
   scheduling in `preferences.py`, the Settings row that switched it off, and
   the two tiles above Your FAM's threads. The `weekly_recap` and `recap_week`
   *columns* stay, read by nothing, on the same reasoning as the language field
   - they are what a scheduled digest would read on the day there is one.
+- **Trending keeps four tiles, and takes them before anything else chooses.**
+  *(§114, `topics.WORLD_FLOOR`.)* It was filled **last**, from what the four
+  personal rails had not claimed - and Made for you draws on the same live
+  pool, so on a day the pool held five stories and a listener's taste matched
+  four of them the world row got one. The floor is reserved before the fill
+  loop runs. The trade, stated rather than buried: on a thin pool Made for you
+  loses its best live tile. That is the right way round **only** because Made
+  for you draws on both inventories and can never be empty - the bank is
+  twenty-eight topics - while Trending draws on the live pool alone and has
+  nowhere else to go. And the reservation happens only when it *buys* the
+  floor: a pool of one cannot fill the row however it is shared out, so
+  holding that story back would cost the personal rail its tile and still
+  leave Trending short.
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
   `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key
@@ -1222,12 +1299,36 @@ the rest of this list it needs taste rather than a key.
   default screen now; the splash is held until the answer arrives, and
   `bootToFirstScreen` sends a signed-in listener to myFAM and everybody else
   to the front door.
-  What keeps the constraint above true is **the door**: "Skip for now" is on
-  that screen, it is one tap, and everything behind it still works with
+  What keeps the constraint above true is **the door**: "Continue as guest" is
+  on that screen, it is one tap, and everything behind it still works with
   nothing signed in. What changed is which side of it the app opens on - not
   what an account is required for, which is unchanged. If it starts costing
   listeners, it is one branch in `bootToFirstScreen` and this is the line to
   read first.
+  **The door is named for what it does** *(§114).* It said "Skip for now",
+  which is still right on the two setup steps behind it - a step you skip
+  comes back - and wrong here: this is a way of using the app, not a
+  postponement, and somebody who takes it is a guest for as long as they like.
+  **And the Profile tab is the one screen a guest does not get** *(§114, at
+  the owner's direction).* It used to draw the whole page - name, counts,
+  shelves, vibes - with a note at the bottom offering an account. Everything
+  on it was true, which is why it lasted, and it is still the wrong screen: a
+  profile is the one page that is *about* having an account, so drawing a
+  full one for a guest invites them to furnish a room the app is about to say
+  is not theirs. It is a door now, and it makes no request for a profile it
+  is not going to draw. Nothing else moved behind the gate - everything in
+  the paragraph above still works with nothing signed in.
+  **And every gate in the app opens the same sign-up screen.** DailyFAM,
+  messages, Settings and the profile all used to open `createAccount()` /
+  `signIn()`, two chained modals asking for an address and then a password -
+  a form that **cannot offer a phone number, Google or Apple**, all of which
+  the real screen has. So a listener who reached an account from a gate and
+  one who reached it from the front door were shown two different products.
+  `gateActions()` is the one pair of buttons, `openAuth` already knew how to
+  return to the screen it was opened from, and the makeshift pair is
+  **deleted rather than left unused** - the Piper reasoning for the third
+  time: a second sign-up form left standing is one somebody wires a new gate
+  to by accident.
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   `ENFORCE_QUOTAS=0` is the default: every tier, limit, counter, reservation,
   refund and refusal exists and is tested, and none of them refuses anybody.
@@ -1312,6 +1413,31 @@ the rest of this list it needs taste rather than a key.
   that 404s, not one rerouted into the app - and `/api/health` says which
   state a deploy is in. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
+  **The link names a host now, and nobody has to set one** *(§114).* It read
+  `PUBLIC_BASE_URL` and nothing anywhere prompts for it, so no deployment had
+  it, so every share link was `/s/abc123` - a correct relative URL and a
+  useless thing to send somebody. `app._public_base` reads the request
+  instead, which is `/api/health`'s own rule: a request arrived, so this
+  server has an address somebody outside it reached, and that address is in
+  the request. `X-Forwarded-Proto` first, because behind Render's router the
+  connection is plain HTTP and a link built from `request.url` would be
+  `http://` on an HTTPS site. `PUBLIC_BASE_URL` still wins when set - it is
+  the only way to name a host this server is *not* reached at - and a
+  **loopback host is refused outright**: a link to `localhost` looks like a
+  URL, so it gets posted, and it resolves on the recipient's machine to
+  whatever they are running. `/api/health` reports `link_host` as `env`,
+  `request` or `none`.
+  **A story card is a file handed to the share sheet, never a tab.** *(§114.)*
+  Instagram and Snapchat took `window.open(card)`, which is a blocked popup
+  on every mobile browser, and when it did open it was an **SVG document in a
+  tab** - neither platform accepts SVG, there is no "add to story" on a tab,
+  and the wording was left behind in the page they came from. The card is
+  fetched, rasterised to PNG in the page and passed to `navigator.share` as a
+  file. In the page rather than on the server, because `sharing.story_card`
+  is SVG precisely so it needs no image library and a browser already has
+  one; through a `data:` URL rather than a blob URL, because Safari treats an
+  SVG from a blob URL as cross-origin and taints the canvas, which is the one
+  browser this feature is mostly used from.
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
   share sheet, or a platform SDK hand-off where their app does the posting with
@@ -1466,6 +1592,19 @@ the rest of this list it needs taste rather than a key.
   somebody types agreeing with each other is the same mistake made twice and
   then compared to itself. That generalises past this feature: **a guard whose
   subject is enumerated by hand is decorative.**
+  **And it is said out loud at boot now, because nobody reads a health page**
+  *(§114).* The reported symptom was "the accounts and data are wiped every
+  time a new Render deployment is made", which is exactly what the
+  measurement below was built to answer - and it was answering to an empty
+  room. `_announce_storage` logs it once at startup under a deliberately
+  narrow condition: a store is ephemeral **and** its environment variable is
+  set. That pair is the whole diagnosis - it means this deployment asked for
+  a mounted disk and did not get one, which is a service created outside the
+  blueprint, or a disk added without a redeploy. A laptop trips neither half,
+  which is the point: a warning every developer sees on every run is a
+  warning nobody reads, which is how this one got missed.
+  `python tools/storage_doctor.py`, locally or `--url` against the running
+  deployment, asks it on demand and prints the fix beside the answer.
   And `/api/health` reports `storage`, **measured rather than configured** -
   §52 applied to durability. A mounted volume is a different filesystem, so
   `st_dev` answers it: a database on the same device as the code is inside the
@@ -1644,13 +1783,23 @@ Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 not open a pull request unless asked.
 
 Read in this order: this file for where it is going and what is settled,
-`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§112 are
+`PROBLEMS.md` for every problem hit and its cause (newest last — §108-§114 are
 the most recent: the opening of every researched episode turned out to be
 written by the half that knew least, what happens when the search comes
 back empty turned out to be "write it from memory anyway", a DailyFAM mix
-turned out to be unable to accept a topic anybody typed, and one change on
+turned out to be unable to accept a topic anybody typed, one change on
 RunPod turned out to cost a day because the address of the voice was a fact
-about somebody else's infrastructure kept in this app's environment), `MYFAM.md` for the browse page and the live story pool that fills
+about somebody else's infrastructure kept in this app's environment, a wake
+was suppressed for the first minute of every machine's life by a sentinel the
+clock could produce, and **§114** is six things that were each behaving
+correctly against a question nobody was asking - a share link that was
+correct and relative, a profile page full of true statements drawn for
+somebody with no account, a Trending rail filled from leftovers, a ranker
+blind to the subtags it was given, a seed nobody could take back out, and a
+disk that was declared and never attached; and **§115**, found while getting
+§114 ready to merge - CI had been red on `Main` for nine merges on one
+assertion that was *right*, and the reason nobody saw it is that this
+container has no webfonts and the runner does), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1670,12 +1819,12 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **fifty-two** named smoke
+**twice** - once per preview build - and **fifty-five** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 52 as of §107.)
+prose does not fail when somebody adds a behaviour. (It is 55 as of §114.)
 
 **There is a third browser run, and it is not one of those two** (§106). The
 share landing page is a different page from `static/index.html` - one episode,
@@ -1700,6 +1849,22 @@ What is true but not obvious from the code:
   for at least ten merges (§106), always the same assertion, and a red board
   stops being read. `mcp__github__actions_list` on `ci.yml` filtered to `Main`
   answers it in one call.
+  **It happened again** (§115): nine more merges, one assertion, and that note
+  above was not enough on its own. Do the one call before trusting a green
+  local run, and do it *before* starting work rather than at the end - the
+  answer decides whether a failure you hit is yours.
+- **The build container's fonts are part of the test environment, and nothing
+  declares them.** *(§115.)* There is no route to Google Fonts here, so
+  Chromium substitutes a narrower serif; the CI runner loads the real face.
+  A smoke check that measures text therefore passes here and fails there on
+  identical markup - which is how a genuinely clipped headline shipped and
+  stayed. This is §106's "a green `./dev.sh check` is not a green CI" with
+  nothing to do with the interpreter, and §113's "the container's uptime is
+  part of the environment" in a third form. **When a layout assertion
+  disagrees between here and the gate, suspect the environment before the
+  markup, and read what the check says it measured** - `smoke_preview.py`
+  prints the font, the size, the line height and both heights precisely
+  because the answer is not in the source.
 - There is **no API key** in the build container, so writing quality and
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing

@@ -507,6 +507,9 @@ def main() -> int:
             because `openSaved` unwound the Your FAM sheet whether or not that
             sheet was open - and a `goBack()` on the profile takes the profile
             off the stack."""
+            # The Profile tab is a door without an account (§114), so this is
+            # not a check that can be run as a guest - the shelf is behind it.
+            ensure_account()
             page.evaluate("openProfile()")
             page.wait_for_selector("#screen-profile.active .pf-hub-tile",
                                    timeout=10000, state="attached")
@@ -905,8 +908,12 @@ def main() -> int:
             placeholders reading "e.g. Ian Solomon" and "iansolomon": a real
             name and handle offered to every listener in the app.
 
-            It is one screen now, with the picture, the name, the username,
-            the password row and the choice of which interests are shared."""
+            It is one screen now, with the picture, the name, the username
+            and the account rows.
+
+            Which interests are *shared* used to be here too and is not any
+            more (§114): that choice is on the profile, beside the row it
+            changes. This screen is who you are, not what you show."""
             ensure_account()
             # Somebody with a profile to edit. A listener who has never set
             # one gets the same screen with empty fields, which is correct and
@@ -928,8 +935,8 @@ def main() -> int:
                 "the editor's own rows are hidden in the editor"
             rows = page.text_content("#identityAccountRows") or ""
             assert "Change password" in rows, "no way to change a password"
-            shared = page.text_content("#identityShared") or ""
-            assert shared.strip(), "nothing about which interests are shared"
+            assert not page.query_selector("#identityShared"), \
+                "the interests editor is still three taps from the row it changes"
 
             # Prefilled from what is stored, so an editor opens on the current
             # state rather than on empty fields somebody has to retype.
@@ -1256,7 +1263,14 @@ def main() -> int:
             """§107, item 6. A bare row of words with nothing naming them, so
             a listener had to work out from the words themselves whether they
             were looking at what they chose, what they played, or something
-            the app decided about them."""
+            the app decided about them.
+
+            Edit opens the profile's own chooser now rather than the first-run
+            interests screen (§114). Those are two different questions - that
+            screen asks what to *play*, this one asks what to *show* - and
+            answering the second inside the first was how "Shared on your
+            profile" ended up three taps from the row it changed."""
+            ensure_account()
             page.evaluate("openProfile()")
             page.wait_for_selector("#screen-profile.active .pf-tags", timeout=10000)
             page.wait_for_timeout(400)
@@ -1264,12 +1278,12 @@ def main() -> int:
             edit = page.query_selector(".pf-tags-edit")
             assert edit, "there is no way to change what is on show"
             page.evaluate("document.querySelector('.pf-tags-edit').click()")
-            page.wait_for_selector("#screen-intro.active", timeout=10000)
+            page.wait_for_selector("#sheetOverlay.active .pi-grid", timeout=10000)
+            page.wait_for_timeout(300)
+            # And it closes back to the profile it was opened from, rather
+            # than to Settings - the trap this app has now hit three times.
+            page.evaluate("closeSheet()")
             page.wait_for_timeout(400)
-            # And it comes back to the profile it was opened from, rather than
-            # to Settings - the trap this app has now hit three times.
-            page.evaluate("closeIntroToSettings()")
-            page.wait_for_timeout(500)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-profile", "editing from the profile landed elsewhere"
 
@@ -1400,6 +1414,108 @@ def main() -> int:
             text = page.text_content("#screen-playfam .locked-note").lower()
             assert "start you over" in text, \
                 "the gate did not say signing up keeps what they already have"
+
+        def signed_out():
+            """Present as a guest without destroying the session.
+
+            `AUTH` is what every gate in the app reads, and it is the server's
+            answer rather than anything this page decides - so faking it is
+            exactly the state a guest is in, and it is reversible. Actually
+            logging out of the live preview would take the session token with
+            it and every check below would have to sign up again.
+            """
+            page.evaluate(
+                "AUTH = {user_id:'', email:'', authenticated:false}")
+
+        def signed_back_in():
+            """Put the real answer back. Asked of the server, not restored
+            from a variable, so a check after this one sees the truth."""
+            page.evaluate("() => refreshAuth()")
+            page.wait_for_timeout(400)
+
+        def the_profile_tab_is_a_door_until_there_is_an_account():
+            """Not a profile with pieces missing.
+
+            It used to draw the whole page for a guest - name, counts,
+            shelves, vibes - with a note at the bottom offering an account.
+            Everything on it was true, and that was the problem: a profile is
+            the one screen that is *about* having an account, so drawing a
+            full one for somebody without one invites them to furnish a room
+            the app is about to say is not theirs.
+            """
+            signed_out()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile .pf-gate", timeout=10000)
+            assert not page.query_selector("#screen-profile .pf-id"), \
+                "a guest was shown a profile"
+            assert page.eval_on_selector_all("#screen-profile .pf-gate .pf-btn",
+                                             "e => e.length") == 2, \
+                "the gate offered no way to sign up or log in"
+            signed_back_in()
+
+        def an_account_gate_opens_the_real_sign_up_screen():
+            """Every Sign up button in the app reaches the same screen.
+
+            They used to open two chained modals asking for an address and
+            then a password - a form that cannot offer a phone number, Google
+            or Apple. So a listener who reached an account from DailyFAM and
+            one who reached it from the front door were shown two different
+            products, and only one of them was the product.
+
+            Asserted by pressing it, not by reading the markup: §111 is that
+            a control which is on screen and does somebody else's job is
+            exactly what a presence check cannot see.
+            """
+            signed_out()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile .pf-gate", timeout=10000)
+            page.click("#screen-profile .pf-gate .pf-btn.primary")
+            page.wait_for_selector("#screen-auth.active", timeout=10000)
+            assert page.text_content("#authTitle").strip().lower() == "sign up"
+            # And it knows where it came from, so the gate is simply working
+            # when they get back to it.
+            page.click("#screen-auth .back-row .back")
+            page.wait_for_selector("#screen-profile.active", timeout=10000)
+            signed_back_in()
+
+        def the_profile_shows_four_interests_and_can_be_edited_there():
+            """"Only the top 3-4", and the control next to the row it changes.
+
+            It used to be twelve pills in a fixed order - what they chose,
+            then what the log inferred - so six words picked in thirty
+            seconds on the first run outranked a month of listening for good,
+            and the row grew with every episode until it listed everything
+            somebody had been near.
+            """
+            ensure_account()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile .pf-tags", timeout=10000)
+            shown = page.eval_on_selector_all(
+                "#screen-profile .pf-tags .pf-tag", "e => e.length")
+            assert shown <= 4, f"the profile drew {shown} interests"
+            page.click("#screen-profile .pf-tags-edit")
+            page.wait_for_selector("#sheetOverlay.active .pi-grid", timeout=10000)
+            available = page.eval_on_selector_all("#sheetOverlay .pi-pill",
+                                                  "e => e.length")
+            assert available, "the editor offered nothing to choose from"
+            # Four is the cap, and the fifth tap has to say so rather than
+            # doing nothing - a tap that does nothing reads as a broken
+            # button, which is worse than a cap.
+            #
+            # Re-queried each time rather than held: every toggle redraws the
+            # grid, so a handle taken before the first tap is detached by the
+            # second. That is also the behaviour under test - a list that
+            # shortened as you chose would make the cap look like the app
+            # losing options - so the check has to survive it.
+            for i in range(min(5, available)):
+                page.eval_on_selector_all(
+                    "#sheetOverlay .pi-pill",
+                    "(e, i) => e[i] && e[i].click()", i)
+                page.wait_for_timeout(120)
+            on = page.eval_on_selector_all("#sheetOverlay .pi-pill.on",
+                                           "e => e.length")
+            assert on <= 4, f"the editor let {on} interests be chosen"
+            page.evaluate("closeSheet()")
 
         def the_bar_can_be_dragged_to_seek():
             """Sliding the bar is a seek, and it has to be a real one.
@@ -2175,6 +2291,12 @@ def main() -> int:
               whats_next_offers_four_and_counts_down)
         check("The bar can be dragged to seek", the_bar_can_be_dragged_to_seek)
         check("The account gate reads as a choice", the_account_gate_reads_as_a_choice)
+        check("The profile tab is a door until there is an account",
+              the_profile_tab_is_a_door_until_there_is_an_account)
+        check("An account gate opens the real sign-up screen",
+              an_account_gate_opens_the_real_sign_up_screen)
+        check("The profile shows four interests and edits them there",
+              the_profile_shows_four_interests_and_can_be_edited_there)
         check("DailyFAM lists mixes", dailyfam)
         check("picker offers a typed topic", picker)
         check("Explore plays and advances", explore)

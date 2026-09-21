@@ -8190,3 +8190,313 @@ zero timestamp.
 `test_wake_fires_on_a_machine_that_has_only_just_booted` pins it by faking a
 twelve-second-old clock, because the condition cannot otherwise be reached on
 a machine that has been up long enough to run the suite.
+
+## 114. A share link that was correct and useless, and three other things nobody could see from inside
+
+Six items in one packet, and four of them share a shape worth naming before
+the individual fixes: **the app was behaving correctly against a question
+nobody was asking.** A relative URL is a correct URL. A profile page drawn
+for a guest is full of true statements. A rail filled from what was left over
+is filled in the order it was told to fill. Seeded demo data is data. Each of
+these was working exactly as written and answering the wrong question, and
+none of them can be seen from inside the app - which is why they all arrived
+as a listener's report rather than as a failure.
+
+### The link did not work, and had never worked anywhere
+
+`POST /api/share` returned `/s/abc123` on every deployment, because
+`_share_url` read `PUBLIC_BASE_URL` and **nothing anywhere prompts for it**:
+not `render.yaml`, not the Dockerfile, not the first run, not the health page
+beyond a boolean. So the setting was unset, and unset was handled - honestly,
+even, with `public: false` and a sentence in the share sheet saying the link
+only works on this network. The feature was complete apart from the one part
+that leaves the machine.
+
+The fix is the rule `/api/health` already lives by: **measure the thing
+rather than read a setting that describes it.** A request arrived, so this
+server has an address at least one client outside it could reach, and that
+address is in the request. `app._public_base` reads `X-Forwarded-Proto` and
+`X-Forwarded-Host` (first value of each, because a forwarded header
+accumulates one entry per hop) and falls back to `Host`. Behind Render's
+router the connection itself is plain HTTP, so a link built from
+`request.url` alone would be `http://` on an HTTPS site.
+
+Two things it is careful about. `PUBLIC_BASE_URL` still wins when set,
+because it is the only way to name a host this server is *not* reached at -
+a custom domain in front of a Render URL. And a loopback or wildcard host is
+refused outright and still reports `public: false`: a link to `localhost`
+is worse than a relative one, because it looks like a URL, so it gets posted,
+and it resolves on the recipient's own machine to whatever they are running.
+
+`/api/health` now reports `link_host` as `env`, `request` or `none`. Three
+states that were indistinguishable from outside, and only one of them used to
+exist.
+
+### Instagram and Snapchat, in two lines and three failures
+
+    window.open(shareTargets.card, "_blank");
+    toast("Card ready - add it to your story");
+
+`window.open` on a mobile browser is a blocked popup, and a blocked popup is
+silent - the toast said the card was ready and nothing appeared. When it did
+open, what opened was an **SVG document in a browser tab**: neither platform
+accepts an SVG, and there is no "add to story" anywhere on a tab, so the
+listener's only move is a screenshot - which is the exact thing the card
+exists to stop them doing. And the wording, which is the whole point of a
+share, was left behind in the tab they came from.
+
+The card is now fetched, rasterised to PNG in the page, and handed to
+`navigator.share` as a **file**, which is what the platforms' own apps
+accept, with the text alongside. Rasterising in the browser rather than on
+the server keeps `sharing.story_card`'s reason for being SVG intact - it
+needs no image library - and a browser already has one. Through a `data:` URL
+rather than a blob URL, because Safari treats an SVG from a blob URL as
+cross-origin and taints the canvas, so `toBlob` throws on exactly the browser
+this feature is mostly used from. Where there is no file sharing it
+downloads: a file on disk is a card somebody can post, an unexplained tab is
+not.
+
+### Trending showed one tile because it was filled last
+
+Reported as "there are times when there is only one trending episode being
+displayed... at all times I want there to be at least four". The cause is in
+`FILL_ORDER` rather than in any source. Trending was filled **after** the four
+personal rails, from what they had not claimed, and Made for you draws on the
+same live pool - so on a day the pool held five stories and a listener's taste
+matched four of them, the world row got one.
+
+`WORLD_FLOOR` tiles are now set aside before anything else chooses, and the
+trade is stated rather than buried: on a thin pool Made for you loses its best
+live tile. That is the right way round *only* because Made for you draws on
+both inventories and can never be empty - the bank is twenty-eight topics -
+while Trending draws on the live pool alone and has nowhere else to go.
+
+One refinement that matters: the reservation happens **only when it buys the
+floor**. A pool of one cannot fill this row however it is shared out, so
+holding that story back would take it off the personal rail and still leave
+Trending short - a cost with nothing bought.
+
+### "A random small school college football matchup I've never indicated interest in"
+
+Two causes, and the interesting one is that the vocabulary could not express
+the problem.
+
+The first is that `_affinity` was **blind to subtags**. §80 added twenty-nine
+of them precisely so a listener who plays chip episodes could be told apart
+from one who plays tech generally - and the scorer summed every tag with the
+same weight, so `sports` and `sports-drama` counted identically. The
+resolution added to the vocabulary was being thrown away by the ranking.
+`SUBTAG_WEIGHT` is the other half of that change.
+
+The second cannot be fixed that way at all, and saying so is the useful part:
+**there is no tag for the NFL and none for college football.** Both are
+`sports`. No weighting distinguishes them, and nothing should pretend it
+does. What is knowable without inventing a vocabulary is whether this listener
+has ever *said* any of the words on the tile - `topics.familiar_words` reads
+their own searches and plays out of the event log, which is a fact about them
+rather than a guess about the subject. A live story whose only claim is a
+whole facet and whose words they have never used is cut by
+`BROAD_MATCH_PENALTY`.
+
+It damps and never excludes, and it is applied to live stories only. A
+listener one episode into the app has almost no familiar words, and a rule
+would empty their rail in the name of relevance; the evergreen bank is
+twenty-eight subjects chosen to be broad, so penalising breadth there would
+penalise the whole inventory.
+
+`RELEVANCE_FLOOR` is the third and bluntest of the three. `rank_from_history`
+kept anything scoring `> 0`, which every tile sharing one barely-touched facet
+clears - so the rail was very nearly the bank, sorted, under a heading
+claiming it had been chosen for this listener.
+
+### "What you missed last week" widened, and the fill order had to move with it
+
+At the owner's direction the rail now draws on three things, any of which
+qualifies: offered to them (the impression log, as before), played by other
+listeners this week, or in the live story pool. CLAUDE.md said plainly that
+there is "no top-up from the bank and a short rail is short, because the
+heading is a claim about what this app did" - and the direction is that the
+heading should be a claim about *the week*, which is a bigger and still true
+thing. The standing bank is deliberately still not a source: an evergreen
+explainer nobody was offered and nobody played did not happen last week.
+
+Two consequences that were not obvious.
+
+**The fill order could not simply stay.** `missed` fills first because it was
+the narrowest inventory on the page. Widening it to the live pool made it
+claim the brand-new story that Made for you exists to offer, and a tile that
+is on the page is not one anybody missed. So trending is excluded from the
+rail's first pass and it is topped up from the leftovers afterwards - trending
+is the *last* source for this row rather than the first.
+
+**A relevance floor over an empty profile rejects everything.** Impressions
+deliberately never reach `taste`, so a listener who has chosen nothing and
+played nothing scores 0.0 against every tile, and the rail most use to exactly
+that listener would have been empty. With nothing to rank on it falls back to
+what it always was: what was put in front of them, newest first. The claim
+shrinks to the one the evidence supports, which is the same move §88 makes
+about thin evidence.
+
+### The profile listed everything and updated never
+
+The pill row was chosen facets, then chosen subjects, then whatever the log
+had inferred, twelve of them, in that fixed order. Two faults in one line:
+six words picked in thirty seconds on the first run outranked a month of
+listening for good, and twelve is not a row, it is an inventory.
+
+`topics.ranked_interests` ranks by the same `taste` profile every myFAM rail
+is built from, so it moves as they listen, and declared interests are not
+lost by that - `taste` folds them in at `INTEREST_WEIGHT` before it
+normalises, which is exactly a starting position that behaviour outvotes.
+`topics.profile_interests` cuts it to four, pinned or top, and returns which
+- because those look identical on screen and the line of copy under them is
+only true of one.
+
+The editor moved with it. "Shared on your profile" was inside Edit profile,
+three taps from the row it changed, and phrased as hiding rather than as
+choosing. It is now on the profile, next to the pills, and it is a choice
+about **showing** and never about liking: nothing there writes `interests`
+and nothing there touches the ranker.
+
+The boundary that needed thinking about: **their own page may be ranked off
+their listening and `/api/person` may not.** §104's rule is that what
+somebody has listened to is theirs, and an inferred pill row on a stranger's
+view of them would publish exactly that, in a form that reads as a statement
+they made. A pin is a statement. A declared interest is a statement. So the
+public view is the pinned set, or declared-minus-hidden, capped at the same
+four - and pinning is how somebody's own page becomes their public one.
+
+### The profile page, for somebody who has not signed up
+
+It drew the whole thing - name, counts, shelves, vibes - with a note at the
+bottom offering an account. Everything on it was true, which is why it
+survived this long, and it is still the wrong screen: a profile is the one
+page that is *about* having an account, so drawing a full one for a guest
+invites them to furnish a room the app is about to say is not theirs. It is
+now a door, and it makes no request for a profile it is not going to draw.
+
+Under it, a second door that should never have existed. Every gate in the app
+- DailyFAM, messages, Settings, the profile's own note - opened
+`createAccount()` and `signIn()`, two chained modals asking for an address
+and then a password. That form **cannot offer a phone number, Google or
+Apple**, all of which the real screen has. So a listener who reached an
+account from DailyFAM and one who reached it from the front door were being
+shown two different products, and only one of them was the product.
+
+`gateActions()` is the one pair of buttons now, and the makeshift pair is
+**deleted rather than left unused** - the Piper reasoning, for the third
+time: a second sign-up form left standing is one somebody wires a new gate to
+by accident. `openAuth` already knew how to come back to the screen it was
+opened from, which is why this is a smaller change than it looks.
+
+And "Skip for now" on the welcome screen became **"Continue as guest"**. The
+two setup steps behind it still say "Skip for now" and that is right there -
+a step you skip comes back. This one does not: it is a way of using the app.
+
+### The seed could not be taken back out
+
+`tools/seed_demo.py` writes three invented listeners and their plays so the
+browse surfaces have something to show on a fresh install. That is right while
+*showing* the product and wrong while **measuring** it: every seeded play is a
+vote in `topics.taste`, so "is myFAM recommending the right things" had an
+unknown share of its answer coming from people who do not exist. There was no
+way to undo it, and the place it is actually needed - a container host - is
+the one place there is no shell.
+
+`tools/wipe_demo_data.py` is the inverse and lives beside it.
+`POST /api/admin/wipe` is the same function behind `FAM_ADMIN_TOKEN`, 404
+without it. Both default to a dry run, in both directions: a request body that
+forgot a field must not be the one that empties the event log.
+
+The seed scope removes exactly what the seed wrote, identified by
+`scripts.author` - which the cache already keeps so Explore can leave
+somebody's own episodes off their own feed. A script with **no** author is
+left alone: it was not provably seed data, and guessing is how a real
+listener's episode gets deleted.
+
+### Why a redeploy erases the listeners
+
+The answer is yes, the databases live inside the deployment, and the code was
+already correct: every store is pinned to `/data` in the Dockerfile,
+`tests/test_data_paths.py` derives that list from the modules rather than
+from a second hand-written copy, and `render.yaml` declares a 1 GB disk at
+that mount path. What is missing is the disk itself - a service created from
+the dashboard rather than from the blueprint has none, and a disk added later
+needs a redeploy to take effect.
+
+§107 built the measurement for this: `/api/health` reports `persistence` per
+database from `st_dev`, so a store pointed at `/data` on a host with no disk
+attached reports `image`. **It was answering to an empty room.** Nobody reads
+a health page on the way past, and from outside a wiped database and a fresh
+install are identical - the app comes up, the schema is created, the page is
+green.
+
+So it is said now. `_announce_storage` logs it at boot, once, and the
+condition is deliberately narrow: a store is ephemeral **and** its environment
+variable is set. That pair is the whole diagnosis - it means this deployment
+asked for a disk and did not get one. A laptop trips neither half, which is
+the point: a warning every developer sees on every run is a warning nobody
+reads, which is how this one got missed.
+
+`python tools/storage_doctor.py`, locally or `--url` against the deployment,
+asks the same question on demand and prints the Render steps beside the
+answer.
+
+## 115. The board had been red for nine merges, and the cause was a font
+
+Found while getting §114 ready to merge rather than by looking for it, which
+is the whole point of the entry: **CI had failed on every push to `Main` for
+at least nine merges**, always on the same assertion, and nobody had looked.
+§106 wrote that exact sentence down about an earlier stretch of red - "a red
+board stops being read" - and it happened again, which says the note was not
+enough on its own.
+
+The assertion was `Go Deeper titles are not cut off`, and it was **right**.
+The longest thing a `<<NEXT:>>` follow-up can be - the prompt asks for six to
+twelve words - wraps to four lines in Fraunces at 10.5px in the 109px column
+a Go Deeper card gives it. The card was 68px with `-webkit-line-clamp: 3`, so
+the fourth line was cut mid-word, on the one card type whose text the topic
+bank does not control.
+
+### Why it survived, which is the part worth keeping
+
+**The check renders in whatever font the machine has.** This build container
+has no route to Google Fonts, so Chromium falls back to a narrower generic
+serif and the title fits three lines; the CI runner loads the real face and it
+does not. Same markup, same viewport, same browser, two answers - and the half
+that was wrong was the half a developer looks at:
+
+    local:  scrollHeight 39, clientHeight 39   ok
+    CI:     scrollHeight 53, clientHeight 39   FAIL
+
+So `./dev.sh check` was green on a genuinely clipped headline. That is §106's
+finding arriving through a second door: the first time the gap was the Python
+version, and this time it has nothing to do with the interpreter at all. **The
+build container's installed fonts are part of the test environment, and
+nothing declares them** - exactly as §113 found about its uptime.
+
+The check itself was already built for this and is why the cause took minutes
+rather than a session: it prints what it *measured* - the font family, the
+size, the line height, the two heights, and whether webfonts loaded - rather
+than only which titles lost. A check that had asserted and said nothing would
+have read as a flake on a machine where it passes.
+
+### The fix, and why the number is written down
+
+80px and a four-line clamp. The arithmetic is in the CSS beside it: four lines
+at 13.125px is 52.5, plus the title's 2px margin, plus the meta line at
+~9.4px, plus 15px of card padding - 79.4, rounded up. Verified by forcing a
+wider face into the same card and confirming the meta line still lands inside
+it, because the failure mode of getting this wrong is not a clipped title, it
+is a clipped *timestamp* under an uncut one.
+
+Written down rather than eyeballed because the next person to change the font
+size, the line height or the clamp has to redo it, and because the check that
+would catch them getting it wrong only fires on a machine with the font.
+
+**What is still open**: nothing declares the fonts, so the next
+font-dependent assertion can diverge the same way. The cheap answer is for
+the check to fail loudly when `document.fonts.check` says the real face is
+absent - measuring layout in a substituted font is not a weaker version of
+the test, it is a different test - but that is a change to the harness rather
+than to the app, and it is worth doing when somebody is next in that file.

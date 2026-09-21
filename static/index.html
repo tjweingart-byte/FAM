@@ -271,6 +271,17 @@
     color:var(--copper); cursor:pointer; }
   .pf-note{ padding:14px; border:1px dashed var(--border-strong); border-radius:12px;
     font-size:10.5px; line-height:1.55; color:var(--text-muted); margin-top:14px; }
+  /* The whole Profile tab, for somebody with no account. Centred and short
+     on purpose: this is a door, not a page with things missing, so it is
+     laid out like the welcome screen rather than like a profile. */
+  .pf-gate{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; min-height:58vh; padding:0 26px; gap:2px; }
+  .pf-gate-mark{ color:var(--text-muted); opacity:0.5; margin-bottom:10px; }
+  .pf-gate-h{ font-family:'Fraunces', Georgia, serif; font-size:21px; line-height:1.2;
+    color:var(--text); margin-bottom:8px; }
+  .pf-gate-lede{ font-size:11px; line-height:1.65; color:var(--text-muted);
+    max-width:280px; margin:0; }
+  .pf-gate .pf-acts{ justify-content:center; padding-top:20px; }
   /* The crop editor. A square stage with the circle inscribed, so what is
      dimmed is exactly what will be lost - and the export reads the same
      numbers the preview is painted from. */
@@ -843,6 +854,27 @@
     color:var(--text-muted); font-family:'JetBrains Mono', monospace;
     font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase;
     font-weight:700; cursor:pointer; }
+  /* Only drawn under the automatic row - see renderProfile. */
+  .pf-tags-note{ font-size:9.5px; line-height:1.5; color:var(--text-muted);
+    margin-top:9px; }
+
+  /* Choosing which interests the profile shows. Lives in the action-sheet
+     overlay rather than in a screen of its own: it is one question with one
+     answer and it is asked from the row it changes. */
+  .pi-head{ padding:16px 18px 10px; }
+  .pi-h{ font-family:'Fraunces', Georgia, serif; font-size:16px; color:var(--text); }
+  .pi-sub{ font-size:10px; line-height:1.5; color:var(--text-muted); margin-top:5px; }
+  .pi-grid{ display:flex; flex-wrap:wrap; gap:8px; padding:4px 18px 14px; }
+  .pi-pill{ border:1px solid var(--border-strong); border-radius:16px; height:31px;
+    display:inline-flex; align-items:center; padding:0 13px; font-size:11px;
+    color:var(--text); cursor:pointer; user-select:none; }
+  .pi-pill.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  /* Greyed, never removed: a list that shrank as you chose would read as the
+     app losing options rather than as a cap being reached. */
+  .pi-pill.full{ opacity:0.38; }
+  .pi-acts{ display:flex; gap:9px; padding:12px 18px 18px;
+    border-top:1px solid var(--border); }
+  .pi-acts .pf-btn{ flex:1; }
 
   .mix-private{ color:var(--text-muted); }
   .mix-vis{ display:flex; align-items:center; justify-content:space-between; gap:14px;
@@ -902,16 +934,32 @@
      real phone, where they had fitted in the preview. A fixed height rather
      than a min, because the grid equalises rows anyway - without it the
      longest title sets the height of all four. */
+  /* 80px, and the clamp below is four lines rather than three.
+     It was 68px and three, which held every bank title and *not* the longest
+     thing a `<<NEXT:>>` follow-up can be - the prompt asks for six to twelve
+     words, and twelve of them wrap to four lines in Fraunces at this size in
+     a 109px column. So the last line was cut mid-word on the one card type
+     whose text the bank does not control.
+     It survived because the check that measures this renders in whatever
+     font the machine has: a build container with no route to Google Fonts
+     falls back to a narrower serif and fits three lines, while CI loads the
+     real face and does not. Same markup, two answers - which is why the
+     check prints what it measured, and why this number is derived below
+     rather than eyeballed. */
   .gd-card{ position:relative; overflow:hidden; padding:7px 11px 8px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border); cursor:pointer;
-    display:flex; flex-direction:column; justify-content:space-between; height:68px; }
+    display:flex; flex-direction:column; justify-content:space-between; height:80px; }
   .gd-card:active{ transform:scale(0.99); }
   /* flex:none matters. Without it the column shrinks the title below the
-     three lines the clamp allows, so text was cut with room still in the
-     card - which is what the clamp was supposed to prevent. */
+     lines the clamp allows, so text was cut with room still in the card -
+     which is what the clamp was supposed to prevent.
+     The arithmetic the 80px above comes from: four lines at 13.125px is
+     52.5, plus this 2px margin, plus the meta line at ~9.4px, plus 15px of
+     card padding - 79.4, rounded up. Anything that changes the font size,
+     the line height or the clamp has to redo it. */
   .gd-card-title{ font-family:'Fraunces', serif; font-weight:500; font-size:10.5px;
     line-height:1.25; color:var(--text); margin-bottom:2px; flex:none;
-    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
   .gd-card-meta{ font-family:'JetBrains Mono', monospace; font-size:7.5px; letter-spacing:0.06em;
     text-transform:uppercase; color:var(--copper); }
   .gd-card.resume .gd-card-meta{ color:var(--text-muted); }
@@ -1622,10 +1670,18 @@
       </div>
 
       <!-- ============ ENTRY ============
-           Shown once, on the first open. "Skip for now" is a first-class
+           Shown once, on the first open. "Continue as guest" is a first-class
            path rather than a link in small type: an account gates what the
            server stores for you, never what you can hear, so refusing one
-           has to cost nothing to reach. -->
+           has to cost nothing to reach.
+
+           It said "Skip for now", which is what the two setup steps behind it
+           still say - and they are the right words there, because a step you
+           skip comes back. This one does not: it is a way of using the app,
+           not a postponement, and the listener who takes it is a guest for as
+           long as they like. Naming it for the thing it actually does is also
+           what makes the rest of the guest rules readable (the profile tab
+           asks for an account, and every gate's buttons lead here). -->
       <section class="screen" id="screen-welcome">
         <div class="scroll">
           <div class="entry-wrap">
@@ -1639,7 +1695,7 @@
             <div class="entry-acts">
               <button class="entry-btn primary" onclick="openAuth('signup')">Sign Up</button>
               <button class="entry-btn" onclick="openAuth('login')">Log In</button>
-              <div class="entry-skip" onclick="skipAccount()">Skip for now</div>
+              <div class="entry-skip" onclick="skipAccount()">Continue as guest</div>
             </div>
           </div>
         </div>
@@ -1802,10 +1858,9 @@
 
            `identityMode` decides three things and nothing else: whether there
            is an X, what the docked button says, and where saving goes. The
-           two blocks that are only an editor's business - a password change
-           and which interests are shared - are hidden during the first run,
-           where there is no password to change yet and nothing chosen to
-           share. -->
+           one block that is only an editor's business - the account, and the
+           password change on it - is hidden during the first run, where there
+           is no password to change yet. -->
       <section class="screen" id="screen-identity">
         <div class="intro-top" id="identityTop" hidden>
           <button class="sheet-close" onclick="closeIdentity()"
@@ -1846,12 +1901,13 @@
                 underscores. This is what people search for.</div>
             </div>
 
+            <!-- No "Shared on your profile" here any more. Choosing which
+                 interests the profile draws is done on the profile, next to
+                 the row it changes (`openProfileInterests`), which is where
+                 the owner asked for it and where a control that edits a
+                 visible thing belongs. This screen is a name, a handle, a
+                 picture and the account - who you are, not what you show. -->
             <div id="identityEditOnly" hidden>
-              <div class="set-group">Shared on your profile</div>
-              <p class="id-note">Your interests are on your profile. Tap one to
-                keep it to yourself &mdash; it still ranks what you hear.</p>
-              <div class="pf-tags" id="identityShared"></div>
-
               <div class="set-group">Account</div>
               <div id="identityAccountRows"></div>
             </div>
@@ -4479,6 +4535,131 @@
     document.getElementById("sheetOverlay").classList.remove("active");
   }
 
+  // ---------------- Which interests the profile shows ----------------
+  //
+  // The editor the owner asked for, on the page it is about. It replaces
+  // "Shared on your profile" inside Edit profile, which was the same choice
+  // asked three taps away from the row it changed and phrased as hiding
+  // rather than choosing.
+  //
+  // Two things it is careful about:
+  //
+  // * **It is a choice between showing and not showing, never between
+  //   liking and not liking.** Nothing here writes `interests` and nothing
+  //   here touches the ranker: an interest taken off the profile still ranks
+  //   every rail on myFAM exactly as it did. Interests-for-playing is the
+  //   first-run screen, reachable from Settings, and keeping the two apart is
+  //   what stops somebody tidying their profile and quietly changing their
+  //   feed.
+  // * **Choosing nothing is a real answer**, and the default one: an empty
+  //   pin means the profile keeps showing the top few by what they listen to,
+  //   which is the behaviour this whole item is for. So "Choose for me" is a
+  //   button rather than the absence of a choice.
+  var profileInterestPick = [];      // ids, in the order they were tapped
+  var profileInterestRanked = [];
+
+  function openProfileInterests(){
+    profileInterestRanked = (profileNow && profileNow.interests_ranked) || [];
+    profileInterestPick = ((profileNow && profileNow.interests_pinned) || []).slice();
+    if(!profileInterestRanked.length){
+      toast("Nothing to choose from yet \u2014 listen to a few episodes first");
+      return;
+    }
+    renderProfileInterests();
+    document.getElementById("sheetOverlay").classList.add("active");
+  }
+
+  function profileInterestMax(){
+    return (profileNow && profileNow.interests_max) || 4;
+  }
+
+  function renderProfileInterests(){
+    var max = profileInterestMax();
+    var picked = profileInterestPick.length;
+    var html = '<div class="pi-head">'
+      + '<div class="pi-h">Interests on your profile</div>'
+      + '<div class="pi-sub">' + (picked
+          ? escapeHtml(picked + " of " + max + " chosen")
+          : "Showing your top " + max + ", kept up to date as you listen")
+      + '</div></div>';
+    html += '<div class="sheet-scroll"><div class="pi-grid">'
+      + profileInterestRanked.map(function(row, i){
+          var on = profileInterestPick.indexOf(row.id) !== -1;
+          // A full shelf greys out what is not on it rather than hiding it:
+          // a list that shortened as you chose would make the cap look like
+          // the app losing options.
+          var full = !on && picked >= max;
+          return '<div class="pi-pill' + (on ? " on" : "")
+            + (full ? " full" : "") + '" data-i="' + i + '">'
+            + escapeHtml(row.label) + '</div>';
+        }).join("") + '</div></div>';
+    html += '<div class="pi-acts">'
+      + '<button class="pf-btn" onclick="clearProfileInterests()">Choose for me</button>'
+      + '<button class="pf-btn primary" onclick="saveProfileInterests()">Done</button>'
+      + '</div>';
+    var card = document.getElementById("sheetCard");
+    card.innerHTML = html;
+    card.querySelectorAll(".pi-pill").forEach(function(el){
+      el.onclick = function(){ toggleProfileInterest(+el.dataset.i); };
+    });
+  }
+
+  function toggleProfileInterest(i){
+    var row = profileInterestRanked[i];
+    if(!row) return;
+    var at = profileInterestPick.indexOf(row.id);
+    if(at !== -1){ profileInterestPick.splice(at, 1); }
+    else if(profileInterestPick.length >= profileInterestMax()){
+      // Said rather than ignored. A tap that does nothing reads as a broken
+      // button, which is worse than a cap.
+      toast("Four is the most a profile shows \u2014 take one off first");
+      return;
+    }
+    else { profileInterestPick.push(row.id); }
+    renderProfileInterests();
+  }
+
+  function clearProfileInterests(){
+    profileInterestPick = [];
+    saveProfileInterests();
+  }
+
+  function saveProfileInterests(){
+    var chosen = profileInterestPick.slice();
+    closeSheet();
+    if(!AUTH.authenticated){
+      // Cannot happen from the profile, which is gated - but a control that
+      // silently does nothing off an account is the failure this project
+      // keeps a rule about, so it says so rather than posting into a 401.
+      toast("This needs an account");
+      return;
+    }
+    // Drawn immediately from what was chosen, rather than waiting for the
+    // round trip: the listener is looking at the row they just changed.
+    //
+    // The re-read is *chained* off the write rather than fired beside it.
+    // Unchained, `loadProfile` raced the POST and usually won - so the row
+    // was drawn correctly from the choice, then replaced a moment later by
+    // the server's pre-save answer, which reads as the app discarding what
+    // somebody just did.
+    if(profileNow){
+      profileNow.interests_pinned = chosen;
+      profileNow.interests_source = chosen.length ? "pinned" : "top";
+      if(chosen.length){
+        var by = {};
+        profileInterestRanked.forEach(function(r){ by[r.id] = r; });
+        profileNow.interests_shown = chosen.map(function(id){
+          return by[id] || { id: id, label: id, kind: "topic" };
+        });
+      }
+      renderProfile(profileNow);
+    }
+    savePreferences({ profile_interests: chosen })
+      // The automatic list is the server's to compute, so a cleared pin has
+      // to come back from it rather than be guessed at here.
+      .then(function(){ loadProfile(); });
+  }
+
   // ---------------- Length dropdown ----------------
   // Slower as well as faster, and **1x by default**. The old default was
   // 1.2x, which is a choice made on somebody's behalf about a voice they have
@@ -5010,7 +5191,7 @@
       + 'keeps for you, so it needs an account. Signing up keeps the listening '
       + 'you have already done \u2014 it does not start you over.'
       + '<div class="locked-acts">'
-      + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Create account</button>'
+      + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
       + '</div></div>';
   }
@@ -6266,8 +6447,45 @@
   function refreshAuth(){
     return fetch("/api/auth/me")
       .then(function(r){ return r.json(); })
-      .then(function(d){ AUTH = d; return d; })
+      .then(function(d){
+        var was = AUTH.authenticated;
+        AUTH = d;
+        // The Profile tab is decided entirely by this answer, so it is the
+        // one screen that has to be redrawn when the answer changes under
+        // it. Without this a cold open that lands on Profile before
+        // `/api/auth/me` replies leaves a signed-in listener looking at the
+        // gate, and nothing would ever ask again.
+        // Guarded, because a throw here would be swallowed by the catch
+        // below and `refreshAuth` would quietly resolve with the old answer -
+        // which is the one thing this function must never do.
+        var here = document.getElementById("screen-profile");
+        if(was !== !!d.authenticated && here && here.classList.contains("active")){
+          loadProfile();
+        }
+        return d;
+      })
       .catch(function(){ return AUTH; });
+  }
+
+  // The two buttons every account gate in the app draws, and the one place
+  // that decides where they go.
+  //
+  // They used to go to `createAccount()` and `signIn()`, which are two
+  // chained modals asking for an address and then a password - a makeshift
+  // form that looks nothing like the sign-up screen the app actually opens
+  // on, and that cannot offer a phone number, Google or Apple. So a listener
+  // who reached an account from the front door and one who reached it from
+  // DailyFAM were being shown two different products.
+  //
+  // `openAuth` is the real screen, and it already knows how to come back:
+  // it records the screen it was opened from and returns there once the
+  // account exists, so the gate the listener was standing at is simply
+  // working when they get back to it.
+  function gateActions(){
+    return '<div class="pf-acts">'
+      + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
+      + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
+      + '</div>';
   }
 
   function accountBlock(){
@@ -6282,27 +6500,7 @@
     return '<div class="pf-note">This is a device profile. Everything here is '
       + 'yours already \u2014 create an account and it keeps working, on any '
       + 'device you sign in on. Nothing is lost either way.'
-      + '<div class="pf-acts">'
-      + '<button class="pf-btn" onclick="createAccount()">Create account</button>'
-      + '<button class="pf-btn" onclick="signIn()">Sign in</button>'
-      + '</div></div>';
-  }
-
-  function askEmailAndPassword(title, confirmLabel, done){
-    showModal({
-      title: title,
-      placeholder: "you@example.com",
-      confirmLabel: "Next",
-      onConfirm: function(email){
-        showModal({
-          title: "Password",
-          placeholder: "at least 8 characters",
-          confirmLabel: confirmLabel,
-          inputType: "password",
-          onConfirm: function(password){ done(email, password); }
-        });
-      }
-    });
+      + gateActions() + '</div>';
   }
 
   function postAuth(path, body, okMessage){
@@ -6320,21 +6518,14 @@
     }).catch(function(err){ toast(err.message); });
   }
 
-  function createAccount(){
-    askEmailAndPassword("Create an account", "Create", function(email, password){
-      // Signing up keeps this listener's id, so their history, mixes and
-      // echoes are simply theirs now. Nothing is copied or migrated.
-      postAuth("/api/auth/signup", { email: email, password: password },
-               "Account created \u2014 everything here is yours");
-    });
-  }
-
-  function signIn(){
-    askEmailAndPassword("Sign in", "Sign in", function(email, password){
-      postAuth("/api/auth/login", { email: email, password: password },
-               "Signed in");
-    });
-  }
+  // `createAccount` and `signIn` are gone, not merely unused. They were two
+  // chained modals - an address, then a password - and they were the only
+  // route to an account from every gate in the app except the front door.
+  // Deleted rather than left behind because this project has twice paid for
+  // a switched-off mechanism being switched back on: a second sign-up form
+  // that quietly cannot offer a phone number, Google or Apple is exactly the
+  // kind of thing somebody wires a new gate to by accident. `gateActions`
+  // above is the one answer, and it is the real screen.
 
   // Log out, then land on the screen a new install lands on.
   //
@@ -6407,9 +6598,40 @@
 
   refreshAuth();
 
+  // What the Profile tab is to somebody with no account: a door, and nothing
+  // else.
+  //
+  // It used to be the whole page - name, counts, shelves, interests, vibes -
+  // with a note at the bottom offering an account. Everything on it was true,
+  // and that was the problem: a profile is the one screen that is *about*
+  // having an account, and drawing a full one for a guest invites them to
+  // furnish a room the app is about to say is not theirs. The owner's
+  // direction is that the page is inaccessible without an account and shows
+  // the two buttons, and that is all this draws.
+  //
+  // Both buttons go to `openAuth`, which is the real sign-up screen, for the
+  // same reason every other gate now does - see `gateActions`.
+  function renderProfileGate(){
+    document.getElementById("pfTop").innerHTML = "";
+    document.getElementById("profileBody").innerHTML =
+      '<div class="pf-gate">'
+      + '<div class="pf-gate-mark">' + personSVG(46) + '</div>'
+      + '<div class="pf-gate-h">Your profile needs an account</div>'
+      + '<p class="pf-gate-lede">A profile is what the server keeps for you '
+      + '\u2014 your name, your shelves, your friends. Listening never needs '
+      + 'one, and everything you have already listened to comes with you when '
+      + 'you sign up.</p>'
+      + gateActions()
+      + '</div>';
+  }
+
   function loadProfile(){
     var el = document.getElementById("profileBody");
     if(!el) return;
+    // No account, no page - and no request either. Drawing the gate is not a
+    // view of the profile with pieces missing, it is a different screen, so
+    // it does not ask the server for one.
+    if(!AUTH.authenticated){ renderProfileGate(); return; }
     // Who followed since they last looked - for the badge on the Friends
     // tile, and for the popup. Asked here because opening the profile is
     // when it is about to be drawn.
@@ -6451,39 +6673,24 @@
       + '<path d="M13 10.5V7a4 4 0 0 1 8 0v1.6"/></svg>';
   }
 
-  // What the profile's pills hold, and in which order.
+  // What the profile's pills hold - decided by the server, drawn here.
   //
-  // What they *chose* comes first - facets and subjects - because this row is
-  // labelled "Interests" and an interest is a statement somebody made. What
-  // the log inferred (`subjects`) fills in behind it, which is what the row
-  // used to be entirely: honest, and not what the label now claims, so it is
-  // no longer allowed to be the whole of it.
+  // This function used to *be* the decision: chosen facets, then chosen
+  // subjects, then whatever the log had inferred, twelve of them, in that
+  // fixed order. Two things were wrong with it and the owner named both. The
+  // order never moved, so six words picked in thirty seconds on the first run
+  // outranked a month of listening for good; and twelve is not a row, it is
+  // an inventory - the pills grew with every episode until they listed
+  // everything somebody had ever been near.
   //
-  // `hidden_interests` is respected here as well as on somebody else's
-  // profile. Hiding one is a statement about a screen, and this is that
-  // screen - showing it to its owner while hiding it from everybody else
-  // would make "shared" mean two different things on one page.
+  // `/api/profile` now answers it: `interests_shown` is at most four, ranked
+  // by the same taste profile every myFAM rail is built from, so it keeps up
+  // with what they play - unless they pinned a set, in which case it is
+  // exactly that and stays still. `interests_source` says which, because the
+  // two look identical on screen and the line of copy under them is only true
+  // of one.
   function profileInterestPills(p){
-    var labels = {};
-    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
-      .forEach(function(i){ labels[i.id] = i.label; });
-    var hidden = {};
-    (PREF_CHOICES.hidden_interests || []).forEach(function(t){ hidden[t] = true; });
-    var out = [];
-    var seen = {};
-    var push = function(name){
-      if(!name) return;
-      var key = String(name).toLowerCase();
-      if(seen[key]) return;
-      seen[key] = true;
-      out.push(name);
-    };
-    (PREF_CHOICES.interests || []).forEach(function(tag){
-      if(!hidden[tag]) push(labels[tag] || tag);
-    });
-    chosenTopicLabels().forEach(push);
-    (p.subjects || []).forEach(push);
-    return out.slice(0, 12);
+    return (p.interests_shown || []).map(function(row){ return row.label; });
   }
 
   // "1 vibe", "2 vibes". Regular plurals only, which is every noun a count
@@ -6929,14 +7136,20 @@
 
     html += hubTiles(p);
 
-    // The pills, said to be what they are.
+    // The pills, said to be what they are, and edited where they are.
     //
     // They used to be a bare row of words with nothing naming them, so a
     // listener had to work out from the words themselves whether they were
     // looking at what they had chosen, what they had listened to, or
-    // something the app had decided about them. "Interests:" says which, and
-    // Edit opens the screen that changes it - the same one Settings opens,
-    // because two editors for one thing is two things to keep in step.
+    // something the app had decided about them. "Interests:" says which.
+    //
+    // Edit now opens `openProfileInterests` - a chooser over the same ranked
+    // list the row is drawn from - rather than the first-run interests
+    // screen. Those are two different questions: that screen asks what to
+    // *play*, this one asks what to *show*, and the second used to be asked
+    // inside Edit profile under "Shared on your profile", three taps away
+    // from the row it was about. The owner asked for it here, and here is
+    // where it belongs: the control is next to the thing it changes.
     var pills = profileInterestPills(p);
     html += '<div class="pf-tags"><span class="pf-tags-lab">Interests:</span>'
       + (pills.length
@@ -6944,8 +7157,16 @@
               return '<div class="pf-tag">' + escapeHtml(t) + '</div>';
             }).join("")
           : '<div class="pf-tag muted">None chosen yet</div>')
-      + '<button class="pf-tags-edit" onclick="openInterestsFromSettings()">Edit</button>'
+      + '<button class="pf-tags-edit" onclick="openProfileInterests()">Edit</button>'
       + '</div>';
+    // Only under the automatic row, and only when there is one. A listener
+    // who pinned their four did not ask for a note telling them the app is
+    // keeping the list up to date, because it is not - it is showing them
+    // exactly what they chose.
+    if(pills.length && p.interests_source !== "pinned"){
+      html += '<div class="pf-tags-note">Your top ' + pills.length
+        + ', from what you listen to. Edit to choose them yourself.</div>';
+    }
 
     html += '<div class="pf-time"><div class="pf-time-lab">This month</div>'
       + '<div class="pf-time-big">' + p.finished + '</div>'
@@ -6956,15 +7177,9 @@
     html += foldersBlock(p.mixes || [], true);
     html += echoesBlock(profileEchoes, p.echo_count || 0, true);
 
-    if(!AUTH.authenticated){
-      html += '<div class="pf-note">This is a device profile. Everything on it '
-        + 'is yours already — create an account and it keeps working, on any '
-        + 'device you sign in on. Nothing is lost either way.'
-        + '<div class="pf-acts">'
-        + '<button class="pf-btn" onclick="createAccount()">Create account</button>'
-        + '<button class="pf-btn" onclick="signIn()">Sign in</button>'
-        + '</div></div>';
-    }
+    // No guest note here any more. A listener with no account never reaches
+    // this function: `loadProfile` draws `renderProfileGate` instead and
+    // returns, so everything below is written for somebody signed in.
 
     document.getElementById("profileBody").innerHTML = html;
   }
@@ -7052,8 +7267,8 @@
         + 'delivery this app has no route to. A forgotten password today is a '
         + 'lost account — so is a deleted one, and deleting is immediate.</div>';
     } else {
-      html += settingsRow("Create account", "", "createAccount()")
-        + settingsRow("Sign in", "", "signIn()")
+      html += settingsRow("Sign up", "", "openAuth('signup')")
+        + settingsRow("Log in", "", "openAuth('login')")
         + '<div class="set-note">Listening needs no account. What one buys is '
         + 'durability: saved mixes, your interests and language, and Save for '
         + 'Later. Everything you have done already comes with you.</div>';
@@ -7522,9 +7737,16 @@
         + '</div>';
     }
 
-    // Their interests, as pills - the ones they have not hidden. Read from
-    // `interest_labels`, which speaks in the eight words a listener was
-    // actually offered rather than in ranking subtags.
+    // Their interests, as pills: what they pinned, or failing that what they
+    // chose and have not hidden. Read from `interest_labels` rather than
+    // from ids, because the row may now hold a named subject ("Formula 1")
+    // beside a facet, and only the server knows which is which.
+    //
+    // Escaped, and that matters more than it used to: a pin may be a subject
+    // somebody typed, so this is free text on a screen a stranger is looking
+    // at - the same class of thing as a display name, and handled the same
+    // way. What it is never is an inference about what they have played;
+    // `/api/person` refuses to publish that, and says why.
     var labels = pub.interest_labels || [];
     if(labels.length){
       html += '<div class="pf-tags">' + labels.map(function(t){
@@ -7606,10 +7828,6 @@
   //: `goBack()` from it pops whatever was under it - which is the trap the
   //: intro screen fell into three times.
   var identityReturn = "profile";
-  //: Which interests this listener has chosen to keep off their profile.
-  //: Edited here, sent as `hidden_interests`.
-  var identityHidden = [];
-
   function openIdentity(mode, returnTo){
     identityMode = mode || "first-run";
     identityReturn = returnTo || "profile";
@@ -7633,8 +7851,6 @@
     document.getElementById("identityName").value = p.name || "";
     document.getElementById("identityHandle").value = p.handle || "";
     drawIdentityPicture(p);
-    identityHidden = (PREF_CHOICES.hidden_interests || []).slice();
-    renderSharedInterests();
     renderIdentityAccountRows();
     showScreen("identity");
     if(!editing) setTimeout(function(){
@@ -7664,36 +7880,15 @@
     }
   }
 
-  // Their interests, with the ones kept private struck through. A tap
-  // toggles. Struck rather than removed, so the choice is visible and
-  // reversible in one tap instead of being a list of what is left.
-  function renderSharedInterests(){
-    var box = document.getElementById("identityShared");
-    if(!box) return;
-    var mine = (PREF_CHOICES.saved ? (PREF_CHOICES.interests || [])
-                                   : (localPrefs().interests || []));
-    var labels = {};
-    (PREF_CHOICES.interests_all || []).forEach(function(row){
-      labels[row.id] = row.label;
-    });
-    if(!mine.length){
-      box.innerHTML = '<div class="id-note">Nothing chosen yet. Pick a few '
-        + 'under Interests and they show up here.</div>';
-      return;
-    }
-    box.innerHTML = mine.map(function(id){
-      var off = identityHidden.indexOf(id) !== -1;
-      return '<div class="pf-tag' + (off ? " off" : "") + '" '
-        + 'onclick="toggleSharedInterest(\'' + id + '\')">'
-        + escapeHtml(labels[id] || id) + '</div>';
-    }).join("");
-  }
-
-  function toggleSharedInterest(id){
-    var at = identityHidden.indexOf(id);
-    if(at === -1) identityHidden.push(id); else identityHidden.splice(at, 1);
-    renderSharedInterests();
-  }
+  // `renderSharedInterests` and `toggleSharedInterest` are gone with the
+  // block they drew. Which interests appear on the profile is chosen on the
+  // profile now - `openProfileInterests` - and the old pair asked the
+  // question the other way round, as hiding rather than as choosing, three
+  // taps from the row it changed.
+  //
+  // `hidden_interests` itself is untouched and still honoured: somebody who
+  // turned an interest off before this moved did not ask for it back, and
+  // `topics.profile_interests` still filters on it when nothing is pinned.
 
   function renderIdentityAccountRows(){
     var box = document.getElementById("identityAccountRows");
@@ -7730,11 +7925,6 @@
       profileNow = profileNow || {};
       profileNow.name = saved.name;
       profileNow.handle = saved.handle;
-      // The sharing choice, only from the editor - the first run has nothing
-      // chosen yet to share or hide.
-      if(identityMode === "edit" && AUTH.authenticated){
-        savePreferences({ hidden_interests: identityHidden });
-      }
       if(identityMode === "edit"){
         showScreen(identityReturn);
         if(identityReturn === "profile") loadProfile();
@@ -7789,9 +7979,7 @@
     return '<div class="pf-empty">Messaging needs an account: a message has to '
       + 'reach a person, and an anonymous session is not one. Everything you '
       + 'have listened to already comes with you when you sign up.'
-      + '<div class="pf-acts"><button class="pf-btn" onclick="createAccount()">'
-      + 'Create account</button><button class="pf-btn" onclick="signIn()">'
-      + 'Sign in</button></div></div>';
+      + gateActions() + '</div>';
   }
 
   function renderThreadList(){
@@ -8411,13 +8599,8 @@
     if(!t) return;
     closeShareModal();
     // A story is a picture with a link on it, not a sentence with a URL in
-    // it, so those destinations get the card instead of the text. The app
-    // hands both to the platform's own SDK; a browser can only open it.
-    if(t.needs_image){
-      window.open(shareTargets.card, "_blank");
-      toast("Card ready \u2014 add it to your story");
-      return;
-    }
+    // it, so those destinations get the card instead of the text.
+    if(t.needs_image){ shareStoryCard(t); return; }
     // Copy is the clipboard and nothing else; everything else has somewhere
     // to go. Before this every destination ended on the clipboard and the
     // listener was left to find the app themselves, which is not a share
@@ -8462,6 +8645,105 @@
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).catch(function(){});
     }
+  }
+
+  /* Instagram and Snapchat. Both of these were broken, and in the same way.
+     It used to be:
+
+         window.open(shareTargets.card, "_blank");
+         toast("Card ready - add it to your story");
+
+     which is three failures in two lines. `window.open` after an `await` is
+     a blocked popup on every mobile browser, and a blocked popup is silent -
+     the toast said the card was ready and nothing appeared. When it did open,
+     what opened was an **SVG document in a browser tab**: neither Instagram
+     nor Snapchat accepts an SVG, and there is no "add to story" anywhere on a
+     tab - the listener's only move is a screenshot, which is the exact thing
+     the card exists to stop them doing. And the wording, which is the whole
+     point of a share, was left behind in the tab they came from.
+
+     So the card is fetched, rasterised to a PNG here, and handed to the share
+     sheet as a **file**, which is what `navigator.share` takes and what the
+     platforms' own apps accept. The text rides along, so the link is in the
+     clipboard-or-caption rather than nowhere.
+
+     Rasterising in the page rather than on the server is deliberate: the
+     server renders SVG precisely so it needs no image library
+     (`sharing.story_card` says so), and a browser already has one. The SVG is
+     self-contained - no external font, no external image - so the canvas is
+     never tainted and `toBlob` is allowed.
+
+     Where there is no file sharing (a desktop browser, an older phone) it
+     downloads. A file on disk is a card the listener can post; an unexplained
+     tab is not. */
+  function shareStoryCard(t){
+    toast("Making your card\u2026");
+    fetch(shareTargets.card)
+      .then(function(r){
+        if(!r.ok) throw new Error("The card could not be made");
+        return r.text();
+      })
+      .then(svgToPngBlob)
+      .then(function(blob){
+        var file = new File([blob], "fam-episode.png", { type: "image/png" });
+        if(navigator.canShare && navigator.share
+           && navigator.canShare({ files: [file] })){
+          return navigator.share({ files: [file], text: t.text })
+            .catch(function(err){
+              // A cancelled share sheet is not a failure and must not be
+              // reported as one - it is somebody changing their mind.
+              if(err && err.name === "AbortError") return;
+              downloadBlob(blob, "fam-episode.png");
+              copyQuietly(t.text);
+              toast("Card saved \u2014 the words are on your clipboard");
+            });
+        }
+        downloadBlob(blob, "fam-episode.png");
+        copyQuietly(t.text);
+        toast("Card saved \u2014 the words are on your clipboard");
+      })
+      .catch(function(err){
+        // Visible, like every other failure here. A share that appears to do
+        // nothing is the thing this whole function is replacing.
+        toast((err && err.message) || "The card could not be made");
+      });
+  }
+
+  /* SVG text -> a PNG blob, at the card's own 1080x1920. Through a data URL
+     rather than a blob URL: Safari treats an SVG loaded from a blob URL as
+     cross-origin and taints the canvas, so `toBlob` throws on exactly the
+     browser this feature is mostly used from. */
+  function svgToPngBlob(svgText){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){
+        var canvas = document.createElement("canvas");
+        canvas.width = 1080; canvas.height = 1920;
+        canvas.getContext("2d").drawImage(img, 0, 0, 1080, 1920);
+        if(canvas.toBlob){
+          canvas.toBlob(function(blob){
+            blob ? resolve(blob) : reject(new Error("The card could not be made"));
+          }, "image/png");
+          return;
+        }
+        reject(new Error("This browser cannot make the card"));
+      };
+      img.onerror = function(){ reject(new Error("The card could not be drawn")); };
+      img.src = "data:image/svg+xml;base64,"
+        + btoa(unescape(encodeURIComponent(svgText)));
+    });
+  }
+
+  function downloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Released on the next turn of the loop - revoking it synchronously
+    // cancels the download in Safari.
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   }
   function closeShareModal(){
     document.getElementById("shareOverlay").classList.remove("active");
@@ -9020,6 +9302,12 @@
           showScreen(back);
           if(back === "playfam") loadMixes();
           if(back === "myfam") loadMyFamFeed();
+          // The Profile tab is a door until there is an account and the whole
+          // page once there is, so coming back to it has to redraw it - and
+          // Settings carries account rows that have just changed meaning.
+          if(back === "profile") loadProfile();
+          if(back === "settings"){ renderSettings(); loadPrefChoices().then(renderSettings); }
+          if(back === "messages") renderThreadList();
           return;
         }
         afterAccount();
@@ -9029,8 +9317,9 @@
   function skipAccount(){
     saveLocalPrefs({ entry: "skipped" });
     // Skipping the account step skips the name-and-handle step with it.
-    // "Skip for now" is one decision about setup, and asking who they are
-    // immediately after they declined to say is the gate they just refused.
+    // "Continue as guest" is one decision about setup, and asking who they
+    // are immediately after they declined to say is the gate they just
+    // refused.
     afterAccount({ askWhoTheyAre: false });
   }
 
@@ -9906,7 +10195,7 @@
   // sign-up.** That is a deliberate change and worth naming, because it sits
   // against a settled constraint: listening needs no account, and a login
   // screen in front of the product is exactly what CLAUDE.md says stopped
-  // this from being one. What keeps that true is the door - "Skip for now" is
+  // this from being one. What keeps that true is the door - "Continue as guest" is
   // on this screen, one tap, and everything behind it still works with no
   // account. What changed is which side of the door the app opens on.
   //

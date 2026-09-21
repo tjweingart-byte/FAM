@@ -8,8 +8,8 @@ Five rails, two inventories, and one rule that decides the shape of all of it:
 | # | rail | question it answers | inventory | comes from |
 |---|---|---|---|---|
 | 1 | **Made for you** | what would *you* want today | live stories **and** the bank | `rank_from_history` |
-| 2 | **Trending** | what is the world on | live stories only | `stories.pool()` |
-| 3 | **What you missed last week** | what did you scroll past | what was *offered* to you | `rank_missed` |
+| 2 | **Trending** | what is the world on | live stories only, `WORLD_FLOOR` reserved | `stories.pool()` |
+| 3 | **What you missed last week** | what went past you | offered to you, played across FAM, or trending | `rank_missed` |
 | 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays, cached first | `rank_most_played` |
 | 5 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
 
@@ -18,6 +18,20 @@ Explore New screen and still takes its turn in `FILL_ORDER`, so the tiles it
 would show are held back from the crowd rows. `topics.UNSHELVED` is what marks
 it — anything iterating `FILL_ORDER` and then looking the key up in the drawn
 sections must skip it, or it is a `KeyError` rather than a finding.
+
+**Trending gets its four before anything else chooses** (§114). It used to
+be filled *last*, from what the four personal rails had not claimed — and
+Made for you draws on the same live pool, so on a day the pool held five
+stories and a listener's taste matched four of them, the world row got one.
+`WORLD_FLOOR` tiles are set aside before the fill loop runs.
+
+The trade, stated rather than buried: on a thin pool Made for you loses its
+best live tile. That is the right way round **only** because Made for you
+draws on both inventories and can never be empty — the bank is twenty-eight
+topics — while Trending draws on the live pool alone and has nowhere else to
+go. And the reservation happens only when it *buys* the floor: a pool of one
+cannot fill the row however it is shared out, so holding that story back
+would cost the personal rail its tile and still leave Trending short.
 
 **Order matters and was chosen.** Personal first, because somebody opening
 myFAM is more likely to want what was chosen for them than what is popular.
@@ -38,13 +52,41 @@ Sunday — so a thin week produced an episode about having had a thin week, in
 front of somebody who had opened the app to listen to something else. This is
 a shelf of episodes they can still have.
 
-Three rules hold it honest.
+**Membership widened, at the owner's direction (§114).** It was the
+impression log and nothing else — tiles this app had put on a screen in front
+of this person, minus everything they played. That was a defensible reading
+of the heading and it made the rail a report on our own delivery: a listener
+who did not open myFAM last week missed nothing, by construction, however
+much happened. The instruction is that it should hold "the ABSOLUTE MOST
+RELEVANT stories they didn't click on or listen to in the last week... it
+could be stories that were popular throughout the app or trending that the
+user never listened to."
 
-**It is what was actually offered.** The membership test is the impression log
-for the last seven days — tiles this app put on a screen in front of this
-person — minus everything they played. The heading is a claim about what FAM
-did, so every tile under it has to be something they could have taken and did
-not. There is no top-up from the bank, and a short rail is short.
+So three things qualify, any one of them:
+
+* **offered to them** — the impression log, as before;
+* **played by other listeners** inside the window;
+* **in the live story pool**, which is what the world has been on this week
+  by definition.
+
+All three genuinely went past this listener in the last seven days, which is
+what keeps the heading true. **The standing bank is still not a source**: an
+evergreen explainer nobody was offered and nobody played did not happen last
+week, and putting one here to make the row look full is the padding this rail
+was built against.
+
+**And relevance is a floor, not only a sort.** "Only the ABSOLUTE MOST
+RELEVANT" is the whole of the instruction, so a tile this listener has no
+affinity for is not offered at all — short beats padded, and this is also
+what stops the widened membership turning the rail into a second copy of
+Trending for somebody who was shown nothing.
+
+With **no taste profile at all** it falls back to exactly what it always was:
+what was offered, newest first. Impressions deliberately never reach `taste`,
+so a listener who has chosen nothing and played nothing scores 0.0 against
+every tile, and a floor over nothing would empty the rail for precisely the
+listener it is most use to. The claim shrinks to the one the evidence
+supports.
 
 **An impression still never becomes taste.** Being shown something says nothing
 about whether you wanted it, and CLAUDE.md is emphatic that letting it into the
@@ -64,6 +106,14 @@ writing down: its inventory is the narrowest on the page, so it cannot starve
 anything, and letting Made for you choose ahead of it took the *best* of the
 missed tiles and left the rail whose heading is about relevance holding the
 leftovers.
+
+**Trending is excluded from that first pass**, and this is what the widening
+cost. A brand-new story nobody has been shown is not one this listener
+*missed* in any useful sense — it is one Made for you exists to offer them —
+and a tile already on the page is not one anybody missed either. So the rail
+runs with `include_trending=False` inside the loop and is topped up from the
+leftovers after every other rail has chosen, which makes the live pool the
+**last** source for this row rather than the first.
 
 `MISSED_SECTION_SIZE` is 8 and `MISSED_WINDOW` is a week.
 
@@ -207,6 +257,38 @@ time and the page never changes.
 **A story with no affinity stays off this rail however hot it is.** "Filtered
 and influenced heavily by the individual's algorithm" is what the rail is for;
 Trending is where the hot thing nobody here cares about belongs.
+
+### Three changes that made "no affinity" mean something (§114)
+
+The complaint was specific: "I don't need to be seeing recommended episodes
+about a random small school college football matchup that I've never
+indicated through my search behavior that I would be interested in."
+
+**`SUBTAG_WEIGHT`.** `_affinity` summed every tag with the same weight, so
+`sports` and `sports-drama` counted identically — the resolution §80 added to
+the *vocabulary* was being thrown away by the *ranking*. A subtag match is
+evidence about this episode; a facet match is evidence about a whole heading,
+and they should not be worth the same.
+
+**`RELEVANCE_FLOOR`.** The rail kept anything scoring `> 0`, which every tile
+sharing one barely-touched facet clears. One finished NFL episode put weight
+on `sports`, and every sports story in the world carries `sports`.
+
+**`BROAD_MATCH_PENALTY`**, which answers the case the vocabulary *cannot*
+express and is the interesting one. **There is no tag for the NFL and none
+for college football.** Both are `sports`. No weighting distinguishes them and
+nothing should pretend it does. What is knowable without inventing a
+vocabulary is whether this listener has ever *said* any of the words on the
+tile — `topics.familiar_words` reads their own searches and plays out of the
+event log, which is a fact about them rather than a guess about the subject.
+A live story matching only a whole facet, on a subject they have never been
+near, is cut.
+
+It **damps and never excludes**, and it applies to **live stories only**. A
+listener one episode into the app has almost no familiar words, and a rule
+would empty their rail in the name of relevance; the bank's twenty-eight
+subjects are broad by construction, so penalising breadth there would
+penalise the whole evergreen inventory.
 
 ## The two cached rows
 

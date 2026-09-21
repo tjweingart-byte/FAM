@@ -169,7 +169,10 @@ def test_no_public_host_means_no_image_is_promised(client, shared, monkeypatch):
     """A relative Open Graph image is fetched by a crawler on somebody else's
     server and resolves to nothing there."""
     _public(monkeypatch, base="")
-    page = client.get(f"/s/{shared}").text
+    # Loopback, because that is now the only host this server refuses to name
+    # - everywhere else it reads its own address off the request it was asked
+    # through. See `app._public_base`.
+    page = client.get(f"/s/{shared}", headers={"host": "localhost:8000"}).text
     assert 'property="og:image"' not in page
 
 

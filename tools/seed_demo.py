@@ -40,6 +40,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import demo_data
 from cache import build_cache, cache_key, is_shareable, ttl_for
 from config import settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
@@ -49,11 +50,12 @@ import topics as topics_mod
 #: Other people, so co-listener overlap has someone to overlap with and an
 #: Explore card can say who sent it. Invented listeners are fine; invented
 #: *episodes* would not be, which is why every script below is really written.
-LISTENERS = [
-    ("demo-rachel", "Rachel Kim", "rachel"),
-    ("demo-tom", "Tom Alvarez", "tomal"),
-    ("demo-priya", "Priya Nair", "priya"),
-]
+#:
+#: Declared in `demo_data.py` rather than here, because `tools/wipe_demo_data.py`
+#: and `POST /api/admin/wipe` have to remove exactly what this writes - and
+#: two hand-written lists agreeing with each other is the same mistake made
+#: twice and then compared to itself (§107).
+LISTENERS = list(demo_data.LISTENERS)
 
 
 def pick_topics(count: int) -> list:

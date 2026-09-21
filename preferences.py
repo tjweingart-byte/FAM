@@ -191,6 +191,42 @@ def clean_topics(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(seen)
 
 
+#: How many interests a profile page may display at once.
+#:
+#: Four, at the owner's direction, and the number is here rather than in the
+#: interface because both halves have to agree about it: the server refuses a
+#: fifth and the editor stops offering one, and a cap enforced in one place
+#: only is a cap somebody's next client does not have.
+#:
+#: Why there is a cap at all: the pill row grows with every episode somebody
+#: finishes, and a profile whose interests wrap onto four lines has stopped
+#: saying what this listener is into and started listing what they have
+#: touched. Three or four is the claim; the rest is the ranker's business.
+PROFILE_INTERESTS_MAX = 4
+
+
+def clean_profile_interests(values: Iterable[str]) -> tuple[str, ...]:
+    """The interests this listener pinned to their profile, at most four.
+
+    Accepts the same two kinds of thing the pill row draws - a facet id from
+    `topics.TAG_LABELS`, or a named subject from `topics.py`'s catalogue or
+    typed into its search - because those are exactly what somebody is
+    choosing between on the screen this comes from. It is therefore
+    `clean_topics`' validation, not `clean_interests`': a facet is a legal
+    value here and so is "Formula 1", and refusing the second would make the
+    editor unable to pin half of what it is showing.
+
+    **Empty is not "show nothing", it is "decide for me".** That is the
+    whole shape of the feature: a listener who never opens the editor gets
+    their top few, kept up to date as they listen, and one who does opt out
+    of that gets exactly what they chose and nothing moving underneath them.
+    A stored empty tuple and a listener who has never touched this are the
+    same state, deliberately - there is no third thing to remember.
+    """
+    picked = clean_topics(values)
+    return picked[:PROFILE_INTERESTS_MAX]
+
+
 def clean_language(code: str) -> str:
     lang = (code or "").strip().lower()
     if not lang:
@@ -229,6 +265,13 @@ class Preferences:
     #: anybody afterwards, nothing to remove, and nothing for a wheel that is
     #: meant to be a reflection of what somebody chose to draw from.
     topics: tuple[str, ...] = ()
+    #: The interests this listener pinned to their profile, at most four.
+    #:
+    #: Empty means the profile picks its own - the top few by what they
+    #: actually listen to, recomputed on every read - which is the default
+    #: and the state every row written before this column existed is in.
+    #: See `clean_profile_interests`.
+    profile_interests: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
@@ -247,6 +290,7 @@ class Preferences:
             "hidden_interests": list(self.hidden_interests),
             "public_interests": list(self.public_interests),
             "topics": list(self.topics),
+            "profile_interests": list(self.profile_interests),
             "language": self.language,
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
@@ -294,6 +338,16 @@ class PreferenceStore:
                              " topics TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # And again. Newline-separated for the same reason `topics` is:
+            # it holds the same two kinds of value, one of which is free
+            # text. Empty means "choose for me", which is what every row
+            # written before this column existed already meant - there was
+            # nothing to pin with.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " profile_interests TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -310,7 +364,7 @@ class PreferenceStore:
         try:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
-                " intro_done, hidden_interests, topics"
+                " intro_done, hidden_interests, topics, profile_interests"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -329,6 +383,8 @@ class PreferenceStore:
             intro_done=bool(row[4]),
             hidden_interests=tuple(t for t in (row[5] or "").split(",") if t),
             topics=tuple(t for t in (row[6] or "").split("\n") if t),
+            profile_interests=tuple(
+                t for t in (row[7] or "").split("\n") if t),
         )
 
     def save(
@@ -337,6 +393,7 @@ class PreferenceStore:
         interests: Optional[Iterable[str]] = None,
         hidden_interests: Optional[Iterable[str]] = None,
         topics: Optional[Iterable[str]] = None,
+        profile_interests: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
@@ -361,6 +418,9 @@ class PreferenceStore:
                               else current.hidden_interests),
             topics=(clean_topics(topics) if topics is not None
                     else current.topics),
+            profile_interests=(clean_profile_interests(profile_interests)
+                               if profile_interests is not None
+                               else current.profile_interests),
             language=(clean_language(language) if language is not None
                       else current.language),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
@@ -372,12 +432,14 @@ class PreferenceStore:
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
-                    intro_done, updated, hidden_interests, topics)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    intro_done, updated, hidden_interests, topics,
+                    profile_interests)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
                    topics       = excluded.topics,
+                   profile_interests = excluded.profile_interests,
                    language     = excluded.language,
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
@@ -386,7 +448,8 @@ class PreferenceStore:
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
              at or time.time(), ",".join(merged.hidden_interests),
-             "\n".join(merged.topics)),
+             "\n".join(merged.topics),
+             "\n".join(merged.profile_interests)),
         )
         return merged
 

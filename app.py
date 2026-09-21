@@ -15,6 +15,7 @@ import hmac
 import os
 import json
 import logging
+import re
 import sqlite3
 import time
 from contextlib import asynccontextmanager
@@ -234,6 +235,46 @@ async def _warm_stories() -> None:
                       "evergreen bank until the next refresh")
 
 
+def _announce_storage() -> None:
+    """Say at startup whether a redeploy will erase this deployment's listeners.
+
+    `/api/health` has measured this since §107 and nobody reads a health page
+    on the way past. The reported symptom - "the accounts and data are wiped
+    every time a new Render deployment is made" - is what that measurement
+    was built to answer, and it was answering it to an empty room.
+
+    So it is said in the log, at boot, once, and only when it is a problem.
+    The condition is deliberately narrow: a store is *ephemeral* (on the same
+    filesystem as the code, so the image replaces it) **and** somebody set its
+    environment variable to an absolute path. That pair is the whole
+    diagnosis. It means this deployment asked for a mounted disk and did not
+    get one - which is what a container with `/data` in its `ENV` and no disk
+    attached looks like from inside, and is indistinguishable from a working
+    deployment in every other way.
+
+    A laptop trips neither half: nothing is configured and the project root is
+    the code's own filesystem, which is correct and normal there. That is why
+    this is not simply "warn when anything is ephemeral" - a warning every
+    developer sees on every run is a warning nobody reads, which is how this
+    one got missed in the first place.
+    """
+    at_risk = [entry for entry in _database_report()
+               if entry.get("persistence") == "image" and entry.get("configured")]
+    if not at_risk:
+        return
+    log.error(
+        "STORAGE: %d database(s) are inside the container image and a "
+        "redeploy will erase them: %s",
+        len(at_risk), ", ".join(f"{e['name']} ({e['path']})" for e in at_risk))
+    log.error(
+        "  Their environment variables are set, so this deployment expected a "
+        "mounted disk and has not got one. On Render: add a disk to the "
+        "service with Mount Path /data (render.yaml declares it, but a "
+        "service created outside the blueprint has none), then redeploy. "
+        "Until then every push starts the listeners over. "
+        "`python tools/storage_doctor.py` says the same thing on demand.")
+
+
 def _announce_voice_control() -> None:
     """Say at startup how the voice will be found, and when it cannot be.
 
@@ -287,6 +328,9 @@ async def lifespan(_: FastAPI):
     # Before a listener finds out the hard way.
     await _verify_credentials()
     _announce_research()
+    # Before the first listener signs up into a database that is about to be
+    # replaced by the next push.
+    _announce_storage()
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -1102,7 +1146,7 @@ async def voice_register(request: Request) -> dict:
 
 
 @app.get("/api/health")
-async def health() -> dict:
+async def health(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
     # describe the same moment, and calling the report a second time would
     # stat every database again to say the same thing.
@@ -1226,6 +1270,16 @@ async def health() -> dict:
         # to call.
         "sharing": {
             "public_base_url": bool(settings.public_base_url),
+            # Where a share link's host actually comes from on this machine.
+            # `env` is PUBLIC_BASE_URL; `request` is derived from the request
+            # that asked, which is what makes sharing work on a deployment
+            # nobody configured; `none` is a loopback host, where there is no
+            # honest link to give and the app says so rather than inventing
+            # `localhost`. Reported because the three are indistinguishable
+            # from outside and only one of them used to exist.
+            "link_host": ("env" if settings.public_base_url
+                          else "request" if _public_base(request) else "none"),
+            "link_base": _public_base(request),
             "app_store_url": bool(settings.app_store_url),
             # What a recipient can do besides listen. False is a deliberate
             # state, not a misconfiguration - see `sharing.landing_doors`.
@@ -1698,7 +1752,32 @@ async def person_profile(request: Request,
 
     person = SOCIAL.person(target)
     prefs = PREFS.get(target)
-    interests = topics_mod.facets_only(prefs.public_interests)
+    # What they pinned, if they pinned anything, and otherwise what they
+    # declared minus what they hid. Capped at the same four their own page
+    # draws.
+    #
+    # **Deliberately not the ranked list their own profile now shows.** That
+    # ranking is read off what they have listened to, and the rule this whole
+    # endpoint exists under is that what somebody has listened to is theirs:
+    # a pill row inferred from behaviour would publish exactly the thing the
+    # docstring above promises is never here, in a form that reads as a
+    # statement they made. A pin is a statement they made. A declared interest
+    # is a statement they made. Neither of those is their history.
+    #
+    # So somebody's own page can be up to date with their listening while
+    # their public one stays a matter of record, and the editor on the profile
+    # is how the first becomes the second - which is what pinning is for.
+    pinned = list(prefs.profile_interests)
+    if pinned:
+        shown = topics_mod.profile_interests(
+            topics_mod.ranked_interests(EVENTS, target, chosen=prefs.interests,
+                                        chosen_topics=prefs.topics),
+            pinned=pinned, hidden=prefs.hidden_interests)[0]
+    else:
+        shown = [{"id": tag, "label": topics_mod.TAG_LABELS[tag], "kind": "facet"}
+                 for tag in topics_mod.facets_only(prefs.public_interests)
+                 ][:topics_mod.PROFILE_INTEREST_SLOTS]
+    interests = [row["id"] for row in shown]
     return {
         # Deliberately no `user_id`: this response is drawn, not acted on, and
         # the follow buttons on that screen already have the id they need from
@@ -1713,8 +1792,7 @@ async def person_profile(request: Request,
                   for e in SOCIAL.echoes_by(target, limit=12)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
         "interests": interests,
-        "interest_labels": [topics_mod.TAG_LABELS[t] for t in interests
-                            if t in topics_mod.TAG_LABELS],
+        "interest_labels": [row["label"] for row in shown],
         "follows": SOCIAL.follow_counts(target),
     }
 
@@ -2043,14 +2121,91 @@ async def saved_folder_delete(folder_id: str, request: Request) -> dict:
 
 # --- sharing outside FAM --------------------------------------------------
 
-def _share_url(share_id: str) -> tuple[str, bool]:
+#: Hosts a share link must never be built from, because nobody else can reach
+#: them. A link to `localhost` is worse than a relative one: it looks like a
+#: URL, so it gets posted, and it resolves on the recipient's own machine to
+#: whatever they happen to be running.
+_PRIVATE_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1")
+
+#: What a host is allowed to look like: a hostname or an IP, optionally with a
+#: port, or a bracketed IPv6 literal.
+#:
+#: The `Host` header is client-supplied, and although a link built from it is
+#: only ever handed back to the caller that sent it, one of the places it lands
+#: is the `og:url` of `/s/<id>` - a server-rendered page served with
+#: `Cache-Control: public`. `html.escape` already stops that becoming markup;
+#: this stops it becoming a *different URL*. `evil.com/path?` and
+#: `good.com@evil.com` are both legal header values and neither is a host.
+#:
+#: Refusing rather than sanitising, because a host this server does not
+#: recognise is one it should not be naming in a link at all - the same answer
+#: `_PRIVATE_HOSTS` gives, for the same reason.
+_HOST_SHAPE = re.compile(r"^(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$")
+
+
+def _public_base(request: Request | None = None) -> str:
+    """Where this server is reachable from the internet, or "".
+
+    **`PUBLIC_BASE_URL` first, and the request second.** This used to be the
+    variable and nothing else, and that is why sharing did not work: on a
+    deployment where nobody had set it - which is every deployment, since
+    nothing prompts for it - `/api/share` handed back `/s/abc123`. That is a
+    correct relative URL and a useless thing to send somebody. Pasted into a
+    message it is not a link at all; pasted into LinkedIn it resolves against
+    linkedin.com. The share feature was complete apart from the one part that
+    leaves the machine.
+
+    Deriving it from the request is `/api/health`'s own rule applied here:
+    measure the thing rather than reading a setting that describes it. A
+    request arrived, so this server has an address that at least one client
+    outside it could reach, and that address is in the request. Behind
+    Render's router the scheme is in `X-Forwarded-Proto` - the connection
+    itself is plain HTTP - so a link built from `request.url` alone would be
+    `http://` on an HTTPS deployment and get upgraded or blocked.
+
+    The variable still wins when it is set, and it is still worth setting:
+    it is the only way to name a host this server is *not* reached at, which
+    is what a custom domain in front of a Render URL is. What changes is that
+    not setting it is no longer a silently broken share.
+
+    **The client-supplied `Host` header is used deliberately and narrowly.**
+    It decides nothing but the text of a link handed back to the same caller
+    that sent it: there is no trust decision here, no email, no redirect, and
+    no cached response keyed on it. What it cannot be allowed to do is name a
+    host that is nobody's - so a loopback or wildcard address is refused and
+    reported as not public, which is exactly what a laptop is.
+    """
+    if settings.public_base_url:
+        return settings.public_base_url
+    if request is None:
+        return ""
+    headers = request.headers
+    # First value only: a forwarded header accumulates one entry per hop, and
+    # the client's own is the first.
+    proto = (headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+             or request.url.scheme or "https")
+    host = (headers.get("x-forwarded-host", "").split(",")[0].strip()
+            or headers.get("host", "").strip()
+            or request.url.netloc)
+    if proto not in ("http", "https") or not host:
+        return ""
+    if not _HOST_SHAPE.match(host):
+        return ""
+    bare = host.rsplit(":", 1)[0].lower() if not host.startswith("[") else host
+    bare = bare.split("]")[0].lstrip("[") if bare.startswith("[") else bare
+    if bare in _PRIVATE_HOSTS or bare.endswith(".local"):
+        return ""
+    return f"{proto}://{host}"
+
+
+def _share_url(share_id: str, request: Request | None = None) -> tuple[str, bool]:
     """The link, and whether it names a host anybody else can reach.
 
     Both, because a relative link is still useful inside the app and is a
     broken promise on LinkedIn. The caller decides what to do with that; what
     it must not do is invent `localhost`.
     """
-    base = settings.public_base_url
+    base = _public_base(request)
     return (f"{base}/s/{share_id}" if base else f"/s/{share_id}"), bool(base)
 
 
@@ -2093,7 +2248,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         share = SHARES.create(user, req.query, req.minutes, req.title)
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    url, public = _share_url(share["id"])
+    url, public = _share_url(share["id"], request)
     rendered = {t.key: sharing.render(
         t.key, title=share["title"], question=share["query"],
         minutes=share["minutes"], url=url) for t in sharing.TARGETS}
@@ -2102,7 +2257,11 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # Said plainly rather than left to be discovered: without
         # PUBLIC_BASE_URL this link works inside the app and nowhere else.
         "public": public,
-        "card": f"/api/share/card?share={share['id']}",
+        # Absolute where this server knows its own address, because a native
+        # client is not on this origin and a relative path means nothing to
+        # it. The web app fetches either happily.
+        "card": _card_url(share["id"], request)
+                or f"/api/share/card?share={quote(share['id'])}",
         "targets": rendered,
     }
 
@@ -2150,8 +2309,8 @@ async def share_read(share_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="No such share.")
     return sharing.landing_payload(
         record,
-        url=_share_url(share_id)[0],
-        card_url=_card_url(share_id),
+        url=_share_url(share_id, request)[0],
+        card_url=_card_url(share_id, request),
         app_store=settings.app_store_url,
     )
 
@@ -2179,7 +2338,7 @@ async def share_opened(share_id: str, request: Request) -> dict:
     return {"ok": True}
 
 
-def _card_url(share_id: str) -> str:
+def _card_url(share_id: str, request: Request | None = None) -> str:
     """The story card, absolute where there is a host to make it absolute.
 
     Open Graph images are fetched by a crawler on somebody else's server, so a
@@ -2187,7 +2346,7 @@ def _card_url(share_id: str) -> str:
     is what stops `landing_head` advertising a picture that never loads - the
     same refusal `destination_for` already makes about the link itself.
     """
-    base = settings.public_base_url
+    base = _public_base(request)
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
 
 
@@ -2229,8 +2388,8 @@ async def share_open(share_id: str, request: Request):
     """
     record = SHARES.get(share_id)
     payload = sharing.landing_payload(
-        record or {}, url=_share_url(share_id)[0],
-        card_url=_card_url(share_id) if record else "",
+        record or {}, url=_share_url(share_id, request)[0],
+        card_url=_card_url(share_id, request) if record else "",
         app_store=settings.app_store_url,
     )
     return HTMLResponse(
@@ -2753,6 +2912,12 @@ class PreferenceRequest(BaseModel):
     #: `preferences.clean_topics`, because an oversized body should be refused
     #: before a database round trip rather than after one.
     topics: Optional[list[str]] = Field(None, max_length=prefs_mod.MAX_TOPICS)
+    #: Which interests to draw on their profile, at most four. An empty list
+    #: is a real answer and means "choose for me" - see
+    #: `preferences.clean_profile_interests` - so this is `None` when the
+    #: caller is not writing it and `[]` when they are clearing it.
+    profile_interests: Optional[list[str]] = Field(
+        None, max_length=prefs_mod.PROFILE_INTERESTS_MAX)
     #: Written by nothing in the interface any more. The weekly recap popup is
     #: gone, replaced by myFAM's "What you missed last week" rail, and the
     #: column stays for the same reason `language` does: dropping it is a
@@ -2881,6 +3046,7 @@ async def write_preferences(req: PreferenceRequest, request: Request):
         prefs = PREFS.save(user, interests=req.interests, language=req.language,
                            hidden_interests=req.hidden_interests,
                            topics=req.topics,
+                           profile_interests=req.profile_interests,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3257,6 +3423,34 @@ async def profile(request: Request):
     # two numbers is the wrong shape of request.
     body["avatar"] = person["avatar"]
     body["follows"] = SOCIAL.follow_counts(user)
+    # The interests row, decided here rather than in the interface.
+    #
+    # It used to be assembled on the page - chosen facets, then chosen
+    # subjects, then whatever the log had inferred, twelve of them - and that
+    # had two problems the owner named. It was a fixed order, so an answer
+    # given in thirty seconds on the first run outranked a month of listening
+    # forever; and there was no cap that meant anything, so the row grew with
+    # every episode until it was a list of everything somebody had touched.
+    #
+    # `ranked_interests` is the ranking (by the same taste profile myFAM uses,
+    # so it moves as they listen) and `profile_interests` is the cut - four,
+    # pinned or top. Both come back: the pills are `interests_shown` and the
+    # editor offers `interests_ranked`, so the client draws and never decides.
+    #
+    # This is **their own** profile, which is why it may be read off their
+    # listening at all. `/api/person` deliberately does not do the same - see
+    # the note there - because the rule that what somebody has listened to is
+    # theirs does not stop applying because the inference is flattering.
+    prefs = PREFS.get(user)
+    ranked = topics_mod.ranked_interests(
+        EVENTS, user, chosen=prefs.interests, chosen_topics=prefs.topics)
+    shown, source = topics_mod.profile_interests(
+        ranked, pinned=prefs.profile_interests, hidden=prefs.hidden_interests)
+    body["interests_shown"] = shown
+    body["interests_ranked"] = ranked
+    body["interests_pinned"] = list(prefs.profile_interests)
+    body["interests_source"] = source
+    body["interests_max"] = topics_mod.PROFILE_INTEREST_SLOTS
     return body
 
 
@@ -3770,6 +3964,51 @@ async def usage(
     report = METER.report(since=now - days * 86400, until=now, top=top)
     if flagged:
         report["flagged"] = metering.suspects(METER)
+    return report
+
+
+class WipeRequest(BaseModel):
+    """What to remove. Nothing is removed unless `dry_run` is explicitly false."""
+
+    scope: str = Field("seed", pattern="^(seed|all)$")
+    #: Defaults to a dry run, on purpose and in both directions. This is not
+    #: reversible, and a request body that forgot a field must not be the one
+    #: that empties the event log.
+    dry_run: bool = True
+
+
+@app.post("/api/admin/wipe")
+async def admin_wipe(req: WipeRequest, request: Request) -> dict:
+    """Take the demonstration data out of a running deployment.
+
+    Behind `FAM_ADMIN_TOKEN`, 404 without it, like `/api/usage` and for the
+    stronger version of the same reason: that one hands over every listener's
+    spending, this one deletes things.
+
+    **It exists because the place it is needed has no shell.** A container
+    host is exactly where seeded data ends up stranded - somebody ran
+    `seed_demo.py` so the browse surfaces had something to show, and the
+    measurement they now want is impossible while three invented listeners
+    are voting in the taste model. The alternative to this endpoint is not
+    "do it more carefully", it is redeploying with a wiped disk, which takes
+    the real listeners with it.
+
+    The work is `demo_data.wipe`, which `tools/wipe_demo_data.py` also calls,
+    so a command line and an HTTP call cannot come to mean two different
+    things. See that module for what each scope removes and what neither
+    touches (accounts, credentials, the metering ledger).
+    """
+    _require_admin(request)
+    import demo_data
+
+    report = demo_data.wipe(cache=SCRIPT_CACHE, events=EVENTS,
+                            erase_listener=erase_listener,
+                            scope=req.scope, dry_run=req.dry_run)
+    if not req.dry_run:
+        # Loud, and in the server's own log, because this is the one
+        # destructive operation the app offers and "why is the feed empty"
+        # is a question somebody will ask later.
+        log.warning("ADMIN: wiped %s - %s", req.scope, report)
     return report
 
 
