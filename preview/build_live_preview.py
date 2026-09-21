@@ -86,6 +86,9 @@ LIVE_SHIM = r"""
   var TAG_SHORT = __TAG_SHORT__;   // topics.TAG_SHORT, verbatim
   var PICKER_SIZE = __PICKER_SIZE__;          // topics.PICKER_SIZE
   var PICKER_ORDER = __PICKER_ORDER__;        // topics.PICKER_DEFAULT_ORDER
+  var STARTUP = __STARTUP__;                  // topics.STARTUP_TOPICS
+  var STARTUP_STEP = __STARTUP_STEP__;        // topics.STARTUP_PRIOR_STEP
+  var STARTUP_BY_ID = {}; STARTUP.forEach(function (t) { STARTUP_BY_ID[t.id] = t; });
   var INTEREST_WEIGHT = __INTEREST_WEIGHT__;
   var VOLATILE = __VOLATILE__;     // cache.research_words(), verbatim
   var NEAR = __NEAR__;             // the shipped CACHE_VECTOR thresholds
@@ -381,9 +384,37 @@ LIVE_SHIM = r"""
     return s / Math.sqrt((t.tags || []).length || 1);
   }
 
+  // `topics.startup_profile`. Global play counts, the declared order behind
+  // them, and a gentle decay so the eight are actually ordered rather than
+  // sorted on id.
+  function startupPrior() {
+    var counts = {}, seen = false;
+    rows("events").forEach(function (e) {
+      if (!e.topic_id || (e.kind !== "play" && e.kind !== "complete")) return;
+      var t = BY_ID[e.topic_id];
+      if (!t) return;
+      facetsOnly(t.tags || []).forEach(function (f) {
+        counts[f] = (counts[f] || 0) + 1; seen = true;
+      });
+    });
+    var order = Object.keys(TAG_LABELS).sort(function (a, b) {
+      var d = (counts[b] || 0) - (counts[a] || 0);
+      return d || (PICKER_ORDER.indexOf(a) - PICKER_ORDER.indexOf(b));
+    });
+    if (!seen) order = PICKER_ORDER.slice();
+    var prior = {};
+    order.forEach(function (f, i) { prior[f] = 1 - i * STARTUP_STEP; });
+    return { prior: prior, source: seen ? "played" : "default" };
+  }
+
   function feed() {
     var profile = taste(UID, myPrefs().interests), mine = playedIds(UID),
         used = {}, out = {};
+    // `topics.build_feed`'s `cold`: an empty taste is somebody with no
+    // account, no chosen interests and nothing played - which is every first
+    // viewer of this page, so this branch is the one it normally draws.
+    var cold = Object.keys(profile).length === 0;
+    var startup = cold ? startupPrior() : null;
     function take(list, n) {
       var got = [];
       for (var i = 0; i < list.length && got.length < n; i++) {
@@ -407,7 +438,26 @@ LIVE_SHIM = r"""
 
     // Filled most-constrained first, exactly as build_feed does: the personal
     // sections choose before the generic ones can claim the bank.
-    out.from_history = take(scored.map(function (x) { return x.t; }), 6);
+    // `topics.rank_startup`: the startup questions lead by construction and
+    // the bank tops up behind them. Nothing here is about *this* listener, so
+    // the heading says "Start here" rather than "Made for you" - which is
+    // what `taste_source` below tells the interface.
+    if (cold) {
+      var lead = STARTUP.slice().sort(function (a, b) {
+        var d = affinity(b, startup.prior) - affinity(a, startup.prior);
+        return d || (a.id < b.id ? -1 : 1);
+      });
+      out.from_history = take(lead, 6);
+      if (out.from_history.length < 6) {
+        out.from_history = out.from_history.concat(
+          take(BANK.map(function (t) {
+            return { t: t, s: affinity(t, startup.prior) };
+          }).sort(function (a, b) { return b.s - a.s; })
+            .map(function (x) { return x.t; }), 6 - out.from_history.length));
+      }
+    } else {
+      out.from_history = take(scored.map(function (x) { return x.t; }), 6);
+    }
     // The friends rail. Empty in the browser by construction, and honestly
     // so: it reads the follow graph, this page has no server and therefore no
     // graph, and showing co-listener overlap here would preview the exact
@@ -429,7 +479,9 @@ LIVE_SHIM = r"""
     // the shipped state - so this previews the real thing rather than faking
     // a feed.
     out.world_trending = [];
-    return { picked: out, personalised: Object.keys(profile).length > 0 };
+    return { picked: out, personalised: !cold,
+             taste_source: cold ? "startup" : "taste",
+             startup_order: startup ? startup.source : "" };
   }
 
   // `topics.rank_missed`: what this listener was shown in the last week and
@@ -551,12 +603,17 @@ LIVE_SHIM = r"""
       shown.forEach(function (x) {
         addDoc("events", {
           user_id: UID, kind: "impression", topic_id: x.id, text: "",
-          tags: ((BY_ID[x.id] || {}).tags || []).join(","), at: now(),
+          // `topics.tags_for_id`: the bank, then the startup set. Without
+          // the second, an impression on a cold-start tile is logged with no
+          // tags and the rail teaches the preview nothing.
+          tags: (((BY_ID[x.id] || STARTUP_BY_ID[x.id] || {}).tags) || []).join(","), at: now(),
           thread: "", section: x.section, algo: ALGO
         });
       });
     }
-    return { sections: sections, personalised: f.personalised, algo: ALGO };
+    return { sections: sections, personalised: f.personalised,
+             taste_source: f.taste_source, startup_order: f.startup_order,
+             algo: ALGO };
   }
 
   function profileBody() {
@@ -1182,6 +1239,10 @@ LIVE_SHIM = r"""
       return json({ key: wantKey, title: sect.title, topics: all,
                     ready: all.filter(function (x) { return x.cached; }).length,
                     minutes: mins, empty_reason: "", personalised: true,
+                    // `build_section` carries this for the same reason the
+                    // feed does: the rail and the screen it opens are one
+                    // ranking, so they must agree about whose it is.
+                    taste_source: myfamBody().taste_source,
                     algo: "live" });
     }
 
@@ -1731,6 +1792,7 @@ LIVE_SHIM = r"""
       '<div class="fd-tabs"></div>' +
       '<div class="fd-scroll"><table class="fd-table"></table></div>' +
       '<div class="fd-foot"><button class="fd-btn" id="fdReset">Clear all data</button>' +
+      '<button class="fd-btn" id="fdCold">As a new listener</button>' +
       '<span class="fd-note">Session token is in localStorage here; the server uses an HttpOnly cookie.</span></div>';
     panel.querySelector(".fd-tabs").addEventListener("click", function (e) {
       var b = e.target.closest(".fd-tab"); if (!b) return;
@@ -1742,17 +1804,32 @@ LIVE_SHIM = r"""
       if (OPEN[id]) delete OPEN[id]; else OPEN[id] = 1;
       paint();
     });
-    document.getElementById("fdReset").onclick = function () {
-      if (!confirm("Delete every document this prototype has written?")) return;
+    // Both buttons wipe and reload; they differ only in whether this
+    // listener is seeded afterwards. Written as one function so the two
+    // cannot drift into wiping different things - which is how one of them
+    // would end up leaving a row behind and showing a state that is neither.
+    function wipeAndReload(cold) {
       var jobs = [];
       COLS.forEach(function (c) { rows(c).forEach(function (r) { jobs.push(del(c, r.id)); }); });
       Promise.all(jobs).then(function () {
         try {
           localStorage.removeItem("fam_live_session");
           localStorage.removeItem("fam_resume");
+          if (cold) localStorage.setItem("fam_live_cold", "1");
+          else localStorage.removeItem("fam_live_cold");
         } catch (e) {}
         location.reload();
       });
+    }
+
+    document.getElementById("fdReset").onclick = function () {
+      if (!confirm("Delete every document this prototype has written?")) return;
+      wipeAndReload(false);
+    };
+    document.getElementById("fdCold").onclick = function () {
+      if (!confirm("Start over as somebody with no account and no chosen "
+                   + "interests? myFAM will open on the startup topics.")) return;
+      wipeAndReload(true);
     };
     paint();
     setInterval(paint, 2000);   // ages out the green highlight
@@ -1825,7 +1902,22 @@ LIVE_SHIM = r"""
 
   // Two mixes and a finished episode for whoever is looking, so DailyFAM,
   // Go Deeper and the profile are not empty on a first visit either.
+  //: Set by the inspector's "As a new listener" button. It suppresses
+  //: `seedMine` and nothing else, which is exactly the difference between the
+  //: two states worth looking at: the crowd's history still seeds Explore and
+  //: the most-played row (other people's listening is not this listener's
+  //: taste), and *this* listener has said nothing and done nothing - so the
+  //: page draws the startup set under "Start here" rather than a rail ranked
+  //: off one seeded completion. There is no other way to see that state here:
+  //: "Clear all data" re-seeds on reload, by design, because Go Deeper and
+  //: the profile are empty without it.
+  function coldStartRequested() {
+    try { return localStorage.getItem("fam_live_cold") === "1"; }
+    catch (e) { return false; }
+  }
+
   function seedMine() {
+    if (coldStartRequested()) return Promise.resolve();
     if (rows("mixes").some(function (m) { return m.user_id === UID; })) return Promise.resolve();
     var jobs = [];
     jobs.push(put("mixes", rid(), {
@@ -2038,6 +2130,15 @@ def build() -> pathlib.Path:
             .replace("__PICKER_SIZE__", json.dumps(topics.PICKER_SIZE))
             .replace("__PICKER_ORDER__", json.dumps(
                 list(topics.PICKER_DEFAULT_ORDER)))
+            # The cold-start set, from `startup.py`, and the prior's decay
+            # from `topics`. A published page opened by somebody new *is* a
+            # cold start - no account, no interests, an empty database - so
+            # this is the one state this build shows by default, and typing
+            # the eight questions out here would make the preview drift from
+            # the page it exists to show.
+            .replace("__STARTUP__", json.dumps(
+                [t.as_dict() for t in topics.STARTUP_TOPICS]))
+            .replace("__STARTUP_STEP__", json.dumps(topics.STARTUP_PRIOR_STEP))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))
             .replace("__VOLATILE__", json.dumps(sorted(cache.research_words())))
             .replace("__NEAR__", json.dumps({

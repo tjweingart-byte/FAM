@@ -8500,3 +8500,191 @@ the check to fail loudly when `document.fonts.check` says the real face is
 absent - measuring layout in a substituted font is not a weaker version of
 the test, it is a different test - but that is a change to the harness rather
 than to the app, and it is worth doing when somebody is next in that file.
+
+## 116. The browse card answered the wrong question, and a new listener's page was four explanations
+
+Two requests, one from each end of the app, and they turned out to be the same
+mistake made twice: **a surface that was saying something true about itself
+instead of something useful about the episode.**
+
+### The card
+
+A tile on myFAM carried a title and one line under it, and that line said why
+the *rail* had chosen it — "Because of what you have played", or for the
+generic rows "Playing across FAM now". Both accurate. Neither any help: a
+listener scrolling a rail is deciding whether an episode is worth three
+minutes, and how the ranker arrived at it does not bear on that at all.
+
+The bank had a good one-line description for every tile all along — `subtitle`,
+hand-written, twenty-eight of them — and it was drawn on the "View more"
+screen and nowhere a listener actually chooses from. So the card had the
+information and showed the ranking instead.
+
+The rail's reason was not a bad idea; it was the answer to "why did we show
+this?", and that question has a place. It just took the one line the card has,
+on the one screen where the other question is the whole point.
+
+**Fixed by giving the line to the episode.** `seedWhy` is `seedHook`, and the
+order is `angle` (a live story's claim about today), then `subtitle`, then the
+rail's reason — kept only for a tile carrying neither, which no inventory
+produces today. And the twenty-eight bank subtitles are rewritten from
+descriptions into hooks: "NIL money, facilities, and the new power brokers"
+became "Somebody is paying. It isn't who you think."
+
+Two details that are not obvious:
+
+* **The line is clamped to two lines and the strings are budgeted in Python.**
+  A clamp is the one failure that hides itself — an over-long hook is cut
+  mid-word and nothing says so. The budget is asserted on the strings
+  (`startup.MAX_HOOK`) rather than measured in a browser, because §115 is
+  exactly what happens when a layout assertion depends on which fonts the
+  machine running it has.
+* **The rail and the "View more" screen now draw one line through one
+  function.** They were two: the screen read `subtitle`, the rail read the
+  rail's reason, so one tile had two different second lines depending on which
+  surface was drawing it.
+
+### The page
+
+The second half was reported as "the app should be populated for someone who
+hasn't made an account or entered their interests yet", and measuring it was
+the quickest part. `build_feed` for a listener with nothing:
+
+    from_history   0   Your first episode starts this one off.
+    world_trending 0   FAM isn't connected to a live news source yet.
+    missed         0   Nothing went past you this week.
+    most_played    6
+    followers      0   Follow some people and this fills up with what they play.
+
+One row of content and four explanations, on the only impression of FAM that
+listener will ever form for free.
+
+**The cause is not a bug, which is why it had lasted.** Every rail is a query
+over an event log; `taste` returns `{}` for an empty log; `_affinity` is
+therefore zero against every tile; `RELEVANCE_FLOOR` — added in §114 for good
+reasons — drops all of them. Each step is right. The rail whose heading claims
+relevance *should* be short rather than padded with the least bad thing in the
+bank.
+
+So the answer is not to weaken the ranker. It is that **there was nothing to
+rank.**
+
+#### What the startup topics are
+
+`startup.py`. Eight questions, one per facet, and each is *time-anchored*:
+"the most consequential world news story of the past week, explained from the
+beginning and why it matters now", not "what habit research actually shows".
+
+That distinction is the whole feature, and the mechanism behind it is one this
+project already pays for: `SEARCH_MODE=always` means **every episode is
+researched on the tap** (§76). So a startup tile is a title, a hook and a
+question — exactly like a story-pool tile — and its freshness is bought at the
+tap rather than at page load. Three consequences, each of which ruled out an
+alternative:
+
+* **It costs nothing on the browse path.** `build_feed` may never cause a
+  model call, and eight hand-written strings cannot.
+* **It needs no live provider.** The story pool is the other way to be about
+  today and it is off until somebody sets `GDELT=1`, which no deployment has.
+  A first impression that depends on optional configuration is one most
+  deployments would not have.
+* **It degrades honestly.** These questions turn on something current by
+  construction, so with no evidence at all `research.NoEvidence` refuses the
+  episode rather than writing a stale one from memory.
+
+**One per facet, because that is the only principled size.** `TAG_LABELS` is
+the whole pickable vocabulary, and a cold start knows nothing about which of
+the eight this listener wants — so complete coverage with no guess about which
+is the answer. Fewer silently gives some listeners a worse first page; more is
+a guess dressed as an editorial decision. Which of the eight *leads* is a
+separate question and is not answered in the file: `startup_profile` orders
+them by what FAM's listeners actually play, falling back to
+`PICKER_DEFAULT_ORDER`, and says which — the same function and the same
+reasoning §98 used for the first-run picker.
+
+**One tag each, and it is a facet.** It is true — "the world this week" is the
+whole facet, not a corner of it — and it makes the set rank evenly, because
+the prior is over facets and a subtag would contribute nothing to `_affinity`
+while still counting in its `sqrt(len(tags))` denominator.
+
+#### Four things that took deciding
+
+**A prior is not a taste, so the heading had to change.** The tiles are worth
+offering and the ordering is real, but it is what *other people* play. "Made
+for you" over that is the kind of claim this project keeps paying for, so the
+rail stays exactly where it is and the heading becomes **Start here**.
+`taste_source` carries it, and `build_section` carries it too — a startup rail
+whose "View more" ran the ordinary ranker would open on the empty list the
+rail exists to avoid.
+
+**Only that rail gets the prior.** "What your friends are listening to" and
+"What you missed last week" are statements about a graph and an impression log,
+and a prior cannot supply either. They stay empty and keep their sentences. A
+test asserts they stay empty, so the set cannot quietly spread.
+
+**`cold` is derived, never stored.** It is `not profile`. A "they skipped the
+intro" flag would have been the obvious implementation and is strictly worse:
+a flag cannot say whether behaviour has since arrived. As it is, one play, one
+search or one chosen interest retires the whole thing for that listener, which
+is what makes it the algorithm *before* the algorithm rather than a second
+algorithm beside it.
+
+**Plays of the startup set must never feed `popular_facets`.** This one was
+found while mirroring the change into the preview and is the sharpest thing
+here. The prior decides what every cold-start listener is offered, and a
+cold-start listener's first play is *by definition* a play of what it offered
+them — so counting those plays would close the loop and the prior would spend
+the rest of the deployment confirming its own opening guess. It is the same
+failure the impression rule already names ("an impression must never become
+taste — that is a feedback loop where the feed teaches itself its own
+preferences") arriving through a different door. `popular_facets` counts the
+bank, which the prior does not choose, and a test pins it.
+
+The play is not wasted by that: it enters *that listener's* own taste in full,
+which is exactly what retires the prior for them. It is only barred from
+voting on what the next stranger sees.
+
+### Two things that fell out
+
+**`tags_for_id` was being bypassed on the play path.** `/api/audio` read
+`BANK_BY_ID` directly and fell through to `tags_for_text(query)`, which
+silently skipped the catalogue and the story pool as well. The startup set is
+what made it matter: those queries are written for a research backend, and
+"the most consequential world news story of the past week" contains not one of
+the keywords `world` is matched on — so the *first* play of every new
+listener, the one event that decides whether the ranker ever learns anything,
+would have been logged with no tags at all.
+
+**The feed prefetch source now warms the startup set, and the test that said
+it should not is reversed.** `FeedSource` warmed nothing for a listener with
+no history, on the reasoning that guessing for them is paying for a random
+tile. Correct while their rail was ranked off an empty taste. The startup set
+is the *most* shareable inventory in the app — eight tiles, identical for every
+cold-start listener in the deployment, so one warmed brief serves all of them —
+and it is the highest-value brief there is, because a cold start's first rail
+is the first thing anybody ever taps. Nothing special was added for it:
+`FeedSource` reads `build_feed`, which is what makes a warmed tile and a shown
+tile agree.
+
+### What is not fixed
+
+**Trending, "missed" and the friends rail are still empty for a new listener**,
+and deliberately: filling them would mean inventing a live source, a week of
+impressions or a follow graph. So a cold start is now two full rails and three
+honest empties rather than one and four. Fixing the remaining three is
+`GDELT=1` and a second visit, not a change here.
+
+**Nobody has heard one of these episodes.** There is no API key in this
+container, so whether "the most consequential world news story of the past
+week" actually produces a good three minutes is unverified — and the packet is
+explicit that quality matters most here, because it is the first impression.
+`python write.py "<the query>" --minutes 3` against a key is the check, and the
+briefs are the first thing to read.
+
+### Previewing it
+
+The live preview seeds the viewing listener one completed episode, so it could
+not show this state at all. The inspector has a second button — **"As a new
+listener"** — which wipes and reloads with `seedMine` suppressed: the crowd's
+history still seeds Explore and the most-played row, because other people's
+listening is not this listener's taste, and the page opens on "Start here".
