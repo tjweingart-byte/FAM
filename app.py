@@ -3214,8 +3214,12 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     ranks and returns. That is what "zero queue" means here: not that the page
     is fast, but that there is no path from opening it to generating anything.
 
-    A listener with no history still gets Trending and a starter set, with the
-    personal rails honestly empty rather than filled with fakes.
+    A listener with no history gets the **startup set** on the first rail -
+    one time-anchored question per facet, ordered by what FAM's listeners
+    actually play - with the rails that would have to invent something
+    (friends, what went past you) honestly empty rather than filled with
+    fakes. `taste_source` says which of the two ordered the first rail. See
+    `startup.py`.
 
     `minutes` is the browse length this listener has chosen. It is here for one
     reason: whether a tile's script is already written depends on the length it
@@ -3892,9 +3896,15 @@ async def audio(
         EVENTS.record(
             topics_mod.Event(
                 user, "play", topic_id, plan.query,
-                topics_mod.BANK_BY_ID[topic_id].tags
-                if topic_id in topics_mod.BANK_BY_ID
-                else topics_mod.tags_for_text(plan.query),
+                # Through `tags_for_id`, which is the one definition of where
+                # a tile's tags live. This used to read the bank directly and
+                # fall through to the words of the question, which quietly
+                # skipped the other three inventories - the startup set is the
+                # case that makes it matter, because a cold start's *first*
+                # play is the one event that decides whether the ranker ever
+                # learns anything, and those queries carry none of the
+                # keywords their facet is matched on.
+                topics_mod.tags_for_id(topic_id, plan.query),
             )
         )
 

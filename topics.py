@@ -7,15 +7,23 @@ tile share one script through `cache.py`, and the second tap is free and
 instant. A per-user *inventory* would mean a per-user script for every tile,
 which is the same product at many times the price.
 
-There are two of them, and they answer different halves of "what should I
+There are three of them, and they answer different halves of "what should I
 hear":
 
     TOPIC_BANK        ~28 evergreen topics, written by hand, always true
     stories.pool()    live candidates built from today's data, and expiring
+    STARTUP_TOPICS    one time-anchored question per facet, for a cold start
 
 The bank is what a browse page has when nothing has happened; the pool is what
 it has when something has. Neither is a script - a tile is a title, an angle
 and a question, and the writing happens on the tap. See `stories.py`.
+
+The third is the smallest and is there for one listener: the one who has just
+tapped "Continue as guest" and then "Skip for now", whose log is empty, and
+who therefore scores zero against both of the other two. It is used by
+`rank_startup` and by nothing else, and `build_feed` stops reaching for it the
+moment there is any taste at all - so it is scaffolding that takes itself
+down. See `startup.py` for why those eight questions and not others.
 
 Four rails, and the point is that each runs on a *different* signal - four
 shuffles of one score would be one rail wearing four hats:
@@ -62,6 +70,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
+import startup
 import stories
 import trending
 from paths import data_path
@@ -204,6 +213,19 @@ class Topic:
 
     id: str
     title: str
+    #: The one line under the title on a browse card: **a hook, not a
+    #: description.** It used to be a standing summary ("NIL money,
+    #: facilities, and the new power brokers") and it was shown nowhere a
+    #: listener chooses from - the card showed the *rail's reason* instead,
+    #: so the question "is this episode worth three minutes" was answered
+    #: with "because of what you have played". A reason is about the feed; a
+    #: hook is about the episode, and only one of the two is what somebody
+    #: deciding needs. See `seedWhy` in `static/index.html`.
+    #:
+    #: It stays **evergreen** for a bank topic, which is what separates it
+    #: from `angle` below: a hook may be pointed, and it may not claim
+    #: anything about today, because this string is written by hand once and
+    #: read for as long as the tile exists.
     subtitle: str
     query: str
     tags: tuple[str, ...]
@@ -752,98 +774,128 @@ def facets_only(tags: Iterable[str]) -> list[str]:
 
 TOPIC_BANK: tuple[Topic, ...] = (
     Topic("nil-arms-race", "The New College Football Arms Race",
-          "NIL money, facilities, and the new power brokers.",
+          "Somebody is paying. It isn't who you think.",
           "how NIL money changed college football recruiting", ("sports", "money", "sports-business"), "sports"),
     Topic("operator-ceos", "Why Founders Are Taking Back Control",
-          "Leadership, product, and the rise of operator CEOs.",
+          "The grown-ups were meant to fix it. They didn't.",
           "why boards are keeping founders as CEO", ("business", "founders"), "business"),
     Topic("ai-agents", "Why Everyone Is Talking About AI Agents",
-          "What they are, how they work, why now.",
+          "Everyone says it. Almost nobody defines it.",
           "what AI agents are and why they matter now", ("tech", "ai"), "tech"),
     Topic("hollywood-comebacks", "Inside the Best Hollywood Comebacks",
-          "The stories, the risks, the second acts.",
+          "Nobody comes back by accident. It's engineered.",
           "how Hollywood comeback stories actually happen", ("culture", "film-tv"), "camera"),
     Topic("golf-evolution", "The Quiet Evolution of Golf",
-          "New players. New formats. Same obsession.",
+          "The money changed the game. Then the game changed.",
           "how professional golf formats are changing", ("sports", "sports-performance"), "golf"),
     Topic("habits-research", "The Habits That Actually Change Your Life",
-          "What the research says, and what people ignore.",
+          "Twenty-one days is a myth. Here's what isn't.",
           "what habit research actually shows about lasting change", ("health", "habits"), "leaf"),
     Topic("fed-next-move", "The Fed's Next Move, Explained",
-          "Rates, inflation data, and what markets expect.",
+          "Twelve people, one decision, everybody's mortgage.",
           "what the Federal Reserve is likely to do about interest rates",
           ("money", "macro"), "business"),
     Topic("space-race", "Inside the New Space Race",
-          "Reusable rockets, private missions, who's winning.",
+          "Getting to orbit stopped being the hard part.",
           "how reusable rockets changed the economics of spaceflight",
           ("science", "business", "space"), "rocket"),
     Topic("song-breaks-internet", "How One Song Breaks the Internet",
-          "Playlists, algorithms, and the new path to a hit.",
+          "Hits aren't found any more. They're triggered.",
           "how a song becomes a hit through playlists and short video",
           ("culture", "tech", "music", "platforms"), "music"),
     Topic("restaurant-scene", "The Restaurants Everyone's Talking About",
-          "Openings, closings, and where the lines form.",
+          "The food is rarely why the line is that long.",
           "why some restaurants become impossible to book", ("culture", "food"), "food"),
     Topic("the-trade", "The Trade That Changed Everything",
-          "Front offices, cap space, and deals nobody saw.",
+          "One phone call, and a decade went differently.",
           "how a single trade reshapes a sports franchise", ("sports", "sports-drama"), "sports"),
     Topic("sleep-science", "What We Actually Know About Sleep",
-          "The research, the myths, what isn't settled.",
+          "Eight hours is advice, not a finding.",
           "what sleep research actually establishes", ("health", "science", "sleep", "body-science"), "leaf"),
     Topic("chip-supply", "Who Actually Makes the World's Chips",
-          "Fabs, bottlenecks, and why it is so concentrated.",
+          "One island makes them. Everyone else waits.",
           "why semiconductor manufacturing is concentrated in so few places",
           ("tech", "world", "chips", "geopolitics"), "tech"),
     Topic("hormuz", "The Two-Mile Lane That Moves the Oil Price",
-          "Chokepoints, insurance, and why geography decides.",
+          "One narrow lane, and the oil market flinches.",
           "why the Strait of Hormuz moves the oil price", ("world", "money", "geopolitics", "commodities"), "business"),
     Topic("morning-mindset", "What to Do With the First Ten Minutes",
-          "Why waking up feels the way it does.",
+          "What you do first is not a small decision.",
           "a good mindset for when I wake up in the morning", ("health", "habits", "mind"), "leaf"),
     Topic("founder-motivation", "Where Motivation Actually Comes From",
-          "Progress, evidence, and the founder's problem.",
+          "It arrives after you start, not before.",
           "finding the motivation for my startup", ("health", "business", "mind", "founders"), "leaf"),
     Topic("housing-market", "Why Houses Cost What They Cost",
-          "Supply, rates, and the arguments that repeat.",
+          "Four people blame four different things.",
           "what actually drives house prices", ("money", "housing"), "business"),
     Topic("longevity-claims", "Sorting the Longevity Claims",
-          "What holds up, what is marketing.",
+          "Some of it works. Most of it is for sale.",
           "which longevity interventions have real evidence", ("health", "science", "longevity", "body-science"), "leaf"),
     Topic("streaming-economics", "Why Streaming Keeps Getting Worse",
-          "Licensing, churn, and the maths underneath.",
+          "It was never going to stay cheap. Here's why.",
           "why streaming services keep raising prices and losing shows",
           ("culture", "business", "film-tv", "media-business"), "camera"),
     Topic("election-mechanics", "How a Close Election Is Actually Called",
-          "Counting, models, and why it takes days.",
+          "Nobody counts every vote before it's called.",
           "how news organisations decide to call an election", ("world", "elections"), "business"),
     Topic("energy-grid", "What the Grid Does When the Wind Drops",
-          "Storage, baseload, and the balancing act.",
+          "Somebody balances the grid every single second.",
           "how electricity grids handle intermittent renewable power",
           ("science", "money", "energy", "commodities"), "rocket"),
     Topic("attention-economy", "The Fight for Fifteen Seconds",
-          "How short video rewired everything downstream.",
+          "Fifteen seconds rewrote TV, music and the news.",
           "how short-form video changed the media business", ("tech", "culture", "platforms", "internet-culture"), "music"),
     Topic("transfer-window", "How a Transfer Window Actually Works",
-          "Agents, deadlines, and the money underneath.",
+          "The deal was done weeks before you heard it.",
           "how football transfer deals actually get done", ("sports", "money", "sports-business"), "sports"),
     Topic("stadium-money", "Who Really Pays for a Stadium",
-          "Public money, private returns, and the argument.",
+          "The team owns it. You probably paid for it.",
           "who actually pays for new sports stadiums", ("sports", "money", "world", "sports-business", "cities"), "business"),
     Topic("anxiety-loop", "Why Worry Feels Productive",
-          "The loop, and what actually interrupts it.",
+          "Worrying feels like working. It is not.",
           "why worrying feels useful when it is not", ("health", "mind"), "leaf"),
     Topic("pricing-psychology", "Why Everything Ends in Ninety-Nine",
-          "What the pricing research does and does not show.",
+          "One penny, and it reads as a different number.",
           "what the evidence says about psychological pricing", ("business", "money", "strategy", "consumer-prices"), "business"),
     Topic("food-supply", "How Food Gets to a City",
-          "Logistics, margins, and the fragile bits.",
+          "A city holds days of food, not weeks.",
           "how a city's food supply chain actually works", ("world", "business", "supply-chain", "cities"), "food"),
     Topic("training-load", "How Athletes Are Actually Trained Now",
-          "Load, recovery, and the data behind it.",
+          "The hard part is deciding when to stop.",
           "how modern athletic training load is managed", ("sports", "health", "sports-performance", "fitness"), "sports"),
 )
 
 BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
+
+#: The cold-start inventory, as tiles. See `startup.py` for what these are and
+#: why there are eight of them.
+#:
+#: `freshness` is left at zero, which is worth saying out loud because these
+#: are the freshest tiles on the page. That field means one specific thing -
+#: `Story.push()`, how hard the live pool is pushing this story right now -
+#: and `rank_from_history` reads `freshness > 0` as "this is a live story" in
+#: order to apply `BROAD_MATCH_PENALTY`. Setting it here to express "this is
+#: about today" would therefore both lie about the field and damp the tiles it
+#: was meant to lift. A startup topic leads because `rank_startup` puts it
+#: first, not because a number was borrowed from another subsystem.
+STARTUP_TOPICS: tuple[Topic, ...] = tuple(
+    Topic(spec_id, title, hook, query, (facet,), icon)
+    for spec_id, title, hook, query, facet, icon in startup.STARTUP_TOPICS
+)
+
+STARTUP_BY_ID = {t.id: t for t in STARTUP_TOPICS}
+
+#: How much less each facet is worth than the one above it in the startup
+#: prior. Eight facets, so the last is worth 1 - 7 * 0.08 = 0.44 of the first.
+#:
+#: It has to decay at all: a flat prior scores all eight startup topics
+#: identically and the rail falls back to sorting on `topic.id`, which is
+#: alphabetical by slug and is exactly the fake ordering §98 took out of the
+#: first-run picker. It has to decay *gently* because the ordering it is
+#: expressing is a weak signal - what other people play - and a steep one
+#: would make the eighth facet effectively unofferable to a listener who may
+#: well have wanted it. Every weight stays well clear of RELEVANCE_FLOOR.
+STARTUP_PRIOR_STEP = 0.08
 
 #: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The most
 #: constrained sections choose first; trending can fall back to the whole bank
@@ -1439,13 +1491,15 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
 
 
 def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
-    """Every tile this server could name right now: the bank, then the pool.
+    """Every tile this server could name right now: the bank, the startup
+    set, then the pool.
 
     The bank wins a collision, which cannot happen - a story id starts `st-`
     and a bank id is a hand-written word - but saying which wins is cheaper
     than finding out the day somebody adds a bank entry called `st-...`.
     """
     known = dict(BANK_BY_ID)
+    known.update(STARTUP_BY_ID)
     for topic in live_topics(now):
         known.setdefault(topic.id, topic)
     return known
@@ -1576,6 +1630,109 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
             scored.append((score, topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:limit]]
+
+
+def startup_profile(
+    store: "EventStore", now: Optional[float] = None
+) -> tuple[dict[str, float], str]:
+    """The prior to rank a listener we know nothing about. "The algorithm
+    before the algorithm."
+
+    Returns the profile *and where its order came from* - `"played"` or
+    `"default"` - because those look identical on a screen and only one of
+    them is a measurement. Same contract as `popular_facets`, whose answer
+    this is, and for the same reason: this is asked of somebody with no
+    history, so the only honest signal is everybody else's, and one count
+    serves every listener.
+
+    It is a `taste`-shaped dictionary rather than a list of `interests`
+    deliberately. Interests enter `taste` at a flat `INTEREST_WEIGHT`, so
+    routing the prior through that channel would throw away the one thing it
+    knows - which facet leads - and hand the ranking back to the `topic.id`
+    tiebreak. It is also not a *claim* that this listener chose anything:
+    nothing here is written to their preferences, and one play replaces the
+    whole of it.
+
+    Every facet is present, not just the six the picker shows. The picker is
+    narrowing a screen to a grid; this is ranking an inventory, and leaving
+    two facets at zero would make two of the eight startup topics unofferable
+    to the listener who wanted exactly those.
+
+    **`popular_facets` counts plays of the bank and not of the startup set,
+    and that is load-bearing rather than an omission.** This prior decides
+    what every cold-start listener is offered, and a cold-start listener's
+    first play is by definition a play of what it offered them - so counting
+    those plays here would close the loop and the prior would spend the rest
+    of the deployment's life confirming its own opening guess. It is the same
+    failure the impression rule already names ("an impression must never
+    become taste - that is a feedback loop where the feed teaches itself its
+    own preferences"), arriving through a different door. Fed only by the
+    bank, this stays a measurement of something the prior does not choose.
+
+    A play on a startup tile is not wasted by that: it goes into *that
+    listener's* own `taste` in full, which is what retires the prior for them
+    on the very next draw. It is only barred from voting on what the next
+    stranger sees.
+    """
+    order, source = popular_facets(store, limit=len(TAG_LABELS), now=now)
+    # `popular_facets` is capped at the facets it can see. Anything it left
+    # out keeps the declared order behind what it returned, so the prior
+    # always covers all eight.
+    for facet in PICKER_DEFAULT_ORDER:
+        if facet not in order:
+            order.append(facet)
+    return ({facet: 1.0 - rank * STARTUP_PRIOR_STEP
+             for rank, facet in enumerate(order)}, source)
+
+
+def rank_startup(profile: dict[str, float], exclude: set[str],
+                 limit: int = SECTION_SIZE,
+                 candidates: Optional[Iterable[Topic]] = None,
+                 damp: Optional[dict[str, float]] = None,
+                 familiar: frozenset = frozenset()) -> list[Topic]:
+    """The first rail a listener with no history sees: the startup set first,
+    then the ordinary ranking behind it.
+
+    **Leading with the set is the whole point, and it is a deliberate
+    departure from how every other rail works.** Elsewhere a ranking chooses
+    from one pool and the best tile wins; here the eight startup questions go
+    in front of the twenty-eight bank topics *by construction*, because the
+    thing that makes them right for this listener is not that they score
+    better - against a prior nobody measured they score much the same - it is
+    that they are about today and the bank is about always. A score cannot
+    express that difference without borrowing `freshness` from the live pool,
+    which would be a lie about that field (see `STARTUP_TOPICS`).
+
+    Ordered among themselves by `_affinity` against the startup prior, so the
+    facet FAM's listeners play most leads. Topped up from `rank_from_history`
+    over whatever was passed as `candidates` - the bank, and the live story
+    pool when this deployment has one - so a rail is never shorter than a
+    rail, and so a deployment that *does* have live stories still shows them
+    here.
+
+    `BROAD_MATCH_PENALTY` is not applied to the startup set and cannot be: it
+    damps a live story matching only a facet whose words this listener has
+    never used, and a cold-start listener has used no words at all, so the
+    check has nothing to measure and would damp every tile equally. It still
+    applies to the top-up, which goes through `rank_from_history` unchanged.
+    """
+    lead = [t for t in STARTUP_TOPICS if t.id not in exclude]
+    lead.sort(key=lambda t: (-_affinity(t, profile), t.id))
+    lead = lead[:limit]
+    if len(lead) >= limit:
+        return lead
+    # The floor is dropped for the top-up, not for the lead. Against a prior
+    # rather than a measured taste, `RELEVANCE_FLOOR`'s reasoning does not
+    # hold - it exists to keep a rail whose heading claims relevance from
+    # offering the least bad thing in the bank, and this rail's heading claims
+    # to be a starting point. Padding it with a real topic beats ending it
+    # early, which is the opposite of the call `rank_from_history` makes and
+    # is the right one here for exactly that reason.
+    seen = exclude | {t.id for t in lead}
+    rest = rank_from_history(profile, seen, damp, limit=limit - len(lead),
+                             candidates=candidates, familiar=familiar,
+                             floor=0.0)
+    return lead + rest
 
 
 def rank_bank(profile: dict[str, float]) -> list[Topic]:
@@ -1900,6 +2057,20 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
+    # **The cold start, decided by measurement rather than by a flag.**
+    #
+    # An empty `taste` is exactly the listener `startup.py` exists for: no
+    # account, no chosen interests, nothing played. Deriving it here rather
+    # than reading a "they skipped the intro" preference is the same call this
+    # whole module already makes - a taste profile is a query, not a stored
+    # object - and it is strictly better than a flag, because a flag cannot
+    # say whether behaviour has since arrived. One play, one search or one
+    # chosen interest and this is False again for good.
+    cold = not profile
+    startup_source = ""
+    prior: dict[str, float] = {}
+    if cold:
+        prior, startup_source = startup_profile(store, now)
     mine = _played_ids(events)
     # One read for the whole page. Every personalised section damps the same
     # way, so computing this per section would be the same answer four times.
@@ -1979,10 +2150,23 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         elif key == "from_history":
             # The one rail that draws on both inventories - today's stories
             # and the standing bank - which is what "a mix of new and cached"
-            # asks for.
-            picks = rank_from_history(profile, seen, damp, limit=wide,
-                                      candidates=live + list(TOPIC_BANK),
-                                      familiar=familiar)
+            # asks for. Three of them on a cold start: the startup questions
+            # lead and the other two top up behind them.
+            #
+            # **Only this rail gets the prior.** Each of the others would be
+            # claiming something a prior cannot support - that these went past
+            # you this week, that your friends played them - where this one's
+            # question is "what should I hear", which is answerable for
+            # somebody we know nothing about and is the whole reason the
+            # startup set exists. The rest stay honestly empty.
+            if cold:
+                picks = rank_startup(prior, seen, limit=wide,
+                                     candidates=live + list(TOPIC_BANK),
+                                     damp=damp, familiar=familiar)
+            else:
+                picks = rank_from_history(profile, seen, damp, limit=wide,
+                                          candidates=live + list(TOPIC_BANK),
+                                          familiar=familiar)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
                                  written=written)
@@ -2075,8 +2259,17 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         }
         for key, title in SECTIONS
     ]
+    # What ordered the first rail, said out loud. `"taste"` means this
+    # listener's own behaviour and interests; `"startup"` means the prior, and
+    # `startup_order` then says whether even that was a measurement of what
+    # FAM plays or the declared fallback. The interface reads the first to
+    # keep a generic rail from being headed "Made for you", and the second
+    # distinction exists for the reason `popular_facets` already draws it: a
+    # declared order and a measured one look identical on a screen.
     return {"sections": sections, "personalised": bool(profile),
-            "live_stories": len(live)}
+            "live_stories": len(live),
+            "taste_source": "startup" if cold else "taste",
+            "startup_order": startup_source}
 
 
 #: How many tiles a full-screen section shows. The bank is ~28 topics, so
@@ -2104,6 +2297,16 @@ def build_section(store: EventStore, user_id: str, key: str,
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
+    # **The cold start, decided by measurement rather than by a flag.**
+    #
+    # An empty `taste` is exactly the listener `startup.py` exists for: no
+    # account, no chosen interests, nothing played. Deriving it here rather
+    # than reading a "they skipped the intro" preference is the same call this
+    # whole module already makes - a taste profile is a query, not a stored
+    # object - and it is strictly better than a flag, because a flag cannot
+    # say whether behaviour has since arrived. One play, one search or one
+    # chosen interest and this is False again for good.
+    cold = not profile
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
     limit = FULL_SECTION_SIZE
@@ -2114,8 +2317,18 @@ def build_section(store: EventStore, user_id: str, key: str,
     # a different rail happened to claim them would make "view more" show
     # less.
     if key == "from_history":
-        picks = rank_from_history(profile, mine, damp, limit=limit,
-                                  candidates=live + list(TOPIC_BANK))
+        # The cold start is honoured here too, and it has to be: this screen's
+        # one rule is that it is the rail's own ranking at full length, so a
+        # startup rail whose "View more" ran the ordinary ranker would open on
+        # the empty list the rail was built to avoid - two different answers to
+        # one question, which is the thing this function exists not to do.
+        if cold:
+            prior, _order = startup_profile(store, now)
+            picks = rank_startup(prior, mine, limit=limit,
+                                 candidates=live + list(TOPIC_BANK), damp=damp)
+        else:
+            picks = rank_from_history(profile, mine, damp, limit=limit,
+                                      candidates=live + list(TOPIC_BANK))
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "followers":
@@ -2137,6 +2350,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         "topics": [t.as_dict() for t in picks],
         "empty_reason": _empty_reason(key) if not picks else "",
         "personalised": bool(profile),
+        "taste_source": "startup" if cold else "taste",
     }
 
 
@@ -2270,8 +2484,9 @@ def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:
 def tags_for_id(topic_id: str, text: str = "") -> tuple[str, ...]:
     """The tags to log against an interaction with `topic_id`.
 
-    Three places to look, in order: the evergreen bank, the live story pool,
-    and - failing both - the words of whatever was asked. The middle one is
+    Four places to look, in order: the evergreen bank, the cold-start
+    startup set, the first-run catalogue, the live story pool, and - failing
+    all of them - the words of whatever was asked. The middle one is
     why this function exists: a story tile's tags live in the pool and nowhere
     else, and an event logged without them teaches the taste model nothing
     about the tap it just recorded.
@@ -2282,6 +2497,17 @@ def tags_for_id(topic_id: str, text: str = "") -> tuple[str, ...]:
     """
     if topic_id in BANK_BY_ID:
         return BANK_BY_ID[topic_id].tags
+    # The cold-start set. It matters more here than its size suggests: these
+    # eight are the first thing a new listener is offered, so a play on one is
+    # the *first real thing the ranker ever learns* - and their queries are
+    # written for a research backend rather than for `tags_for_text`. "The
+    # most consequential world news story of the past week" contains not one
+    # of the keywords `world` is matched on, so falling through to the text
+    # would log the opening episode of somebody's history with no tags at all,
+    # and the set that exists to bootstrap a taste model would teach it
+    # nothing.
+    if topic_id in STARTUP_BY_ID:
+        return STARTUP_BY_ID[topic_id].tags
     if topic_id in CATALOGUE_BY_ID:
         return CATALOGUE_BY_ID[topic_id].tags
     for story in stories.pool().live():

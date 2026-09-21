@@ -984,7 +984,15 @@
   .seed-card .seed-tag{ position:absolute; left:12px; bottom:9px;
     font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.1em;
     text-transform:uppercase; color:#5a5347; }
-  .seed-why{ font-size:10px; line-height:1.4; color:var(--text-muted); margin-top:6px; }
+  /* Two lines, clamped, so a rail's cards are one height whatever their
+     hooks are. `startup.MAX_HOOK` is the other half of this: a clamp is the
+     one failure that hides itself, so the budget is asserted on the strings
+     in a test rather than measured in a browser - PROBLEMS.md §115 is what
+     happens when a layout assertion depends on which fonts the machine
+     running it happens to have. */
+  .seed-why{ font-size:10px; line-height:1.4; color:var(--text-muted); margin-top:6px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; }
   .seed-why b{ color:var(--copper); font-weight:700; }
 
   /* Now playing, docked above the tab bar so a part-heard episode is one tap
@@ -5664,32 +5672,60 @@
   // job in different places.
   var SECTION_OPENS = {};
 
+  // What ordered the first rail, from the last feed the server sent. Held
+  // here rather than passed down through `renderMyFamFeed`, because the
+  // heading is the only thing that reads it and a second parameter threaded
+  // through the renderer for one string is how a renderer stops being generic.
+  var myfamTasteSource = "taste";
+
   function madeForTitle(){
     var h = new Date().getHours();
     var part = h < 12 ? "morning" : (h < 18 ? "afternoon" : "evening");
     var day = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
+    // **A cold start does not get to say "Made for you".** With no account,
+    // no chosen interests and nothing played, this rail is ranked from what
+    // FAM's listeners play - a real signal, and not this listener's. The
+    // tiles are genuinely worth offering, so the row stays exactly where it
+    // is and the heading stops claiming it was chosen for somebody the app
+    // has never met. It becomes "Made for you" by itself on the next draw
+    // after their first episode; see `topics.build_feed` on `cold`.
+    if(myfamTasteSource === "startup") return "Start here,\n" + day + " " + part;
     return "Made for you,\n" + day + " " + part;
   }
 
-  // Why this card, in the card. A pick that cannot say why it is there reads
-  // as arbitrary, and this is where the three signals become visible.
-  function seedWhy(sectionKey, topic){
-    // A live story's angle beats every sentence below it, and that is the
-    // point of having one: "what the strike is really about" says more than
-    // "because of what you have played", and it is about *today*. A bank tile
-    // has no angle - it is a standing explainer, true in any week - so it
-    // falls through to the rail's reason, unchanged.
-    if(topic && topic.angle) return escapeHtml(topic.angle);
-    if(sectionKey === "from_history") return "Because of what you have played";
-    // True by construction: every tile on this rail is one this app put in
-    // front of this listener in the last week and they did not take.
+  // **What this episode is, in one sentence with a hook in it.**
+  //
+  // This line used to say why the *card* was there - "because of what you
+  // have played", "playing across FAM now" - and that was answering the
+  // wrong question. Somebody scrolling a rail is deciding whether an episode
+  // is worth three minutes, and the reason a ranker put it in front of them
+  // is no help with that: it describes the feed, not the thing they would be
+  // listening to. So the one line a browse card has now belongs to the
+  // episode.
+  //
+  // Both sources are written to pull rather than to summarise, and the
+  // difference between them is *when* they are true:
+  //
+  //   `angle`     the story composer's claim about today, written this
+  //               refresh window for a live tile - "what the strike is
+  //               really about". Always preferred: it is specific, and it is
+  //               about now.
+  //   `subtitle`  the bank's hand-written, evergreen hook. Every tile has
+  //               one, so this is what makes the line reliable.
+  //
+  // The rail's reason is kept only for a tile carrying neither, which no
+  // inventory produces today - `topics.Topic` requires a subtitle and
+  // `topics_from_stories` fills both. It is a fallback against a future
+  // inventory rather than a state anything reaches, and it stays sectioned
+  // per rail so that if one ever does arrive the card says something true
+  // instead of an empty line.
+  function seedHook(sectionKey, topic){
+    if(topic && topic.angle)    return escapeHtml(topic.angle);
+    if(topic && topic.subtitle) return escapeHtml(topic.subtitle);
     if(sectionKey === "missed")       return "<b>Went past you</b> this week";
     if(sectionKey === "followers")    return "<b>Your friends</b> played this";
-    // Says the opposite of the others on purpose. This is the one rail that is
-    // not a reflection of an established taste, and a card that claimed
-    // "because of what you played" here would be describing the ranking that
-    // deliberately muted exactly that.
     if(sectionKey === "might_like")   return "<b>Next to</b> your taste, not more of it";
+    if(sectionKey === "from_history") return "Because of what you have played";
     return "Playing across FAM now";
   }
 
@@ -5772,7 +5808,7 @@
           + '</div>'
           + '<div class="seed-card-body">'
           + '<div class="seed-card-title">' + escapeHtml(t.title) + '</div>'
-          + '<div class="seed-why">' + seedWhy(sec.key, t) + '</div>'
+          + '<div class="seed-why">' + seedHook(sec.key, t) + '</div>'
           + '</div></div>';
       }).join("")
         // The end of the rail. While there is more to scroll it is the
@@ -5822,9 +5858,15 @@
     var grid = document.getElementById("sectionGrid");
     var title = document.getElementById("sectionTitle");
     var reason = document.getElementById("sectionReason");
-    title.textContent = SECTION_TITLE[key]
-      ? String(SECTION_TITLE[key]).replace(/\n/g, " ")
-      : (key === "from_history" ? "Made for you" : "More");
+    // Through `madeForTitle` for `from_history`, so a cold start's rail and
+    // the screen it opens carry the same heading. They are one ranking - that
+    // is the whole rule of this screen - and two headings over one list is
+    // the same lie in a second place.
+    title.textContent = key === "from_history"
+      ? madeForTitle().replace(/\n/g, " ")
+      : (SECTION_TITLE[key]
+         ? String(SECTION_TITLE[key]).replace(/\n/g, " ")
+         : "More");
     reason.textContent = "Loading\u2026";
     grid.innerHTML = "";
     navigate("section");
@@ -5865,7 +5907,11 @@
         + '</div>'
         + '<div class="seed-card-body">'
         + '<div class="seed-card-title">' + escapeHtml(t.title) + '</div>'
-        + (t.subtitle ? '<div class="seed-why">' + escapeHtml(t.subtitle) + '</div>' : '')
+        // Through `seedHook`, like the rail's own cards. This screen already
+        // showed the subtitle and the rail did not, which is how one card
+        // ended up with two different second lines depending on which surface
+        // was drawing it.
+        + '<div class="seed-why">' + seedHook(d.key, t) + '</div>'
         + '</div></div>';
     }).join("");
   }
@@ -6256,7 +6302,13 @@
     // at the wrong one marks ready tiles unready and sorts the rails wrong.
     fetch(withInterests("/api/myfam?minutes=" + myfamLengthMinutes))
       .then(function(r){ if(!r.ok) throw new Error("feed unavailable"); return r.json(); })
-      .then(function(data){ renderMyFamFeed(data.sections); loadGoDeeper(); })
+      .then(function(data){
+        // Before the render, so the first rail's heading is right on the
+        // first paint rather than correcting itself a frame later.
+        myfamTasteSource = data.taste_source || "taste";
+        renderMyFamFeed(data.sections);
+        loadGoDeeper();
+      })
       .catch(function(){
         // The feed failing must look like a failure, not like an empty app.
         el.innerHTML = '<div class="feed-empty">Could not load your feed. '

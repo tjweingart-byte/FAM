@@ -1101,6 +1101,56 @@ the rest of this list it needs taste rather than a key.
   provider all fall back to a templated tile and say so, which is the same
   rule episode intelligence lives by.
 
+- **A browse card's one line is about the episode, and a new listener's page
+  is not four explanations.** *(§116, `startup.py`.)* Two halves of one
+  mistake - a surface saying something true about *itself* where something
+  useful about the *episode* belongs.
+  The card said why the rail had chosen it ("Because of what you have
+  played", "Playing across FAM now"). Accurate, and no help: somebody
+  scrolling is deciding whether an episode is worth three minutes. The line
+  is the episode's hook now - `angle`, then `subtitle` - and the bank's
+  twenty-eight subtitles are rewritten from descriptions into hooks. The
+  rail's reason survives only for a tile carrying neither, which nothing
+  produces. **The rail and its "View more" screen draw it through one
+  function**, because they were two and one tile had two different second
+  lines depending on which drew it. It is clamped to two lines and the
+  strings are budgeted in Python (`startup.MAX_HOOK`) rather than measured in
+  a browser - a clamp is the one failure that hides itself, and §115 is what
+  measuring text in this container buys.
+  And a listener with no account and no chosen interests got **one row of
+  content and four empty-state sentences**, because every rail is a query
+  over an event log and there was nothing to rank. Not a bug in the ranker -
+  a rail claiming relevance *should* be short rather than padded - so the fix
+  is a third inventory rather than a weaker floor. `STARTUP_TOPICS` is **one
+  time-anchored question per facet**, and the time-anchoring is the whole
+  feature: `SEARCH_MODE=always` means the episode is researched on the tap,
+  so the tile costs nothing at page load, needs **no live provider
+  configured** (the story pool is off until `GDELT=1`, which no deployment
+  has), and `research.NoEvidence` refuses rather than writing a stale one
+  from memory. One per facet because the eight are the whole pickable
+  vocabulary and a cold start knows nothing about which one this listener
+  wants; which *leads* comes from `popular_facets`, like the first-run
+  picker.
+  Four rules hold it up. **A prior is not a taste**, so the heading is
+  **Start here** rather than "Made for you" - the tiles are worth offering
+  and the ordering is real, but it is what other people play; `taste_source`
+  carries it and `build_section` carries it too, or "View more" would open on
+  the empty list the rail exists to avoid. **Only that rail gets it** - the
+  friends rail and "what went past you" are statements about a graph and an
+  impression log that a prior cannot supply, so they stay empty and keep
+  their sentences. **`cold` is derived, never stored** (`not profile`): a
+  "they skipped the intro" flag cannot say whether behaviour has since
+  arrived, and as it is, one play retires the whole thing - the algorithm
+  *before* the algorithm, not a second one beside it. And **plays of the set
+  never feed `popular_facets`**, or the prior would spend the deployment
+  confirming its own opening guess, which is the feedback loop the impression
+  rule already forbids arriving through a different door.
+  A tile claims nothing about the world, because it is written before
+  anything is retrieved - §88 and §102 one layer earlier, and a test bans
+  results, outcomes and digits from the titles and hooks. **Nobody has heard
+  one of these episodes**; there is no key here, and quality is the whole
+  point of this set.
+
 - **The weekly recap is a rail, not a popup.** *(`topics.rank_missed`,
   `MYFAM.md`.)* It was one episode *about* somebody's week, fired on the first
   open on or after Sunday - so a thin week produced an episode about having had
@@ -1799,8 +1849,12 @@ blind to the subtags it was given, a seed nobody could take back out, and a
 disk that was declared and never attached; and **§115**, found while getting
 §114 ready to merge - CI had been red on `Main` for nine merges on one
 assertion that was *right*, and the reason nobody saw it is that this
-container has no webfonts and the runner does), `MYFAM.md` for the browse page and the live story pool that fills
-it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
+container has no webfonts and the runner does; and **§116**, two surfaces
+that were each saying something true about themselves where something
+useful about the episode belonged - a browse card that explained the ranking
+instead of the episode, and a new listener's page that was one row of
+content and four empty-state sentences), `MYFAM.md` for the browse page, the
+live story pool and the startup set that fill it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving
@@ -1819,12 +1873,12 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **fifty-five** named smoke
+**twice** - once per preview build - and **fifty-seven** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 55 as of §114.)
+prose does not fail when somebody adds a behaviour. (It is 57 as of §116.)
 
 **There is a third browser run, and it is not one of those two** (§106). The
 share landing page is a different page from `static/index.html` - one episode,

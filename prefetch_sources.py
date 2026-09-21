@@ -220,6 +220,15 @@ class FeedSource:
     `rank_next_up`.
 
     Most personal and least shareable, so it is asked last and capped hardest.
+
+    **With one exception, and it is the best thing this source warms.** A
+    listener with no taste at all gets the startup set on their "Made for
+    you" rail (`startup.py`), and those eight tiles are identical for every
+    cold-start listener in the deployment - so they are as shareable as
+    trending is, and one warmed brief serves all of them. They are also the
+    first thing anybody ever taps. Nothing special is done for them here:
+    this source reads `build_feed`, and reading `build_feed` is what makes a
+    warmed tile and a shown tile agree.
     """
 
     name = "feed"
