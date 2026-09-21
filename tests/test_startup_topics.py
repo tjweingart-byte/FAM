@@ -407,3 +407,42 @@ def test_the_prior_cannot_confirm_its_own_guess(store):
     assert source == "default", "the crowd signal is still unmeasured"
     # But the listener who played it is no longer a cold start.
     assert T.build_feed(store, "a-stranger")["taste_source"] == "taste"
+
+
+def test_a_startup_tile_declined_often_enough_makes_way(store):
+    """Eight tiles into a rail of six needs fatigue, or two are unreachable.
+
+    A cold start has no taste to re-rank on, so without damping a listener who
+    keeps opening myFAM and never tapping sees the same six in the same order
+    forever. It can only reorder and never shorten: no floor is applied to the
+    lead, `FATIGUE_FLOOR` keeps the multiplier positive, and `FATIGUE_GRACE`
+    means being sent a tile twice is not yet evidence of anything.
+    """
+    prior, _src = T.startup_profile(store)
+    fresh = [t.id for t in T.rank_startup(prior, set(), T.SECTION_SIZE)]
+    assert len(fresh) == T.SECTION_SIZE
+    buried, spare = fresh[0], [t.id for t in T.STARTUP_TOPICS
+                               if t.id not in fresh]
+    assert spare, "the set is no longer larger than the rail"
+
+    # Shown on many separate occasions and never played.
+    damped = T.rank_startup(prior, set(), T.SECTION_SIZE,
+                            damp={buried: T.FATIGUE_FLOOR})
+    ids = [t.id for t in damped]
+    assert len(ids) == T.SECTION_SIZE, "damping shortened the rail"
+    assert ids[0] != buried, "the declined tile is still leading"
+    assert buried in ids or set(spare) & set(ids), \
+        "nothing moved, so the bottom of the set is unreachable"
+
+
+def test_fatigue_reaches_the_startup_rail_through_build_feed(store):
+    """The wiring, not just the ranker.
+
+    `build_feed` computes one fatigue table for the page; this asserts the
+    cold-start rail actually receives it, which is the half that was missing
+    when `rank_startup` accepted `damp` and used it only for the top-up.
+    """
+    import inspect
+    src = inspect.getsource(T.rank_startup)
+    lead = src[src.index("lead.sort"):src.index("lead = lead[:limit]")]
+    assert "damp" in lead, "the lead is ranked without the fatigue table"

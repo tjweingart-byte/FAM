@@ -1710,14 +1710,27 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
     rail, and so a deployment that *does* have live stories still shows them
     here.
 
+    `damp` is the fatigue multiplier and applies to the lead as well as the
+    top-up: eight tiles into a rail of six means the two at the bottom are
+    unreachable otherwise, however many times somebody declines the top six.
+
     `BROAD_MATCH_PENALTY` is not applied to the startup set and cannot be: it
     damps a live story matching only a facet whose words this listener has
     never used, and a cold-start listener has used no words at all, so the
     check has nothing to measure and would damp every tile equally. It still
     applies to the top-up, which goes through `rank_from_history` unchanged.
     """
+    damp = damp or {}
     lead = [t for t in STARTUP_TOPICS if t.id not in exclude]
-    lead.sort(key=lambda t: (-_affinity(t, profile), t.id))
+    # Damped, like every other personalised rail. There are eight of these and
+    # a rail shows six, so without it a listener who keeps opening myFAM and
+    # never tapping sees the same six in the same order forever and the other
+    # two are unreachable. It can only reorder, never shorten: no floor is
+    # applied to the lead, `FATIGUE_FLOOR` keeps the multiplier positive, and
+    # `FATIGUE_GRACE` means being sent a tile twice is not yet evidence of
+    # anything - which is the whole reason this is safe on an inventory this
+    # small.
+    lead.sort(key=lambda t: (-_affinity(t, profile) * damp.get(t.id, 1.0), t.id))
     lead = lead[:limit]
     if len(lead) >= limit:
         return lead
