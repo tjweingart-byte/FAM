@@ -1666,6 +1666,124 @@ def main() -> int:
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             assert page.eval_on_selector_all(".mix-card", "e => e.length") >= 1
 
+        def the_new_mix_button_waits_for_an_account():
+            """A mix is one of the things an account is *for*, so the "+" is
+            not offered to somebody who cannot keep one.
+
+            It used to be in the markup unconditionally: tapping it opened a
+            naming modal, then a whole topic picker, and refused only at the
+            save. A control with nothing behind it is worse than no control,
+            and this one took two screens to say so. The sign-up buttons the
+            locked note already draws are the way in.
+            """
+            page.evaluate("openPlayFAM()")
+            page.wait_for_timeout(1200)
+            assert page.eval_on_selector("#newMixBtn", "e => !e.hidden"), \
+                "the new-mix + is hidden from a listener who has an account"
+            page.evaluate("renderMixesLocked()")
+            page.wait_for_timeout(200)
+            assert page.eval_on_selector("#newMixBtn", "e => e.hidden"), \
+                "the new-mix + is offered to a listener who cannot keep a mix"
+            page.evaluate("renderMixList()")
+            page.wait_for_timeout(200)
+            assert page.eval_on_selector("#newMixBtn", "e => !e.hidden"), \
+                "the new-mix + did not come back with the mixes"
+
+        def a_locked_mix_list_keeps_the_topic_bank():
+            """A 401 from `/api/mixes` says something about the account. It
+            says nothing about `/api/topics`, which is not gated and answered
+            on its own promise.
+
+            `loadMixes` used to return on the locked branch before taking the
+            bank off that promise, so `topicBank` stayed empty - and the
+            picker reads an empty bank as "Could not load the topic list".
+            Searching it offered nothing, which is why the (+) after a search
+            had nothing to add: a fact about the listener's account, reported
+            as a fact about the server.
+            """
+            page.evaluate(
+                """() => {
+                    window.__realFetch = window.fetch;
+                    window.fetch = function (input, init) {
+                        var url = typeof input === "string"
+                                ? input : ((input && input.url) || "");
+                        if (url.indexOf("/api/mixes") === 0) {
+                            return Promise.resolve(
+                                new Response("{}", { status: 401 }));
+                        }
+                        return window.__realFetch(input, init);
+                    };
+                    topicBank = [];
+                    pickerSelection = [];
+                }""")
+            try:
+                page.evaluate("openPlayFAM()")
+                page.wait_for_timeout(1000)
+                assert page.query_selector("#screen-playfam .locked-note"), \
+                    "the stubbed 401 did not reach the locked branch"
+                assert page.evaluate("topicBank.length") > 0, \
+                    "a locked mix list emptied the topic bank"
+                page.evaluate("openMixPicker('smoke')")
+                page.wait_for_timeout(250)
+                page.fill("#pickerSearch", "a topic nobody has in the bank")
+                page.wait_for_timeout(350)
+                body = page.text_content("#pickerBody")
+                assert "Could not load the topic list" not in body, \
+                    "the picker blamed the topic list for the account gate"
+                assert page.query_selector(".typed-offer"), \
+                    "searching the picker offered nothing to add"
+            finally:
+                # An arrow function with no return value: `window.fetch = ...`
+                # as an expression hands Playwright the function itself to
+                # serialise, and the failure it raises names fetch, so it
+                # reads exactly like the thing this check is testing.
+                page.evaluate("() => { window.fetch = window.__realFetch; }")
+                page.evaluate("() => { pickerSelection = []; }")
+                page.evaluate("openPlayFAM()")
+                page.wait_for_timeout(1000)
+
+        def the_search_page_opens_on_the_length_it_will_generate():
+            """The number on the search chip and the number its own menu ticks
+            are one setting, so they have to be one answer.
+
+            They were not: `selectedLengthMinutes` was 2 and the markup
+            printed "3 min" in five places, so search opened reading three
+            minutes, its own menu showed two ticked, and a question typed
+            without touching either generated two.
+
+            The playback pills are deliberately not checked here. They name
+            the length of the episode that is *playing*, which is a different
+            question and may honestly differ from the default.
+            """
+            want = page.evaluate("selectedLengthMinutes")
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+            chip = page.text_content("#lengthVal").strip()
+            assert chip.startswith("%d min" % want), \
+                f"the search chip reads {chip!r}, the setting is {want} min"
+            for element_id in ("gcLengthVal", "lengthModalVal"):
+                shown = page.text_content("#" + element_id).strip()
+                assert shown == "%d min" % want, \
+                    f"#{element_id} reads {shown!r}, the setting is {want} min"
+            # And the menu ticks the one the chip names, which is the pair
+            # that disagreed.
+            page.evaluate("openLengthMenu()")
+            page.wait_for_timeout(250)
+            ticked = page.evaluate(
+                """() => {
+                    var rows = document.querySelectorAll('.sheet-item');
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i].textContent.indexOf('\u2713') !== -1) {
+                            return rows[i].textContent;
+                        }
+                    }
+                    return "";
+                }""")
+            page.evaluate("closeSheet()")
+            page.wait_for_timeout(200)
+            assert ticked.strip().startswith("%d min" % want), \
+                f"the menu ticks {ticked!r}, the chip says {chip!r}"
+
         def picker():
             """Typing a topic into a mix and tapping it puts it in the mix.
 
@@ -2428,6 +2546,12 @@ def main() -> int:
         check("The profile shows four interests and edits them there",
               the_profile_shows_four_interests_and_can_be_edited_there)
         check("DailyFAM lists mixes", dailyfam)
+        check("The new-mix + waits for an account",
+              the_new_mix_button_waits_for_an_account)
+        check("A locked mix list keeps the topic bank",
+              a_locked_mix_list_keeps_the_topic_bank)
+        check("Search opens on the length it will generate",
+              the_search_page_opens_on_the_length_it_will_generate)
         check("picker offers a typed topic", picker)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)

@@ -9474,3 +9474,109 @@ complexity, not a millisecond.
 thing at a realistic size and measuring it, which is the same lesson §52
 records in a different register: verify, do not inspect - and a test that
 never runs at production scale is inspecting.
+
+## 123. Three controls that were each right about something nobody asked
+
+Three reports off a phone, and the interesting thing is that none of them is a
+broken control. Each is a control telling the truth about a question next to
+the one in front of it.
+
+### The (+) after a search in a DailyFAM picker did nothing — again
+
+Reported as "still not working", which is the right word: §111 fixed a
+different cause of the same symptom. There, two top-level functions shared the
+name `addTypedTopic`, the catalogue's copy won, and the row rendered and did
+nothing. That is fixed and stayed fixed — logged in, the whole flow works, and
+a browser driving the real server creates the album with a typed topic and a
+bank topic in it.
+
+Logged **out**, there is nothing to tap at all. `loadMixes` asks two endpoints
+at once:
+
+```js
+Promise.all([ fetch("/api/mixes"), ... fetch("/api/topics?ranked=1") ])
+  .then(function(res){
+    if(res[0].locked){ renderMixesLocked(); return; }   // <-- returns here
+    ...
+    topicBank = res[1].topics;
+```
+
+`/api/mixes` answers 401 to a listener without an account, by design: a mix is
+one of the things an account is *for*. `/api/topics` is not gated and had
+answered perfectly — and the locked branch returned before taking it. So
+`topicBank` stayed `[]`, and `renderMixPicker` opens with:
+
+```js
+if(!topicBank || !topicBank.length){ ... "Could not load the topic list" ... return; }
+```
+
+Which means the typed offer — the row whose whole job is "anything you type is
+a valid topic" — is never rendered. Search it and nothing offers itself. The
+(+) after a search had nothing to add because there was nothing on screen to
+add.
+
+**The bug is the sentence, not the gate.** A fact about the listener's account
+was reported as a fact about the server, in a message that sends somebody to
+look at their connection. It is §89's rule on the browse surfaces — an empty
+row is a fact about this deployment and never a claim about the world — one
+screen over, and §119's shape as well: a mechanism ruled out by a question
+asked one layer up, so the code that would have worked never runs.
+
+Two lines move, and the bank is taken before the branch. A test reads
+`loadMixes`'s own source and fails if they swap back, because the failure is
+silent: the picker renders a plausible sentence and nothing throws.
+
+### And the (+) that opened it should not have been there
+
+Separately reported, and the same subject from the other end: the "new mix"
+button in the DailyFAM header was in the markup unconditionally. Tapping it
+opened a naming modal, then a whole topic picker, and refused only at the
+save — two screens to say "you need an account for this", when the screen
+behind it already says exactly that with a Sign up button on it.
+
+A control with nothing behind it is worse than no control, which this project
+has now applied to a demo-only search bar, a toast-only transcript toggle,
+three invented contacts and a folder chip nobody had filed anything into. It
+is hidden until `/api/mixes` answers, and shown by `renderMixList`, which runs
+only when there is an account to keep a mix in. **Hidden to start rather than
+shown and taken away**: a control that appears and then vanishes reads as a
+fault.
+
+One fact decides the whole screen. The "+" and the body were about to be two
+reads of one answer — `renderMixesLocked` for the body, `AUTH.authenticated`
+for the button — and that is §104's finding (two things deciding one state
+is one bug wearing several symptoms) waiting to happen.
+
+### Search opened on three minutes and generated two
+
+`selectedLengthMinutes` is 2, with a comment saying why. The markup printed
+`3 min` in five separate places: the search chip, both modal rows, and both
+playback pills. So a listener landed on search reading "3 min", opened that
+very control, and found **2 min** ticked as their current choice — the
+interface disagreeing with itself about one setting, in two elements a tap
+apart.
+
+Nothing was broken. The number was settled in one place and copied into five,
+which is `.env.example` against `config.py` (§54) in a different file: a value
+is settled only where it is copied. The literals are painted over at boot by
+`paintLengthControls`, the length menu delegates to it rather than keeping its
+own list of where the number is printed, and a test pins each literal to the
+variable so they cannot drift apart again.
+
+The speed placeholders had the same crack, smaller: the markup said `1×` and
+`pillText` writes `1x`, so the pill changed character the first time anything
+repainted it.
+
+**The playback pills are deliberately not pinned to the default.** They name
+the length of the episode that is *playing*, which is a different question and
+may honestly differ — the first draft of the smoke check asserted otherwise and
+failed against an episode legitimately running at seven minutes.
+
+### One thing found while writing the checks
+
+`page.evaluate("window.fetch = window.__realFetch;")` hands Playwright the
+function as the expression's value to serialise, and the failure it raises is a
+`TypeError` naming `fetch` with a fetch stack — which reads exactly like the
+thing the check is testing. An arrow function with no return value is the fix.
+Worth writing down because the misleading part is not the mistake, it is that
+the error impersonates the subject.

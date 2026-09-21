@@ -132,7 +132,9 @@
   .myfam-searchrow{ display:flex; align-items:center; gap:8px; padding:8px 18px 0; }
   .search-bar-lg{ flex:1; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 14px; display:flex; align-items:center; gap:9px; color:var(--text-muted); font-size:13px; cursor:pointer; }
 
-  .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }.seed-card{ background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; cursor:pointer; }
+  .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
+  .myfam-dots-btn[hidden]{ display:none; }
+  .seed-card{ background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; cursor:pointer; }
   .seed-card:active{ transform:scale(0.98); }
   .seed-thumb{ width:100%; aspect-ratio:4/3; background:#EDE6D6; position:relative; overflow:hidden; }
   .seed-thumb svg{ position:absolute; inset:0; width:100%; height:100%; }
@@ -2146,7 +2148,7 @@
           </div>
           <div class="attach-row" id="attachRow"></div>
           <div class="fam-controls">
-            <div class="length-chip">Length <span class="val" id="lengthVal" onclick="openLengthMenu()">3 min<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
+            <div class="length-chip">Length <span class="val" id="lengthVal" onclick="openLengthMenu()">2 min<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
             <div style="display:flex; align-items:center; gap:9px;">
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -2238,7 +2240,16 @@
         <div class="scroll">
           <div class="myfam-header">
             <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
-            <button class="myfam-dots-btn" onclick="openNewMix()">+</button>
+            <!-- Hidden until `/api/mixes` says this listener has an account.
+                 A mix is one of the things an account is *for*, so offering to
+                 make one to somebody who cannot keep one is a control with
+                 nothing behind it: it opened a naming modal, then a picker, and
+                 only refused at the save. Hidden rather than shown-and-disabled,
+                 and hidden to start rather than shown and taken away, because a
+                 control that appears and then vanishes reads as a fault. The
+                 sign-up buttons `renderMixesLocked` draws are the way in. -->
+            <button class="myfam-dots-btn" id="newMixBtn" onclick="openNewMix()"
+                    aria-label="New mix" hidden>+</button>
           </div>
           <div class="connect-sub" style="margin:2px 0 16px;">
             Your daily mixes. Each one is a standing list of topics — the
@@ -2336,7 +2347,7 @@
             <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M18.05 6.92A7.9 7.9 0 1 0 18.05 17.08" stroke-width="1.9"/><path d="M22.1 12 17.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
           </div>
           <div class="pc-row2">
-            <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1× · 3 min</div>
+            <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 2 min</div>
             <!-- Four icons with their names under them. Unlabelled, a
                  bookmark, a two-way arrow and a speech rectangle are three
                  guesses; the play-all sidebar and Explore's rail had always
@@ -2381,7 +2392,7 @@
           <div class="pa-side" onclick="paTogglePlay()" style="cursor:pointer;"><div class="cc" id="paPlayIcon2" style="background:var(--copper); color:var(--ink); width:52px; height:52px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div><div class="lbl">pause</div></div>
           <div class="pa-side" onclick="paSkip()"><div class="cc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4l10 8-10 8V4zM19 5v14"/></svg></div><div class="lbl">Tap to skip topic</div></div>
         </div>
-        <div class="speed-len-pill" id="paSpeedLenPill" style="margin:0 auto 16px; display:table;" onclick="openSpeedLengthModal()">1× · 3 min</div>
+        <div class="speed-len-pill" id="paSpeedLenPill" style="margin:0 auto 16px; display:table;" onclick="openSpeedLengthModal()">1x · 2 min</div>
       </section>
 
       <!-- ============ DAILY FAM (Stories-style feed) ============ -->
@@ -2575,7 +2586,7 @@
           <div class="modal-title">Generate</div>
           <div class="gc-field">
             <div class="gc-label">Length</div>
-            <div class="gc-val" id="gcLengthVal" onclick="openLengthMenu()">3 min</div>
+            <div class="gc-val" id="gcLengthVal" onclick="openLengthMenu()">2 min</div>
           </div>
           <div class="gc-field">
             <div class="gc-label">From</div>
@@ -2595,11 +2606,11 @@
           <div class="modal-title">Playback</div>
           <div class="gc-field">
             <div class="gc-label">Speed</div>
-            <div class="gc-val" id="speedModalVal" onclick="openSpeedMenu()">1×</div>
+            <div class="gc-val" id="speedModalVal" onclick="openSpeedMenu()">1x</div>
           </div>
           <div class="gc-field">
             <div class="gc-label">Length</div>
-            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">3 min</div>
+            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">2 min</div>
           </div>
           <div class="gc-field">
             <div class="gc-label">Voice</div>
@@ -4784,6 +4795,29 @@
     // is also the only place it can be changed.
     return selectedSpeed + " · " + (minutes || selectedLengthMinutes) + " min";
   }
+  // Every place the chosen length is printed, written from the one variable
+  // that holds it, and called at boot as well as on every change.
+  //
+  // It was five literals in the markup saying "3 min" while
+  // `selectedLengthMinutes` said 2, so a search page opened reading "3 min",
+  // its own menu ticked "2 min" as the current choice, and a question typed
+  // without touching either generated two. The number was settled in one
+  // place and copied into five - `.env.example` against `config.py` in a
+  // different file. The literals still exist because an empty control
+  // flashes, but they are placeholders now: this overwrites them before
+  // anything is drawn, and a test fails if they drift from the variable
+  // again.
+  function paintLengthControls(){
+    var homeVal = document.getElementById("lengthVal");
+    // A text node beside the chevron SVG, so the text node is what changes -
+    // textContent on the span would take the chevron with it.
+    if(homeVal && homeVal.firstChild) homeVal.firstChild.textContent = selectedLengthMinutes + " min";
+    ["gcLengthVal", "lengthModalVal"].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = selectedLengthMinutes + " min";
+    });
+    updateSpeedLenPillText();
+  }
   function updateSpeedLenPillText(){
     // Every pill, not just the player's. The play-all one used to draw a
     // hard-coded "1.2x" that could not change, which is the interface telling
@@ -4802,13 +4836,7 @@
           action: function(){
             var changed = (minutes !== selectedLengthMinutes);
             selectedLengthMinutes = minutes;
-            var homeVal = document.getElementById("lengthVal");
-            if(homeVal) homeVal.firstChild.textContent = minutes + " min";
-            ["gcLengthVal","lengthModalVal"].forEach(function(id){
-              var el = document.getElementById(id);
-              if(el) el.textContent = minutes + " min";
-            });
-            updateSpeedLenPillText();
+            paintLengthControls();
             // Length is a property of the script, not of playback, so a change
             // made while listening means a different episode.
             var onPlayer = document.querySelector(".screen.active")
@@ -5263,11 +5291,20 @@
                            return r.json();
                          })
     ]).then(function(res){
+      // The bank is taken first, and never on the success path only. It came
+      // back on its own promise from an endpoint that is not account-gated,
+      // so it is loaded whatever the mixes answered - and the locked branch
+      // used to return before this line, leaving `topicBank` empty. The
+      // picker reads that emptiness and says "Could not load the topic
+      // list", which is a fact about the listener's account reported as a
+      // fact about the server: search it and nothing offers itself, so the
+      // (+) after a search had nothing to add. Same shape as an empty
+      // trending row claiming the world is quiet.
+      topicBank = res[1].topics;
+      if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
       if(res[0].locked){ renderMixesLocked(); return; }
       mixes = res[0].mixes;
       mixStarters = res[0].starters || [];
-      topicBank = res[1].topics;
-      if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
       renderMixList();
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
@@ -5281,6 +5318,7 @@
   // the way out rather than describing the wall, and it does not pretend they
   // have no mixes - they may well have some waiting under this same id.
   function renderMixesLocked(){
+    showNewMixButton(false);
     document.getElementById("mixList").innerHTML =
       '<div class="locked-note">A mix is a standing list of topics the server '
       + 'keeps for you, so it needs an account. Signing up keeps the listening '
@@ -5291,7 +5329,17 @@
       + '</div></div>';
   }
 
+  // The "+" and the body of this screen are two halves of one answer, so
+  // they are decided in one place by the same fact rather than read twice
+  // from two. `renderMixList` runs only when the mixes came back, which is
+  // exactly when there is an account to keep a new one in.
+  function showNewMixButton(on){
+    var btn = document.getElementById("newMixBtn");
+    if(btn) btn.hidden = !on;
+  }
+
   function renderMixList(){
+    showNewMixButton(true);
     var html = "";
     if(!mixes.length){
       html += '<div class="mix-empty">No mixes yet. A mix is a handful of topics '
@@ -10631,6 +10679,9 @@
   // fixed interval is either longer than the answer takes (a wait nobody
   // needed) or shorter (the flash this replaces).
   showSplash(0);
+  // Before anything is drawn, so no screen is ever read with the markup's
+  // placeholder length still on it.
+  paintLengthControls();
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
