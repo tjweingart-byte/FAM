@@ -543,6 +543,48 @@ class Settings:
     stories_compose_timeout_seconds: float = _env_float(
         "STORIES_COMPOSE_TIMEOUT_SECONDS", 25.0)
 
+    # --- the category tree ------------------------------------------------
+    #
+    # Whether the vocabulary grows itself at all. On: the sweep that refreshes
+    # the story pool also reads the event log for subjects people have
+    # actually been searching for and mints nodes for the ones enough
+    # different listeners used. Off leaves `topics.py`'s hand-written eight
+    # facets and twenty-nine subtags exactly as they were, which is what every
+    # deployment ran on before this existed.
+    categories: bool = field(
+        default_factory=lambda: os.environ.get("CATEGORIES", "1")
+        not in ("0", "false", "False", ""))
+    # Whether a model places a new subject in the tree. Off - or with no key -
+    # a subject still gets a parent, from the facet its own sightings were
+    # tagged with and from containment against the nodes already there; what
+    # it does not get is the *levels nobody typed*. "American football" and
+    # "NFL" exist only because a model named them, and no amount of reading
+    # what listeners wrote invents a level none of them wrote.
+    #
+    # The same shape as `stories_compose`, and for the same reason: a
+    # deployment with no key gets a real, shallower vocabulary rather than a
+    # broken one, and `degraded` on every node says which it is looking at.
+    categories_place: bool = field(
+        default_factory=lambda: os.environ.get("CATEGORIES_PLACE", "1")
+        not in ("0", "false", "False", ""))
+    # One call per sweep for the whole deployment, batching every new subject
+    # at once. Same default model as everything else here.
+    categories_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    categories_effort: str = field(
+        default_factory=lambda: os.environ.get("CATEGORIES_EFFORT", "low"))
+    categories_max_tokens: int = _env_int("CATEGORIES_MAX_TOKENS", 4000)
+    # A ceiling, not a target. Nobody waits on this: the tree that exists is
+    # used and the new subjects are placed on the next sweep.
+    categories_place_timeout_seconds: float = _env_float(
+        "CATEGORIES_PLACE_TIMEOUT_SECONDS", 30.0)
+    # How far back the promotion sweep reads. Long enough that a subject
+    # somebody was interested in last month still counts toward the listener
+    # threshold, short enough that the vocabulary tracks what people are
+    # asking about now rather than what they asked a year ago.
+    categories_window_days: int = _env_int("CATEGORIES_WINDOW_DAYS", 45)
+
     # How far a price has to move before it is worth an episode. A market
     # where nothing moved more than a percent has no story in it, and offering
     # one anyway is how a browse page fills with tiles nobody wants.

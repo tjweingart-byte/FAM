@@ -64,6 +64,13 @@ FAM_ENVIRONMENT = (
     "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
+    # The grown vocabulary. A developer with CATEGORIES=0 set must not run a
+    # suite that quietly skips every tree behaviour and still reports green -
+    # and one with a tree on their machine must not have it rank a test's
+    # feed, which is what `CATEGORIES_DB` reaching the suite would do.
+    "CATEGORIES", "CATEGORIES_PLACE", "CATEGORIES_MODEL", "CATEGORIES_EFFORT",
+    "CATEGORIES_MAX_TOKENS", "CATEGORIES_PLACE_TIMEOUT_SECONDS",
+    "CATEGORIES_WINDOW_DAYS",
     # World trending. Same reasoning: a developer with TRENDING_SOURCE=fake
     # set must not run a suite that quietly has a news feed in it.
     "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",

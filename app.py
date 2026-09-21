@@ -58,6 +58,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
 import attachments as attachments_mod
+import categories as categories_mod
 import topics as topics_mod
 import accounts as accounts_mod
 from paths import PROJECT_ROOT
@@ -235,6 +236,36 @@ async def _warm_stories() -> None:
                       "evergreen bank until the next refresh")
 
 
+async def _grow_categories() -> None:
+    """One growth cycle for the ranking vocabulary. Never raises.
+
+    Beside `_warm_stories` and scheduled the same way, because it is the same
+    kind of thing: one background pass whose result serves every listener.
+    The tree it produces is read on every browse page and written nowhere
+    near one - `categories.sweep` is the only thing in that module that can
+    cost a model call, and nothing on a request path calls it.
+
+    Sources, in the order they are trusted: the live story pool's own
+    subjects, which have already been judged worth composing a tile about on
+    evidence from four providers; and everything listeners have typed, which
+    needs `categories.MIN_LISTENERS` different people behind it before it
+    widens anybody else's vocabulary.
+    """
+    try:
+        since = time.time() - settings.categories_window_days * 86400
+        subjects = [s.subject for s in stories_mod.pool().held()]
+        result = await categories_mod.sweep(
+            topics_mod.category_tree(),
+            EVENTS.subject_texts(since),
+            always=subjects,
+        )
+        if result.get("minted") or result.get("pruned"):
+            log.info("categories: %s", result)
+    except Exception:  # noqa: BLE001 - a vocabulary is never worth a failed boot
+        log.exception("categories: the growth sweep failed; ranking continues "
+                      "on the vocabulary already in the tree")
+
+
 def _announce_storage() -> None:
     """Say at startup whether a redeploy will erase this deployment's listeners.
 
@@ -362,6 +393,7 @@ async def lifespan(_: FastAPI):
     # say why. This just means the first listener usually does not see that.
     stories_mod.install()
     asyncio.create_task(_warm_stories())
+    asyncio.create_task(_grow_categories())
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES,
                              social_store=SOCIAL)
     prefetch.prefetcher(
@@ -1201,6 +1233,20 @@ async def health(request: Request) -> dict:
         # difference visible, down to how many tiles were templated
         # because the composer was unavailable.
         "stories": stories_mod.report(),
+        # The ranking vocabulary, and how much of it this deployment grew
+        # rather than inherited. Worth reporting for the reason every other
+        # optional layer here is: a tree that had stopped growing, or one
+        # whose placer had quietly stopped answering, would look identical
+        # from outside to one that was working - the whole feed would simply
+        # be ranked one level blunter than intended. `degraded` is the count
+        # of nodes a model has never placed, which is the normal state of a
+        # deployment with no key and a warning sign on one with a key.
+        "categories": {**topics_mod.category_tree().report(),
+                       "growing": settings.categories,
+                       "placing": settings.categories_place,
+                       "min_listeners": categories_mod.MIN_LISTENERS,
+                       "min_wordings": categories_mod.MIN_TEXTS,
+                       "stale": categories_mod.is_stale()},
         # The second retrieval index, and the Trending row's feed. Reported
         # separately from `research` because they fail separately: Exa can be
         # healthy while this is off, and vice versa.
@@ -2049,6 +2095,12 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
                           source=req.source, folder_id=req.folder_id)
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # "Keep this for me" is taste, and the shelf was the only place in the app
+    # holding it. Saving only: un-saving is not a negative signal, it is a
+    # shelf being tidied, and reading it as a skip would punish the listeners
+    # who use the feature most.
+    EVENTS.record(topics_mod.Event(
+        user, "save", "", req.query, topics_mod.tags_for_text(req.query)))
     return {"ok": True, "saved": True, "item": item.as_dict()}
 
 
@@ -2918,6 +2970,21 @@ class PreferenceRequest(BaseModel):
     #: caller is not writing it and `[]` when they are clearing it.
     profile_interests: Optional[list[str]] = Field(
         None, max_length=prefs_mod.PROFILE_INTERESTS_MAX)
+    #: Where they say they are. Three fields rather than one string, because
+    #: the ranker reads city and region and deliberately ignores country -
+    #: see `preferences.Location.words` - and because a single "Cincinnati,
+    #: Ohio, United States" would have to be split back apart on a comma by
+    #: whoever needed the parts.
+    #:
+    #: Free text and validated against nothing, which is deliberate: there is
+    #: no list of the world's towns that is both complete and short enough to
+    #: ship, and a field that refuses somebody's home town is worse than one
+    #: that accepts a typo. Length is capped here as well as in
+    #: `preferences.clean_place`, so an oversized body is refused before a
+    #: database round trip rather than after one.
+    city: Optional[str] = Field(None, max_length=prefs_mod.MAX_PLACE)
+    region: Optional[str] = Field(None, max_length=prefs_mod.MAX_PLACE)
+    country: Optional[str] = Field(None, max_length=prefs_mod.MAX_PLACE)
     #: Written by nothing in the interface any more. The weekly recap popup is
     #: gone, replaced by myFAM's "What you missed last week" rail, and the
     #: column stays for the same reason `language` does: dropping it is a
@@ -2948,6 +3015,23 @@ def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
         # A malformed hint costs one less-personal feed. It must never be what
         # stops the page loading.
         return ()
+
+
+def _place_for(request: Request) -> "prefs_mod.Location":
+    """Where this listener says they are, for ranking.
+
+    Account only, and unlike `_interests_for` there is **no query-string
+    fallback**. The two look like the same kind of hint and are not: an
+    interest is one of eight words from a closed vocabulary, used for one
+    response and thrown away, where a location is free text that would let a
+    caller ask "rank this feed as though I were in Cincinnati" - which is a
+    request nobody's interface makes and a thing worth not accepting. An
+    anonymous listener simply gets the feed they got before this existed.
+    """
+    listener = getattr(request.state, "listener", None)
+    if listener is not None and listener.is_authenticated:
+        return PREFS.get(listener.user_id).location
+    return prefs_mod.Location()
 
 
 @app.get("/api/preferences")
@@ -3047,6 +3131,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            hidden_interests=req.hidden_interests,
                            topics=req.topics,
                            profile_interests=req.profile_interests,
+                           city=req.city, region=req.region,
+                           country=req.country,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3115,9 +3201,11 @@ async def myfam_section(request: Request,
     user = _listener(request)
     written = _written_probe(minutes)
     try:
+        place = _place_for(request)
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
-            circle=SOCIAL.circle_of(user), written=written)
+            circle=SOCIAL.circle_of(user), written=written,
+            place=place.words, place_name=place.label)
     except KeyError as exc:
         raise HTTPException(status_code=404,
                             detail="No such section.") from exc
@@ -3236,6 +3324,13 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # instant. The browse surfaces are the one place CLAUDE.md says the wait
     # must be zero, and a news sweep is not worth spending it on - the rails
     # fall back to the bank on a cold first load and are full on the next.
+    # The vocabulary keeps growing, on the same shape as the story sweep
+    # beside it: scheduled, never awaited, at most once an hour for the whole
+    # deployment. Without this the tree would be whatever it was at boot, and
+    # a process that has been up for a week would be ranking on a week-old
+    # vocabulary while the log filled with subjects it cannot name.
+    if categories_mod.is_stale():
+        asyncio.create_task(_grow_categories())
     if stories_mod.is_stale():
         # Through the same wrapper the boot sweep uses. A bare `create_task`
         # drops its exception into a log line nobody reads, and this one runs
@@ -3245,9 +3340,11 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         asyncio.create_task(_warm_stories())
 
     written = _written_probe(minutes)
+    place = _place_for(request)
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
-        circle=SOCIAL.circle_of(user), written=written)
+        circle=SOCIAL.circle_of(user), written=written,
+        place=place.words, place_name=place.label)
     # Every tile says whether it would replay or generate, the same way the
     # "view more" screen already did. A listener browsing is choosing between
     # things to hear, and "this one starts instantly" is a real difference
@@ -3346,10 +3443,18 @@ async def post_echo(req: EchoRequest, request: Request):
     script already exists, which is exactly why the social layer is cheap.
     """
     _read_limit(request)
+    user = _listener(request)
     try:
-        echo = SOCIAL.echo(_listener(request), req.query, req.title, req.minutes, req.thread)
+        echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Showing somebody an episode is a statement about taste, and until this
+    # line the ranker never heard about it. Recorded after the row is written,
+    # so a failed vibe does not teach the feed anything happened - and, like
+    # every other write to this log, it can be lost without costing the action
+    # the listener actually took.
+    EVENTS.record(topics_mod.Event(
+        user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
     return echo.as_dict()
 
 

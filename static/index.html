@@ -1372,6 +1372,12 @@
   .id-note{ font-family:'Space Grotesk', sans-serif; font-size:10.5px;
     line-height:1.5; color:var(--text-faint); margin-top:7px; }
   .id-note.bad{ color:var(--coral); }
+  /* State and country side by side: two short answers that read as one
+     line, and the city above them because it is the one the ranker does
+     most with. `minmax(0,1fr)` rather than `1fr`, so a long placeholder
+     cannot push the second column off the screen. */
+  .id-place-row{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+                 gap:8px; }
   /* An interest kept private. Same pill, struck through rather than removed,
      so the choice is visible and reversible in one tap. */
   .pf-tag.off{ opacity:0.45; text-decoration:line-through; }
@@ -1907,6 +1913,35 @@
               </div>
               <div class="id-note" id="identityHandleNote">Letters, numbers and
                 underscores. This is what people search for.</div>
+            </div>
+
+            <!-- Where they are. Three fields rather than one, because the
+                 ranker reads the city and the region and deliberately
+                 ignores the country - see `preferences.Location.words`.
+
+                 Typed rather than sensed, and the note says what it is for.
+                 A location asked for with no reason given reads as a data
+                 grab; this one earns a rail on the browse page, and saying
+                 so is the difference between a question and a demand. All
+                 three are optional and the app works with none of them. -->
+            <div class="auth-field">
+              <div class="auth-label">Where you are</div>
+              <input class="modal-input" id="identityCity" type="text"
+                     autocomplete="address-level2" autocorrect="off"
+                     autocapitalize="words" spellcheck="false"
+                     placeholder="City" style="margin-bottom:8px;">
+              <div class="id-place-row">
+                <input class="modal-input" id="identityRegion" type="text"
+                       autocomplete="address-level1" autocorrect="off"
+                       autocapitalize="words" spellcheck="false"
+                       placeholder="State or region" style="margin-bottom:0;">
+                <input class="modal-input" id="identityCountry" type="text"
+                       autocomplete="country-name" autocorrect="off"
+                       autocapitalize="words" spellcheck="false"
+                       placeholder="Country" style="margin-bottom:0;">
+              </div>
+              <div class="id-note">Optional. It is used to offer you episodes
+                about where you live, and it is never on your profile.</div>
             </div>
 
             <!-- No "Shared on your profile" here any more. Choosing which
@@ -7895,13 +7930,21 @@
       ? "This is what your friends see. Nothing here is on anybody else's "
         + "screen unless you put it there."
       : "A name and a handle are how your friends find you, and how a vibe "
-        + "you send says who it is from. Both can change later.";
+        + "you send says who it is from. All of it can change later.";
 
     // Prefilled from whatever is already stored, so an editor opens on the
     // current state rather than on empty fields somebody has to retype.
     var p = profileNow || {};
     document.getElementById("identityName").value = p.name || "";
     document.getElementById("identityHandle").value = p.handle || "";
+    // The location lives in preferences rather than on the person row, so it
+    // is prefilled from whatever `loadPrefChoices` last fetched. Absent for
+    // somebody with no account, which is correct: `/api/preferences` only
+    // returns what it stored, and it stores nothing without one.
+    var place = (PREF_CHOICES && PREF_CHOICES.location) || {};
+    document.getElementById("identityCity").value = place.city || "";
+    document.getElementById("identityRegion").value = place.region || "";
+    document.getElementById("identityCountry").value = place.country || "";
     drawIdentityPicture(p);
     renderIdentityAccountRows();
     showScreen("identity");
@@ -7963,6 +8006,28 @@
       note.textContent = "A handle needs at least three characters.";
       note.classList.add("bad");
       return;
+    }
+    // Two destinations, because these are two kinds of thing. A name, a
+    // handle and a picture are *who somebody is* and live on the person row;
+    // a location is a *setting* and lives in preferences, behind the account
+    // gate with every other setting. Sent in parallel rather than chained:
+    // the location is optional and nothing about it should be able to stop a
+    // name being saved.
+    if(AUTH.authenticated){
+      savePreferences({
+        city:    document.getElementById("identityCity").value.trim(),
+        region:  document.getElementById("identityRegion").value.trim(),
+        country: document.getElementById("identityCountry").value.trim()
+      }).then(function(saved){
+        // Merge the one field rather than replacing the object. The POST
+        // answers with `Preferences.as_dict()` and the GET answers with that
+        // *plus* the catalogue, the picker and the labels every screen draws
+        // from - so assigning the response would leave the next screen with
+        // an empty catalogue and no obvious reason why.
+        if(saved && saved.location && PREF_CHOICES){
+          PREF_CHOICES.location = saved.location;
+        }
+      });
     }
     var body = { name: name, handle: handle };
     fetch("/api/me", {

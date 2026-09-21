@@ -27,6 +27,7 @@ import messages as MSG  # noqa: E402
 import mixes as M  # noqa: E402
 import paths  # noqa: E402
 import preferences as P  # noqa: E402
+import categories as CAT  # noqa: E402
 import quotas as Q  # noqa: E402
 import saved as SV  # noqa: E402
 import sharing as SH  # noqa: E402
@@ -52,6 +53,7 @@ STORES = [
     ("SHARES_DB", "shares.db", SH.ShareStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
+    ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.

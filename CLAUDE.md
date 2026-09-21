@@ -398,7 +398,78 @@ the rest of this list it needs taste rather than a key.
    `trending` ship; `GDELT=1` is the one line that makes it live, and
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
-5. **The taste model is crude, and less crude than it was.**
+5. **The taste model is crude, and the vocabulary is no longer the ceiling.**
+   *(§119. Four changes, in the order they were asked for, and the fourth is
+   the one that removes a limit rather than tuning under it.)*
+   **Three signals were being collected and thrown away.** `app.py` has
+   recorded a `share` event since the messages feature shipped; `EVENT_KINDS`
+   never listed the kind, so `EventStore.record` dropped every row with a
+   warning nobody read. A **vibe** and a **save** were never written at all.
+   All three are what somebody does about an episode *after* hearing it -
+   arguably the strongest taste signal in the app - and none of them reached
+   the ranker. They now sit between a play and a completion, and `share` and
+   `vibe` weigh the same because a rule making either worth more would need a
+   number nobody can tune.
+   **The data for "will they tap it" already existed and nothing read it.**
+   Every impression carries the listener, the tile, the rail and
+   `ALGO_VERSION`; every play carries the listener and the tile. That is a
+   click-through rate thirty days deep. `tools/ctr_report.py` prints it and
+   `ENGAGEMENT_WEIGHT` uses it - **global per tile, never per listener**,
+   because per (listener, tile) there is nothing to measure and per
+   (listener, facet) is a noisier copy of `taste`. Bounded to [0.6, 1.5],
+   shrunk so a new tile scores exactly 1.0, and applied to two rails only:
+   `rank_most_played` must never have it or that row would be what everybody
+   plays twice, and `rank_missed` would count one passing-over from two
+   angles.
+   **Location is stored and drives two things.** `preferences` gained
+   `city`/`region`/`country` as free text validated against nothing - there
+   is no list of the world's towns both complete and short enough to ship.
+   Two mechanisms, deliberately separate: a listener's place joins
+   `familiar_words`, so a story about their own town stops being damped by
+   `BROAD_MATCH_PENALTY` for being a subject they never typed (living
+   somewhere answers that question), and `LOCAL_BOOST` lifts a live story
+   that names it. **The country is stored and never ranks** - boosting every
+   US story for every US listener is a different global sort order wearing
+   personalisation's name. The best use of it is the cold start:
+   `startup.LOCAL_TOPIC` is a ninth question about their own town, offered to
+   somebody we otherwise know nothing about, and it goes *through* the
+   startup sort rather than jumping it so fatigue still reaches it.
+   **And the vocabulary grows itself now** *(`categories.py`, `CATEGORIES=1`).*
+   `TAG_WORDS` was thirty-seven hand-written keyword lists two levels deep,
+   and it was the binding constraint rather than the scoring - `SUBTAG_WEIGHT`,
+   `BROAD_MATCH_PENALTY` and `familiar_words` all exist to work around what it
+   cannot say, and the last of those gives up on it entirely and reads the raw
+   search text. `categories.db` is a tree with **no depth limit**, minted from
+   what listeners search for, the live pool's own subjects, and what people
+   type into the catalogue: `sports -> american football -> nfl -> cincinnati
+   bengals` is four levels and `topics.tag_weight` scores the leaf 5.4x the
+   root, because it is that much more specific a claim about an episode.
+   `SUBTAG_WEIGHT` turns out to be that at one level and is now defined as it.
+   Two halves, and the keyless one always runs: a phrase's parent is the facet
+   its own sightings were tagged with, deepened by containment, and **a model
+   places it properly** in one call per sweep for the whole deployment -
+   which is the only way the levels *nobody typed* ("American Football",
+   "NFL") exist at all. No key means a real, shallower tree and every node
+   says so, which is `episode_intelligence`'s rule applied to a vocabulary.
+   The failure worth knowing about, because it is not obvious and it made the
+   first tree useless: **n-gram explosion.** Every sub-span of a phrase is
+   seen by exactly the people who saw the phrase, so a listener threshold
+   alone mints ten nodes for one four-word run - thirty-nine nodes from eight
+   seeded queries, mostly "reserve interest rate" and "league title". Two
+   filters took the same eight queries to four real subjects: a phrase must
+   appear in **more than one wording**, because people ask about a subject
+   several ways and about a fragment only one; and a phrase whose support is
+   identical to a longer phrase containing it is the same subject with a word
+   missing. `taste` re-reads an event's own text against the current tree
+   while keeping its stored tags, so a node minted today makes last month's
+   history legible instead of taking a month to be worth anything.
+   `python tools/categories_report.py --tree --dry-run` is what says whether
+   a deployment's vocabulary is full of subjects or full of noise, and it
+   spends nothing. **Nothing here has been run against a real event log** -
+   the seeds above are synthetic, and what the tree looks like on real
+   searches is the first thing to look at.
+
+5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
    Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
    `sports` and `sports-drama` counted the same, so the resolution §80 added
@@ -1887,8 +1958,14 @@ content and four empty-state sentences; and **§117**, the voice after the
 pod migration - the worker was healthy, the address was right, and the proxy
 in front of it refuses a server while serving a browser; and **§118**, the
 nightly pod schedule deleted at the owner's direction so the voice is up at
-all times), `MYFAM.md` for the browse page, the
-live story pool and the startup set that fill it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
+all times; and **§119**, the recommender's inputs - three signals the app was
+collecting and discarding, a click-through rate thirty days deep that nothing
+had ever read, a location field the app had never had, and a ranking
+vocabulary whose thirty-seven hand-written keyword lists turned out to be the
+binding constraint rather than the scoring under them), `MYFAM.md` for the browse page, the
+live story pool and the startup set that fill it, `DATABASE.md` for what the
+fourteen stores hold and the one path from a row in them to a tile on a
+screen, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
 tiers, quotas and the public API, `SHARING.md` for friends, sharing, saving

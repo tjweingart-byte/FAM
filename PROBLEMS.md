@@ -8870,3 +8870,245 @@ Two settings are now unused by any workflow, and both are harmless:
 the `runpod-pod` rung of the ladder. The GitHub copy is the one that is now
 dead, which is the pleasant half of this change: §117's finding was an id
 kept in two places, and there is only one place left.
+
+## 119. Three signals collected and discarded, a question never asked, and a vocabulary with a ceiling
+
+Four changes, asked for in this order and done in it. They are one entry
+because they are one argument: **the recommender's inputs were poorer than
+anybody thought**, and three of the four turned out to be about data the app
+was already collecting and not reading.
+
+### 1. `share` was recorded and dropped, and two more were never recorded
+
+`app.py` has written a `share` event every time somebody sent an episode to a
+person since the messages feature shipped:
+
+```python
+EVENTS.record(topics_mod.Event(
+    user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
+```
+
+`EVENT_KINDS` never contained `"share"`. `EventStore.record` checks the kind,
+logs `ignoring unknown event kind 'share'`, and returns. **Every one of those
+rows has been discarded**, for as long as the feature has existed.
+
+Nothing failed. Nothing was slower. The log line went to a logger nobody
+tails, and from outside, an app that records a signal and an app that drops it
+are the same app.
+
+Looking for the others found two more, and they were worse in a quieter way:
+**a vibe and a save were never recorded at all.** `/api/echo` writes a row in
+`social.db` and `/api/saved` writes one in `saved.db`, and neither told
+`topics.py` anything. So all three of the things somebody can do about an
+episode *after hearing it* - send it to a person, post it to their followers,
+keep it for later - were invisible to the taste model, while a *search* (a
+passing thought, typed before hearing anything) was worth 1.0.
+
+All three are now in `EVENT_WEIGHT`, between a play and a completion.
+`ENDORSEMENTS` names the set, so a fourth has one obvious place to be added.
+`share` and `vibe` weigh the same on purpose: one goes to a person and the
+other to followers, and a rule making either worth more would need a number
+nobody has any way to tune - the same call `social.circle_of` already makes
+about a mutual follow.
+
+**The general shape, which is worth more than the fix:** a write that can be
+silently refused by a validator is a feature that can be absent and look
+present. The kinds are now a `frozenset` derived from `EVENT_WEIGHT` plus
+`IMPRESSION`, so a weight and a kind cannot disagree.
+
+### 2. The click-through data existed and nothing had ever read it
+
+The feed has always answered one question - *will this listener like this
+tile* - with `_affinity` over their taste profile. It has never answered the
+other one: *will they actually tap it*. The only thing in the system that
+read an impression was `fatigue`, and fatigue can only say **no**.
+
+The notable part is that **the data needed no collection**. Every impression
+row has carried `(user_id, topic_id, section, algo, at)` since impressions
+shipped, and every play carries `(user_id, topic_id, at)`. Joining them is a
+click-through rate, thirty days deep, per tile and per rail and per version of
+the ranking. Nothing in `tools/` had ever queried it.
+
+`tools/ctr_report.py` does now, and three things it got wrong on the way are
+the interesting part:
+
+* **It counted the wrong unit.** One row per (listener, tile) over the whole
+  window scored a tile offered on nine separate days and taken on the tenth
+  as a tile that converts. The unit is the **occasion** - one
+  `FATIGUE_BUCKET` hour - which is the unit `fatigue` already counts, so the
+  positive and negative signals cannot disagree about what "shown" means.
+* **`--by topic` read a key that does not exist.** The rows carry `topic_id`
+  and the dimension was spelled `topic`, so `row.get(dimension)` returned
+  `None` for every row, grouped the whole feed into one nameless bucket, and
+  printed the global rate as though it were a per-tile finding. It did not
+  raise. A `FIELD` map replaces the `.get`, because the failure mode of a
+  wrong key here is a plausible wrong answer rather than an error.
+* **It printed `0%` where it meant "no data".** `prefetch.py` learned this
+  already: zero out of zero reads as failure and is actually silence.
+
+`ENGAGEMENT_WEIGHT` is the ranking half. It is **global per tile, never per
+listener**, and that is a decision rather than a shortcut: per (listener,
+tile) a listener sees a given tile a handful of times ever, and per (listener,
+facet) would be a second, noisier copy of `taste`, which already reads their
+plays. What is left is a property of the *tile* - does this title get tapped -
+which is dense, and one computation for the whole deployment.
+
+The danger, written into the constant so it stays a decision: **an engagement
+term optimised alone converges on whatever is most clickable for everybody**,
+which is a row myFAM already has and deliberately keeps separate. Four things
+hold that line - it is bounded to [0.6, 1.5]; a tile with no data scores
+exactly 1.0 (shrinkage toward the feed's own average, so a new tile is not
+buried for being new); it reaches two rails only; and `ALGO_VERSION` moved, so
+`--by algo` can say afterwards whether it helped.
+
+The two rails it does **not** reach are worth naming. `rank_most_played` is
+what everybody plays, and adding what everybody taps would make it that twice.
+`rank_missed` would be counting one event from two angles: every tile on that
+rail is one this listener was already shown and did not take.
+
+And it nearly took the browse page down. `engagement_for` read `store.path`
+before anything else, and `test_a_broken_event_store_never_breaks_the_feed`
+constructs a store with no `__init__` - so a ranking nicety became an
+`AttributeError` on `/api/myfam`. The test was already there and caught it
+first time, which is the whole argument for it existing.
+
+### 3. Location: stored, typed, and allowed to matter in exactly two places
+
+FAM had no notion of where anybody is. Not a column, not a header read,
+nothing.
+
+**Typed rather than sensed**, which is the decision worth recording. All three
+routes work - IP lookup on the server, the browser geolocation API,
+CoreLocation on the phone - and the typed one is primary because it is the
+only one that is *stable* and *correctable*: an address derived from an IP
+changes on every train journey and a listener's interests do not, a permission
+prompt in front of a product somebody has not heard yet costs more than it
+buys, and a location nobody can see is a guess about where somebody is. IP is
+worth adding later as a **suggested default for that field**, shown and
+editable, never a silent value.
+
+Three free-text columns on `preferences`, validated against nothing. A country
+list is a closed vocabulary and would be defensible on its own, but "United
+States" and "USA" and "U.S." are the same answer, and a partial validation
+that accepts one spelling and refuses the next fails in front of the listener
+while looking like a rule.
+
+It reaches the ranking through **two separate mechanisms**, not one weighted
+score - the same shape as "recency filters; credibility sorts":
+
+* The **free half**: a listener's city and region join `familiar_words`, so a
+  story about their own town stops being damped by `BROAD_MATCH_PENALTY` for
+  being a subject they have never typed into a search box. Living somewhere is
+  a complete answer to the question that penalty is asking.
+* The **paid half**: `LOCAL_BOOST` on a live story that names their place.
+
+**The country is stored and deliberately never ranks.** Boosting every story
+about the United States for every listener in the United States is not
+personalisation, it is a different global sort order, and the page already has
+two rails for what everybody is playing.
+
+The best use of it turned out to be the **cold start**, which is also the
+place the analysis predicted: `startup.LOCAL_TOPIC` is a ninth question -
+"What Changed in {place}" - offered to somebody we otherwise know nothing
+about. It goes *through* the startup sort rather than jumping it, with
+`LOCAL_BOOST` applied, so fatigue still reaches it: a tile that leads
+unconditionally leads forever, and somebody shown local news six times without
+tapping it has told us something.
+
+Two things found while wiring it:
+
+* **`su-local` must be resolvable and must not be offerable.** It was put in
+  `STARTUP_BY_ID` so `tags_for_id` could answer for it months later - a play
+  on a startup tile is the first real thing the ranker learns, and an id it
+  cannot resolve falls through to a keyword sweep of a question naming a city,
+  which matches nothing. But `STARTUP_BY_ID` and `known_topics` are also read
+  to *draw* a tile, and the template's title still says `What Changed in
+  {place}`. `test_view_more_opens_on_the_same_ranking` caught it immediately.
+  They are two different questions and the template answers only the first.
+* **`build_section` had already diverged from the rail it opens.** It never
+  passed `familiar`, so a live story damped by `BROAD_MATCH_PENALTY` on the
+  rail was undamped on the "View more" screen behind it - a pre-existing bug,
+  invisible because both orderings look plausible, in a function whose one
+  documented rule is that the two must not disagree.
+
+### 4. The vocabulary had a ceiling, and it was the binding constraint
+
+`topics.py` has always ranked in a hand-written vocabulary: eight facets,
+twenty-nine subtags, thirty-seven keyword lists somebody typed. Two levels,
+and every word of it in a Python file.
+
+The evidence that this was the real limit is already in that module. **Three
+separate mechanisms exist purely to work around things the vocabulary cannot
+say**: `SUBTAG_WEIGHT`, because matching `sports` and `sports-drama` counted
+the same; `BROAD_MATCH_PENALTY`, because there is no `nfl` tag and no
+`college-football` tag and no weighting can distinguish them; and
+`familiar_words`, which **gives up on the vocabulary entirely** and reads the
+listener's raw searches. When the fix for "recommend me better" is to stop
+using the vocabulary, the vocabulary is what needs fixing.
+
+`categories.py` is a tree with **no depth limit**, minted from three things
+the app already collects: what listeners searched for (`events.text`), the
+live pool's own story subjects, and what people typed into the interests
+catalogue. `sports -> american football -> nfl -> cincinnati bengals` is four
+levels, and `topics.tag_weight` scores the leaf 5.4x the root because it is
+that much more specific a claim about an episode. `SUBTAG_WEIGHT` turns out to
+be exactly this at one level, and is now defined as it.
+
+The hierarchy comes from two places and the keyless one always runs:
+
+* **Keyless**: a phrase's parent is the facet its own sightings were tagged
+  with, deepened by containment against nodes already in the tree.
+* **With a model**: one call per sweep for the whole deployment, batching
+  every new subject, returning a *path* rather than a parent - which is the
+  only way the levels **nobody typed** exist. No amount of reading what
+  listeners wrote invents "American Football". No key means a real, shallower
+  tree and every node records which half placed it, which is
+  `episode_intelligence`'s rule applied to a vocabulary.
+
+### The failure that made the first tree useless, and would not have been guessed
+
+**N-gram explosion.** Every sub-span of a phrase is seen by exactly the people
+who saw the phrase, so a `MIN_LISTENERS` threshold clears ten times over for
+one four-word run and mints ten nodes, nine of them fragments. Eight seeded
+queries produced **thirty-nine nodes**: `reserve interest rate`, `league
+title`, `rate decision`, `interest rate decision`, and so on down.
+
+A threshold on *listeners* cannot fix this, because the fragments have exactly
+the listeners the real subject has. Two filters did, and took the same eight
+queries to **four**:
+
+* **`MIN_TEXTS`**: a phrase must appear in more than one *wording*. People ask
+  about a subject several ways - "what the fed said about inflation", "the
+  federal reserve rate decision" - and about a fragment only one, because a
+  fragment is a piece of a sentence rather than a thing anybody is interested
+  in.
+* **Subsumption**: a phrase whose listener set *and* wording set are identical
+  to a longer phrase containing it is the same subject with a word missing.
+  Keeping it would put a node in the tree that can never match anything its
+  parent does not already match.
+
+And `chips` had to be refused: it is a *subtag slug* as well as a phrase six
+listeners typed, and minting it would put two entries under one key in the
+profile `taste` builds - the subtag's and the category's - so an episode about
+chips would count as two different things being relevant to somebody.
+`_reserved_slugs` normalises the whole hand-written vocabulary, because a
+subtag slug is hyphenated and a phrase never is.
+
+### The rule about history, which was the last thing to get right
+
+**A node never rewrites history, and history is re-read anyway.** Events keep
+the tags they were written with - the log stays append-only and an old feed
+stays reproducible - but `taste` now re-matches each event's own *text*
+against the current tree. Without that, a node minted today would be worth
+nothing to anybody already here until they went and searched again, and a
+vocabulary that takes a month to pay off is one nobody keeps.
+
+### What is not known
+
+**None of this has been run against a real event log.** The trees above were
+grown from synthetic seeds, the placer has never made a real call from this
+container, and the click-through report has never seen a real impression.
+`python tools/categories_report.py --tree --dry-run` spends nothing and says
+what a deployment's vocabulary would become; `python tools/ctr_report.py`
+says what its rails actually convert at. Those two commands against the
+running deployment are what turn this entry from reasoned into known.

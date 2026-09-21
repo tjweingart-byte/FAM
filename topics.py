@@ -71,6 +71,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 import startup
+import categories
 import stories
 import trending
 from paths import data_path
@@ -169,6 +170,26 @@ FRESHNESS_BOOST = 1.6
 #: broad one and not so much that two broad matches are worthless.
 SUBTAG_WEIGHT = 1.75
 
+#: What each extra level of the *grown* vocabulary is worth, compounding.
+#:
+#: `SUBTAG_WEIGHT` is this at one level, and that is the point: a subtag is a
+#: hand-written depth-1 category, and once the tree can be four levels deep
+#: the same argument has to keep working all the way down. Matching
+#: `cincinnati bengals` is a sharper claim about an episode than matching
+#: `nfl`, which is sharper than `american football`, which is sharper than
+#: `sports` - so the weight is `CATEGORY_DEPTH_WEIGHT ** depth` and the
+#: reported complaint finally has a vocabulary that can express it.
+#:
+#: A category node minted with no parent scores as though it were at depth
+#: one. A phrase enough listeners searched for is at least as specific a
+#: thing as a hand-written subtag; what an orphan lacks is a *home*, not
+#: specificity, and scoring it as a facet would make the keyless path worse
+#: than the vocabulary it is extending.
+#:
+#: Same value as `SUBTAG_WEIGHT` so the two cannot drift apart. If a reason
+#: ever appears to make them differ, it has to be written down here first.
+CATEGORY_DEPTH_WEIGHT = SUBTAG_WEIGHT
+
 #: How far a live story's score is cut when its only claim on this listener is
 #: a whole facet and they have never been near its subject.
 #:
@@ -190,6 +211,34 @@ SUBTAG_WEIGHT = 1.75
 #: long has almost no familiar words, and a rule would empty their rail in
 #: the name of relevance.
 BROAD_MATCH_PENALTY = 0.3
+
+#: What a live story about where this listener says they are is worth.
+#:
+#: Location does two things in this ranker and they are deliberately separate
+#: mechanisms rather than one weighted score, which is the same shape as
+#: "recency filters; credibility sorts". The *negative* one is free: a
+#: listener's city and region join `familiar_words`, so a story about their
+#: own town stops being damped by `BROAD_MATCH_PENALTY` for being a subject
+#: they have never typed - they live there, which answers the question that
+#: penalty is asking. This is the *positive* one.
+#:
+#: **Live stories only**, for the same reason the penalty is. The evergreen
+#: bank is twenty-eight standing subjects with no place in them, and the one
+#: that mentions a city mentions it generically - "How Food Gets to a City" is
+#: not local news to somebody in Kansas City, and boosting it for them would
+#: be the keyword sweep making a claim the tile does not support.
+#:
+#: **And country is not part of it** - see `preferences.Location.words`.
+#: Boosting every story about the United States for every listener in the
+#: United States is not personalisation, it is a different global sort order,
+#: and the page already has two rails for what everybody is playing.
+#:
+#: 1.5 rather than something larger: a local story should beat a comparable
+#: one about somewhere else and must not beat a strong match on what this
+#: listener actually listens to. Somebody in Cincinnati who has never played a
+#: sports episode does not want the Bengals; they want the thing they came for,
+#: and the fact that it is local is a tie-breaker rather than a subject.
+LOCAL_BOOST = 1.5
 
 #: Below this, a tile is not a recommendation - it is the least bad thing left
 #: in the inventory, and a rail is better short than padded with one.
@@ -662,6 +711,42 @@ INTEREST_WEIGHT = 1.0
 
 _WORD = re.compile(r"[a-z0-9]+")
 
+#: The grown vocabulary, opened once per process.
+#:
+#: Lazy rather than module-level, for the reason every store in this app is
+#: lazy: `data_path` reads the environment at call time, so a test that sets
+#: `CATEGORIES_DB` and imports this module has to get the database it asked
+#: for. Cached afterwards because `match()` is called for every tile on a
+#: browse page and opening a connection per call would be the cost this
+#: module is arranged to avoid.
+_CATEGORIES = None
+
+
+def category_tree() -> "categories.CategoryStore":
+    """The tree, opened on first use. Never raises.
+
+    A failure here returns an empty tree rather than propagating, which means
+    the feed falls back to the hand-written vocabulary - the one every
+    deployment ran on before this existed. The rule the whole module keeps: a
+    vocabulary that grows itself may add resolution and may never take the
+    page away.
+    """
+    global _CATEGORIES
+    if _CATEGORIES is None:
+        try:
+            _CATEGORIES = categories.CategoryStore()
+        except Exception:
+            log.exception("could not open the category tree; "
+                          "ranking on the hand-written vocabulary alone")
+            _CATEGORIES = categories.EmptyTree()
+    return _CATEGORIES
+
+
+def reset_category_tree() -> None:
+    """Drop the cached tree. For tests, and after a sweep in another process."""
+    global _CATEGORIES
+    _CATEGORIES = None
+
 
 def tags_for_text(text: str) -> tuple[str, ...]:
     """Best-effort facets and subtags for a free search, so history can rank.
@@ -673,6 +758,19 @@ def tags_for_text(text: str) -> tuple[str, ...]:
     and should not be - matching the facet says nothing about which part of it
     was meant.
 
+    **And the grown vocabulary, which is where the ceiling came off.**
+    `TAG_WORDS` is thirty-seven hand-written keyword lists two levels deep;
+    `categories.py` is a tree with no depth limit, minted from what listeners
+    actually searched for, and a match there brings its whole ancestry with
+    it for exactly the reason a subtag brings its facet. So "the cincinnati
+    bengals game" carries `sports` from the keyword map and, once enough
+    people have asked about them, `cincinnati bengals`, `nfl` and
+    `american football` from the tree.
+
+    The two vocabularies cannot collide: `categories.mint` refuses to mint a
+    phrase that is already a facet, so no key in the returned tuple means two
+    different things.
+
     Returned sorted for a stable order. These tuples are written into the
     event log and compared in tests, and dict iteration order is a poor thing
     to have quietly load-bearing underneath either.
@@ -680,6 +778,7 @@ def tags_for_text(text: str) -> tuple[str, ...]:
     words = set(_WORD.findall(text.lower()))
     found = {tag for tag, keys in TAG_WORDS.items() if words & set(keys)}
     found |= {TAG_PARENT[tag] for tag in found if tag in TAG_PARENT}
+    found |= set(category_tree().match(text))
     return tuple(sorted(found))
 
 
@@ -739,6 +838,25 @@ def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     """
     return not any(profile.get(tag, 0.0) > 0 for tag in topic.tags
                    if tag in TAG_PARENT)
+
+
+def _is_local(topic: Topic, local: frozenset[str]) -> bool:
+    """Whether this tile is about where the listener says they are.
+
+    Reads the same three strings `_subject_is_familiar` does and answers a
+    different question, so the two stay separate functions: one asks whether
+    they have been near this subject, this one asks whether they live in it.
+
+    Live stories only. `freshness` is what distinguishes a story from a bank
+    topic here, exactly as it does in `rank_from_history`, and it is set by
+    `topics_from_stories` and by nothing else.
+    """
+    if not local or topic.freshness <= 0:
+        return False
+    words = {w for w in _WORD.findall(
+        f"{topic.title} {topic.query} {topic.angle}".lower())
+        if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS}
+    return bool(words & local)
 
 
 def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
@@ -885,6 +1003,49 @@ STARTUP_TOPICS: tuple[Topic, ...] = tuple(
 
 STARTUP_BY_ID = {t.id: t for t in STARTUP_TOPICS}
 
+#: The local startup question with its place left unfilled.
+#:
+#: **Resolvable for tags, and never offerable.** Those are two different
+#: questions and this template answers only the first:
+#:
+#: * `tags_for_id` has to answer for `su-local` months after the tap, when
+#:   nobody knows which city it was about. A play on a startup tile is the
+#:   *first real thing the ranker learns*, and an id it cannot resolve falls
+#:   through to a keyword sweep of "what has changed recently in and around
+#:   Cincinnati, Ohio", which matches nothing in `TAG_WORDS` and teaches it
+#:   precisely nothing.
+#: * `known_topics` and `STARTUP_BY_ID` must **not** hold it, because both
+#:   are read to put a tile on a screen and this one's title still says
+#:   "What Changed in {place}". A rail that drew it would print the braces.
+#:
+#: It was in `STARTUP_BY_ID` for one revision and the startup suite caught it
+#: immediately - "View more carries the whole set" stopped being true the
+#: moment the set contained something the screen could not draw.
+def _startup_topic(spec) -> Topic:
+    """One `startup.StartupSpec` as a `Topic`. The seam between the two
+    modules, in one place so the template and a filled copy cannot be built
+    differently."""
+    spec_id, title, hook, query, facet, icon = spec
+    return Topic(spec_id, title, hook, query, (facet,), icon)
+
+
+LOCAL_STARTUP = _startup_topic(startup.LOCAL_TOPIC)
+
+
+def local_startup_topic(place: str) -> Optional[Topic]:
+    """The cold-start tile about where this listener says they are, or None.
+
+    The one place in the ranker where a location changes *what is offered*
+    rather than how it is ordered - and it is still only an offer: the tile
+    carries a question, the question is researched on the tap like every
+    other, and the episode it produces is cached under that question for
+    everybody else in the same town. A listener's location never reaches
+    `EpisodePlan`, so it never reaches `pipeline.key_for`, so the shared cache
+    stays shared. See `preferences.Location`.
+    """
+    spec = startup.local_spec(place)
+    return _startup_topic(spec) if spec else None
+
 #: How much less each facet is worth than the one above it in the startup
 #: prior. Eight facets, so the last is worth 1 - 7 * 0.08 = 0.44 of the first.
 #:
@@ -990,8 +1151,36 @@ UNSHELVED = ("might_like",)
 #: listener can give on their first run that has a whole topic behind it - and
 #: therefore the topic's subtags, which the eight pickable facets cannot
 #: express. It costs nothing and generates nothing: a row in the log.
+#:
+#: **The three endorsements** - `share`, `vibe` and `save` - are what somebody
+#: does about an episode *after* hearing it, and until now not one of them
+#: reached this table. `share` was the worst of the three, because the code
+#: already believed it did: `app.py` has recorded a `share` event since the
+#: messages feature shipped, `EVENT_KINDS` never accepted the kind, and every
+#: one of those rows was dropped with a log line nobody was reading. A vibe
+#: and a save were never written at all.
+#:
+#: They are weighted above a play and below a completion, and the reasoning is
+#: the same one `pick` uses. Sending an episode to somebody is a statement
+#: with a person's name on it - a stronger claim about taste than pressing
+#: play, which is a claim about curiosity - and it is still weaker than
+#: sitting through the whole thing, which is the only signal here that is
+#: evidence the episode was any good.
+#:
+#: **`share` and `vibe` are worth the same**, deliberately. One is sent to a
+#: person and the other posted to followers, and a rule that made either count
+#: for more would need a number nobody has any way to tune - the same call
+#: `social.circle_of` makes about a mutual follow. `save` is a little lower:
+#: it is a statement about wanting more of this, made to nobody, and it is the
+#: one of the three that can be pressed before the episode has said anything.
 EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
-                "pick": 1.6}
+                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5}
+
+#: The three above, as a set. Nothing in the ranker branches on it; it is here
+#: so a report can ask "how many endorsements does this listener give" without
+#: hard-coding the list a second time, and so a fourth one added later has one
+#: obvious place to be added to.
+ENDORSEMENTS = frozenset(("share", "vibe", "save"))
 
 #: An **impression** is one tile put in front of one listener by one version of
 #: the ranking. It is recorded so "why did we show this?" has an answer, and it
@@ -1010,7 +1199,7 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-14.1"
+ALGO_VERSION = "2026-09-21.2"
 
 #: **Fatigue**: how a tile that keeps being shown and never played stops being
 #: offered quite so hard. This is the one thing impressions are allowed to do
@@ -1045,6 +1234,84 @@ FATIGUE_GRACE = 2
 #: Fatigue never reaches zero. A tile buried early by a burst of impressions
 #: must still be able to come back when the listener's taste moves toward it.
 FATIGUE_FLOOR = 0.15
+
+#: **Engagement**: how often a tile actually gets tapped when it is offered.
+#:
+#: The second of the two questions a feed has to answer. `_affinity` answers
+#: *will this listener like it*; nothing has ever answered *will they tap it*,
+#: except `fatigue`, which can only say no. The data to answer it has been
+#: written since impressions shipped - every impression carries the listener,
+#: the tile and the rail, every play carries the listener and the tile - and
+#: until this constant existed nothing read it.
+#:
+#: **It is global, not per listener, and that is a decision rather than a
+#: shortcut.** Per (listener, tile) there is almost nothing to measure: a
+#: listener sees a given tile a handful of times ever. Per (listener, facet)
+#: there is plenty, and it would be a second, noisier copy of `taste`, which
+#: already reads their plays. What is left is a property of the *tile* - does
+#: this title and this hook get tapped when people see them - and that is
+#: dense, meaningful, and one computation for the whole deployment, which is
+#: the same economics `rank_most_played` and the story pool run on.
+#:
+#: The danger, named so it stays a decision: **an engagement term optimised
+#: alone converges on whatever is most clickable for everybody**, which is a
+#: row this page already has and deliberately keeps separate. Four things
+#: hold that line, and all four are load-bearing:
+#:
+#: * it is **bounded** (`ENGAGEMENT_FLOOR`..`ENGAGEMENT_CEILING`), so it can
+#:   reorder comparable tiles and can never outvote affinity;
+#: * it is **never applied to `rank_most_played`**, which is what everybody
+#:   plays and must stay identical for everyone;
+#: * a tile with no data scores **exactly 1.0**, so a new tile is not buried
+#:   for being new - that is `ENGAGEMENT_PRIOR`'s whole job; and
+#: * `ALGO_VERSION` moves when this changes, so the impression log can tell
+#:   the two regimes apart and `tools/ctr_report.py --by algo` can say
+#:   whether it helped. A ranking change that cannot be measured afterwards
+#:   is a ranking change nobody can defend.
+#:
+#: It does not double-count against `fatigue`. Fatigue is "*you* were shown
+#: this and passed"; this is "*nobody* taps this". Different evidence, and
+#: the bounds stop them compounding into a tile that can never recover.
+#:
+#: **Which rails get it, and why the rest do not.** `rank_from_history` and
+#: `rank_startup` - the two forms of "what should I hear", which is the
+#: question this term sharpens. Not the others, and each for its own reason:
+#:
+#: * `rank_most_played` **must not have it**. That row is what everybody
+#:   plays; adding a term for what everybody taps would make it that twice.
+#: * `rank_missed` would be counting one event from two angles. Every tile on
+#:   that rail is one this listener was already shown and did not take, so a
+#:   global "people pass this over" term is the same passing-over measured
+#:   again more widely.
+#: * `rank_friends` ranks by what the people you follow played, not by
+#:   affinity. A global tap rate has no business reordering a fact about
+#:   named people.
+#: * `rank_might_like` is off the page (`UNSHELVED`) and scores in tiers
+#:   rather than on one number. Worth revisiting if it is ever shelved again;
+#:   not worth the complexity to reorder a rail nobody is shown.
+ENGAGEMENT_WEIGHT = 1.0
+
+#: How many occasions a tile needs before its own rate outweighs the average.
+#: Below it the estimate is pulled toward what the whole feed converts at, so
+#: three shows and one tap is not a 33% tile. The same line
+#: `tools/ctr_report.MIN_SHOWN` draws for a printed number, drawn here for a
+#: score - except that here it shrinks rather than refuses, because a rank
+#: has to produce something for every tile.
+ENGAGEMENT_PRIOR = 20.0
+
+#: The bounds. A tile that converts at twice the average is worth offering
+#: sooner and is not worth offering *instead* of something this listener
+#: actually wants; a tile nobody taps is worth offering later and is not
+#: worth burying, because the reason it is not tapped may be that it has only
+#: ever been shown at the bottom of a rail.
+ENGAGEMENT_FLOOR = 0.6
+ENGAGEMENT_CEILING = 1.5
+
+#: How long the global engagement table is held in process before it is
+#: recomputed. It is the same answer for every listener, so this is one query
+#: per five minutes for the whole deployment rather than two per page load -
+#: the same reasoning that makes `trending`'s cache global.
+ENGAGEMENT_CACHE_SECONDS = 300.0
 
 #: How long an impression is kept. Behavioural events are low-volume and worth
 #: keeping indefinitely; impressions arrive ~18 at a time on every feed load,
@@ -1347,6 +1614,178 @@ class EventStore:
             return []
         return [(r[0], r[1]) for r in rows]
 
+    def impression_outcomes(self, since: float = 0.0,
+                            now: Optional[float] = None) -> list[dict]:
+        """Every tile put in front of somebody in the window, and whether they
+        took it. The impression-to-play join.
+
+        **This data has been written since impressions shipped and nothing has
+        ever read it this way.** The ranking asks "will they like it"
+        (`_affinity`) and, negatively, "have they ignored it" (`fatigue`);
+        neither is a measurement of whether a tile actually gets tapped. This
+        is that measurement, and it is a plain query over rows that already
+        exist rather than anything new to collect.
+
+        One row per **occasion** - a distinct `FATIGUE_BUCKET` hour in which
+        the tile was in front of them - never one per impression row. A rail
+        scrolls and a page gets refreshed, and counting renders would report
+        the most-reloaded feed as the least effective one. This is the same
+        unit `impression_occasions` counts, deliberately: the ranking's
+        negative signal and its positive one should not disagree about what
+        "shown" means.
+
+        And it is *not* one row per (listener, tile) either. A tile offered on
+        nine separate days and taken on the tenth is nine offers that were
+        passed over and one that was not - collapsing them would score it as a
+        tile that works, when what it actually did was wear somebody down.
+
+        Attribution is **last touch before the play**. A tile can be on two
+        rails of one page and in several days of feeds, so the credit goes to
+        the impression that was most recently in front of them when they
+        pressed it. Without a play, the last impression in the window carries
+        the miss. Sections and algorithm versions therefore partition the
+        rows, which is what makes "which rail converts" answerable rather than
+        a sum that double-counts.
+
+        A play *before* any impression is not counted at all: they found the
+        episode somewhere else, and crediting a rail for it would flatter
+        whichever rail happened to show it afterwards.
+        """
+        now = time.time() if now is None else now
+        try:
+            shown = self._conn().execute(
+                "SELECT user_id, topic_id, section, algo, at FROM events"
+                " WHERE kind = ? AND topic_id != '' AND at >= ?"
+                " ORDER BY at",
+                (IMPRESSION, float(since)),
+            ).fetchall()
+            played = self._conn().execute(
+                "SELECT user_id, topic_id, MIN(at) FROM events"
+                " WHERE kind IN ('play', 'complete') AND topic_id != ''"
+                " AND at >= ? GROUP BY user_id, topic_id",
+                (float(since),),
+            ).fetchall()
+        except Exception:
+            # Same rule as every other read in this class. A report that
+            # cannot run is a report; a feed that cannot load is an outage.
+            log.exception("could not read impression outcomes")
+            return []
+
+        first_play = {(r[0], r[1]): float(r[2]) for r in played}
+        # (user, topic, hour) -> that occasion. Rows arrive in time order, so
+        # a second render inside the same hour simply overwrites the first,
+        # which is what makes this a count of occasions.
+        occasions: dict[tuple[str, str, int], dict] = {}
+        for user_id, topic_id, section, algo, at in shown:
+            at = float(at)
+            play_at = first_play.get((user_id, topic_id))
+            if play_at is not None and at > play_at:
+                # Shown again after they had already played it. That is the
+                # feed repeating itself, not an offer they took.
+                continue
+            occasions[(user_id, topic_id, int(at / FATIGUE_BUCKET))] = {
+                "user_id": user_id,
+                "topic_id": topic_id,
+                "section": section,
+                "algo": algo,
+                "at": at,
+                "taken": False,
+                "lag": None,
+            }
+
+        # Last touch. Of the occasions before the play, exactly one gets the
+        # credit: the most recent. Crediting all of them would make a tile
+        # that had to be offered nine times look nine times as effective as
+        # one taken the first time it appeared.
+        best: dict[tuple[str, str], dict] = {}
+        for row in occasions.values():
+            pair = (row["user_id"], row["topic_id"])
+            if pair not in first_play:
+                continue
+            if pair not in best or row["at"] > best[pair]["at"]:
+                best[pair] = row
+        for pair, row in best.items():
+            row["taken"] = True
+            row["lag"] = first_play[pair] - row["at"]
+
+        return sorted(occasions.values(), key=lambda r: r["at"])
+
+    def engagement_totals(self, since: float = 0.0) -> tuple[dict, int, int]:
+        """`{topic_id: (offered, taken)}`, plus the same two totalled.
+
+        The *aggregate* of `impression_outcomes`, done in SQL rather than by
+        loading the rows and counting them in Python. `impression_outcomes`
+        is a report and may read a month of impressions into memory; this one
+        is on the feed's read path and may not.
+
+        An **occasion** is one (listener, tile, `FATIGUE_BUCKET` hour), the
+        same unit fatigue counts, so the positive and negative signals cannot
+        disagree about what "shown" means. A tile is **taken** by a listener
+        who played it having been shown it first - the `EXISTS` is what makes
+        that "first", and without it an episode somebody found by searching
+        would be scored as a tile that converts.
+
+        Global, and that is the point: one answer serves every listener, so
+        this is a query per cache window for the whole deployment rather than
+        one per page load. See `ENGAGEMENT_WEIGHT` for why the per-listener
+        version is not worth having.
+        """
+        try:
+            offers = self._conn().execute(
+                "SELECT topic_id,"
+                " COUNT(DISTINCT user_id || ':' || CAST(at / ? AS INTEGER))"
+                " FROM events WHERE kind = ? AND topic_id != '' AND at >= ?"
+                " GROUP BY topic_id",
+                (FATIGUE_BUCKET, IMPRESSION, float(since)),
+            ).fetchall()
+            taken = self._conn().execute(
+                "SELECT p.topic_id, COUNT(DISTINCT p.user_id) FROM events p"
+                " WHERE p.kind IN ('play', 'complete') AND p.topic_id != ''"
+                " AND p.at >= ? AND EXISTS ("
+                "   SELECT 1 FROM events i WHERE i.kind = ?"
+                "   AND i.user_id = p.user_id AND i.topic_id = p.topic_id"
+                "   AND i.at <= p.at AND i.at >= ?)"
+                " GROUP BY p.topic_id",
+                (float(since), IMPRESSION, float(since)),
+            ).fetchall()
+        except Exception:
+            # The rule every read in this class keeps. A feed with no
+            # engagement term is the feed that shipped before this existed,
+            # which is a far better outcome than no feed.
+            log.exception("could not read engagement totals")
+            return {}, 0, 0
+
+        taken_by = {r[0]: int(r[1]) for r in taken}
+        out = {r[0]: (int(r[1]), min(int(r[1]), taken_by.get(r[0], 0)))
+               for r in offers}
+        return (out,
+                sum(o for o, _t in out.values()),
+                sum(t for _o, t in out.values()))
+
+    def subject_texts(self, since: float = 0.0,
+                      limit: int = 20000) -> list[tuple[str, str]]:
+        """`(listener, text)` for everything anybody said in the window.
+
+        What the category sweep reads. Behavioural kinds only - an impression
+        carries no text and would contribute nothing, and including it would
+        let *the feed's own tiles* mint the vocabulary the feed is ranked in,
+        which is the impression rule arriving through a different door.
+
+        Bounded, because this runs in a background sweep on a table that grows
+        forever and a query with no ceiling is one that is fine for a year.
+        """
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, text FROM events"
+                " WHERE kind != ? AND text != '' AND at >= ?"
+                " ORDER BY at DESC LIMIT ?",
+                (IMPRESSION, float(since), int(limit)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read subject texts")
+            return []
+        return [(r[0], r[1]) for r in rows]
+
     def users_who_played(self, topic_ids: Iterable[str]) -> dict[str, set[str]]:
         """topic_id -> the users who played it. The co-listener join."""
         ids = list(topic_ids)
@@ -1437,9 +1876,23 @@ def taste(events: Iterable[Event], now: Optional[float] = None,
     now = time.time() if now is None else now
     scores: dict[str, float] = {tag: INTEREST_WEIGHT for tag in interests
                                 if tag in TAG_LABELS}
+    tree = category_tree()
     for event in events:
         weight = EVENT_WEIGHT.get(event.kind, 0.0) * _decay(max(0.0, now - event.at))
-        tags = event.tags or (tags_for_text(event.text) if event.text else ())
+        tags = set(event.tags)
+        if event.text:
+            # **The stored tags are kept and the text is re-read.** A node
+            # minted last week did not exist when this row was written, so its
+            # `tags` column cannot mention it - and a vocabulary that only
+            # applied to events written after it appeared would take a month
+            # to be worth anything to anybody who was already here.
+            #
+            # Re-matching rather than rewriting: the log stays append-only and
+            # the stored tags stay exactly what the ranker believed at the
+            # time, which is what makes an old feed reproducible. What is
+            # re-read is the listener's own words, which have not changed.
+            tags |= set(tree.match(event.text) if tags
+                        else tags_for_text(event.text))
         for tag in tags:
             scores[tag] = scores.get(tag, 0.0) + weight
     peak = max((abs(v) for v in scores.values()), default=0.0)
@@ -1465,6 +1918,123 @@ def fatigue(occasions: dict[str, int], played: Iterable[str] = ()) -> dict[str, 
     return out
 
 
+#: The global engagement table, held per database path.
+#:
+#: Keyed on the path rather than kept as one value, because a test builds a
+#: store per temporary directory and a single module-level number would let
+#: one test's feed be ranked by another's log. The same reason
+#: `stories.reset()` exists.
+_ENGAGEMENT_CACHE: dict[str, tuple[float, dict[str, float]]] = {}
+
+
+def reset_engagement() -> None:
+    """Forget the cached table. For tests and for a store that was rebuilt."""
+    _ENGAGEMENT_CACHE.clear()
+
+
+def engagement(totals: dict, offered: int, taken: int) -> dict[str, float]:
+    """`{topic_id: multiplier}` in [ENGAGEMENT_FLOOR, ENGAGEMENT_CEILING].
+
+    A tile's own conversion rate, shrunk toward what the whole feed converts
+    at, divided by that same overall rate. Three properties fall out of that
+    shape and each of them is the reason for it:
+
+    * **No data is exactly 1.0, and thin data is nearly so.** A tile nobody
+      has been shown is absent from `totals`, and one with a handful of
+      occasions is pulled most of the way back to the average by
+      `ENGAGEMENT_PRIOR` - two shows and no tap costs about a tenth, where a
+      raw rate would have said zero and buried it. It takes roughly
+      `ENGAGEMENT_PRIOR` occasions with nothing taken to reach the floor,
+      which is a real measurement rather than a slow start.
+    * **It is a ratio, so it is comparable across deployments.** A feed where
+      everything converts at 4% and one where everything converts at 30% both
+      produce multipliers around 1.0; what moves a tile is being better or
+      worse than its own feed, not an absolute number somebody has to tune.
+    * **It is bounded**, so it reorders comparable tiles and can never outvote
+      what the listener actually wants. See `ENGAGEMENT_WEIGHT`.
+
+    Returns `{}` when there is nothing to measure - not a table of 1.0s -
+    because an empty dict is what every caller already treats as "no
+    evidence", and a full one would hide the difference between a feed with
+    no impressions and a feed where everything is average.
+    """
+    if not totals or offered <= 0 or taken <= 0:
+        return {}
+    overall = taken / offered
+    out: dict[str, float] = {}
+    for topic_id, (shown, took) in totals.items():
+        rate = ((took + ENGAGEMENT_PRIOR * overall)
+                / (shown + ENGAGEMENT_PRIOR))
+        lift = 1.0 + ENGAGEMENT_WEIGHT * (rate / overall - 1.0)
+        out[topic_id] = max(ENGAGEMENT_FLOOR, min(ENGAGEMENT_CEILING, lift))
+    return out
+
+
+def engagement_for(store: EventStore, now: Optional[float] = None
+                   ) -> dict[str, float]:
+    """The engagement table for this database, cached for the whole
+    deployment.
+
+    One answer serves every listener - that is what makes this affordable on
+    a browse path - so it is computed at most once per
+    `ENGAGEMENT_CACHE_SECONDS` rather than once per page. The same shape the
+    story pool and the trending cache use, and for the same reason.
+    """
+    now = time.time() if now is None else now
+    # Every failure here is an empty table, which is the feed that shipped
+    # before this term existed. `store.path` is the one that caught this: a
+    # store too broken to have opened a file is exactly the case
+    # `test_a_broken_event_store_never_breaks_the_feed` exists for, and
+    # reading an attribute off it is a way for a ranking nicety to take the
+    # browse page down.
+    try:
+        key = store.path
+    except Exception:
+        return {}
+    cached = _ENGAGEMENT_CACHE.get(key)
+    if cached and now - cached[0] < ENGAGEMENT_CACHE_SECONDS:
+        return cached[1]
+    try:
+        table = engagement(*store.engagement_totals(now - IMPRESSION_TTL))
+    except Exception:
+        log.exception("could not build the engagement table")
+        table = {}
+    _ENGAGEMENT_CACHE[key] = (now, table)
+    return table
+
+
+def tag_weight(tag: str) -> float:
+    """How specific a claim about an episode this one tag is.
+
+    Three vocabularies meet here and they are ordered by how much they
+    actually say:
+
+    * a **facet** (`sports`) is 1.0 - it names a heading;
+    * a **subtag** (`sports-drama`) is `SUBTAG_WEIGHT` - a hand-written
+      corner of a heading; and
+    * a **category** is `CATEGORY_DEPTH_WEIGHT ** depth`, which keeps going:
+      `cincinnati bengals` under `nfl` under `american football` under
+      `sports` is four levels, and the leaf is worth several times the root
+      because it is several times more specific.
+
+    The hand-written half is checked first and costs a dict lookup, so the
+    tree is only consulted for a tag that is not a facet or a subtag - which
+    keeps the common case exactly as fast as it was before the tree existed.
+    """
+    if tag in TAG_PARENT:
+        return SUBTAG_WEIGHT
+    if tag in TAG_LABELS:
+        return 1.0
+    depth = category_tree().depth_of(tag)
+    if depth <= 0 and category_tree().get(tag) is None:
+        # Not in any vocabulary. A tag written into the log months ago by a
+        # node that has since been pruned, most likely. Counted as a facet
+        # rather than dropped: it was a real thing somebody was interested in
+        # and the weight is the only thing that is uncertain.
+        return 1.0
+    return CATEGORY_DEPTH_WEIGHT ** max(1, depth)
+
+
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     """How well one tile matches one listener, with specificity counted.
 
@@ -1481,8 +2051,7 @@ def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     """
     if not topic.tags:
         return 0.0
-    total = sum(profile.get(tag, 0.0) * (SUBTAG_WEIGHT if tag in TAG_PARENT else 1.0)
-                for tag in topic.tags)
+    total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in topic.tags)
     return total / math.sqrt(len(topic.tags))
 
 
@@ -1500,6 +2069,11 @@ def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
     """
     known = dict(BANK_BY_ID)
     known.update(STARTUP_BY_ID)
+    # `LOCAL_STARTUP` is deliberately absent: this map is read to *draw* a
+    # tile, and the template's title still contains its placeholder. A
+    # listener who played the local question is one whose friends' rail
+    # cannot offer it back, which is correct - it was about their town, not
+    # about anybody else's.
     for topic in live_topics(now):
         known.setdefault(topic.id, topic)
     return known
@@ -1581,6 +2155,8 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
                       limit: int = SECTION_SIZE,
                       candidates: Optional[Iterable[Topic]] = None,
                       familiar: frozenset = frozenset(),
+                      local: frozenset = frozenset(),
+                      engage: Optional[dict[str, float]] = None,
                       floor: float = RELEVANCE_FLOOR) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
@@ -1610,6 +2186,22 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     rail is better short than padded - its heading claims these were chosen
     for this listener. It used to be `> 0`, which every tile sharing one
     barely-touched facet clears.
+
+    `local` is the listener's own city and region, from
+    `preferences.Location.words`. It is the fourth thumb and the only positive
+    one: a live story about where they actually are is worth more than a
+    comparable one about somewhere else. It cannot rescue a tile from the
+    floor on its own - a boost applied to a score near zero is still near
+    zero - which is deliberate, because "it is local" is a tie-breaker and
+    never a subject somebody asked for.
+
+    `engage` is the second question - *will they tap it* - where everything
+    above answers *will they like it*. It is applied **before** the floor on
+    purpose: a tile nobody taps should be able to fall out of a rail whose
+    heading claims these were chosen for this listener, and one that converts
+    well should be able to clear it. See `ENGAGEMENT_WEIGHT` for the four
+    things that stop it turning this rail into a second copy of what
+    everybody plays.
     """
     damp = damp or {}
     pool = list(candidates) if candidates is not None else list(TOPIC_BANK)
@@ -1626,6 +2218,15 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
                 and _is_broad_match(topic, profile)
                 and not _subject_is_familiar(topic, familiar)):
             score *= BROAD_MATCH_PENALTY
+        # After the penalty rather than before it, so the two multiply in a
+        # stated order rather than one silently cancelling the other. In
+        # practice a local story rarely meets the penalty at all: the
+        # listener's own place words are folded into `familiar` by
+        # `build_feed`, which is the free half of this - living somewhere is
+        # a perfectly good answer to "have you ever been near this subject".
+        if _is_local(topic, local):
+            score *= LOCAL_BOOST
+        score *= (engage or {}).get(topic.id, 1.0)
         if score > floor:
             scored.append((score, topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
@@ -1689,7 +2290,10 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
                  limit: int = SECTION_SIZE,
                  candidates: Optional[Iterable[Topic]] = None,
                  damp: Optional[dict[str, float]] = None,
-                 familiar: frozenset = frozenset()) -> list[Topic]:
+                 familiar: frozenset = frozenset(),
+                 local: frozenset = frozenset(),
+                 local_topic: Optional[Topic] = None,
+                 engage: Optional[dict[str, float]] = None) -> list[Topic]:
     """The first rail a listener with no history sees: the startup set first,
     then the ordinary ranking behind it.
 
@@ -1730,7 +2334,31 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
     # `FATIGUE_GRACE` means being sent a tile twice is not yet evidence of
     # anything - which is the whole reason this is safe on an inventory this
     # small.
-    lead.sort(key=lambda t: (-_affinity(t, profile) * damp.get(t.id, 1.0), t.id))
+    # The local question joins the sort rather than jumping it. Nine tiles,
+    # one ordering, `LOCAL_BOOST` on the one that is about where they live.
+    #
+    # Prepending it would have been the obvious move and is the wrong one,
+    # for the reason the note above already gives: a tile that leads
+    # unconditionally leads forever, and somebody shown local news six times
+    # without tapping it has told us something. Going through the same sort
+    # means fatigue reaches it like everything else - and it keeps
+    # `LOCAL_BOOST` honest, because that constant says a location is a
+    # tie-breaker rather than a subject, and a tile placed first by fiat
+    # would be a subject.
+    if local_topic is not None and local_topic.id not in exclude:
+        lead = [t for t in lead if t.id != local_topic.id] + [local_topic]
+    # `engage` matters more here than on any other rail. The prior orders
+    # these eight by what FAM's listeners *play*, which is the honest signal
+    # for somebody with no history - and "which of these eight questions
+    # actually gets tapped when it is shown" is a sharper form of the same
+    # signal, measured on this exact set rather than on the facets behind it.
+    engage = engage or {}
+    lead.sort(key=lambda t: (
+        -_affinity(t, profile) * damp.get(t.id, 1.0)
+        * engage.get(t.id, 1.0)
+        * (LOCAL_BOOST if local_topic is not None and t.id == local_topic.id
+           else 1.0),
+        t.id))
     lead = lead[:limit]
     if len(lead) >= limit:
         return lead
@@ -1744,7 +2372,7 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
     seen = exclude | {t.id for t in lead}
     rest = rank_from_history(profile, seen, damp, limit=limit - len(lead),
                              candidates=candidates, familiar=familiar,
-                             floor=0.0)
+                             local=local, engage=engage, floor=0.0)
     return lead + rest
 
 
@@ -2045,7 +2673,8 @@ def rank_followers(
 
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
-               written=None) -> dict:
+               written=None, place: Iterable[str] = (),
+               place_name: str = "") -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
@@ -2066,6 +2695,23 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     `written` is an optional `query -> bool` that says whether a tile's script
     is already in the shared cache; the two crowd rows lead with the ones that
     are, and every tile carries the answer so the interface can say so.
+
+    `place` is the listener's own city and region as words - what
+    `preferences.Location.words` returns. It reaches exactly two rails, both
+    of which answer "what should I hear", and it deliberately does not reach
+    Trending: that row is the world's and a per-listener thumb on it would
+    give two listeners different answers to a question that claims to have
+    one. It is words rather than a `Location` so this module keeps knowing
+    nothing about `preferences` - the same arrangement `circle` has with
+    `social`.
+
+    `place_name` is the same location as a readable label - "Cincinnati,
+    Ohio" - and it is used for one thing: the cold-start rail's local
+    question, which puts the place into the *query* it offers. Separate from
+    `place` because the two are genuinely different values and neither derives
+    from the other: a set of match words has lost the order and the
+    capitalisation a question needs, and a label is the wrong thing to match a
+    headline against.
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
@@ -2109,6 +2755,18 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
     familiar = familiar_words(events)
+    # Where they say they are, folded straight into the familiar set. This is
+    # the free half of the location change and the better half: living
+    # somewhere is a complete answer to "has this listener ever been near this
+    # subject", so a story about their own town stops being damped for being
+    # a place they have never typed into a search box. `LOCAL_BOOST` is the
+    # other half and is the only part that is a thumb on the scale.
+    place = frozenset(w for w in place if w)
+    familiar = familiar | place
+    # The second question, read once for the page and shared by every
+    # listener on this deployment. See `ENGAGEMENT_WEIGHT` for which rails
+    # are allowed to use it.
+    engage = engagement_for(store, now)
     # What the rest of FAM played this week, for "What you missed". One read,
     # like everything else on this page, and it is a fact about the crowd
     # rather than about this listener - it decides membership and never
@@ -2173,13 +2831,20 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # somebody we know nothing about and is the whole reason the
             # startup set exists. The rest stay honestly empty.
             if cold:
+                # The cold start is where a location is worth the most. It is
+                # the one fact we hold about somebody we otherwise know
+                # nothing about, and `startup.py` leads this rail with a
+                # question about their own town when they have given one.
                 picks = rank_startup(prior, seen, limit=wide,
                                      candidates=live + list(TOPIC_BANK),
-                                     damp=damp, familiar=familiar)
+                                     damp=damp, familiar=familiar, local=place,
+                                     local_topic=local_startup_topic(place_name),
+                                     engage=engage)
             else:
                 picks = rank_from_history(profile, seen, damp, limit=wide,
                                           candidates=live + list(TOPIC_BANK),
-                                          familiar=familiar)
+                                          familiar=familiar, local=place,
+                                          engage=engage)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
                                  written=written)
@@ -2294,7 +2959,8 @@ FULL_SECTION_SIZE = 40
 def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
-                  written=None) -> dict:
+                  written=None, place: Iterable[str] = (),
+                  place_name: str = "") -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -2304,6 +2970,14 @@ def build_section(store: EventStore, user_id: str, key: str,
 
     Nothing here generates anything. It reorders a fixed bank, exactly as
     `build_feed` does, which is what makes "view more" free.
+
+    **Every thumb the rail applies has to be applied here too**, and one of
+    them was not: `familiar_words` never reached this function, so a live
+    story damped by `BROAD_MATCH_PENALTY` on the rail was undamped on the
+    screen behind it. Silent, because both orderings look plausible - which
+    is exactly why the one rule above is worth enforcing by construction
+    rather than by care. `place` and `place_name` are here from the start for
+    the same reason.
     """
     if key not in dict(SECTIONS):
         raise KeyError(key)
@@ -2322,6 +2996,11 @@ def build_section(store: EventStore, user_id: str, key: str,
     cold = not profile
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    # The same two reads the rail does, for the same two thumbs. See the note
+    # in the docstring about why their absence here was invisible.
+    familiar = familiar_words(events) | frozenset(w for w in place if w)
+    place = frozenset(w for w in place if w)
+    engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
     live = live_topics(now)
     # `exclude` is what they have already played, and *not* the other
@@ -2338,10 +3017,15 @@ def build_section(store: EventStore, user_id: str, key: str,
         if cold:
             prior, _order = startup_profile(store, now)
             picks = rank_startup(prior, mine, limit=limit,
-                                 candidates=live + list(TOPIC_BANK), damp=damp)
+                                 candidates=live + list(TOPIC_BANK), damp=damp,
+                                 familiar=familiar, local=place,
+                                 local_topic=local_startup_topic(place_name),
+                                 engage=engage)
         else:
             picks = rank_from_history(profile, mine, damp, limit=limit,
-                                      candidates=live + list(TOPIC_BANK))
+                                      candidates=live + list(TOPIC_BANK),
+                                      familiar=familiar, local=place,
+                                      engage=engage)
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "followers":
@@ -2521,6 +3205,11 @@ def tags_for_id(topic_id: str, text: str = "") -> tuple[str, ...]:
     # nothing.
     if topic_id in STARTUP_BY_ID:
         return STARTUP_BY_ID[topic_id].tags
+    # The local question, whose id is fixed and whose text is not. Resolved
+    # from the template rather than from the words, which name a city and
+    # match nothing in `TAG_WORDS`. See `LOCAL_STARTUP`.
+    if topic_id == LOCAL_STARTUP.id:
+        return LOCAL_STARTUP.tags
     if topic_id in CATALOGUE_BY_ID:
         return CATALOGUE_BY_ID[topic_id].tags
     for story in stories.pool().live():

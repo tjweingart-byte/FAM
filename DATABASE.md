@@ -12,11 +12,11 @@ the one path from a row in it to a tile on a screen.
 
 ## Part 1 — What "the database" is
 
-There is no database server. There are **thirteen SQLite files**, one per
+There is no database server. There are **fourteen SQLite files**, one per
 subject, each owned by exactly one module, each opened in WAL mode with a
 thread-local connection. `paths.py` resolves every one of them from the
 project root or from an absolute environment variable, never from the current
-working directory, and the `Dockerfile` pins all thirteen to the mounted
+working directory, and the `Dockerfile` pins all fourteen to the mounted
 `/data` disk so a redeploy does not erase them.
 
 | File | Module | What it holds |
@@ -34,6 +34,7 @@ working directory, and the `Dockerfile` pins all thirteen to the mounted
 | `metering.db` | `metering.py` | One row per episode: tokens, searches, GPU seconds, dollars. |
 | `attachments.db` | `attachments.py` | Extracted text from documents a search carried. |
 | `voice_registry.db` | `voice_registry.py` | Which GPU workers have announced themselves. |
+| `categories.db` | `categories.py` | **The grown vocabulary.** A category tree with no depth limit, minted from what listeners search for. |
 
 **There are no foreign keys and no joins across files.** `user_id` is the only
 thing that connects them, and the connecting happens in Python, in `app.py`,
@@ -44,7 +45,13 @@ seven files rather than a query.
 
 ### The one division that matters
 
-Twelve of the thirteen are **per-listener**. One is not.
+**Twelve of the fourteen are per-listener. Two are not**, and they are shared
+for the same reason: `scripts.db` is one script serving every listener who
+asks the same question, and `categories.db` is one *vocabulary* serving every
+listener the feed ranks. A per-listener vocabulary would break the shared
+signals outright - `rank_friends`, `rank_most_played` and `rank_missed` all
+compare listeners through tags and topic ids that have to mean the same thing
+to both of them.
 
 `scripts.db` is keyed on `pipeline.key_for(plan)` — a hash of the normalised
 question, the length, the context and whether it was researched. **The
@@ -111,17 +118,29 @@ came from, and this one cannot.
 ### The chain, end to end
 
 ```
-events ──tags_for_text──▶ taste(profile) ──_affinity──▶ rank_*() ──diversify──▶ section
-                                   ▲                        ▲
-            preferences.interests ─┘        fatigue(impressions) ─┘
+events ──tags_for_text──▶ taste ──_affinity──▶ rank_*() ──diversify──▶ section
+              ▲              ▲                    ▲
+   categories.match      interests        fatigue · engagement
+    (the grown              (declared)     · LOCAL_BOOST · freshness
+     vocabulary)                             · BROAD_MATCH_PENALTY
 ```
+
+Reading it left to right: an event's text is mapped onto tags by the
+hand-written keyword map **and** the grown category tree; those tags become a
+recency-weighted taste profile, which declared interests seed; a tile is
+scored against that profile with a weight per tag that rises with how
+specific the tag is; and four multipliers then answer questions affinity
+cannot - has this listener ignored this tile, does anybody tap it, is it
+about where they live, is it about today.
 
 **1. Tagging.** `tags_for_text` is a set intersection between the words of the
 question and `TAG_WORDS` — 8 facets and 29 subtags, 37 keyword lists written
-by hand. A matched subtag always brings its parent facet with it, so the
-vocabulary is additive. No classifier, no model call: a wrong tag costs one
-mediocre recommendation, and classifying every search would cost more than the
-episode it is recommending.
+by hand — **plus every match in the grown category tree**, which has no depth
+limit and is minted from what listeners actually searched for. A matched
+subtag brings its parent facet with it and a matched category brings its whole
+ancestry, so the vocabulary is additive in both halves. No classifier and no
+model call on this path: a wrong tag costs one mediocre recommendation, and
+classifying every search would cost more than the episode it recommends.
 
 **2. Taste.** `taste(events, now, interests)` walks the log and sums
 
@@ -135,10 +154,13 @@ listeners. Weights: `complete` 2.5, `pick` 1.6, `search` 1.0, `play` 1.0,
 starting position that behaviour outvotes within a day.
 
 **3. Affinity.** `_affinity(topic, profile)` is a weighted sum over the tile's
-tags divided by `sqrt(len(tags))`, so breadth does not beat precision. A
-subtag match counts `SUBTAG_WEIGHT = 1.75` against a facet match.
+tags divided by `sqrt(len(tags))`, so breadth does not beat precision.
+`tag_weight` is what each tag is worth: a facet is 1.0, a hand-written subtag
+is `SUBTAG_WEIGHT = 1.75`, and a category is `1.75 ** depth` — so
+`cincinnati bengals`, four levels down, is worth 5.4× `sports`. The subtag
+weight is the special case of that at one level, and is now defined as it.
 
-**4. Three dampers**, each answering a different failure:
+**4. Four multipliers**, each answering something affinity cannot:
 
 * `fatigue` — shown on many separate occasions and never played. Per-topic,
   never per-tag, and it can only push down. An impression may become fatigue
@@ -150,6 +172,12 @@ subtag match counts `SUBTAG_WEIGHT = 1.75` against a facet match.
   college football fix, and it damps rather than excludes.
 * `RELEVANCE_FLOOR = 0.12` — below this a tile is not a recommendation, it is
   the least bad thing left, and the rail is better short than padded.
+
+* `ENGAGEMENT_WEIGHT` — how often this tile gets tapped when anybody is
+  shown it, bounded to [0.6, 1.5] and shrunk toward the feed's own average so
+  a new tile scores exactly 1.0. Global rather than per listener.
+* `LOCAL_BOOST = 1.5` — a *live story* about the city or region this listener
+  said they are in. Never the country, never the bank, never a filter.
 
 **5. Freshness.** `FRESHNESS_BOOST = 1.6` multiplied by `Story.push()`, so a
 hot live story beats a standing explainer of the same affinity and a nearly
@@ -472,3 +500,90 @@ signal and a CTR report (hours) → location field and its node (a day) →
 engagement term (a day, once the report says what it is worth) → the growing
 category tree (the real project, and the thing the other three get better
 under).
+
+---
+
+## Part 6 — What was built
+
+All four, in that order. What follows is what each one actually turned out to
+be, including where the plan above was wrong.
+
+### 1. The endorsements, and the measurement
+
+`share` was not the only one. `vibe` and `save` were never recorded at all, so
+**all three** of the things somebody can do about an episode after hearing it
+were invisible to the ranker. They are now `EVENT_WEIGHT` entries between a
+play and a completion, and `ENDORSEMENTS` names the set so a fourth has one
+place to be added.
+
+`tools/ctr_report.py` joins impressions to plays. Three things it got wrong on
+the first pass and now does not: it counted (listener, tile) once per *window*
+rather than per occasion, which scored a tile offered nine times and taken on
+the tenth as a tile that works; it grouped `--by topic` on a key that does not
+exist, which silently reported the global rate as a per-tile finding; and it
+printed `0%` where it meant "no data".
+
+### 2. Location
+
+`preferences` gained `city`, `region` and `country` - free text, validated
+against nothing, because there is no list of the world's towns that is both
+complete and short enough to ship.
+
+Two mechanisms rather than one weighted score. The **free half**: a listener's
+city and region join `familiar_words`, so a story about their own town stops
+being damped by `BROAD_MATCH_PENALTY` for being a subject they have never
+typed - living somewhere answers that question completely. The **paid half**:
+`LOCAL_BOOST` on a live story that names their place. Country is stored and
+deliberately never ranks; boosting every US story for every US listener is a
+different global sort order wearing personalisation's name.
+
+The best use of it turned out to be the cold start: `startup.LOCAL_TOPIC` is a
+ninth question, "What Changed in {place}", offered to a listener we otherwise
+know nothing about. It goes through the same sort as the other eight rather
+than jumping it, so fatigue reaches it.
+
+`build_section` was found to have diverged from the rail it opens - it never
+passed `familiar`, so "View more" ran a subtly different ranking. Fixed in the
+same change.
+
+### 3. The engagement term
+
+Global per tile, not per listener. Per (listener, tile) there is almost
+nothing to measure, and per (listener, facet) is a noisier copy of `taste`.
+What is left is a property of the *tile* - does this title get tapped - which
+is dense and is one computation for the whole deployment.
+
+Bounded to [0.6, 1.5], shrunk toward the feed's own average so a new tile
+scores 1.0, and applied to exactly two rails. The other four are named in
+`ENGAGEMENT_WEIGHT` with a reason each; `rank_missed` is the interesting one,
+because every tile on it is already one this listener passed over, so a global
+"people pass this over" term would count the same event twice.
+
+### 4. The category tree
+
+`categories.py`. A tree with **no depth limit**, minted from what people
+search for, the subjects of live stories, and what listeners type into the
+catalogue. `sports → american football → nfl → cincinnati bengals` is four
+levels, and `topics.tag_weight` scores the leaf 5.4× the root because it is
+that much more specific a claim - `SUBTAG_WEIGHT` turns out to be this at one
+level, so the constant is now literally defined as it.
+
+The hierarchy comes from two places. **Keyless**, always: a phrase's parent is
+the facet its own sightings were tagged with, deepened by containment. **With
+a model**, one call per sweep for the whole deployment: a full path, which is
+the only way the levels nobody typed exist. No amount of reading what
+listeners wrote invents "American Football".
+
+The thing the plan above did not anticipate: **n-gram explosion**. Every
+sub-span of a phrase is seen by exactly the people who saw the phrase, so a
+listener threshold alone mints ten nodes for one four-word run - the first
+real tree was thirty-nine nodes from eight queries, mostly fragments like
+"reserve interest rate". Two filters fixed it and took the same eight queries
+to four real subjects: a phrase must appear in **more than one wording**
+(people ask about a subject several ways and about a fragment only one), and a
+phrase whose support is identical to a longer phrase containing it is dropped
+as the same subject with a word missing.
+
+`taste` re-reads an event's own text against the current tree while keeping
+its stored tags, so a node minted today makes last month's history legible
+rather than taking a month to be worth anything.

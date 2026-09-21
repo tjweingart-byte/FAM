@@ -151,6 +151,57 @@ STARTUP_TOPICS: tuple[StartupSpec, ...] = (
      "culture", "camera"),
 )
 
+#: The ninth question, which only exists for a listener who said where they
+#: are. `{place}` is filled with their own city and region - "Cincinnati,
+#: Ohio" - at feed time.
+#:
+#: **This is the single best use of a location in the whole app**, and the
+#: reason is the same one this module exists for: a cold start knows nothing
+#: about somebody, and a location is the one thing they may have told us
+#: before playing anything. The eight questions above are a complete cover of
+#: the pickable vocabulary with no guess about which part of it was meant;
+#: this one is not a guess at all.
+#:
+#: It leads the rail when it exists, ahead of the facet questions, because
+#: "where you live" outranks "what most people play" as an answer to *what
+#: should this person hear*. It is still one tile of six, so a listener who
+#: does not want local news is one scroll from the rest.
+#:
+#: **It carries `world` and nothing finer**, for both reasons the set above
+#: gives: local news is the whole facet rather than a corner of it, and the
+#: startup prior is over facets, so a second tag would only inflate the
+#: `sqrt(len(tags))` denominator and push this tile below the others.
+#:
+#: The query asks for what *changed* rather than for "news in {place}", which
+#: would retrieve a local paper's front page and produce an episode that
+#: reads one out. Same rule as every other entry: worth an episode, not a
+#: headline.
+LOCAL_ID = "su-local"
+
+LOCAL_TOPIC: StartupSpec = (
+    LOCAL_ID, "What Changed in {place}",
+    "The week where you actually live.",
+    "what has changed recently in and around {place} and why it matters to "
+    "people who live there",
+    "world", "business",
+)
+
+
+def local_spec(place: str) -> StartupSpec | None:
+    """`LOCAL_TOPIC` filled in for one listener, or None with no location.
+
+    None rather than a tile with an empty place in it: "What Changed in " is
+    the kind of half-rendered string that ships, and a missing location is a
+    perfectly good reason to have eight questions instead of nine.
+    """
+    place = " ".join(str(place or "").split())
+    if not place:
+        return None
+    spec_id, title, hook, query, facet, icon = LOCAL_TOPIC
+    return (spec_id, title.format(place=place), hook,
+            query.format(place=place), facet, icon)
+
+
 #: The longest a hook may be, in characters.
 #:
 #: `.seed-why` on a browse card is two clamped lines of 10px text in a 150px
