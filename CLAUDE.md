@@ -483,6 +483,24 @@ the rest of this list it needs taste rather than a key.
    input gets. The lesson is §52's in a different register: a test that never
    runs at production scale is inspecting rather than verifying.
 
+5a. **What a deployment with nothing in it shows** *(§124, measured on an
+   emptied database rather than reasoned about).* Signed out with an empty
+   log, `taste_source` is `startup` and the first rail is §116's
+   time-anchored starter set under the heading **Start here**; Trending,
+   "What you missed last week" and the friends rail are honestly empty with
+   their own sentences, and Explore says "Nothing here yet". Once there is
+   listening, `taste_source` becomes `taste` and the rail is "Made for you",
+   ranked. **The switch is on having a profile, not on being signed in** -
+   §116's decision, not an oversight: a brand-new account has nothing to
+   personalise on, so it gets the prior too, and one play retires it.
+   The one row that over-claims on a blank slate is
+   **"What FAM can't stop listening to"**, which fills from the bank when
+   nothing has been played ("a stable slice beats an empty section, and beats
+   a random one"). The content is fine and the heading is a claim a fresh
+   deployment cannot back. Left as it is deliberately - it is one line in
+   `rank_most_played` and reversing a documented decision belongs in a change
+   about that decision.
+
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
    Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
@@ -1665,6 +1683,27 @@ the rest of this list it needs taste rather than a key.
   Explore replay, or an episode whose script is already cached, which is what
   makes a voice switch free - is not paced as a generation. And because this
   server has two reasons to answer 429, every refusal says which one it was.
+- **A wipe enumerates what is *derived* from the thing it empties, not only
+  what is stored beside it.** *(§124.)* `tools/wipe_demo_data.py --all` takes
+  the script cache, the event log, the seeded listeners and the live story
+  pool - and left the grown vocabulary (`categories.py`) standing, which is
+  minted *from* that event log and is a ranking input. So a deployment taken
+  back to a blank slate went on ranking its feed on subjects learned from
+  episodes nobody could play any more, and nothing said so, because a tree is
+  not a row anybody counts. Two smaller versions came with it: the
+  module-level handle `topics.category_tree` caches per process, so clearing
+  the table without dropping it is a destructive operation that reports
+  success and changes nothing until the next restart; and the engagement
+  table is held in process, computed from the impressions being deleted one
+  line above. `demo_data._forget_what_the_log_taught` is the one place that
+  knows this, it never raises, and the dry run counts the vocabulary because
+  it is the item on the list nobody expects. Stores are the easy half -
+  `storage_doctor` lists them and §107's test derives that list. What
+  survives a wipe is whatever is neither a store nor a row.
+  What it still does not remove, because none of it is an episode: a mix
+  holds topic ids, a saved item and a vibe hold a question - pointers, which
+  play again from a freshly written script. Accounts, credentials and the
+  metering ledger are untouched in both scopes.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -2054,7 +2093,10 @@ every one of them only appears at a size no test runs at; and **§123**, three
 controls that were each right about a question next to the one in front of
 them - a picker that reported the account gate as a broken topic list, a (+)
 that took two screens to say what the screen behind it already said, and a
-search page that opened on a length its own menu disagreed with),
+search page that opened on a length its own menu disagreed with; and
+**§124**, a blank slate that was not blank - the wipe took every store and
+left the vocabulary those stores had taught, which is a ranking input that
+outlived its own source),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

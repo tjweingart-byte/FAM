@@ -76,11 +76,12 @@ def test_the_speed_placeholders_agree_with_the_default_speed():
     m = re.search(r'var SPEED_DEFAULT = "([^"]+)";', INDEX)
     assert m, "SPEED_DEFAULT is no longer declared as a literal"
     speed = m.group(1)
-    for element_id in ("speedLenPill", "paSpeedLenPill"):
+    for element_id in ("speedLenPill", "paSpeedLenPill", "speedModalVal"):
         found = re.search(r'id="%s"[^>]*>([^<]+)</div>' % element_id, INDEX)
-        assert found.group(1).strip().startswith(speed)
-    found = re.search(r'id="speedModalVal"[^>]*>([^<]+)</div>', INDEX)
-    assert found.group(1).strip() == speed
+        assert found, "no speed placeholder found for #%s" % element_id
+        shown = found.group(1).strip()
+        assert shown.startswith(speed), "#%s says %r, the default is %r" % (
+            element_id, shown, speed)
 
 
 def test_one_function_paints_the_length_and_the_menu_delegates_to_it():
@@ -101,7 +102,7 @@ def test_the_bank_is_taken_before_the_locked_branch_returns():
     picker renders a sentence about the server and nothing throws."""
     body = INDEX[INDEX.index("function loadMixes()"):]
     body = body[:body.index("function renderMixesLocked()")]
-    took_bank = body.index("topicBank = res[1].topics;")
+    took_bank = body.index("topicBank = res[1].topics")
     locked = body.index("if(res[0].locked)")
     assert took_bank < locked, (
         "loadMixes returns on the locked branch before taking the topic bank, "

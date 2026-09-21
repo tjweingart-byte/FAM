@@ -5300,7 +5300,11 @@
       // fact about the server: search it and nothing offers itself, so the
       // (+) after a search had nothing to add. Same shape as an empty
       // trending row claiming the world is quiet.
-      topicBank = res[1].topics;
+      // `|| []` because the next call reads `topicBank.length` before it
+      // fetches anything: a 200 with no `topics` in it would put `undefined`
+      // there and throw *outside* the catch below, on the second visit to
+      // this tab rather than the first.
+      topicBank = res[1].topics || [];
       if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
       if(res[0].locked){ renderMixesLocked(); return; }
       mixes = res[0].mixes;

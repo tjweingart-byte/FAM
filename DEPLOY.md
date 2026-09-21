@@ -163,11 +163,31 @@ Nothing happens without `--yes`, in both directions: the endpoint's own
 the one that empties the event log.
 
 `--all` empties the whole script cache and the whole event log, not just the
-seed. That is the true blank slate and it takes real listening with it. It
-costs nothing that cannot be regenerated - a script is about three cents and
-audio is never stored - and the taste model starts from nothing for
-everybody. Neither scope touches accounts, credentials or the metering
-ledger.
+seed, **and with them everything the log taught**: the grown vocabulary
+(`categories.py`, minted from what listeners searched for), the copy of it
+each worker holds in process, and the engagement table. A wipe that left
+those would rank a blank-slate feed on subjects learned from episodes nobody
+can play any more, and nothing on the outside would say so (§124). That is
+the true blank slate and it takes real listening with it. It costs nothing
+that cannot be regenerated - a script is about three cents and audio is never
+stored - and the taste model starts from nothing for everybody.
+
+Neither scope touches accounts, credentials or the metering ledger, and
+neither removes a mix, a saved episode or a vibe: all three hold a question
+or a topic id rather than audio, so they survive and play again from a freshly
+written script.
+
+**What a wiped deployment then shows**, which is what to expect before
+concluding something is broken: signed out, myFAM opens on **Start here** -
+the time-anchored starter set - with Trending, "What you missed last week"
+and the friends rail honestly empty, and Explore saying "Nothing here yet".
+Once there is listening the first rail becomes "Made for you" and
+`/api/myfam` reports `taste_source: taste`. "What FAM can't stop listening
+to" fills from the bank rather than showing empty; that is deliberate and
+predates this (`rank_most_played`).
+
+Running `./demo.sh` afterwards offers to seed again - it is a `[y/N]` prompt
+and answering no, or passing `--no-seed`, keeps the slate blank.
 
 ## Sharing needs no setting any more
 

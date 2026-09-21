@@ -72,8 +72,10 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
       not provably seed data, and guessing is how a real listener's episode
       gets deleted.
 
-    `all` additionally empties the whole script cache and the whole event log.
-    That is the true blank slate - "wipe all the fake episode titles
+    `all` additionally empties the whole script cache and the whole event log,
+    and with them everything that was derived from that log rather than stored
+    beside it - the grown vocabulary, the cached tree and the engagement
+    table; see `_forget_what_the_log_taught`. That is the true blank slate - "wipe all the fake episode titles
     completely so we start seeing only new ones" - and it is a bigger thing
     than it looks: real listening goes with it and the taste model starts from
     nothing for everybody. It costs nothing that cannot be regenerated (a
@@ -103,6 +105,17 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         report["listeners"] = {u: "would be erased" for u in SEED_USER_IDS}
         if scope == "all":
             report["events_total"] = events.count()
+            # Counted in the dry run because it is the one thing on this list
+            # nobody expects to be on it. "Scripts and events" is what people
+            # picture a wipe being; a vocabulary grown out of those events is
+            # not, and a number is how it stops being a surprise.
+            try:
+                import topics
+
+                report["categories_total"] = len(topics.category_tree().nodes())
+            except Exception:  # noqa: BLE001 - a count is never load-bearing
+                log.exception("could not count the category tree")
+                report["categories_total"] = 0
         return report
 
     for user_id in SEED_USER_IDS:
@@ -130,4 +143,46 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the story pool")
             report["stories_dropped"] = 0
+        report.update(_forget_what_the_log_taught())
     return report
+
+
+def _forget_what_the_log_taught() -> dict:
+    """Everything `all` has to take with the event log, because it came *from*
+    the event log.
+
+    This is the half of a blank slate that is not a store anybody thinks of.
+    Three things are derived from events rather than stored beside them, and
+    each would otherwise go on ranking a feed built from episodes that no
+    longer exist - invisibly, because none of them is a row somebody counts:
+
+    * **the grown vocabulary** (`categories.py`), minted from what listeners
+      searched for. `taste` re-reads an event's own text against the current
+      tree, so a tree that outlived its events is a vocabulary with nothing
+      left to say it about;
+    * **the cached tree**, which `topics.category_tree` holds per process. A
+      cleared table read through a warm handle is a wipe that reports success
+      and changes nothing until the next restart - a silent half-failure,
+      which is the thing this whole file is written against;
+    * **the engagement table** (§121), a click-through rate held in process
+      for `ENGAGEMENT_TTL`, computed from the impressions and plays being
+      deleted one line above.
+
+    Never raises. A wipe that had emptied the log and then failed here would
+    be the worst outcome available: the destructive half done, the tidying
+    half not, and an exception where the report should be.
+    """
+    out: dict = {}
+    try:
+        import topics
+
+        out["categories_dropped"] = topics.category_tree().clear()
+        # After the clear rather than instead of it: `clear` reloads its own
+        # index, and this drops the *module-level* handle so the next reader
+        # opens the emptied table rather than inheriting a live object.
+        topics.reset_category_tree()
+        topics.reset_engagement()
+    except Exception:  # noqa: BLE001 - see the docstring
+        log.exception("could not clear what the event log taught")
+        out.setdefault("categories_dropped", 0)
+    return out

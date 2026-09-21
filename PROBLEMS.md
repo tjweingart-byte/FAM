@@ -9580,3 +9580,92 @@ function as the expression's value to serialise, and the failure it raises is a
 thing the check is testing. An arrow function with no return value is the fix.
 Worth writing down because the misleading part is not the mistake, it is that
 the error impersonates the subject.
+
+## 124. A blank slate that was not blank: the vocabulary outlived its own source
+
+A deployment carrying episodes from many iteration cycles had to be taken
+back to what the interface looks like before any of it existed.
+`tools/wipe_demo_data.py --all` is that tool and has been since it was
+written - the whole script cache, the whole event log, the seeded listeners
+and the live story pool.
+
+It left one thing standing, and it was a **ranking input**.
+
+### What was wrong
+
+`categories.py` (§121) is a vocabulary the app grows for itself, minted from
+what listeners search for. It lives in its own store, so nothing in the wipe
+touched it. But it is not *stored data* in the sense the wipe was written
+around - it is **derived from the event log the wipe empties**, and `taste`
+re-reads each event's own text against the current tree.
+
+So after a full wipe the deployment held a vocabulary of subjects minted from
+episodes nobody can play any more, ranking a feed built from an empty log.
+Nothing on the outside said so: the wipe reported success, the counts it
+printed were all correct, and the tree is not a row anybody counts.
+
+Two smaller versions of the same thing came with it. `topics.category_tree`
+caches the store **per process**, so clearing the table without dropping that
+handle is a wipe that reports success and changes nothing until the next
+restart - the destructive operation silently half-applied, which is the exact
+failure `demo_data.py` is written against. And the engagement table (§121's
+click-through rate) is held in process for `ENGAGEMENT_TTL`, computed from
+the impressions and plays being deleted one line above it.
+
+### The fix, and the rule under it
+
+`CategoryStore.clear()` beside `prune()` - a different operation, named
+differently: `prune` drops what has gone quiet and keeps the tree standing,
+`clear` is for a deployment going back to before anything was listened to.
+`_forget_what_the_log_taught()` calls it, drops the module-level handle and
+resets the engagement cache, and never raises: a wipe that emptied the log
+and then threw would be the worst outcome available.
+
+The generalisation, which is why this is written down rather than just
+fixed: **a wipe has to enumerate what is derived from the thing it empties,
+not only what is stored beside it.** Stores are easy - `storage_doctor`
+lists them and §107's test derives that list rather than typing it twice. The
+things that are neither a store nor a row are the ones that survive: a
+vocabulary, a warm handle, a cached table. Each of those went on affecting
+what a listener is shown, after an operation whose entire purpose was that
+nothing should.
+
+The dry run counts the vocabulary now, because it is the one item on the list
+nobody expects to be on it.
+
+### What the wipe deliberately still does not remove
+
+None of it is an episode. A mix holds topic ids, a saved item and a vibe hold
+a question - all three are pointers, so they survive and play again from a
+freshly written script, which is the design. Accounts, credentials and the
+metering ledger are untouched in both scopes: somebody who signed up stays
+signed up, and what the app spent stays reconcilable against an invoice.
+
+### What a wiped deployment actually shows
+
+Measured on an emptied database rather than reasoned about, which is the
+whole point of §52:
+
+* **Signed out, nothing in the log** - `taste_source` is `startup`,
+  `personalised` is false, and the first rail is §116's time-anchored
+  starter set under the heading **Start here**. Trending, "What you missed
+  last week" and the friends rail are honestly empty with their own
+  sentences; Explore says "Nothing here yet".
+* **Signed in, after listening** - `taste_source` becomes `taste`,
+  `personalised` becomes true, and the rail is "Made for you", ranked.
+
+Note the switch is on **having a profile**, not on being signed in, and that
+is §116's decision rather than an oversight: a brand-new account has nothing
+to personalise on, so it gets the prior too, and one play retires it. `cold`
+is derived (`not profile`) and never stored, so behaviour arriving later
+always wins.
+
+**One row over-claims on a blank slate, and it is a pre-existing decision
+rather than something this change introduced.** `rank_most_played` fills from
+the bank when nothing has been played - "a stable slice beats an empty
+section, and beats a random one" - so "What FAM can't stop listening to"
+shows six tiles on a deployment where nobody has played anything. The content
+is fine; the heading is a claim about FAM's listeners that a fresh
+deployment cannot back, which is the rule §89 and §90 both state. Left alone
+deliberately: it is one line in `rank_most_played`, and turning a documented
+decision over belongs in a change that is about that decision.
