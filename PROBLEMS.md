@@ -8998,3 +8998,100 @@ Nobody has heard this. The fix makes the engine exist on a deployment that
 discovers its worker; whether that worker then speaks is the listening test
 open problem #1 has been waiting on since Piper was removed. What can be said
 from here is that the tone is no longer guaranteed by construction.
+
+## 120. FAM discovered its own front door and health-checked it
+
+`RUNPOD_API_KEY` reached Render, the `runpod-pod` rung woke up, RunPod's API
+answered `200 OK` - and the voice still failed, now on a different line:
+
+    GET https://<pod>-8001.proxy.runpod.net/health -> 404 Not Found
+
+The pod runs two things. FAM on **8001**, exposed over HTTP; Chatterbox on
+**8002**, exposed over TCP. So the address the ladder discovered, verified and
+reported as a dead worker was **this application's own front door**, reached
+the long way round through Cloudflare. The 404 is the app being honest: it
+serves `/api/health`, not `/health`.
+
+### Why the port was wrong, twice over
+
+`_http_port` ended in `return http_ports[0] if http_ports else 0`. Two
+separate failures met in that line.
+
+With `VOICE_WORKER_PORT` unset it defaults to **8001**, so `preferred in
+http_ports` matched - correctly, by the rules, and on the wrong service. The
+default is right for a pod running only the voice, which is what
+`Dockerfile.voice` serves on `${PORT:-8001}`, and it is exactly wrong on a pod
+that also runs the app.
+
+And setting it would not have helped. With `VOICE_WORKER_PORT=8002` the
+configured port is not among the pod's http ports, so the fallback returned
+`http_ports[0]` - **8001 again**. An operator who diagnosed this correctly and
+fixed their configuration would have got the identical 404 and concluded the
+port was not the problem.
+
+That fallback is the bug proper, and it is §78 one layer up. §78 was the
+*worker* announcing `$PORT` instead of the port it was listening on. This is
+the *app* picking a port from a list, when the only thing that makes a port
+the worker's is that the worker is listening on it. **A port chosen by
+something that cannot know is a guess, and this one arrived dressed as a
+discovery** - with a URL, a rung name and a reason in words.
+
+So it no longer substitutes. A configured port that the pod does not expose
+over HTTP returns no candidate and a sentence naming both numbers. An
+unconfigured port still takes the single exposed one, because "nothing was
+said about the worker's port" is a different state from "a port was named and
+the pod does not have it", and the candidate is verified before anyone is sent
+to it.
+
+### And the address that would have worked was passed over in silence
+
+`_direct_endpoint` looks for `VOICE_WORKER_PORT` among the pod's TCP mappings.
+Looking for 8001 on a pod that maps 22 and 8002, it found nothing and returned
+`None` - saying nothing at all. So the one address on that pod with no edge in
+front of it, the rung §117 was written to add, was skipped without a word, and
+the log showed only a proxy URL being probed.
+
+It says so now, and the note carries both halves of the diagnosis: which ports
+the pod publishes, and which one this app was told to look for. Three states,
+each naming the next thing to set:
+
+    VOICE_WORKER_PORT=8001 (the default)
+      -> pod fam-voice publishes TCP port 22, 8002; VOICE_WORKER_PORT is 8001,
+         so none of them is the worker's. Set it to the port the worker is
+         listening on
+    VOICE_WORKER_PORT=8002
+      -> pod fam-voice publishes 203.0.113.7:41234, which needs no proxy, but
+         VOICE_ALLOW_PLAIN_HTTP is not set so it is not offered
+      -> pod fam-voice exposes http port 8001 and not 8002 ...
+    VOICE_WORKER_PORT=8002, VOICE_ALLOW_PLAIN_HTTP=1
+      -> http://203.0.113.7:41234
+
+The 404 verdict names the cause it now knows about: on a pod that runs
+anything besides the voice, the likeliest reading of a 404 is not a broken
+worker but **a different service answering**.
+
+### The general form, which is this seam's third instance
+
+§112 said the address of the voice must be discovered, not written down twice.
+§117 said the discovered address has to be one a *server* can use. This one
+says: **a discovered address is a host and a port, and the port is as much a
+fact about somebody else's machine as the host is.** Discovery got the host
+right and kept guessing the port.
+
+The honest fix for the port is the same as for the host, and it already
+exists: **a worker that registers itself announces the port it is actually
+listening on** (§117 fixed `register.port()` to read that rather than `$PORT`).
+That is the only place the fact is known instead of declared. `RUNPOD_POD`
+plus `VOICE_WORKER_PORT` is the fallback for a pod that cannot reach this
+service, and it is now declared in `render.yaml` with the reasoning attached -
+because nothing anywhere prompted for it, which is §114's finding about
+`PUBLIC_BASE_URL` in a second place.
+
+### What this does not fix
+
+The deployment that reported it is running `Main`, which does not carry §119 -
+so even once the ladder finds the worker, `build_engine()` still returns the
+placeholder tone, because `available()` is still asking whether an address is
+configured. The two are independent and both are needed: §119 makes the engine
+exist, §120 makes the ladder find the right port. Neither has spoken on a real
+machine from this container.

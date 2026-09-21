@@ -1681,6 +1681,30 @@ the rest of this list it needs taste rather than a key.
   422 (since §117, routinely `VOICE_ALLOW_PLAIN_HTTP=0` refusing the direct
   TCP address a pod correctly announced), and for a 401 the *name* of the
   variable whose two copies disagree and neither of the two strings.
+  **And a discovered address is a host *and a port*** *(§120).* §112 got the
+  host found rather than typed and §117 got the right *kind* of host; the
+  port was still being guessed. `_http_port` ended in "the first http port
+  the pod exposes", so on a pod running the app beside the voice - which is
+  this project's, FAM on 8001 and Chatterbox on 8002 - FAM discovered **its
+  own front door**, health-checked it through Cloudflare and reported the
+  404 as a broken worker. Twice over: the default `VOICE_WORKER_PORT` is
+  8001, so it matched the app by coincidence, and naming 8002 did not help
+  because the fallback returned 8001 anyway. **A port chosen by something
+  that cannot know is a guess**, and that one arrived dressed as a discovery,
+  with a URL and a reason in words. It substitutes nothing now: a configured
+  port the pod does not expose over HTTP yields no candidate and a sentence
+  naming both numbers, while an *unconfigured* port still takes the single
+  exposed one - "nothing was said" and "a port was named and the pod has not
+  got it" are different states. And the direct rung **says when it passes an
+  address over**: looking for 8001 on a pod that maps 22 and 8002 it used to
+  return nothing silently, so the one address with no edge in front of it was
+  skipped without a word. The honest fix for the port is the same as for the
+  host and already exists - **a worker that registers itself announces the
+  port it is listening on**, the only place that fact is known rather than
+  declared. `RUNPOD_POD` plus `VOICE_WORKER_PORT` is the fallback for a pod
+  that cannot reach this service, and it is declared in `render.yaml` now,
+  because nothing anywhere prompted for it (§114's `PUBLIC_BASE_URL` finding
+  in a second place).
   Nothing in it has made a real request to RunPod from the build container.
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
@@ -1915,7 +1939,10 @@ nightly pod schedule deleted at the owner's direction so the voice is up at
 all times; and **§119**, the ladder built and the engine that walks it never
 built - every commit through §118 was deployed and Render still served a
 placeholder tone, because the question "is there a voice" was still being
-answered by the variable §112 replaced), `MYFAM.md` for the browse page, the
+answered by the variable §112 replaced; and **§120**, the pod found and the
+port guessed - on a pod running the app beside the voice, FAM discovered its
+own front door, health-checked it and read the 404 as a broken worker),
+`MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

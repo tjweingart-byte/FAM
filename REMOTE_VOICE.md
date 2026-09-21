@@ -208,6 +208,31 @@ The proxy stays on the ladder underneath it. Failing over is not falling
 back: it is the same worker image, and a pod whose TCP port is firewalled
 must still be reachable.
 
+### On a pod that runs more than the voice, say which port is the voice
+
+**Read this if the app is probing a proxy URL and getting a 404.** A 404 from
+`https://<pod>-<port>.proxy.runpod.net/health` on such a pod usually does not
+mean the worker is broken. It means the address reached **something else the
+pod runs**, because the proxy fronts one private port and FAM was looking at
+the wrong one (PROBLEMS.md §120).
+
+This project's own pod is the case: FAM on 8001, Chatterbox on 8002. So
+
+    VOICE_WORKER_PORT=8002      # on the app
+
+and the discovery rungs look for 8002 in both the pod's HTTP ports and its
+TCP mappings. Unset, it defaults to 8001 — right for a pod running only the
+worker, and the app's own port on a pod running both. FAM will not substitute
+another port for the one you name: a configured port the pod does not expose
+over HTTP yields no candidate and a line in the log saying so, rather than an
+address that answers and is not the voice.
+
+Both discovery rungs need it, and neither can find it out: only the worker
+knows which port it bound. **A worker that registers itself does not need this
+setting at all** — it announces the port it is actually listening on. Set
+`FAM_APP_URL` and `VOICE_REGISTRY_TOKEN` on the pod and the question goes
+away.
+
 ### The port a worker announces is the port it is listening on
 
 `register.port()` reads `VOICE_WORKER_PORT`, then the `--port` the process was
