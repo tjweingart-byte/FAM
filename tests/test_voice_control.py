@@ -685,3 +685,81 @@ def test_both_paths_to_a_worker_call_themselves_the_same_thing():
     assert "voice_control.USER_AGENT" in \
         open(remote_voice.__file__).read()
     assert voice_control.USER_AGENT.startswith("FAM/")
+
+
+# --- a pod that runs more than the voice -----------------------------------
+#
+# PROBLEMS.md §120. The reported pod ran FAM on 8001 (exposed over HTTP) and
+# Chatterbox on 8002 (exposed over TCP). Discovery built
+# `https://<pod>-8001.proxy.runpod.net`, health-checked FAM's own front door,
+# and reported the 404 as a broken worker.
+
+def shared_pod():
+    """The reported layout: the app on 8001 over http, the voice on 8002 TCP."""
+    return {"id": "abc123", "name": "fam-voice", "desiredStatus": "RUNNING",
+            "publicIp": "203.0.113.7",
+            "runtime": {"ports": [
+                {"privatePort": 8001, "publicPort": 8001, "type": "http",
+                 "isIpPublic": True},
+                {"privatePort": 22, "publicPort": 41230, "type": "tcp",
+                 "isIpPublic": True, "ip": "203.0.113.7"},
+                {"privatePort": 8002, "publicPort": 41234, "type": "tcp",
+                 "isIpPublic": True, "ip": "203.0.113.7"},
+            ]}}
+
+
+def test_the_apps_own_port_is_never_offered_as_the_voice(monkeypatch):
+    """The fallback to the first exposed http port is what made this a
+    discovery rather than a guess. The proxy fronts one private port, so an
+    address built from a port the worker is not on reaches whatever else the
+    pod runs - and answers 404, which reads exactly like a missing route."""
+    configure(monkeypatch, voice_worker_port=8002)
+    found = voice_control._pods_from(pods(shared_pod()), "fam-voice")
+    assert [c.url for c in found] == []
+    assert any("8001 and not 8002" in note
+               for note in voice_control._state.pod_notes)
+
+
+def test_the_substituted_port_names_the_setting_that_fixes_it(monkeypatch):
+    configure(monkeypatch, voice_worker_port=8002)
+    voice_control._pods_from(pods(shared_pod()), "fam-voice")
+    assert any("VOICE_WORKER_PORT" in note
+               for note in voice_control._state.pod_notes)
+
+
+def test_a_direct_port_that_is_not_the_wanted_one_is_said_rather_than_dropped(
+        monkeypatch):
+    """Silence here was the other half. Looking for 8001 on a pod that maps 22
+    and 8002, the direct rung returned nothing and said nothing - so the log
+    showed a proxy URL being probed with no hint that the one address with no
+    edge in front of it had been passed over for a reason anybody could fix."""
+    configure(monkeypatch, voice_allow_plain_http=True, voice_worker_port=8001)
+    voice_control._pods_from(pods(shared_pod()), "fam-voice")
+    said = " ".join(voice_control._state.pod_notes)
+    assert "22, 8002" in said and "VOICE_WORKER_PORT is 8001" in said
+
+
+def test_the_two_settings_together_reach_the_one_address_that_works(monkeypatch):
+    """The end of the chain: the worker's port named, plain HTTP decided, and
+    the only address on this pod with no proxy edge in front of it."""
+    configure(monkeypatch, voice_allow_plain_http=True, voice_worker_port=8002)
+    found = voice_control._pods_from(pods(shared_pod()), "fam-voice")
+    assert [c.url for c in found] == ["http://203.0.113.7:41234"]
+
+
+def test_a_pod_running_only_the_voice_is_unaffected(monkeypatch):
+    """The ordinary case has to keep costing nothing: one http port, and it is
+    the worker's, so the proxy candidate is built exactly as before."""
+    configure(monkeypatch, voice_worker_port=8001)
+    found = voice_control._pods_from(pods(pod()), "fam-voice")
+    assert [c.url for c in found] == ["https://abc123-8001.proxy.runpod.net"]
+    assert voice_control._state.pod_notes == []
+
+
+def test_an_unconfigured_port_still_takes_the_only_http_one(monkeypatch):
+    """`VOICE_WORKER_PORT=0` means nothing was said about the worker's port,
+    which is different from naming one the pod does not expose. The single
+    exposed port is then the only candidate there is, and it is verified."""
+    configure(monkeypatch, voice_worker_port=0)
+    found = voice_control._pods_from(pods(pod(ports=(8003,))), "fam-voice")
+    assert [c.url for c in found] == ["https://abc123-8003.proxy.runpod.net"]
