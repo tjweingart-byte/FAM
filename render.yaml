@@ -83,6 +83,22 @@ services:
       # that is up and working.
       - key: VOICE_REGISTRY_DB
         value: /data/voice_registry.db
+      # Whether a worker may be reached over plain HTTP.
+      #
+      # Off here, and it is the line to read first when a pod is healthy in a
+      # browser and unreachable from this service. RunPod's proxy URL is the
+      # only TLS address a pod has, and that proxy is Cloudflare: it serves a
+      # browser and refuses a server, so the same /health is 200 in a tab and
+      # 403 from Render with nothing wrong on either machine (PROBLEMS.md
+      # §117). The way out is the pod's direct TCP port, which has no
+      # certificate - so reaching it is a deliberate trade, made here.
+      #
+      # Set it to 1 *and* expose the worker's port as a TCP port on the pod,
+      # and the direct address is found through RUNPOD_POD above or announced
+      # by the worker itself. Leave it at 0 on a deployment whose worker is
+      # reached some other way.
+      - key: VOICE_ALLOW_PLAIN_HTTP
+        value: "0"
       # --- Live facts: elections ----------------------------------------
       #
       # Polymarket. Keyless, so it is a plain `value` rather than a

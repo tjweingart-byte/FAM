@@ -1622,10 +1622,40 @@ the rest of this list it needs taste rather than a key.
   a port), the variable overrides it, and the first line of the pod's log says
   which half is running and why.
   What is automatic is the **address**. Nothing here starts, stops, resizes or
-  pays for a pod - `.github/workflows/runpod-schedule.yml` does that on a clock
-  somebody set, which is also why a pod that is found and stopped is *named*
-  rather than skipped: "the voice cannot be found" and "the voice is asleep
-  until 08:00" are different problems.
+  pays for a pod, without exception: the nightly schedule that did is
+  **deleted** at the owner's direction (§118) and **the pod runs
+  continuously**. Deleted rather than disabled, on the Piper reasoning - a
+  workflow with its cron commented out is one somebody re-enables by
+  accident, and the voice vanishing at 23:00 for reasons nobody remembers is
+  a day of diagnosis. A pod that is found and stopped is still *named* rather
+  than skipped, and that note is sharper for the change: while the schedule
+  existed "EXITED" was ambiguous between a clock and a fault, and now it is
+  always a fault - RunPod evicted it, the account ran out, or somebody
+  stopped it by hand.
+  **And the address it finds has to be one a server can use** *(§117).* The
+  ladder was discovering, registering and verifying
+  `https://<pod>-<port>.proxy.runpod.net`, which is fronted by Cloudflare:
+  it serves a browser and refuses a datacentre with a 403, so a pod that was
+  healthy in a tab was unreachable from Render with nothing wrong on either
+  machine, and the app reported the worker's 403 rather than the edge's.
+  Discovering the wrong *kind* of address is still a fact about somebody
+  else's infrastructure written into this app. A pod's **direct TCP
+  mapping** - `RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>`, published to
+  the container exactly as the pod id is - has nothing in front of it, and is
+  now the preferred rung, with the proxy kept below it because failing over
+  is not falling back. It is plain HTTP, so it is a **decision**, not a
+  default: `VOICE_ALLOW_PLAIN_HTTP` is off, named in the 403's own message,
+  reported on `/api/health`, and read by `voice_control.allow_plain_http()`
+  from both the registry and the ladder - an address one accepts and the
+  other refuses is a worker that registers successfully and is never used.
+  Two things found with it that would have made the automation fail anyway:
+  the worker announced **`$PORT`** rather than the port it was listening on,
+  so on a pod running the app beside the voice it announced the app's
+  address (§78 one layer up); and the nightly schedule carried the pod's
+  **id** as a literal, which had gone stale for the second time, so it was
+  starting and stopping a retired machine while the live pod ran unmanaged.
+  Both are derived now - the port from what the process was told, the pod
+  from its **name**.
   Nothing in it has made a real request to RunPod from the build container.
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
@@ -1853,7 +1883,11 @@ container has no webfonts and the runner does; and **§116**, two surfaces
 that were each saying something true about themselves where something
 useful about the episode belonged - a browse card that explained the ranking
 instead of the episode, and a new listener's page that was one row of
-content and four empty-state sentences), `MYFAM.md` for the browse page, the
+content and four empty-state sentences; and **§117**, the voice after the
+pod migration - the worker was healthy, the address was right, and the proxy
+in front of it refuses a server while serving a browser; and **§118**, the
+nightly pod schedule deleted at the owner's direction so the voice is up at
+all times), `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

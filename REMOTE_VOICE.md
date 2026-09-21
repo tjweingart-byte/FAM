@@ -170,6 +170,54 @@ A registration expires (`VOICE_REGISTRY_TTL`, five missed heartbeats), which is
 what makes a pod that was destroyed stop being offered without anything having
 to notice that it died.
 
+### The proxy URL is a browser address, not an API one
+
+**Read this before anything else if the pod is healthy and the app cannot
+reach it.** `https://<pod>-<port>.proxy.runpod.net` is fronted by Cloudflare.
+It serves a person opening it in a tab and it **refuses server-to-server
+requests from datacentre ranges with a 403**, so the same `/health` can be
+200 in your browser and 403 from Render with nothing wrong on either machine
+(PROBLEMS.md §117). The app says so in as many words now rather than
+reporting the worker's own 403:
+
+    HTTP 403 from https://<pod>-8002.proxy.runpod.net. This is the proxy edge
+    in front of the pod, not the worker: RunPod fronts a pod's HTTP port with
+    Cloudflare, which serves a browser and refuses a server.
+
+The way out is the pod's **direct TCP address**, which nothing fronts. Three
+steps, and the third is the one that keeps it true across a migration:
+
+1. On the pod, expose the worker's port (8001, or whatever `VOICE_WORKER_PORT`
+   says) as a **TCP** port as well as an HTTP one. RunPod maps it to a public
+   IP and a port of its choosing and publishes both inside the container as
+   `RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>`.
+2. On the app, set **`VOICE_ALLOW_PLAIN_HTTP=1`**. A raw TCP port has no
+   certificate, so the bearer token and the script cross it in clear. That is
+   a real cost and it is why this is a variable rather than a default: decide
+   it, do not discover it. `REMOTE_VOICE_TOKEN` still has to match, and the
+   address is still verified with a real call before anybody is sent to it.
+   `/api/health` reports `plain_http` as `allowed` or `refused`.
+3. Do **not** paste the address into `REMOTE_VOICE_URL`. It changes on every
+   pod, which is the whole of §112. Let it be found: either the worker
+   announces it (`FAM_APP_URL` + `VOICE_REGISTRY_TOKEN` on the pod), or the
+   app asks RunPod for it (`RUNPOD_POD` + `RUNPOD_API_KEY`). Both produce the
+   direct address in preference to the proxy, and both keep working when the
+   pod is replaced.
+
+The proxy stays on the ladder underneath it. Failing over is not falling
+back: it is the same worker image, and a pod whose TCP port is firewalled
+must still be reachable.
+
+### The port a worker announces is the port it is listening on
+
+`register.port()` reads `VOICE_WORKER_PORT`, then the `--port` the process was
+started with, then `PORT`, then 8001. `PORT` alone was wrong the moment a
+container ran more than the worker: this project's pod runs the app on 8001
+and the voice on 8002, so the worker announced the *app's* address and the
+app health-checked a web service looking for a voice. The pod's boot log now
+prints both the port it serves and the address it will announce, so the
+question is answered from RunPod's console without a probe.
+
 ### Or, with nothing on the pod at all
 
     RUNPOD_POD=fam-voice          # the pod's NAME, not its id
@@ -178,10 +226,10 @@ to notice that it died.
 FAM asks RunPod where that pod is and builds the proxy URL itself. Matched on
 name because a pod that is destroyed and recreated from the same template keeps
 its name and loses its id - and a pod that is *stopped* is reported as such
-rather than skipped in silence, which matters here because
-`.github/workflows/runpod-schedule.yml` stops this project's pod every night:
-"the voice cannot be found" and "the voice is asleep until 08:00" are different
-problems and now read differently.
+rather than skipped in silence. That note used to disambiguate a schedule from
+a fault; since the schedule was removed (§118) it does something simpler and
+more useful: nothing stops this pod on purpose any more, so a pod found and
+not running is **always** something to act on.
 
 ### One command when something is wrong
 
@@ -199,6 +247,28 @@ The line it exists to print is this one:
 
     ! REMOTE_VOICE_URL names https://old-8001.proxy.runpod.net, but the worker
       that is announcing itself is at https://new-8001.proxy.runpod.net
+
+### There is no schedule; the pod runs continuously
+
+There was one - `.github/workflows/runpod-schedule.yml`, starting the pod at
+08:00 and stopping it at 23:00 - and it is **deleted**, at the owner's
+direction (§118). Nothing in this repository now starts, stops or resizes a
+pod. The voice is expected to be up at all times, and that is a decision
+about cost, not an accident: a GPU billed by the hour is billed for the
+hours nobody is listening too.
+
+Deleted rather than disabled, on the reasoning this project has paid for
+three times (Piper, the cold open, the makeshift sign-up form): a workflow
+left in place with its schedule commented out is one somebody re-enables by
+accident, and the failure - the voice going away at 23:00 for reasons nobody
+remembers - is the kind that costs a day.
+
+What this buys back, beyond the hours: **`EXITED` now means something.** While
+the schedule existed, a stopped pod was ambiguous between a clock and a
+fault, which is why the ladder records one rather than skipping it. With no
+schedule, a pod that is found and not running is always a fault - RunPod
+evicted it, the account ran out, or somebody stopped it by hand - and the
+note that names it is a diagnosis rather than a disambiguation.
 
 ### And the image builds itself
 
@@ -326,11 +396,13 @@ make a rented GPU what every listener gets — §61's first guard, which is how
 WellSaid silently became the default voice on every machine without Piper.
 
 **Nothing here starts, stops, resizes or pays for a pod.** `RUNPOD_PRODUCTION.md`
-said that and it stays true - `.github/workflows/runpod-schedule.yml` is the
-one thing that starts and stops one, on a clock somebody set. What *is*
-automatic now is the **address**: FAM finds the worker wherever RunPod put it,
+said that and it is now true without exception: the one workflow that started
+and stopped one is deleted (§118), and the pod runs continuously. What *is*
+automatic is the **address**: FAM finds the worker wherever RunPod put it,
 verifies it before using it, and switches when it stops answering. Which
-machine exists, and what it costs, is still a decision somebody makes.
+machine exists, and what it costs, is still a decision somebody makes - and
+with no schedule, that decision is now made once in RunPod's console rather
+than twice a day by a clock.
 
 **Bandwidth is unchanged and still the thing that bites at scale**: 2.65 MB/min
 per listener at 22050 Hz, more at Chatterbox's 24000. Opus over the stream is

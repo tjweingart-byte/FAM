@@ -128,8 +128,12 @@ async def _announce() -> None:
     """
     routes = sorted(f"{sorted(r.methods)[0]} {r.path}"
                     for r in app.routes if getattr(r, "methods", None))
-    log.info("serving on port %s: %s", os.environ.get("PORT", "8001"),
-             ", ".join(routes))
+    # `register.port()` rather than `PORT`, because on a container running more
+    # than the worker those are different numbers and this line is the one an
+    # operator reads to decide whether the address is right (PROBLEMS.md §117).
+    log.info("serving on port %s: %s", register.port(), ", ".join(routes))
+    log.info("this worker's address, as it will announce it: %s",
+             register.public_url() or "unknown (set PUBLIC_WORKER_URL)")
 
 
 @app.get("/health")

@@ -48,6 +48,7 @@ import asyncio
 import logging
 import os
 import socket
+import sys
 
 log = logging.getLogger("voice_worker.register")
 
@@ -60,25 +61,108 @@ DEFAULT_INTERVAL = 60.0
 def public_url() -> str:
     """This worker's address as the internet sees it, or "" if unknowable.
 
-    `PUBLIC_WORKER_URL` first, because a deployment that is not RunPod knows
-    something this cannot derive. Then RunPod's proxy, built from the pod id
-    the platform puts in the environment and the port the server is actually
-    listening on - the pair §78 was paid for.
+    Three sources, in this order, and the middle one is the change §117 was
+    paid for:
+
+    1. **`PUBLIC_WORKER_URL`**, because a deployment that is not RunPod knows
+       something this cannot derive.
+    2. **RunPod's direct TCP mapping**, when the worker's port is exposed as a
+       TCP port. `RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>` are injected
+       by the platform, so this is derived exactly as the proxy URL is - and
+       it is preferred because nothing sits between it and the app. The proxy
+       is Cloudflare, and Cloudflare serves a browser and refuses a server,
+       which is why a pod that is demonstrably healthy in a tab can be
+       unreachable from Render with nothing wrong on either machine.
+    3. **RunPod's proxy**, which is still the right answer when no TCP port is
+       exposed, and is what every existing pod falls back to.
+
+    The app refuses a plain-HTTP address unless `VOICE_ALLOW_PLAIN_HTTP` is
+    set there, so announcing one costs nothing when it is not wanted: the
+    registration is refused with a sentence, rather than a worker silently
+    becoming unreachable.
     """
     explicit = (os.environ.get("PUBLIC_WORKER_URL") or "").strip().rstrip("/")
     if explicit:
         return explicit
+    direct = direct_url()
+    if direct:
+        return direct
     pod_id = (os.environ.get("RUNPOD_POD_ID") or "").strip()
     if not pod_id:
         return ""
     return f"https://{pod_id}-{port()}.proxy.runpod.net"
 
 
+def direct_url() -> str:
+    """`http://<public ip>:<mapped port>`, or "" when RunPod has not published one.
+
+    Both halves have to be present. A public IP with no mapping for *this*
+    port is a pod exposing something else over TCP, and guessing a port there
+    would point the app at whatever else is listening.
+    """
+    ip = (os.environ.get("RUNPOD_PUBLIC_IP") or "").strip()
+    if not ip:
+        return ""
+    mapped = (os.environ.get(f"RUNPOD_TCP_PORT_{port()}") or "").strip()
+    try:
+        if int(mapped) <= 0:
+            return ""
+    except ValueError:
+        return ""
+    return f"http://{ip}:{mapped}"
+
+
 def port() -> int:
+    """The port this worker is actually listening on.
+
+    `PORT` was the whole answer and it is the wrong one whenever the container
+    runs more than the worker. This project's pod runs the app on `PORT` and
+    the voice beside it on another port, so the worker announced the *app's*
+    address and the app then health-checked a web service looking for a voice
+    (PROBLEMS.md §117). That is §78 one layer up: a port that is written down
+    in one place and used in another.
+
+    So it is read from what the process was actually told, in the order that
+    can be trusted: an explicit `VOICE_WORKER_PORT`, then the `--port` uvicorn
+    was given on the command line, then `PORT`, then the image's default.
+    """
+    explicit = (os.environ.get("VOICE_WORKER_PORT") or "").strip()
+    if explicit:
+        try:
+            return int(explicit)
+        except ValueError:
+            log.warning("VOICE_WORKER_PORT=%r is not a number; ignoring it",
+                        explicit)
+    argv_port = _port_from_argv(sys.argv)
+    if argv_port:
+        return argv_port
     try:
         return int(os.environ.get("PORT") or 8001)
     except ValueError:
         return 8001
+
+
+def _port_from_argv(argv: list) -> int:
+    """The `--port` this process was started with, if it was started with one.
+
+    Pure, so it is tested. Both spellings, because `uvicorn --port 8002` and
+    `uvicorn --port=8002` are the same command to everyone except a parser.
+    """
+    for index, item in enumerate(argv or []):
+        arg = str(item)
+        value = ""
+        if arg == "--port" and index + 1 < len(argv):
+            value = str(argv[index + 1])
+        elif arg.startswith("--port="):
+            value = arg.split("=", 1)[1]
+        if value:
+            try:
+                found = int(value)
+            except ValueError:
+                continue
+            if found > 0:
+                return found
+    return 0
 
 
 def app_url() -> str:

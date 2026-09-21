@@ -65,6 +65,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from config import settings
 
@@ -81,6 +82,25 @@ CONTRACT_VERSION = 1
 #: The rungs, in order. Names are stable: they appear in `/api/health`, in the
 #: doctor's output and in the log line that announces a switch.
 RUNGS = ("pinned", "registered", "runpod-pod", "serverless")
+
+#: What every request from this app to a worker calls itself, on the probe path
+#: and on the synth path alike.
+#:
+#: One constant because the two paths disagreed and the disagreement was
+#: invisible: `remote_voice` sent `FAM/remote-voice` and this module sent
+#: whatever httpx defaults to, so a worker reachable by one could be refused to
+#: the other by anything in between that reads a User-Agent - and RunPod's pod
+#: proxy is Cloudflare, which does (PROBLEMS.md §117). A probe that succeeds
+#: where the synth fails, or the reverse, is the most expensive shape of bug
+#: this seam has, because it makes the health page lie.
+USER_AGENT = "FAM/voice (+https://github.com/tjweingart-byte/FAM)"
+
+#: Hosts whose 403 means something specific enough to say out loud. RunPod
+#: fronts a pod's HTTP port with Cloudflare, so a request that a browser makes
+#: happily can be refused at the edge when it comes from a datacentre - which
+#: is a fact about the *path*, not about the worker, and reads from the app's
+#: side exactly like a worker that has stopped working.
+PROXIED_HOSTS = ("proxy.runpod.net",)
 
 
 class VoiceControlError(RuntimeError):
@@ -162,8 +182,9 @@ class _State:
     previous: Optional[Endpoint] = None
     switches: list = field(default_factory=list)
     # What was true about the pods last time RunPod was asked, when it was not
-    # a candidate. Usually the whole diagnosis - this deployment stops its pod
-    # every night, so "EXITED" is a schedule rather than a failure.
+    # a candidate. Usually the whole diagnosis - and sharper since the nightly
+    # schedule was removed (§118): nothing stops this pod on purpose any more,
+    # so "EXITED" is now unambiguously a fault rather than a clock.
     pod_notes: list = field(default_factory=list)
     last_error: str = ""
 
@@ -246,6 +267,17 @@ def discovery_enabled() -> bool:
     several identical workers answers.
     """
     return str(settings.voice_discovery or "auto").strip().lower() != "off"
+
+
+def allow_plain_http() -> bool:
+    """Whether a worker reached over plain HTTP may be used at all.
+
+    Read in two places - here, when RunPod names a pod's TCP address, and in
+    `voice_registry`, when a worker registers one. Both ask the same question
+    because it is the same decision, and a deployment that answered it twice
+    could have a registered plain address it would refuse to discover.
+    """
+    return bool(getattr(settings, "voice_allow_plain_http", False))
 
 
 def _runpod_key() -> str:
@@ -367,10 +399,9 @@ async def _runpod_pods() -> list[Endpoint]:
     cost a rung and a log line, not the voice.
 
     REST first and GraphQL second, which is a fact about RunPod rather than a
-    FAM policy: `.github/workflows/runpod-schedule.yml` already starts and
-    stops this project's pod through `rest.runpod.io/v1`, so that is the API
-    this key is known to work against. The older GraphQL endpoint answers the
-    same question and is tried when REST does not.
+    FAM policy: `rest.runpod.io/v1` is the current API and the one this
+    project's key has been used against. The older GraphQL endpoint answers
+    the same question and is tried when REST does not.
     """
     selector = _pod_selector()
     key = _runpod_key()
@@ -461,9 +492,12 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
     therefore the thing an operator can rely on across a migration.
 
     A pod that is found and *not running* is recorded rather than dropped
-    silently. This project stops its pod every night on a schedule, so "the
-    voice cannot be found" and "the voice is asleep until 08:00" are the two
-    most likely answers and they are not the same problem.
+    silently - and that note says more than it used to. It was written when a
+    schedule stopped this pod every night, so "EXITED" was ambiguous between a
+    clock and a fault. Nothing stops it on purpose any more (§118), so a pod
+    that is found and not running is **always** something to act on: RunPod
+    evicted it, the account ran out, or somebody stopped it by hand. An empty
+    rung that said nothing would hide all three.
     """
     wanted = {part.strip().lower() for part in selector.split(",") if part.strip()}
     out: list[Endpoint] = []
@@ -478,10 +512,18 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
         if status and status != "RUNNING":
             _note(f"pod {name or pod_id} is {status}, not RUNNING")
             continue
+        # The direct address first, when the pod has one and this deployment
+        # permits it. It is the same worker either way; what differs is
+        # whether Cloudflare is in the path, and the proxy's edge is what
+        # refuses a server while serving a browser (PROBLEMS.md §117).
+        direct = _direct_endpoint(pod, name or pod_id)
+        if direct is not None:
+            out.append(direct)
         port = _http_port(pod)
         if not port:
-            _note(f"pod {name or pod_id} exposes no http port; the image "
-                  "serves ${PORT:-8001}")
+            if direct is None:
+                _note(f"pod {name or pod_id} exposes no http port; the image "
+                      "serves ${PORT:-8001}")
             continue
         out.append(Endpoint(
             transport="http",
@@ -492,6 +534,72 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
     if not out and not _state.pod_notes:
         _note(f"RunPod lists no pod called {selector}")
     return out
+
+
+def _direct_endpoint(pod: dict, label: str) -> Optional[Endpoint]:
+    """The pod's own IP and mapped port, when RunPod has published one.
+
+    This is the rung with no edge in it. RunPod maps an exposed TCP port to a
+    public IP and a port it chooses, and reports the pair - so the address is
+    discoverable exactly as the proxy URL is, and it changes on every pod for
+    exactly the same reason, which is why it is *found* rather than written
+    into an environment (§112's whole argument, applied to the address that
+    actually works from a server).
+
+    Three shapes are read, for the reason `_pod_list` reads three: REST's
+    `portMappings` and `publicIp`, REST's `runtime.ports`, and GraphQL's
+    `runtime.ports`. A provider reshaping a response must cost a rung and a
+    log line, never the voice.
+
+    Returns `None` rather than an address when this deployment has not allowed
+    plain HTTP - said once, in the notes, because an operator looking at a
+    403 from the proxy needs to know the other path exists and is switched
+    off, which is the opposite of useful to discover by reading source.
+    """
+    wanted = int(settings.voice_worker_port or 0)
+    ip, port = _tcp_mapping(pod, wanted)
+    if not ip or not port:
+        return None
+    if not allow_plain_http():
+        _note(f"pod {label} publishes {ip}:{port}, which needs no proxy, but "
+              "VOICE_ALLOW_PLAIN_HTTP is not set so it is not offered")
+        return None
+    return Endpoint(
+        transport="http", url=f"http://{ip}:{port}", rung="runpod-pod",
+        why=f"pod {label} publishes port {wanted} directly at {ip}:{port}",
+        token=_http_token())
+
+
+def _tcp_mapping(pod: dict, wanted: int) -> tuple[str, int]:
+    """`(public ip, public port)` for the worker's port, or `("", 0)`."""
+    ip = str(pod.get("publicIp") or pod.get("public_ip") or "").strip()
+    mappings = pod.get("portMappings") or pod.get("port_mappings")
+    if ip and isinstance(mappings, dict):
+        for private, public in mappings.items():
+            try:
+                if int(private) == wanted and int(public) > 0:
+                    return ip, int(public)
+            except (TypeError, ValueError):
+                continue
+    runtime = pod.get("runtime")
+    if not isinstance(runtime, dict):
+        return "", 0
+    for entry in runtime.get("ports") or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("type") or "").lower() != "tcp":
+            continue
+        if entry.get("isIpPublic") is False:
+            continue
+        try:
+            private = int(entry.get("privatePort") or 0)
+            public = int(entry.get("publicPort") or 0)
+        except (TypeError, ValueError):
+            continue
+        host = str(entry.get("ip") or ip or "").strip()
+        if private == wanted and public and host:
+            return host, public
+    return "", 0
 
 
 def _note(line: str) -> None:
@@ -559,7 +667,9 @@ async def verify(endpoint: Endpoint) -> Verdict:
 
         timeout = httpx.Timeout(settings.voice_probe_timeout,
                                 connect=min(5.0, settings.voice_probe_timeout))
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(
+                timeout=timeout,
+                headers={"User-Agent": USER_AGENT}) as client:
             if endpoint.transport == "runpod":
                 verdict = await _verify_runpod(client, endpoint)
             else:
@@ -611,6 +721,8 @@ async def _verify_http(client, endpoint: Endpoint) -> Verdict:
                        "Dockerfile.voice, which now chooses for itself "
                        "(REMOTE_VOICE.md, PROBLEMS.md §78 and §112).",
                        latency=latency)
+    if response.status_code in (401, 403):
+        return Verdict(False, _refused(endpoint, response), latency=latency)
     if response.status_code >= 400:
         return Verdict(False, f"/health returned HTTP {response.status_code}: "
                               f"{response.text[:200]}", latency=latency)
@@ -633,6 +745,51 @@ async def _verify_http(client, endpoint: Endpoint) -> Verdict:
                    image=str(body.get("image") or ""),
                    commit=str(body.get("commit") or ""),
                    latency=latency)
+
+
+def _proxied(url: str) -> bool:
+    """Whether this address goes through somebody else's edge to reach a worker."""
+    host = urlparse(url).hostname or ""
+    return any(host.endswith(suffix) for suffix in PROXIED_HOSTS)
+
+
+def _refused(endpoint: Endpoint, response) -> str:
+    """A 401 or a 403 from a worker's address, and which of two things it is.
+
+    They are not the same problem and they have never read differently, which
+    is most of what PROBLEMS.md §117 cost. A **401** is the worker: it has a
+    `REMOTE_VOICE_TOKEN` and this app sent the wrong one or none. A **403** on
+    a proxied address is almost never the worker at all - RunPod fronts a pod's
+    HTTP port with Cloudflare, and Cloudflare refuses server-to-server requests
+    from datacentre ranges that it serves to a browser without complaint. So
+    the same URL is healthy in a tab and forbidden from Render, and every
+    instinct says the voice broke.
+
+    Said in full because the alternative is what happened: `/health returned
+    HTTP 403` plus two hundred characters of Cloudflare markup, in front of a
+    worker that was answering perfectly on its own port.
+    """
+    code = response.status_code
+    body = (response.text or "").strip().replace("\n", " ")[:160]
+    if code == 401:
+        return (f"the worker at {endpoint.url} refused this app's token "
+                "(HTTP 401). REMOTE_VOICE_TOKEN here and on the pod must be "
+                f"the same string. It answered: {body or 'nothing'}")
+    if not _proxied(endpoint.url):
+        return (f"{endpoint.url} answered HTTP 403. Something between this app "
+                f"and the worker refused the request: {body or 'no body'}")
+    return (f"HTTP 403 from {endpoint.url}. This is the proxy edge in front of "
+            "the pod, not the worker: RunPod fronts a pod's HTTP port with "
+            "Cloudflare, which serves a browser and refuses a server. The "
+            "worker itself is very likely fine - the same URL in a tab will "
+            "say so. Reach it on a path that has no edge in it: expose the "
+            "worker's port as a TCP port on the pod, and either let the worker "
+            "register that address itself (FAM_APP_URL + VOICE_REGISTRY_TOKEN "
+            "on the pod, VOICE_REGISTRY_TOKEN here) or set RUNPOD_POD and "
+            "RUNPOD_API_KEY so this app can ask RunPod for it. Both need "
+            "VOICE_ALLOW_PLAIN_HTTP=1, because a raw TCP port has no "
+            "certificate - see REMOTE_VOICE.md. The edge said: "
+            f"{body or 'nothing'}")
 
 
 async def _verify_runpod(client, endpoint: Endpoint) -> Verdict:
@@ -872,6 +1029,11 @@ def report() -> dict:
         "discovery": "auto" if discovery_enabled() else "off",
         "ladder": [rung.as_dict() for rung in ladder()],
         "contract": CONTRACT_VERSION,
+        # Reported because it decides whether a pod's *direct* address is a
+        # rung at all, and because a deployment with it off and a proxy that
+        # is refusing looks identical from outside to one that simply cannot
+        # find a worker (§117). Named for the state, not the variable.
+        "plain_http": "allowed" if allow_plain_http() else "refused",
         "held": _state.held.as_dict() if _state.held else None,
         "verified": _state.verdict.as_dict() if _state.verdict else None,
         "verified_age_seconds": (round(time.time() - _state.verified_at, 1)

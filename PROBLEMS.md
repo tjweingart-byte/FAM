@@ -8131,12 +8131,15 @@ deployment stops its pod at 23:00, so **"the voice cannot be found" and "the
 voice is asleep until 08:00" are different problems**, and an empty rung that
 said nothing made them look the same.
 
+*(§117 deleted that schedule. The recording stayed, and reads better for it:
+with nothing stopping the pod on purpose, `EXITED` is always a fault.)*
+
 ### What is still unverified
 
 Nothing here has made a real request to RunPod from this container, which has
 no credentials and no GPU. The parsing of RunPod's answer is defensive for
-that reason - REST first, because `runpod-schedule.yml` already uses it with
-this project's key, GraphQL second, three response shapes accepted, and any
+that reason - REST first, because it is RunPod's current API and the one this
+project's key is used against, GraphQL second, three response shapes accepted, and any
 failure costs a rung and a log line rather than the voice. `python
 tools/voice_doctor.py` against the real deployment is what turns that from
 careful into known.
@@ -8688,3 +8691,182 @@ not show this state at all. The inspector has a second button — **"As a new
 listener"** — which wipes and reloads with `seedMine` suppressed: the crowd's
 history still seeds Explore and the most-played row, because other people's
 listening is not this listener's taste, and the page opens on "Start here".
+
+## 117. The voice was healthy, the address was right, and the edge said no
+
+The report was as clean as this project has had. Chatterbox up on the pod;
+`GET http://127.0.0.1:8002/health` inside the container returning
+`ready:true, engine:"chatterbox"`; the same URL through RunPod's proxy
+returning the *same healthy body* in a browser; and, from the Render
+production shell, `403 Forbidden` on that exact URL. Production threw
+`RemoteVoiceError: no voice worker can speak`.
+
+Every instinct built up over §78 and §112 says that is an address problem. It
+is not. **It is a path problem**, and the two look identical from the app.
+
+### Why a browser and a server get different answers
+
+RunPod fronts a pod's HTTP port with Cloudflare: the request goes user →
+Cloudflare → RunPod's load balancer → the pod. Cloudflare's protections are
+tuned for the thing that address is *for*, which is a person opening a
+notebook or a web UI in a tab. A request arriving from a datacentre range
+with no browser about it is exactly what those protections exist to refuse,
+and they refuse it with a 403 before it is ever a request to the worker.
+
+So the proxy URL is a **browser** address. It has been used as an **API**
+address for as long as this app has had a pod, and it worked until it did
+not - which is the worst way for a dependency like this to behave, because
+nothing in the app changed on the day it stopped.
+
+That is the regression, and it is a configuration one rather than a code one:
+`render.yaml` still documents `REMOTE_VOICE_TRANSPORT=runpod`, the serverless
+endpoint at `api.runpod.ai/v2`, which is a first-class server-to-server API
+with an API key and no bot filtering in front of it. The pod migration moved
+production onto `http` + a proxy URL and inherited a browser path for the
+whole audio product without anybody choosing it.
+
+### What it looked like from inside, which is the part that cost the time
+
+    /health returned HTTP 403: <!DOCTYPE html><html class="no-js" lang="en-US"...
+
+Two hundred characters of Cloudflare markup under a sentence saying the
+*worker* answered 403, in front of a worker that was answering perfectly. The
+generic `status_code >= 400` branch was doing exactly what it was written to
+do and was reporting the wrong subject.
+
+A 401 and a 403 at a worker's address are not the same problem and had never
+read differently. A **401** is the worker: `REMOTE_VOICE_TOKEN` disagrees. A
+**403 on a proxied address** is almost never the worker at all. `_refused()`
+now says which, and on a proxied host it says what the fix is, because the
+one thing an operator cannot get from a 403 is the knowledge that the machine
+they are worried about is fine.
+
+### The rule: the address that works from a server is the one to find
+
+§112's argument was that the address of a rented GPU is not a constant, so it
+must be discovered rather than typed. The correction here is that
+**discovering the wrong *kind* of address is still a fact about somebody
+else's infrastructure written into this app** - the ladder was finding, and
+registering, and verifying, an address that a server cannot use.
+
+A pod has a second address: RunPod maps an exposed TCP port to a public IP
+and a port it chooses, and publishes both to the container as
+`RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>`. Nothing sits in front of it.
+It is derivable exactly as the proxy URL is and it changes for exactly the
+same reasons, so it belongs on the ladder on the same terms: found, verified
+with a real call, and never written down twice.
+
+It is plain HTTP, and that is a genuine cost rather than a detail. The bearer
+token and every sentence of the script ride on that connection in clear, and
+`voice_registry.clean_url` has refused non-loopback HTTP since it was
+written, for that reason. Loosening it quietly would have been the wrong
+shape of fix, so **`VOICE_ALLOW_PLAIN_HTTP` is a decision somebody makes**:
+off by default, named in the 403's own error message, reported on
+`/api/health` as `plain_http`, and asked once - `voice_control.allow_plain_http()`
+is what both the registry and the ladder read, because an address one accepts
+and the other refuses is a worker that registers successfully and is never
+used.
+
+The proxy stays on the ladder below it. Failing over is not falling back:
+both are the same worker image, and a pod whose TCP port is firewalled must
+still be reachable.
+
+### Two bugs found on the way that would have made the automation fail anyway
+
+**The worker announced `$PORT`, not the port it was listening on.** This
+project's pod runs the app on 8001 and the voice beside it on 8002, so
+`register.public_url()` would have announced `-8001` - and the app would then
+have health-checked a *web service* looking for a voice. §78 was "the port in
+the proxy URL must be the port the worker listens on"; this is the same
+sentence one layer up, and it means that even with `FAM_APP_URL` and
+`VOICE_REGISTRY_TOKEN` set, self-registration would have pointed the ladder
+at the wrong half of the container. `register.port()` now reads
+`VOICE_WORKER_PORT`, then the `--port` the process was actually started with,
+then `PORT` - what it was told, in the order that can be trusted.
+
+**The nightly schedule was managing a pod that no longer exists.**
+`.github/workflows/runpod-schedule.yml` carried the pod **id** as a literal,
+and an id does not survive a pod being replaced. It was already wrong: the
+comment above it explains the *first* time this happened and the literal
+underneath it was stale again, so the 08:00 start and the 23:00 stop were
+acting on a retired machine while the live pod ran unmanaged. The workflow
+now resolves the pod by **name** through the same REST API `voice_control`
+asks - a name survives a recreation - and **fails the run** when it cannot,
+printing every pod on the account. A schedule that does nothing looks exactly
+like a schedule that worked, which is the whole of the bug.
+
+*(Superseded within the hour by §118, which deleted the schedule outright at
+the owner's direction. The finding stands and is worth keeping: a literal id
+in a workflow went stale twice. The workflow it was fixed in no longer
+exists.)*
+
+### And the two paths called themselves different things
+
+`remote_voice` sent `User-Agent: FAM/remote-voice`; `voice_control` sent
+whatever httpx defaults to. That is one constant now (`voice_control.USER_AGENT`,
+used by both), because a difference there is a worker that passes a health
+check and refuses an episode, or the reverse - a health page that lies, which
+is the failure this project has lost the most time to.
+
+### What is unverified
+
+**All of it, against RunPod.** There is no route from this container to
+`proxy.runpod.net` - the egress policy denies `CONNECT` with a 403 of its
+own, which is a different 403 and worth saying so nobody bisects it later.
+The Cloudflare reading is inference from the shape of the report (browser
+200, server 403, worker healthy on its own port) plus RunPod's own
+documentation that the proxy is Cloudflare-fronted, not something measured
+here. `python tools/voice_doctor.py --url <the app>` against the running
+deployment is what turns it from reasoned into known, and the direct address
+is what it should find.
+
+## 118. The schedule is deleted; the voice is up at all times
+
+At the owner's direction, immediately after §117. The nightly workflow that
+started this project's pod at 08:00 and stopped it at 23:00 is gone, and
+nothing in this repository now starts, stops or resizes a pod. The voice is
+expected to be running continuously.
+
+**Deleted rather than disabled**, which is the only part of this that is a
+judgement rather than an instruction. Commenting out a `cron:` leaves a
+workflow that still has the account's API key, still knows how to stop the
+production pod, and needs one uncommented line to do it - and this project
+has now paid three times for a knob left behind (Piper's engine fell through
+to itself, the cold open was turned back on by an example file and then by
+`Dockerfile.gpu`, the makeshift sign-up form was wired to new gates by
+accident). A voice that disappears at 23:00 for reasons nobody remembers is
+exactly that failure with an audience.
+
+### What it costs, stated rather than buried
+
+A GPU billed by the hour is now billed for the hours nobody is listening.
+That is the whole of the trade and it was made deliberately: the schedule's
+saving was real and its cost was that the product was *unavailable for nine
+hours a day*, which for something being taken towards an iOS app and a
+listening test is the wrong side of the trade. `METERING.md` records what
+Claude and Exa cost per episode; the GPU is the **fixed floor** that section
+describes, and this change makes the floor a 24-hour one.
+
+### What it buys back, beyond the hours
+
+**`EXITED` now means something.** §112 made `_pods_from` record a pod it
+found and did not use, specifically because the schedule made a stopped pod
+ambiguous - a clock or a fault, and an empty rung made them look the same.
+With no schedule, a pod that is found and not running is **always** a fault:
+RunPod evicted it, the account ran out of credit, or somebody stopped it by
+hand. The note that names it is a diagnosis now rather than a
+disambiguation, and the comments that explained it say so.
+
+### What is left behind on GitHub, and is not this repository's to remove
+
+Two settings are now unused by any workflow, and both are harmless:
+
+* the `RUNPOD_API_KEY` **secret**, which no remaining workflow reads -
+  `voice-worker.yml` builds an image and touches RunPod not at all;
+* the `RUNPOD_POD` / `RUNPOD_POD_ID` repository **variables**, added one
+  commit earlier for the by-name lookup that no longer runs here.
+
+`RUNPOD_POD` is still live and still load-bearing **on Render**, where it is
+the `runpod-pod` rung of the ladder. The GitHub copy is the one that is now
+dead, which is the pleasant half of this change: §117's finding was an id
+kept in two places, and there is only one place left.

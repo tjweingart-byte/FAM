@@ -75,6 +75,18 @@ async def run(speak: bool, text: str) -> tuple[int, dict]:
                       f"{settings.remote_voice_sample_rate} Hz expected")
     _say("-", DIM, f"discovery: {'auto' if voice_control.discovery_enabled() else 'off'}"
                    f", contract {voice_control.CONTRACT_VERSION}")
+    # Printed here rather than left to be inferred from a rung that is missing,
+    # because on a pod it decides whether the *only* address a server can use
+    # is on the ladder at all (PROBLEMS.md §117).
+    if voice_control.allow_plain_http():
+        _say("-", DIM, "plain HTTP is allowed, so a pod's direct TCP address "
+                       "may be used")
+    else:
+        _say("-", DIM, "plain HTTP is refused (VOICE_ALLOW_PLAIN_HTTP=0), so "
+                       "only TLS addresses are candidates - on RunPod that is "
+                       "the Cloudflare-fronted proxy and nothing else")
+    findings["plain_http"] = ("allowed" if voice_control.allow_plain_http()
+                              else "refused")
 
     # 2. The ladder. Printed even where a rung is switched off, because "there
     #    is no ladder" and "every rung is unset" are different diagnoses.
@@ -181,10 +193,10 @@ async def run(speak: bool, text: str) -> tuple[int, dict]:
 def _pod_notes() -> None:
     """What RunPod said about pods that did not become candidates.
 
-    Usually the whole diagnosis. This project stops its pod every night on a
-    schedule (`.github/workflows/runpod-schedule.yml`), so "the voice cannot
-    be found" and "the voice is asleep until 08:00" are the two most likely
-    answers and they are not the same problem.
+    Usually the whole diagnosis, and unambiguous since the nightly schedule
+    was removed (§118): nothing stops this pod on purpose any more, so a pod
+    that is found and not running is always something to act on rather than a
+    clock somebody set.
     """
     for note in voice_control.report().get("pods") or []:
         _say("!", YELLOW, note)

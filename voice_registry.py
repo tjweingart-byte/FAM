@@ -110,6 +110,21 @@ class Registration:
         }
 
 
+def _plain_http_allowed() -> bool:
+    """Whether a worker may register a plain-HTTP address.
+
+    Asked of `voice_control` rather than of the environment, so the registry
+    and the ladder cannot disagree: an address one of them accepts and the
+    other refuses is a worker that registers successfully and is never used.
+    """
+    try:
+        import voice_control
+
+        return voice_control.allow_plain_http()
+    except Exception:  # pragma: no cover - the ladder is optional here
+        return False
+
+
 def clean_url(raw: str) -> str:
     """The base URL of a worker, or a sentence saying why it is not one.
 
@@ -129,10 +144,13 @@ def clean_url(raw: str) -> str:
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise RegistryError(f"{raw!r} is not an http(s) origin")
     local = parsed.hostname in ("localhost", "127.0.0.1", "::1")
-    if parsed.scheme != "https" and not local:
+    if parsed.scheme != "https" and not (local or _plain_http_allowed()):
         raise RegistryError(
             f"{url} is not https; a worker on the open internet carries the "
-            "bearer token and the whole script in clear")
+            "bearer token and the whole script in clear. A pod's direct TCP "
+            "port has no certificate and is the one address that does not go "
+            "through a proxy edge, so VOICE_ALLOW_PLAIN_HTTP=1 permits it "
+            "deliberately - see REMOTE_VOICE.md and PROBLEMS.md §117")
     if parsed.path not in ("", "/") or parsed.query:
         raise RegistryError(f"{url} has a path; register the worker's origin")
     return f"{parsed.scheme}://{parsed.netloc}"
