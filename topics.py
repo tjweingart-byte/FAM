@@ -109,6 +109,25 @@ MAX_PER_FACET = 2
 MISSED_WINDOW = 7 * 86400
 MISSED_SECTION_SIZE = 8
 
+#: The fewest tiles the Trending rail may show while the pool can fill it.
+#:
+#: The reported failure: "there are times when there is only one trending
+#: episode being displayed on trending. At all times I want there to be at
+#: least four." The cause was the fill order rather than the sources. Trending
+#: was filled **last**, from whatever the four personal rails had not already
+#: claimed, and Made for you draws on the same live pool - so on a day the
+#: pool held five stories and a listener's taste matched four of them, the
+#: world row got one.
+#:
+#: So this many are set aside for it before anything else chooses. The trade,
+#: stated rather than buried: on a thin pool, Made for you loses its best
+#: live tile to the world row. That is the right way round *only* because
+#: Made for you draws on both inventories and can never be empty - the
+#: evergreen bank is twenty-eight topics - while Trending draws on the live
+#: pool alone and has nowhere else to go. An empty rail is a worse answer
+#: than a rail that had to give up its first pick.
+WORLD_FLOOR = 4
+
 #: What a live story is worth next to an evergreen one of the same affinity.
 #:
 #: Made for you draws from both inventories, and without this the bank wins
@@ -118,6 +137,59 @@ MISSED_SECTION_SIZE = 8
 #: decaying, so a fresh story about something they listen to comfortably beats
 #: a standing explainer and a three-quarters-expired one does not.
 FRESHNESS_BOOST = 1.6
+
+#: What a *subtag* match is worth next to a facet match, in `_affinity`.
+#:
+#: The reported failure: "recommended episodes about a random small school
+#: college football matchup that I've never indicated through my search
+#: behaviour that I would be interested in". One finished episode about the
+#: NFL puts weight on `sports`, every sports story in the world carries
+#: `sports`, and until this every one of them scored exactly as well as an
+#: episode about the thing they actually played.
+#:
+#: Subtags have existed since §80 and the scorer was blind to them: `sports`
+#: and `sports-drama` counted the same, so the resolution that was added to
+#: the *vocabulary* was being thrown away by the *ranking*. This is the other
+#: half of that change. A tile matching what somebody plays specifically now
+#: beats one matching only the heading it lives under, which is the whole
+#: difference between "you like sport" and "you like this".
+#:
+#: Why a weight rather than a rule: a facet match is real evidence, just
+#: weaker, and a listener with one broad interest and no subtag history must
+#: still get a full rail. 1.75 is enough that one specific match outranks one
+#: broad one and not so much that two broad matches are worthless.
+SUBTAG_WEIGHT = 1.75
+
+#: How far a live story's score is cut when its only claim on this listener is
+#: a whole facet and they have never been near its subject.
+#:
+#: `SUBTAG_WEIGHT` sharpens every comparison; this one answers the case it
+#: cannot, because the vocabulary has no word for it. There is no `nfl` tag
+#: and no `college-football` tag - both are `sports` - so no amount of tag
+#: weighting distinguishes them and nothing should pretend it does. What can
+#: be measured without inventing a vocabulary is whether this listener has
+#: ever *said* any of the words in the tile: `familiar_words` reads their own
+#: searches and plays out of the event log, which is a fact about them rather
+#: than a guess about the subject.
+#:
+#: Applied to live stories only. The evergreen bank is twenty-eight standing
+#: subjects chosen to be broad, so damping a bank topic for being broad would
+#: damp the whole bank; a story is one specific thing that happened, and one
+#: specific thing nobody has shown any interest in is exactly the complaint.
+#:
+#: **It damps, it never excludes.** A listener whose history is one episode
+#: long has almost no familiar words, and a rule would empty their rail in
+#: the name of relevance.
+BROAD_MATCH_PENALTY = 0.3
+
+#: Below this, a tile is not a recommendation - it is the least bad thing left
+#: in the inventory, and a rail is better short than padded with one.
+#:
+#: Scores are comparable across listeners because `taste` normalises to a peak
+#: of 1.0, so this is a real threshold rather than a tuning knob per user. A
+#: single facet match on something they barely touch lands near 0.1; one solid
+#: match on something they play lands well above 0.3.
+RELEVANCE_FLOOR = 0.12
 
 
 @dataclass(frozen=True)
@@ -589,6 +661,73 @@ def tags_for_text(text: str) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+#: Words that say nothing about a subject. Kept short on purpose: this list
+#: only has to stop `familiar_words` matching a tile on "the" and "what", and
+#: a long one starts quietly deciding that real subjects are noise.
+FAMILIAR_STOPWORDS = frozenset("""
+a an and are as at be been but by can did do does for from had has have how
+in into is it its just like made make more most new not now of off on one or
+our out over should so than that the their them then there these they this
+to too until up was way we were what when where which who why will with would
+you your about after again all any because before being between both down
+each few here him his i if me my no nor only other own same she some such
+their theirs through under very
+""".split())
+
+#: How long a word has to be before it counts as a subject word.
+FAMILIAR_MIN_WORD = 3
+
+
+def familiar_words(events: Iterable[Event]) -> frozenset[str]:
+    """Every subject word this listener has actually said or played.
+
+    Read off the event log's own `text` - the question they typed, the tile
+    they tapped - which is the only record in FAM of *what* somebody was
+    interested in rather than which of eight headings it lived under.
+
+    This exists because the tag vocabulary cannot answer the complaint it is
+    used for. There is no tag for the NFL and none for college football; both
+    are `sports`, and no weighting distinguishes them because nothing in the
+    vocabulary knows they are different. What is knowable without inventing a
+    vocabulary is whether the words on a tile have ever appeared in anything
+    this listener did, and that is a measurement rather than a guess.
+
+    Deliberately crude, in the same way `tags_for_text` is deliberately crude.
+    A set intersection over lower-cased words, no stemming, no embedding, no
+    model call. A miss costs one tile being damped that need not have been,
+    which is a damping and not a filter - see `BROAD_MATCH_PENALTY`.
+    """
+    out: set[str] = set()
+    for event in events:
+        if not event.text:
+            continue
+        for word in _WORD.findall(event.text.lower()):
+            if len(word) >= FAMILIAR_MIN_WORD and word not in FAMILIAR_STOPWORDS:
+                out.add(word)
+    return frozenset(out)
+
+
+def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
+    """True when nothing specific about this tile matches this listener.
+
+    "Specific" means a subtag: the whole point of `TAG_PARENT` is that it
+    holds the tags nobody could have been *offered* and everybody's behaviour
+    still reveals. A tile whose only positive tags are facets is matching the
+    heading and not the thing.
+    """
+    return not any(profile.get(tag, 0.0) > 0 for tag in topic.tags
+                   if tag in TAG_PARENT)
+
+
+def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
+    """Whether this listener has ever been near the words on this tile."""
+    if not familiar:
+        return False
+    words = {w for w in _WORD.findall(f"{topic.title} {topic.query}".lower())
+             if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS}
+    return bool(words & familiar)
+
+
 def facet_of(tag: str) -> str:
     """The pickable facet a tag belongs to; a facet is its own facet."""
     return TAG_PARENT.get(tag, tag)
@@ -710,14 +849,22 @@ BANK_BY_ID = {t.id: t for t in TOPIC_BANK}
 #: constrained sections choose first; trending can fall back to the whole bank
 #: and therefore chooses last.
 #:
-#: `missed` is first because it is the narrowest inventory on the page - only
-#: what this listener was shown in the last week and did not take - so it
-#: cannot starve anything, and letting `from_history` choose ahead of it took
-#: the *best* of the missed tiles and left the rail whose heading is about
-#: relevance holding the leftovers.
-#: `world_trending` is not filled from the bank, so it takes no part in the
-#: mutual exclusion the others do - it neither claims topics from them nor is
-#: starved by them.
+#: `missed` is first because it is still the narrowest inventory on the page:
+#: what this listener was shown in the last week and did not take, plus what
+#: the rest of FAM played. It cannot starve anything, and letting
+#: `from_history` choose ahead of it would take the *best* of the missed
+#: tiles and leave the rail whose heading is about relevance holding the
+#: leftovers.
+#:
+#: **Trending is deliberately not part of that first pass.** `rank_missed`'s
+#: membership widened to the live pool as well (see its docstring), and a
+#: story that has never been put in front of anybody is not one this listener
+#: missed in any useful sense - it is one Made for you exists to offer them.
+#: So `build_feed` calls this rail with `include_trending=False` here and
+#: tops it up from what is left over afterwards, which makes trending the
+#: last source for this row rather than the first.
+#: `world_trending` is filled outside this loop - see `build_feed`, which
+#: reserves `WORLD_FLOOR` tiles for it before any of these choose.
 FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played")
 #: `might_like` stays in the fill order even though it is no longer displayed.
 #: That is deliberate: it claims its picks before the generic sections do, so
@@ -1168,6 +1315,36 @@ class EventStore:
             out.setdefault(topic_id, set()).add(user_id)
         return out
 
+    def count(self) -> int:
+        """How many events the log holds. For a report, never for ranking."""
+        try:
+            return self._conn().execute(
+                "SELECT COUNT(*) FROM events").fetchone()[0]
+        except Exception:
+            log.exception("could not count events")
+            return 0
+
+    def clear(self) -> int:
+        """Empty the log. Every listener, every kind.
+
+        Not part of account deletion and not reachable from any listener path
+        - `forget` is the per-listener one and is what deletion uses. This is
+        the blank slate for measuring the recommender: with seeded plays in
+        the log, "is myFAM recommending the right things" has an unknown
+        share of its answer coming from listeners who do not exist. See
+        `tools/wipe_demo_data.py`.
+
+        Everything here is behaviour rather than anything a listener made, so
+        nothing they could point at is lost - but the taste model does start
+        from nothing, and that is a real cost rather than a formality.
+        """
+        try:
+            cur = self._conn().execute("DELETE FROM events")
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("could not clear the event log")
+            return 0
+
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.
 
@@ -1237,9 +1414,24 @@ def fatigue(occasions: dict[str, int], played: Iterable[str] = ()) -> dict[str, 
 
 
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
+    """How well one tile matches one listener, with specificity counted.
+
+    A weighted sum over the tile's tags, damped by how many it carries so a
+    tile that covers more ground does not outrank a sharper one by breadth
+    alone. `SUBTAG_WEIGHT` is what makes it *specific*: matching `chips`
+    counts for more than matching `tech`, because the first is evidence about
+    this episode and the second is evidence about a whole heading.
+
+    The denominator stays `sqrt(len(tags))` rather than the sum of weights.
+    Dividing by the weights would cancel the boost exactly - a tile made
+    entirely of subtags would score the same as one made entirely of facets -
+    which is the opposite of the point.
+    """
     if not topic.tags:
         return 0.0
-    return sum(profile.get(tag, 0.0) for tag in topic.tags) / math.sqrt(len(topic.tags))
+    total = sum(profile.get(tag, 0.0) * (SUBTAG_WEIGHT if tag in TAG_PARENT else 1.0)
+                for tag in topic.tags)
+    return total / math.sqrt(len(topic.tags))
 
 
 def _played_ids(events: Iterable[Event]) -> set[str]:
@@ -1333,7 +1525,9 @@ def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
 def rank_from_history(profile: dict[str, float], exclude: set[str],
                       damp: Optional[dict[str, float]] = None,
                       limit: int = SECTION_SIZE,
-                      candidates: Optional[Iterable[Topic]] = None) -> list[Topic]:
+                      candidates: Optional[Iterable[Topic]] = None,
+                      familiar: frozenset = frozenset(),
+                      floor: float = RELEVANCE_FLOOR) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
@@ -1347,15 +1541,39 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     whether anything happened today in the corner of the world this listener
     cares about. One score over both inventories answers it by measuring,
     and `FRESHNESS_BOOST` is the only thumb on the scale.
+
+    **Two more thumbs now, both answering the same complaint** - that this
+    rail offered episodes about things the listener had never given any sign
+    of caring about. `_affinity` counts a subtag match for more than a facet
+    match (`SUBTAG_WEIGHT`), and a *live story* whose only claim is a facet,
+    and whose words this listener has never used, is cut by
+    `BROAD_MATCH_PENALTY`. The second is deliberately not applied to the
+    bank: those twenty-eight subjects are broad by construction, so
+    penalising breadth there would penalise the whole evergreen inventory.
+
+    `floor` is the third and the bluntest. Under it a tile is not a
+    recommendation, it is the least bad thing left in the inventory, and this
+    rail is better short than padded - its heading claims these were chosen
+    for this listener. It used to be `> 0`, which every tile sharing one
+    barely-touched facet clears.
     """
     damp = damp or {}
     pool = list(candidates) if candidates is not None else list(TOPIC_BANK)
-    scored = [
-        (_affinity(t, profile) * damp.get(t.id, 1.0)
-         * (1.0 + FRESHNESS_BOOST * t.freshness), t)
-        for t in pool if t.id not in exclude
-    ]
-    scored = [(s, t) for s, t in scored if s > 0]
+    scored = []
+    for topic in pool:
+        if topic.id in exclude:
+            continue
+        score = (_affinity(topic, profile) * damp.get(topic.id, 1.0)
+                 * (1.0 + FRESHNESS_BOOST * topic.freshness))
+        # A live story is one specific thing that happened; `freshness` is
+        # exactly what distinguishes one from a bank topic here, and it is
+        # set by `topics_from_stories` and by nothing else.
+        if (score > 0 and topic.freshness > 0
+                and _is_broad_match(topic, profile)
+                and not _subject_is_familiar(topic, familiar)):
+            score *= BROAD_MATCH_PENALTY
+        if score > floor:
+            scored.append((score, topic))
     scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:limit]]
 
@@ -1388,51 +1606,115 @@ def rank_missed(profile: dict[str, float], shown: dict[str, float],
                 played: set[str], exclude: set[str],
                 candidates: Iterable[Topic],
                 limit: int = MISSED_SECTION_SIZE,
-                now: Optional[float] = None) -> list[Topic]:
-    """What FAM offered this listener in the last week that they did not take.
+                now: Optional[float] = None,
+                popular: Optional[set[str]] = None,
+                familiar: frozenset = frozenset(),
+                include_trending: bool = True,
+                floor: float = RELEVANCE_FLOOR) -> list[Topic]:
+    """The week's best episodes this listener did not take.
 
     The replacement for the weekly recap, and a different kind of thing from
     it: the recap was an *episode about their week*, written from their own
     log, which meant a listener who had a thin week got a thin episode about
     having a thin week. This is a shelf of episodes they can still have.
 
-    Three rules hold it honest.
+    **What counts as "missed" widened, at the owner's direction.** It used to
+    be the impression log and nothing else - only tiles this app had put on a
+    screen in front of this person. That was a defensible reading of the
+    heading and it made the rail a report on our own delivery: a listener who
+    did not open myFAM last week missed nothing, by construction, however
+    much happened. The direction is that it should hold "the ABSOLUTELY MOST
+    RELEVANT stories they didn't click on or listen to in the last week...
+    it could be stories that were popular throughout the app or trending that
+    the user never listened to".
 
-    **It is what was actually offered.** `shown` is the impression log for the
-    window - tiles this app put on a screen in front of this person - minus
-    everything they played. The heading says "you missed", so every tile under
-    it has to be something they could have taken and did not. There is no
-    top-up from things they were never shown, and a short rail is short.
+    So membership is now three things, any of which qualifies:
+
+    * **offered to them** - the impression log, as before;
+    * **popular across FAM** - played by other listeners inside the window;
+    * **trending** - anything in the live story pool, which is what the world
+      has been on this week by definition.
+
+    What keeps the heading honest is that all three are things that genuinely
+    went past this listener in the last seven days, and none of them is
+    invented. There is still no top-up from the standing bank: an evergreen
+    explainer nobody was offered and nobody played did not happen last week,
+    and putting one here to make the row look full is the padding this rail
+    was built to avoid.
+
+    Two rules survive the widening unchanged, and one is added.
 
     **An impression still never becomes taste.** Being shown something says
-    nothing about whether you wanted it, and CLAUDE.md is emphatic that letting
-    it into the taste model is how a feed teaches itself its own preferences.
-    The impression decides *membership* here - which is a fact about the feed,
-    not about the listener - and `_affinity` against the same profile every
-    other personal rail uses decides the order.
+    nothing about whether you wanted it, and CLAUDE.md is emphatic that
+    letting it into the taste model is how a feed teaches itself its own
+    preferences. It decides *membership* - a fact about the feed - and
+    `_affinity` decides the order. Widening membership does not change that;
+    it adds two more facts about the feed and the crowd.
 
     **It can only offer what it can still resolve.** A live story that expired
-    and fell out of the pool has no title, no angle and no question, and a tile
-    invented to stand in for one would be exactly the failure this whole
+    and fell out of the pool has no title, no angle and no question, and a
+    tile invented to stand in for one would be exactly the failure this whole
     subsystem is built against. So `candidates` is the bank plus what the pool
     still holds, and a story that has aged out is simply not in the rail.
+
+    **And now: relevance is a floor, not just a sort.** "Most relevant" is
+    the whole of the instruction, so a tile this listener has no affinity for
+    is not offered at all - the rail is honestly short rather than padded
+    with the least bad thing that went past. That is also what stops the
+    widened membership turning this into a second copy of Trending for
+    somebody who was shown nothing.
     """
     now = time.time() if now is None else now
+    popular = popular or set()
     by_id = {t.id: t for t in candidates}
-    missed = []
-    for topic_id, last_at in shown.items():
+
+    # **No profile, no relevance, and so no widening and no floor.**
+    #
+    # `taste` is empty for a listener who has chosen nothing and played
+    # nothing - impressions deliberately never reach it - so every affinity
+    # is 0.0, every tile fails the floor, and a rail that should have been
+    # "here is what you did not get to" would be empty for exactly the
+    # listener it is most use to. Widening membership would be worse still:
+    # eight trending tiles under a heading saying *you* missed them, chosen
+    # by nothing, for somebody the app knows nothing about.
+    #
+    # So with nothing to rank on, this is what it always was: what was put in
+    # front of them, newest first. The claim shrinks back to the one the
+    # evidence supports.
+    if not profile:
+        offered = [(at, by_id[tid]) for tid, at in shown.items()
+                   if tid in by_id and tid not in played and tid not in exclude
+                   and now - at <= MISSED_WINDOW]
+        offered.sort(key=lambda row: (-row[0], row[1].id))
+        return [topic for _at, topic in offered[:limit]]
+
+    rows = []
+    for topic_id, topic in by_id.items():
         if topic_id in played or topic_id in exclude:
             continue
-        topic = by_id.get(topic_id)
-        if topic is None:
+        offered_at = shown.get(topic_id, 0.0)
+        was_offered = bool(offered_at) and now - offered_at <= MISSED_WINDOW
+        # A live tile is in the pool, so it is current by construction - the
+        # pool's own shelf life is what decides that, not a second clock here.
+        # `include_trending` is how `build_feed` keeps this rail from
+        # claiming a brand-new story ahead of Made for you - see FILL_ORDER.
+        is_trending = topic.freshness > 0 and include_trending
+        if not (was_offered or is_trending or topic_id in popular):
             continue
-        if now - last_at > MISSED_WINDOW:
+        score = _affinity(topic, profile)
+        if (score > 0 and is_trending and _is_broad_match(topic, profile)
+                and not _subject_is_familiar(topic, familiar)):
+            # The same rule Made for you keeps, for the same reason: a story
+            # nobody has shown any interest in is not a thing they *missed*.
+            score *= BROAD_MATCH_PENALTY
+        if score <= floor:
             continue
-        missed.append((_affinity(topic, profile), last_at, topic))
-    # Affinity first, then most recently offered - two tiles this listener has
-    # nothing to say about should at least arrive newest first.
-    missed.sort(key=lambda row: (-row[0], -row[1], row[2].id))
-    return [topic for _score, _at, topic in missed[:limit]]
+        rows.append((score, 1 if was_offered else 0, offered_at, topic))
+    # Relevance first, then whether it was actually put in front of them -
+    # which is the strongest reading of "missed" and so wins a tie - then
+    # most recently offered.
+    rows.sort(key=lambda row: (-row[0], -row[1], -row[2], row[3].id))
+    return [row[3] for row in rows[:limit]]
 
 
 def rank_friends(
@@ -1639,7 +1921,34 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # fatigue table, and for a different purpose - see `rank_missed` on why
     # membership may come from an impression and order may not.
     shown = store.impressions_since(user_id, now - MISSED_WINDOW) if user_id else {}
+    # What this listener has actually said, for `rank_from_history`'s broad
+    # match check. Read once for the page, like the fatigue table, and off
+    # the events already in hand.
+    familiar = familiar_words(events)
+    # What the rest of FAM played this week, for "What you missed". One read,
+    # like everything else on this page, and it is a fact about the crowd
+    # rather than about this listener - it decides membership and never
+    # taste, which is the rule `rank_missed` is built on.
+    played_elsewhere = {topic_id for user, topic_id
+                        in store.plays_since(now - MISSED_WINDOW)
+                        if user != user_id} if user_id else set()
     wide = SECTION_SIZE * CANDIDATE_FACTOR
+
+    # What the world row keeps whatever the personal rails want.
+    #
+    # Reserved before the fill loop rather than taken after it, because
+    # "after" is what produced a Trending rail with one tile on it: the row
+    # was filled last, from what four personal rails had left, and Made for
+    # you draws on the same pool. See `WORLD_FLOOR` for the trade this makes.
+    # **Only when reserving actually buys the floor.** A pool holding fewer
+    # than four stories cannot fill this row however it is shared out, so
+    # holding its one story back would take it off the personal rail and
+    # still leave Trending short - a cost with nothing bought. With enough in
+    # the pool, the personal rails still have the rest plus the whole bank.
+    world_available = [t for t in live if t.id not in mine]
+    world_first = (world_available[:WORLD_FLOOR]
+                   if len(world_available) >= WORLD_FLOOR else [])
+    reserved = {t.id for t in world_first}
 
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
@@ -1650,20 +1959,23 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; the crowd rows stay globally *ranked*,
         # they just stop offering back the one they finished this morning.
-        seen = used | mine
+        seen = used | mine | reserved
         if key == "missed":
             # The bank plus whatever the pool still holds - `held` rather than
             # `live`, so a story the variety cap is hiding is still resolvable.
             # What it cannot resolve, it does not offer: see `rank_missed`.
             picks = rank_missed(profile, shown, mine, used,
                                 candidates=live_held + list(TOPIC_BANK),
-                                limit=MISSED_SECTION_SIZE, now=now)
+                                limit=MISSED_SECTION_SIZE, now=now,
+                                popular=played_elsewhere, familiar=familiar,
+                                include_trending=False)
         elif key == "from_history":
             # The one rail that draws on both inventories - today's stories
             # and the standing bank - which is what "a mix of new and cached"
             # asks for.
             picks = rank_from_history(profile, seen, damp, limit=wide,
-                                      candidates=live + list(TOPIC_BANK))
+                                      candidates=live + list(TOPIC_BANK),
+                                      familiar=familiar)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
                                  written=written)
@@ -1697,8 +2009,43 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # "does not use cached episodes": what is trending is a question about
     # today, and answering it with what FAM's listeners have already played
     # would make it a second, laggier copy of the row below it.
-    picked["world_trending"] = diversify(
-        [t for t in live if t.id not in used and t.id not in mine], SECTION_SIZE)
+    # Its reserved four first, then whatever the personal rails did not take,
+    # then - only if it is still short - the stories the pool's own variety
+    # cap is holding back. That last rung is free inventory: `held` is already
+    # fetched and already composed, and it is offered here rather than
+    # anywhere else because this is the row that has nowhere else to go.
+    world = world_first + [t for t in live
+                           if t.id not in used and t.id not in mine
+                           and t.id not in reserved]
+    if len(world) < WORLD_FLOOR:
+        # `used` as well as `mine`: a story a personal rail already claimed is
+        # not spare inventory, and offering it here too would put one tile on
+        # two rails - which reads as a bug whatever the ranking meant by it.
+        have = {t.id for t in world} | mine | used
+        world += [t for t in live_held if t.id not in have]
+    # `diversify` caps a facet at two, and on a thin pool that cap is what
+    # would take the rail back under four - so it is applied and then topped
+    # up from what it dropped, which is the same "a cap on what is available,
+    # never a quota on what is not" rule the pool itself keeps.
+    picked["world_trending"] = _at_least(
+        diversify(world, SECTION_SIZE), world, WORLD_FLOOR)
+
+    # Trending is the *last* source for "What you missed", not the first.
+    #
+    # A story nobody has been shown is not one this listener missed - it is
+    # one Made for you exists to offer them, which is why the rail's first
+    # pass runs with `include_trending=False`. What is left over after every
+    # other rail has chosen is a different thing: it went past them this week,
+    # it is still current, and nothing else on the page is going to show it.
+    # Relevance decides, with the same floor, so a short rail stays short.
+    if user_id and len(picked["missed"]) < MISSED_SECTION_SIZE and profile:
+        taken = used | mine | {t.id for t in picked["world_trending"]}
+        spare = rank_missed(
+            profile, {}, mine, taken, candidates=live,
+            limit=MISSED_SECTION_SIZE - len(picked["missed"]), now=now,
+            familiar=familiar)
+        picked["missed"] = picked["missed"] + spare
+        used |= {t.id for t in spare}
     # Why it is empty, when it is. The pool's own sentence is right only when
     # the pool is empty; a pool that served perfectly well and was claimed by
     # the rail above would otherwise make this row say the live sources had
@@ -1834,6 +2181,28 @@ def live_topics(now: Optional[float] = None) -> list:
     return topics_from_stories(stories.pool().live(now), now=now)
 
 
+def _at_least(picked: list, pool: list, floor: int) -> list:
+    """Top a capped list back up to `floor` from what the cap dropped.
+
+    The variety cap is a cap on what is available and never a quota on what
+    is not - the rule `stories.py` already keeps about its own pool. Applied
+    to a thin Trending row the cap alone can take four tiles down to two,
+    which turns "make sure there is variety" into "show less", and the row
+    the owner asked to never be under four is exactly the row with no second
+    inventory to fall back on.
+    """
+    if len(picked) >= floor:
+        return picked
+    have = {t.id for t in picked}
+    for topic in pool:
+        if len(picked) >= floor:
+            break
+        if topic.id not in have:
+            picked.append(topic)
+            have.add(topic.id)
+    return picked
+
+
 def diversify(topics: list, limit: int = SECTION_SIZE,
               max_per_facet: int = MAX_PER_FACET) -> list:
     """Cap how much of one rail one subject may have. The variety rule.
@@ -1946,6 +2315,137 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
     }
 
 
+#: How many interests a profile draws. Mirrors `preferences.PROFILE_INTERESTS_MAX`
+#: and is not imported from it, because `topics` is the module `preferences`
+#: imports and not the other way round. The two are pinned together by a test
+#: rather than by an import, which is the same trade `pipeline.key_for` makes.
+PROFILE_INTEREST_SLOTS = 4
+
+
+def _interest_score(tags: Iterable[str], profile: dict[str, float]) -> float:
+    """How much this listener is into one interest, from their taste profile.
+
+    The same shape as `_affinity` and for the same reason - a sum over tags,
+    damped by how many there are, so an interest carrying five tags does not
+    outrank a sharper one simply by covering more ground.
+    """
+    tags = tuple(tags)
+    if not tags:
+        return 0.0
+    return sum(profile.get(tag, 0.0) for tag in tags) / math.sqrt(len(tags))
+
+
+def ranked_interests(
+    store: "EventStore", user_id: str, chosen: Iterable[str] = (),
+    chosen_topics: Iterable[str] = (), now: Optional[float] = None,
+) -> list[dict]:
+    """Everything this listener could put on their profile, best match first.
+
+    **The ordering is the feature.** A profile used to draw what somebody
+    chose in the first run, then whatever the log had inferred, in that fixed
+    order - so an interest declared in thirty seconds on day one outranked a
+    month of listening forever. This is ranked by `taste`, which is the same
+    profile every rail on myFAM is built from, so it moves as they listen and
+    the top of it is the most current thing this app knows about them.
+
+    Declared interests are not thrown away by that: `taste` already folds them
+    in at `INTEREST_WEIGHT` before it normalises, which is exactly a starting
+    position that real behaviour then outvotes. So a new listener's profile
+    shows what they chose, and the same listener's profile a month later shows
+    what they listen to, with no switch between the two.
+
+    Two vocabularies come back in one list, because they are one list on the
+    screen: the eight facets, and the named subjects from the catalogue or
+    typed into its search. `kind` says which, for anything that needs to tell
+    them apart; nothing a listener reads does.
+
+    A facet with no positive weight is left out - it is not an interest, it is
+    a word this listener has never been near - but anything they *chose* stays
+    in whatever it scores, because that is a statement they made and it is not
+    this function's business to overrule it.
+    """
+    now = time.time() if now is None else now
+    events = store.for_user(user_id) if user_id else []
+    chosen = [t for t in (chosen or ()) if t in TAG_LABELS]
+    profile = taste(events, now, chosen)
+    rows: list[tuple[float, int, str, dict]] = []
+    seen: set[str] = set()
+
+    declared = set(chosen)
+    for tag, label in TAG_LABELS.items():
+        score = _interest_score(_facet_and_children(tag), profile)
+        if score <= 0 and tag not in declared:
+            continue
+        seen.add(tag)
+        rows.append((score, 0, label.lower(),
+                     {"id": tag, "label": label, "kind": "facet"}))
+
+    for topic_id in chosen_topics or ():
+        if topic_id in seen:
+            continue
+        seen.add(topic_id)
+        entry = CATALOGUE_BY_ID.get(topic_id)
+        label = entry.label if entry else topic_id
+        score = _interest_score(tags_for_id(topic_id, label), profile)
+        # A named subject is a sharper statement than the facet above it -
+        # "Formula 1" says more than "Sport" - so on a tie it goes first.
+        # Without this a profile with one chosen subject and eight facets
+        # around it would draw four facets and never the subject.
+        rows.append((score, -1, label.lower(),
+                     {"id": topic_id, "label": label, "kind": "topic"}))
+
+    rows.sort(key=lambda row: (-row[0], row[1], row[2]))
+    return [row[3] for row in rows]
+
+
+def _facet_and_children(facet: str) -> tuple[str, ...]:
+    """A facet, with every subtag that lives under it.
+
+    A listener whose entire history is chips has weight on `chips` and on
+    `tech`, and one whose history is spread thinly across four tech subjects
+    has it spread across four subtags. Scoring the facet alone would call the
+    second listener less interested in technology than the first, which is
+    backwards. Scoring the family answers "how much of what they play lands
+    under this heading", which is the question a profile pill is asking.
+    """
+    return (facet,) + tuple(t for t, parent in TAG_PARENT.items() if parent == facet)
+
+
+def profile_interests(
+    ranked: list[dict], pinned: Iterable[str] = (), hidden: Iterable[str] = (),
+    limit: int = PROFILE_INTEREST_SLOTS,
+) -> tuple[list[dict], str]:
+    """The three or four pills a profile actually draws, and who decided them.
+
+    `pinned` wins outright when there is one: a listener who opened the editor
+    said what they wanted there, and a list that kept re-sorting itself
+    underneath them would make the editor look broken. Anything pinned that
+    is no longer in `ranked` is still drawn - they chose it, and dropping it
+    because the ranker has since lost interest would be the app editing
+    somebody's profile.
+
+    With nothing pinned this is the top of `ranked`, minus anything hidden.
+    `hidden` is the older statement of the same kind - "not this one, on my
+    profile" - and it is still honoured, because a listener who turned an
+    interest off before this screen existed did not ask for it back.
+
+    `source` is `"pinned"` or `"top"`, and it is returned rather than inferred
+    because those two look identical on screen and a line of copy that says
+    "your top interests, kept up to date" is a lie on the first one.
+    """
+    pinned = [p for p in (pinned or ()) if p]
+    by_id = {row["id"]: row for row in ranked}
+    if pinned:
+        return ([by_id.get(pid) or {"id": pid,
+                                    "label": (CATALOGUE_BY_ID[pid].label
+                                              if pid in CATALOGUE_BY_ID
+                                              else TAG_LABELS.get(pid, pid)),
+                                    "kind": "topic"}
+                 for pid in pinned][:limit], "pinned")
+    hidden = set(hidden or ())
+    return ([row for row in ranked if row["id"] not in hidden][:limit], "top")
+
+
 def _world_empty_reason(pool_had_stories: bool) -> str:
     """What the Trending rail says when it has nothing in it.
 
@@ -1975,10 +2475,11 @@ def _empty_reason(key: str) -> str:
         # fix in two taps.
         "followers": "Follow some people and this fills up with what they play.",
         "from_history": "Your first episode starts this one off.",
-        # Two different nothings, and the rail cannot tell them apart from
-        # here: a listener who has not been on myFAM this week was offered
-        # nothing, and one who played everything missed nothing. The sentence
-        # has to be true of both, so it claims neither.
+        # Three different nothings now that membership is wider, and the
+        # rail can tell none of them apart from here: nothing went past this
+        # listener, or everything that did was played, or nothing that did
+        # was relevant enough to offer. The sentence has to be true of all
+        # three, so it claims none of them.
         "missed": "Nothing went past you this week.",
         # Never actually empty in practice - with no profile at all this falls
         # back to the whole bank - but a reason has to exist for the day the

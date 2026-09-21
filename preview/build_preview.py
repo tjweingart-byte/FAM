@@ -290,6 +290,29 @@ def load_fixtures() -> dict:
             "listener": "preview-listener", "played": 34, "finished": 21,
             "searched": 12, "open_threads": 2,
             "subjects": ["tech", "money", "science", "health"],
+            # The interests row, decided by the server and drawn by the page.
+            # Four, ranked by what they listen to - `interests_ranked` is the
+            # whole list the editor offers and `interests_source` says whether
+            # the four were pinned or chosen, because those look identical on
+            # screen and the copy under them is only true of one.
+            "interests_max": 4,
+            "interests_shown": [
+                {"id": "tech", "label": "Technology", "kind": "facet"},
+                {"id": "money", "label": "Money & markets", "kind": "facet"},
+                {"id": "science", "label": "Science", "kind": "facet"},
+                {"id": "health", "label": "Health", "kind": "facet"},
+            ],
+            "interests_ranked": [
+                {"id": "tech", "label": "Technology", "kind": "facet"},
+                {"id": "money", "label": "Money & markets", "kind": "facet"},
+                {"id": "science", "label": "Science", "kind": "facet"},
+                {"id": "health", "label": "Health", "kind": "facet"},
+                {"id": "world", "label": "World", "kind": "facet"},
+                {"id": "culture", "label": "Culture", "kind": "facet"},
+                {"id": "sports", "label": "Sport", "kind": "facet"},
+            ],
+            "interests_pinned": [],
+            "interests_source": "top",
             "since": _time.time() - 63 * 86400,
             # **Unnamed to start**, which is what a first run actually is.
             # It used to be "Ian Solomon" / "iansolomon", so the preview
@@ -628,9 +651,28 @@ SHIM = """
       var chosen = JSON.parse((init && init.body) || "{}");
       var stored = FIXTURES["/api/preferences"];
       ["interests", "hidden_interests", "topics", "language", "weekly_recap",
-       "intro_done"].forEach(function (k) {
+       "intro_done", "profile_interests"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
       });
+      // The pinned row, straight back onto the profile the page is about to
+      // redraw. The real server recomputes the whole row from it; the fixture
+      // only has to agree about what a pin does, which is that it wins and
+      // says so.
+      if (chosen.profile_interests !== undefined
+          && chosen.profile_interests !== null) {
+        var mine = FIXTURES["/api/profile"];
+        var by = {};
+        (mine.interests_ranked || []).forEach(function (r) { by[r.id] = r; });
+        mine.interests_pinned = chosen.profile_interests.slice(0, 4);
+        mine.interests_source = mine.interests_pinned.length ? "pinned" : "top";
+        if (mine.interests_pinned.length) {
+          mine.interests_shown = mine.interests_pinned.map(function (id) {
+            return by[id] || { id: id, label: id, kind: "topic" };
+          });
+        } else {
+          mine.interests_shown = (mine.interests_ranked || []).slice(0, 4);
+        }
+      }
       // `topics_chosen` is the resolved form the interface draws, and the
       // real server derives it from `topics` rather than being told it. The
       // preview does the same derivation so the two cannot disagree about the

@@ -161,13 +161,27 @@ that is the whole specification:
   switched on;
 * **vibes** — a vibe *is* the act of showing somebody an episode, so a list of
   them is a list of things they published;
-* **interests they have not hidden**.
+* **the interests they pinned**, or failing that the ones they declared and
+  have not hidden — at most four, the same number their own profile draws.
 
 There is no play count, no completion total, no subjects inferred from
 behaviour and no history. What somebody has listened to is theirs. The
 endpoint exists because that line needed drawing in code rather than by having
 no endpoint at all — the screen was already there, describing people with
 nothing behind it.
+
+**That last bullet is where §114 had to stop.** Their own profile's interest
+row is now ranked by what they actually listen to, which is the point of it —
+it keeps up with them instead of replaying six words they picked on their
+first day. Publishing the same ranking here would publish exactly the thing
+the paragraph above promises is never here, and in the worst available form:
+an inference about somebody's behaviour, drawn as a pill row that reads as a
+statement they made.
+
+So the two screens deliberately differ. A **pin** is a statement. A
+**declared interest** is a statement. A history is not. Pinning is how
+somebody's own page becomes their public one, which is what the editor on the
+profile is for.
 
 **The boundary is the graph.** A handle can be resolved by anybody, because
 handles are how people find each other; a bare `user_id` is only accepted for
@@ -177,7 +191,9 @@ is guessable in a way a handle search is not. And the response carries no
 they need from the graph, and an id the client did not need is an id that can
 be sent back.
 
-**Hidden rather than shared** is how the interest choice is stored. Somebody's
+**Hidden rather than shared** is how the older half of the interest choice is
+stored, and it is still honoured when nothing is pinned — somebody who turned
+an interest off before the editor moved did not ask for it back. Somebody's
 interests are the least private thing here and the whole premise of the social
 surfaces, so the honest default is that they are on their profile — and an
 empty column then means "all of them", which is what every existing row
@@ -239,7 +255,65 @@ Three things about it are deliberate:
 * **The two story formats still have no URL, and that is not a gap.** A story
   is an image handed to Instagram's or Snapchat's own SDK, which takes the
   picture and the sticker link as data. `needs_image` is what tells a client
-  which kind of hand-off it is looking at; a web build can only open the card.
+  which kind of hand-off it is looking at.
+
+### The link, and why it did not work (§114)
+
+`_share_url` read `PUBLIC_BASE_URL`, and **nothing anywhere prompts for it** —
+not `render.yaml`, not the Dockerfile, not the first run. So no deployment had
+it, so every share link was `/s/abc123`: a correct relative URL and a useless
+thing to send somebody. Pasted into a message it is not a link at all; pasted
+into LinkedIn it resolves against linkedin.com. The whole feature worked
+apart from the one part that leaves the machine, and the app said so honestly
+in a sentence nobody connected to "the link does not work".
+
+`app._public_base` reads the request instead, which is `/api/health`'s own
+rule: a request arrived, so this server has an address at least one client
+outside it could reach, and that address is in the request.
+`X-Forwarded-Proto` before `request.url.scheme`, because behind Render's
+router the connection itself is plain HTTP and a link built from the
+connection would be `http://` on an HTTPS site. First value of each forwarded
+header, because they accumulate one entry per hop.
+
+`PUBLIC_BASE_URL` still wins when set — it is the only way to name a host this
+server is *not* reached at, which is what a custom domain in front of a
+Render URL is. And a **loopback or wildcard host is refused outright** and
+still reports `public: false`: a link to `localhost` is worse than a relative
+one, because it looks like a URL, so it gets posted, and it resolves on the
+recipient's own machine to whatever they happen to be running.
+`/api/health` reports `link_host` as `env`, `request` or `none`.
+
+### Instagram and Snapchat: a file, never a tab (§114)
+
+The web build did this:
+
+    window.open(shareTargets.card, "_blank");
+    toast("Card ready - add it to your story");
+
+Three failures in two lines. `window.open` on a mobile browser is a blocked
+popup, and a blocked popup is silent — the toast said the card was ready and
+nothing appeared. When it did open, what opened was an **SVG document in a
+browser tab**: neither platform accepts SVG, and there is no "add to story"
+anywhere on a tab, so the listener's only move is a screenshot, which is the
+exact thing the card exists to stop them doing. And the wording — the whole
+point of a share — was left behind in the page they came from.
+
+The card is fetched, rasterised to PNG in the page, and handed to
+`navigator.share` as a **file**, with the text alongside. That is what the
+platforms' own apps accept from a share sheet.
+
+Two details are load-bearing. **Rasterising happens in the browser**, because
+`story_card` is SVG precisely so the server needs no image library, and a
+browser already has one — moving it server-side would add the dependency this
+module was written to avoid. And the SVG is loaded through a **`data:` URL
+rather than a blob URL**, because Safari treats an SVG from a blob URL as
+cross-origin and taints the canvas, so `toBlob` throws on exactly the browser
+this feature is mostly used from.
+
+Where there is no file sharing — a desktop browser, an older phone — it
+downloads and copies the words. A file on disk is a card somebody can post;
+an unexplained tab is not. A cancelled share sheet is not reported as a
+failure, because it is somebody changing their mind.
 
 It lives here rather than in the web app for IOS_APP.md's first rule — every
 feature is an API before it is a screen. A share sheet written twice is a share

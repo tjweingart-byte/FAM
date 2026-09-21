@@ -128,12 +128,46 @@ def test_a_share_carries_wording_for_every_destination(client):
 
 
 def test_a_share_says_when_its_link_is_not_public_yet(client):
-    """Without PUBLIC_BASE_URL the link works inside the app and nowhere else.
-    A share posted to LinkedIn that resolves to localhost is the quiet failure
-    this project keeps a rule about."""
-    body = client.post("/api/share", json={"query": "q", "minutes": 3}).json()
+    """A link this server cannot honestly name a host for stays relative.
+
+    That is now only the loopback case. It used to be every deployment
+    nobody had set PUBLIC_BASE_URL on, which is the bug: the share feature
+    was complete apart from the one part that leaves the machine. A share
+    posted to LinkedIn that resolves to localhost is still the quiet failure
+    this project keeps a rule about, so `localhost` gets no link at all
+    rather than a link to the recipient's own machine.
+    """
+    body = client.post("/api/share", json={"query": "q", "minutes": 3},
+                       headers={"host": "localhost:8000"}).json()
     assert body["public"] is False
     assert body["url"].startswith("/s/")
+
+
+def test_a_share_link_names_the_host_it_was_asked_through(client):
+    """The fix for "the link does not work".
+
+    Nothing prompts for PUBLIC_BASE_URL, so no deployment had it set, so
+    every share link was `/s/abc123` - a correct relative URL and a useless
+    thing to send somebody. A request arrived, so this server has an address
+    somebody outside it reached; the link is built from that.
+    """
+    body = client.post("/api/share", json={"query": "q", "minutes": 3},
+                       headers={"host": "fam.onrender.com",
+                                "x-forwarded-proto": "https"}).json()
+    assert body["url"].startswith("https://fam.onrender.com/s/")
+    assert body["public"] is True
+    # And the card with it, because a native client is not on this origin.
+    assert body["card"].startswith("https://fam.onrender.com/api/share/card")
+
+
+def test_the_forwarded_scheme_wins_over_the_connection(client):
+    """Behind Render's router the connection is plain HTTP and the site is
+    HTTPS. A link built from the connection alone is `http://` on an HTTPS
+    deployment, which gets upgraded or blocked."""
+    body = client.post("/api/share", json={"query": "q", "minutes": 3},
+                       headers={"host": "fam.onrender.com",
+                                "x-forwarded-proto": "https,http"}).json()
+    assert body["url"].startswith("https://")
 
 
 def test_a_public_base_url_makes_the_link_absolute(client, monkeypatch):

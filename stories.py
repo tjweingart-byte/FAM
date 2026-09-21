@@ -376,6 +376,21 @@ class Pool:
         now = time.time() if now is None else now
         return [s for s in self.stories if not s.expired(now)]
 
+    def clear(self) -> int:
+        """Drop every story the pool is holding. Returns how many.
+
+        The pool is a cache of today's news rather than stored data, so this
+        is not a deletion - the next background sweep refills it from the same
+        sources. It exists so that a deployment being wiped for a clean
+        measurement does not still have six tiles on myFAM that were composed
+        before the wipe. See `tools/wipe_demo_data.py`.
+        """
+        held = len(self.stories)
+        self.stories = []
+        self.composed = 0
+        self.degraded = 0
+        return held
+
     @property
     def empty_reason(self) -> str:
         """What a rail says when the pool is empty.

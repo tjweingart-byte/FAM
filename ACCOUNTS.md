@@ -22,6 +22,39 @@ nothing is claimed - their history was already theirs.
 That is why there is no login screen in front of the product, and it is why
 the tier system below applies to anonymous listeners too. They are on `free`.
 
+### The one screen a guest does not get (§114)
+
+The **Profile tab**, at the owner's direction. It used to draw the whole page
+for somebody with no account - name, counts, shelves, vibes - with a note at
+the bottom offering one. Everything on it was true, which is why it lasted,
+and it is still the wrong screen: a profile is the one page that is *about*
+having an account, so drawing a full one for a guest invites them to furnish
+a room the app is about to say is not theirs. It is a door now, and it makes
+no request for a profile it is not going to draw.
+
+Nothing else moved behind the gate. Search, myFAM, DailyFAM's episodes,
+Explore, Go Deeper and the whole audio path still work with nothing signed
+in, which is the paragraph above and is unchanged.
+
+The front door's second option says **"Continue as guest"** rather than "Skip
+for now". The two setup steps behind it still say "Skip for now" and that is
+right there - a step you skip comes back. This one does not: it is a way of
+using the app, and somebody who takes it is a guest for as long as they like.
+
+### And every gate opens the same screen
+
+DailyFAM, messages, Settings and the profile all used to open
+`createAccount()` / `signIn()` in the web app: two chained modals asking for
+an address and then a password. That form **cannot offer a phone number,
+Google or Apple** - three of the four ways in below - so a listener who
+reached an account from a gate was being shown a different, smaller product
+than one who reached it from the front door.
+
+`gateActions()` is the one pair of buttons now, and it opens the real screen,
+which already knew how to return to where it was opened from. The makeshift
+pair is **deleted rather than left unused**: a second sign-up form left
+standing is one somebody wires a new gate to by accident.
+
 ## Four ways in, one account
 
 | Provider | What proves it | Verified? |

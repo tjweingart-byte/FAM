@@ -589,8 +589,81 @@ LIVE_SHIM = r"""
         return { id: e.id, query: e.query, title: e.title, minutes: e.minutes,
                  thread: e.thread || "", at: e.at,
                  by: person.name || "", handle: person.handle || "" };
-      })
+      }),
+      // The interests row, decided here exactly as `topics.ranked_interests`
+      // and `topics.profile_interests` decide it on the server: ranked by
+      // what they listen to, cut to four, pinned set winning outright. The
+      // page draws and never decides, so the preview has to answer the same
+      // question the server does or the row it shows is not the row.
+      interests_max: PROFILE_INTEREST_SLOTS,
+      interests_ranked: rankedInterests(),
+      interests_pinned: (myPrefs().profile_interests || []).slice(),
+      interests_shown: profileInterests().shown,
+      interests_source: profileInterests().source
     };
+  }
+
+  //: Mirrors `topics.PROFILE_INTEREST_SLOTS` / `preferences.PROFILE_INTERESTS_MAX`.
+  var PROFILE_INTEREST_SLOTS = 4;
+
+  // Every interest this listener could put on their profile, best match
+  // first. Facets scored against the family they head - a listener whose
+  // history is spread across four tech subjects is not less interested in
+  // technology than one who only plays chips - plus any named subject they
+  // chose from the catalogue or typed into its search.
+  function rankedInterests() {
+    var t = taste(UID), chosen = (myPrefs().interests || []), rows_ = [], seen = {};
+    Object.keys(TAG_LABELS).forEach(function (facet) {
+      var family = [facet].concat(Object.keys(TAG_PARENT).filter(function (sub) {
+        return TAG_PARENT[sub] === facet;
+      }));
+      var score = family.reduce(function (sum, tag) {
+        return sum + (t[tag] || 0);
+      }, 0) / Math.sqrt(family.length);
+      if (score <= 0 && chosen.indexOf(facet) === -1) return;
+      seen[facet] = 1;
+      rows_.push({ score: score, sharp: 0, label: TAG_LABELS[facet],
+                   row: { id: facet, label: TAG_LABELS[facet], kind: "facet" } });
+    });
+    (myPrefs().topics || []).forEach(function (id) {
+      if (seen[id]) return;
+      seen[id] = 1;
+      var entry = CATALOGUE.filter(function (c) { return c.id === id; })[0];
+      var label = entry ? entry.label : id;
+      var tags = entry ? entry.tags : tagsForText(label);
+      var score = tags.length
+        ? tags.reduce(function (sum, tag) { return sum + (t[tag] || 0); }, 0)
+          / Math.sqrt(tags.length)
+        : 0;
+      // A named subject is a sharper statement than the facet above it, so
+      // on a tie it goes first.
+      rows_.push({ score: score, sharp: -1, label: label,
+                   row: { id: id, label: label, kind: "topic" } });
+    });
+    rows_.sort(function (a, b) {
+      return (b.score - a.score) || (a.sharp - b.sharp)
+             || a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+    });
+    return rows_.map(function (r) { return r.row; });
+  }
+
+  function profileInterests() {
+    var ranked = rankedInterests();
+    var pinned = (myPrefs().profile_interests || []);
+    if (pinned.length) {
+      var by = {};
+      ranked.forEach(function (r) { by[r.id] = r; });
+      return { shown: pinned.slice(0, PROFILE_INTEREST_SLOTS).map(function (id) {
+        return by[id] || { id: id,
+                           label: (CATALOGUE.filter(function (c) { return c.id === id; })[0] || {}).label
+                                  || TAG_LABELS[id] || id,
+                           kind: "topic" };
+      }), source: "pinned" };
+    }
+    var hidden = (myPrefs().hidden_interests || []);
+    return { shown: ranked.filter(function (r) {
+      return hidden.indexOf(r.id) === -1;
+    }).slice(0, PROFILE_INTEREST_SLOTS), source: "top" };
   }
 
   // Every episode this listener actually heard, categorised, most-played first.
@@ -652,6 +725,12 @@ LIVE_SHIM = r"""
       // separator a value can contain is a value that silently becomes two.
       topics: row && row.topics
         ? String(row.topics).split("\n").filter(Boolean) : [],
+      // Which interests to draw on the profile, at most four. Empty is a real
+      // answer and means "choose for me" - see `preferences.clean_profile_interests`.
+      // Newline-separated like `topics`, and for the same reason: it holds
+      // the same two kinds of value and one of them is free text.
+      profile_interests: row && row.profile_interests
+        ? String(row.profile_interests).split("\n").filter(Boolean) : [],
       intro_done: !!(row && row.intro_done)
     };
   }
@@ -1187,10 +1266,16 @@ LIVE_SHIM = r"""
         seenTopic[k] = true;
         return true;
       });
+      var pinned = (body.profile_interests !== undefined
+                    && body.profile_interests !== null)
+        ? body.profile_interests.map(function (t) { return String(t || "").trim(); })
+            .filter(Boolean).slice(0, PROFILE_INTEREST_SLOTS)
+        : was.profile_interests;
       return put("prefs", UID, {
         interests: chosen.join(","),
         hidden_interests: hidden.join(","),
         topics: subjects.join("\n"),
+        profile_interests: pinned.join("\n"),
         language: body.language !== undefined && body.language !== null
           ? body.language : was.language,
         weekly_recap: body.weekly_recap !== undefined && body.weekly_recap !== null
