@@ -278,7 +278,15 @@ class RemoteChatterboxEngine(TTSEngine):
     _gate: "asyncio.Semaphore | None" = None
     _gate_size: int = 0
     _reachability = Reachability()
-    _woken_at: float = 0.0
+    #: When the last wake was sent, on `time.monotonic()`'s scale. The
+    #: sentinel is -inf rather than 0.0 because 0.0 is a reading that
+    #: clock can actually produce: `CLOCK_MONOTONIC` counts from boot, so
+    #: on a machine whose uptime is still under
+    #: `REMOTE_VOICE_WAKE_INTERVAL` the guard below read `now - 0.0` as
+    #: "asked recently" and returned without ever firing - suppressing the
+    #: wake for exactly the first minute of a container's life, which is
+    #: the cold start it exists to hide.
+    _woken_at: float = float("-inf")
     #: A route the worker named itself, kept as (base url, route) so a
     #: reconfigured endpoint is not answered with the old one's answer.
     _found_route: tuple[str, str] | None = None
