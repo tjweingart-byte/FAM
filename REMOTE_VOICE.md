@@ -226,10 +226,10 @@ question is answered from RunPod's console without a probe.
 FAM asks RunPod where that pod is and builds the proxy URL itself. Matched on
 name because a pod that is destroyed and recreated from the same template keeps
 its name and loses its id - and a pod that is *stopped* is reported as such
-rather than skipped in silence, which matters here because
-`.github/workflows/runpod-schedule.yml` stops this project's pod every night:
-"the voice cannot be found" and "the voice is asleep until 08:00" are different
-problems and now read differently.
+rather than skipped in silence. That note used to disambiguate a schedule from
+a fault; since the schedule was removed (§117) it does something simpler and
+more useful: nothing stops this pod on purpose any more, so a pod found and
+not running is **always** something to act on.
 
 ### One command when something is wrong
 
@@ -248,21 +248,27 @@ The line it exists to print is this one:
     ! REMOTE_VOICE_URL names https://old-8001.proxy.runpod.net, but the worker
       that is announcing itself is at https://new-8001.proxy.runpod.net
 
-### The nightly schedule finds the pod by name
+### There is no schedule; the pod runs continuously
 
-`.github/workflows/runpod-schedule.yml` starts the pod at 08:00 and stops it
-at 23:00. It used to carry the pod's **id** as a literal, and an id does not
-survive a pod being replaced - so after every migration the schedule acted on
-a machine that no longer existed while the live pod ran unmanaged. That
-happened twice (§112, §116).
+There was one - `.github/workflows/runpod-schedule.yml`, starting the pod at
+08:00 and stopping it at 23:00 - and it is **deleted**, at the owner's
+direction (§117). Nothing in this repository now starts, stops or resizes a
+pod. The voice is expected to be up at all times, and that is a decision
+about cost, not an accident: a GPU billed by the hour is billed for the
+hours nobody is listening too.
 
-It resolves by **name** now, through the same REST API the app asks, from the
-repository variable `RUNPOD_POD` - the same name Render uses for the
-`runpod-pod` rung, so there is one fact about the deployment rather than an
-id copied into two places. `RUNPOD_POD_ID` is still read as a fallback.
-Neither set, or a name matching nothing, **fails the run** and prints every
-pod on the account: a schedule that quietly does nothing looks exactly like
-one that worked.
+Deleted rather than disabled, on the reasoning this project has paid for
+three times (Piper, the cold open, the makeshift sign-up form): a workflow
+left in place with its schedule commented out is one somebody re-enables by
+accident, and the failure - the voice going away at 23:00 for reasons nobody
+remembers - is the kind that costs a day.
+
+What this buys back, beyond the hours: **`EXITED` now means something.** While
+the schedule existed, a stopped pod was ambiguous between a clock and a
+fault, which is why the ladder records one rather than skipping it. With no
+schedule, a pod that is found and not running is always a fault - RunPod
+evicted it, the account ran out, or somebody stopped it by hand - and the
+note that names it is a diagnosis rather than a disambiguation.
 
 ### And the image builds itself
 
@@ -390,11 +396,13 @@ make a rented GPU what every listener gets — §61's first guard, which is how
 WellSaid silently became the default voice on every machine without Piper.
 
 **Nothing here starts, stops, resizes or pays for a pod.** `RUNPOD_PRODUCTION.md`
-said that and it stays true - `.github/workflows/runpod-schedule.yml` is the
-one thing that starts and stops one, on a clock somebody set. What *is*
-automatic now is the **address**: FAM finds the worker wherever RunPod put it,
+said that and it is now true without exception: the one workflow that started
+and stopped one is deleted (§117), and the pod runs continuously. What *is*
+automatic is the **address**: FAM finds the worker wherever RunPod put it,
 verifies it before using it, and switches when it stops answering. Which
-machine exists, and what it costs, is still a decision somebody makes.
+machine exists, and what it costs, is still a decision somebody makes - and
+with no schedule, that decision is now made once in RunPod's console rather
+than twice a day by a clock.
 
 **Bandwidth is unchanged and still the thing that bites at scale**: 2.65 MB/min
 per listener at 22050 Hz, more at Chatterbox's 24000. Opus over the stream is

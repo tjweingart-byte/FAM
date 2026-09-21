@@ -193,10 +193,10 @@ async def run(speak: bool, text: str) -> tuple[int, dict]:
 def _pod_notes() -> None:
     """What RunPod said about pods that did not become candidates.
 
-    Usually the whole diagnosis. This project stops its pod every night on a
-    schedule (`.github/workflows/runpod-schedule.yml`), so "the voice cannot
-    be found" and "the voice is asleep until 08:00" are the two most likely
-    answers and they are not the same problem.
+    Usually the whole diagnosis, and unambiguous since the nightly schedule
+    was removed (§117): nothing stops this pod on purpose any more, so a pod
+    that is found and not running is always something to act on rather than a
+    clock somebody set.
     """
     for note in voice_control.report().get("pods") or []:
         _say("!", YELLOW, note)

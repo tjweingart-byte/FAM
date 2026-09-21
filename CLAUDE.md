@@ -1572,10 +1572,16 @@ the rest of this list it needs taste rather than a key.
   a port), the variable overrides it, and the first line of the pod's log says
   which half is running and why.
   What is automatic is the **address**. Nothing here starts, stops, resizes or
-  pays for a pod - `.github/workflows/runpod-schedule.yml` does that on a clock
-  somebody set, which is also why a pod that is found and stopped is *named*
-  rather than skipped: "the voice cannot be found" and "the voice is asleep
-  until 08:00" are different problems.
+  pays for a pod, without exception: the nightly schedule that did is
+  **deleted** at the owner's direction (§117) and **the pod runs
+  continuously**. Deleted rather than disabled, on the Piper reasoning - a
+  workflow with its cron commented out is one somebody re-enables by
+  accident, and the voice vanishing at 23:00 for reasons nobody remembers is
+  a day of diagnosis. A pod that is found and stopped is still *named* rather
+  than skipped, and that note is sharper for the change: while the schedule
+  existed "EXITED" was ambiguous between a clock and a fault, and now it is
+  always a fault - RunPod evicted it, the account ran out, or somebody
+  stopped it by hand.
   **And the address it finds has to be one a server can use** *(§116).* The
   ladder was discovering, registering and verifying
   `https://<pod>-<port>.proxy.runpod.net`, which is fronted by Cloudflare:
@@ -1825,7 +1831,9 @@ disk that was declared and never attached; and **§115**, found while getting
 assertion that was *right*, and the reason nobody saw it is that this
 container has no webfonts and the runner does; and **§116**, the voice
 after the pod migration - the worker was healthy, the address was right, and
-the proxy in front of it refuses a server while serving a browser), `MYFAM.md` for the browse page and the live story pool that fills
+the proxy in front of it refuses a server while serving a browser; and **§117**,
+the nightly pod schedule deleted at the owner's direction so the voice is up
+at all times), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

@@ -8131,12 +8131,15 @@ deployment stops its pod at 23:00, so **"the voice cannot be found" and "the
 voice is asleep until 08:00" are different problems**, and an empty rung that
 said nothing made them look the same.
 
+*(§117 deleted that schedule. The recording stayed, and reads better for it:
+with nothing stopping the pod on purpose, `EXITED` is always a fault.)*
+
 ### What is still unverified
 
 Nothing here has made a real request to RunPod from this container, which has
 no credentials and no GPU. The parsing of RunPod's answer is defensive for
-that reason - REST first, because `runpod-schedule.yml` already uses it with
-this project's key, GraphQL second, three response shapes accepted, and any
+that reason - REST first, because it is RunPod's current API and the one this
+project's key is used against, GraphQL second, three response shapes accepted, and any
 failure costs a rung and a log line rather than the voice. `python
 tools/voice_doctor.py` against the real deployment is what turns that from
 careful into known.
@@ -8604,6 +8607,11 @@ asks - a name survives a recreation - and **fails the run** when it cannot,
 printing every pod on the account. A schedule that does nothing looks exactly
 like a schedule that worked, which is the whole of the bug.
 
+*(Superseded within the hour by §117, which deleted the schedule outright at
+the owner's direction. The finding stands and is worth keeping: a literal id
+in a workflow went stale twice. The workflow it was fixed in no longer
+exists.)*
+
 ### And the two paths called themselves different things
 
 `remote_voice` sent `User-Agent: FAM/remote-voice`; `voice_control` sent
@@ -8623,3 +8631,54 @@ documentation that the proxy is Cloudflare-fronted, not something measured
 here. `python tools/voice_doctor.py --url <the app>` against the running
 deployment is what turns it from reasoned into known, and the direct address
 is what it should find.
+
+## 117. The schedule is deleted; the voice is up at all times
+
+At the owner's direction, immediately after §116. The nightly workflow that
+started this project's pod at 08:00 and stopped it at 23:00 is gone, and
+nothing in this repository now starts, stops or resizes a pod. The voice is
+expected to be running continuously.
+
+**Deleted rather than disabled**, which is the only part of this that is a
+judgement rather than an instruction. Commenting out a `cron:` leaves a
+workflow that still has the account's API key, still knows how to stop the
+production pod, and needs one uncommented line to do it - and this project
+has now paid three times for a knob left behind (Piper's engine fell through
+to itself, the cold open was turned back on by an example file and then by
+`Dockerfile.gpu`, the makeshift sign-up form was wired to new gates by
+accident). A voice that disappears at 23:00 for reasons nobody remembers is
+exactly that failure with an audience.
+
+### What it costs, stated rather than buried
+
+A GPU billed by the hour is now billed for the hours nobody is listening.
+That is the whole of the trade and it was made deliberately: the schedule's
+saving was real and its cost was that the product was *unavailable for nine
+hours a day*, which for something being taken towards an iOS app and a
+listening test is the wrong side of the trade. `METERING.md` records what
+Claude and Exa cost per episode; the GPU is the **fixed floor** that section
+describes, and this change makes the floor a 24-hour one.
+
+### What it buys back, beyond the hours
+
+**`EXITED` now means something.** §112 made `_pods_from` record a pod it
+found and did not use, specifically because the schedule made a stopped pod
+ambiguous - a clock or a fault, and an empty rung made them look the same.
+With no schedule, a pod that is found and not running is **always** a fault:
+RunPod evicted it, the account ran out of credit, or somebody stopped it by
+hand. The note that names it is a diagnosis now rather than a
+disambiguation, and the comments that explained it say so.
+
+### What is left behind on GitHub, and is not this repository's to remove
+
+Two settings are now unused by any workflow, and both are harmless:
+
+* the `RUNPOD_API_KEY` **secret**, which no remaining workflow reads -
+  `voice-worker.yml` builds an image and touches RunPod not at all;
+* the `RUNPOD_POD` / `RUNPOD_POD_ID` repository **variables**, added one
+  commit earlier for the by-name lookup that no longer runs here.
+
+`RUNPOD_POD` is still live and still load-bearing **on Render**, where it is
+the `runpod-pod` rung of the ladder. The GitHub copy is the one that is now
+dead, which is the pleasant half of this change: §116's finding was an id
+kept in two places, and there is only one place left.

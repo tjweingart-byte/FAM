@@ -521,9 +521,10 @@ def test_health_says_where_the_next_episode_would_actually_go(monkeypatch):
 
 
 def test_a_pod_that_is_stopped_is_named_rather_than_silently_skipped(monkeypatch):
-    """This deployment stops its pod every night on a schedule, so "the voice
-    cannot be found" and "the voice is asleep until 08:00" are different
-    problems. An empty rung that said nothing made them look the same."""
+    """Nothing stops this pod on purpose any more (§117), so a pod that is
+    found and not running is always something to act on - RunPod evicted it,
+    the account ran out, or somebody stopped it by hand. An empty rung that
+    said nothing would hide all three."""
     configure(monkeypatch)
     voice_control._state.pod_notes = []
     assert voice_control._pods_from(pods(pod(status="EXITED")),

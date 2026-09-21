@@ -182,8 +182,9 @@ class _State:
     previous: Optional[Endpoint] = None
     switches: list = field(default_factory=list)
     # What was true about the pods last time RunPod was asked, when it was not
-    # a candidate. Usually the whole diagnosis - this deployment stops its pod
-    # every night, so "EXITED" is a schedule rather than a failure.
+    # a candidate. Usually the whole diagnosis - and sharper since the nightly
+    # schedule was removed (§117): nothing stops this pod on purpose any more,
+    # so "EXITED" is now unambiguously a fault rather than a clock.
     pod_notes: list = field(default_factory=list)
     last_error: str = ""
 
@@ -398,10 +399,9 @@ async def _runpod_pods() -> list[Endpoint]:
     cost a rung and a log line, not the voice.
 
     REST first and GraphQL second, which is a fact about RunPod rather than a
-    FAM policy: `.github/workflows/runpod-schedule.yml` already starts and
-    stops this project's pod through `rest.runpod.io/v1`, so that is the API
-    this key is known to work against. The older GraphQL endpoint answers the
-    same question and is tried when REST does not.
+    FAM policy: `rest.runpod.io/v1` is the current API and the one this
+    project's key has been used against. The older GraphQL endpoint answers
+    the same question and is tried when REST does not.
     """
     selector = _pod_selector()
     key = _runpod_key()
@@ -492,9 +492,12 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
     therefore the thing an operator can rely on across a migration.
 
     A pod that is found and *not running* is recorded rather than dropped
-    silently. This project stops its pod every night on a schedule, so "the
-    voice cannot be found" and "the voice is asleep until 08:00" are the two
-    most likely answers and they are not the same problem.
+    silently - and that note says more than it used to. It was written when a
+    schedule stopped this pod every night, so "EXITED" was ambiguous between a
+    clock and a fault. Nothing stops it on purpose any more (§117), so a pod
+    that is found and not running is **always** something to act on: RunPod
+    evicted it, the account ran out, or somebody stopped it by hand. An empty
+    rung that said nothing would hide all three.
     """
     wanted = {part.strip().lower() for part in selector.split(",") if part.strip()}
     out: list[Endpoint] = []
