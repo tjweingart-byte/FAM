@@ -23,8 +23,13 @@ from voice_worker import register  # noqa: E402
 def clean(monkeypatch):
     for name in ("PUBLIC_WORKER_URL", "RUNPOD_POD_ID", "PORT", "FAM_APP_URL",
                  "VOICE_REGISTRY_TOKEN", "VOICE_IMAGE", "FAM_COMMIT",
-                 "VOICE_WORKER_MODE", "VOICE_REGISTER_INTERVAL"):
+                 "VOICE_WORKER_MODE", "VOICE_REGISTER_INTERVAL",
+                 "VOICE_WORKER_PORT", "RUNPOD_PUBLIC_IP",
+                 "RUNPOD_TCP_PORT_8001", "RUNPOD_TCP_PORT_8002"):
         monkeypatch.delenv(name, raising=False)
+    # The port is read from what the process was started with, and under
+    # pytest that is pytest's own command line.
+    monkeypatch.setattr(register.sys, "argv", ["pytest"])
 
 
 def test_a_runpod_pod_derives_its_own_proxy_url(monkeypatch):
@@ -171,3 +176,72 @@ def test_a_typo_falls_back_to_the_platform_rather_than_to_a_guess():
     mode, why = start.decide({"VOICE_WORKER_MODE": "htpp",
                               "RUNPOD_POD_ID": "abc123"})
     assert mode == "http" and "RUNPOD_POD_ID" in why
+
+
+# --- the address that has no proxy in it (§116) ----------------------------
+
+def test_a_pod_with_a_tcp_mapping_announces_that_rather_than_the_proxy(monkeypatch):
+    """The proxy is Cloudflare, and Cloudflare serves a browser and refuses a
+    server - so the address every pod could always reach is the one the app
+    could not. When RunPod publishes a direct mapping, that is the address."""
+    monkeypatch.setenv("RUNPOD_POD_ID", "abc123")
+    monkeypatch.setenv("PORT", "8001")
+    monkeypatch.setenv("RUNPOD_PUBLIC_IP", "203.0.113.7")
+    monkeypatch.setenv("RUNPOD_TCP_PORT_8001", "40411")
+    assert register.public_url() == "http://203.0.113.7:40411"
+
+
+def test_a_public_ip_with_no_mapping_for_this_port_is_not_guessed(monkeypatch):
+    """A pod exposing some other port over TCP is not this worker's address,
+    and picking one would point the app at whatever else is listening."""
+    monkeypatch.setenv("RUNPOD_POD_ID", "abc123")
+    monkeypatch.setenv("PORT", "8001")
+    monkeypatch.setenv("RUNPOD_PUBLIC_IP", "203.0.113.7")
+    monkeypatch.setenv("RUNPOD_TCP_PORT_8002", "40411")
+    assert register.public_url() == "https://abc123-8001.proxy.runpod.net"
+
+
+def test_an_explicit_address_still_wins_over_a_tcp_mapping(monkeypatch):
+    monkeypatch.setenv("PUBLIC_WORKER_URL", "https://voice.example")
+    monkeypatch.setenv("RUNPOD_PUBLIC_IP", "203.0.113.7")
+    monkeypatch.setenv("RUNPOD_TCP_PORT_8001", "40411")
+    assert register.public_url() == "https://voice.example"
+
+
+# --- the port it is actually on, not the one in PORT (§116) ----------------
+
+def test_the_port_comes_from_the_command_line_when_there_is_one(monkeypatch):
+    """This project's pod runs the app on PORT and the voice beside it. The
+    worker announced the app's address, so the app health-checked a web
+    service looking for a voice - §78 one layer up."""
+    monkeypatch.setenv("RUNPOD_POD_ID", "abc123")
+    monkeypatch.setenv("PORT", "8001")
+    monkeypatch.setattr(register.sys, "argv",
+                        ["uvicorn", "voice_worker.server:app",
+                         "--host", "0.0.0.0", "--port", "8002"])
+    assert register.port() == 8002
+    assert register.public_url() == "https://abc123-8002.proxy.runpod.net"
+
+
+def test_the_joined_spelling_of_port_is_read_too(monkeypatch):
+    monkeypatch.setattr(register.sys, "argv", ["uvicorn", "--port=8002"])
+    assert register.port() == 8002
+
+
+def test_an_explicit_worker_port_beats_the_command_line(monkeypatch):
+    monkeypatch.setenv("VOICE_WORKER_PORT", "9000")
+    monkeypatch.setattr(register.sys, "argv", ["uvicorn", "--port", "8002"])
+    assert register.port() == 9000
+
+
+def test_port_falls_back_to_PORT_then_the_image_default(monkeypatch):
+    monkeypatch.setenv("PORT", "8005")
+    assert register.port() == 8005
+    monkeypatch.delenv("PORT")
+    assert register.port() == 8001
+
+
+def test_nonsense_in_the_port_never_costs_the_worker_its_address(monkeypatch):
+    monkeypatch.setenv("VOICE_WORKER_PORT", "not-a-port")
+    monkeypatch.setenv("PORT", "8002")
+    assert register.port() == 8002

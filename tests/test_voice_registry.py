@@ -115,3 +115,34 @@ def test_what_a_worker_says_about_itself_reaches_the_report(store):
     shown = store.live(at=1030.0)[0].as_dict()
     assert shown["image"] == "fam-voice:3" and shown["age_seconds"] >= 0
     assert "token" not in shown
+
+
+# --- the one address a pod has that no proxy fronts (§116) ----------------
+
+def test_a_direct_pod_address_is_accepted_when_it_was_allowed(store, monkeypatch):
+    """RunPod's proxy is the only TLS address a pod has, and that proxy is
+    Cloudflare, which serves a browser and refuses a server. So on a pod the
+    choice is a raw TCP port or no voice at all - and it is a decision
+    somebody makes rather than a default they discover."""
+    import voice_control
+
+    monkeypatch.setattr(voice_control, "allow_plain_http", lambda: True)
+    assert store.register({"url": "http://203.0.113.7:40411"}).url \
+        == "http://203.0.113.7:40411"
+
+
+def test_the_refusal_names_the_switch_that_permits_it(store):
+    with pytest.raises(voice_registry.RegistryError) as caught:
+        store.register({"url": "http://203.0.113.7:40411"})
+    assert "VOICE_ALLOW_PLAIN_HTTP" in str(caught.value)
+
+
+def test_the_registry_and_the_ladder_cannot_disagree(monkeypatch):
+    """An address one accepts and the other refuses is a worker that
+    registers successfully and is never used."""
+    import voice_control
+
+    monkeypatch.setattr(voice_control, "allow_plain_http", lambda: False)
+    assert voice_registry._plain_http_allowed() is False
+    monkeypatch.setattr(voice_control, "allow_plain_http", lambda: True)
+    assert voice_registry._plain_http_allowed() is True

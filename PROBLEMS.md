@@ -8500,3 +8500,126 @@ the check to fail loudly when `document.fonts.check` says the real face is
 absent - measuring layout in a substituted font is not a weaker version of
 the test, it is a different test - but that is a change to the harness rather
 than to the app, and it is worth doing when somebody is next in that file.
+
+## 116. The voice was healthy, the address was right, and the edge said no
+
+The report was as clean as this project has had. Chatterbox up on the pod;
+`GET http://127.0.0.1:8002/health` inside the container returning
+`ready:true, engine:"chatterbox"`; the same URL through RunPod's proxy
+returning the *same healthy body* in a browser; and, from the Render
+production shell, `403 Forbidden` on that exact URL. Production threw
+`RemoteVoiceError: no voice worker can speak`.
+
+Every instinct built up over §78 and §112 says that is an address problem. It
+is not. **It is a path problem**, and the two look identical from the app.
+
+### Why a browser and a server get different answers
+
+RunPod fronts a pod's HTTP port with Cloudflare: the request goes user →
+Cloudflare → RunPod's load balancer → the pod. Cloudflare's protections are
+tuned for the thing that address is *for*, which is a person opening a
+notebook or a web UI in a tab. A request arriving from a datacentre range
+with no browser about it is exactly what those protections exist to refuse,
+and they refuse it with a 403 before it is ever a request to the worker.
+
+So the proxy URL is a **browser** address. It has been used as an **API**
+address for as long as this app has had a pod, and it worked until it did
+not - which is the worst way for a dependency like this to behave, because
+nothing in the app changed on the day it stopped.
+
+That is the regression, and it is a configuration one rather than a code one:
+`render.yaml` still documents `REMOTE_VOICE_TRANSPORT=runpod`, the serverless
+endpoint at `api.runpod.ai/v2`, which is a first-class server-to-server API
+with an API key and no bot filtering in front of it. The pod migration moved
+production onto `http` + a proxy URL and inherited a browser path for the
+whole audio product without anybody choosing it.
+
+### What it looked like from inside, which is the part that cost the time
+
+    /health returned HTTP 403: <!DOCTYPE html><html class="no-js" lang="en-US"...
+
+Two hundred characters of Cloudflare markup under a sentence saying the
+*worker* answered 403, in front of a worker that was answering perfectly. The
+generic `status_code >= 400` branch was doing exactly what it was written to
+do and was reporting the wrong subject.
+
+A 401 and a 403 at a worker's address are not the same problem and had never
+read differently. A **401** is the worker: `REMOTE_VOICE_TOKEN` disagrees. A
+**403 on a proxied address** is almost never the worker at all. `_refused()`
+now says which, and on a proxied host it says what the fix is, because the
+one thing an operator cannot get from a 403 is the knowledge that the machine
+they are worried about is fine.
+
+### The rule: the address that works from a server is the one to find
+
+§112's argument was that the address of a rented GPU is not a constant, so it
+must be discovered rather than typed. The correction here is that
+**discovering the wrong *kind* of address is still a fact about somebody
+else's infrastructure written into this app** - the ladder was finding, and
+registering, and verifying, an address that a server cannot use.
+
+A pod has a second address: RunPod maps an exposed TCP port to a public IP
+and a port it chooses, and publishes both to the container as
+`RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>`. Nothing sits in front of it.
+It is derivable exactly as the proxy URL is and it changes for exactly the
+same reasons, so it belongs on the ladder on the same terms: found, verified
+with a real call, and never written down twice.
+
+It is plain HTTP, and that is a genuine cost rather than a detail. The bearer
+token and every sentence of the script ride on that connection in clear, and
+`voice_registry.clean_url` has refused non-loopback HTTP since it was
+written, for that reason. Loosening it quietly would have been the wrong
+shape of fix, so **`VOICE_ALLOW_PLAIN_HTTP` is a decision somebody makes**:
+off by default, named in the 403's own error message, reported on
+`/api/health` as `plain_http`, and asked once - `voice_control.allow_plain_http()`
+is what both the registry and the ladder read, because an address one accepts
+and the other refuses is a worker that registers successfully and is never
+used.
+
+The proxy stays on the ladder below it. Failing over is not falling back:
+both are the same worker image, and a pod whose TCP port is firewalled must
+still be reachable.
+
+### Two bugs found on the way that would have made the automation fail anyway
+
+**The worker announced `$PORT`, not the port it was listening on.** This
+project's pod runs the app on 8001 and the voice beside it on 8002, so
+`register.public_url()` would have announced `-8001` - and the app would then
+have health-checked a *web service* looking for a voice. §78 was "the port in
+the proxy URL must be the port the worker listens on"; this is the same
+sentence one layer up, and it means that even with `FAM_APP_URL` and
+`VOICE_REGISTRY_TOKEN` set, self-registration would have pointed the ladder
+at the wrong half of the container. `register.port()` now reads
+`VOICE_WORKER_PORT`, then the `--port` the process was actually started with,
+then `PORT` - what it was told, in the order that can be trusted.
+
+**The nightly schedule was managing a pod that no longer exists.**
+`.github/workflows/runpod-schedule.yml` carried the pod **id** as a literal,
+and an id does not survive a pod being replaced. It was already wrong: the
+comment above it explains the *first* time this happened and the literal
+underneath it was stale again, so the 08:00 start and the 23:00 stop were
+acting on a retired machine while the live pod ran unmanaged. The workflow
+now resolves the pod by **name** through the same REST API `voice_control`
+asks - a name survives a recreation - and **fails the run** when it cannot,
+printing every pod on the account. A schedule that does nothing looks exactly
+like a schedule that worked, which is the whole of the bug.
+
+### And the two paths called themselves different things
+
+`remote_voice` sent `User-Agent: FAM/remote-voice`; `voice_control` sent
+whatever httpx defaults to. That is one constant now (`voice_control.USER_AGENT`,
+used by both), because a difference there is a worker that passes a health
+check and refuses an episode, or the reverse - a health page that lies, which
+is the failure this project has lost the most time to.
+
+### What is unverified
+
+**All of it, against RunPod.** There is no route from this container to
+`proxy.runpod.net` - the egress policy denies `CONNECT` with a 403 of its
+own, which is a different 403 and worth saying so nobody bisects it later.
+The Cloudflare reading is inference from the shape of the report (browser
+200, server 403, worker healthy on its own port) plus RunPod's own
+documentation that the proxy is Cloudflare-fronted, not something measured
+here. `python tools/voice_doctor.py --url <the app>` against the running
+deployment is what turns it from reasoned into known, and the direct address
+is what it should find.

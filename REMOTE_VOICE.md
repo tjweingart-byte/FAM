@@ -170,6 +170,54 @@ A registration expires (`VOICE_REGISTRY_TTL`, five missed heartbeats), which is
 what makes a pod that was destroyed stop being offered without anything having
 to notice that it died.
 
+### The proxy URL is a browser address, not an API one
+
+**Read this before anything else if the pod is healthy and the app cannot
+reach it.** `https://<pod>-<port>.proxy.runpod.net` is fronted by Cloudflare.
+It serves a person opening it in a tab and it **refuses server-to-server
+requests from datacentre ranges with a 403**, so the same `/health` can be
+200 in your browser and 403 from Render with nothing wrong on either machine
+(PROBLEMS.md §116). The app says so in as many words now rather than
+reporting the worker's own 403:
+
+    HTTP 403 from https://<pod>-8002.proxy.runpod.net. This is the proxy edge
+    in front of the pod, not the worker: RunPod fronts a pod's HTTP port with
+    Cloudflare, which serves a browser and refuses a server.
+
+The way out is the pod's **direct TCP address**, which nothing fronts. Three
+steps, and the third is the one that keeps it true across a migration:
+
+1. On the pod, expose the worker's port (8001, or whatever `VOICE_WORKER_PORT`
+   says) as a **TCP** port as well as an HTTP one. RunPod maps it to a public
+   IP and a port of its choosing and publishes both inside the container as
+   `RUNPOD_PUBLIC_IP` and `RUNPOD_TCP_PORT_<port>`.
+2. On the app, set **`VOICE_ALLOW_PLAIN_HTTP=1`**. A raw TCP port has no
+   certificate, so the bearer token and the script cross it in clear. That is
+   a real cost and it is why this is a variable rather than a default: decide
+   it, do not discover it. `REMOTE_VOICE_TOKEN` still has to match, and the
+   address is still verified with a real call before anybody is sent to it.
+   `/api/health` reports `plain_http` as `allowed` or `refused`.
+3. Do **not** paste the address into `REMOTE_VOICE_URL`. It changes on every
+   pod, which is the whole of §112. Let it be found: either the worker
+   announces it (`FAM_APP_URL` + `VOICE_REGISTRY_TOKEN` on the pod), or the
+   app asks RunPod for it (`RUNPOD_POD` + `RUNPOD_API_KEY`). Both produce the
+   direct address in preference to the proxy, and both keep working when the
+   pod is replaced.
+
+The proxy stays on the ladder underneath it. Failing over is not falling
+back: it is the same worker image, and a pod whose TCP port is firewalled
+must still be reachable.
+
+### The port a worker announces is the port it is listening on
+
+`register.port()` reads `VOICE_WORKER_PORT`, then the `--port` the process was
+started with, then `PORT`, then 8001. `PORT` alone was wrong the moment a
+container ran more than the worker: this project's pod runs the app on 8001
+and the voice on 8002, so the worker announced the *app's* address and the
+app health-checked a web service looking for a voice. The pod's boot log now
+prints both the port it serves and the address it will announce, so the
+question is answered from RunPod's console without a probe.
+
 ### Or, with nothing on the pod at all
 
     RUNPOD_POD=fam-voice          # the pod's NAME, not its id
@@ -199,6 +247,22 @@ The line it exists to print is this one:
 
     ! REMOTE_VOICE_URL names https://old-8001.proxy.runpod.net, but the worker
       that is announcing itself is at https://new-8001.proxy.runpod.net
+
+### The nightly schedule finds the pod by name
+
+`.github/workflows/runpod-schedule.yml` starts the pod at 08:00 and stops it
+at 23:00. It used to carry the pod's **id** as a literal, and an id does not
+survive a pod being replaced - so after every migration the schedule acted on
+a machine that no longer existed while the live pod ran unmanaged. That
+happened twice (§112, §116).
+
+It resolves by **name** now, through the same REST API the app asks, from the
+repository variable `RUNPOD_POD` - the same name Render uses for the
+`runpod-pod` rung, so there is one fact about the deployment rather than an
+id copied into two places. `RUNPOD_POD_ID` is still read as a fallback.
+Neither set, or a name matching nothing, **fails the run** and prints every
+pod on the account: a schedule that quietly does nothing looks exactly like
+one that worked.
 
 ### And the image builds itself
 

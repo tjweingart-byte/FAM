@@ -550,3 +550,137 @@ def test_rest_and_graphql_shapes_are_both_understood(monkeypatch):
     assert voice_control._pod_list(as_graphql) == [pod()]
     assert voice_control._pod_list({"pods": [pod()]}) == [pod()]
     assert voice_control._pod_list("nonsense") == []
+
+
+# --- the address with no edge in it (PROBLEMS.md §116) ---------------------
+#
+# The pod proxy is Cloudflare. Cloudflare serves a browser and refuses a
+# server, so `https://<pod>-8002.proxy.runpod.net/health` was 200 in a tab and
+# 403 from Render while the worker answered perfectly on its own port. The
+# ladder's answer is a rung that does not go through anybody's edge.
+
+def tcp_pod(pod_id="abc123", name="fam-voice", private=8001, public=40411,
+            ip="203.0.113.7"):
+    """A pod with the worker's port exposed over TCP as well as HTTP."""
+    entry = dict(pod(pod_id=pod_id, name=name))
+    entry["runtime"] = {"ports": [
+        {"privatePort": private, "publicPort": 40000 + private,
+         "type": "http", "isIpPublic": True},
+        {"privatePort": private, "publicPort": public, "type": "tcp",
+         "isIpPublic": True, "ip": ip},
+    ]}
+    return entry
+
+
+def test_a_direct_address_is_offered_before_the_proxy(monkeypatch):
+    configure(monkeypatch, voice_allow_plain_http=True)
+    found = voice_control._pods_from(pods(tcp_pod()), "fam-voice")
+    assert [c.url for c in found] == ["http://203.0.113.7:40411",
+                                      "https://abc123-8001.proxy.runpod.net"]
+
+
+def test_the_proxy_is_still_offered_when_the_direct_one_is_there(monkeypatch):
+    """Failing over is not falling back: both are the same worker image, so
+    the proxy stays on the ladder rather than being replaced by the direct
+    address. A pod whose TCP port is firewalled must still be reachable."""
+    configure(monkeypatch, voice_allow_plain_http=True)
+    found = voice_control._pods_from(pods(tcp_pod()), "fam-voice")
+    assert any(c.url.endswith("proxy.runpod.net") for c in found)
+
+
+def test_a_direct_address_is_not_used_unless_it_was_allowed(monkeypatch):
+    """Plain HTTP carries the bearer token and the whole script in clear. It
+    is a decision about this deployment, not a default to discover."""
+    configure(monkeypatch, voice_allow_plain_http=False)
+    found = voice_control._pods_from(pods(tcp_pod()), "fam-voice")
+    assert [c.url for c in found] == ["https://abc123-8001.proxy.runpod.net"]
+
+
+def test_a_refused_direct_address_is_said_rather_than_dropped(monkeypatch):
+    """An operator staring at a 403 from the proxy needs to know the other
+    path exists and is switched off - which is the opposite of useful to find
+    out by reading source."""
+    configure(monkeypatch, voice_allow_plain_http=False)
+    voice_control._pods_from(pods(tcp_pod()), "fam-voice")
+    assert any("VOICE_ALLOW_PLAIN_HTTP" in note
+               for note in voice_control._state.pod_notes)
+
+
+def test_the_direct_mapping_is_read_from_rests_shape_too(monkeypatch):
+    """REST answers `portMappings` and `publicIp`; GraphQL answers
+    `runtime.ports`. A provider reshaping a response costs a rung, never the
+    voice - so both are read."""
+    configure(monkeypatch, voice_allow_plain_http=True, voice_worker_port=8002)
+    entry = pod(ports=(8002,))
+    entry["publicIp"] = "203.0.113.9"
+    entry["portMappings"] = {"8002": 41999}
+    found = voice_control._pods_from(pods(entry), "fam-voice")
+    assert found[0].url == "http://203.0.113.9:41999"
+
+
+def test_a_mapping_for_another_port_is_never_borrowed(monkeypatch):
+    """A pod exposing SSH over TCP is not this worker's address."""
+    configure(monkeypatch, voice_allow_plain_http=True, voice_worker_port=8001)
+    entry = tcp_pod(private=22, public=40022)
+    entry["runtime"]["ports"].append(
+        {"privatePort": 8001, "publicPort": 48001, "type": "http",
+         "isIpPublic": True})
+    found = voice_control._pods_from(pods(entry), "fam-voice")
+    assert all(not c.url.startswith("http://203.0.113.7") for c in found)
+
+
+def test_a_private_ip_is_not_an_address_the_app_can_reach(monkeypatch):
+    configure(monkeypatch, voice_allow_plain_http=True)
+    entry = tcp_pod()
+    entry["runtime"]["ports"][1]["isIpPublic"] = False
+    found = voice_control._pods_from(pods(entry), "fam-voice")
+    assert [c.url for c in found] == ["https://abc123-8001.proxy.runpod.net"]
+
+
+# --- a 403 is the edge, and it has to read as the edge ---------------------
+
+class _Response:
+    def __init__(self, status_code, text=""):
+        self.status_code = status_code
+        self.text = text
+
+
+def test_a_403_from_the_proxy_names_the_edge_and_not_the_worker():
+    """The sentence this replaces was `/health returned HTTP 403` plus two
+    hundred characters of Cloudflare markup, in front of a worker that was
+    answering perfectly on its own port. That cost a day."""
+    endpoint = voice_control.Endpoint(
+        transport="http", url="https://abc123-8002.proxy.runpod.net",
+        rung="pinned", why="REMOTE_VOICE_URL")
+    said = voice_control._refused(endpoint, _Response(403, "<html>cf</html>"))
+    assert "proxy edge" in said and "Cloudflare" in said
+    assert "VOICE_ALLOW_PLAIN_HTTP" in said
+
+
+def test_a_401_is_the_worker_refusing_this_apps_token():
+    """A different problem with a different fix, and they have never read
+    differently."""
+    endpoint = voice_control.Endpoint(
+        transport="http", url="https://abc123-8002.proxy.runpod.net",
+        rung="pinned", why="REMOTE_VOICE_URL")
+    said = voice_control._refused(endpoint, _Response(401, "nope"))
+    assert "REMOTE_VOICE_TOKEN" in said and "Cloudflare" not in said
+
+
+def test_a_403_from_an_unproxied_address_does_not_blame_cloudflare():
+    endpoint = voice_control.Endpoint(
+        transport="http", url="http://203.0.113.7:40411", rung="runpod-pod",
+        why="direct")
+    said = voice_control._refused(endpoint, _Response(403, "no"))
+    assert "Cloudflare" not in said and "403" in said
+
+
+def test_both_paths_to_a_worker_call_themselves_the_same_thing():
+    """They did not, and a difference here is a worker that answers a health
+    check and refuses an episode - or the reverse, which is a health page
+    that lies."""
+    import remote_voice
+
+    assert "voice_control.USER_AGENT" in \
+        open(remote_voice.__file__).read()
+    assert voice_control.USER_AGENT.startswith("FAM/")

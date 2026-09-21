@@ -75,6 +75,18 @@ async def run(speak: bool, text: str) -> tuple[int, dict]:
                       f"{settings.remote_voice_sample_rate} Hz expected")
     _say("-", DIM, f"discovery: {'auto' if voice_control.discovery_enabled() else 'off'}"
                    f", contract {voice_control.CONTRACT_VERSION}")
+    # Printed here rather than left to be inferred from a rung that is missing,
+    # because on a pod it decides whether the *only* address a server can use
+    # is on the ladder at all (PROBLEMS.md §116).
+    if voice_control.allow_plain_http():
+        _say("-", DIM, "plain HTTP is allowed, so a pod's direct TCP address "
+                       "may be used")
+    else:
+        _say("-", DIM, "plain HTTP is refused (VOICE_ALLOW_PLAIN_HTTP=0), so "
+                       "only TLS addresses are candidates - on RunPod that is "
+                       "the Cloudflare-fronted proxy and nothing else")
+    findings["plain_http"] = ("allowed" if voice_control.allow_plain_http()
+                              else "refused")
 
     # 2. The ladder. Printed even where a rung is switched off, because "there
     #    is no ladder" and "every rung is unset" are different diagnoses.

@@ -346,10 +346,16 @@ class RemoteChatterboxEngine(TTSEngine):
         if cls._client is None:
             import httpx
 
+            import voice_control
+
             cls._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(config.timeout,
                                       connect=config.connect_timeout),
-                headers={"User-Agent": "FAM/remote-voice"},
+                # The same identity the probe path sends. They used to differ,
+                # and a difference here is a worker that answers a health
+                # check and refuses an episode - or the reverse, which is a
+                # health page that lies (PROBLEMS.md §116).
+                headers={"User-Agent": voice_control.USER_AGENT},
                 limits=httpx.Limits(max_connections=32),
             )
         return cls._client

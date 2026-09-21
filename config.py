@@ -896,6 +896,23 @@ class Settings:
     # it, and a mismatch here is the 404 that reads like a missing route
     # (PROBLEMS.md §78).
     voice_worker_port: int = _env_int("VOICE_WORKER_PORT", 8001)
+    # Whether a worker may be reached over plain HTTP on the open internet.
+    #
+    # Off, because the bearer token and every sentence of the script ride on
+    # that connection in clear. It exists because the alternative turned out
+    # to be worse: RunPod's proxy is the only TLS address a pod has, and that
+    # proxy is Cloudflare, which refuses server-to-server requests it serves
+    # to a browser - so on a pod the choice is a raw TCP port or no voice at
+    # all (PROBLEMS.md §116). Switching it on is a decision about *this*
+    # deployment's threat model, which is why it is a variable somebody sets
+    # rather than a default somebody discovers.
+    #
+    # It widens nothing on its own: a plain address still has to be verified
+    # like any other, and the token still has to match.
+    voice_allow_plain_http: bool = field(
+        default_factory=lambda: os.environ.get(
+            "VOICE_ALLOW_PLAIN_HTTP", "0") not in ("0", "false", "False")
+    )
     # A registration that has not been renewed inside this many seconds stops
     # being offered. Five minutes is five missed heartbeats.
     voice_registry_ttl: float = _env_float("VOICE_REGISTRY_TTL", 300.0)
