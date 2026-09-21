@@ -1964,7 +1964,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # The bank plus whatever the pool still holds - `held` rather than
             # `live`, so a story the variety cap is hiding is still resolvable.
             # What it cannot resolve, it does not offer: see `rank_missed`.
-            picks = rank_missed(profile, shown, mine, used,
+            # `seen` rather than `used`, which were the same thing until
+            # `reserved` existed. They are not any more, and the difference is
+            # a tile on two rails of one page: this rail fills first, so
+            # `used` is empty, and a live story that *was* put in front of
+            # this listener last week qualifies here on its impression - the
+            # one route into this rail that `include_trending=False` does not
+            # close. Trending has already been promised that tile.
+            picks = rank_missed(profile, shown, mine, seen,
                                 candidates=live_held + list(TOPIC_BANK),
                                 limit=MISSED_SECTION_SIZE, now=now,
                                 popular=played_elsewhere, familiar=familiar,

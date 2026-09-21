@@ -95,6 +95,33 @@ def test_the_story_card_is_reachable_from_the_link_it_came_with(client):
     assert "@import" not in card.text
 
 
+def test_a_host_that_is_not_a_host_gets_no_link(client):
+    """`Host` is client-supplied, and one of the places the derived link
+    lands is the `og:url` of a page served with `Cache-Control: public`.
+
+    `html.escape` already stops that becoming markup. This stops it becoming
+    a *different URL*: `evil.com/path?` and `good.com@evil.com` are both
+    legal header values and neither is a host. Refused rather than
+    sanitised - a host this server does not recognise is one it should not
+    be naming in a link at all.
+    """
+    for hostile in ("evil.com/path?x=", "good.com@evil.com", "a b.com",
+                    "evil.com#", "localhost:8000", "fam.local"):
+        body = client.post("/api/share", json={"query": "q", "minutes": 3},
+                           headers={"host": hostile}).json()
+        assert body["public"] is False, f"{hostile!r} produced a link"
+        assert body["url"].startswith("/s/")
+
+
+def test_an_ipv6_host_still_gets_a_link(client):
+    """The shape check must not refuse a real address. A bracketed literal is
+    what a browser sends for one."""
+    body = client.post("/api/share", json={"query": "q", "minutes": 3},
+                       headers={"host": "[2001:db8::1]:8000",
+                                "x-forwarded-proto": "https"}).json()
+    assert body["url"].startswith("https://[2001:db8::1]:8000/s/")
+
+
 def test_health_says_where_a_link_gets_its_host(client):
     """Three states that are indistinguishable from outside, and only one of
     them used to exist."""

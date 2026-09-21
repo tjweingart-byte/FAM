@@ -1796,7 +1796,10 @@ correctly against a question nobody was asking - a share link that was
 correct and relative, a profile page full of true statements drawn for
 somebody with no account, a Trending rail filled from leftovers, a ranker
 blind to the subtags it was given, a seed nobody could take back out, and a
-disk that was declared and never attached), `MYFAM.md` for the browse page and the live story pool that fills
+disk that was declared and never attached; and **§115**, found while getting
+§114 ready to merge - CI had been red on `Main` for nine merges on one
+assertion that was *right*, and the reason nobody saw it is that this
+container has no webfonts and the runner does), `MYFAM.md` for the browse page and the live story pool that fills
 it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,
@@ -1846,6 +1849,22 @@ What is true but not obvious from the code:
   for at least ten merges (§106), always the same assertion, and a red board
   stops being read. `mcp__github__actions_list` on `ci.yml` filtered to `Main`
   answers it in one call.
+  **It happened again** (§115): nine more merges, one assertion, and that note
+  above was not enough on its own. Do the one call before trusting a green
+  local run, and do it *before* starting work rather than at the end - the
+  answer decides whether a failure you hit is yours.
+- **The build container's fonts are part of the test environment, and nothing
+  declares them.** *(§115.)* There is no route to Google Fonts here, so
+  Chromium substitutes a narrower serif; the CI runner loads the real face.
+  A smoke check that measures text therefore passes here and fails there on
+  identical markup - which is how a genuinely clipped headline shipped and
+  stayed. This is §106's "a green `./dev.sh check` is not a green CI" with
+  nothing to do with the interpreter, and §113's "the container's uptime is
+  part of the environment" in a third form. **When a layout assertion
+  disagrees between here and the gate, suspect the environment before the
+  markup, and read what the check says it measured** - `smoke_preview.py`
+  prints the font, the size, the line height and both heights precisely
+  because the answer is not in the source.
 - There is **no API key** in the build container, so writing quality and
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing

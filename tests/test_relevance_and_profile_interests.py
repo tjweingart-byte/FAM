@@ -205,6 +205,40 @@ def test_trending_is_the_last_source_for_what_you_missed(store):
         "the missed rail took the live story ahead of Made for you"
 
 
+def test_a_reserved_trending_tile_is_not_also_on_the_missed_rail(store):
+    """The bug the floor introduced, and the reason the two rails take
+    different exclusion sets.
+
+    `missed` fills first, so the `used` set it was given was empty - which
+    was the same thing as `seen` until `WORLD_FLOOR` reserved tiles before
+    the loop ran. It is not any more. `include_trending=False` closes the
+    live-pool route into this rail but not the impression route, so a story
+    that Trending had already been promised, and that this listener happened
+    to be shown last week, landed on both rails of one page.
+    """
+    now = time.time()
+    finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"),
+             at=now - 200)
+    stories.seed([story("the chip export rules", ("tech", "chips"), 1.0, now),
+                  story("the ai training lawsuit", ("tech", "ai"), 0.95, now),
+                  story("the model weights leak", ("tech", "ai"), 0.9, now),
+                  story("the fab subsidy fight", ("tech", "chips"), 0.85, now),
+                  story("the fed decision", ("money", "macro"), 0.8, now)])
+    # Every live tile was put in front of them, which is what gives the
+    # missed rail a claim on a story Trending has reserved.
+    for tile in T.live_topics(now):
+        store.record(T.Event("me", T.IMPRESSION, tile.id, "", tile.tags,
+                             now - 3 * 86400, section="from_history",
+                             algo=T.ALGO_VERSION))
+
+    feed = T.build_feed(store, "me", now=now)
+    shown = [t["id"] for sec in feed["sections"] for t in sec["topics"]]
+    assert len(shown) == len(set(shown)), (
+        "a tile appears on two rails: "
+        + ", ".join(sorted({i for i in shown if shown.count(i) > 1})))
+    assert len(rail(feed, "world_trending")["topics"]) >= T.WORLD_FLOOR
+
+
 def test_an_impression_still_never_becomes_taste(store):
     """Membership may come from an impression; the profile may not. Letting
     it in is how a feed teaches itself its own preferences."""
@@ -294,6 +328,46 @@ def test_an_empty_pin_means_choose_for_me(tmp_path):
     store = prefs_mod.PreferenceStore(str(tmp_path / "p.db"))
     store.save("u", profile_interests=["tech"])
     assert store.save("u", profile_interests=[]).profile_interests == ()
+
+
+def test_a_database_written_before_the_column_existed_still_opens(tmp_path):
+    """The case a fresh test database never reaches.
+
+    Every deployment that has ever had a listener has preference rows
+    predating `profile_interests`, and `get` selects that column by position.
+    A missing column raises inside a broad `except` that returns the
+    defaults - so the failure would not be a crash, it would be every
+    listener's stored interests and language quietly reading as unset.
+    """
+    import sqlite3
+
+    path = str(tmp_path / "old.db")
+    # The schema as it shipped before this column, with a row in it.
+    conn = sqlite3.connect(path, isolation_level=None)
+    conn.execute("""CREATE TABLE preferences (
+                        user_id      TEXT PRIMARY KEY,
+                        interests    TEXT NOT NULL DEFAULT '',
+                        language     TEXT NOT NULL DEFAULT 'en',
+                        weekly_recap INTEGER NOT NULL DEFAULT 1,
+                        recap_week   TEXT NOT NULL DEFAULT '',
+                        intro_done   INTEGER NOT NULL DEFAULT 0,
+                        updated      REAL NOT NULL,
+                        hidden_interests TEXT NOT NULL DEFAULT '',
+                        topics TEXT NOT NULL DEFAULT '')""")
+    conn.execute("INSERT INTO preferences (user_id, interests, language,"
+                 " intro_done, updated, hidden_interests, topics)"
+                 " VALUES ('old', 'tech,sports', 'en', 1, 0, 'sports', 'Formula 1')")
+    conn.close()
+
+    store = prefs_mod.PreferenceStore(path)
+    held = store.get("old")
+    assert held.interests == ("tech", "sports"), "an existing row read as empty"
+    assert held.hidden_interests == ("sports",)
+    assert held.topics == ("Formula 1",)
+    # Absent means "choose for me", which is what every pre-existing row means.
+    assert held.profile_interests == ()
+    # And it is writable afterwards, which is the other half of a migration.
+    assert store.save("old", profile_interests=["tech"]).profile_interests == ("tech",)
 
 
 def test_the_two_caps_agree(tmp_path):

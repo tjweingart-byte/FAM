@@ -15,6 +15,7 @@ import hmac
 import os
 import json
 import logging
+import re
 import sqlite3
 import time
 from contextlib import asynccontextmanager
@@ -2126,6 +2127,21 @@ async def saved_folder_delete(folder_id: str, request: Request) -> dict:
 #: whatever they happen to be running.
 _PRIVATE_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1")
 
+#: What a host is allowed to look like: a hostname or an IP, optionally with a
+#: port, or a bracketed IPv6 literal.
+#:
+#: The `Host` header is client-supplied, and although a link built from it is
+#: only ever handed back to the caller that sent it, one of the places it lands
+#: is the `og:url` of `/s/<id>` - a server-rendered page served with
+#: `Cache-Control: public`. `html.escape` already stops that becoming markup;
+#: this stops it becoming a *different URL*. `evil.com/path?` and
+#: `good.com@evil.com` are both legal header values and neither is a host.
+#:
+#: Refusing rather than sanitising, because a host this server does not
+#: recognise is one it should not be naming in a link at all - the same answer
+#: `_PRIVATE_HOSTS` gives, for the same reason.
+_HOST_SHAPE = re.compile(r"^(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$")
+
 
 def _public_base(request: Request | None = None) -> str:
     """Where this server is reachable from the internet, or "".
@@ -2173,7 +2189,10 @@ def _public_base(request: Request | None = None) -> str:
             or request.url.netloc)
     if proto not in ("http", "https") or not host:
         return ""
-    bare = host.split(":")[0].lower()
+    if not _HOST_SHAPE.match(host):
+        return ""
+    bare = host.rsplit(":", 1)[0].lower() if not host.startswith("[") else host
+    bare = bare.split("]")[0].lstrip("[") if bare.startswith("[") else bare
     if bare in _PRIVATE_HOSTS or bare.endswith(".local"):
         return ""
     return f"{proto}://{host}"

@@ -934,16 +934,32 @@
      real phone, where they had fitted in the preview. A fixed height rather
      than a min, because the grid equalises rows anyway - without it the
      longest title sets the height of all four. */
+  /* 80px, and the clamp below is four lines rather than three.
+     It was 68px and three, which held every bank title and *not* the longest
+     thing a `<<NEXT:>>` follow-up can be - the prompt asks for six to twelve
+     words, and twelve of them wrap to four lines in Fraunces at this size in
+     a 109px column. So the last line was cut mid-word on the one card type
+     whose text the bank does not control.
+     It survived because the check that measures this renders in whatever
+     font the machine has: a build container with no route to Google Fonts
+     falls back to a narrower serif and fits three lines, while CI loads the
+     real face and does not. Same markup, two answers - which is why the
+     check prints what it measured, and why this number is derived below
+     rather than eyeballed. */
   .gd-card{ position:relative; overflow:hidden; padding:7px 11px 8px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border); cursor:pointer;
-    display:flex; flex-direction:column; justify-content:space-between; height:68px; }
+    display:flex; flex-direction:column; justify-content:space-between; height:80px; }
   .gd-card:active{ transform:scale(0.99); }
   /* flex:none matters. Without it the column shrinks the title below the
-     three lines the clamp allows, so text was cut with room still in the
-     card - which is what the clamp was supposed to prevent. */
+     lines the clamp allows, so text was cut with room still in the card -
+     which is what the clamp was supposed to prevent.
+     The arithmetic the 80px above comes from: four lines at 13.125px is
+     52.5, plus this 2px margin, plus the meta line at ~9.4px, plus 15px of
+     card padding - 79.4, rounded up. Anything that changes the font size,
+     the line height or the clamp has to redo it. */
   .gd-card-title{ font-family:'Fraunces', serif; font-weight:500; font-size:10.5px;
     line-height:1.25; color:var(--text); margin-bottom:2px; flex:none;
-    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
   .gd-card-meta{ font-family:'JetBrains Mono', monospace; font-size:7.5px; letter-spacing:0.06em;
     text-transform:uppercase; color:var(--copper); }
   .gd-card.resume .gd-card-meta{ color:var(--text-muted); }
@@ -4618,9 +4634,14 @@
       toast("This needs an account");
       return;
     }
-    savePreferences({ profile_interests: chosen });
     // Drawn immediately from what was chosen, rather than waiting for the
     // round trip: the listener is looking at the row they just changed.
+    //
+    // The re-read is *chained* off the write rather than fired beside it.
+    // Unchained, `loadProfile` raced the POST and usually won - so the row
+    // was drawn correctly from the choice, then replaced a moment later by
+    // the server's pre-save answer, which reads as the app discarding what
+    // somebody just did.
     if(profileNow){
       profileNow.interests_pinned = chosen;
       profileNow.interests_source = chosen.length ? "pinned" : "top";
@@ -4633,8 +4654,10 @@
       }
       renderProfile(profileNow);
     }
-    // And re-read, because the automatic list is the server's to compute.
-    loadProfile();
+    savePreferences({ profile_interests: chosen })
+      // The automatic list is the server's to compute, so a cleared pin has
+      // to come back from it rather than be guessed at here.
+      .then(function(){ loadProfile(); });
   }
 
   // ---------------- Length dropdown ----------------
@@ -6432,8 +6455,11 @@
         // it. Without this a cold open that lands on Profile before
         // `/api/auth/me` replies leaves a signed-in listener looking at the
         // gate, and nothing would ever ask again.
-        if(was !== !!d.authenticated
-           && document.getElementById("screen-profile").classList.contains("active")){
+        // Guarded, because a throw here would be swallowed by the catch
+        // below and `refreshAuth` would quietly resolve with the old answer -
+        // which is the one thing this function must never do.
+        var here = document.getElementById("screen-profile");
+        if(was !== !!d.authenticated && here && here.classList.contains("active")){
           loadProfile();
         }
         return d;
@@ -7711,9 +7737,16 @@
         + '</div>';
     }
 
-    // Their interests, as pills - the ones they have not hidden. Read from
-    // `interest_labels`, which speaks in the eight words a listener was
-    // actually offered rather than in ranking subtags.
+    // Their interests, as pills: what they pinned, or failing that what they
+    // chose and have not hidden. Read from `interest_labels` rather than
+    // from ids, because the row may now hold a named subject ("Formula 1")
+    // beside a facet, and only the server knows which is which.
+    //
+    // Escaped, and that matters more than it used to: a pin may be a subject
+    // somebody typed, so this is free text on a screen a stranger is looking
+    // at - the same class of thing as a display name, and handled the same
+    // way. What it is never is an inference about what they have played;
+    // `/api/person` refuses to publish that, and says why.
     var labels = pub.interest_labels || [];
     if(labels.length){
       html += '<div class="pf-tags">' + labels.map(function(t){

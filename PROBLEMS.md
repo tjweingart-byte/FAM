@@ -8441,3 +8441,62 @@ reads, which is how this one got missed.
 `python tools/storage_doctor.py`, locally or `--url` against the deployment,
 asks the same question on demand and prints the Render steps beside the
 answer.
+
+## 115. The board had been red for nine merges, and the cause was a font
+
+Found while getting §114 ready to merge rather than by looking for it, which
+is the whole point of the entry: **CI had failed on every push to `Main` for
+at least nine merges**, always on the same assertion, and nobody had looked.
+§106 wrote that exact sentence down about an earlier stretch of red - "a red
+board stops being read" - and it happened again, which says the note was not
+enough on its own.
+
+The assertion was `Go Deeper titles are not cut off`, and it was **right**.
+The longest thing a `<<NEXT:>>` follow-up can be - the prompt asks for six to
+twelve words - wraps to four lines in Fraunces at 10.5px in the 109px column
+a Go Deeper card gives it. The card was 68px with `-webkit-line-clamp: 3`, so
+the fourth line was cut mid-word, on the one card type whose text the topic
+bank does not control.
+
+### Why it survived, which is the part worth keeping
+
+**The check renders in whatever font the machine has.** This build container
+has no route to Google Fonts, so Chromium falls back to a narrower generic
+serif and the title fits three lines; the CI runner loads the real face and it
+does not. Same markup, same viewport, same browser, two answers - and the half
+that was wrong was the half a developer looks at:
+
+    local:  scrollHeight 39, clientHeight 39   ok
+    CI:     scrollHeight 53, clientHeight 39   FAIL
+
+So `./dev.sh check` was green on a genuinely clipped headline. That is §106's
+finding arriving through a second door: the first time the gap was the Python
+version, and this time it has nothing to do with the interpreter at all. **The
+build container's installed fonts are part of the test environment, and
+nothing declares them** - exactly as §113 found about its uptime.
+
+The check itself was already built for this and is why the cause took minutes
+rather than a session: it prints what it *measured* - the font family, the
+size, the line height, the two heights, and whether webfonts loaded - rather
+than only which titles lost. A check that had asserted and said nothing would
+have read as a flake on a machine where it passes.
+
+### The fix, and why the number is written down
+
+80px and a four-line clamp. The arithmetic is in the CSS beside it: four lines
+at 13.125px is 52.5, plus the title's 2px margin, plus the meta line at
+~9.4px, plus 15px of card padding - 79.4, rounded up. Verified by forcing a
+wider face into the same card and confirming the meta line still lands inside
+it, because the failure mode of getting this wrong is not a clipped title, it
+is a clipped *timestamp* under an uncut one.
+
+Written down rather than eyeballed because the next person to change the font
+size, the line height or the clamp has to redo it, and because the check that
+would catch them getting it wrong only fires on a machine with the font.
+
+**What is still open**: nothing declares the fonts, so the next
+font-dependent assertion can diverge the same way. The cheap answer is for
+the check to fail loudly when `document.fonts.check` says the real face is
+absent - measuring layout in a substituted font is not a weaker version of
+the test, it is a different test - but that is a change to the harness rather
+than to the app, and it is worth doing when somebody is next in that file.
