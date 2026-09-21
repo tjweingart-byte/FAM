@@ -521,7 +521,7 @@ def test_health_says_where_the_next_episode_would_actually_go(monkeypatch):
 
 
 def test_a_pod_that_is_stopped_is_named_rather_than_silently_skipped(monkeypatch):
-    """Nothing stops this pod on purpose any more (§117), so a pod that is
+    """Nothing stops this pod on purpose any more (§118), so a pod that is
     found and not running is always something to act on - RunPod evicted it,
     the account ran out, or somebody stopped it by hand. An empty rung that
     said nothing would hide all three."""
@@ -553,7 +553,7 @@ def test_rest_and_graphql_shapes_are_both_understood(monkeypatch):
     assert voice_control._pod_list("nonsense") == []
 
 
-# --- the address with no edge in it (PROBLEMS.md §116) ---------------------
+# --- the address with no edge in it (PROBLEMS.md §117) ---------------------
 #
 # The pod proxy is Cloudflare. Cloudflare serves a browser and refuses a
 # server, so `https://<pod>-8002.proxy.runpod.net/health` was 200 in a tab and

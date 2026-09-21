@@ -7,11 +7,41 @@ Five rails, two inventories, and one rule that decides the shape of all of it:
 
 | # | rail | question it answers | inventory | comes from |
 |---|---|---|---|---|
-| 1 | **Made for you** | what would *you* want today | live stories **and** the bank | `rank_from_history` |
+| 1 | **Made for you** / **Start here** | what would *you* want today | live stories **and** the bank, or the startup set on a cold start | `rank_from_history` / `rank_startup` |
 | 2 | **Trending** | what is the world on | live stories only, `WORLD_FLOOR` reserved | `stories.pool()` |
 | 3 | **What you missed last week** | what went past you | offered to you, played across FAM, or trending | `rank_missed` |
 | 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays, cached first | `rank_most_played` |
 | 5 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
+
+**Rail 1 has two names, because on a cold start it is not personal** (§116).
+A listener with no account, no chosen interests and nothing played scores zero
+against every tile, so `RELEVANCE_FLOOR` emptied the one rail that matters
+most — the whole page was one crowd row and four explanations. It is filled
+from a third inventory now: `startup.STARTUP_TOPICS`, **one time-anchored
+question per facet**, ordered by what FAM's listeners actually play. The
+heading becomes **Start here**, because "Made for you" is a claim and the
+ordering is real but is not this listener's; `taste_source` on `/api/myfam`
+says which of the two drew it, and `startup_order` says whether even the
+prior was measured or declared.
+
+Three things make that affordable and honest, and they are the whole design:
+
+* **The freshness comes from the tap, not from a provider.** Every startup
+  query asks about now, and `SEARCH_MODE=always` means every episode is
+  researched — so the tile costs nothing at page load, needs no live source
+  configured, and `research.NoEvidence` refuses rather than writing a stale
+  one from memory.
+* **Nothing on it claims a fact about the world.** A tile is written before
+  anything is retrieved, so it carries a question and never a result — §88
+  and §102 applied one layer earlier. A test bans results, outcomes and even
+  digits from the titles and hooks.
+* **It takes itself down.** `cold` is `not profile`, derived rather than
+  stored, so one play, one search or one chosen interest retires the set for
+  that listener for good. And plays of it never feed `popular_facets`, or the
+  prior would spend the deployment confirming its own opening guess — the
+  same loop the impression rule already forbids, through a different door.
+
+`startup.py` holds the editorial reasoning for why those eight questions.
 
 A sixth ranking, `rank_might_like`, is computed and has no rail. It serves the
 Explore New screen and still takes its turn in `FILL_ORDER`, so the tiles it
@@ -117,15 +147,23 @@ leftovers after every other rail has chosen, which makes the live pool the
 
 `MISSED_SECTION_SIZE` is 8 and `MISSED_WINDOW` is a week.
 
-## The two inventories
+## The three inventories
 
     TOPIC_BANK        ~28 evergreen topics, hand-written, true in any week
     stories.pool()    live candidates built from today's data, and expiring
+    STARTUP_TOPICS    8 time-anchored questions, one per facet, for a cold start
 
 The bank is what a browse page has when nothing has happened; the pool is what
-it has when something has. Neither holds audio and neither holds a script.
+it has when something has. The startup set is what it has when nothing is
+known about *the listener*. None holds audio and none holds a script.
 
-**Both are shared.** Every listener sees the same inventory and a different
+The third is the smallest and the narrowest: it fills one rail, for one kind
+of listener, and `build_feed` stops reaching for it the moment there is any
+taste at all. It is deliberately **not** part of `TOPIC_BANK` — a question
+written for a first impression has no business in the mix picker or in "What
+FAM can't stop listening to", and a test asserts the two sets do not overlap.
+
+**All are shared.** Every listener sees the same inventory and a different
 ordering of it. That is CLAUDE.md's settled rule for the browse surfaces and
 it is the whole cost design: two people who tap the same tile share one script
 through `cache.py`, so the second tap is free and instant. A per-listener
@@ -378,6 +416,17 @@ notice about it is what it does *not* say. A listener who was not here last
 week was offered nothing; one who played everything missed nothing. The rail
 cannot tell those apart from where it stands, so its sentence has to be true of
 both and claims neither: *"Nothing went past you this week."*
+
+**Made for you has no empty sentence on a cold start any more, and that is a
+narrowing of this section rather than an exception to it** (§116). It had one —
+*"Your first episode starts this one off."* — which was true and was the wrong
+kind of true: nothing about that listener made the rail unfillable, only the
+absence of a signal we had never asked them for. The rails that genuinely
+cannot be filled without inventing something still are empty and still say
+why: "What your friends are listening to" needs a graph, "What you missed last
+week" needs a week of impressions, and Trending needs a live source. Those
+three sentences are unchanged, and a test asserts those rails stay empty for a
+brand-new listener rather than quietly borrowing the startup set.
 
 There is a sixth pool sentence, and it belongs to the **rail** rather than the pool.
 Made for you chooses first, so on a thin day it can take everything and leave

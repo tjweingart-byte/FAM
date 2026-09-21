@@ -117,7 +117,7 @@ def test_what_a_worker_says_about_itself_reaches_the_report(store):
     assert "token" not in shown
 
 
-# --- the one address a pod has that no proxy fronts (§116) ----------------
+# --- the one address a pod has that no proxy fronts (§117) ----------------
 
 def test_a_direct_pod_address_is_accepted_when_it_was_allowed(store, monkeypatch):
     """RunPod's proxy is the only TLS address a pod has, and that proxy is

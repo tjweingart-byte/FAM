@@ -903,7 +903,7 @@ class Settings:
     # to be worse: RunPod's proxy is the only TLS address a pod has, and that
     # proxy is Cloudflare, which refuses server-to-server requests it serves
     # to a browser - so on a pod the choice is a raw TCP port or no voice at
-    # all (PROBLEMS.md §116). Switching it on is a decision about *this*
+    # all (PROBLEMS.md §117). Switching it on is a decision about *this*
     # deployment's threat model, which is why it is a variable somebody sets
     # rather than a default somebody discovers.
     #

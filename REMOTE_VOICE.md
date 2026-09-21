@@ -177,7 +177,7 @@ reach it.** `https://<pod>-<port>.proxy.runpod.net` is fronted by Cloudflare.
 It serves a person opening it in a tab and it **refuses server-to-server
 requests from datacentre ranges with a 403**, so the same `/health` can be
 200 in your browser and 403 from Render with nothing wrong on either machine
-(PROBLEMS.md §116). The app says so in as many words now rather than
+(PROBLEMS.md §117). The app says so in as many words now rather than
 reporting the worker's own 403:
 
     HTTP 403 from https://<pod>-8002.proxy.runpod.net. This is the proxy edge
@@ -227,7 +227,7 @@ FAM asks RunPod where that pod is and builds the proxy URL itself. Matched on
 name because a pod that is destroyed and recreated from the same template keeps
 its name and loses its id - and a pod that is *stopped* is reported as such
 rather than skipped in silence. That note used to disambiguate a schedule from
-a fault; since the schedule was removed (§117) it does something simpler and
+a fault; since the schedule was removed (§118) it does something simpler and
 more useful: nothing stops this pod on purpose any more, so a pod found and
 not running is **always** something to act on.
 
@@ -252,7 +252,7 @@ The line it exists to print is this one:
 
 There was one - `.github/workflows/runpod-schedule.yml`, starting the pod at
 08:00 and stopping it at 23:00 - and it is **deleted**, at the owner's
-direction (§117). Nothing in this repository now starts, stops or resizes a
+direction (§118). Nothing in this repository now starts, stops or resizes a
 pod. The voice is expected to be up at all times, and that is a decision
 about cost, not an accident: a GPU billed by the hour is billed for the
 hours nobody is listening too.
@@ -397,7 +397,7 @@ WellSaid silently became the default voice on every machine without Piper.
 
 **Nothing here starts, stops, resizes or pays for a pod.** `RUNPOD_PRODUCTION.md`
 said that and it is now true without exception: the one workflow that started
-and stopped one is deleted (§117), and the pod runs continuously. What *is*
+and stopped one is deleted (§118), and the pod runs continuously. What *is*
 automatic is the **address**: FAM finds the worker wherever RunPod put it,
 verifies it before using it, and switches when it stops answering. Which
 machine exists, and what it costs, is still a decision somebody makes - and

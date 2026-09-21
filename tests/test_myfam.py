@@ -178,11 +178,30 @@ def test_no_topic_appears_in_two_sections(store):
 
 
 def test_a_new_listener_gets_an_honest_page_not_a_fake_one(store):
+    """Honest, and no longer empty where it does not have to be.
+
+    `from_history` used to be in this list, and it was the right assertion
+    against the right rule for as long as the only way to fill that rail was
+    to invent a taste nobody had. It is filled from the **startup set** now -
+    eight time-anchored questions, one per facet, ordered by what FAM's
+    listeners actually play (`startup.py`) - which is a real signal that is
+    simply not *this* listener's, so the rail is real and the heading stops
+    saying "Made for you". `taste_source` is what says which happened.
+
+    The rule the test was protecting is unchanged and is still pinned below:
+    a rail that would have to make something up is empty and says why.
+    """
     feed = T.build_feed(store, "brand-new")
     by_key = {s["key"]: s for s in feed["sections"]}
     assert by_key["most_played"]["topics"], "the crowd row works with no history at all"
     assert not feed["personalised"]
-    for key in ("followers", "from_history"):
+    assert feed["taste_source"] == "startup"
+    # Filled, and openly not from this listener's taste.
+    assert by_key["from_history"]["topics"]
+    assert not by_key["from_history"]["empty_reason"]
+    # And the rails that could only be filled by inventing something are not.
+    for key in ("followers", "missed"):
+        assert not by_key[key]["topics"], f"{key} invented something"
         assert by_key[key]["empty_reason"], f"{key} must say why it is empty"
 
 

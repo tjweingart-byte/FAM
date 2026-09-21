@@ -178,7 +178,7 @@ def test_a_typo_falls_back_to_the_platform_rather_than_to_a_guess():
     assert mode == "http" and "RUNPOD_POD_ID" in why
 
 
-# --- the address that has no proxy in it (§116) ----------------------------
+# --- the address that has no proxy in it (§117) ----------------------------
 
 def test_a_pod_with_a_tcp_mapping_announces_that_rather_than_the_proxy(monkeypatch):
     """The proxy is Cloudflare, and Cloudflare serves a browser and refuses a
@@ -208,7 +208,7 @@ def test_an_explicit_address_still_wins_over_a_tcp_mapping(monkeypatch):
     assert register.public_url() == "https://voice.example"
 
 
-# --- the port it is actually on, not the one in PORT (§116) ----------------
+# --- the port it is actually on, not the one in PORT (§117) ----------------
 
 def test_the_port_comes_from_the_command_line_when_there_is_one(monkeypatch):
     """This project's pod runs the app on PORT and the voice beside it. The

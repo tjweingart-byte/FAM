@@ -61,7 +61,7 @@ DEFAULT_INTERVAL = 60.0
 def public_url() -> str:
     """This worker's address as the internet sees it, or "" if unknowable.
 
-    Three sources, in this order, and the middle one is the change §116 was
+    Three sources, in this order, and the middle one is the change §117 was
     paid for:
 
     1. **`PUBLIC_WORKER_URL`**, because a deployment that is not RunPod knows
@@ -119,7 +119,7 @@ def port() -> int:
     runs more than the worker. This project's pod runs the app on `PORT` and
     the voice beside it on another port, so the worker announced the *app's*
     address and the app then health-checked a web service looking for a voice
-    (PROBLEMS.md §116). That is §78 one layer up: a port that is written down
+    (PROBLEMS.md §117). That is §78 one layer up: a port that is written down
     in one place and used in another.
 
     So it is read from what the process was actually told, in the order that

@@ -150,7 +150,7 @@ def clean_url(raw: str) -> str:
             "bearer token and the whole script in clear. A pod's direct TCP "
             "port has no certificate and is the one address that does not go "
             "through a proxy edge, so VOICE_ALLOW_PLAIN_HTTP=1 permits it "
-            "deliberately - see REMOTE_VOICE.md and PROBLEMS.md §116")
+            "deliberately - see REMOTE_VOICE.md and PROBLEMS.md §117")
     if parsed.path not in ("", "/") or parsed.query:
         raise RegistryError(f"{url} has a path; register the worker's origin")
     return f"{parsed.scheme}://{parsed.netloc}"

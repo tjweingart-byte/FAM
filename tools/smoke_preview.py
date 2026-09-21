@@ -240,13 +240,18 @@ def main() -> int:
                 "no rail offers a way through to its full surface"
 
         def live_story_tiles_show_their_angle():
-            """A live tile says what it is about; a bank tile says why it is
-            there.
+            """A live tile says what it is about, and now so does a bank one.
 
             The angle is the whole of what the story pool buys a listener -
             "two cables in the Red Sea were reported damaged this week" rather
             than "because of what you have played" - and it is one `if` in
-            `seedWhy` away from never being drawn.
+            `seedHook` away from never being drawn.
+
+            The second half of that sentence used to be the bank's behaviour
+            and is now nobody's: a card's second line is the *episode's* hook
+            on every tile, from the story's angle or the bank's own, and
+            `no_card_describes_the_feed_instead_of_the_episode` below is what
+            holds the rail reasons out of it.
 
             **The two preview builds are honestly in different states here**,
             and the check reads which rather than assuming one. The fixture
@@ -276,7 +281,7 @@ def main() -> int:
             if expected:
                 missing = [a for a in expected if a not in drawn]
                 assert not missing, (
-                    "a live story's angle never reached its card - seedWhy "
+                    "a live story's angle never reached its card - seedHook "
                     f"stopped reading it: {missing[:2]}")
                 return
             # No pool on this build. Then the rail that is *only* the pool has
@@ -291,6 +296,66 @@ def main() -> int:
                            or "nothing is happening" in e.lower()
                            for e in empties), (
                 f"an empty rail made a claim about the world: {empties}")
+
+        def no_card_describes_the_feed_instead_of_the_episode():
+            """The line under a tile's title is about the episode.
+
+            It used to be about the *rail* - "Because of what you have
+            played", "Playing across FAM now" - which answers "why is this
+            card here" when the listener is asking "is this worth three
+            minutes". Read off the rendered cards rather than off `seedHook`,
+            because §111's lesson is that a control can be on screen and
+            have quietly stopped doing anything.
+            """
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector(".feed-rail .seed-card", timeout=10000,
+                                   state="attached")
+            lines = page.eval_on_selector_all(
+                "#myfamFeed .seed-card .seed-why",
+                "e => e.map(x => x.textContent.trim())")
+            assert lines, "no card had a second line at all"
+            assert all(lines), f"a card's second line was blank: {lines}"
+            for reason in ("Because of what you have played",
+                           "Playing across FAM now"):
+                assert reason not in lines, (
+                    f"a card still describes the feed: {reason!r}")
+            # And each line is the tile's own hook, not a constant.
+            hooks = page.evaluate(
+                """() => Object.keys(myFamTopics).map(function(k){
+                     var t = myFamTopics[k];
+                     return t.angle || t.subtitle || "";
+                   }).filter(function(h){ return h; })""")
+            assert hooks, "no tile carried a hook to draw"
+            drawn = [h for h in hooks if h in lines]
+            assert drawn, f"no tile's own hook reached a card: {hooks[:2]}"
+
+        def a_cold_start_rail_does_not_claim_to_be_personal():
+            """"Made for you" is a claim, and a stranger has not earned it.
+
+            A fresh viewer of this page has no account, no chosen interests
+            and nothing played, so the first rail is ranked from what FAM's
+            listeners play - real, and not theirs. The tiles stay; the
+            heading stops claiming they were chosen for somebody the app has
+            never met. Checked against whichever state this build is in,
+            because the fixture build ships a feed and the live build starts
+            empty - neither branch is a skip.
+            """
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector(".feed-rail .seed-card", timeout=10000,
+                                   state="attached")
+            source = page.evaluate("() => myfamTasteSource")
+            heading = page.eval_on_selector(
+                "#myfamFeed .feed-section .feed-title", "e => e.textContent")
+            if source == "startup":
+                assert "Start here" in heading, heading
+                assert "Made for you" not in heading, heading
+                # The point of the exercise: it is filled, not explained away.
+                cards = page.eval_on_selector_all(
+                    "#myfamFeed .feed-section:first-child .seed-card"
+                    " .seed-card-title", "e => e.length")
+                assert cards >= 4, f"a cold start's first rail had {cards} tiles"
+            else:
+                assert "Made for you" in heading, heading
 
         def go_deeper_titles_fit():
             """A clipped title is invisible to every other check.
@@ -2251,6 +2316,10 @@ def main() -> int:
         check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
+        check("a card describes the episode, not the feed",
+              no_card_describes_the_feed_instead_of_the_episode)
+        check("a cold start's rail does not claim to be personal",
+              a_cold_start_rail_does_not_claim_to_be_personal)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
         check("Go Deeper fills for a new listener", go_deeper_fills_for_a_new_listener)
         check("A file can be attached to a search", attachments)

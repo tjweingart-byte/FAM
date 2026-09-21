@@ -77,7 +77,7 @@ async def run(speak: bool, text: str) -> tuple[int, dict]:
                    f", contract {voice_control.CONTRACT_VERSION}")
     # Printed here rather than left to be inferred from a rung that is missing,
     # because on a pod it decides whether the *only* address a server can use
-    # is on the ladder at all (PROBLEMS.md §116).
+    # is on the ladder at all (PROBLEMS.md §117).
     if voice_control.allow_plain_http():
         _say("-", DIM, "plain HTTP is allowed, so a pod's direct TCP address "
                        "may be used")
@@ -194,7 +194,7 @@ def _pod_notes() -> None:
     """What RunPod said about pods that did not become candidates.
 
     Usually the whole diagnosis, and unambiguous since the nightly schedule
-    was removed (§117): nothing stops this pod on purpose any more, so a pod
+    was removed (§118): nothing stops this pod on purpose any more, so a pod
     that is found and not running is always something to act on rather than a
     clock somebody set.
     """

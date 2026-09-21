@@ -90,7 +90,7 @@ RUNGS = ("pinned", "registered", "runpod-pod", "serverless")
 #: invisible: `remote_voice` sent `FAM/remote-voice` and this module sent
 #: whatever httpx defaults to, so a worker reachable by one could be refused to
 #: the other by anything in between that reads a User-Agent - and RunPod's pod
-#: proxy is Cloudflare, which does (PROBLEMS.md §116). A probe that succeeds
+#: proxy is Cloudflare, which does (PROBLEMS.md §117). A probe that succeeds
 #: where the synth fails, or the reverse, is the most expensive shape of bug
 #: this seam has, because it makes the health page lie.
 USER_AGENT = "FAM/voice (+https://github.com/tjweingart-byte/FAM)"
@@ -183,7 +183,7 @@ class _State:
     switches: list = field(default_factory=list)
     # What was true about the pods last time RunPod was asked, when it was not
     # a candidate. Usually the whole diagnosis - and sharper since the nightly
-    # schedule was removed (§117): nothing stops this pod on purpose any more,
+    # schedule was removed (§118): nothing stops this pod on purpose any more,
     # so "EXITED" is now unambiguously a fault rather than a clock.
     pod_notes: list = field(default_factory=list)
     last_error: str = ""
@@ -494,7 +494,7 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
     A pod that is found and *not running* is recorded rather than dropped
     silently - and that note says more than it used to. It was written when a
     schedule stopped this pod every night, so "EXITED" was ambiguous between a
-    clock and a fault. Nothing stops it on purpose any more (§117), so a pod
+    clock and a fault. Nothing stops it on purpose any more (§118), so a pod
     that is found and not running is **always** something to act on: RunPod
     evicted it, the account ran out, or somebody stopped it by hand. An empty
     rung that said nothing would hide all three.
@@ -515,7 +515,7 @@ def _pods_from(body: Any, selector: str) -> list[Endpoint]:
         # The direct address first, when the pod has one and this deployment
         # permits it. It is the same worker either way; what differs is
         # whether Cloudflare is in the path, and the proxy's edge is what
-        # refuses a server while serving a browser (PROBLEMS.md §116).
+        # refuses a server while serving a browser (PROBLEMS.md §117).
         direct = _direct_endpoint(pod, name or pod_id)
         if direct is not None:
             out.append(direct)
@@ -757,7 +757,7 @@ def _refused(endpoint: Endpoint, response) -> str:
     """A 401 or a 403 from a worker's address, and which of two things it is.
 
     They are not the same problem and they have never read differently, which
-    is most of what PROBLEMS.md §116 cost. A **401** is the worker: it has a
+    is most of what PROBLEMS.md §117 cost. A **401** is the worker: it has a
     `REMOTE_VOICE_TOKEN` and this app sent the wrong one or none. A **403** on
     a proxied address is almost never the worker at all - RunPod fronts a pod's
     HTTP port with Cloudflare, and Cloudflare refuses server-to-server requests
@@ -1032,7 +1032,7 @@ def report() -> dict:
         # Reported because it decides whether a pod's *direct* address is a
         # rung at all, and because a deployment with it off and a proxy that
         # is refusing looks identical from outside to one that simply cannot
-        # find a worker (§116). Named for the state, not the variable.
+        # find a worker (§117). Named for the state, not the variable.
         "plain_http": "allowed" if allow_plain_http() else "refused",
         "held": _state.held.as_dict() if _state.held else None,
         "verified": _state.verdict.as_dict() if _state.verdict else None,

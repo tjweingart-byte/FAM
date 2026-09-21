@@ -141,11 +141,31 @@ def test_the_feed_source_warms_the_rails_the_page_actually_draws(store):
     assert all(c.listener == "listener-1" for c in candidates)
 
 
-def test_the_feed_source_warms_nothing_for_a_listener_it_knows_nothing_about(store):
-    """Not a gap. This is the *personal* source, and guessing for somebody
-    with no history is paying for a random tile - `TrendingSource` already
-    covers the shared case, and it covers it for everybody at once."""
-    assert prefetch_sources.FeedSource(store).candidates("brand-new") == []
+def test_the_feed_source_warms_the_startup_set_for_a_listener_it_knows_nothing_about(store):
+    """Reversed, and by the source ordering's own cost argument.
+
+    This used to warm nothing, on the reasoning that guessing for somebody
+    with no history is paying for a random tile. That reasoning was right
+    while their "Made for you" rail was ranked from an empty taste. It is
+    the startup set now (`startup.py`), and the startup set is the *most*
+    shareable inventory in the app: eight tiles, identical for every
+    cold-start listener in the deployment, so one warmed brief serves all of
+    them - which is exactly what makes `TrendingSource` worth asking first.
+
+    It is also the highest-value brief there is. A cold start's first rail is
+    the first thing anybody ever taps, and `startup.py`'s questions are
+    resolved at the tap, so a warmed brief is the whole of what §105 says
+    warming buys.
+    """
+    candidates = prefetch_sources.FeedSource(store).candidates("brand-new")
+    assert candidates, "the first rail a new listener sees is worth warming"
+    ids = {c.topic_id for c in candidates}
+    assert ids <= set(topics_mod.STARTUP_BY_ID), ids
+    # Shared, which is the whole reason it is allowed: nothing here is keyed
+    # on who asked, so the second cold-start listener's warm is a skip.
+    assert all(c.query for c in candidates)
+    other = prefetch_sources.FeedSource(store).candidates("someone-else")
+    assert [c.query for c in other] == [c.query for c in candidates]
 
 
 def test_the_feed_source_warms_no_rail_the_page_does_not_draw(store):

@@ -130,7 +130,7 @@ async def _announce() -> None:
                     for r in app.routes if getattr(r, "methods", None))
     # `register.port()` rather than `PORT`, because on a container running more
     # than the worker those are different numbers and this line is the one an
-    # operator reads to decide whether the address is right (PROBLEMS.md §116).
+    # operator reads to decide whether the address is right (PROBLEMS.md §117).
     log.info("serving on port %s: %s", register.port(), ", ".join(routes))
     log.info("this worker's address, as it will announce it: %s",
              register.public_url() or "unknown (set PUBLIC_WORKER_URL)")

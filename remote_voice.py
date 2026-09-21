@@ -354,7 +354,7 @@ class RemoteChatterboxEngine(TTSEngine):
                 # The same identity the probe path sends. They used to differ,
                 # and a difference here is a worker that answers a health
                 # check and refuses an episode - or the reverse, which is a
-                # health page that lies (PROBLEMS.md §116).
+                # health page that lies (PROBLEMS.md §117).
                 headers={"User-Agent": voice_control.USER_AGENT},
                 limits=httpx.Limits(max_connections=32),
             )
