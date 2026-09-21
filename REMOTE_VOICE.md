@@ -357,6 +357,36 @@ separately.** `configured: true, reachable: unknown` means nothing has ever
 actually spoken; `reachable: failed` carries the reason. A health check that
 only read configuration would answer the cheaper question and say OK.
 
+And `configured` means **a rung of the ladder is configured**, not that an
+address was typed into this environment. A deployment whose only setting is
+`VOICE_REGISTRY_TOKEN` is a configured deployment, and `interim` is `false`
+on it: the app has a way to find a worker, and whether one is answering is
+the `reachable` half. That was not true until PROBLEMS.md §119 — the engine
+asked whether an address was *set*, so the shape this page documents served a
+placeholder tone however healthy the pod was.
+
+### If the app says no worker could be found
+
+    voice supervisor: no voice worker could be found. Configured rungs:
+    registered.
+
+That sentence means the ladder was walked and nothing answered. Read the log
+for the line above it, because **a worker that is turned away now says so on
+this side too**:
+
+    voice worker registration refused from http://69.30.85.x:41234:
+      ... is not https; ... VOICE_ALLOW_PLAIN_HTTP=1 permits it deliberately
+    voice worker registration refused: the bearer token presented does not
+      match this app's VOICE_REGISTRY_TOKEN.
+
+Either line means the pod is alive and talking to the right service, and the
+fix is one variable. **No such line, repeating every supervisor interval,
+means nothing is knocking at all** — the pod is not running, or it has no
+`FAM_APP_URL`, or that URL is not this service. One pass finding nothing
+immediately after a redeploy is normal and not a fault: the registry is on
+the disk like every other database, and a live pod re-registers on its next
+heartbeat.
+
 ## The cold start, and what is done about it
 
 A serverless worker at zero pays container boot plus a ~10s model load before

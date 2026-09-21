@@ -1656,6 +1656,31 @@ the rest of this list it needs taste rather than a key.
   starting and stopping a retired machine while the live pod ran unmanaged.
   Both are derived now - the port from what the process was told, the pod
   from its **name**.
+  **And a mechanism is only built where every caller reads it** *(§119).*
+  The ladder had one definition and four documented readers, and the fifth -
+  the one that decides whether there is a voice at all - was still reading
+  the variable the ladder replaced. `RemoteChatterboxEngine.available()`
+  asked whether an address was *configured*, so a deployment set up exactly
+  as `REMOTE_VOICE.md` documents (one `VOICE_REGISTRY_TOKEN`, pods that
+  introduce themselves, deliberately no pinned URL) served a **placeholder
+  tone by construction**: the code that walks the ladder lives inside the
+  engine that had already been ruled out, so the registered rung could never
+  serve anybody. Nothing failed, because falling back to a tone is a
+  supported state - which is what made it survive two sessions about this
+  seam. It asks the ladder now, and **being generous there costs no
+  honesty**: `available()` has always meant *configured well enough to try*
+  and never *reachable*, so §52's two questions stay two and the second is
+  still answered by a real call. When nothing on the ladder can speak the
+  episode fails with the reason attached, which is more honest than a tone -
+  a tone is indistinguishable from a worker speaking badly.
+  **And a refusal is told to somebody who can act on it.** Everything
+  `POST /api/voice/register` rejects travelled only in the response body, to
+  a GPU on somebody else's network, so a pod heartbeating every minute and
+  being refused every minute looked from the app's logs exactly like no pod
+  at all. Both refusals are logged now - the address and the reason for a
+  422 (since §117, routinely `VOICE_ALLOW_PLAIN_HTTP=0` refusing the direct
+  TCP address a pod correctly announced), and for a 401 the *name* of the
+  variable whose two copies disagree and neither of the two strings.
   Nothing in it has made a real request to RunPod from the build container.
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
@@ -1887,7 +1912,10 @@ content and four empty-state sentences; and **§117**, the voice after the
 pod migration - the worker was healthy, the address was right, and the proxy
 in front of it refuses a server while serving a browser; and **§118**, the
 nightly pod schedule deleted at the owner's direction so the voice is up at
-all times), `MYFAM.md` for the browse page, the
+all times; and **§119**, the ladder built and the engine that walks it never
+built - every commit through §118 was deployed and Render still served a
+placeholder tone, because the question "is there a voice" was still being
+answered by the variable §112 replaced), `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
 machine gets its API keys without anybody typing one, `METERING.md` for
 what a listener costs and how the report says so, `ACCOUNTS.md` for identity,

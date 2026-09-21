@@ -1110,6 +1110,16 @@ async def voice_register(request: Request) -> dict:
     if sent.lower().startswith("bearer "):
         sent = sent[len("bearer "):]
     if not hmac.compare_digest(sent.strip(), expected):
+        # Said out loud here as well as to the caller. A refusal is the whole
+        # diagnosis and it used to travel only in the 422/401 body, which goes
+        # to a GPU on somebody else's network and nowhere a person looks: from
+        # this side a worker heartbeating every minute and being turned away
+        # every minute is indistinguishable from no worker at all, and the
+        # only symptom is the supervisor's "no voice worker could be found"
+        # (PROBLEMS.md §119). Never the token, on either side of the compare.
+        log.warning("voice worker registration refused: the bearer token "
+                    "presented does not match this app's VOICE_REGISTRY_TOKEN. "
+                    "The same string has to be set on the app and on the pod.")
         raise HTTPException(status_code=401, detail="Bad registration token.")
 
     try:
@@ -1135,6 +1145,13 @@ async def voice_register(request: Request) -> dict:
     except voice_registry.RegistryError as exc:
         # 422 rather than 500: everything this refuses is something the pod's
         # own environment can fix, and the message says which part.
+        #
+        # Logged for the reason above. This is the refusal that actually
+        # happens: since §117 a pod announces its direct TCP address, which is
+        # plain HTTP, and an app left at `VOICE_ALLOW_PLAIN_HTTP=0` says no to
+        # every heartbeat - correctly, and until now silently.
+        log.warning("voice worker registration refused from %s: %s",
+                    payload.get("url") or "an unnamed worker", exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     log.info("voice worker registered: %s (%s, contract %s, %s Hz)",

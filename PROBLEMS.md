@@ -8870,3 +8870,131 @@ Two settings are now unused by any workflow, and both are harmless:
 the `runpod-pod` rung of the ladder. The GitHub copy is the one that is now
 dead, which is the pleasant half of this change: §117's finding was an id
 kept in two places, and there is only one place left.
+
+## 119. The ladder was built, and the engine that walks it was never built
+
+Reported from a Render deployment carrying every commit up to §118, as two
+lines that had been in the log since the pod migration:
+
+    remote is unavailable (REMOTE_VOICE_URL is not set); serving a
+    placeholder tone, not a voice
+    voice supervisor: no voice worker could be found. Configured rungs:
+    registered.
+
+Read together they are contradictory, and the contradiction is the bug. The
+second line says the app knows about a rung and is walking it. The first says
+the app has already decided there is no voice, on the strength of a variable
+§112 exists to stop anybody setting.
+
+### The question that was asked instead of the one that mattered
+
+`RemoteChatterboxEngine.available()` was `not cls.config().problem()`, and
+`RemoteConfig.problem()` asks exactly one thing: **is an address written down
+in this environment** - `REMOTE_VOICE_URL` on the `http` transport,
+`RUNPOD_ENDPOINT_ID` on `runpod`. That was the whole of the question until
+§112, when finding a worker stopped being the same thing as being told where
+one is.
+
+The ladder was then wired into the synth path - `_endpoint()` resolves
+`voice_control.current()` when the configured address is incomplete - and into
+`/api/health`, the startup log and `tools/voice_doctor.py`. It was not wired
+into the question that decides whether the engine exists at all. So:
+
+    build_engine()
+      -> production_engines()            # (RemoteChatterboxEngine,) - correct
+      -> RemoteChatterboxEngine.available()
+           -> config.problem()           # "REMOTE_VOICE_URL is not set"
+      -> None
+      -> PLACEHOLDER_ENGINE()            # a tone
+
+`_endpoint()` is downstream of every one of those arrows. **The code that
+walks the ladder is inside the engine that was just ruled out**, so on a
+deployment configured the way `REMOTE_VOICE.md` documents - one
+`VOICE_REGISTRY_TOKEN` on the app, `FAM_APP_URL` and the same token on the
+pod, and deliberately no pinned URL - the registered rung could never serve
+anybody. Not because anything on it was broken: a worker could register, the
+supervisor could verify it, `/api/health` could report the ladder green, and
+every listener would still get a 220 Hz sine.
+
+That is the shape §117 had one layer down, and it is worth naming as a class:
+**a mechanism is only built where every caller reads it.** The ladder has one
+definition and four documented readers. The fifth reader - the one that
+decides whether there is a voice - was still reading the variable the ladder
+replaced, and nothing failed, because falling back to a tone is a supported
+state.
+
+### The fix, and why being generous here costs no honesty
+
+`diagnose()` asks the ladder. If the configured address is complete it is used
+as before with no probe; otherwise, if any rung is configured, the engine is
+available and says which rung will be asked (`24000 Hz, address discovered:
+registered`); if nothing is configured and nothing is discoverable, it is the
+tone, as it should be.
+
+The worry this had to clear is CLAUDE.md's rule that there are exactly two
+honest states, Chatterbox or a tone that says so. It clears it because
+`available()` has always meant *configured well enough to try* and never
+*reachable*: §52's two questions stay two, and the second is still answered by
+a real call and reported separately in `remote_voice.report()` and
+`voice_control.report()`. What changed is only which configurations count as
+worth trying. When nothing on the ladder can speak, the episode now fails with
+the reason attached - which is what `REMOTE_VOICE.md` already said happens,
+and is more honest than a tone, because a tone is indistinguishable from a
+worker that is speaking badly.
+
+`RemoteConfig.fatal()` is the half discovery cannot answer, and it is split
+out rather than folded in: a transport that is not a transport and a sample
+rate that cannot be a rate are wrong wherever the worker turns out to be. The
+rate especially - it goes into the stream header before any audio exists, so
+claiming a voice on the strength of a ladder would only move the failure
+later.
+
+A second deployment shape was fixed by the same change, unasked: the transport
+defaults to `runpod`, so setting `REMOTE_VOICE_URL` for an always-on pod and
+nothing else used to report `RUNPOD_ENDPOINT_ID is not set` and serve a tone.
+The pinned rung can serve that, and now does.
+
+### And a refusal was only ever told to the pod
+
+Found while reading the other half of the report - why nothing had registered.
+Everything `POST /api/voice/register` rejects is raised as a 401 or a 422, and
+the detail travels in the response body to a GPU on somebody else's network.
+Nothing was logged on this side. So a pod heartbeating every sixty seconds and
+being turned away every sixty seconds is, from the app's logs, identical to no
+pod at all - and the only symptom is the supervisor's "no voice worker could
+be found", which names the rung and not the reason.
+
+That is §51's rule (failures must be visible) with the twist that the failure
+was visible, to the one party that could do nothing about it. Both refusals
+are now logged at WARNING: the address and the reason for a 422 - which since
+§117 is routinely `VOICE_ALLOW_PLAIN_HTTP=0` refusing the direct TCP address a
+pod correctly announced - and, for a 401, the name of the variable whose two
+copies disagree and neither of the two strings.
+
+### The storage half of the same report, which is not a code problem
+
+The second thing in that log is `_announce_storage` doing its job:
+
+    STORAGE: 12 database(s) are inside the container image and a redeploy
+    will erase them
+
+§114 built that line for exactly this deployment and it is accurate. It is a
+Render service created outside the blueprint, so `render.yaml`'s disk was
+never attached - the `/data` paths come from the `Dockerfile`'s `ENV`, which
+is in the image, and the disk that should be under them is not. The fix is in
+the dashboard (add a disk, Mount Path `/data`, redeploy), and the app already
+says so in the line after it.
+
+Worth noting where the two halves of this report meet: `VOICE_REGISTRY_DB` is
+on `/data` like everything else, so on that deployment **every redeploy also
+empties the registry of workers**. A live pod re-registers on its next
+heartbeat, so it is self-healing within a minute - but it does mean the
+supervisor's first pass after a deploy reliably finds nothing, which is what
+the reported log line is timestamped one second after boot.
+
+### What is unverified
+
+Nobody has heard this. The fix makes the engine exist on a deployment that
+discovers its worker; whether that worker then speaks is the listening test
+open problem #1 has been waiting on since Piper was removed. What can be said
+from here is that the tone is no longer guaranteed by construction.
