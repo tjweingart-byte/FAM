@@ -8140,3 +8140,53 @@ this project's key, GraphQL second, three response shapes accepted, and any
 failure costs a rung and a log line rather than the voice. `python
 tools/voice_doctor.py` against the real deployment is what turns that from
 careful into known.
+
+## 113. The wake was suppressed for the first minute of every machine's life
+
+The Voice worker workflow's `contract` job failed on two tests that pass on
+any developer machine:
+
+    test_wake_does_not_synthesise_and_cannot_raise  IndexError: list index out of range
+    test_wake_does_not_stampede                     expected 1 POST but got 0
+
+Both say the same thing: `RemoteChatterboxEngine.wake()` sent nothing at all.
+
+**The cause is a sentinel that the clock can produce.** `_woken_at` was
+`0.0`, meaning "never woken", and the guard is
+
+    if now - cls._woken_at < settings.remote_voice_wake_interval:
+        return  # already asked recently
+
+`time.monotonic()` is `CLOCK_MONOTONIC`, which counts **from boot**. So on a
+machine whose uptime is under `REMOTE_VOICE_WAKE_INTERVAL` - 60 seconds by
+default - `now - 0.0` is smaller than the interval, and a worker that had
+never been woken read as one woken moments ago. The sentinel and a real
+reading were the same number.
+
+That is why it could only be seen on the gate. This build container has been
+up for hours, so `time.monotonic()` is large and the tests pass; a
+GitHub-hosted runner is a VM that boots immediately before it runs them. §106
+said a green `./dev.sh check` is not the same claim as a green CI and blamed
+the Python version; this is a second way that gap opens, and it has nothing to
+do with the interpreter. **The build container's uptime is part of the test
+environment, and nothing declares it.**
+
+**It was a production bug, not a test bug.** Every app container spent its
+first sixty seconds declining to wake the worker - which is exactly the window
+the wake exists to cover, since a cold start is most likely on a process that
+has only just started. And it failed in the one way that leaves no trace:
+`wake()` never raises, never blocks and logs only at debug, because a failed
+wake must not be able to cost an episode. So the feature was off at the moment
+it was worth the most, on every deployment, and the only symptom was a cold
+start somebody would have blamed on RunPod.
+
+The fix is `float("-inf")`, which is not a reading that clock can return, in
+the class and in the test helper that resets it. The generalisation is worth
+more than the fix: **a sentinel must come from outside the range of the thing
+it stands in for.** `0.0` is a valid monotonic reading, `None` and `-inf` are
+not - and the same trap is waiting for any "never happened yet" written as a
+zero timestamp.
+
+`test_wake_fires_on_a_machine_that_has_only_just_booted` pins it by faking a
+twelve-second-old clock, because the condition cannot otherwise be reached on
+a machine that has been up long enough to run the suite.

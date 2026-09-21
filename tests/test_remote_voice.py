@@ -77,7 +77,7 @@ def configure(monkeypatch, **overrides):
     RemoteChatterboxEngine._client = None
     RemoteChatterboxEngine._gate = None
     RemoteChatterboxEngine._gate_size = 0
-    RemoteChatterboxEngine._woken_at = 0.0
+    RemoteChatterboxEngine._woken_at = float("-inf")
     RemoteChatterboxEngine._reachability = remote_voice.Reachability()
 
 
@@ -297,6 +297,23 @@ def test_wake_does_not_stampede(monkeypatch):
     run(RemoteChatterboxEngine.wake())
     run(RemoteChatterboxEngine.wake())
     assert len(client.posts) == 1, "a booting worker does not boot faster twice"
+
+
+def test_wake_fires_on_a_machine_that_has_only_just_booted(monkeypatch):
+    """`time.monotonic()` counts from boot, so a fresh machine reads low.
+
+    The sentinel for "never woken" therefore cannot be 0.0, which is a reading
+    that clock produces: with a 60s interval, every container spent its first
+    minute deciding it had already asked. That is precisely the window the wake
+    exists to cover, and it failed silently - `wake()` cannot raise. It showed
+    up as two green tests here and two red ones on a CI runner, which boots
+    immediately before it runs them.
+    """
+    configure(monkeypatch)
+    monkeypatch.setattr(remote_voice.time, "monotonic", lambda: 12.0)
+    client = install(monkeypatch, FakeResponse({"id": "job-1"}))
+    run(RemoteChatterboxEngine.wake())
+    assert len(client.posts) == 1, "a 12-second-old machine still needs waking"
 
 
 def test_an_always_on_pod_has_nothing_to_wake(monkeypatch):
