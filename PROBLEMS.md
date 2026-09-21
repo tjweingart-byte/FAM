@@ -9112,3 +9112,141 @@ container, and the click-through report has never seen a real impression.
 what a deployment's vocabulary would become; `python tools/ctr_report.py`
 says what its rails actually convert at. Those two commands against the
 running deployment are what turn this entry from reasoned into known.
+
+## 120. Checking the work found four things the tests could not
+
+§119 shipped green: 2,289 tests, `./dev.sh check` twice, CI green on the
+branch. Then the instruction was to actually *run* the things §119 said to run
+and to double-check the work, and that turned up four defects - three of them
+introduced by §119 itself and none of them visible to any test in the suite.
+
+They have one shape in common, which is the reason this entry exists: **every
+one of them was invisible at the scale the tests run at.** A unit test builds
+a tree of four nodes and a corpus of eight queries. All four failures need a
+realistic size to appear at all.
+
+### 1. The one tool you were told to run would not have told you
+
+`tools/storage_doctor.py` is what answers "does a redeploy erase this
+deployment's listeners". Run for the first time after §119, it listed **twelve**
+stores. There are fourteen. `categories.db` - a brand new store, holding the
+ranking vocabulary the whole change is about - was not in it.
+
+The guard was there and passed. `tests/test_data_paths.py` asserted:
+
+```python
+reported = {entry["name"] for entry in body["databases"]}
+assert reported == {"scripts", "events", "social", ...}   # twelve, typed out
+```
+
+That is **this file's own §107 finding, made inside the test written to
+enforce it**: "two lists somebody types agreeing with each other is the same
+mistake made twice and then compared to itself." The health report's list is
+hand-written in `app.py`; the test's list is hand-written in the test; they
+agreed, and both were wrong.
+
+It is derived now - against `DECLARED`, the `data_path(...)` calls read out of
+the modules - with `LAZY_STORES` naming the one store legitimately absent and
+why. Verified by deleting the entry and watching it fail.
+
+The general form, which is worth more than the fix: **a guard that enumerates
+its subject by hand is decorative, and writing a test does not make it
+otherwise.** The only guards that hold are the ones whose subject is derived
+from the thing they are guarding.
+
+### 2. Ninety-one seconds of blocked event loop, once an hour
+
+`categories._drop_subsumed` compares candidate phrases pairwise to drop the
+ones that are a longer phrase with a word missing. On the corpora the tests
+use - a few hundred phrases - it is instantaneous.
+
+`subject_texts` caps a sweep at 20,000 texts. Measured at that size: **52,930
+phrases, 2.8 billion comparisons, 91.6 seconds.**
+
+That is not a slow sweep. `categories.sweep` is started by
+`asyncio.create_task` from `/api/myfam`, so it is ninety-one seconds of
+**blocked event loop**: every episode, every browse page, every request on
+that worker, stopped dead, once an hour, with nothing anywhere saying why.
+
+The rule makes the fix free. Subsumption requires *identical* support, so two
+phrases with different support can never be paired and never need comparing.
+Bucketing by support first: **346 ms**, a 265x change, and the same answer -
+checked against the pairwise version on forty random corpora rather than
+assumed.
+
+**And the structural fix matters more than the algorithmic one**, because the
+next rule added to `promote` will not necessarily be cheap either:
+`asyncio.to_thread` now keeps that pass off the loop. A background sweep that
+shares a thread with the product is not a background sweep.
+
+### 3. A property that looked free, called a million times
+
+`taste()` is called on every browse page. With §119 it re-reads each event's
+text against the category tree, and against a 1,500-node tree that measured
+**134 ms**.
+
+Profiling found one line: `Node.words` is a `@property` computing
+`frozenset(self.id.split())`, and `match` called it once per candidate node -
+1,052,646 times per `taste()`. `ancestors()` was the same mistake smaller,
+re-walking a node's parents on every hit.
+
+Both are precomputed at `reload` now. That took it to 53 ms; the rest was the
+index, which stored each node under **every** one of its words, so a six-word
+question's candidate set was very nearly the whole tree. Each node is now
+indexed under its **smallest** word, which is complete rather than a
+heuristic - a node matches only when every one of its words is in the text, so
+a matching node's smallest word is necessarily in the text. **27 ms.**
+
+The completeness argument is one line and easy to break (indexing on "the
+first word" or "the longest word" passes every other test in the file), so it
+is checked against a brute-force scan over sixty random texts.
+
+### 4. A race introduced by the fix for #2
+
+Moving `promote` into a worker thread made an existing latent bug reachable.
+`reload()` swapped four structures in two statements:
+
+```python
+self._nodes, self._index, self._words = nodes, index, words
+self._ancestry = {...}                       # <- a second statement
+```
+
+`match` indexes `_words` and then `_ancestry`. A request thread landing
+between those two statements sees a node in the first and not in the second
+and raises `KeyError` **on a browse page**.
+
+Three changes, and the third is the one worth keeping: all four structures are
+assigned in **one** tuple assignment, which cannot be observed half done;
+ancestry is computed from the local `nodes` rather than through
+`self.ancestors`, which would read `self._nodes` and make the result depend on
+how far through the swap it is; and `match` reads the structures into locals
+once, because the assignment being atomic does not make *two reads of it* one
+read.
+
+### And two smaller ones
+
+`import re` inside a property on the ranking path, hoisted. And the category
+tree was not in `conftest.py`'s store isolation - so tests wrote a
+`categories.db` into the project root and, because the tree is reached through
+a **process-global** cache, a tree minted by one test was still ranking the
+next one's feed. A developer who had run `tools/categories_report.py` locally
+would have got different results from CI, which is exactly the class of thing
+that file exists to prevent, arriving through a module-level cache instead of
+through the environment.
+
+### What this says about the tests in §119
+
+They were not bad tests. They pinned every rule the feature has, and every one
+of them still passes. What they could not do is notice that the feature is
+**fast enough to run where it runs**, because nothing about correctness says
+how big the input gets.
+
+So three of the tests added here assert a *bound* rather than a result - a
+full 20,000-text window finishes, `taste` against a 1,200-node tree finishes,
+the sweep is off the loop. They are deliberately loose: they catch a change of
+complexity, not a millisecond.
+
+**Nothing here was found by reading the diff.** All four came from running the
+thing at a realistic size and measuring it, which is the same lesson §52
+records in a different register: verify, do not inspect - and a test that
+never runs at production scale is inspecting.

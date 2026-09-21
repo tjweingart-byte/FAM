@@ -468,6 +468,20 @@ the rest of this list it needs taste rather than a key.
    spends nothing. **Nothing here has been run against a real event log** -
    the seeds above are synthetic, and what the tree looks like on real
    searches is the first thing to look at.
+   **And §120 is what happened when the work was checked rather than
+   re-read.** Four defects, three of them §119's own, none visible to any
+   test in the suite, all four found by running the thing at a realistic
+   size: `storage_doctor` did not list the new store (and the guard that
+   should have caught it compared one hand-written list to another, which is
+   §107's finding made inside the test enforcing it); the sweep's
+   subsumption pass was 91 *seconds* on a full window, inside a
+   `create_task`, so once an hour every request on that worker stopped;
+   `taste` cost 134ms on the browse path because a property was re-splitting
+   a phrase a million times; and the fix for the second made a latent race in
+   `reload` reachable. All fixed, and three tests now assert a **bound**
+   rather than a result, because nothing about correctness says how big the
+   input gets. The lesson is §52's in a different register: a test that never
+   runs at production scale is inspecting rather than verifying.
 
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
@@ -1962,7 +1976,9 @@ all times; and **§119**, the recommender's inputs - three signals the app was
 collecting and discarding, a click-through rate thirty days deep that nothing
 had ever read, a location field the app had never had, and a ranking
 vocabulary whose thirty-seven hand-written keyword lists turned out to be the
-binding constraint rather than the scoring under them), `MYFAM.md` for the browse page, the
+binding constraint rather than the scoring under them; and **§120**, what
+checking that work found - four defects none of the 2,289 tests could see,
+because every one of them only appears at a size no test runs at), `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
 screen, `DEVELOPMENT.md` for the loop, `CREDENTIALS.md` for how a
@@ -1984,12 +2000,13 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **fifty-seven** named smoke
+**twice** - once per preview build - and **fifty-eight** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 57 as of §116.)
+prose does not fail when somebody adds a behaviour. (It is 58 as of §119,
+which added the location editor's round trip.)
 
 **There is a third browser run, and it is not one of those two** (§106). The
 share landing page is a different page from `static/index.html` - one episode,

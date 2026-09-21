@@ -202,6 +202,11 @@ SOURCE_MODEL = "model"
 
 _WORD = re.compile(r"[a-z0-9]+")
 
+#: What an unknown node's word set reads as. Never a subset of anything real,
+#: so a node that vanished between two reads simply does not match rather than
+#: matching everything - the safe direction for a torn read.
+_NO_WORDS = frozenset({"\x00"})
+
 
 def _facet_slugs() -> frozenset[str]:
     """The eight pickable facets. Lazily, for the import-order reason above."""
@@ -323,6 +328,8 @@ class CategoryStore:
         self._local = threading.local()
         self._index: dict[str, set[str]] = {}
         self._nodes: dict[str, Node] = {}
+        self._words: dict[str, frozenset[str]] = {}
+        self._ancestry: dict[str, tuple[str, ...]] = {}
         self._loaded_at = 0.0
         with self._conn() as conn:
             conn.execute(
@@ -374,14 +381,51 @@ class CategoryStore:
                             float(r[6]), int(r[7]), int(r[8]), bool(r[9]))
                  for r in rows}
         index: dict[str, set[str]] = {}
-        for node in nodes.values():
-            # Indexed on the phrase's *rarest-looking* word would be cleverer
-            # and is not worth it: a phrase is at most four words, so this
-            # adds at most four entries and lets `match` start from the
-            # smallest candidate set it can find.
-            for word in node.words:
-                index.setdefault(word, set()).add(node.id)
-        self._nodes, self._index = nodes, index
+        # **Both of these are precomputed here because `match` is a read
+        # path.** `taste` calls it once per event - up to four hundred - on
+        # every browse page, and profiling a 1,500-node tree found
+        # `Node.words` re-splitting a phrase a million times per call for
+        # 134ms of a page load. A property that looks free is not free when
+        # something calls it in a loop over the whole index.
+        words = {node_id: frozenset(node_id.split()) for node_id in nodes}
+        for node_id, node_words in words.items():
+            # **Each node is indexed once, under its alphabetically smallest
+            # word**, and that is complete rather than a heuristic: a node
+            # matches only when *every* one of its words is in the text, so
+            # if it matches at all its smallest word is in the text and this
+            # bucket is reached. Indexing under all of them put every node in
+            # three or four buckets and made the candidate set for a six-word
+            # question very nearly the whole tree.
+            if node_words:
+                index.setdefault(min(node_words), set()).add(node_id)
+        # The ancestry closure, walked once per node here rather than once per
+        # *match* - a node deep in the tree was re-walking its parents on
+        # every question anybody asked. Computed from the local `nodes` rather
+        # than through `self.ancestors`, which reads `self._nodes` and would
+        # make this depend on how far through the swap it is.
+        ancestry: dict[str, tuple[str, ...]] = {}
+        for node_id in nodes:
+            chain: list[str] = []
+            seen = {node_id}
+            current = nodes[node_id]
+            while current is not None and current.parent_id:
+                if current.parent_id in seen:
+                    log.warning("cycle in the category tree at %r",
+                                current.parent_id)
+                    break
+                chain.append(current.parent_id)
+                seen.add(current.parent_id)
+                current = nodes.get(current.parent_id)
+            ancestry[node_id] = tuple(chain)
+
+        # **One assignment, four structures.** They are read from request
+        # threads while the background sweep rebuilds them, and `match`
+        # indexes `_words` and `_ancestry` by a node id it got from `_index` -
+        # so a reader landing between two assignment statements would see a
+        # node in one structure and not in the next and raise `KeyError` on a
+        # browse page. A single tuple assignment cannot be observed half done.
+        self._nodes, self._index, self._words, self._ancestry = (
+            nodes, index, words, ancestry)
         self._loaded_at = time.time()
         return len(nodes)
 
@@ -425,21 +469,29 @@ class CategoryStore:
         matches the same node as "cincinnati bengals", and "the bengals game"
         matches `bengals` - which is right, and is the same bluntness
         `tags_for_text` has had since it was written.
+
+        The index it walks is keyed on each node's smallest word, which is
+        what keeps this cheap enough to run per event inside `taste`. See
+        `reload`.
         """
         if not self._index:
             return ()
         text_words = words_of(text)
         if not text_words:
             return ()
+        # Read once into locals. The sweep rebuilds these in another thread,
+        # and taking `self._index` here and `self._words` three lines later
+        # would be reading two different trees - the assignment in `reload` is
+        # atomic, but two reads of it are not one read.
+        index, words, ancestry = self._index, self._words, self._ancestry
         candidates: set[str] = set()
         for word in text_words:
-            candidates |= self._index.get(word, set())
+            candidates |= index.get(word, set())
         hit: set[str] = set()
         for node_id in candidates:
-            node = self._nodes.get(node_id)
-            if node is not None and node.words <= text_words:
+            if words.get(node_id, _NO_WORDS) <= text_words:
                 hit.add(node_id)
-                hit.update(self.ancestors(node_id))
+                hit.update(ancestry.get(node_id, ()))
         return tuple(sorted(hit))
 
     def depth_of(self, node_id: str) -> int:
@@ -717,16 +769,34 @@ def _drop_subsumed(seen: dict[str, tuple[set[str], set[str]]]) -> set[str]:
     A phrase survives if it appears *anywhere* its longer form does not. That
     is what keeps "federal reserve" - which people also ask about without
     mentioning rates - and drops the run of fragments around it.
+
+    **Bucketed by support, because the obvious version does not finish.**
+    Comparing every pair is O(n^2), and a sweep reads up to 20,000 texts,
+    which on a measured run produced 52,930 candidate phrases - 2.8 billion
+    comparisons, ninety-one seconds. This function runs inside the background
+    sweep, so that is ninety-one seconds of blocked event loop on a browse
+    page, once an hour, with nothing anywhere saying why.
+
+    The rule itself is what makes the fix free: subsumption requires the two
+    phrases to have *identical* support, so phrases with different support can
+    never be paired and never need comparing. Grouping by support first leaves
+    only the handful of phrases that came from the same run, and the answer is
+    exactly the same one the pairwise version gave.
     """
-    by_words = {p: frozenset(p.split()) for p in seen}
+    buckets: dict[tuple, list[str]] = {}
+    for phrase, (users, wordings) in seen.items():
+        buckets.setdefault((frozenset(users), frozenset(wordings)),
+                           []).append(phrase)
     dropped: set[str] = set()
-    for phrase, words in by_words.items():
-        for longer, longer_words in by_words.items():
-            if longer is phrase or not (words < longer_words):
-                continue
-            if seen[phrase] == seen[longer]:
-                dropped.add(phrase)
-                break
+    for group in buckets.values():
+        if len(group) < 2:
+            continue
+        by_words = {p: frozenset(p.split()) for p in group}
+        for phrase, words in by_words.items():
+            for longer, longer_words in by_words.items():
+                if longer is not phrase and words < longer_words:
+                    dropped.add(phrase)
+                    break
     return dropped
 
 
@@ -1044,6 +1114,8 @@ async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     never from a request. The whole of this module's cost lives here: one
     model call, two SQLite passes and a rebuild of an in-process index.
     """
+    import asyncio
+
     from config import settings
 
     global _LAST_SWEEP
@@ -1055,9 +1127,20 @@ async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     # is how one broken model call becomes a request per browse.
     _LAST_SWEEP = now
     try:
-        minted = promote(store, texts, always=always, now=now)
+        # **Off the event loop.** `promote` is pure CPU over every text in the
+        # window, and this coroutine is started with `create_task` from
+        # `/api/myfam` - so a slow pass here is not a slow sweep, it is a
+        # stalled worker, and every episode and browse page behind it waits.
+        #
+        # The pass is fast now (see `_drop_subsumed`), and that is exactly why
+        # this is worth keeping: it was ninety-one seconds before anybody
+        # measured it, the fix was a bucketing change, and the next person to
+        # add a rule here should not have to rediscover that the sweep shares
+        # a thread with the product.
+        minted = await asyncio.to_thread(
+            promote, store, texts, always=always, now=now)
         placed = await place(store, [n.id for n in minted], now)
-        pruned = store.prune(now)
+        pruned = await asyncio.to_thread(store.prune, now)
     except Exception:
         # A browse page that failed to load because the vocabulary sweep
         # raised would be a much worse product than one ranked on last

@@ -1739,6 +1739,67 @@ def main() -> int:
             assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no public mixes"
             assert page.query_selector(".pf-headline"), "no my-FAM-is-your-FAM headline"
 
+        def location_is_collected_and_editable():
+            """Where a listener says they are, on both surfaces it lives on.
+
+            It reaches the ranker (`LOCAL_BOOST`, and the cold start's local
+            question), so an editor that silently failed to save would be a
+            feed quietly ranked as though nobody had a location - which looks
+            from outside exactly like a location that is not worth much.
+
+            Two things are checked rather than one: the **sign-up flow**
+            carries the fields, and the **Settings row** round-trips. The
+            second is the one worth the effort - it asserts the value comes
+            back, not merely that a screen appeared, which is the weakness
+            §111 names about a control that is on screen and inert.
+            """
+            # 1. The first run's identity step asks for it.
+            page.evaluate("openIdentity('first-run', 'settings')")
+            page.wait_for_selector("#screen-identity.active", timeout=10000)
+            for field in ("identityCity", "identityRegion", "identityCountry"):
+                assert page.query_selector(f"#{field}"), \
+                    f"the sign-up step is missing {field}"
+
+            # 2. Settings has a row for it, and it opens its own screen -
+            #    not Edit profile, which would be the row asking one thing
+            #    and the screen answering another.
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(500)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+            rows = page.eval_on_selector_all(
+                "#settingsBody .set-label", "els => els.map(e => e.textContent)")
+            assert "Where you are" in rows, \
+                f"no location row in Settings; rows were {rows}"
+
+            page.evaluate("openLocationFromSettings()")
+            page.wait_for_timeout(700)
+            active = page.eval_on_selector(".screen.active", "e => e.id")
+            if active != "screen-location":
+                # A guest is sent to sign-up instead, which is the gate every
+                # stored preference has. Nothing more to assert here.
+                assert active == "screen-auth", \
+                    f"the location row went to {active}"
+                return
+
+            page.fill("#locCity", "Cincinnati")
+            page.fill("#locRegion", "Ohio")
+            page.fill("#locCountry", "United States")
+            page.evaluate("saveLocation()")
+            page.wait_for_timeout(900)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "Save did not come back to Settings"
+
+            # It came back, which is the whole point of an editor.
+            page.evaluate("openLocationFromSettings()")
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector("#locCity", "e => e.value") \
+                == "Cincinnati", "the city did not survive the round trip"
+            page.evaluate("closeLocation()")
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-settings", "the X did not return to Settings"
+
         def every_settings_screen_comes_back_to_settings():
             """A settings row is an editor, not the first run happening again.
 
@@ -2379,6 +2440,8 @@ def main() -> int:
         check("Mix visibility can be toggled", mix_visibility)
         check("Every settings screen comes back to Settings",
               every_settings_screen_comes_back_to_settings)
+        check("Location is collected at sign-up and editable after",
+              location_is_collected_and_editable)
         check("The interest catalogue is the whole list",
               the_interest_catalogue_is_the_whole_list)
         check("The catalogue saves what was chosen",

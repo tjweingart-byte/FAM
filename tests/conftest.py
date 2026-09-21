@@ -300,6 +300,33 @@ def isolated_stores(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_categories(tmp_path, monkeypatch):
+    """The grown vocabulary gets its own tree, per test.
+
+    It is a store like the seven above and needs isolating for the same
+    reason, with one extra edge that made it worth its own fixture: it is
+    reached through a **process-global** (`topics._CATEGORIES`, opened once
+    and cached because `match` is on the browse read path), so without this a
+    tree minted by one test would still be ranking the next one's feed, and a
+    developer who had run `tools/categories_report.py` locally would get
+    different results from CI.
+
+    That is the failure this whole file exists to prevent, arriving through a
+    module-level cache rather than through the environment.
+    """
+    import categories as categories_mod
+    import topics as topics_mod
+
+    monkeypatch.setenv("CATEGORIES_DB",
+                       str(tmp_path / "stores" / "categories.db"))
+    topics_mod.reset_category_tree()
+    categories_mod.reset_sweep()
+    yield
+    topics_mod.reset_category_tree()
+    categories_mod.reset_sweep()
+
+
+@pytest.fixture(autouse=True)
 def isolated_quotas(tmp_path, monkeypatch):
     """Every test counts against its own allowance, and by default none bites.
 

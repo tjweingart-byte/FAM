@@ -82,6 +82,17 @@ def _declared() -> dict:
 DECLARED = _declared()
 ALL_VARS = sorted(DECLARED)
 
+#: Stores that are legitimately absent from a health report.
+#:
+#: `VOICE_REGISTRY_DB` is opened only where workers register themselves, and
+#: `_database_report` says why it is reported conditionally: a store listed as
+#: missing on every machine that never switched the feature on is a health
+#: page teaching people to ignore it.
+#:
+#: Anything added here needs that kind of reason written beside it. The default
+#: is that a store the app opens is a store the health page names.
+LAZY_STORES = {"VOICE_REGISTRY_DB"}
+
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
@@ -297,10 +308,23 @@ def test_health_reports_every_database_with_a_real_read(monkeypatch, tmp_path):
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
     body = TestClient(appmod.app).get("/api/health").json()
 
-    reported = {entry["name"] for entry in body["databases"]}
-    assert reported == {"scripts", "events", "social", "mixes", "attachments",
-                        "accounts", "preferences", "messages", "saved",
-                        "shares", "quotas", "metering"}
+    # **Derived, not a second hand-written list.** This used to compare the
+    # reported names against a set typed out here, which is the mistake §107
+    # names in this very file: two lists somebody types agreeing with each
+    # other is one mistake made twice and then compared to itself. It passed
+    # happily while `categories` was missing from the health report, which is
+    # exactly what it exists to catch.
+    #
+    # So the assertion is now against `DECLARED` - every `data_path(...)` call
+    # read out of the modules. A store added to the app and not to
+    # `_database_report` fails here rather than being discovered by somebody
+    # running `storage_doctor` and counting.
+    reported = {entry["env_var"] for entry in body["databases"]}
+    missing = sorted(set(DECLARED) - reported - LAZY_STORES)
+    assert not missing, (
+        f"{missing} are opened by the app and not reported by /api/health, so "
+        "nothing would say whether a redeploy erases them"
+    )
     for entry in body["databases"]:
         assert entry["readable"] is True, f"{entry['name']} did not open: {entry}"
         assert entry["writable"] is True

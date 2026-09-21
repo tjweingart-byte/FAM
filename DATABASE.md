@@ -542,6 +542,16 @@ ninth question, "What Changed in {place}", offered to a listener we otherwise
 know nothing about. It goes through the same sort as the other eight rather
 than jumping it, so fatigue reaches it.
 
+**It is asked for in two places.** The sign-up flow's identity step collects
+it beside the name and the handle — it is about *them*, so it belongs there
+rather than in front of the interests — and `screen-location` is the editor
+behind the **Where you are** row in Settings. Its own screen rather than a
+block inside Edit profile, because a row labelled "Where you are" that opened
+a screen headed "Edit profile" is the row asking one thing and the screen
+answering another (§98's rule). The smoke check asserts the value survives the
+round trip rather than that a screen appeared, which is the weakness §111
+names about a control that is on screen and inert.
+
 `build_section` was found to have diverged from the rail it opens - it never
 passed `familiar`, so "View more" ran a subtly different ranking. Fixed in the
 same change.
@@ -587,3 +597,33 @@ as the same subject with a word missing.
 `taste` re-reads an event's own text against the current tree while keeping
 its stored tags, so a node minted today makes last month's history legible
 rather than taking a month to be worth anything.
+
+---
+
+## Part 7 — What checking the work found
+
+All four changes shipped green: 2,289 tests, the full check twice, CI green.
+Running the tools and re-measuring then found four defects, three of them
+introduced by the work above, **none of them visible to any test** — because
+every one only appears at a size no test runs at. `PROBLEMS.md` §120 is the
+whole account; the short version:
+
+| Found | Was | Is |
+|---|---|---|
+| `categories` missing from `/api/health` and `storage_doctor` | the guard compared two hand-written lists | derived from the `data_path` calls |
+| `_drop_subsumed` on a full 20,000-text sweep | **91.6 s**, blocking the event loop | **346 ms**, and off the loop |
+| `taste()` against a 1,500-node tree | **134 ms** on the browse read path | **27 ms** |
+| `reload()` swapping four structures | two statements, `KeyError` on a torn read | one tuple assignment |
+
+The one worth carrying past this feature: **a guard that enumerates its
+subject by hand is decorative, and writing it as a test does not change
+that.** The health-report check was a real test, it passed, and it was
+comparing a list somebody typed in `app.py` against a list somebody typed in
+the test file.
+
+And the reason the tests could not see any of it: they pin every *rule* the
+features have, and every one still passes. Nothing about correctness says how
+big the input gets. Three tests now assert a bound instead — a full window
+finishes, `taste` on a large tree finishes, the sweep is off the loop — and
+they are deliberately loose, catching a change of complexity rather than
+defending a millisecond.

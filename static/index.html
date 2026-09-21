@@ -2023,6 +2023,58 @@
         <div class="scroll" id="settingsBody"></div>
       </section>
 
+      <!-- ============ WHERE YOU ARE ============
+           Its own screen rather than a block inside Edit profile, for the
+           reason §98 gives: a settings row is an editor, and a row labelled
+           "Where you are" that opened a screen headed "Edit profile" is the
+           row describing one thing and the screen another.
+
+           The same three fields the first run asks for, and the same
+           reasoning behind them: typed rather than sensed, because a typed
+           answer is the only one that is stable and correctable, and free
+           text because there is no list of the world's towns both complete
+           and short enough to ship. See `preferences.Location`. -->
+      <section class="screen" id="screen-location">
+        <div class="intro-top">
+          <button class="sheet-close" onclick="closeLocation()"
+                  aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="entry-wrap" style="min-height:0;">
+            <div class="entry-h">Where you are</div>
+            <p class="entry-lede">FAM uses this to offer you episodes about
+              where you live. It is never shown on your profile, and leaving
+              it blank changes nothing else.</p>
+
+            <div class="auth-field">
+              <div class="auth-label">City</div>
+              <input class="modal-input" id="locCity" type="text"
+                     autocomplete="address-level2" autocorrect="off"
+                     autocapitalize="words" spellcheck="false"
+                     placeholder="City" style="margin-bottom:0;">
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">State or region</div>
+              <input class="modal-input" id="locRegion" type="text"
+                     autocomplete="address-level1" autocorrect="off"
+                     autocapitalize="words" spellcheck="false"
+                     placeholder="State or region" style="margin-bottom:0;">
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">Country</div>
+              <input class="modal-input" id="locCountry" type="text"
+                     autocomplete="country-name" autocorrect="off"
+                     autocapitalize="words" spellcheck="false"
+                     placeholder="Country" style="margin-bottom:0;">
+              <div class="id-note" id="locNote">Stored for your account only.</div>
+            </div>
+          </div>
+        </div>
+        <div class="entry-dock">
+          <button class="entry-btn primary" onclick="saveLocation()">Save</button>
+        </div>
+      </section>
+
       <!-- ============ MY VIBE ============
            Everything this listener has vibed. One row per episode, and
            tapping one plays it - the script already exists, so it costs
@@ -7315,7 +7367,13 @@
       // decision asked twice.
       + settingsRow("Profile picture",
           (profileNow && profileNow.avatar) ? "Set" : "None",
-          "pickAvatar()");
+          "pickAvatar()")
+      // Beside the name rather than under "Account settings": this is a fact
+      // about the listener, and it is what somebody looking for it would
+      // scan first. It is account-gated like every other stored preference,
+      // and says so rather than failing on save.
+      + settingsRow("Where you are", escapeHtml(locationSummary()),
+          "openLocationFromSettings()");
 
     // No "More topics" row. The way to that list is now the hub in the middle
     // of the Your interests wheel, which says "Edit/add topics" - so this was
@@ -7394,6 +7452,72 @@
   //: their profile is the fourth version of the trap this app has now hit
   //: three times.
   var introReturn = "settings";
+
+  // --- where you are -------------------------------------------------------
+  //
+  // The same three values the first run collects, editable afterwards. Kept
+  // as its own screen and its own three functions rather than folded into
+  // Edit profile, because the settings row that opens it says "Where you
+  // are" and a screen headed "Edit profile" would be answering a different
+  // question from the one the row asked.
+
+  //: Where the X goes back to. Recorded when the screen is opened, by name,
+  //: because this screen can be reached from Settings and from the profile
+  //: and `goBack()` cannot tell them apart - the trap §96-§98 fell into
+  //: three times with the intro screen.
+  var locationReturn = "settings";
+
+  function locationSummary(){
+    var p = (PREF_CHOICES && PREF_CHOICES.location) || {};
+    if(!AUTH.authenticated) return "Needs an account";
+    return p.label || "Not set";
+  }
+
+  function openLocationFromSettings(){
+    var here = document.querySelector(".screen.active");
+    locationReturn = here ? here.id.replace(/^screen-/, "") : "settings";
+    if(!AUTH.authenticated){
+      // The same gate every stored preference has, offered rather than
+      // enforced at save time: a screen that lets somebody type their city
+      // and then refuses it is worse than one that says so first.
+      openAuth("signup");
+      return;
+    }
+    // Re-read rather than trusting what was loaded at entry, for the reason
+    // `openInterestsFromSettings` does it: this is an editor, and saving what
+    // the screen last happened to hold would overwrite a change made on
+    // another device.
+    loadPrefChoices().then(function(){
+      var p = (PREF_CHOICES && PREF_CHOICES.location) || {};
+      document.getElementById("locCity").value = p.city || "";
+      document.getElementById("locRegion").value = p.region || "";
+      document.getElementById("locCountry").value = p.country || "";
+      showScreen("location");
+    });
+  }
+
+  function closeLocation(){
+    showScreen(locationReturn);
+    if(locationReturn === "settings") renderSettings();
+    if(locationReturn === "profile") loadProfile();
+  }
+
+  function saveLocation(){
+    savePreferences({
+      city:    document.getElementById("locCity").value.trim(),
+      region:  document.getElementById("locRegion").value.trim(),
+      country: document.getElementById("locCountry").value.trim()
+    }).then(function(saved){
+      // Merge the one field rather than replacing the object - the POST
+      // answers with the preferences and the GET answers with those plus the
+      // catalogue every other screen draws from.
+      if(saved && saved.location && PREF_CHOICES){
+        PREF_CHOICES.location = saved.location;
+      }
+      toast(saved ? "Saved" : "Could not save that");
+      closeLocation();
+    });
+  }
 
   function openInterestsFromSettings(){
     introMode = "settings";

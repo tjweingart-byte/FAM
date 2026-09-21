@@ -285,6 +285,151 @@ def test_an_impression_never_mints_a_node(tmp_path):
     assert store.subject_texts(0) == []
 
 
+def test_matching_finds_everything_a_brute_force_scan_would(tree):
+    """The index keys each node on its *smallest* word, which is an
+    optimisation with a completeness argument behind it rather than a
+    heuristic: a node matches only when every one of its words is in the
+    text, so a matching node's smallest word is necessarily in the text and
+    its bucket is necessarily reached.
+
+    That argument is easy to state and easy to break - somebody indexing on
+    "the first word" or "the longest word" instead would pass every other
+    test in this file. So it is checked against the scan it replaces.
+    """
+    import random
+
+    random.seed(9)
+    words = ["nvidia", "bengals", "federal", "reserve", "climate", "chips",
+             "league", "rates", "fusion", "tariff", "housing", "album"]
+    for i in range(200):
+        tree.mint(" ".join(random.sample(words, random.randint(1, 3))))
+    nodes = tree.nodes()
+
+    for _ in range(60):
+        text = " ".join(random.sample(words, random.randint(2, 7)))
+        text_words = C.words_of(text)
+        brute = set()
+        for node_id, node in nodes.items():
+            if node.words <= text_words:
+                brute.add(node_id)
+                brute.update(tree.ancestors(node_id))
+        assert set(tree.match(text)) == brute, text
+
+
+def test_the_read_path_stays_cheap_on_a_large_tree(tree, monkeypatch):
+    """`taste` calls `match` once per event - up to four hundred - on every
+    browse page, so a per-call cost that looks free is a page load that is
+    not. Two things were found this way and both were properties in loops:
+    `Node.words` re-split a phrase a million times, and `ancestors` re-walked
+    the tree per hit. Both are precomputed at `reload` now.
+
+    A loose bound, catching a change of shape rather than defending a
+    millisecond.
+    """
+    import random
+    import time
+
+    random.seed(5)
+    words = ["nvidia", "bengals", "federal", "reserve", "climate", "premier",
+             "league", "chips", "inflation", "rates", "stadium", "fusion"]
+    for i in range(1200):
+        tree.mint(f"{random.choice(words)} topic{i} {random.choice(words)}")
+    monkeypatch.setattr(T, "_CATEGORIES", tree)
+
+    now = time.time()
+    events = [T.Event("u1", "search", "",
+                      " ".join(random.choice(words) for _ in range(6)),
+                      (), now - i * 3600) for i in range(400)]
+    started = time.perf_counter()
+    T.taste(events, now)
+    elapsed = time.perf_counter() - started
+    assert elapsed < 1.0, (
+        f"taste() took {elapsed * 1000:.0f}ms against a {len(tree.nodes())}-"
+        "node tree; this is on the browse read path"
+    )
+
+
+# --- the sweep shares a thread with the product ----------------------------
+
+
+def test_the_sweep_finishes_on_a_full_window():
+    """The bug this exists for: `_drop_subsumed` compared every pair of
+    candidate phrases, which on a real window - `subject_texts` caps at 20,000
+    texts - was 52,930 phrases, 2.8 billion comparisons and **ninety-one
+    seconds**. It runs inside a `create_task` started by `/api/myfam`, so that
+    is a stalled worker rather than a slow sweep: every episode and browse page
+    behind it waits, once an hour, with nothing saying why.
+
+    A unit test on a handful of phrases cannot see any of that, which is why
+    this one builds a realistic window. The bound is deliberately loose - it is
+    catching a change of complexity, not defending a millisecond.
+    """
+    import random
+    import time
+
+    random.seed(3)
+    words = ["nvidia", "bengals", "federal", "reserve", "climate", "premier",
+             "league", "chips", "inflation", "rates", "stadium", "transfer",
+             "satellite", "fusion", "election", "tariff", "housing",
+             "mortgage", "streaming", "studio", "album", "marathon"]
+    texts = [(f"u{i % 4000}",
+              " ".join(random.choice(words)
+                       for _ in range(random.randint(2, 7))))
+             for i in range(20000)]
+
+    started = time.perf_counter()
+    seen = C.candidates(texts)
+    C._drop_subsumed(seen)
+    elapsed = time.perf_counter() - started
+    assert len(seen) > 10000, "the corpus has to be big enough to be a test"
+    assert elapsed < 20, (
+        f"a full window took {elapsed:.1f}s of CPU inside the background "
+        "sweep; at 20,000 texts the pairwise version took 91s and blocked "
+        "every request on the worker"
+    )
+
+
+def test_the_cpu_work_is_kept_off_the_event_loop():
+    """Even fast, this must not run *on* the loop. `create_task` on a
+    coroutine that then does seconds of synchronous CPU is a stalled worker,
+    and the next rule added to `promote` will not necessarily be cheap."""
+    source = inspect.getsource(C.sweep)
+    assert "to_thread" in source, (
+        "promote() is pure CPU over every text in the window and sweep() is "
+        "started from a request path"
+    )
+
+
+def test_bucketing_gives_the_same_answer_as_comparing_every_pair():
+    """The fast version is an optimisation, not a new rule. Subsumption
+    requires *identical* support, so grouping by support first cannot change
+    the answer - this is what says so rather than assuming it."""
+    import random
+
+    def pairwise(seen):
+        by_words = {p: frozenset(p.split()) for p in seen}
+        dropped = set()
+        for phrase, words in by_words.items():
+            for longer, longer_words in by_words.items():
+                if longer is phrase or not (words < longer_words):
+                    continue
+                if seen[phrase] == seen[longer]:
+                    dropped.add(phrase)
+                    break
+        return dropped
+
+    words = ["nvidia", "bengals", "federal", "reserve", "climate", "premier",
+             "league", "chips", "inflation", "rates", "tariff"]
+    for trial in range(8):
+        random.seed(trial)
+        texts = [(f"u{i % 30}",
+                  " ".join(random.choice(words)
+                           for _ in range(random.randint(2, 6))))
+                 for i in range(300)]
+        seen = C.candidates(texts)
+        assert pairwise(seen) == C._drop_subsumed(seen), f"trial {trial}"
+
+
 def test_a_node_nothing_matches_ages_out(tree):
     """A vocabulary that only grows ends up ranking on what people were
     interested in two years ago."""

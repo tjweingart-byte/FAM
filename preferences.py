@@ -36,6 +36,7 @@ scheduled digest would be built on.
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -305,7 +306,6 @@ class Location:
         it look local would have a worse feed than one with no location at
         all.
         """
-        import re
         out = set()
         for part in (self.city, self.region):
             for word in re.findall(r"[a-z0-9]+", part.lower()):

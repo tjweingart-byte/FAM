@@ -768,6 +768,18 @@ LIVE_SHIM = r"""
   // One row per listener, and - like the server - only read back for one with
   // an account. An anonymous listener's answers live in their own browser and
   // arrive as a hint on the request, which is what `hint` below is.
+  //: The longest any one part of a location may be - `preferences.MAX_PLACE`.
+  //: A place name, not a sentence.
+  var MAX_PLACE = 60;
+
+  function locationBody(stored) {
+    if (!stored) return { city: "", region: "", country: "", label: "" };
+    var parts = [stored.city, stored.region, stored.country]
+      .filter(function (p) { return !!p; });
+    return { city: stored.city || "", region: stored.region || "",
+             country: stored.country || "", label: parts.join(", ") };
+  }
+
   function myPrefs() {
     var row = rows("prefs").filter(function (r) { return r.id === UID; })[0];
     return {
@@ -788,6 +800,13 @@ LIVE_SHIM = r"""
       // the same two kinds of value and one of them is free text.
       profile_interests: row && row.profile_interests
         ? String(row.profile_interests).split("\n").filter(Boolean) : [],
+      // Three columns rather than one string, like the server's: the ranker
+      // reads city and region and deliberately ignores country, and splitting
+      // a stored string back apart on a comma is a parser waiting to meet a
+      // place whose name contains one.
+      city: (row && row.city) || "",
+      region: (row && row.region) || "",
+      country: (row && row.country) || "",
       intro_done: !!(row && row.intro_done)
     };
   }
@@ -1299,7 +1318,11 @@ LIVE_SHIM = r"""
         weekly_recap: stored.weekly_recap, recap_week: stored.recap_week,
         topics: EMAIL ? stored.topics : [],
         topics_chosen: chosenTopicsBody(EMAIL ? stored.topics : []),
-        intro_done: EMAIL ? stored.intro_done : false
+        intro_done: EMAIL ? stored.intro_done : false,
+        // Where they say they are. `label` is derived here rather than stored
+        // for the same reason `preferences.Location.label` is a property: two
+        // places writing it is two places that can disagree about the commas.
+        location: locationBody(EMAIL ? stored : null)
       });
     }
     if (path === "/api/preferences" && method === "POST") {
@@ -1332,11 +1355,22 @@ LIVE_SHIM = r"""
         ? body.profile_interests.map(function (t) { return String(t || "").trim(); })
             .filter(Boolean).slice(0, PROFILE_INTEREST_SLOTS)
         : was.profile_interests;
+      // Each part merged on its own, like `PreferenceStore.save`: the Where
+      // you are editor sends a corrected city without resending a country
+      // that has not changed.
+      var place = function (key) {
+        return (body[key] !== undefined && body[key] !== null)
+          ? String(body[key] || "").trim().slice(0, MAX_PLACE)
+          : (was[key] || "");
+      };
       return put("prefs", UID, {
         interests: chosen.join(","),
         hidden_interests: hidden.join(","),
         topics: subjects.join("\n"),
         profile_interests: pinned.join("\n"),
+        city: place("city"),
+        region: place("region"),
+        country: place("country"),
         language: body.language !== undefined && body.language !== null
           ? body.language : was.language,
         weekly_recap: body.weekly_recap !== undefined && body.weekly_recap !== null

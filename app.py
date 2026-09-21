@@ -619,6 +619,13 @@ def _database_report() -> list[dict]:
         ("shares", "SHARES_DB", SHARES.path),
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
+        # The grown ranking vocabulary. Reported like the rest rather than
+        # lazily like the voice registry below: `category_tree()` opens it on
+        # the first feed, every deployment has one, and a tree silently living
+        # inside the image is a vocabulary that resets on every push - which
+        # from outside looks exactly like one that had never grown.
+        ("categories", "CATEGORIES_DB",
+         getattr(topics_mod.category_tree(), "path", "")),
     ]
     # Opened lazily and only where workers register themselves, so it is
     # reported only when it exists: a store listed as missing on every machine
