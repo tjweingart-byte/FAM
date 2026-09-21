@@ -36,6 +36,7 @@ scheduled digest would be built on.
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -227,6 +228,97 @@ def clean_profile_interests(values: Iterable[str]) -> tuple[str, ...]:
     return picked[:PROFILE_INTERESTS_MAX]
 
 
+#: The longest any one part of a location may be. A place name, not a
+#: sentence: somebody pasting their full postal address has not answered the
+#: question, and storing it would put their street on their profile.
+MAX_PLACE = 60
+
+
+def clean_place(value: str) -> str:
+    """One part of a location - a city, a region, a country - as typed.
+
+    **Free text, and validated against nothing.** The temptation is a list,
+    and the list is the trap `clean_topics` already documents: there is no
+    catalogue of the world's towns that is both complete and short enough to
+    ship, so a validated field is a field that tells some listeners their home
+    does not exist. A country list is a closed vocabulary and would be
+    defensible on its own, but "United States" and "USA" and "U.S." are the
+    same answer, and a partial validation that accepts one spelling and
+    refuses the next is worse than none - it fails in front of the listener
+    while looking like a rule.
+
+    Bounded the way every other free-text field here is bounded: whitespace
+    collapsed, length capped, empty allowed. Nothing about the feed depends on
+    this being spelled any particular way, because the ranking matches on
+    *words* and not on an identifier.
+    """
+    return " ".join(str(value or "").split())[:MAX_PLACE]
+
+
+@dataclass(frozen=True)
+class Location:
+    """Where a listener says they are. Three strings and no coordinates.
+
+    **Typed, not sensed.** All three routes to a location work - an IP lookup
+    on the server, the browser's geolocation API, CoreLocation on the phone -
+    and the typed one is primary because it is the only one that is *stable*
+    and *correctable*. An address derived from an IP changes on every train
+    journey and a listener's interests do not; a permission prompt in front of
+    a product somebody has not heard yet costs more than it buys; and a
+    location nobody can see is a guess about where somebody is, which is the
+    same argument that put a preview on the avatar crop. An IP lookup is still
+    worth having later, as a *suggested default for this field* - shown and
+    editable - and never as a silent value.
+
+    No latitude and no longitude, deliberately. Nothing in FAM needs to know
+    how far apart two listeners are; what it needs is a word that can appear
+    in a headline.
+    """
+
+    city: str = ""
+    region: str = ""
+    country: str = ""
+
+    def __bool__(self) -> bool:
+        return bool(self.city or self.region or self.country)
+
+    @property
+    def label(self) -> str:
+        """How it reads back on a screen. Empty parts simply drop out."""
+        return ", ".join(p for p in (self.city, self.region, self.country) if p)
+
+    @property
+    def words(self) -> frozenset[str]:
+        """The words the ranker may match a live story against.
+
+        **City and region only, and that is the load-bearing part.** A country
+        is stored - it disambiguates a Springfield and it is what a
+        per-country source would read on the day there is one - and it is far
+        too coarse to be a relevance signal. Boosting every story about the
+        United States for every listener in the United States is not
+        personalisation, it is a different global sort order wearing
+        personalisation's name, and the page already has two rails for what
+        everybody is playing.
+
+        Filtered through the same stopwords and minimum length
+        `topics.familiar_words` uses, so "New York" contributes `york` and not
+        `new` - a listener whose city made every tile with the word "new" in
+        it look local would have a worse feed than one with no location at
+        all.
+        """
+        out = set()
+        for part in (self.city, self.region):
+            for word in re.findall(r"[a-z0-9]+", part.lower()):
+                if (len(word) >= topics.FAMILIAR_MIN_WORD
+                        and word not in topics.FAMILIAR_STOPWORDS):
+                    out.add(word)
+        return frozenset(out)
+
+    def as_dict(self) -> dict:
+        return {"city": self.city, "region": self.region,
+                "country": self.country, "label": self.label}
+
+
 def clean_language(code: str) -> str:
     lang = (code or "").strip().lower()
     if not lang:
@@ -273,6 +365,18 @@ class Preferences:
     #: See `clean_profile_interests`.
     profile_interests: tuple[str, ...] = ()
     language: str = DEFAULT_LANGUAGE
+    #: Where they say they are. Three columns rather than one, because "just
+    #: city, state and country" is what was asked for and because the ranker
+    #: uses two of the three differently from the third - see `Location.words`.
+    #:
+    #: It is **never** allowed near an episode. A listener's location on
+    #: `EpisodePlan` would land in `pipeline.key_for`, and at that moment every
+    #: listener has their own script cache, the shared-cost design the whole
+    #: app rests on is gone, and *nothing fails* - the app keeps working and
+    #: quietly costs several times more. The way location reaches an episode
+    #: is by changing which question gets offered, so the episode written for
+    #: that question is still shared with everybody else who asks it.
+    location: Location = Location()
     weekly_recap: bool = True
     #: The Sunday of the week whose recap they have already been shown.
     recap_week: str = ""
@@ -292,6 +396,7 @@ class Preferences:
             "topics": list(self.topics),
             "profile_interests": list(self.profile_interests),
             "language": self.language,
+            "location": self.location.as_dict(),
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
             "intro_done": self.intro_done,
@@ -348,6 +453,20 @@ class PreferenceStore:
                              " profile_interests TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # And again, three at a time. Three columns rather than one
+            # "Cincinnati, Ohio, United States" string, because the ranker
+            # reads city and region and deliberately ignores country, and
+            # splitting a stored string back apart on a comma is a parser
+            # waiting to meet a place whose name contains one.
+            for ddl in (
+                "ALTER TABLE preferences ADD COLUMN city TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE preferences ADD COLUMN region TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE preferences ADD COLUMN country TEXT NOT NULL DEFAULT ''",
+            ):
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -364,7 +483,8 @@ class PreferenceStore:
         try:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
-                " intro_done, hidden_interests, topics, profile_interests"
+                " intro_done, hidden_interests, topics, profile_interests,"
+                " city, region, country"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -385,6 +505,7 @@ class PreferenceStore:
             topics=tuple(t for t in (row[6] or "").split("\n") if t),
             profile_interests=tuple(
                 t for t in (row[7] or "").split("\n") if t),
+            location=Location(row[8] or "", row[9] or "", row[10] or ""),
         )
 
     def save(
@@ -395,6 +516,9 @@ class PreferenceStore:
         topics: Optional[Iterable[str]] = None,
         profile_interests: Optional[Iterable[str]] = None,
         language: Optional[str] = None,
+        city: Optional[str] = None,
+        region: Optional[str] = None,
+        country: Optional[str] = None,
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
         recap_week: Optional[str] = None,
@@ -423,6 +547,16 @@ class PreferenceStore:
                                else current.profile_interests),
             language=(clean_language(language) if language is not None
                       else current.language),
+            # Each part merged on its own, so the Edit profile screen can send
+            # a corrected city without having to resend a country that has not
+            # changed. Three `Optional`s rather than one `Location`, because a
+            # partial write is what every other field here already supports
+            # and an all-or-nothing location would be the one exception.
+            location=Location(
+                clean_place(city) if city is not None else current.location.city,
+                clean_place(region) if region is not None else current.location.region,
+                clean_place(country) if country is not None
+                else current.location.country),
             weekly_recap=(bool(weekly_recap) if weekly_recap is not None
                           else current.weekly_recap),
             recap_week=(recap_week if recap_week is not None else current.recap_week),
@@ -433,8 +567,8 @@ class PreferenceStore:
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
                     intro_done, updated, hidden_interests, topics,
-                    profile_interests)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_interests, city, region, country)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
@@ -444,12 +578,17 @@ class PreferenceStore:
                    weekly_recap = excluded.weekly_recap,
                    recap_week   = excluded.recap_week,
                    intro_done   = excluded.intro_done,
+                   city         = excluded.city,
+                   region       = excluded.region,
+                   country      = excluded.country,
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
              at or time.time(), ",".join(merged.hidden_interests),
              "\n".join(merged.topics),
-             "\n".join(merged.profile_interests)),
+             "\n".join(merged.profile_interests),
+             merged.location.city, merged.location.region,
+             merged.location.country),
         )
         return merged
 

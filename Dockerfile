@@ -56,6 +56,7 @@ ENV CACHE_PATH=/data/scripts.db \
     SHARES_DB=/data/shares.db \
     QUOTAS_DB=/data/quotas.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \
+    CATEGORIES_DB=/data/categories.db \
     PORT=8000
 RUN mkdir -p /data
 

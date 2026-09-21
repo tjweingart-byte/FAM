@@ -390,6 +390,11 @@ def load_fixtures() -> dict:
             "interests": [], "hidden_interests": [], "public_interests": [],
             "language": "en", "weekly_recap": True,
             "recap_week": "", "intro_done": False,
+            # Empty rather than a plausible-looking city. A fixture that
+            # arrived pre-filled with somewhere would make the Where you are
+            # editor look like it had already been used, which is the
+            # invented-contacts mistake in a smaller place.
+            "location": {"city": "", "region": "", "country": "", "label": ""},
         },
         "/api/nextup": {
             "topics": [by_id[i] for i in
@@ -654,6 +659,21 @@ SHIM = """
        "intro_done", "profile_interests"].forEach(function (k) {
         if (chosen[k] !== undefined && chosen[k] !== null) stored[k] = chosen[k];
       });
+      // Where they say they are. Each part merged on its own, like
+      // `PreferenceStore.save`, so the Where you are editor can send a
+      // corrected city without resending a country that has not changed -
+      // and `label` is derived rather than stored, for the same reason
+      // `preferences.Location.label` is a property.
+      stored.location = stored.location
+        || { city: "", region: "", country: "", label: "" };
+      ["city", "region", "country"].forEach(function (k) {
+        if (chosen[k] !== undefined && chosen[k] !== null) {
+          stored.location[k] = String(chosen[k] || "").trim().slice(0, 60);
+        }
+      });
+      stored.location.label = [stored.location.city, stored.location.region,
+                               stored.location.country]
+        .filter(function (p) { return !!p; }).join(", ");
       // The pinned row, straight back onto the profile the page is about to
       // redraw. The real server recomputes the whole row from it; the fixture
       // only has to agree about what a pin does, which is that it wins and

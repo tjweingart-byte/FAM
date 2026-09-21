@@ -64,6 +64,13 @@ FAM_ENVIRONMENT = (
     "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
+    # The grown vocabulary. A developer with CATEGORIES=0 set must not run a
+    # suite that quietly skips every tree behaviour and still reports green -
+    # and one with a tree on their machine must not have it rank a test's
+    # feed, which is what `CATEGORIES_DB` reaching the suite would do.
+    "CATEGORIES", "CATEGORIES_PLACE", "CATEGORIES_MODEL", "CATEGORIES_EFFORT",
+    "CATEGORIES_MAX_TOKENS", "CATEGORIES_PLACE_TIMEOUT_SECONDS",
+    "CATEGORIES_WINDOW_DAYS",
     # World trending. Same reasoning: a developer with TRENDING_SOURCE=fake
     # set must not run a suite that quietly has a news feed in it.
     "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",
@@ -290,6 +297,33 @@ def isolated_stores(tmp_path, monkeypatch):
                         saved_mod.SavedStore(str(here / "saved.db")))
     monkeypatch.setattr(appmod, "SHARES",
                         sharing_mod.ShareStore(str(here / "shares.db")))
+
+
+@pytest.fixture(autouse=True)
+def isolated_categories(tmp_path, monkeypatch):
+    """The grown vocabulary gets its own tree, per test.
+
+    It is a store like the seven above and needs isolating for the same
+    reason, with one extra edge that made it worth its own fixture: it is
+    reached through a **process-global** (`topics._CATEGORIES`, opened once
+    and cached because `match` is on the browse read path), so without this a
+    tree minted by one test would still be ranking the next one's feed, and a
+    developer who had run `tools/categories_report.py` locally would get
+    different results from CI.
+
+    That is the failure this whole file exists to prevent, arriving through a
+    module-level cache rather than through the environment.
+    """
+    import categories as categories_mod
+    import topics as topics_mod
+
+    monkeypatch.setenv("CATEGORIES_DB",
+                       str(tmp_path / "stores" / "categories.db"))
+    topics_mod.reset_category_tree()
+    categories_mod.reset_sweep()
+    yield
+    topics_mod.reset_category_tree()
+    categories_mod.reset_sweep()
 
 
 @pytest.fixture(autouse=True)
