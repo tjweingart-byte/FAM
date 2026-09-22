@@ -10224,6 +10224,15 @@ a smoke check where one could see it:
 - **`/api/next` computed the cache key three times** per poll - three model
   calls each with `CACHE_SEMANTIC_KEY` on. `episode_meta` computes it once.
 
+**And CI found one the container could not.** The gate runs Node 20, which
+has no global `navigator`; this container runs Node 22, which does. The
+silent-switch guard read `navigator.audioSession` outside its `try`, so
+`tools/check_stretch.js` - which runs `fam-audio.js` under Node - passed here
+and threw a `ReferenceError` there. Reproduced here by deleting
+`globalThis.navigator` before the check, and guarded with `typeof`. §106's
+"a green `./dev.sh check` is not a green CI", with the Node version as the
+difference this time.
+
 ### Still open
 
 **None of the interface half has been on a real iPhone.** The ringer fix in
