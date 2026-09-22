@@ -321,6 +321,22 @@ class EmptyTree:
     def clear(self) -> int:
         return 0
 
+    #: Here for the same reason as `clear`, and for one caller: `apply_seed`
+    #: runs at every boot, so on a deployment whose tree cannot be opened it
+    #: would otherwise raise 180 times over and put an `AttributeError` in
+    #: the log under a message about the starter vocabulary - when the real
+    #: cause is the line `category_tree()` already logged, that the database
+    #: could not be opened. Seeding an unavailable tree adds nothing and says
+    #: nothing, which is the truth.
+    #:
+    #: The rest of the growth half - `reparent`, `reload`, `_conn` - is
+    #: deliberately still absent. Those are only reached by `sweep`, which
+    #: `app._grow_categories` already wraps, and inventing no-ops for them
+    #: here would be claiming this class supports a write path it has never
+    #: been on.
+    def mint(self, phrase: str, *args, **kwargs) -> None:
+        return None
+
     def report(self) -> dict:
         return {"path": "", "nodes": 0, "max_depth": 0, "by_depth": {},
                 "by_source": {}, "degraded": 0, "full": False,

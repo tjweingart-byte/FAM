@@ -272,6 +272,18 @@ def test_reading_tiles_is_cheap_enough_for_a_browse_page(seeded):
     assert elapsed < 0.5, f"{len(tiles)} tiles x 50 took {elapsed:.3f}s"
 
 
+def test_seeding_an_unavailable_tree_is_quiet_and_harmless(seeded):
+    """`EmptyTree` is what `category_tree()` returns when the database cannot
+    be opened, and `apply_seed` runs at every boot - so without `mint` on it
+    this would raise 180 times and file an `AttributeError` under a message
+    about the starter vocabulary, when the real cause is the line
+    `category_tree()` already logged."""
+    empty = C.EmptyTree()
+    assert C.apply_seed(empty) == 0
+    assert C.seed_report(empty) == {
+        "seeded": 0, "learned": 0, "seed_available": len(S.rows())}
+
+
 # --------------------------------------------------------------------------
 # it never blocks growth
 # --------------------------------------------------------------------------
