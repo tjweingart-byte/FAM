@@ -13,6 +13,18 @@ Five rails, two inventories, and one rule that decides the shape of all of it:
 | 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays and **nothing else**, cached first | `rank_most_played` |
 | 5 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
 
+**Every rail but rail 5 has a floor** (§127, at the owner's direction):
+`topics.RAIL_MINIMUM` is six tiles for Made for you and Trending and four for
+rails 3 and 4. It is applied *after* each rail has chosen, by `_fill_to_minimum`
+from `_rail_fallback` - Trending from the live pool, the held pool, then the
+startup set, then the bank; the others from their own inventory in affinity
+order, then everything else - so a rail's own picks keep their order and only
+the gap is filled. "View more" gets the same floor. Rail 5 stays empty until
+somebody follows somebody, because a friends row filled with strangers is
+§102's bug. The column above says what each rail *chooses*; the floor is what
+fills the gap under it, and `build_feed(..., floors={})` shows the choice
+alone.
+
 **Rail 1 has two names, because on a cold start it is not personal** (§116).
 A listener with no account, no chosen interests and nothing played scores zero
 against every tile, so `RELEVANCE_FLOOR` emptied the one rail that matters
@@ -477,8 +489,11 @@ absence of a signal we had never asked them for. The rails that genuinely
 cannot be filled without inventing something still are empty and still say
 why: "What your friends are listening to" needs a graph, "What you missed last
 week" needs a week of impressions, and Trending needs a live source. Those
-three sentences are unchanged, and a test asserts those rails stay empty for a
-brand-new listener rather than quietly borrowing the startup set.
+three sentences are unchanged, and a test asserts those rails *choose* nothing
+for a brand-new listener rather than quietly borrowing the startup set. Since
+§127 only the friends rail is still *drawn* empty: the floor tops the other
+two up after they have chosen, so their sentences now show only when the
+floor has nothing left to offer.
 
 There is a sixth pool sentence, and it belongs to the **rail** rather than the pool.
 Made for you chooses first, so on a thin day it can take everything and leave
