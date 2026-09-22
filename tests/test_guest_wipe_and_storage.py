@@ -280,6 +280,9 @@ def test_wiping_everything_empties_the_log_and_the_cache(client, monkeypatch):
     import app as app_mod
 
     monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
+    # An account's event: a guest's is never written (§127).
+    client.post("/api/auth/signup", json={"email": "wipe@fam.test",
+                                          "password": "a-long-enough-password"})
     client.post("/api/event", json={"kind": "play", "topic_id": "ai-agents",
                                     "text": "ai agents"})
     assert app_mod.EVENTS.count() > 0

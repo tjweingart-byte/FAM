@@ -207,7 +207,15 @@ def load_fixtures() -> dict:
         # and the title is the whole point of the swap the player does a few
         # seconds in, which a fixture without one would show none of.
         "/api/next": {"thread": "why the shipping lanes run through Omani water",
-                      "title": "The Two-Mile Lane That Moves the Oil"},
+                      "title": "The Two-Mile Lane That Moves the Oil",
+                      "title_final": True,
+                      "summary": "Why a strait two miles wide sets the price "
+                                 "of a barrel, and what insurers have to do "
+                                 "with it."},
+        # Resume positions and the typing note are written to the server now
+        # (§127). The preview keeps neither; it only has to answer.
+        "/api/progress": {"ok": True, "remembered": True, "resumable": True},
+        "/api/messages/typing": {"ok": True},
         # Who this episode drew on. Invented, like every fixture here - the
         # point on a phone is the corner cluster, the overlap and the popup,
         # none of which a preview with no sources would ever draw. A live
@@ -254,14 +262,33 @@ def load_fixtures() -> dict:
         ]},
         # Two open threads; the shim seeds two part-heard episodes alongside
         # them, so Go Deeper opens as a full grid rather than one lonely card.
-        "/api/godeeper": {"threads": [
-            {"thread": "why the shipping lanes run through Omani water",
-             "title": "The Two-Mile Lane That Moves the Oil",
-             "from_title": "Why the Strait of Hormuz Moves the Oil Price", "at": 0},
-            {"thread": "how NIL money changed college football recruiting",
-             "title": "The New College Football Arms Race",
-             "from_title": "Who Really Pays for a Stadium", "at": 0},
-        ]},
+        # "Pick up where you left off": two part-heard episodes and two
+        # follow-ups, each with the one-line summary the section draws (§127).
+        "/api/godeeper": {
+            "resume": [
+                {"query": "why everyone is talking about AI agents", "minutes": 7,
+                 "seconds": 259, "title": "The Agents Are Coming for Your Inbox",
+                 "summary": "What an AI agent actually does, and why every big "
+                            "lab shipped one in the same month.", "at": 0},
+                {"query": "who actually makes the world's chips", "minutes": 6,
+                 "seconds": 50, "title": "Who Actually Makes the World's Chips",
+                 "summary": "One company in Taiwan, the machines it cannot live "
+                            "without, and why that worries everyone.", "at": 0},
+            ],
+            "threads": [
+                {"thread": "why the shipping lanes run through Omani water",
+                 "title": "The Two-Mile Lane That Moves the Oil",
+                 "from_title": "Why the Strait of Hormuz Moves the Oil Price",
+                 "summary": "Follows on from Why the Strait of Hormuz Moves "
+                            "the Oil Price.", "at": 0},
+                {"thread": "how NIL money changed college football recruiting",
+                 "title": "The New College Football Arms Race",
+                 "from_title": "Who Really Pays for a Stadium",
+                 "summary": "Follows on from Who Really Pays for a Stadium.",
+                 "at": 0},
+            ],
+            "similar": [],
+        },
         # What a real Mac reports, minus the hosted engine that was removed.
         # One voice made the picker look like it had nothing to pick, and the
         # grouping and the scrolling both only show up on a list long enough
@@ -509,7 +536,14 @@ SHIM = """
 
   var PEOPLE = {
     all: [
-      { user_id: "u_beth", name: "Beth Solomon", handle: "beth" },
+      // A picture, so the preview shows faces where somebody has set one and
+      // initials where they have not (§127). Drawn, like every fixture.
+      { user_id: "u_beth", name: "Beth Solomon", handle: "beth",
+        avatar: "data:image/svg+xml;utf8," + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">'
+          + '<rect width="40" height="40" fill="#7FC4D4"/>'
+          + '<circle cx="20" cy="16" r="7" fill="#F4EFE4"/>'
+          + '<path d="M7 38c2-8 7-12 13-12s11 4 13 12z" fill="#F4EFE4"/></svg>') },
       { user_id: "u_mike", name: "Mike Solomon", handle: "mike" },
       { user_id: "u_rachel", name: "Rachel Solomon", handle: "rachel" },
       // Follows and is not followed back, so the asymmetry the graph is built
@@ -555,7 +589,7 @@ SHIM = """
                   .filter(Boolean)
                   .map(function (p) {
                     return { user_id: p.user_id, name: p.name,
-                             handle: p.handle, avatar: "", at: 0 };
+                             handle: p.handle, avatar: p.avatar || "", at: 0 };
                   });
       };
       var friends = this.following.filter(function (id) {
@@ -610,7 +644,7 @@ SHIM = """
         var msgs = self.threads[id];
         var who = self.byId(id) || { name: "Someone", handle: "" };
         return { thread: id, with: id, name: who.name, handle: who.handle,
-                 last: msgs[msgs.length - 1], unread: 0 };
+                 avatar: who.avatar || "", last: msgs[msgs.length - 1], unread: 0 };
       });
       return { threads: rows, unread: 0 };
     }
@@ -984,19 +1018,8 @@ SHIM = """
              public: !!isPublic, created_at: 0, updated_at: 0 };
   }
 
-  // Two part-heard episodes, so the preview shows Go Deeper as it looks once
-  // someone has been using the app. Seeded once and then left alone, so
-  // anything you do to it in the preview sticks.
-  try {
-    if (!localStorage.getItem("fam_resume")) {
-      localStorage.setItem("fam_resume", JSON.stringify({
-        "why everyone is talking about AI agents":
-          { minutes: 7, at: 259, saved: Date.now() },
-        "who actually makes the world's chips":
-          { minutes: 6, at: 50, saved: Date.now() - 9000 }
-      }));
-    }
-  } catch (e) { /* private browsing: the section is simply emptier */ }
+  // Part-heard episodes are the server's now (§127) - see the
+  // `/api/godeeper` fixture, which carries two of them.
 
   // Say what this is, once, without covering anything up.
   window.addEventListener("load", function () {
@@ -1029,7 +1052,17 @@ def build() -> pathlib.Path:
     sys.path.insert(0, str(ROOT))
     import sharing
 
-    shim = (SHIM.replace("__FIXTURES__", json.dumps(load_fixtures()))
+    fixtures = load_fixtures()
+    # Where each caption sentence starts, the way the server measures it
+    # (§127) - here at an even fifteen characters a second, which is close
+    # enough to a voice for the one-sentence panel to be judged on a phone.
+    transcript = fixtures["/api/transcript"]
+    at, starts = 0.0, []
+    for line in transcript["sentences"]:
+        starts.append(round(at, 2))
+        at += len(line) / 15.0 + 0.35
+    transcript["starts"] = starts
+    shim = (SHIM.replace("__FIXTURES__", json.dumps(fixtures))
                .replace("__SHARE_TEMPLATES__", json.dumps([
                    {"key": t.key, "label": t.label, "kind": t.kind,
                     "needs_image": t.needs_image, "text": t.template}

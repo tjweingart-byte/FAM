@@ -410,23 +410,24 @@ def main() -> int:
                 f"/{measured['lineHeight']} (webfonts: {measured['fonts']})"
             )
 
-        def go_deeper_fills_for_a_new_listener():
-            """Four tiles even with no history - the case nobody develops in.
+        def go_deeper_waits_for_a_new_listener():
+            """Nothing to pick up until the listener has done something (§127).
 
-            Everyone testing this has threads and half-heard episodes, so the
-            empty section only ever appeared for someone opening the app for
-            the first time. The tiles must be real bank topics (a query to
-            generate from), not placeholder text, and must not repeat what the
-            rails below are already showing.
+            It used to top itself up from the bank so a first run met four
+            tiles under "Pick up where you left off" - a section about coming
+            back to something, with nothing to come back to. Now a listener
+            with no part-heard episodes, threads or plays sees no section at
+            all, and the episode-length control lives in the fixed header
+            instead of that section's heading.
             """
             page.evaluate(
                 """() => {
-                    try { localStorage.clear(); } catch (e) {}
                     var real = window.fetch;
                     window.fetch = function(u, o){
                         if(String(u).indexOf("/api/godeeper") === 0){
                             return Promise.resolve({ ok: true,
-                                json: function(){ return Promise.resolve({ threads: [] }); } });
+                                json: function(){ return Promise.resolve(
+                                    { threads: [], resume: [], similar: [] }); } });
                         }
                         return real(u, o);
                     };
@@ -435,27 +436,15 @@ def main() -> int:
             page.evaluate("openMyFamTab(); loadMyFamFeed()")
             page.wait_for_timeout(1800)
             cards = page.evaluate("() => goDeeperCardCache")
-            assert len(cards) == 4, f"a new listener saw {len(cards)} Go Deeper tiles, not 4"
-            assert all(c["kind"] == "starter" for c in cards), \
-                f"expected all starters, got {[c['kind'] for c in cards]}"
-            assert all(c.get("query") and c.get("topicId") for c in cards), \
-                "a starter tile with no query or topic id cannot generate or be logged"
-            titles = page.eval_on_selector_all(".gd-card-title", "e => e.map(x => x.textContent)")
-            rails = page.eval_on_selector_all(".seed-card-title", "e => e.map(x => x.textContent)")
-            repeated = sorted(set(titles) & set(rails))
-            assert not repeated, f"Go Deeper repeats what the rails show: {repeated}"
-            # The heading, not the right-hand slot: that slot is the length
-            # control now, and the sentence about the tiles moved into the
-            # kicker. The rule it protects is unchanged - a listener on their
-            # first run has not left anything off.
-            label = page.text_content(".gd-kicker")
-            assert "left off" not in label.lower(), \
-                f"told a first-run listener they left something off: {label!r}"
-            # And the control that replaced it is real and independent of
-            # search's. Changing it here must not move the search player's.
+            assert cards == [], f"a new listener was offered {len(cards)} Go Deeper tiles"
+            assert not page.query_selector("#goDeeperBlock .gd-kicker"), \
+                "an empty Pick up where you left off section still drew its heading"
+            # The length control is in the fixed header now, and still
+            # independent of search's. Changing it here must not move the
+            # search player's.
             before = page.eval_on_selector("#lengthVal", "e => e.textContent")
-            assert page.query_selector(".gd-len"), \
-                "myFAM has no episode-length control"
+            assert page.query_selector("#screen-myfam .myfam-header .gd-len"), \
+                "myFAM's episode-length control is not in the header"
             page.evaluate("openMyFamLengthMenu()")
             page.wait_for_timeout(250)
             page.evaluate(
@@ -468,12 +457,64 @@ def main() -> int:
                     }
                 }""")
             page.wait_for_timeout(350)
-            assert "7 min" in page.text_content(".gd-len"), \
+            assert "7 min" in page.text_content("#screen-myfam .gd-len"), \
                 "myFAM's length control did not take"
             assert page.eval_on_selector("#lengthVal", "e => e.textContent") == before, \
                 "changing myFAM's length also changed the search player's"
             page.reload()
             page.wait_for_timeout(1200)
+
+        def myfam_header_stays_put():
+            """The wordmark, messages and the length control do not scroll
+            with the rails (§127): they sit outside the scroller."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(1200)
+            inside = page.evaluate(
+                "() => !!document.querySelector('#screen-myfam .scroll .myfam-header')")
+            assert not inside, "myFAM's header is inside the scrolling area"
+            top_before = page.eval_on_selector(
+                "#screen-myfam .myfam-header", "e => e.getBoundingClientRect().top")
+            page.evaluate("document.querySelector('#screen-myfam .scroll').scrollTop = 600")
+            page.wait_for_timeout(150)
+            top_after = page.eval_on_selector(
+                "#screen-myfam .myfam-header", "e => e.getBoundingClientRect().top")
+            page.evaluate("document.querySelector('#screen-myfam .scroll').scrollTop = 0")
+            assert abs(top_after - top_before) < 1, \
+                f"the header moved from {top_before} to {top_after} on scroll"
+
+        def the_loading_screen_can_be_cancelled():
+            """A mis-tap used to hold the whole app behind the loading screen
+            until audio started (§127). The X takes it down and goes back."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(500)
+            page.evaluate(
+                """() => {
+                    var real = window.fetch;
+                    window.__famRealFetch = real;
+                    window.fetch = function(u, o){
+                        if(String(u).indexOf("/api/audio") === 0){
+                            return new Promise(function(){});   // never answers
+                        }
+                        return real(u, o);
+                    };
+                }""")
+            page.evaluate("""() => {
+                TOPICS['cancel_probe'] = { title: 'Cancel probe', source: 'myFAM',
+                    caption: '', prompt: 'why do bonds move', titleOverridden: true };
+                generate('cancel_probe');
+            }""")
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector("#famLoading", "e => e.classList.contains('active')"), \
+                "the loading screen did not show"
+            page.click("#famLoadingCancel")
+            page.wait_for_timeout(300)
+            assert not page.eval_on_selector(
+                "#famLoading", "e => e.classList.contains('active')"), \
+                "the X did not take the loading screen down"
+            assert not page.eval_on_selector(
+                "#screen-player", "e => e.classList.contains('active')"), \
+                "cancelling left the listener on the player"
+            page.evaluate("() => { window.fetch = window.__famRealFetch; }")
 
         def attachments():
             """A file becomes a chip, and the chip becomes an id on the request.
@@ -1322,6 +1363,38 @@ def main() -> int:
             assert after == before + 1, \
                 f"the poll drew the same message again: {before + 1} -> {after}"
             page.evaluate("stopThreadPolling(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def messages_show_faces_and_typing():
+            """§127. The inbox drew initials for everybody, a friend with a
+            photo included, and a conversation gave no sign the other person
+            was writing back."""
+            page.evaluate("openMessages()")
+            page.wait_for_selector(".thread-row", timeout=8000, state="attached")
+            faces = page.eval_on_selector_all(".thread-row .av img", "e => e.length")
+            assert faces >= 1, "the inbox drew initials for a friend with a picture"
+            page.evaluate(
+                """() => {
+                    var real = window.fetch;
+                    window.__famRealFetch = real;
+                    window.fetch = function(u, o){
+                        var url = String(u);
+                        if(url.indexOf("/api/messages/thread") === 0
+                           && url.indexOf("since=") !== -1){
+                            return real(u, o).then(function(r){ return r.json(); })
+                              .then(function(d){ d.typing = true; d.messages = [];
+                                return { ok: true, json: function(){ return Promise.resolve(d); } }; });
+                        }
+                        return real(u, o);
+                    };
+                }""")
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.wait_for_selector("#threadTypingRow", timeout=6000)
+            assert page.query_selector("#thread-av img"), \
+                "the conversation header drew initials for a friend with a picture"
+            page.evaluate("stopThreadPolling(); window.fetch = window.__famRealFetch;"
+                          " openMyFamTab()")
             page.wait_for_timeout(400)
 
         def the_profile_says_what_its_pills_are():
@@ -2500,7 +2573,10 @@ def main() -> int:
         check("a cold start's rail does not claim to be personal",
               a_cold_start_rail_does_not_claim_to_be_personal)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
-        check("Go Deeper fills for a new listener", go_deeper_fills_for_a_new_listener)
+        check("Go Deeper waits for a new listener", go_deeper_waits_for_a_new_listener)
+        check("myFAM's header stays put while the rails scroll", myfam_header_stays_put)
+        check("The loading screen can be cancelled", the_loading_screen_can_be_cancelled)
+        check("Messages show faces and typing", messages_show_faces_and_typing)
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)
         check("One tap sends one request", one_tap_is_one_request)

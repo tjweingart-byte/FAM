@@ -100,8 +100,13 @@ def test_a_health_poll_does_not_accumulate_sessions(client):
 # --- signing up claims the identity you already have ----------------------
 
 
-def test_signing_up_keeps_the_history_the_listener_already_had(client):
-    """No migration step: signup attaches credentials to the same user_id."""
+def test_signing_up_keeps_the_identity_and_not_a_guests_history(client):
+    """No migration step: signup attaches credentials to the same user_id.
+
+    §127 reversed the second half of what this used to assert. A guest's
+    listening is never written into the log, so there is nothing to carry
+    over: the account's history starts at the account, and what a borrowed
+    phone had been doing does not become somebody's taste."""
     client.post("/api/event", json={"kind": "complete", "topic_id": "golf-evolution"})
     before = client.get("/api/auth/me").json()["user_id"]
 
@@ -109,13 +114,16 @@ def test_signing_up_keeps_the_history_the_listener_already_had(client):
                        json={"email": "ian@example.com", "password": GOOD}).json()
     assert body["user_id"] == before, "signing up started a second identity"
     assert body["authenticated"] is True
+    assert client.get("/api/profile").json()["finished"] == 0
+    client.post("/api/event", json={"kind": "complete", "topic_id": "golf-evolution"})
     assert client.get("/api/profile").json()["finished"] == 1
 
 
 def test_logging_in_elsewhere_reaches_the_same_data(client):
     """The reason to have accounts at all: another device, same listener."""
-    client.post("/api/event", json={"kind": "complete", "topic_id": "golf-evolution"})
     client.post("/api/auth/signup", json={"email": "ian@example.com", "password": GOOD})
+    # After signing up: since §127 only an account's listening is kept.
+    client.post("/api/event", json={"kind": "complete", "topic_id": "golf-evolution"})
     mine = client.get("/api/auth/me").json()["user_id"]
 
     phone = other()

@@ -192,7 +192,14 @@ def who_is(client) -> str:
     return client.get("/api/auth/me").json()["user_id"]
 
 
+def _account(client):
+    """Impressions are an account's since §127; a guest's are never logged."""
+    client.post("/api/auth/signup", json={"email": "imp@fam.test",
+                                          "password": "a-long-enough-password"})
+
+
 def test_the_endpoint_logs_one_impression_per_tile_it_returned(client):
+    _account(client)
     feed = client.get("/api/myfam").json()
     tiles = [(s["key"], t["id"]) for s in feed["sections"] for t in s["topics"]]
     assert tiles, "nothing was shown, so this proves nothing"
@@ -208,6 +215,7 @@ def test_no_impression_is_ever_attributed_to_an_empty_listener(client):
     is no such request any more: the server mints an identity rather than
     accepting one, which is the whole point of the change.
     """
+    _account(client)
     client.get("/api/myfam")
     assert appmod.EVENTS.impressions_for("") == []
     assert appmod.EVENTS.impressions_for(who_is(client)), "the feed logged nothing"
@@ -219,6 +227,7 @@ def test_the_feed_endpoint_notes_the_listener(client):
 
 
 def test_recording_an_event_notes_the_listener(client):
+    _account(client)
     client.post("/api/event", json={"kind": "play", "topic_id": "golf-evolution"})
     assert appmod.SOCIAL.person(who_is(client))["known"] is True
 

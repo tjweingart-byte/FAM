@@ -32,6 +32,9 @@ import startup  # noqa: E402
 import topics as T  # noqa: E402
 
 
+# §127: every call here passes `floors={}` - these tests are about what a
+# rail *chooses*, and since §127 each drawn rail but friends is topped up to
+# a minimum afterwards. The floor is pinned in test_implementations_127.py.
 @pytest.fixture
 def store():
     return T.EventStore(":memory:")
@@ -186,7 +189,7 @@ def test_the_prior_says_whether_it_measured_or_declared(store):
 
 def test_a_cold_start_gets_a_full_first_rail(store):
     """The whole point. This rail used to be empty."""
-    feed = T.build_feed(store, "brand-new", interests=())
+    feed = T.build_feed(store, "brand-new", interests=(), floors={})
     first = feed["sections"][0]
     assert first["key"] == "from_history"
     assert len(first["topics"]) == T.SECTION_SIZE
@@ -201,7 +204,7 @@ def test_the_startup_set_leads_the_cold_start_rail(store):
     the bank is about always, and no score can say that without borrowing
     `freshness` from the live pool - which would be a lie about that field.
     """
-    feed = T.build_feed(store, "brand-new", interests=())
+    feed = T.build_feed(store, "brand-new", interests=(), floors={})
     ids = [t["id"] for t in feed["sections"][0]["topics"]]
     assert all(i.startswith(startup.ID_PREFIX) for i in ids), ids
 
@@ -230,7 +233,7 @@ def test_one_real_signal_and_the_ranker_takes_over(store):
     """
     store.record(T.Event("listener", "complete", "su-sports", "sport",
                          T.tags_for_id("su-sports")))
-    feed = T.build_feed(store, "listener", interests=())
+    feed = T.build_feed(store, "listener", interests=(), floors={})
     assert feed["taste_source"] == "taste"
     ids = [t["id"] for t in feed["sections"][0]["topics"]]
     assert ids, "a listener with taste still gets a rail"
@@ -245,7 +248,7 @@ def test_choosing_interests_is_not_a_cold_start(store):
     A listener who picked interests in the intro told us something, so using
     the prior would be overriding their answer with the crowd's.
     """
-    feed = T.build_feed(store, "chose", interests=("culture",))
+    feed = T.build_feed(store, "chose", interests=("culture",), floors={})
     assert feed["taste_source"] == "taste"
     ids = [t["id"] for t in feed["sections"][0]["topics"]]
     assert not any(i.startswith(startup.ID_PREFIX) for i in ids), ids
@@ -260,7 +263,7 @@ def test_only_the_first_rail_gets_the_prior(store):
     built on, and the reason the prior is allowed on the one rail whose
     question is answerable for a stranger.
     """
-    feed = T.build_feed(store, "brand-new", interests=())
+    feed = T.build_feed(store, "brand-new", interests=(), floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
     for key in ("missed", "followers"):
         assert by_key[key]["topics"] == []
@@ -274,11 +277,11 @@ def test_view_more_opens_on_the_same_ranking(store):
     exactly the empty list the rail exists to avoid - two different answers
     to one question, which is the thing `build_section` exists not to give.
     """
-    section = T.build_section(store, "brand-new", "from_history")
+    section = T.build_section(store, "brand-new", "from_history", floors={})
     assert section["taste_source"] == "startup"
     ids = [t["id"] for t in section["topics"]]
     rail = [t["id"] for t in
-            T.build_feed(store, "brand-new")["sections"][0]["topics"]]
+            T.build_feed(store, "brand-new", floors={})["sections"][0]["topics"]]
     # The rail is the head of the screen, in the same order.
     assert ids[:len(rail)] == rail
     # And the screen carries the rest of the set the rail had no room for.
@@ -406,7 +409,7 @@ def test_the_prior_cannot_confirm_its_own_guess(store):
     assert after == before, "startup plays voted on what the next stranger sees"
     assert source == "default", "the crowd signal is still unmeasured"
     # But the listener who played it is no longer a cold start.
-    assert T.build_feed(store, "a-stranger")["taste_source"] == "taste"
+    assert T.build_feed(store, "a-stranger", floors={})["taste_source"] == "taste"
 
 
 def test_a_startup_tile_declined_often_enough_makes_way(store):

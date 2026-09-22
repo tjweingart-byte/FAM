@@ -125,6 +125,9 @@ def test_the_popup_records_why_it_showed_what_it_showed(client, monkeypatch, tmp
     a shelf like any other and must not be the one surface nobody can audit."""
     events = T.EventStore(str(tmp_path / "imp.db"))
     monkeypatch.setattr(appmod, "EVENTS", events)
+    # An account's popup: a guest's impressions are never logged (§127).
+    client.post("/api/auth/signup", json={"email": "popup@fam.test",
+                                          "password": "a-long-enough-password"})
     user = client.get("/api/auth/me").json()["user_id"]
     client.get("/api/nextup", params={"topic_id": "ai-agents"})
     rows = events.impressions_for(user)

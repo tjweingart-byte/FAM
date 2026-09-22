@@ -31,6 +31,9 @@ import stories  # noqa: E402
 import topics as T  # noqa: E402
 
 
+# §127: every call here passes `floors={}` - these tests are about what a
+# rail *chooses*, and since §127 each drawn rail but friends is topped up to
+# a minimum afterwards. The floor is pinned in test_implementations_127.py.
 @pytest.fixture()
 def store(tmp_path):
     stories.seed([])
@@ -79,7 +82,7 @@ def test_trending_keeps_four_tiles_when_the_pool_can_fill_it(store):
                   story("the fed decision", ("money", "macro"), 0.8),
                   story("the port strike", ("world",), 0.75)])
 
-    world = rail(T.build_feed(store, "me"), "world_trending")["topics"]
+    world = rail(T.build_feed(store, "me", floors={}), "world_trending")["topics"]
     assert len(world) >= T.WORLD_FLOOR, (
         f"Trending showed {len(world)} tiles from a pool of six")
 
@@ -94,7 +97,7 @@ def test_a_pool_too_small_to_fill_trending_is_not_taken_from_the_listener(store)
     finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     assert rail(feed, "from_history")["topics"], "the one story went to nobody"
     assert rail(feed, "from_history")["topics"][0]["id"].startswith("st-")
 
@@ -103,7 +106,7 @@ def test_an_empty_trending_rail_still_never_blames_the_world(store):
     """Unchanged by the floor, and worth pinning: an empty row is a fact
     about this deployment, never a claim about the world (§89)."""
     stories.seed([])
-    said = rail(T.build_feed(store, "me"), "world_trending")["empty_reason"]
+    said = rail(T.build_feed(store, "me", floors={}), "world_trending")["empty_reason"]
     assert said
     assert "nothing is trending" not in said.lower()
 
@@ -127,7 +130,7 @@ def test_a_broad_sports_match_on_an_unfamiliar_subject_is_damped(store):
         story("the nfl trade deadline fallout", ("sports", "sports-drama"), 0.6),
     ])
 
-    made = [t["title"] for t in rail(T.build_feed(store, "me"), "from_history")["topics"]]
+    made = [t["title"] for t in rail(T.build_feed(store, "me", floors={}), "from_history")["topics"]]
     if made:
         assert "Wofford Versus Mercer" not in made[:1], (
             "a subject this listener has never been near led the rail")
@@ -165,7 +168,7 @@ def test_a_listener_with_one_interest_still_gets_something(store):
     not end up with an empty page."""
     finished(store, "me", "nfl-trade", "the nfl trade deadline",
              ("sports", "sports-drama"))
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     assert rail(feed, "from_history")["topics"], "one interest emptied the page"
 
 
@@ -197,7 +200,7 @@ def test_trending_is_the_last_source_for_what_you_missed(store):
     finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     made = {t["id"] for t in rail(feed, "from_history")["topics"]}
     missed = {t["id"] for t in rail(feed, "missed")["topics"]}
     assert not (made & missed), "one tile on two rails"
@@ -231,7 +234,7 @@ def test_a_reserved_trending_tile_is_not_also_on_the_missed_rail(store):
                              now - 3 * 86400, section="from_history",
                              algo=T.ALGO_VERSION))
 
-    feed = T.build_feed(store, "me", now=now)
+    feed = T.build_feed(store, "me", now=now, floors={})
     shown = [t["id"] for sec in feed["sections"] for t in sec["topics"]]
     assert len(shown) == len(set(shown)), (
         "a tile appears on two rails: "

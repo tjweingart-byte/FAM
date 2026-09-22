@@ -103,6 +103,8 @@ LIVE_SHIM = r"""
   //: Conversations, for the life of the page only - see the note on
   //: `/api/messages` below for why they are not in the artifact db.
   var THREADS = {}, NEXT_MSG_ID = 1;
+  //: Part-heard episodes for this page's account, newest first (§127).
+  var PROGRESS = [];
   var NOTIFY = { head: 0, pending: [], follows: [] };
 
   window.famPreviewNotify = function (item) {
@@ -605,7 +607,9 @@ LIVE_SHIM = r"""
       return { key: s[0], title: s[1], topics: list, empty_reason: list.length ? "" : s[2] };
     });
     // One impression row per tile, carrying its shelf and the ranking version.
-    if (UID && shown.length) {
+    // For an account only, like the server: what the algorithm learns belongs
+    // to an account and a guest is never written into the log (§127).
+    if (UID && EMAIL && shown.length) {
       shown.forEach(function (x) {
         addDoc("events", {
           user_id: UID, kind: "impression", topic_id: x.id, text: "",
@@ -860,7 +864,7 @@ LIVE_SHIM = r"""
     add(scored, true);
     add(BANK, true);
     add(BANK, false);   // four tiles is the layout; two empty squares is not
-    if (UID) {
+    if (UID && EMAIL) {
       picks.forEach(function (t) {
         addDoc("events", {
           user_id: UID, kind: "impression", topic_id: t.id, text: "",
@@ -1069,7 +1073,24 @@ LIVE_SHIM = r"""
     // ---- the surfaces
     if (path === "/api/myfam") return json(myfamBody());
     if (path === "/api/profile") return json(profileBody());
-    if (path === "/api/godeeper") return json({ threads: threads() });
+    // Nothing for a guest, and resume positions from this page's own memory
+    // for an account - the server keeps them per account (§127), and a
+    // preview with no second device has nothing to gain from a table.
+    if (path === "/api/godeeper") {
+      if (!EMAIL) return json({ threads: [], resume: [], similar: [] });
+      return json({ threads: threads(), resume: PROGRESS.slice(0, 4), similar: [] });
+    }
+    if (path === "/api/progress") {
+      if (!EMAIL) return json({ ok: true, remembered: false });
+      var pq = String(body.query || ""), pm = Number(body.minutes || 0);
+      var ps = Number(body.seconds || 0);
+      PROGRESS = PROGRESS.filter(function (r) { return !(r.query === pq && r.minutes === pm); });
+      var keep = ps >= 20 && ps <= pm * 60 - 30;
+      if (keep) PROGRESS.unshift({ query: pq, minutes: pm, seconds: ps,
+                                   title: body.title || "", summary: "", at: now() });
+      return json({ ok: true, remembered: true, resumable: keep });
+    }
+    if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
     if (path === "/api/next") {
       var t = threads()[0];
@@ -1079,10 +1100,13 @@ LIVE_SHIM = r"""
       // It is here at all so the swap the player does a few seconds in is
       // visible on a phone rather than only in the code.
       return json({ thread: t ? t.thread : "",
-                    title: (FIXTURES["/api/next"] || {}).title || "" });
+                    title: (FIXTURES["/api/next"] || {}).title || "",
+                    title_final: true,
+                    summary: (FIXTURES["/api/next"] || {}).summary || "" });
     }
 
     if (path === "/api/event") {
+      if (!EMAIL) return json({ ok: true, remembered: false });
       var tags = body.topic_id && BY_ID[body.topic_id]
         ? (BY_ID[body.topic_id].tags || []).join(",") : "";
       return addDoc("events", {
@@ -1616,6 +1640,7 @@ LIVE_SHIM = r"""
       READY.then(function () {
         touchScript(q, mins);
         var tid = qs.get("topic_id") || "";
+        if (!EMAIL) return;   // a guest's play is served, not remembered (§127)
         addDoc("events", {
           user_id: UID, kind: "play", topic_id: tid, text: q,
           // Free text is categorised on the way in, exactly as app.py does it,
@@ -1854,7 +1879,6 @@ LIVE_SHIM = r"""
       Promise.all(jobs).then(function () {
         try {
           localStorage.removeItem("fam_live_session");
-          localStorage.removeItem("fam_resume");
           if (cold) localStorage.setItem("fam_live_cold", "1");
           else localStorage.removeItem("fam_live_cold");
         } catch (e) {}

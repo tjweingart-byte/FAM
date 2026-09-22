@@ -81,10 +81,23 @@ KEEP_SECONDS = 900.0
 
 
 class _Track:
-    __slots__ = ("sentences", "sources", "done", "touched")
+    __slots__ = ("sentences", "starts", "sources", "title", "title_final",
+                 "done", "touched")
 
     def __init__(self) -> None:
         self.sentences: list[str] = []
+        #: Where each sentence starts in the audio, in seconds from the first
+        #: sample, parallel to `sentences` (§127). Measured on the speaking
+        #: path from the audio actually produced, so captions follow the voice
+        #: instead of a character-count estimate against the *planned* length -
+        #: which ran about a sentence behind whenever an episode came in under
+        #: its ceiling, and it usually does.
+        self.starts: list[float] = []
+        #: What this episode is called, as soon as anything knows. The brief's
+        #: title first, before the first word; the writer's own `<<TITLE:>>`
+        #: replaces it when the script finishes, and `title_final` says which.
+        self.title: str = ""
+        self.title_final: bool = False
         #: Provenance JSON for this episode, as soon as it is known.
         #:
         #: Here rather than in a module of its own because it is the same fact
@@ -122,19 +135,39 @@ def open_track(key: str) -> None:
     if not key:
         return
     with _LOCK:
-        _TRACKS[key] = _Track()
+        # A title published before the track was opened - the brief can land
+        # first on a warmed path - belongs to this episode and is kept.
+        old = _TRACKS.get(key)
+        track = _TRACKS[key] = _Track()
+        if old is not None and old.title and not old.done:
+            track.title, track.title_final = old.title, old.title_final
         _evict()
 
 
-def publish(key: str, sentences: Iterable[str]) -> None:
+def publish(key: str, sentences: Iterable[str],
+            starts: Optional[Iterable[float]] = None) -> None:
     """Add sentences that have just been handed to the voice.
+
+    `starts` is where each one begins in the audio, in seconds, when the
+    speaking path knows it - which it always does, because it is the thing
+    producing the audio. A caller that passes none leaves the track without
+    timings and the interface falls back to estimating, which is what it did
+    before timings existed.
 
     Called from the speaking path, so it must never raise and never block for
     long: an exception here would take down an episode to fix a caption.
     """
     if not key:
         return
-    lines = [s for s in (str(x).strip() for x in sentences) if s]
+    raw = [str(x).strip() for x in sentences]
+    marks = list(starts) if starts is not None else []
+    lines, times = [], []
+    for i, line in enumerate(raw):
+        if not line:
+            continue
+        lines.append(line)
+        if len(marks) == len(raw):
+            times.append(round(float(marks[i]), 3))
     if not lines:
         return
     with _LOCK:
@@ -142,8 +175,60 @@ def publish(key: str, sentences: Iterable[str]) -> None:
         if track is None:
             track = _TRACKS[key] = _Track()
             _evict()
+        # Timings are all-or-nothing per track: one sentence without a start
+        # would shift every later index, and a caption a sentence off is the
+        # bug this exists to fix.
+        if times and len(track.starts) == len(track.sentences):
+            track.starts.extend(times)
+        else:
+            track.starts = []
         track.sentences.extend(lines)
         track.touched = time.time()
+
+
+def publish_title(key: str, title: str, final: bool = False) -> None:
+    """Record what this episode is called, while it is still being made.
+
+    The brief publishes a provisional one before the first word; the finished
+    script publishes the writer's own with `final=True`. A provisional title
+    never replaces a final one - a slow brief landing after a replay must not
+    rename an episode back to a guess.
+    """
+    if not key or not str(title or "").strip():
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None:
+            track = _TRACKS[key] = _Track()
+            _evict()
+        if track.title_final and not final:
+            return
+        track.title = str(title).strip()
+        track.title_final = bool(final)
+        track.touched = time.time()
+
+
+def read_title(key: str) -> tuple[str, bool]:
+    """`(title, final)` for an episode in flight, or `("", False)`."""
+    if not key:
+        return "", False
+    with _LOCK:
+        _expire()
+        track = _TRACKS.get(key)
+        if track is None:
+            return "", False
+        return track.title, track.title_final
+
+
+def read_starts(key: str) -> list:
+    """Where each live sentence starts, in seconds - or [] when unknown."""
+    if not key:
+        return []
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None or len(track.starts) != len(track.sentences):
+            return []
+        return list(track.starts)
 
 
 def close(key: str) -> None:

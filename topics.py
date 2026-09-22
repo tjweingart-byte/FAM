@@ -138,6 +138,22 @@ MISSED_SECTION_SIZE = 8
 #: than a rail that had to give up its first pick.
 WORLD_FLOOR = 4
 
+#: The fewest tiles each drawn rail shows, whatever its own ranking found
+#: (§127, at the owner's direction). "Every rail should always display at
+#: least four episodes, especially Trending and Made for you, which should
+#: always display at least five or six" - and "What your friends are listening
+#: to" is the stated exception, because it is a statement about named people
+#: and a friend's row filled with strangers is §102's bug again.
+#:
+#: This reverses three "honestly empty" decisions - §125's crowd row that
+#: holds plays and nothing else, "What you missed"'s relevance floor, and
+#: Trending drawing on the live pool alone - and it does so by **topping up
+#: after** each rail has chosen, never by weakening the ranking: a rail's own
+#: picks still lead, in its own order, and only the gap under the minimum is
+#: filled. See `_rail_fallback` for what each rail is filled from and why.
+RAIL_MINIMUM = {"from_history": 6, "world_trending": 6,
+                "missed": 4, "most_played": 4}
+
 #: What a live story is worth next to an evergreen one of the same affinity.
 #:
 #: Made for you draws from both inventories, and without this the bank wins
@@ -2936,7 +2952,8 @@ def rank_followers(
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
                written=None, place: Iterable[str] = (),
-               place_name: str = "", has_account: bool = False) -> dict:
+               place_name: str = "", has_account: bool = False,
+               floors: Optional[dict] = None) -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
@@ -2974,6 +2991,10 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     from the other: a set of match words has lost the order and the
     capitalisation a question needs, and a label is the wrong thing to match a
     headline against.
+
+    `floors` is the fewest tiles each rail shows - `RAIL_MINIMUM` unless a
+    caller says otherwise (§127). `{}` turns the top-up off, which is how a
+    test asks what a rail *chose* rather than what it was filled to.
 
     `has_account` is whether credentials are attached to this listener, and it
     decides one thing only: whether the evergreen bank is offered. See
@@ -3228,6 +3249,21 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # the rail above would otherwise make this row say the live sources had
     # nothing - our own page's arrangement reported as a fact about the world,
     # which is the §89 mistake with a new way in.
+    # The minimums, last, so every rail's own choice is already made and
+    # nothing here can take a tile a ranking wanted. Most-constrained first:
+    # the two rails the owner named first, then the rest.
+    floors = RAIL_MINIMUM if floors is None else floors
+    for key in ("world_trending", "from_history", "missed", "most_played"):
+        if not floors.get(key):
+            continue
+        on_page = {t.id for rail, tiles in picked.items()
+                   if rail not in UNSHELVED for t in tiles}
+        extra = _fill_to_minimum(
+            picked[key], floors[key],
+            _rail_fallback(key, profile, live, live_held, inventory),
+            on_page | mine)
+        picked[key] = picked[key] + extra
+        used |= {t.id for t in extra}
     world_reason = ("" if picked["world_trending"]
                     else _world_empty_reason(bool(live)))
 
@@ -3268,7 +3304,8 @@ def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
                   written=None, place: Iterable[str] = (),
-                  place_name: str = "", has_account: bool = False) -> dict:
+                  place_name: str = "", has_account: bool = False,
+                  floors: Optional[dict] = None) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -3356,6 +3393,13 @@ def build_section(store: EventStore, user_id: str, key: str,
     # the rail it opened - which is the one thing this screen must not be.
     picks = diversify(picks, limit,
                       max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
+    # "View more" never shows fewer than the rail it opened (§127).
+    floors = RAIL_MINIMUM if floors is None else floors
+    if floors.get(key):
+        live_held = topics_from_stories(stories.pool().held(now), now=now)
+        picks = picks + _fill_to_minimum(
+            picks, floors[key],
+            _rail_fallback(key, profile, live, live_held, inventory), mine)
     return {
         "key": key,
         "title": dict(SECTIONS)[key],
@@ -3412,6 +3456,65 @@ def live_topics(now: Optional[float] = None) -> list:
     global and refreshed in the background.
     """
     return topics_from_stories(stories.pool().live(now), now=now)
+
+
+def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
+                   inventory: list) -> list:
+    """What a rail is topped up from when its own ranking came up short.
+
+    Ordered, best source first, and every source is a real tile that plays a
+    real episode - never a placeholder.
+
+    * **Trending**: the live pool, then what the pool's variety cap is
+      holding, then the startup set - one *time-anchored* question per facet,
+      researched on the tap, which is the nearest thing to "what is happening"
+      FAM can offer with no live provider configured (and no deployment has
+      one yet). The bank only after all of that.
+    * **Made for you** and **What you missed**: this listener's own
+      inventory in affinity order, then the rest of the tiles FAM has.
+    * **What FAM can't stop listening to**: the same, in affinity order - a
+      listener with no plays to report is shown what they would most likely
+      play, rather than an alphabetical bank.
+
+    The bank is always last, and for an account it is the one place it can
+    now appear on a rail that chooses (`browse_inventory`): the owner's
+    minimum outranks §125's rule on the day the other inventories run out.
+    """
+    def by_affinity(topics: list) -> list:
+        if not profile:
+            return list(topics)
+        scored = [(_affinity(t, profile), i, t) for i, t in enumerate(topics)]
+        scored.sort(key=lambda row: (-row[0], row[1]))
+        return [t for _s, _i, t in scored]
+
+    if key == "world_trending":
+        return list(live) + list(live_held) + by_affinity(
+            list(STARTUP_TOPICS)) + by_affinity(list(TOPIC_BANK))
+    return (by_affinity(list(inventory))
+            + by_affinity(list(STARTUP_TOPICS) + list(TOPIC_BANK)))
+
+
+def _fill_to_minimum(picked: list, minimum: int, candidates: list,
+                     exclude: set) -> list:
+    """The tiles to append so `picked` reaches `minimum`, and no more.
+
+    Never a tile already on the rail, already on another rail (`exclude`
+    carries those) or already played. Returns only the additions, so the
+    caller keeps the rail's own picks exactly where the ranking put them.
+    """
+    need = minimum - len(picked)
+    if need <= 0:
+        return []
+    have = {t.id for t in picked} | set(exclude)
+    out: list = []
+    for topic in candidates:
+        if topic.id in have:
+            continue
+        have.add(topic.id)
+        out.append(topic)
+        if len(out) >= need:
+            break
+    return out
 
 
 def _at_least(picked: list, pool: list, floor: int) -> list:

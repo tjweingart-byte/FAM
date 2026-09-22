@@ -175,6 +175,8 @@ class GenerationStats:
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it wrote none, and every caller falls back to the question.
     title: str = ""
+    #: One sentence on what the episode is, off `<<SUMMARY:>>` (§127).
+    summary: str = ""
     #: "hit" | "miss" | "off" - whether this episode reused a shared script.
     #: "exact" | "near" | "" - *how* a hit was found. A near hit replayed an
     #: episode written for a differently-worded question, which is worth being
@@ -259,6 +261,23 @@ class GenerationStats:
             "first_audio_at": round(self.first_audio_at, 2),
             "thread": self.thread,
         }
+
+
+def _sentence_starts(spoken, chunk_start: float, audio_seconds: float) -> list:
+    """Where each sentence of one synthesised chunk starts, in seconds.
+
+    The chunk's own start is measured - it is how much audio came before it -
+    and its length is measured too. Only the split *inside* one chunk is by
+    characters, which is a handful of sentences at most, rather than the whole
+    episode estimated against its planned length (§127).
+    """
+    lengths = [max(1, len(str(s))) for s in spoken]
+    total = float(sum(lengths)) or 1.0
+    starts, run = [], 0
+    for n in lengths:
+        starts.append(chunk_start + audio_seconds * (run / total))
+        run += n
+    return starts
 
 
 class PodcastPipeline:
@@ -595,6 +614,10 @@ class PodcastPipeline:
                 "The listener hears silence here. Synthesis so far: %.1fs.",
                 elapsed_wall, pace.elapsed + audio_seconds, elapsed_wall, stats.synth_seconds,
             )
+        # Where each sentence starts in the audio, measured before this chunk
+        # is counted, so the caption panel follows the voice rather than
+        # estimating it (§127).
+        starts = _sentence_starts(fit.spoken, pace.elapsed, audio_seconds)
         pace.observe(len(pcm) + len(gap), fit.words)
         stats.sentences += len(fit.spoken)
         stats.words += fit.words
@@ -603,7 +626,7 @@ class PodcastPipeline:
         # finished script reaches the cache. Captions used to poll the cache
         # and give up after twelve seconds, which is nothing like how long a
         # researched ten-minute episode takes to write - see live_captions.py.
-        live_captions.publish(stats.caption_key, fit.spoken)
+        live_captions.publish(stats.caption_key, fit.spoken, starts)
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
             log.info("first audio ready after %.2fs", stats.first_audio_at)
@@ -694,11 +717,12 @@ class PodcastPipeline:
             )
         stats.marks.add_chunk(sentence, 1, tts_done - synth_seconds, tts_done,
                               pcm_duration(len(pcm), self.engine.sample_rate))
+        start = pace.elapsed
         pace.observe(len(pcm) + len(gap), words)
         stats.sentences += 1
         stats.words += words
         stats.script.append(sentence)
-        live_captions.publish(stats.caption_key, (sentence,))
+        live_captions.publish(stats.caption_key, (sentence,), (start,))
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
             log.info("first audio ready after %.2fs", stats.first_audio_at)
@@ -807,9 +831,33 @@ class PodcastPipeline:
         title derived from the question and swaps this in when it lands, the
         same way the Go Deeper chip fills.
         """
+        title, _final = await self.title_state(plan)
+        return title
+
+    async def title_state(self, plan: EpisodePlan) -> tuple[str, bool]:
+        """`(title, final)`: the best name this episode has right now.
+
+        The cache's is the writer's own and is final. Failing that, the live
+        track - which holds the brief's provisional title from before the
+        first word, then the writer's when the script finishes (§127). The
+        interface keeps asking until `final`, so a provisional title is
+        replaced rather than kept.
+        """
+        if not is_shareable(plan.query):
+            return "", False
+        key = await self._cache_key(plan) if self.cache else ""
+        if self.cache:
+            reader = getattr(self.cache, "title", None)
+            stored = reader(key) if reader is not None else ""
+            if stored:
+                return stored, True
+        return live_captions.read_title(key)
+
+    async def summary_for(self, plan: EpisodePlan) -> str:
+        """The episode's one-sentence summary from the cache, or ""."""
         if not self.cache or not is_shareable(plan.query):
             return ""
-        reader = getattr(self.cache, "title", None)
+        reader = getattr(self.cache, "summary", None)
         if reader is None:
             return ""
         return reader(await self._cache_key(plan))
@@ -898,6 +946,17 @@ class PodcastPipeline:
             return list(sentences), True, bool(done)
         return list(await self.script_for(plan)), False, True
 
+    async def caption_starts(self, plan: EpisodePlan) -> list:
+        """Where each live sentence starts in the audio, or [] if unmeasured.
+
+        A separate read rather than a fourth element of `captions_for`, whose
+        shape callers and tests already unpack. Only a live track has these:
+        the cache stores sentences, and a replay publishes a fresh live track
+        of its own as it is spoken, so a replay gets measured timings too.
+        """
+        key = await self._cache_key(plan) if is_shareable(plan.query) else ""
+        return live_captions.read_starts(key)
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:
@@ -954,6 +1013,11 @@ class PodcastPipeline:
             if cached:
                 stats.cache = "hit"
                 stats.thread = self.cache.thread(key)
+                # A replay knows its name before its first word, so the player
+                # can show it from the first frame (§127).
+                live_captions.publish_title(
+                    key, getattr(self.cache, "title", lambda _k: "")(key),
+                    final=True)
                 # If prefetch put this here, the guess came true. Counted at
                 # the moment of the hit and with the key that actually hit,
                 # because "how much to prefetch" cannot be answered by
@@ -1046,6 +1110,11 @@ class PodcastPipeline:
 
         stats.thread = notes.thread
         stats.title = notes.title
+        stats.summary = notes.summary
+        # The writer's own name replaces the brief's provisional one, on the
+        # live track as well as in the cache - an episode that is not cached
+        # (a live game, ttl 0) would otherwise keep the guess for good.
+        live_captions.publish_title(key, notes.title, final=True)
 
         if self.cache and self.cache_writes and shareable and stats.script:
             # How long this stays true, from what the episode was actually
@@ -1064,9 +1133,14 @@ class PodcastPipeline:
                 sources = ""
                 if notes.provenance is not None:
                     sources = notes.provenance.to_json()
+                # The summary rides as a keyword and only when there is one,
+                # so a cache written before it existed - and every test
+                # double that stands in for one - is still called exactly as
+                # it always was.
+                extra = {"summary": stats.summary} if stats.summary else {}
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                                plan.minutes, bucket, sources, self.author,
-                               stats.title)
+                               stats.title, **extra)
                 log.info("cached %d sentences for %r (ttl %ds)",
                          len(stats.script), plan.query, ttl)
             else:

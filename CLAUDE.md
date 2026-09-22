@@ -1231,6 +1231,11 @@ the rest of this list it needs taste rather than a key.
   claims only what it can back.** *(§125, `topics.browse_inventory`,
   `MYFAM.md`.)* Two rules from one instruction, both reversing something this
   file had recorded as deliberate.
+  **Amended by §127, at the owner's direction: every drawn rail except the
+  friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
+  and Trending, four for the other two), topped up *after* each rail has
+  chosen from `_rail_fallback`, never by weakening a ranking. What follows is
+  still how each rail *chooses*; the floor is what fills the gap under it.
   **"What FAM can't stop listening to" fills from plays and from nothing
   else.** It used to top itself up from the bank so it was never empty, which
   is a true statement about the *content* and beside the point: the heading is
@@ -1555,9 +1560,14 @@ the rest of this list it needs taste rather than a key.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
-  audio path do not. The interaction log is deliberately outside the gate - it
-  is ambient personalisation rather than something the listener made and can
-  point at, and gating it would mean an anonymous feed could never be ranked.
+  audio path do not. **The interaction log is inside the gate now** *(§127,
+  at the owner's direction, reversing what this line used to say)*: everything
+  the algorithm learns belongs to an account, a guest session is a device and
+  not a person, so `app._remembers` keeps every event, play and impression of
+  a guest out of the log, a guest's interests live in page memory only, and
+  resume positions are a server table keyed on the account rather than
+  `localStorage`. The cost, accepted: a guest's feed is the startup set every
+  time.
   `ACCOUNT_REQUIRED` in `app.py` holds the reasoning beside the code that
   enforces it. Nothing is lost by signing up late: a mix made before the gate
   is still under the same id and appears the moment credentials are attached.
@@ -2208,7 +2218,10 @@ for - twenty-eight evergreen tiles no wipe could ever have removed, because
 they are compiled into `topics.py` rather than seeded, offered to everybody
 including the listeners FAM knew enough about not to need them, under a
 crowd-row heading making a claim about listening nobody had done; and
-**§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
+**§127**, eleven changes from one packet - the event log moved behind the
+account gate, a floor under every rail but friends, titles and summaries
+before the first word, captions measured against the audio, and audio that
+plays with the ringer off; and **§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
 three, so a deployment with no traffic had no grown vocabulary at all, and
 the tree could already see "college football" in a tile's question while
 the ranker scored that tile on `sports` alone),
@@ -2234,12 +2247,15 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-one** named smoke
+**twice** - once per preview build - and **sixty-four** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 61 as of §123,
+prose does not fail when somebody adds a behaviour. (It is 64 as of §127,
+which replaced "Go Deeper fills for a new listener" and added the fixed myFAM
+header, the loading screen's cancel, and faces and typing in messages. It was
+61 as of §123,
 which added the new-mix gate, the topic bank surviving a locked mix list, and
 the search page opening on the length it will generate.)
 

@@ -114,6 +114,11 @@ _NEXT_MARKER = re.compile(r"<<\s*NEXT\s*:\s*([^<>]{1,160}?)\s*>>", re.I)
 #: episode purely to name it, which is the expensive half of an episode spent
 #: on a label. A marker line is free.
 _TITLE_MARKER = re.compile(r"<<\s*TITLE\s*:\s*([^<>]{1,120}?)\s*>>", re.I)
+#: One sentence saying what the episode is, on the same kind of line and for
+#: the same reason as TITLE: free, written off what was actually covered, and
+#: never spoken. What a "Pick up where you left off" card draws under its
+#: title, so a half-heard episode reads like every other myFAM tile (§127).
+_SUMMARY_MARKER = re.compile(r"<<\s*SUMMARY\s*:\s*([^<>]{1,240}?)\s*>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
 _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
@@ -388,13 +393,15 @@ point. Say numbers as a person says them: "about twelve percent", "nineteen \
 ninety-eight".
 - No greeting, no sign-off, no naming the show, and never mention being an AI.
 
-Two lines after the script, never spoken:
+Three lines after the script, never spoken:
 
 <<TITLE: three to eight words>>
 
 What this episode turned out to be *about*, never the question you were \
 asked. Concrete and readable at a glance in a list; no colon, no question \
 mark, and never their own wording handed back.
+
+<<SUMMARY: one plain sentence on what it covers>>
 
 <<NEXT: what they would most likely wonder about next>>
 
@@ -478,6 +485,9 @@ class ScriptNotes:
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
     title: str = ""
+    #: One sentence on what the episode is, off `<<SUMMARY:>>`. Empty when the
+    #: model did not write one, and the resume card then draws no second line.
+    summary: str = ""
     #: Sentences `OpeningGuard` held back before they could be spoken. Kept
     #: rather than only logged: this is a prompt rule failing, and a prompt
     #: rule that fails silently is how the Dodgers opener survived a system
@@ -515,6 +525,22 @@ def extract_title(text: str) -> str:
     # A model asked for a title occasionally writes a sentence. Trimmed rather
     # than rejected: most of a good title is still better than the question.
     return title[:80]
+
+
+def extract_summary(text: str) -> str:
+    """Pull the one-sentence summary out of its trailing marker line.
+
+    The same shape as `extract_title`, and the same bargain: it costs no call
+    and no latency, and when the model wrote none the caller shows nothing
+    rather than a sentence FAM made up about an episode it did not read.
+    """
+    match = _SUMMARY_MARKER.search(text)
+    if not match:
+        return ""
+    summary = re.sub(r"\s+", " ", match.group(1)).strip(" \"'")
+    if summary and summary[-1] not in ".!?":
+        summary += "."
+    return summary[:200]
 
 
 @dataclass
@@ -866,19 +892,25 @@ Finish when the answer is finished. Land on the most concrete thing you have
 and stop. Do not tease what you are not covering, do not end on a question, and
 do not summarise what they just heard.
 
-Then two lines after the script. Name the episode by what it turned out to be
+Then three lines after the script. Name the episode by what it turned out to be
 about, never by the question you were asked - three to eight words, concrete,
 readable at a glance in a list, no colon and no question mark:
 
 <<TITLE: three to eight words>>
+
+Say in one plain sentence what the episode is, for somebody deciding from a list
+whether to come back to it - the subject and the angle, no tease, no question:
+
+<<SUMMARY: twelve to twenty words>>
 
 And predict the single most likely thing they would go on to ask, having heard
 this:
 
 <<NEXT: six to twelve words>>
 
-Read both off what you actually said. Both lines are stripped before anything
-is spoken and the script must not hint at either. Nothing goes after them.
+Read all three off what you actually said. All three lines are stripped before
+anything is spoken and the script must not hint at any of them. Nothing goes
+after them.
 
 The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch
@@ -909,6 +941,7 @@ def clean_for_speech(text: str) -> str:
     # unmatched "<<" onwards is metadata, never speech.
     text = _NEXT_MARKER.sub("", text)
     text = _TITLE_MARKER.sub("", text)
+    text = _SUMMARY_MARKER.sub("", text)
     text = re.sub(r"<<.*$", "", text, flags=re.S)
     # Stage directions first, while their brackets are still intact.
     text = re.sub(r"\[[^\]]{0,60}\]", "", text)
@@ -1137,10 +1170,12 @@ class ScriptGenerator:
         warmed = prefetch.warm_brief(plan.query, plan.minutes, plan.context)
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
+            _publish_title(notes, warmed)
             return dataclasses.replace(plan, brief=warmed)
 
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes)
+        _publish_title(notes, brief)
         return dataclasses.replace(plan, brief=brief)
 
     async def live_lookup(self, plan: EpisodePlan,
@@ -1333,6 +1368,7 @@ class ScriptGenerator:
             if notes is not None:
                 notes.thread = extract_thread(buffer)
                 notes.title = extract_title(buffer)
+                notes.summary = extract_summary(buffer)
                 notes.meta_openings = tuple(guard.dropped)
 
             final = await stream.get_final_message()
@@ -1446,6 +1482,20 @@ def _merge_search_provenance(notes: "ScriptNotes", message) -> None:
         _publish_sources(notes)
     except Exception:
         log.exception("could not read the search results; the episode is unaffected")
+
+
+def _publish_title(notes: "ScriptNotes | None", brief) -> None:
+    """Put the brief's title on the live track, before the first word (§127).
+
+    Provisional: the writer's own `<<TITLE:>>` replaces it when the script
+    finishes. Never raises, for the same reason `_publish_sources` does not.
+    """
+    try:
+        title = getattr(brief, "title", "") if brief is not None else ""
+        if notes is not None and notes.caption_key and title:
+            live_captions.publish_title(notes.caption_key, title)
+    except Exception:
+        log.exception("could not publish a title; the episode is unaffected")
 
 
 def _publish_sources(notes: "ScriptNotes") -> None:

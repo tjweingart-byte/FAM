@@ -132,6 +132,25 @@ class SavedStore:
             # ignores are one episode.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS items_once"
                          " ON items(user_id, query, minutes)")
+            # How far through an episode somebody got, so "Pick up where you
+            # left off" follows the *account* rather than the phone (§127).
+            # It used to be localStorage, which is per-device by nature - and
+            # so outlived a log-out and showed the next person on that phone
+            # somebody else's half-heard episodes. One row per episode, the
+            # same (question, length) identity the shelf and the cache use.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS progress (
+                       user_id TEXT NOT NULL,
+                       query   TEXT NOT NULL,
+                       minutes INTEGER NOT NULL,
+                       seconds REAL NOT NULL,
+                       title   TEXT NOT NULL DEFAULT '',
+                       updated REAL NOT NULL,
+                       PRIMARY KEY (user_id, query, minutes)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS progress_user"
+                         " ON progress(user_id, updated)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -318,11 +337,69 @@ class SavedStore:
             "UPDATE items SET last_played = ? WHERE id = ? AND user_id = ?",
             (at or time.time(), item_id, user_id))
 
+    # --- where somebody got to --------------------------------------------
+
+    #: Heard less than this and it was not really started; nearer the end than
+    #: `RESUME_TAIL` and it was finished. Both mean "nothing to resume", and a
+    #: card offering the last four seconds of something is clutter.
+    RESUME_HEAD = 20.0
+    RESUME_TAIL = 30.0
+
+    def note_progress(self, user_id: str, query: str, minutes: int,
+                      seconds: float, title: str = "", at: float = 0.0) -> bool:
+        """Record how far through an episode this listener is.
+
+        Returns True when a position is being kept and False when the episode
+        counts as not started or finished - in which case any old position is
+        removed, so a finished episode stops being offered as unfinished.
+        """
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        minutes = int(minutes or 0)
+        if not user_id or not query or minutes <= 0:
+            return False
+        total = minutes * 60.0
+        seconds = max(0.0, float(seconds or 0))
+        try:
+            if seconds < self.RESUME_HEAD or seconds > total - self.RESUME_TAIL:
+                self._conn().execute(
+                    "DELETE FROM progress WHERE user_id = ? AND query = ?"
+                    " AND minutes = ?", (user_id, query, minutes))
+                return False
+            self._conn().execute(
+                "INSERT INTO progress (user_id, query, minutes, seconds, title,"
+                " updated) VALUES (?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
+                "  seconds = excluded.seconds, updated = excluded.updated,"
+                "  title = CASE WHEN excluded.title != '' THEN excluded.title"
+                "               ELSE progress.title END",
+                (user_id, query, minutes, seconds,
+                 " ".join(str(title or "").split())[:MAX_TITLE],
+                 at or time.time()))
+            return True
+        except Exception:
+            log.exception("could not record progress for %r", user_id)
+            return False
+
+    def progress(self, user_id: str, limit: int = 4) -> list[dict]:
+        """Part-heard episodes, most recently listened to first."""
+        if not user_id:
+            return []
+        try:
+            rows = self._conn().execute(
+                "SELECT query, minutes, seconds, title, updated FROM progress"
+                " WHERE user_id = ? ORDER BY updated DESC LIMIT ?",
+                (user_id, int(limit))).fetchall()
+        except Exception:
+            log.exception("could not read progress for %r", user_id)
+            return []
+        return [{"query": r[0], "minutes": int(r[1]), "seconds": float(r[2]),
+                 "title": r[3] or "", "at": r[4]} for r in rows]
+
     # --- housekeeping -----------------------------------------------------
 
     def forget(self, user_id: str) -> int:
         removed = 0
-        for table in ("items", "folders"):
+        for table in ("items", "folders", "progress"):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

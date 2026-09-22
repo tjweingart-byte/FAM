@@ -31,6 +31,12 @@ def client(monkeypatch, tmp_path):
     return TestClient(appmod.app)
 
 
+def _account(client, email="me@fam.test"):
+    """Since §127 only an account's listening reaches the log."""
+    client.post("/api/auth/signup", json={"email": email,
+                                          "password": "a-long-enough-password"})
+
+
 def play(store, user, topic_id, kind="play", ago=0.0):
     store.record(T.Event(user, kind, topic_id, "",
                          T.BANK_BY_ID[topic_id].tags, time.time() - ago))
@@ -216,7 +222,9 @@ def test_a_new_listener_gets_an_honest_page_not_a_fake_one(store):
     The rule the test was protecting is unchanged and is still pinned below:
     a rail that would have to make something up is empty and says why.
     """
-    feed = T.build_feed(store, "brand-new")
+    # `floors={}`: this is about what each rail *chose*. Since §127 every rail
+    # but friends is then topped up to a minimum - pinned just below.
+    feed = T.build_feed(store, "brand-new", floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
     assert not feed["personalised"]
     assert feed["taste_source"] == "startup"
@@ -231,6 +239,13 @@ def test_a_new_listener_gets_an_honest_page_not_a_fake_one(store):
     for key in ("followers", "missed", "most_played"):
         assert not by_key[key]["topics"], f"{key} invented something"
         assert by_key[key]["empty_reason"], f"{key} must say why it is empty"
+
+    # With the floor on - the default - the owner's minimum fills every rail
+    # except the friends one, which is never filled with strangers (§127).
+    floored = {s["key"]: s for s in T.build_feed(store, "brand-new")["sections"]}
+    assert not floored["followers"]["topics"]
+    for key, floor in T.RAIL_MINIMUM.items():
+        assert len(floored[key]["topics"]) >= floor, key
 
 
 def test_the_four_sections_are_always_present_and_in_order(store):
@@ -300,6 +315,7 @@ def test_the_feed_endpoint_works_without_a_user(client):
 
 
 def test_recording_an_event_changes_the_feed(client):
+    _account(client)
     before = client.get("/api/myfam?user=u1").json()
     for _ in range(3):
         client.post("/api/event", json={"user": "u1", "kind": "complete",
@@ -346,7 +362,8 @@ def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
     play(store, "friend", "golf-evolution")
     play(store, "friend", "sleep-science")
 
-    feed = T.build_feed(store, "me", circle=["friend"])
+    # `floors={}`: the claim below is about what the crowd row *chose*.
+    feed = T.build_feed(store, "me", circle=["friend"], floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
     assert by_key["from_history"]["topics"], "history section was starved"
     assert by_key["followers"]["topics"], "the friends rail was starved"
@@ -419,6 +436,7 @@ def test_threads_survive_a_restart(tmp_path):
 
 
 def test_the_go_deeper_endpoint_serves_them(client):
+    _account(client)
     client.post("/api/event", json={"user": "u1", "kind": "complete",
                                     "topic_id": "sleep-science",
                                     "thread": "why sleep debt cannot be repaid"})
@@ -458,6 +476,7 @@ def test_a_skipped_subject_is_not_listed_as_something_they_like(store):
 
 
 def test_the_profile_endpoint_serves_it(client):
+    _account(client)
     client.post("/api/event", json={"user": "p1", "kind": "complete",
                                     "topic_id": "ai-agents"})
     body = client.get("/api/profile?user=p1").json()
@@ -808,6 +827,7 @@ def test_picking_an_interest_teaches_the_ranker_its_tags(client):
     eight facets can say, and this is how it reaches the taste model."""
     import topics as topics_mod
 
+    _account(client)
     assert client.post("/api/event",
                        json={"kind": "pick", "topic_id": "formula1"}).status_code == 200
     me = client.get("/api/auth/me").json()["user_id"]

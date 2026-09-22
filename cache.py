@@ -404,7 +404,7 @@ class ScriptCache(Protocol):
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
         minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
-        title: str = ""
+        title: str = "", summary: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -416,6 +416,12 @@ class ScriptCache(Protocol):
     #: would be titled with somebody else's typed question while a freshly
     #: generated one had a real name.
     def title(self, key: str) -> str: ...
+    #: One sentence saying what the episode is, off the model's `<<SUMMARY:>>`
+    #: line. What a "Pick up where you left off" card draws under its title,
+    #: for the same reason every other myFAM tile carries a hook (§127).
+    #: Optional on a backend: callers read it with `getattr`, so a cache that
+    #: predates it answers "" rather than raising.
+    def summary(self, key: str) -> str: ...
     #: Who the cached episode's facts came from, as stored JSON. Kept beside
     #: the script for the same reason `thread` is: a cache hit replays
     #: sentences and has no `notes`, so without this a shared or Explore
@@ -447,6 +453,8 @@ class MemoryScriptCache:
         self._sources: dict[str, str] = {}
         #: key -> the episode's own title, for the same reason.
         self._titles: dict[str, str] = {}
+        #: key -> its one-sentence summary, for the same reason again.
+        self._summaries: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
@@ -464,13 +472,15 @@ class MemoryScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = ""
+        author: str = "", title: str = "", summary: str = ""
     ) -> None:
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
         if sources:
             self._sources[key] = sources
         if title:
             self._titles[key] = title
+        if summary:
+            self._summaries[key] = summary
         # First writer only. A second listener asking the same question is
         # served from this entry and never rewrites it, so authorship stays
         # "who paid for this" rather than "who asked most recently".
@@ -519,6 +529,12 @@ class MemoryScriptCache:
             return ""
         return self._titles.get(key, "")
 
+    def summary(self, key: str) -> str:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return ""
+        return self._summaries.get(key, "")
+
     def forget_author(self, author: str) -> int:
         """The memory backend's half of `SqliteScriptCache.forget_author`.
 
@@ -534,13 +550,14 @@ class MemoryScriptCache:
             self._authors.pop(key, None)
             self._sources.pop(key, None)
             self._titles.pop(key, None)
+            self._summaries.pop(key, None)
             self._vectors.pop(key, None)
         return len(keys)
 
     def clear(self) -> int:
         removed = len(self._data)
         for table in (self._data, self._authors, self._sources, self._titles,
-                      self._vectors):
+                      self._summaries, self._vectors):
             table.clear()
         return removed
 
@@ -612,6 +629,11 @@ class SqliteScriptCache:
                 # and fall back to the question, which is what every row did
                 # before it existed.
                 ("title", "ALTER TABLE scripts ADD COLUMN title TEXT NOT NULL DEFAULT ''"),
+                # One sentence on what the episode is, off `<<SUMMARY:>>`, for
+                # the resume card's second line (§127). Same reasoning as
+                # `title`, and the same fallback: a row without one draws no
+                # line rather than an invented one.
+                ("summary", "ALTER TABLE scripts ADD COLUMN summary TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -652,7 +674,7 @@ class SqliteScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = ""
+        author: str = "", title: str = "", summary: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -677,8 +699,8 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector, sources, author, title)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bucket, vector, sources, author, title, summary)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
                 "  query = excluded.query, sentences = excluded.sentences,"
@@ -691,10 +713,12 @@ class SqliteScriptCache:
                 # new one. A longer TTL or fresher sources must not blank the
                 # name of an episode that is already in somebody's feed.
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
-                "               ELSE scripts.title END",
+                "               ELSE scripts.title END,"
+                "  summary = CASE WHEN excluded.summary != '' THEN excluded.summary"
+                "                 ELSE scripts.summary END",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
-                 (author or "")[:64], (title or "")[:120]),
+                 (author or "")[:64], (title or "")[:120], (summary or "")[:240]),
             )
         except Exception:
             log.exception("script cache write failed; continuing")
@@ -768,6 +792,19 @@ class SqliteScriptCache:
             return row[0] or ""
         except Exception:
             log.exception("script cache title read failed")
+            return ""
+
+    def summary(self, key: str) -> str:
+        """The episode's one-sentence summary, or "" when it has none."""
+        try:
+            row = self._conn().execute(
+                "SELECT summary, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return ""
+            return row[0] or ""
+        except Exception:
+            log.exception("script cache summary read failed")
             return ""
 
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
