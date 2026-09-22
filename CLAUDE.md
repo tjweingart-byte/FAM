@@ -483,6 +483,24 @@ the rest of this list it needs taste rather than a key.
    input gets. The lesson is §52's in a different register: a test that never
    runs at production scale is inspecting rather than verifying.
 
+5a. **What a deployment with nothing in it shows** *(§124, measured on an
+   emptied database rather than reasoned about).* Signed out with an empty
+   log, `taste_source` is `startup` and the first rail is §116's
+   time-anchored starter set under the heading **Start here**; Trending,
+   "What you missed last week" and the friends rail are honestly empty with
+   their own sentences, and Explore says "Nothing here yet". Once there is
+   listening, `taste_source` becomes `taste` and the rail is "Made for you",
+   ranked. **The switch is on having a profile, not on being signed in** -
+   §116's decision, not an oversight: a brand-new account has nothing to
+   personalise on, so it gets the prior too, and one play retires it.
+   The one row that over-claims on a blank slate is
+   **"What FAM can't stop listening to"**, which fills from the bank when
+   nothing has been played ("a stable slice beats an empty section, and beats
+   a random one"). The content is fine and the heading is a claim a fresh
+   deployment cannot back. Left as it is deliberately - it is one line in
+   `rank_most_played` and reversing a documented decision belongs in a change
+   about that decision.
+
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
    Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
@@ -652,6 +670,23 @@ the rest of this list it needs taste rather than a key.
    now, and `tools/check_js.py` fails on any top-level name declared twice,
    because every control in this interface is an inline `onclick` naming a
    global and nothing else can see one being quietly replaced.
+   **And it could not be given one logged out, for a different reason**
+   *(§123).* `loadMixes` asks `/api/mixes` and `/api/topics` at once and
+   returned on the 401 from the first **before** taking the bank off the
+   second - which is not account-gated and had answered perfectly. An empty
+   `topicBank` is what the picker reads as "Could not load the topic list",
+   so searching it offered nothing and the (+) after a search had nothing to
+   add. A fact about the listener's account, reported as a fact about the
+   server: §89's rule about empty rows, one screen over. The bank is taken
+   before the branch now, and a test reads `loadMixes`'s own source, because
+   the failure renders a plausible sentence and throws nothing.
+   **And the (+) that opened it is not offered to somebody who cannot keep a
+   mix.** It was in the markup unconditionally, so it opened a naming modal
+   and a whole picker and refused only at the save - two screens to say what
+   the screen behind it already says with a Sign up button on it. Hidden
+   until `/api/mixes` answers, shown by `renderMixList`, and hidden to start
+   rather than shown and taken away, because a control that appears and then
+   vanishes reads as a fault.
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
    - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
    asymmetric, like the copy always said, and a **friend is the mutual case,
@@ -1648,6 +1683,27 @@ the rest of this list it needs taste rather than a key.
   Explore replay, or an episode whose script is already cached, which is what
   makes a voice switch free - is not paced as a generation. And because this
   server has two reasons to answer 429, every refusal says which one it was.
+- **A wipe enumerates what is *derived* from the thing it empties, not only
+  what is stored beside it.** *(§124.)* `tools/wipe_demo_data.py --all` takes
+  the script cache, the event log, the seeded listeners and the live story
+  pool - and left the grown vocabulary (`categories.py`) standing, which is
+  minted *from* that event log and is a ranking input. So a deployment taken
+  back to a blank slate went on ranking its feed on subjects learned from
+  episodes nobody could play any more, and nothing said so, because a tree is
+  not a row anybody counts. Two smaller versions came with it: the
+  module-level handle `topics.category_tree` caches per process, so clearing
+  the table without dropping it is a destructive operation that reports
+  success and changes nothing until the next restart; and the engagement
+  table is held in process, computed from the impressions being deleted one
+  line above. `demo_data._forget_what_the_log_taught` is the one place that
+  knows this, it never raises, and the dry run counts the vocabulary because
+  it is the item on the list nobody expects. Stores are the easy half -
+  `storage_doctor` lists them and §107's test derives that list. What
+  survives a wipe is whatever is neither a store nor a row.
+  What it still does not remove, because none of it is an episode: a mix
+  holds topic ids, a saved item and a vibe hold a question - pointers, which
+  play again from a freshly written script. Accounts, credentials and the
+  metering ledger are untouched in both scopes.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -2033,7 +2089,14 @@ a location field the app had never had, and a ranking vocabulary whose
 thirty-seven hand-written keyword lists turned out to be the binding
 constraint rather than the scoring under them; and **§122**, what checking
 that work found - four defects none of the 2,289 tests could see, because
-every one of them only appears at a size no test runs at),
+every one of them only appears at a size no test runs at; and **§123**, three
+controls that were each right about a question next to the one in front of
+them - a picker that reported the account gate as a broken topic list, a (+)
+that took two screens to say what the screen behind it already said, and a
+search page that opened on a length its own menu disagreed with; and
+**§124**, a blank slate that was not blank - the wipe took every store and
+left the vocabulary those stores had taught, which is a ranking input that
+outlived its own source),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2056,13 +2119,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **fifty-eight** named smoke
+**twice** - once per preview build - and **sixty-one** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 58 as of §121,
-which added the location editor's round trip.)
+prose does not fail when somebody adds a behaviour. (It is 61 as of §123,
+which added the new-mix gate, the topic bank surviving a locked mix list, and
+the search page opening on the length it will generate.)
 
 **There is a third browser run, and it is not one of those two** (§106). The
 share landing page is a different page from `static/index.html` - one episode,
@@ -2125,6 +2189,17 @@ What is true but not obvious from the code:
   reasoning attached (PROBLEMS.md §54), so following the documented setup
   configured the product against its own spec. `tests/test_env_example.py` now
   fails on any disagreement between the two.
+  **The same crack, in the interface** *(§123).* `selectedLengthMinutes` is 2
+  and said why; the markup printed `3 min` in five places, so search opened
+  reading three minutes and its own menu ticked two - the interface
+  disagreeing with itself about one setting, in two elements a tap apart.
+  `paintLengthControls` writes all of them from the variable before the first
+  screen is drawn, the length menu delegates to it rather than keeping its own
+  list of where the number is printed, and
+  `tests/test_search_length_and_mix_gate.py` pins each literal to the
+  variable. The playback pills are deliberately **not** pinned to the default:
+  they name the length of the episode that is *playing*, which is a different
+  question and may honestly differ.
 
 ## Working notes
 

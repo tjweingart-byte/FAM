@@ -33,11 +33,21 @@ This is the inverse of that tool and deliberately lives beside it.
   data, and guessing is how a real listener's episode gets deleted.
 
 `--all` additionally empties **the whole script cache and the whole event
-log**. That is the true blank slate - "wipe all the fake episode titles
+log**, and with them the three things that were derived from that log rather
+than stored beside it: the grown vocabulary (`categories.py`, minted from
+what listeners searched for), the copy of it each worker holds in process,
+and the engagement table. A wipe that left those would rank a blank-slate
+feed on episodes nobody can play any more, and nothing on the outside would
+say so. That is the true blank slate - "wipe all the fake episode titles
 completely so we start seeing only new ones" - and it is a bigger thing than
 it looks: real listening goes with it, and the taste model starts from
 nothing for everybody. It costs no data that cannot be regenerated (a script
 is ~$0.03 and audio is never stored) and it does cost history that cannot.
+
+**What it deliberately does not remove**, because none of it is an episode:
+a mix holds topic ids, a saved item and a vibe hold a question - all three
+are pointers, so they survive and play again from a freshly written script.
+Accounts, credentials and the metering ledger are untouched in both scopes.
 
 Neither mode touches accounts, credentials or the metering ledger. Somebody
 who signed up stays signed up; what the app spent stays reconcilable.
@@ -138,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
                   "  (ALL of them go, not only the seed's)")
             print(f"  scripts in the cache {report.get('scripts_total', '?')}"
                   "  (ALL of them go)")
+            print(f"  words in the vocabulary {report.get('categories_total', '?')}"
+                  "  (minted from those events)")
         print("\nRe-run with --yes to do it.")
         return 0
 
@@ -150,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     if scope == "all":
         print(f"  events removed   {report.get('events_removed', 0)}")
         print(f"  stories dropped  {report.get('stories_dropped', 0)}")
+        print(f"  vocabulary       {report.get('categories_dropped', 0)} node(s)")
     print("\nThe browse surfaces will be thin until real listening fills them. "
           "That is the point: what they show now is measured, not seeded.")
     return 0

@@ -303,6 +303,76 @@ def test_a_seed_wipe_leaves_other_listeners_alone(client, monkeypatch):
     assert app_mod.EVENTS.count() == before
 
 
+def test_a_full_wipe_takes_the_vocabulary_the_log_taught(client, monkeypatch):
+    """The grown vocabulary is minted *from* the event log, so it cannot
+    outlive it.
+
+    `taste` re-reads an event's own text against the current tree. A tree
+    left standing after a wipe is therefore a vocabulary with nothing left to
+    say it about - and it would go on ranking a blank-slate feed on subjects
+    minted from episodes nobody can play any more, with nothing on the
+    outside saying so.
+    """
+    import app as app_mod
+    import topics as topics_mod
+
+    monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
+    tree = topics_mod.category_tree()
+    tree.mint("cincinnati bengals", parent_id="", source="test")
+    assert tree.nodes(), "could not mint a node to test with"
+
+    body = client.post("/api/admin/wipe",
+                       json={"scope": "all", "dry_run": False},
+                       headers={"X-Admin-Token": "secret"}).json()
+    assert body["categories_dropped"] >= 1, (
+        "a full wipe reported nothing removed from the vocabulary")
+    assert not topics_mod.category_tree().nodes(), (
+        "the vocabulary survived the wipe of the log it was minted from")
+
+
+def test_a_full_wipe_drops_the_tree_this_worker_is_holding(client, monkeypatch):
+    """`topics.category_tree` caches the store per process. A cleared table
+    read through a warm handle is a wipe that reports success and changes
+    nothing until the next restart - which is the silent half-failure this
+    whole module is written against."""
+    import app as app_mod
+    import topics as topics_mod
+
+    monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
+    held = topics_mod.category_tree()
+    client.post("/api/admin/wipe", json={"scope": "all", "dry_run": False},
+                headers={"X-Admin-Token": "secret"})
+    assert topics_mod.category_tree() is not held, (
+        "the wipe left the previous tree object in the module cache")
+
+
+def test_a_seed_wipe_leaves_the_vocabulary_alone(client, monkeypatch):
+    """It is the *log* that pays for the vocabulary, and a seed wipe does not
+    empty the log. Removing three invented listeners is not a reason to
+    forget what every real one has searched for."""
+    import app as app_mod
+    import topics as topics_mod
+
+    monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
+    topics_mod.category_tree().mint("home espresso", parent_id="", source="test")
+    client.post("/api/admin/wipe", json={"scope": "seed", "dry_run": False},
+                headers={"X-Admin-Token": "secret"})
+    assert topics_mod.category_tree().nodes(), (
+        "a seed wipe emptied the whole vocabulary")
+
+
+def test_the_dry_run_counts_the_vocabulary_too(client, monkeypatch):
+    """The useful half of the answer is the count, and this is the one item
+    on the list nobody expects to be on it."""
+    import app as app_mod
+
+    monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
+    body = client.post("/api/admin/wipe", json={"scope": "all"},
+                       headers={"X-Admin-Token": "secret"}).json()
+    assert "categories_total" in body
+    assert "categories_dropped" not in body, "a dry run removed something"
+
+
 # --------------------------------------------------------------------------
 # Whether a redeploy erases the listeners
 # --------------------------------------------------------------------------

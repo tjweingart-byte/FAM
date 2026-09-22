@@ -308,6 +308,13 @@ class EmptyTree:
     def depth_of(self, node_id: str) -> int:
         return 0
 
+    #: Part of the interface, so a wipe on a deployment whose tree cannot be
+    #: opened reports nothing removed rather than raising. The whole reason
+    #: this class exists is that callers must not have to ask which one they
+    #: are holding.
+    def clear(self) -> int:
+        return 0
+
     def report(self) -> dict:
         return {"path": "", "nodes": 0, "max_depth": 0, "by_depth": {},
                 "by_source": {}, "degraded": 0, "full": False,
@@ -636,6 +643,31 @@ class CategoryStore:
             return 0
         self.reload()
         return len(stale)
+
+    def clear(self) -> int:
+        """Empty the vocabulary. Returns how many nodes went.
+
+        Not the same thing as `prune`, which drops what has gone quiet and
+        keeps the tree standing. This is for a deployment being taken back to
+        before anything was listened to - `demo_data.wipe(scope="all")` - and
+        it exists because **the tree is derived from the event log that wipe
+        is emptying.** Minted from what listeners searched for, so a wipe
+        that left it standing would rank a blank-slate feed on a vocabulary
+        grown from episodes nobody can play any more, with no way to tell
+        from the outside: `taste` re-reads each event's text against the
+        current tree, and there would be no events.
+
+        The next sweep mints whatever the real listening turns out to be
+        about, which is the entire point of the exercise.
+        """
+        gone = len(self._nodes)
+        try:
+            self._conn().execute("DELETE FROM categories")
+        except Exception:
+            log.exception("could not clear the category tree")
+            return 0
+        self.reload()
+        return gone
 
     def report(self) -> dict:
         """What the tree currently holds. For a report, never for ranking."""

@@ -9474,3 +9474,198 @@ complexity, not a millisecond.
 thing at a realistic size and measuring it, which is the same lesson §52
 records in a different register: verify, do not inspect - and a test that
 never runs at production scale is inspecting.
+
+## 123. Three controls that were each right about something nobody asked
+
+Three reports off a phone, and the interesting thing is that none of them is a
+broken control. Each is a control telling the truth about a question next to
+the one in front of it.
+
+### The (+) after a search in a DailyFAM picker did nothing — again
+
+Reported as "still not working", which is the right word: §111 fixed a
+different cause of the same symptom. There, two top-level functions shared the
+name `addTypedTopic`, the catalogue's copy won, and the row rendered and did
+nothing. That is fixed and stayed fixed — logged in, the whole flow works, and
+a browser driving the real server creates the album with a typed topic and a
+bank topic in it.
+
+Logged **out**, there is nothing to tap at all. `loadMixes` asks two endpoints
+at once:
+
+```js
+Promise.all([ fetch("/api/mixes"), ... fetch("/api/topics?ranked=1") ])
+  .then(function(res){
+    if(res[0].locked){ renderMixesLocked(); return; }   // <-- returns here
+    ...
+    topicBank = res[1].topics;
+```
+
+`/api/mixes` answers 401 to a listener without an account, by design: a mix is
+one of the things an account is *for*. `/api/topics` is not gated and had
+answered perfectly — and the locked branch returned before taking it. So
+`topicBank` stayed `[]`, and `renderMixPicker` opens with:
+
+```js
+if(!topicBank || !topicBank.length){ ... "Could not load the topic list" ... return; }
+```
+
+Which means the typed offer — the row whose whole job is "anything you type is
+a valid topic" — is never rendered. Search it and nothing offers itself. The
+(+) after a search had nothing to add because there was nothing on screen to
+add.
+
+**The bug is the sentence, not the gate.** A fact about the listener's account
+was reported as a fact about the server, in a message that sends somebody to
+look at their connection. It is §89's rule on the browse surfaces — an empty
+row is a fact about this deployment and never a claim about the world — one
+screen over, and §119's shape as well: a mechanism ruled out by a question
+asked one layer up, so the code that would have worked never runs.
+
+Two lines move, and the bank is taken before the branch. A test reads
+`loadMixes`'s own source and fails if they swap back, because the failure is
+silent: the picker renders a plausible sentence and nothing throws.
+
+### And the (+) that opened it should not have been there
+
+Separately reported, and the same subject from the other end: the "new mix"
+button in the DailyFAM header was in the markup unconditionally. Tapping it
+opened a naming modal, then a whole topic picker, and refused only at the
+save — two screens to say "you need an account for this", when the screen
+behind it already says exactly that with a Sign up button on it.
+
+A control with nothing behind it is worse than no control, which this project
+has now applied to a demo-only search bar, a toast-only transcript toggle,
+three invented contacts and a folder chip nobody had filed anything into. It
+is hidden until `/api/mixes` answers, and shown by `renderMixList`, which runs
+only when there is an account to keep a mix in. **Hidden to start rather than
+shown and taken away**: a control that appears and then vanishes reads as a
+fault.
+
+One fact decides the whole screen. The "+" and the body were about to be two
+reads of one answer — `renderMixesLocked` for the body, `AUTH.authenticated`
+for the button — and that is §104's finding (two things deciding one state
+is one bug wearing several symptoms) waiting to happen.
+
+### Search opened on three minutes and generated two
+
+`selectedLengthMinutes` is 2, with a comment saying why. The markup printed
+`3 min` in five separate places: the search chip, both modal rows, and both
+playback pills. So a listener landed on search reading "3 min", opened that
+very control, and found **2 min** ticked as their current choice — the
+interface disagreeing with itself about one setting, in two elements a tap
+apart.
+
+Nothing was broken. The number was settled in one place and copied into five,
+which is `.env.example` against `config.py` (§54) in a different file: a value
+is settled only where it is copied. The literals are painted over at boot by
+`paintLengthControls`, the length menu delegates to it rather than keeping its
+own list of where the number is printed, and a test pins each literal to the
+variable so they cannot drift apart again.
+
+The speed placeholders had the same crack, smaller: the markup said `1×` and
+`pillText` writes `1x`, so the pill changed character the first time anything
+repainted it.
+
+**The playback pills are deliberately not pinned to the default.** They name
+the length of the episode that is *playing*, which is a different question and
+may honestly differ — the first draft of the smoke check asserted otherwise and
+failed against an episode legitimately running at seven minutes.
+
+### One thing found while writing the checks
+
+`page.evaluate("window.fetch = window.__realFetch;")` hands Playwright the
+function as the expression's value to serialise, and the failure it raises is a
+`TypeError` naming `fetch` with a fetch stack — which reads exactly like the
+thing the check is testing. An arrow function with no return value is the fix.
+Worth writing down because the misleading part is not the mistake, it is that
+the error impersonates the subject.
+
+## 124. A blank slate that was not blank: the vocabulary outlived its own source
+
+A deployment carrying episodes from many iteration cycles had to be taken
+back to what the interface looks like before any of it existed.
+`tools/wipe_demo_data.py --all` is that tool and has been since it was
+written - the whole script cache, the whole event log, the seeded listeners
+and the live story pool.
+
+It left one thing standing, and it was a **ranking input**.
+
+### What was wrong
+
+`categories.py` (§121) is a vocabulary the app grows for itself, minted from
+what listeners search for. It lives in its own store, so nothing in the wipe
+touched it. But it is not *stored data* in the sense the wipe was written
+around - it is **derived from the event log the wipe empties**, and `taste`
+re-reads each event's own text against the current tree.
+
+So after a full wipe the deployment held a vocabulary of subjects minted from
+episodes nobody can play any more, ranking a feed built from an empty log.
+Nothing on the outside said so: the wipe reported success, the counts it
+printed were all correct, and the tree is not a row anybody counts.
+
+Two smaller versions of the same thing came with it. `topics.category_tree`
+caches the store **per process**, so clearing the table without dropping that
+handle is a wipe that reports success and changes nothing until the next
+restart - the destructive operation silently half-applied, which is the exact
+failure `demo_data.py` is written against. And the engagement table (§121's
+click-through rate) is held in process for `ENGAGEMENT_TTL`, computed from
+the impressions and plays being deleted one line above it.
+
+### The fix, and the rule under it
+
+`CategoryStore.clear()` beside `prune()` - a different operation, named
+differently: `prune` drops what has gone quiet and keeps the tree standing,
+`clear` is for a deployment going back to before anything was listened to.
+`_forget_what_the_log_taught()` calls it, drops the module-level handle and
+resets the engagement cache, and never raises: a wipe that emptied the log
+and then threw would be the worst outcome available.
+
+The generalisation, which is why this is written down rather than just
+fixed: **a wipe has to enumerate what is derived from the thing it empties,
+not only what is stored beside it.** Stores are easy - `storage_doctor`
+lists them and §107's test derives that list rather than typing it twice. The
+things that are neither a store nor a row are the ones that survive: a
+vocabulary, a warm handle, a cached table. Each of those went on affecting
+what a listener is shown, after an operation whose entire purpose was that
+nothing should.
+
+The dry run counts the vocabulary now, because it is the one item on the list
+nobody expects to be on it.
+
+### What the wipe deliberately still does not remove
+
+None of it is an episode. A mix holds topic ids, a saved item and a vibe hold
+a question - all three are pointers, so they survive and play again from a
+freshly written script, which is the design. Accounts, credentials and the
+metering ledger are untouched in both scopes: somebody who signed up stays
+signed up, and what the app spent stays reconcilable against an invoice.
+
+### What a wiped deployment actually shows
+
+Measured on an emptied database rather than reasoned about, which is the
+whole point of §52:
+
+* **Signed out, nothing in the log** - `taste_source` is `startup`,
+  `personalised` is false, and the first rail is §116's time-anchored
+  starter set under the heading **Start here**. Trending, "What you missed
+  last week" and the friends rail are honestly empty with their own
+  sentences; Explore says "Nothing here yet".
+* **Signed in, after listening** - `taste_source` becomes `taste`,
+  `personalised` becomes true, and the rail is "Made for you", ranked.
+
+Note the switch is on **having a profile**, not on being signed in, and that
+is §116's decision rather than an oversight: a brand-new account has nothing
+to personalise on, so it gets the prior too, and one play retires it. `cold`
+is derived (`not profile`) and never stored, so behaviour arriving later
+always wins.
+
+**One row over-claims on a blank slate, and it is a pre-existing decision
+rather than something this change introduced.** `rank_most_played` fills from
+the bank when nothing has been played - "a stable slice beats an empty
+section, and beats a random one" - so "What FAM can't stop listening to"
+shows six tiles on a deployment where nobody has played anything. The content
+is fine; the heading is a claim about FAM's listeners that a fresh
+deployment cannot back, which is the rule §89 and §90 both state. Left alone
+deliberately: it is one line in `rank_most_played`, and turning a documented
+decision over belongs in a change that is about that decision.
