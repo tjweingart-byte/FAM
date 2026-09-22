@@ -743,9 +743,17 @@ def category_tree() -> "categories.CategoryStore":
 
 
 def reset_category_tree() -> None:
-    """Drop the cached tree. For tests, and after a sweep in another process."""
+    """Drop the cached tree. For tests, and after a sweep in another process.
+
+    Takes the tile-tag memo with it. That memo keys itself on the tree's
+    `_loaded_at`, so in the ordinary case it would notice on its own - but
+    "on its own" there means *two floats from the clock differ*, and a
+    sentinel the clock could reproduce is exactly what §113 was. The memo is
+    derived from the tree; dropping one drops the other, by construction.
+    """
     global _CATEGORIES
     _CATEGORIES = None
+    reset_topic_tags()
 
 
 def tags_for_text(text: str) -> tuple[str, ...]:
@@ -2101,6 +2109,87 @@ def tag_weight(tag: str) -> float:
     return CATEGORY_DEPTH_WEIGHT ** max(1, depth)
 
 
+#: Memoised `topic_tags`, keyed on `(tree generation, query)`.
+#:
+#: Bounded by the number of distinct tile queries a process sees - the bank
+#: and the startup set are fixed, and the live pool is capped - and dropped
+#: wholesale whenever the tree is rebuilt, so a node minted by the sweep is
+#: visible on the next page rather than at the next restart.
+#:
+#: It exists because of §122 rather than out of caution: a word-set
+#: intersection is cheap and `_affinity` is called per tile per rail per
+#: page, and the last thing this file did on that path without measuring it
+#: cost 134ms. `MAX_TAG_MEMO` is the blast radius if a caller ever starts
+#: handing this unique strings.
+_TAG_MEMO: dict[str, tuple[str, ...]] = {}
+_TAG_MEMO_GEN = -1.0
+MAX_TAG_MEMO = 2000
+
+
+def topic_tags(topic: Topic) -> tuple[str, ...]:
+    """The tile's declared tags, plus whatever the grown vocabulary recognises
+    in its question.
+
+    **This is the join that was missing, and without it the tree could not
+    reach a browse page at all.** `categories.py` reads what listeners search
+    for and builds a vocabulary deep enough to tell college football from the
+    NFL; `taste` puts those words into a listener's profile. But a tile's
+    `tags` are a hand-written tuple compiled into `TOPIC_BANK`, so the scorer
+    was comparing a profile that could say `college football` against tiles
+    that could only say `sports` - and a listener whose whole history was
+    college football scored the bank's college-football tile *below* its golf
+    tile, because neither could say anything the other could not.
+
+    So a tile is scored as though somebody had hand-written onto it every tag
+    the tree finds in its own question. That is deliberately the *same*
+    treatment a subtag already gets rather than a new mechanism beside it:
+    `sports-business` is in the NIL tile's tuple and in its denominator, and
+    a category node behaves identically. A tile the tree says nothing about
+    is returned exactly as it was, so a deployment with an empty tree ranks
+    precisely as it did before any of this existed.
+
+    It reads the *query* and never the title or the hook. The query is the
+    thing that gets generated and is the only field that is reliably a
+    statement of subject - a title is a label, and `<<TITLE:>>` means it may
+    not even be the one the episode ends up with.
+    """
+    global _TAG_MEMO, _TAG_MEMO_GEN
+    if not topic.query:
+        return topic.tags
+    tree = category_tree()
+    # Read the generation once. The sweep rebuilds the tree on another
+    # thread, and taking it again below would risk filing an answer computed
+    # against one tree under the key of another.
+    gen = getattr(tree, "_loaded_at", 0.0)
+    if gen != _TAG_MEMO_GEN:
+        _TAG_MEMO = {}
+        _TAG_MEMO_GEN = gen
+    hit = _TAG_MEMO.get(topic.query)
+    if hit is not None:
+        return hit
+    try:
+        extra = set(tree.match(topic.query)) - set(topic.tags)
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not read the category tree for %r", topic.id)
+        return topic.tags
+    # Returned unchanged when the tree has nothing to add, rather than sorted
+    # into the same set. The guarantee worth being able to state is the
+    # strong one - a deployment with no tree gets back the identical tuple -
+    # and a caller that ever cares about declaration order is then not
+    # quietly broken by a vocabulary it has nothing to do with.
+    found = tuple(sorted(set(topic.tags) | extra)) if extra else topic.tags
+    if len(_TAG_MEMO) < MAX_TAG_MEMO:
+        _TAG_MEMO[topic.query] = found
+    return found
+
+
+def reset_topic_tags() -> None:
+    """Drop the memo. For tests, and after a tree is cleared under us."""
+    global _TAG_MEMO, _TAG_MEMO_GEN
+    _TAG_MEMO = {}
+    _TAG_MEMO_GEN = -1.0
+
+
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     """How well one tile matches one listener, with specificity counted.
 
@@ -2114,11 +2203,18 @@ def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     Dividing by the weights would cancel the boost exactly - a tile made
     entirely of subtags would score the same as one made entirely of facets -
     which is the opposite of the point.
+
+    **The tags are `topic_tags(topic)` and not `topic.tags`** - the declared
+    tuple plus whatever the grown vocabulary recognises in the question. See
+    that function for why the two were not the same thing and what it cost.
+    Nothing else here changes: a tag the tree contributed is weighted,
+    counted and divided by exactly as if it had been typed into the tile.
     """
-    if not topic.tags:
+    tags = topic_tags(topic)
+    if not tags:
         return 0.0
-    total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in topic.tags)
-    return total / math.sqrt(len(topic.tags))
+    total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in tags)
+    return total / math.sqrt(len(tags))
 
 
 def _played_ids(events: Iterable[Event]) -> set[str]:

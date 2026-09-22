@@ -168,12 +168,23 @@ def _forget_what_the_log_taught() -> dict:
       for `ENGAGEMENT_TTL`, computed from the impressions and plays being
       deleted one line above.
 
+    **What a wipe puts back.** The starter vocabulary (`category_seed.py`) is
+    re-applied immediately after the clear, and that is this function's own
+    rule read the other way round rather than an exception to it: what goes
+    is what the *log* taught, and a seed node was never taught by anything -
+    it is a declared floor that a deployment with no listening is supposed to
+    have, which is precisely what a wiped deployment is. Leaving it out would
+    make a wipe quietly destructive of something no listener produced, and
+    the next boot would mint it straight back anyway, so the only difference
+    would be which page saw the tree half-built.
+
     Never raises. A wipe that had emptied the log and then failed here would
     be the worst outcome available: the destructive half done, the tidying
     half not, and an exception where the report should be.
     """
     out: dict = {}
     try:
+        import categories
         import topics
 
         out["categories_dropped"] = topics.category_tree().clear()
@@ -182,7 +193,13 @@ def _forget_what_the_log_taught() -> dict:
         # opens the emptied table rather than inheriting a live object.
         topics.reset_category_tree()
         topics.reset_engagement()
+        # And the floor goes back under it. Through `category_tree()` again,
+        # deliberately: the handle above has just been dropped, so this opens
+        # the emptied table rather than writing through the stale object the
+        # line above exists to get rid of.
+        out["categories_seeded"] = categories.apply_seed(topics.category_tree())
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear what the event log taught")
         out.setdefault("categories_dropped", 0)
+        out.setdefault("categories_seeded", 0)
     return out

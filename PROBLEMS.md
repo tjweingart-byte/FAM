@@ -9837,3 +9837,153 @@ container, so the claim that an account holder's generic tile is better
 because it is researched fresh is a claim about the mechanism and not about
 the writing - the same gap §116 left on the startup set and for the same
 reason. It is the first thing to listen for on a machine with a key.
+
+## 126. A vocabulary that started from nothing, and a ranker that never read it
+
+Asked for, in the owner's words: keep the topics and subtopics growing from
+what people search for, and *"have an initial topic tree already inside the
+database"* serving two purposes - more variety on myFAM before there is heavy
+traffic, and something for the algorithm to build on later.
+
+### What was actually wrong, which was two things
+
+The first is the one that was asked about. §121 built a vocabulary that grows
+itself out of real searches, and everything about it is right except its first
+day. `MIN_LISTENERS` is three and `MIN_TEXTS` is two, deliberately - that pair
+is the whole spam control, and §121 found what happens without it (thirty-nine
+nodes from eight queries, mostly fragments). But it means a deployment with no
+traffic has **no grown vocabulary at all**, and one with a little has whatever
+shape the first few arrivals gave it. Until then the ranker is back on the
+eight facets and twenty-nine subtags that `categories.py` exists because of.
+
+The second was found while checking whether a seed would actually do anything,
+and it is the larger of the two:
+
+    >>> tree.match(BANK_BY_ID["nil-arms-race"].query)
+    ('college football', 'sports')
+    >>> BANK_BY_ID["nil-arms-race"].tags
+    ('sports', 'money', 'sports-business')
+
+The tree could see that the tile is about college football. `_affinity` reads
+`topic.tags`. So against a listener whose entire history was college football:
+
+    nil-arms-race   0.173
+    golf-evolution  0.212
+
+The bank's college-football tile scored **below** its golf tile, for the
+listener it was most obviously right for. That is the exact complaint CLAUDE.md
+records as the reason `BROAD_MATCH_PENALTY` and `familiar_words` exist - "there
+is no tag for the NFL and none for college football, both are `sports`" - and
+§121 built the vocabulary that can say it. Nothing joined the two up. A seed
+tree shipped on its own would have been a table nothing read.
+
+### The seed
+
+`category_seed.py`: 180 nodes, two levels under each of the eight facets,
+which are roots and not rows. Applied by `categories.apply_seed` at boot -
+awaited rather than scheduled, unlike the story and growth sweeps beside it,
+because it is a pass over a dict into SQLite with no network in it, so
+scheduling would buy nothing and would leave a window where the first browse
+page ranked without it.
+
+Three rules on what went in, because the obvious way to write that file is the
+wrong one. **Real subjects, not the bank's table of contents** - it would be
+easy to write twenty-eight nodes that each match one evergreen topic and get a
+vocabulary that is worthless the moment somebody searches for something else,
+so the test that counts bank coverage asserts a floor and never a total.
+**Broad at the top, specific at the bottom**, because the middle of a branch is
+what containment has nothing to deepen against and what no amount of reading
+what people typed can invent. And **nothing the hand-written vocabulary already
+owns** - `mint` silently returns None on a collision, so a bad entry is not an
+error, it is a node that never exists and a tree quietly smaller than the file
+claims. A test asserts every entry mints.
+
+It is a **floor and never a ceiling**, which took four separate refusals:
+
+* `apply_seed` never reparents. `mint` leaves an existing node's parent alone,
+  and that is what this relies on: once a placer has moved something, this
+  file is a record of where the tree started.
+* It never refreshes what it did not add. Bumping `last_seen` on every boot
+  would make the whole vocabulary immortal, because a process restart would
+  look exactly like somebody being interested in something.
+* It claims zero listeners and zero uses. `MIN_LISTENERS` is the spam control
+  and a seed that inflated it would be lying about the one number deciding
+  what gets in.
+* `prune` exempts it, and the reason is worth separating from the one already
+  there. `NODE_TTL` asks "has this subject stopped being talked about", which
+  is a question about an *observation*; a seed node was never an observation,
+  and on the deployment it exists for - no traffic - every leaf of it looks
+  stale by construction. Pruning it would also be a loop rather than an
+  eviction, since the next boot mints it straight back.
+
+**A wipe puts it back.** §124's rule is that a wipe takes what the *log*
+taught, and a seed node was never taught by anything - a wiped deployment is
+precisely the deployment a seed is for. Read the other way round rather than
+an exception to it.
+
+### The join
+
+`topics.topic_tags(topic)` is the tile's declared tags plus whatever the tree
+recognises in its **query** - the query rather than the title, because a title
+is a label and `<<TITLE:>>` means it may not even be the one the episode ends
+up with.
+
+The scoring change is deliberately *not* a new mechanism. A tile is scored as
+though somebody had hand-written those tags onto it: numerator and denominator
+both, exactly as `sports-business` already is. A tile the tree says nothing
+about comes back as the **identical tuple** rather than a re-sorted copy of the
+same set, so the guarantee is the strong one - a deployment with an empty tree
+ranks precisely as it did before any of this existed, which is the rule this
+whole layer lives by.
+
+Memoised on the tree's generation, because §122. Measured: 5,600 lookups in
+1.4ms warm, 28 cold against a 180-node tree in 0.21ms. The memo is dropped by
+`reset_category_tree` rather than only by noticing the generation changed -
+noticing means *two floats from the clock differ*, and a sentinel the clock
+could reproduce is what §113 was.
+
+### What it is worth, measured
+
+On the same listener as above, after seeding:
+
+    nil-arms-race   1.373   (was 0.173)
+    golf-evolution  0.173   (was 0.212)
+
+and for a golf listener the two swap, which they could not do before. The bank
+goes from 27 distinct tag signatures to 28 of 28 - every tile now
+distinguishable from every other - and the tree recognises a subject in 19 of
+the 28 bank queries.
+
+The nine it does not are the honest result rather than a gap to close: the
+bank is broad on purpose, and "why worrying feels useful when it is not" names
+no subject a vocabulary should have. The same goes for six of the eight
+startup tiles, which are *written* to name no particular subject ("the biggest
+storylines in professional sport right now") - the tree correctly says nothing
+about them, and forcing it to would be inventing a claim about a tile that has
+not been researched yet.
+
+### What this does not do, said plainly because it was half the ask
+
+**A category is never a tile.** The request was for a seed that would "populate
+the myFAM page with more variety", and a vocabulary cannot populate anything -
+it is the words the ranker reasons in. A deployment with a rich tree and an
+empty bank still has an empty bank. What it changes is how sharply the tiles
+that *are* there can be told apart, which on a page of five rails drawn from
+one shared inventory is most of what "variety" means in practice: before this,
+a listener with one corner of `sports` in their history got several
+identically-scored candidates and a grid ordered by `topic.id` (§80's finding,
+one vocabulary later).
+
+If what is wanted is more *tiles*, that is a third inventory or a live
+provider, not a vocabulary - `GDELT=1` and `MYFAM.md`.
+
+### Still open
+
+**Nothing here has been run against a real event log.** §121 ended with that
+sentence and it is still true: the seed is hand-written and checked against the
+bank, and what the tree looks like after real searches have grown on top of a
+seeded base is the first thing to look at. `python tools/categories_report.py
+--tree` now says how much of a tree was declared and how much was learned,
+which is the number that answers it - a deployment still showing 180 declared
+and 0 learned is one where either nobody is searching or the sweep has stopped,
+and a node count cannot tell those apart.

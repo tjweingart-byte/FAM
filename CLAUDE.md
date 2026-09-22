@@ -468,6 +468,34 @@ the rest of this list it needs taste rather than a key.
    spends nothing. **Nothing here has been run against a real event log** -
    the seeds above are synthetic, and what the tree looks like on real
    searches is the first thing to look at.
+   **And it no longer starts from nothing** *(§126, `category_seed.py`).*
+   Everything about growing a vocabulary out of real searches was right
+   except its first day: `MIN_LISTENERS` is three, so a deployment with no
+   traffic has **no vocabulary at all** and ranks on the eight facets this
+   module exists because of. 180 hand-written nodes, two levels under each
+   facet, applied at boot and after a wipe. It buys two things - resolution
+   in a listener's *profile* from their first search rather than their
+   third, and the intermediate levels containment can never invent, so a
+   phrase a placer sees lands under "american football" instead of under
+   "sports". **A floor, never a ceiling**: the sweep is untouched, `mint`
+   still adds what nobody declared, a re-seed never reparents what a model
+   has since moved and never refreshes `last_seen` on a node it did not add
+   (which would make the whole tree immortal), and a seeded node claims zero
+   listeners because `MIN_LISTENERS` is the spam control and inflating it
+   would be lying about the one number that decides what gets in. `prune`
+   exempts it: `NODE_TTL` asks whether an *observation* went quiet, and on
+   the deployment a seed exists for every leaf of it looks stale by
+   construction.
+   **And the join that was missing** - `topics.topic_tags`. The tree could
+   already see "college football" in a tile's question and `_affinity` read
+   the tile's hand-written tuple, so a listener whose whole history was
+   college football scored the bank's college-football tile *below* its golf
+   tile. A tile is now scored as though somebody had typed onto it every tag
+   the tree finds in its query - the same treatment a subtag already gets,
+   numerator and denominator both - which is what makes a vocabulary visible
+   on a browse page at all. A tile the tree says nothing about comes back as
+   the identical tuple, so an empty tree ranks exactly as it did before any
+   of this existed. Memoised on the tree's generation, because §122.
    **And §122 is what happened when the work was checked rather than
    re-read.** Four defects, three of them §121's own, none visible to any
    test in the suite, all four found by running the thing at a realistic
@@ -1753,6 +1781,13 @@ the rest of this list it needs taste rather than a key.
   holds topic ids, a saved item and a vibe hold a question - pointers, which
   play again from a freshly written script. Accounts, credentials and the
   metering ledger are untouched in both scopes.
+  **And what it puts back** *(§126)*: the starter vocabulary, re-applied
+  immediately after the clear. That is this rule read the other way round
+  rather than an exception to it - what goes is what the *log* taught, and a
+  seed node was never taught by anything. A wiped deployment is exactly the
+  deployment a seed exists for, and the next boot would mint it back anyway,
+  so the only thing leaving it out would change is which page saw the tree
+  half-built.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -2149,7 +2184,11 @@ outlived its own source; and **§125**, the generic episodes and who they are
 for - twenty-eight evergreen tiles no wipe could ever have removed, because
 they are compiled into `topics.py` rather than seeded, offered to everybody
 including the listeners FAM knew enough about not to need them, under a
-crowd-row heading making a claim about listening nobody had done),
+crowd-row heading making a claim about listening nobody had done; and
+**§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
+three, so a deployment with no traffic had no grown vocabulary at all, and
+the tree could already see "college football" in a tile's question while
+the ranker scored that tile on `sports` alone),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

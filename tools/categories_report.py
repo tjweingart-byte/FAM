@@ -93,13 +93,20 @@ def main() -> int:
     parser.add_argument("--days", type=int,
                         default=settings.categories_window_days)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--seed", action="store_true",
+                        help="apply the starter vocabulary, then report")
     args = parser.parse_args()
 
     store = cat.CategoryStore()
+    if args.seed:
+        added = cat.apply_seed(store)
+        print(f"  seeded {added} starter nodes")
+        print()
     report = store.report()
+    seeds = cat.seed_report(store)
 
     if args.json:
-        body = dict(report)
+        body = {**report, **seeds}
         if args.dry_run:
             body["would_mint"] = [n.as_dict() for n in dry_run(store, args.days)]
         print(json.dumps(body, indent=2))
@@ -116,14 +123,32 @@ def main() -> int:
         # vocabulary is not working" here would be a claim about the code made
         # from a fact about a fresh database.
         print("  The tree is empty.")
-        print("  Either nothing has been swept yet, or fewer than"
-              f" {cat.MIN_LISTENERS} different listeners have used any one")
-        print("  subject. The hand-written facets and subtags are unaffected -")
-        print("  the feed ranks on those exactly as it did before this existed.")
+        # Five ways now, and the new one is the one to say first because it
+        # is the only one that is a fault rather than a state: the starter
+        # vocabulary is applied at boot, so an empty tree on a server that
+        # has started means seeding did not happen.
+        print(f"  The starter vocabulary ({seeds['seed_available']} nodes) has"
+              " not been applied - this server")
+        print("  has not booted since it existed, or seeding failed. Run with"
+              " --seed to apply it.")
+        print("  Beyond that: nothing swept yet, or fewer than"
+              f" {cat.MIN_LISTENERS} different listeners have used any")
+        print("  one subject. The hand-written facets and subtags are"
+              " unaffected - the feed")
+        print("  ranks on those exactly as it did before this existed.")
     else:
         print(f"  {report['nodes']} nodes, {report['max_depth'] + 1} levels deep")
         print(f"  by depth:  {report['by_depth']}")
         print(f"  by source: {report['by_source']}")
+        # The line worth reading. A tree that is still all seed is one where
+        # either nobody is searching or the sweep has stopped, and those look
+        # identical from a node count - which is the same reason `degraded`
+        # is printed next to it rather than folded into a single "health".
+        print(f"  {seeds['seeded']} declared (the seed),"
+              f" {seeds['learned']} learned from listeners")
+        if seeds["seeded"] < seeds["seed_available"]:
+            print(f"  {seeds['seed_available'] - seeds['seeded']} seed nodes"
+                  " are missing - pruned, or never applied")
         print(f"  {report['degraded']} not yet placed by a model")
         if report["full"]:
             print(f"  FULL at {cat.MAX_NODES} nodes - the least used stop"

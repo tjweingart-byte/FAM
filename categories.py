@@ -199,6 +199,12 @@ SOURCE_SEARCH = "search"
 SOURCE_STORY = "story"
 SOURCE_INTEREST = "interest"
 SOURCE_MODEL = "model"
+#: A node that was here before anybody searched for anything. See
+#: `category_seed.py` and `apply_seed` below - and note that it is read for
+#: more than the report, which is the one thing the line above says sources
+#: are not for: `prune` exempts it. A seeded node is a declared scaffold
+#: rather than an observation that has gone quiet.
+SOURCE_SEED = "seed"
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -628,11 +634,24 @@ class CategoryStore:
         A node with children is kept whatever its own age: it is holding a
         level of the tree up, and removing it would orphan everything below
         it into a flat list.
+
+        **A seeded node is kept whatever its age**, for a different reason
+        that is worth separating from the one above. `NODE_TTL` asks "has
+        this subject stopped being talked about", which is a question about
+        an *observation*: somebody searched for it, and nobody has since. A
+        seed node was never an observation - it is a declared floor under the
+        vocabulary, put there precisely for the deployment where nobody has
+        searched for anything yet, which is exactly the deployment where
+        every one of its leaves looks stale. Pruning it would also be a loop
+        rather than an eviction: `apply_seed` runs at every start-up and
+        would mint it straight back, so the tree would churn rows and end up
+        where it began. Editing `category_seed.py` is how a seed node goes.
         """
         now = time.time() if now is None else now
         parents = {n.parent_id for n in self._nodes.values() if n.parent_id}
         stale = [n.id for n in self._nodes.values()
-                 if now - n.last_seen > NODE_TTL and n.id not in parents]
+                 if now - n.last_seen > NODE_TTL and n.id not in parents
+                 and n.source != SOURCE_SEED]
         if not stale:
             return 0
         try:
@@ -685,6 +704,86 @@ class CategoryStore:
             "degraded": sum(1 for n in self._nodes.values() if n.degraded),
             "full": len(self._nodes) >= MAX_NODES,
         }
+
+
+# --------------------------------------------------------------------------
+# The seed
+# --------------------------------------------------------------------------
+
+
+def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:
+    """Put the starter vocabulary in, and return how many nodes it added.
+
+    Idempotent, cheap and safe to call on every boot: `mint` is idempotent on
+    the phrase, so the second run adds nothing and the hundredth costs one
+    pass over a dict. It writes no model call and reads nothing but
+    `category_seed.SEED`.
+
+    Three things it deliberately does **not** do, each of which would turn a
+    floor under the vocabulary into a ceiling on it:
+
+    * **It never reparents.** `mint` on an existing node leaves its parent
+      alone, which is what this relies on: once the placer has moved
+      `college football` under a level somebody's searches produced, a later
+      boot must not drag it back to where this file guessed it went. The seed
+      is where the tree *starts*, not where it is held.
+    * **It never refreshes what it did not add.** A node that already exists
+      is left entirely alone - not touched, not counted, not given a
+      `last_seen`. Bumping `last_seen` on every boot would make the whole
+      vocabulary immortal, because a process restart would look exactly like
+      somebody being interested in something.
+    * **It claims no listeners and no uses.** A seeded node has never been
+      searched for by anybody and says so, so `tools/categories_report.py`
+      can tell a vocabulary that was declared from one that was learned -
+      `MIN_LISTENERS` is the whole spam control and a seed that inflated
+      those counts would be lying about the one number that matters.
+
+    Failures are swallowed by `mint` itself, which returns None rather than
+    raising. That is the right shape here for the reason
+    `episode_intelligence` states: this layer adds resolution and must never
+    be able to subtract availability. A seed that could not be written leaves
+    a deployment ranking exactly as it did before this file existed.
+    """
+    import category_seed
+
+    added = 0
+    for phrase, parent in category_seed.rows():
+        if normalise(phrase) in store.nodes():
+            continue
+        if store.mint(phrase, parent_id=parent, source=SOURCE_SEED, at=at):
+            added += 1
+    return added
+
+
+def seed_report(store: "CategoryStore") -> dict:
+    """How much of the tree was declared and how much was learned.
+
+    The number worth watching is `learned`: a deployment whose vocabulary is
+    still all seed is one where either nothing is being searched for or the
+    sweep has quietly stopped, and those look identical from a node count.
+    """
+    nodes = store.nodes().values()
+    seeded = sum(1 for n in nodes if n.source == SOURCE_SEED)
+    return {
+        "seeded": seeded,
+        "learned": len(list(nodes)) - seeded,
+        "seed_available": len(_seed_rows()),
+    }
+
+
+def _seed_rows() -> list:
+    """`category_seed.rows()`, or an empty list if it cannot be read.
+
+    Wrapped because `seed_report` is called by `/api/health`, and a report
+    that can 500 is a report that takes the health page down with it.
+    """
+    try:
+        import category_seed
+
+        return category_seed.rows()
+    except Exception:  # noqa: BLE001 - a count is never load-bearing
+        log.exception("could not read the category seed")
+        return []
 
 
 # --------------------------------------------------------------------------

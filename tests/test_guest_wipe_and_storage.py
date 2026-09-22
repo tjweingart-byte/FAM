@@ -312,22 +312,38 @@ def test_a_full_wipe_takes_the_vocabulary_the_log_taught(client, monkeypatch):
     say it about - and it would go on ranking a blank-slate feed on subjects
     minted from episodes nobody can play any more, with nothing on the
     outside saying so.
+
+    **What comes back is the declared floor**, and that is this rule read the
+    other way round rather than an exception to it: what a wipe takes is what
+    the *log* taught, and `category_seed.py` was never taught by anything. A
+    deployment with no listening is exactly the deployment that seed exists
+    for, so leaving it out would make a wipe destructive of something no
+    listener produced - and the next boot would put it back anyway, so the
+    only difference would be which page saw the tree half-built.
     """
     import app as app_mod
+    import categories as categories_mod
+    import category_seed
     import topics as topics_mod
 
     monkeypatch.setattr(app_mod, "ADMIN_TOKEN", "secret")
     tree = topics_mod.category_tree()
     tree.mint("cincinnati bengals", parent_id="", source="test")
-    assert tree.nodes(), "could not mint a node to test with"
+    learned = categories_mod.seed_report(tree)["learned"]
+    assert learned >= 1, "could not mint a node to test with"
 
     body = client.post("/api/admin/wipe",
                        json={"scope": "all", "dry_run": False},
                        headers={"X-Admin-Token": "secret"}).json()
     assert body["categories_dropped"] >= 1, (
         "a full wipe reported nothing removed from the vocabulary")
-    assert not topics_mod.category_tree().nodes(), (
+
+    after = categories_mod.seed_report(topics_mod.category_tree())
+    assert after["learned"] == 0, (
         "the vocabulary survived the wipe of the log it was minted from")
+    assert after["seeded"] == len(category_seed.rows()), (
+        "the wipe took the declared floor with what the log taught")
+    assert body["categories_seeded"] == len(category_seed.rows())
 
 
 def test_a_full_wipe_drops_the_tree_this_worker_is_holding(client, monkeypatch):

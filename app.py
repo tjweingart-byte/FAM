@@ -266,6 +266,29 @@ async def _grow_categories() -> None:
                       "on the vocabulary already in the tree")
 
 
+def _seed_categories() -> None:
+    """Put the starter vocabulary in the tree. Never raises.
+
+    Separated from `_grow_categories` because the two answer different
+    questions and only one of them can fail in an interesting way. Growth
+    reads the event log and may call a model; this reads a Python dict. What
+    they share is the rule that governs this whole layer: a vocabulary may
+    add resolution and may never take the page away, so a seed that cannot be
+    written leaves the deployment ranking exactly as it did before.
+
+    Logged when it writes something and silent when it does not, because
+    after the first boot it never writes anything and a line every restart is
+    a line nobody reads.
+    """
+    try:
+        added = categories_mod.apply_seed(topics_mod.category_tree())
+        if added:
+            log.info("categories: seeded %d starter nodes", added)
+    except Exception:  # noqa: BLE001 - a vocabulary is never worth a failed boot
+        log.exception("categories: could not apply the starter vocabulary; "
+                      "ranking continues on the hand-written tags")
+
+
 def _announce_storage() -> None:
     """Say at startup whether a redeploy will erase this deployment's listeners.
 
@@ -393,6 +416,15 @@ async def lifespan(_: FastAPI):
     # say why. This just means the first listener usually does not see that.
     stories_mod.install()
     asyncio.create_task(_warm_stories())
+    # The starter vocabulary, before the first growth sweep and before the
+    # first listener. Awaited rather than scheduled, unlike the two beside it,
+    # and the difference is the point: those two call the network and this one
+    # is a pass over a dict into SQLite with no model call and no request in
+    # it, so scheduling it would buy nothing and would leave a window in which
+    # the first browse page ranked on a vocabulary this deployment is
+    # supposed to have had before it started. It is idempotent, so every boot
+    # after the first adds nothing.
+    _seed_categories()
     asyncio.create_task(_grow_categories())
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES,
                              social_store=SOCIAL)
@@ -1266,6 +1298,13 @@ async def health(request: Request) -> dict:
         # of nodes a model has never placed, which is the normal state of a
         # deployment with no key and a warning sign on one with a key.
         "categories": {**topics_mod.category_tree().report(),
+                       # Declared against learned. The number worth watching
+                       # is `learned`: a deployment whose vocabulary is still
+                       # entirely the seed is one where either nothing is
+                       # being searched for or the sweep has stopped, and a
+                       # node count cannot tell those apart from a healthy
+                       # tree that started full.
+                       **categories_mod.seed_report(topics_mod.category_tree()),
                        "growing": settings.categories,
                        "placing": settings.categories_place,
                        "min_listeners": categories_mod.MIN_LISTENERS,
