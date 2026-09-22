@@ -9830,6 +9830,43 @@ tests never have to produce the data it is supposed to be made of.
 the helper, because the helper being right has never been the failure mode
 here.
 
+### Two things the double-check found, both about what a test was really asserting
+
+**A rail nobody is looking at was starving the crowd row.** `might_like` is
+`UNSHELVED` - ranked, reachable at `/api/explorenew`, and not drawn on this
+page - and it fills before `most_played` in `FILL_ORDER` so the *drawn* rails
+do not show what Explore New would show. That is a sensible rule for a rail
+that chooses between things to offer. This row does not choose; it reports
+what listeners actually played. So a tile held back by a ranking nobody is
+looking at was a genuinely most-played episode missing from the one row whose
+job is to say what was played.
+
+The coupling is older than §125 and was invisible until it: the row used to
+top itself up from the bank, so being starved here never showed. Removing the
+filler is what made it visible - and it was **data-dependent**, which is
+worse than always-wrong: whether `might_like` wanted that particular tile
+decided whether the crowd row was right. `most_played` now ignores the
+unshelved rail's reservation and still avoids `mine` and every drawn rail, so
+nothing appears on two rails.
+
+**And the gate is on what FAM offers, never on what it reports.** The test
+asserting "an account holder is never offered the bank" swept every rail on
+the page, and it passed - because the only play in its fixture was the
+member's own, so every rail was empty of the bank whichever way the code
+went. Run at a realistic size, an account holder legitimately sees a bank
+tile in "What FAM can't stop listening to" when other listeners really played
+it, and should: `rank_most_played` and `rank_friends` are measurements over
+the play log, and hiding the most-played episode in the app because of who is
+looking would be this section's own over-claim in reverse. The rails the rule
+is about are the ones that *choose for you* - Made for you, What you missed,
+and the popup's own passes. The test names those two sets now and asserts
+both halves.
+
+Both findings have the same shape and it is §122's: a test that never runs at
+production scale is inspecting rather than verifying. Neither was visible to
+2,361 passing tests, and both turned up in one scripted boot of the real
+thing.
+
 ### What is still open
 
 **Nobody has heard one of these episodes.** There is no API key in the build

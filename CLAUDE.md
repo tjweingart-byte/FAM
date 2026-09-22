@@ -1272,6 +1272,19 @@ the rest of this list it needs taste rather than a key.
   because a caller that was never taught about accounts does not know - and
   defaulting the other way would silently empty a surface, which is the
   failure that looks like a design decision rather than a bug (§119).
+  **And the gate is on what FAM *offers*, never on what it *reports*.** The
+  two crowd rows are measurements over the play log, so an account holder
+  legitimately sees a bank tile in "What FAM can't stop listening to" when
+  listeners really played it - hiding the most-played episode in the app
+  because of who is looking would be this change's own over-claim in
+  reverse. The rails the rule governs are the ones that choose for you.
+  Checking that also turned up a rail nobody is looking at starving that
+  row: `might_like` is `UNSHELVED` and fills before `most_played`,
+  reserving tiles so the drawn rails do not show what Explore New would -
+  right for a rail that chooses, wrong for one that reports. It was
+  invisible while the bank filler existed and data-dependent once it did
+  not, so `most_played` now ignores that reservation while still avoiding
+  every drawn rail.
   Nobody has heard one of these episodes; the freshness claim is about the
   mechanism, not yet about the writing.
 

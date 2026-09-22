@@ -1160,6 +1160,20 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
     DailyFAM mix picker) and `rank_might_like` (Explore New) deliberately do
     **not** read it - see their docstrings for why a menu somebody opened is
     not the app offering them something.
+
+    **And the two crowd rows do not read it either, which is the sharper
+    version of the same boundary: this gates what FAM *offers*, never what it
+    *reports*.** `rank_most_played` and `rank_friends` are measurements over
+    the play log - what everybody played, what your friends played - and if
+    listeners really did play a bank topic then saying so is simply true. An
+    account holder can therefore see a bank tile in "What FAM can't stop
+    listening to", and should: hiding the most-played episode in the app
+    because of who is looking would be §125's own over-claim in reverse, a row
+    whose heading is a claim about this deployment quietly filtered per
+    listener. The rails that *choose for you* - Made for you, What you missed,
+    and the post-episode popup's own passes - are the ones where offering a
+    standing explainer to somebody with an account is the thing this rule is
+    about.
     """
     return list(live) + list(STARTUP_TOPICS if has_account else TOPIC_BANK)
 
@@ -3068,11 +3082,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # backwards, since the personal sections are the point. (`most_played`
     # stopped being one of those since §125 - it now holds only what has been
     # played - but `might_like` still is, and the ordering is the same rule.)
+    # What an UNSHELVED rail claimed, kept apart from `used`. See the note on
+    # `most_played` below for why the difference matters.
+    unshelved_held: set[str] = set()
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; the crowd rows stay globally *ranked*,
         # they just stop offering back the one they finished this morning.
-        seen = used | mine | reserved
+        seen = used | mine | reserved | unshelved_held
         if key == "missed":
             # The bank plus whatever the pool still holds - `held` rather than
             # `live`, so a story the variety cap is hiding is still resolvable.
@@ -3125,11 +3142,30 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         else:
             # Not damped, deliberately: this row is the same list for
             # everyone, which is what makes it the cheapest section to serve.
-            picks = rank_most_played(store, now, seen, limit=wide, written=written)
+            #
+            # **And it ignores what the unshelved rail reserved**, which is
+            # the one exception to the mutual exclusion above. `might_like`
+            # is not drawn on this page; it claims its picks early so the
+            # *drawn* rails do not show what Explore New would show, and that
+            # is a sensible rule for a rail that chooses. This row does not
+            # choose - it reports what listeners actually played - so a tile
+            # held back by a ranking nobody is looking at is a genuinely
+            # most-played episode missing from a row whose whole job since
+            # §125 is to say what was played. It still avoids `mine` and the
+            # drawn rails, so no tile appears twice on the page.
+            #
+            # Latent until §125: this row used to top itself up from the
+            # bank, so being starved here was invisible. Removing the filler
+            # is what made an old coupling show.
+            picks = rank_most_played(store, now, used | mine | reserved,
+                                     limit=wide, written=written)
         picks = diversify(picks, MISSED_SECTION_SIZE if key == "missed"
                           else SECTION_SIZE)
         picked[key] = picks
-        used |= {t.id for t in picks}
+        if key in UNSHELVED:
+            unshelved_held |= {t.id for t in picks}
+        else:
+            used |= {t.id for t in picks}
 
     # The world row. Filled last and from what is left, which is a change
     # worth explaining: it used to take no part in the mutual exclusion above,

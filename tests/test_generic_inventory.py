@@ -117,12 +117,88 @@ def test_a_guest_is_offered_the_bank(store):
     assert offered & BANK_IDS, "a listener with no account got no bank tiles"
 
 
-def test_an_account_holder_is_never_offered_the_bank(store):
-    play(store, "member", "golf-evolution", kind="complete")
+def test_an_undrawn_rail_cannot_starve_the_crowd_row(store):
+    """`might_like` is UNSHELVED - ranked, reachable at /api/explorenew, and
+    not on this page - and it fills before `most_played` in FILL_ORDER so the
+    *drawn* rails do not show what Explore New would show. That is a sensible
+    rule for a rail that chooses between things to offer.
+
+    This row does not choose. It reports what listeners actually played, so a
+    tile held back by a ranking nobody is looking at is a genuinely
+    most-played episode missing from the one row whose job is to say what was
+    played. Latent until the bank filler came off, because being starved here
+    used to be invisible.
+    """
+    play(store, "member", "nil-arms-race", kind="complete")
+    for other in ("a", "b", "c"):
+        play(store, other, "golf-evolution", kind="complete")
+
+    # `might_like` really does want it, which is what makes this a test.
+    profile = T.taste(store.for_user("member"))
+    wanted = T.rank_might_like(profile, exclude={"nil-arms-race"},
+                               limit=T.SECTION_SIZE * T.CANDIDATE_FACTOR)
+    assert "golf-evolution" in {t.id for t in wanted}, (
+        "the fixture no longer exercises the collision this test is about")
+
     feed = T.build_feed(store, "member", has_account=True)
-    for section in feed["sections"]:
-        offered = {t["id"] for t in section["topics"]}
-        assert not offered & BANK_IDS, (section["key"], offered & BANK_IDS)
+    crowd = {t["id"] for s in feed["sections"]
+             if s["key"] == "most_played" for t in s["topics"]}
+    assert "golf-evolution" in crowd
+
+
+def test_no_tile_appears_on_two_rails(store):
+    """The mutual exclusion the exception above must not break."""
+    play(store, "member", "nil-arms-race", kind="complete")
+    for other in ("a", "b", "c"):
+        play(store, other, "golf-evolution", kind="complete")
+        play(store, other, "sleep-science", kind="complete")
+    for has_account in (False, True):
+        feed = T.build_feed(store, "member", has_account=has_account)
+        shown = [t["id"] for s in feed["sections"] for t in s["topics"]]
+        assert len(shown) == len(set(shown)), (has_account, shown)
+
+
+#: The rails that *choose for you*. These are the ones the rule is about.
+OFFER_RAILS = ("from_history", "missed")
+
+#: The rails that *report what happened*. See `browse_inventory`: the gate is
+#: on what FAM offers, never on what it measures.
+CROWD_RAILS = ("most_played", "followers")
+
+
+def test_an_account_holder_is_never_offered_the_bank(store):
+    """Other listeners have played bank topics here, which is what makes this
+    a real assertion rather than one the fixture satisfies by accident: the
+    first version of this test only played the member's *own* episode, so
+    every rail was empty of the bank whatever the code did."""
+    play(store, "member", "nil-arms-race", kind="complete")
+    for other in ("a", "b", "c"):
+        play(store, other, "golf-evolution", kind="complete")
+
+    feed = T.build_feed(store, "member", has_account=True)
+    by_key = {s["key"]: {t["id"] for t in s["topics"]} for s in feed["sections"]}
+    for key in OFFER_RAILS:
+        assert not by_key[key] & BANK_IDS, (key, by_key[key] & BANK_IDS)
+
+
+def test_the_crowd_row_reports_a_bank_tile_that_was_really_played(store):
+    """The boundary, stated as the thing it is: this gates what FAM *offers*,
+    never what it *reports*.
+
+    "What FAM can't stop listening to" is a measurement over the play log. If
+    listeners really played a bank topic, saying so is true - and hiding the
+    most-played episode in the app because of who is looking would be §125's
+    own over-claim in reverse, a row whose heading is a claim about this
+    deployment quietly filtered per listener.
+    """
+    play(store, "member", "nil-arms-race", kind="complete")
+    for other in ("a", "b", "c"):
+        play(store, other, "golf-evolution", kind="complete")
+
+    feed = T.build_feed(store, "member", has_account=True)
+    crowd = {t["id"] for s in feed["sections"]
+             if s["key"] == "most_played" for t in s["topics"]}
+    assert crowd == {"golf-evolution"}, crowd
 
 
 def test_an_account_holders_floor_is_the_startup_set_not_an_empty_page(store):

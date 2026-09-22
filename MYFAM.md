@@ -201,6 +201,14 @@ gating it would empty the picker for exactly the listeners who can use it.
 Explore New (`rank_might_like`) keeps it because it is off the page and is
 reached only by somebody trying to widen a taste.
 
+**The gate is on what a rail *offers*, not on what it *reports*.** Rails 4
+and 5 are measurements over the play log, so an account holder does see a
+bank tile there when listeners really played one. Rails 1 and 3 are the ones
+that choose, and they are what `browse_inventory` governs. Rail 4 also
+ignores what `might_like` reserved - that rail is `UNSHELVED`, fills earlier
+so the drawn rails avoid Explore New's picks, and must not be able to hold
+back a genuinely most-played episode from the row whose job is to report one.
+
 **Rail 4 fills from plays and from nothing else.** It used to top itself up
 from the bank so it was never empty; the heading is a claim about this
 deployment's listeners and twenty-eight unplayed tiles do not support it. An
