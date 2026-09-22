@@ -36,6 +36,22 @@ def play(store, user, topic_id, kind="play", ago=0.0):
                          T.BANK_BY_ID[topic_id].tags, time.time() - ago))
 
 
+def crowd_plays(store, topics, user="stranger"):
+    """Somebody other than the listener under test having played `topics`.
+
+    `rank_most_played` stopped topping itself up from the bank, so a test
+    about that row's *shape* - that "view more" opens on more of it, that a
+    written tile leads it - has to supply the plays the row is made of. That
+    is the point of the change rather than an inconvenience of it: before,
+    every one of these tests passed against an inventory nobody had touched.
+    """
+    for i, topic_id in enumerate(topics):
+        # Distinct listeners, so this is popularity rather than one person on
+        # a loop, and descending counts so the order is deterministic.
+        for n in range(len(topics) - i):
+            play(store, f"{user}-{n}", topic_id)
+
+
 # --- the bank -------------------------------------------------------------
 
 
@@ -105,8 +121,17 @@ def test_trending_ignores_the_listener_entirely(store):
     assert ranked[0].id == "fed-next-move"
 
 
-def test_trending_is_not_empty_on_a_cold_start(store):
-    assert len(T.rank_most_played(store)) == T.SECTION_SIZE
+def test_the_crowd_row_holds_plays_and_nothing_else(store):
+    """Reversed at the owner's direction, and the reversal is the assertion.
+
+    This row used to top itself up from the evergreen bank so it was never
+    empty. The heading is "What FAM can't stop listening to", which is a
+    claim, and twenty-eight tiles nobody has ever played do not support it -
+    so an unplayed row is empty now, and one play is all it takes to fill.
+    """
+    assert T.rank_most_played(store) == []
+    play(store, "someone", "golf-evolution")
+    assert [t.id for t in T.rank_most_played(store)] == ["golf-evolution"]
 
 
 def test_history_recommends_what_they_already_like(store):
@@ -193,14 +218,17 @@ def test_a_new_listener_gets_an_honest_page_not_a_fake_one(store):
     """
     feed = T.build_feed(store, "brand-new")
     by_key = {s["key"]: s for s in feed["sections"]}
-    assert by_key["most_played"]["topics"], "the crowd row works with no history at all"
     assert not feed["personalised"]
     assert feed["taste_source"] == "startup"
     # Filled, and openly not from this listener's taste.
     assert by_key["from_history"]["topics"]
     assert not by_key["from_history"]["empty_reason"]
     # And the rails that could only be filled by inventing something are not.
-    for key in ("followers", "missed"):
+    # `most_played` joined this list at the owner's direction: on a database
+    # where nobody has played anything, a row headed "What FAM can't stop
+    # listening to" was making the one claim on this page that is checkable,
+    # and getting it wrong.
+    for key in ("followers", "missed", "most_played"):
         assert not by_key[key]["topics"], f"{key} invented something"
         assert by_key[key]["empty_reason"], f"{key} must say why it is empty"
 
@@ -295,8 +323,15 @@ def test_a_broken_event_store_never_breaks_the_feed(client, monkeypatch):
             raise RuntimeError("disk gone")
     monkeypatch.setattr(appmod, "EVENTS", Broken())
     body = client.get("/api/myfam?user=u1").json()
-    most_played = [s for s in body["sections"] if s["key"] == "most_played"][0]
-    assert most_played["topics"], "the crowd row should still fall back to the bank"
+    # Every rail is still present and every empty one still says why. The
+    # crowd row is no longer the thing to assert on here - it reads the event
+    # log, so a broken log means it has honestly nothing, which is the point
+    # of the row rather than a failure of it. What must survive is the page.
+    assert [s["key"] for s in body["sections"]] == [k for k, _ in T.SECTIONS]
+    assert [s for s in body["sections"]
+            if s["key"] == "from_history"][0]["topics"], "the page came back bare"
+    for section in body["sections"]:
+        assert section["topics"] or section["empty_reason"], section["key"]
 
 
 def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
@@ -316,8 +351,12 @@ def test_the_personal_sections_are_not_starved_by_the_generic_ones(store):
     assert by_key["from_history"]["topics"], "history section was starved"
     assert by_key["followers"]["topics"], "the friends rail was starved"
     assert "sleep-science" in [t["id"] for t in by_key["followers"]["topics"]]
-    # And the generic section still fills, because the bank is big enough.
-    assert by_key["most_played"]["topics"]
+    # And the crowd row takes what is genuinely left. Three topics have been
+    # played here: two are this listener's own and the third was claimed by
+    # the friends rail above, so there is nothing real for this row and it is
+    # honestly empty rather than topped up from the bank.
+    assert by_key["most_played"]["topics"] == []
+    assert by_key["most_played"]["empty_reason"]
 
 
 def test_the_bank_can_fill_every_section_without_repeating(store):
@@ -547,6 +586,9 @@ def test_impressions_still_say_nothing_about_taste(store):
 
 
 def test_a_section_opens_at_full_length_in_the_rails_own_order(client):
+    # The crowd row is made of plays and nothing else now, so the crowd has
+    # to have played more than a rail can show for "view more" to have more.
+    crowd_plays(appmod.EVENTS, [t.id for t in T.TOPIC_BANK[:T.SECTION_SIZE + 4]])
     rail = [t["id"] for s in client.get("/api/myfam").json()["sections"]
             if s["key"] == "most_played" for t in s["topics"]]
     full = client.get("/api/myfam/section?key=most_played").json()
@@ -570,6 +612,13 @@ def test_the_ready_ones_come_first_and_are_counted(client):
     plan = appmod._validated_plan(topic.query, 3)
     appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
                             topic.query, "", 3, "", "", "someone-else")
+    # And put it on the row, which now holds only what has been played. It is
+    # seeded *last* of the three so it is bottom of the play ranking - which
+    # is what makes "a ready tile was not put first" below a real assertion
+    # rather than one the play counts would have satisfied anyway.
+    crowd_plays(appmod.EVENTS,
+                [topics_mod.TOPIC_BANK[0].id, topics_mod.TOPIC_BANK[1].id,
+                 topic.id])
 
     body = client.get("/api/myfam/section?key=most_played&minutes=3").json()
     ready = [t for t in body["topics"] if t["cached"]]

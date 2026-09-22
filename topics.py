@@ -1058,6 +1058,72 @@ def local_startup_topic(place: str) -> Optional[Topic]:
 #: well have wanted it. Every weight stays well clear of RELEVANCE_FLOOR.
 STARTUP_PRIOR_STEP = 0.08
 
+
+def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
+    """What a browse rail is allowed to *offer* this listener, as one list.
+
+    Three inventories exist and they are not interchangeable:
+
+    * the **live story pool** - today, composed once for everybody, and empty
+      until a deployment sets `GDELT=1`;
+    * the **startup set** - eight time-anchored questions, one per facet,
+      researched on the tap by `SEARCH_MODE=always` and therefore current
+      whenever it is played;
+    * the **evergreen bank** - twenty-eight standing explainers, as true in
+      March as today, which is what makes them cheap to share and what makes
+      them generic.
+
+    **The live pool is offered to everybody. Which generic floor sits behind
+    it depends on whether there is an account**, at the owner's direction:
+
+        no account   live + the evergreen bank
+        account      live + the startup set
+
+    It is a **swap and not a subtraction**, and that is the part worth
+    holding on to. Taking the bank away on its own would have left an account
+    holder on a deployment with no live provider - which is every deployment
+    today - looking at a page with nothing on it, and `WORLD_FLOOR` reserves
+    its four tiles on the stated premise that the personal rail has somewhere
+    else to go. So the floor is replaced rather than removed, and it is
+    replaced with the fresher of the two.
+
+    The reasoning for each side:
+
+    * The bank is a **first impression for somebody FAM knows nothing about
+      and can keep nothing for** - downloaded the app, has not signed up.
+      Twenty-eight hand-written subjects are the right answer to "show me
+      what this is" and the wrong answer to "what should I hear today", and
+      an account is the point where the second question becomes the one
+      being asked.
+    * The startup set is the same size of promise made about **now**. Every
+      query in it asks what changed recently, so an account holder's generic
+      tile is researched fresh on the tap rather than replayed from a script
+      about nothing in particular. That is the freshness half of the same
+      instruction, answered with a mechanism that already exists rather than
+      by rewriting twenty-eight topics into something they were deliberately
+      not.
+
+    **This does not make the startup set warm inventory for a guest.**
+    `startup.py` is explicit that the set exists for a listener who has said
+    and done nothing, and `rank_startup` still leads with it on exactly that
+    listener. A guest who has played something keeps the bank, which is the
+    behaviour that shipped; what changed is only what replaces the bank once
+    there is an account. Confining it that way is what keeps "the set is for
+    somebody who said nothing, and only them" true where it was written.
+
+    Ordering here is candidate order and never display order - every caller
+    ranks what comes back. Live first, so a tie inside a ranker breaks
+    towards the fresher inventory.
+
+    One function because §119: a rule with four call sites and one of them
+    reading something else is a rule that is not built. `rank_bank` (the
+    DailyFAM mix picker) and `rank_might_like` (Explore New) deliberately do
+    **not** read it - see their docstrings for why a menu somebody opened is
+    not the app offering them something.
+    """
+    return list(live) + list(STARTUP_TOPICS if has_account else TOPIC_BANK)
+
+
 #: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The most
 #: constrained sections choose first; trending can fall back to the whole bank
 #: and therefore chooses last.
@@ -2104,6 +2170,25 @@ def rank_most_played(
     filter: a deployment whose cache has just expired would show an empty row,
     which is a fact about the cache being told as a fact about what people are
     playing.
+
+    **It fills from plays and from nothing else, and an unplayed row is
+    empty.** It used to top itself up from the evergreen bank on the argument
+    that "a stable slice beats an empty section, and beats a random one" -
+    true about the *content*, and beside the point, because the heading is a
+    claim. "What FAM can't stop listening to" over twenty-eight tiles nobody
+    has ever played says something about this deployment that is not so, and
+    a row that over-claims is worse than a row that is short: §89's rule
+    about empty rows is that the app may report a fact about itself and never
+    invent one about the world, and what its own listeners are playing is the
+    most checkable fact on the page. Reversed at the owner's direction, which
+    is what CLAUDE.md §124 said it would take - it recorded the filler as a
+    documented decision precisely so undoing it had to be one too.
+
+    The cost, stated rather than discovered: a fresh deployment shows this
+    row empty until somebody plays something, and `tools/seed_demo.py` is
+    what fills it for a demo. That is the same bargain Explore already makes
+    and for the same reason - it replays what listeners did, so on a database
+    where nobody has listened there is honestly nothing to replay.
     """
     now = time.time() if now is None else now
     exclude = exclude or set()
@@ -2121,11 +2206,7 @@ def rank_most_played(
     ready = _ready_set(candidates, written)
     ranked = sorted(
         candidates, key=lambda t: (t.id not in ready, -counts[t.id], t.id))
-    # A cold bank has no plays yet. A stable slice beats an empty section, and
-    # beats a random one - random means the tile a listener saw this morning is
-    # gone this afternoon, and it defeats the shared script cache.
-    filler = [t for t in TOPIC_BANK if t.id not in counts and t.id not in exclude]
-    return (ranked + filler)[:limit]
+    return ranked[:limit]
 
 
 def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
@@ -2392,6 +2473,17 @@ def rank_bank(profile: dict[str, float]) -> list[Topic]:
     listener with no history has expressed no preference, and inventing one
     from `topic.id` is what the picker was doing when its heading already
     said "Suggested topics".
+
+    **This keeps the whole bank whatever `browse_inventory` says**, and the
+    exemption is the point rather than an oversight. That rule is about what
+    FAM *offers* somebody unprompted - a tile on a shelf, under a heading
+    making a claim. This is a menu somebody opened in order to choose
+    subjects, and a mix holds topic ids rather than audio, so a bank member
+    in a mix is a fresh episode every morning and never a standing one
+    replayed. Applying the rule here would also empty the picker for exactly
+    the listeners who can use it, since a saved mix needs an account - which
+    is §123's failure, one screen over: a fact about the account gate
+    reported as a broken topic list.
     """
     if not profile:
         return list(TOPIC_BANK)
@@ -2575,6 +2667,14 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     listener whose entire history is one tag has an empty profile the moment
     it is muted, and they are exactly who this section exists for; the earlier
     version returned nothing for them, which the tests caught.
+
+    **It keeps the bank whatever `browse_inventory` says**, on the same
+    distinction `rank_bank` draws. Explore New is off the page (`UNSHELVED`)
+    and is reached only by a listener who went looking for something outside
+    their taste; widening a taste is what it is for, and doing that over the
+    eight startup questions - one per facet, and the facets are what this
+    ranker mutes - would leave it with almost nothing to widen *into*. A
+    surface somebody opened on purpose is not the app offering them filler.
     """
     damp = damp or {}
     if not profile:
@@ -2674,7 +2774,7 @@ def rank_followers(
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
                written=None, place: Iterable[str] = (),
-               place_name: str = "") -> dict:
+               place_name: str = "", has_account: bool = False) -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
@@ -2712,6 +2812,22 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     from the other: a set of match words has lost the order and the
     capitalisation a question needs, and a label is the wrong thing to match a
     headline against.
+
+    `has_account` is whether credentials are attached to this listener, and it
+    decides one thing only: whether the evergreen bank is offered. See
+    `browse_inventory` for the rule and the reasoning. It arrives as a bare
+    bool from the request boundary for the same reason `circle` and `place`
+    do - this module stays a pure query over the event log and knows nothing
+    about `accounts`.
+
+    **It defaults to False, which is the generous answer**, and that is
+    deliberate: a caller that has not been taught about accounts - a test,
+    `write.py`, the fixture preview - is a caller that does not know, and the
+    honest reading of "we do not know" here is the cold-start one. The
+    failure it avoids is the one worth avoiding: defaulting to True would
+    silently take the bank away from every surface whose caller was never
+    updated, and an emptier page is exactly the failure that looks like a
+    design decision rather than a bug.
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
@@ -2742,6 +2858,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # plus that cache - which is what keeps it callable in a test with no
     # network, and what makes the page instant. See `stories.py`.
     live = live_topics(now)
+    # What every rail below is allowed to *offer*, decided once for the page.
+    # One list rather than four `live + list(TOPIC_BANK)` expressions, because
+    # a rule spelled out at each call site is a rule one of them will spell
+    # differently - which is §119 exactly. See `browse_inventory`.
+    inventory = browse_inventory(live, has_account)
     # Everything the pool holds, cap included. "What you missed" has to be able
     # to resolve a tile that was offered a few days ago and has since been
     # pushed under the variety cap - to that listener it was on the page, and
@@ -2814,7 +2935,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # one route into this rail that `include_trending=False` does not
             # close. Trending has already been promised that tile.
             picks = rank_missed(profile, shown, mine, seen,
-                                candidates=live_held + list(TOPIC_BANK),
+                                candidates=browse_inventory(live_held,
+                                                            has_account),
                                 limit=MISSED_SECTION_SIZE, now=now,
                                 popular=played_elsewhere, familiar=familiar,
                                 include_trending=False)
@@ -2836,13 +2958,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 # nothing about, and `startup.py` leads this rail with a
                 # question about their own town when they have given one.
                 picks = rank_startup(prior, seen, limit=wide,
-                                     candidates=live + list(TOPIC_BANK),
+                                     candidates=inventory,
                                      damp=damp, familiar=familiar, local=place,
                                      local_topic=local_startup_topic(place_name),
                                      engage=engage)
             else:
                 picks = rank_from_history(profile, seen, damp, limit=wide,
-                                          candidates=live + list(TOPIC_BANK),
+                                          candidates=inventory,
                                           familiar=familiar, local=place,
                                           engage=engage)
         elif key == "followers":
@@ -2960,7 +3082,7 @@ def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
                   written=None, place: Iterable[str] = (),
-                  place_name: str = "") -> dict:
+                  place_name: str = "", has_account: bool = False) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -2978,6 +3100,11 @@ def build_section(store: EventStore, user_id: str, key: str,
     is exactly why the one rule above is worth enforcing by construction
     rather than by care. `place` and `place_name` are here from the start for
     the same reason.
+
+    `has_account` is on that list too, and it is the one with teeth: this
+    screen and the rail it opens must draw from the same inventory, or "View
+    more" would hand a listener the twenty-eight standing explainers the rail
+    had just decided they should not be shown. See `browse_inventory`.
     """
     if key not in dict(SECTIONS):
         raise KeyError(key)
@@ -3003,6 +3130,8 @@ def build_section(store: EventStore, user_id: str, key: str,
     engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
     live = live_topics(now)
+    # The rail's inventory, on the rail's rule. See the docstring.
+    inventory = browse_inventory(live, has_account)
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -3017,13 +3146,13 @@ def build_section(store: EventStore, user_id: str, key: str,
         if cold:
             prior, _order = startup_profile(store, now)
             picks = rank_startup(prior, mine, limit=limit,
-                                 candidates=live + list(TOPIC_BANK), damp=damp,
+                                 candidates=inventory, damp=damp,
                                  familiar=familiar, local=place,
                                  local_topic=local_startup_topic(place_name),
                                  engage=engage)
         else:
             picks = rank_from_history(profile, mine, damp, limit=limit,
-                                      candidates=live + list(TOPIC_BANK),
+                                      candidates=inventory,
                                       familiar=familiar, local=place,
                                       engage=engage)
     elif key == "might_like":
@@ -3397,7 +3526,13 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
 
 def _empty_reason(key: str) -> str:
     return {
-        "most_played": "Nothing has been played yet today.",
+        # Reachable now that this row has no filler behind it, and worded for
+        # the only state it means: nobody has played anything in FAM's
+        # trending window. Not "today" - the window is three days - and not
+        # "nothing is popular", which would be a claim about listeners this
+        # deployment has not got.
+        "most_played": "Nothing has been played here yet. This fills up as "
+                       "people listen.",
         # Deliberately not "nothing is trending". An empty row here is a fact
         # about this deployment, never a claim about the world - the browse
         # surface's version of PROBLEMS.md §89. The live text comes from
@@ -3466,6 +3601,7 @@ def rank_next_up(
     after_text: str = "",
     interests: Iterable[str] = (),
     size: int = NEXT_UP_SIZE,
+    has_account: bool = False,
 ) -> list[Topic]:
     """The four episodes to offer when one finishes.
 
@@ -3486,6 +3622,13 @@ def rank_next_up(
     episode about today's news was offered four standing explainers, because
     the one place today's stories live was not in its candidate list. Same
     call to `live_topics`, same `FRESHNESS_BOOST`, same single score over both.
+
+    **"Both inventories" now means whichever two this listener is allowed**,
+    on `browse_inventory`'s rule - which this reads rather than restating,
+    including on the last-resort pass below. A popup is a browse surface with
+    a smaller grid, and a rule the shelves keep and the popup does not is a
+    back door into exactly the surface a listener looks at hardest: the one
+    that starts playing by itself in fifteen seconds.
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
@@ -3509,22 +3652,29 @@ def rank_next_up(
                 picks.append(topic)
                 taken.add(topic.id)
 
-    add(rank_from_history(profile, taken, damp,
-                          candidates=live_topics(now) + list(TOPIC_BANK)))
+    inventory = browse_inventory(live_topics(now), has_account)
+    add(rank_from_history(profile, taken, damp, candidates=inventory))
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:
         add(rank_most_played(store, now, taken))
-    # A listener who has played most of the bank would otherwise get a short
-    # grid. Four tiles is the layout, so the last resort drops the "not already
-    # played" rule rather than the shape - re-hearing something is a far
-    # smaller disappointment than two empty squares. `taken` is rebuilt from
-    # what is actually on the grid, because it still carries the played-ids
-    # exclusion at this point and reusing it would filter out the very topics
-    # this fallback exists to reach.
+    # A listener who has played most of the inventory would otherwise get a
+    # short grid. Four tiles is the layout, so the last resort drops the "not
+    # already played" rule rather than the shape - re-hearing something is a
+    # far smaller disappointment than two empty squares. `taken` is rebuilt
+    # from what is actually on the grid, because it still carries the
+    # played-ids exclusion at this point and reusing it would filter out the
+    # very topics this fallback exists to reach.
+    #
+    # **It drops the played rule and not the inventory rule.** Reaching for
+    # the bank here would fill an account holder's grid with the standing
+    # explainers every other surface has stopped offering them, and it would
+    # do it on the one surface that plays its first tile without being asked.
+    # A grid of three is the honest shortfall; a fourth tile from an
+    # inventory this listener is not shown is not.
     if len(picks) < size:
         taken = {t.id for t in picks} | ({after_id} if after_id else set())
-        add(list(TOPIC_BANK))
+        add(inventory)
     return picks[:size]
 
 

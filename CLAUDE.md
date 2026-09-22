@@ -493,13 +493,14 @@ the rest of this list it needs taste rather than a key.
    ranked. **The switch is on having a profile, not on being signed in** -
    §116's decision, not an oversight: a brand-new account has nothing to
    personalise on, so it gets the prior too, and one play retires it.
-   The one row that over-claims on a blank slate is
-   **"What FAM can't stop listening to"**, which fills from the bank when
-   nothing has been played ("a stable slice beats an empty section, and beats
-   a random one"). The content is fine and the heading is a claim a fresh
-   deployment cannot back. Left as it is deliberately - it is one line in
-   `rank_most_played` and reversing a documented decision belongs in a change
-   about that decision.
+   The one row that over-claimed on a blank slate was
+   **"What FAM can't stop listening to"**, which filled from the bank when
+   nothing had been played ("a stable slice beats an empty section, and beats
+   a random one"). §124 left it alone and said reversing a documented
+   decision belonged in a change about that decision; **§125 is that change,
+   at the owner's direction.** The row holds plays and nothing else now, an
+   unplayed row is empty and says so, and `tools/seed_demo.py` is what fills
+   it for a demo - the same bargain Explore already makes.
 
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
@@ -1188,6 +1189,54 @@ the rest of this list it needs taste rather than a key.
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+- **The evergreen bank is for a listener with no account, and the crowd row
+  claims only what it can back.** *(§125, `topics.browse_inventory`,
+  `MYFAM.md`.)* Two rules from one instruction, both reversing something this
+  file had recorded as deliberate.
+  **"What FAM can't stop listening to" fills from plays and from nothing
+  else.** It used to top itself up from the bank so it was never empty, which
+  is a true statement about the *content* and beside the point: the heading is
+  a claim about this deployment's listeners, and twenty-eight tiles nobody has
+  played do not support it. §89's rule, on the most checkable fact on the
+  page. An unplayed row is empty and says so; `tools/seed_demo.py` fills it
+  for a demo, the same bargain Explore already makes.
+  **And `browse_inventory` is the one definition of what a rail may offer**:
+  no account gets the live pool plus the bank, an account gets the live pool
+  plus the startup set. The bank is a first impression for somebody FAM knows
+  nothing about and can keep nothing for - downloaded the app, has not signed
+  up - and twenty-eight standing explainers are the right answer to "show me
+  what this is" and the wrong answer to "what should I hear today".
+  **It is a swap and never a subtraction**, and that is the load-bearing
+  half: removing the bank alone would empty Made for you on any deployment
+  with no live provider - every deployment today - and `WORLD_FLOOR` reserves
+  its four tiles on the stated premise that rail has somewhere else to go. It
+  is replaced with the fresher inventory, which is also the whole answer to
+  "make it up to date": a startup query asks what changed recently and
+  `SEARCH_MODE=always` researches it on the tap, so the tile is current
+  because it was *retrieved* rather than because somebody edited a string.
+  Rewriting the bank to be about today was the other reading and is the wrong
+  one - evergreen is the property that lets twenty-eight tiles serve everybody
+  from one shared script.
+  This does **not** make the startup set warm inventory for a guest: a guest
+  who has played something keeps the bank, and the set still leads only for
+  somebody who has said and done nothing, which is what `startup.py` says it
+  is for.
+  **Two exemptions, and they are decisions**: the DailyFAM mix picker
+  (`rank_bank`) and Explore New (`rank_might_like`) keep the whole bank,
+  because the rule is about what FAM offers *unprompted* and both are places
+  a listener went looking. Gating the picker would also empty it for exactly
+  the listeners who can save a mix, which is §123 one screen over.
+  Every surface reads the one function - `build_feed`, `build_section` and
+  `rank_next_up`, the last on both passes, because the popup starts its first
+  tile by itself and is the last place that should have a back door. The flag
+  comes off `request.state.listener.is_authenticated` via `app._has_account`
+  and never from a parameter. It defaults to **False**, the generous answer,
+  because a caller that was never taught about accounts does not know - and
+  defaulting the other way would silently empty a surface, which is the
+  failure that looks like a design decision rather than a bug (§119).
+  Nobody has heard one of these episodes; the freshness claim is about the
+  mechanism, not yet about the writing.
+
 - **A browse tile is a title and an angle; the script waits for the tap.**
   *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen
   bank **plus** a live story pool built from four sources, and the pool is the
@@ -2096,7 +2145,11 @@ that took two screens to say what the screen behind it already said, and a
 search page that opened on a length its own menu disagreed with; and
 **§124**, a blank slate that was not blank - the wipe took every store and
 left the vocabulary those stores had taught, which is a ranking input that
-outlived its own source),
+outlived its own source; and **§125**, the generic episodes and who they are
+for - twenty-eight evergreen tiles no wipe could ever have removed, because
+they are compiled into `topics.py` rather than seeded, offered to everybody
+including the listeners FAM knew enough about not to need them, under a
+crowd-row heading making a claim about listening nobody had done),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

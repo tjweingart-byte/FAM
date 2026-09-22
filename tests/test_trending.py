@@ -183,7 +183,11 @@ def test_a_source_that_fails_leaves_the_rest_of_myfam_intact():
 
     page = T.build_feed(T.EventStore(":memory:"), "u1")
     by_key = {s["key"]: s for s in page["sections"]}
-    assert by_key["most_played"]["topics"], "one bad feed emptied the whole page"
+    # The rail that does not read the live pool at all. It used to be
+    # `most_played`, which is a worse witness now that row holds only real
+    # plays: on this empty store it would be empty whether the live source
+    # had failed or not, so it could no longer tell the two apart.
+    assert by_key["from_history"]["topics"], "one bad feed emptied the whole page"
     assert by_key["world_trending"]["topics"] == []
 
 

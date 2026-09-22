@@ -92,6 +92,13 @@ def load_fixtures() -> dict:
         # The crowd row leads with what is already written, so a few of these
         # carry `cached` - the badge and the ordering are the whole point of
         # that rail and are invisible on a fixture that marks none.
+        #
+        # These are bank topics and that is still consistent with the rule
+        # that this row holds plays and nothing else: the whole fixture is a
+        # *used* deployment seen by a guest, so listeners have played these
+        # and a guest is who the bank is offered to. A fixture of an empty
+        # deployment would preview four empty rails, which is a real state
+        # and a useless thing to check a layout against.
         "most_played": ["ai-agents", "fed-next-move", "housing-market",
                         "operator-ceos", "habits-research", "transfer-window"],
         # The world row. Built from the live story pool's own conversion

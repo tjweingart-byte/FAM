@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 import pytest
 
@@ -33,7 +34,22 @@ import topics as topics_mod  # noqa: E402
 
 @pytest.fixture
 def store(tmp_path):
-    return topics_mod.EventStore(str(tmp_path / "events.db"))
+    """An event log with some listening in it.
+
+    `rank_most_played` stopped topping itself up from the evergreen bank, so
+    "what everyone is playing" is now empty until somebody plays something -
+    which is the right answer for that rail and means this source genuinely
+    has nothing to warm on a silent deployment. Every test here that is about
+    the *shape* of a trending guess therefore needs a crowd, and having the
+    fixture supply one keeps that a property of the source rather than a
+    detail each test repeats.
+    """
+    store = topics_mod.EventStore(str(tmp_path / "events.db"))
+    for rank, topic in enumerate(topics_mod.TOPIC_BANK[:8]):
+        for n in range(8 - rank):
+            store.record(topics_mod.Event(f"listener-{n}", "play", topic.id,
+                                          "", topic.tags, time.time()))
+    return store
 
 
 @pytest.fixture

@@ -3058,6 +3058,23 @@ def _place_for(request: Request) -> "prefs_mod.Location":
     return prefs_mod.Location()
 
 
+def _has_account(request: Request) -> bool:
+    """Whether credentials are attached to this listener.
+
+    The one thing the browse rankers need from `accounts`, reduced to a bool
+    at the request boundary so `topics.py` stays a pure query over the event
+    log - the same arrangement `circle` and `place` already have.
+
+    It is `is_authenticated` rather than "signed in": a listener with an
+    account is one whichever route they took and whether or not the cookie
+    came back on this request, which is exactly the question
+    `topics.browse_inventory` is asking. Guests and brand-new sessions are
+    False, and False is what puts the evergreen bank on their page.
+    """
+    listener = getattr(request.state, "listener", None)
+    return bool(listener is not None and listener.is_authenticated)
+
+
 @app.get("/api/preferences")
 async def read_preferences(request: Request):
     """What is on offer, and what this listener chose.
@@ -3185,15 +3202,17 @@ async def next_up(
 ):
     """The four tiles the post-episode popup offers.
 
-    Costs no model call - it ranks the same fixed bank myFAM does, seeded with
+    Costs no model call - it ranks the same inventory myFAM does, seeded with
     what just finished. See topics.rank_next_up for why this is the feed's
-    ranker rather than a second one.
+    ranker rather than a second one, and `topics.browse_inventory` for why
+    "the same inventory" is a per-listener answer rather than a fixed bank.
     """
     _read_limit(request)
     user = _listener(request)
     picks = topics_mod.rank_next_up(
         EVENTS, user, after_id=topic_id, after_text=q,
         interests=_interests_for(request, interests),
+        has_account=_has_account(request),
     )
     # Recorded on the same terms as a shelf: one tile, one listener, one
     # ranking version. Without it the popup would be the one surface whose
@@ -3229,7 +3248,8 @@ async def myfam_section(request: Request,
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=SOCIAL.circle_of(user), written=written,
-            place=place.words, place_name=place.label)
+            place=place.words, place_name=place.label,
+            has_account=_has_account(request))
     except KeyError as exc:
         raise HTTPException(status_code=404,
                             detail="No such section.") from exc
@@ -3368,7 +3388,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
         circle=SOCIAL.circle_of(user), written=written,
-        place=place.words, place_name=place.label)
+        place=place.words, place_name=place.label,
+        has_account=_has_account(request))
     # Every tile says whether it would replay or generate, the same way the
     # "view more" screen already did. A listener browsing is choosing between
     # things to hear, and "this one starts instantly" is a real difference

@@ -9669,3 +9669,171 @@ is fine; the heading is a claim about FAM's listeners that a fresh
 deployment cannot back, which is the rule §89 and §90 both state. Left alone
 deliberately: it is one line in `rank_most_played`, and turning a documented
 decision over belongs in a change that is about that decision.
+
+## 125. The generic episodes, and who they are for
+
+Reported from the phone, against the DailyFAM mix picker: *these are the
+pre-populated episodes that have been in the app every time we open it for
+the first time, and I want them out so it can be a fresh start.*
+
+The first thing worth writing down is what they were, because it decided the
+whole shape of the change. They are not seeded rows and `wipe_demo_data.py`
+could never have touched them: they are `topics.TOPIC_BANK`, twenty-eight
+hand-written evergreen topics compiled into `topics.py`. That is why they
+came back on every fresh open of every deployment, and it is why "clear the
+demo data" was never going to be the fix.
+
+Asked which way to take it, the direction came back in three parts, and each
+one reverses something this file had previously recorded as deliberate:
+
+1. The bank stays - *"I like the idea of having guardrails in there"*.
+2. **"What FAM can't stop listening to" must only be populated by what people
+   are actually listening to in the app.**
+3. **The bank is meant for people who have downloaded the app but have not
+   made an account yet** - and it *"should be optimized... make sure it has
+   up to date information and is not directly using episodes from a while
+   ago"*.
+
+### The row that over-claimed
+
+§124 ends by naming this exact line and declining to touch it, on the ground
+that turning a documented decision over belongs in a change about that
+decision. This is that change.
+
+`rank_most_played` topped itself up from the bank whenever the play counts
+ran out, on the argument that "a stable slice beats an empty section, and
+beats a random one". That argument is about the **content** and it is true.
+It is also beside the point, because the heading is a **claim**: "What FAM
+can't stop listening to" over twenty-eight tiles nobody has ever played says
+something about this deployment's listeners that is not so. §89's rule is
+that an empty row may report a fact about this deployment and may never
+invent one about the world, and what FAM's own listeners have played is the
+most checkable fact on the whole page.
+
+So the filler is gone, the row is empty until somebody plays something, and
+its sentence says which: *"Nothing has been played here yet. This fills up as
+people listen."* Not "nothing is popular", which would be a claim about
+listeners this deployment has not got - and not "yet today" either, which the
+old copy said about a three-day window.
+
+The cost, stated rather than discovered later: a fresh deployment shows that
+row empty, and `tools/seed_demo.py` is what fills it for a demo. That is the
+same bargain Explore already makes, for the same reason - it replays what
+listeners did, so where nobody has listened there is honestly nothing to
+replay.
+
+### Who the bank is for
+
+The second half is a boundary rather than a deletion. `browse_inventory` is
+the one definition of what a rail may **offer**:
+
+    no account   live story pool + the evergreen bank
+    account      live story pool + the startup set
+
+**It is a swap and not a subtraction, and that is the load-bearing part.**
+Removing the bank on its own would have left an account holder on a
+deployment with no live provider - which is every deployment today, since the
+story pool is off until `GDELT=1` - looking at a page with nothing on it. It
+would also have broken the premise `WORLD_FLOOR` reserves its four Trending
+tiles on, which is written down in §114 as "Made for you draws on both
+inventories and can never be empty". So the floor is replaced rather than
+removed, and it is replaced with the fresher of the two.
+
+That replacement is also the answer to the third instruction, and it is worth
+saying why it is the *right* answer rather than a convenient one. "Make the
+bank up to date" reads as an instruction to rewrite twenty-eight topics, and
+a bank rewritten to be about today stops being evergreen - which is the one
+property that lets twenty-eight tiles serve every listener from one shared
+script. The mechanism for "a generic tile that is about now" already exists
+and `startup.py` already argues for it: eight time-anchored questions, one
+per facet, researched on the tap by `SEARCH_MODE=always`, refusing rather
+than answering from memory when there is no evidence. An account holder's
+generic tile is now one of those. Nothing was rewritten, nothing costs
+anything at page load, and the tile is current because it is *researched*
+rather than because somebody edited a string.
+
+**It does not make the startup set warm inventory for a guest.** `startup.py`
+is explicit that the set is for a listener who has said and done nothing, and
+`rank_startup` still leads with it on exactly that listener and nobody else.
+A guest who has played something keeps the bank, which is the behaviour that
+shipped. Confining the change to "what replaces the bank once there is an
+account" is what keeps *"the set is for somebody who said nothing, and only
+them"* true where it was written - and the test that says so
+(`test_choosing_interests_is_not_a_cold_start`) is what caught the first
+version of this, which had stacked the two inventories instead of swapping
+them.
+
+### Every surface reads it, including the one that starts by itself
+
+§119 is the reason this is one function with four call sites rather than four
+`live + list(TOPIC_BANK)` expressions. That section is about a ladder with
+one definition and a fifth caller still reading the variable it replaced, and
+the failure was invisible because falling back is a supported state. The same
+trap is set here in three places and all three are wired:
+
+* **"View more"** - `build_section` takes the flag, or the screen behind a
+  rail would hand back the twenty-eight tiles the rail had just decided this
+  listener is not shown. Two surfaces, one ranking.
+* **The post-episode popup** - `rank_next_up` takes it, on both passes. Its
+  last-resort pass drops the *already-played* rule to guarantee four tiles,
+  and it now drops that rule over the same inventory rather than reaching for
+  the bank. A grid of three is an honest shortfall; a fourth tile from an
+  inventory this listener has stopped being shown is not, and this is the one
+  surface that starts playing its first tile without being asked.
+* **The request boundary** - `app._has_account` reads
+  `request.state.listener.is_authenticated`, beside `_place_for`, which reads
+  the same field. Never a parameter: a query string that could ask for
+  somebody else's inventory is the rule `?user=` lost.
+
+The default is `False`, which is the **generous** answer, and that is
+deliberate. A caller that has not been taught about accounts - a test,
+`write.py`, the fixture preview - does not know, and the honest reading of
+"we do not know" here is the cold-start one. Defaulting the other way would
+have silently taken the bank off every surface whose caller was never
+updated, and an emptier page is exactly the kind of failure that looks like a
+design decision rather than a bug.
+
+### Two exemptions, written down so they are decisions
+
+Neither is an oversight and both turn on the same distinction: **the rule is
+about what FAM offers somebody unprompted, not about what a listener can go
+and find.**
+
+* **The DailyFAM mix picker** (`rank_bank`) keeps the whole bank. It is a
+  menu somebody opened in order to choose subjects, a mix holds topic ids
+  rather than audio - so a bank member in a mix is a fresh episode every
+  morning and never a standing one replayed - and a saved mix needs an
+  account, so applying the rule here would have emptied the picker for
+  exactly the listeners who can use it. That is §123's failure one screen
+  over: a fact about the account gate reported as a broken topic list. It is
+  also the screen the original report was made against, which is worth
+  noting - the complaint was that these episodes are *everywhere*, and a
+  picker is the one place a list of subjects is the point.
+* **Explore New** (`rank_might_like`) keeps it too. It is off the page
+  entirely (`UNSHELVED`) and reached only by a listener who went looking to
+  widen their taste; widening it over eight questions whose facets that
+  ranker mutes would leave almost nothing to widen into.
+
+### What the tests could not see, and now can
+
+Ten existing tests failed, and every one of them was asserting the old
+behaviour rather than finding a bug - which is the useful signal here: four
+separate tests about the *shape* of the crowd row (view-more shows more, a
+written tile leads, a broken store does not empty the page, the personal
+rails are not starved) were all passing against an inventory **nobody had
+touched**. A row that can always fill itself from a fixed list is a row whose
+tests never have to produce the data it is supposed to be made of.
+`crowd_plays` in `tests/test_myfam.py` supplies it now.
+
+`tests/test_generic_inventory.py` pins the three rules through
+`build_feed`, `build_section`, `rank_next_up` and HTTP rather than through
+the helper, because the helper being right has never been the failure mode
+here.
+
+### What is still open
+
+**Nobody has heard one of these episodes.** There is no API key in the build
+container, so the claim that an account holder's generic tile is better
+because it is researched fresh is a claim about the mechanism and not about
+the writing - the same gap §116 left on the startup set and for the same
+reason. It is the first thing to listen for on a machine with a key.
