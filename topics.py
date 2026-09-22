@@ -836,16 +836,48 @@ def familiar_words(events: Iterable[Event]) -> frozenset[str]:
     return frozenset(out)
 
 
+def _is_specific(tag: str) -> bool:
+    """Whether this tag says something narrower than one of the eight headings.
+
+    Two vocabularies can say it and they are both counted here: a hand-written
+    subtag (`TAG_PARENT` holds exactly the tags nobody could have been
+    *offered* and everybody's behaviour still reveals) and a grown category
+    node, which is the same claim at any depth. `categories.mint` refuses to
+    mint a facet or a subtag slug, so the two sets cannot overlap and a facet
+    can never arrive here as a category.
+
+    Split out so `tag_weight` and `_is_broad_match` cannot drift about what
+    "specific" means. They are the two places that ask, they answer different
+    questions with it - how much is this worth, and is this tile broad - and
+    the first already counted a category and the second did not.
+    """
+    if tag in TAG_LABELS:
+        return False
+    return tag in TAG_PARENT or category_tree().get(tag) is not None
+
+
 def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     """True when nothing specific about this tile matches this listener.
 
-    "Specific" means a subtag: the whole point of `TAG_PARENT` is that it
-    holds the tags nobody could have been *offered* and everybody's behaviour
-    still reveals. A tile whose only positive tags are facets is matching the
-    heading and not the thing.
+    **It reads `topic_tags` and counts a grown category as specific**, and
+    that is the half of the vocabulary join that `_affinity` alone did not
+    finish. This penalty is documented as answering "the case the vocabulary
+    **cannot express**: there is no tag for the NFL and none for college
+    football, both are `sports`" - and since §126 the vocabulary *can* express
+    it. Left reading the declared tuple, this function damped a live story
+    about college football by `BROAD_MATCH_PENALTY` for a listener whose
+    profile literally contains `college football`, because the story's only
+    hand-written tag is `sports`. The one thing that rescued such a tile was
+    `_subject_is_familiar`, which reads raw search words precisely because the
+    tags could not say it - so the workaround was carrying a case the
+    vocabulary now covers properly.
+
+    A tile the tree says nothing about is unchanged: `topic_tags` returns the
+    declared tuple, and the only tags that can be specific in it are subtags,
+    which is exactly what this asked before.
     """
-    return not any(profile.get(tag, 0.0) > 0 for tag in topic.tags
-                   if tag in TAG_PARENT)
+    return not any(profile.get(tag, 0.0) > 0 for tag in topic_tags(topic)
+                   if _is_specific(tag))
 
 
 def _is_local(topic: Topic, local: frozenset[str]) -> bool:
@@ -2099,6 +2131,9 @@ def tag_weight(tag: str) -> float:
         return SUBTAG_WEIGHT
     if tag in TAG_LABELS:
         return 1.0
+    # Past here the tag is a category or nothing at all, which is exactly the
+    # case `_is_specific` answers True for - the two stay in step because the
+    # order of these checks is the same in both.
     depth = category_tree().depth_of(tag)
     if depth <= 0 and category_tree().get(tag) is None:
         # Not in any vocabulary. A tag written into the log months ago by a
@@ -3365,6 +3400,13 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
     spare: list = []
     counts: dict[str, int] = {}
     for topic in topics:
+        # **`topic.tags` and deliberately not `topic_tags`.** This caps how
+        # many tiles of one *heading* a rail shows, and `facet_of` returns an
+        # unknown tag unchanged - so a grown category would come through as a
+        # facet of its own, every tile would land in a bucket nobody else is
+        # in, and the cap would silently stop binding. The join belongs where
+        # a tile is scored against a listener; this is a rule about the shape
+        # of the row and the eight headings are the right vocabulary for it.
         facets = {facet_of(tag) for tag in topic.tags} or {"other"}
         if any(counts.get(f, 0) >= max_per_facet for f in facets):
             spare.append(topic)

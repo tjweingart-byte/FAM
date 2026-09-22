@@ -496,6 +496,16 @@ the rest of this list it needs taste rather than a key.
    on a browse page at all. A tile the tree says nothing about comes back as
    the identical tuple, so an empty tree ranks exactly as it did before any
    of this existed. Memoised on the tree's generation, because §122.
+   **And `_is_broad_match` is the same join a second time**, which is the
+   half that is easy to miss: `BROAD_MATCH_PENALTY` decided "specific" by
+   looking for a subtag in the declared tuple, so a live story about college
+   football was still cut to 0.3 for a listener whose profile says `college
+   football` - by the mechanism that exists *because* the vocabulary could
+   not say it, at the moment it could. `_is_specific` is now read by both
+   that and `tag_weight`, and a test says they agree. **`diversify`
+   deliberately keeps the declared tags**: it caps tiles per *heading*, and
+   `facet_of` returns an unknown tag unchanged, so a category would arrive
+   as a facet of its own and the variety cap would stop binding.
    **And §122 is what happened when the work was checked rather than
    re-read.** Four defects, three of them §121's own, none visible to any
    test in the suite, all four found by running the thing at a realistic

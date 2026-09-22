@@ -9942,6 +9942,42 @@ Memoised on the tree's generation, because §122. Measured: 5,600 lookups in
 noticing means *two floats from the clock differ*, and a sentinel the clock
 could reproduce is what §113 was.
 
+### The half of the join that was nearly missed
+
+`_affinity` was not the only thing reading a tile's declared tuple, and the
+other one is the function this whole problem is named after. `BROAD_MATCH_
+PENALTY` cuts a live story to 0.3 when "nothing specific about this tile
+matches this listener", and `_is_broad_match` decided *specific* by looking
+for a subtag in `topic.tags`. Its own constant is documented as answering
+"the case the vocabulary **cannot express** - there is no tag for the NFL and
+none for college football, both are `sports`".
+
+So with the tree seeded and `_affinity` fixed, a live story about college
+football, whose only hand-written tag is `sports`, was still being damped to
+0.3 for a listener whose profile contains `college football` - by the
+mechanism that exists because the vocabulary could not say it, at the moment
+it finally could. Measured on a pool-shaped tile:
+
+    empty tree   broad match: True    affinity 0.300
+    seeded       broad match: False   affinity 1.681
+
+The one thing that had been rescuing such a tile was `_subject_is_familiar`,
+which reads raw search words - so the workaround was carrying a case the
+vocabulary now covers properly.
+
+`_is_specific(tag)` is split out and read by both `tag_weight` and
+`_is_broad_match`, because they are the two places that ask how specific a
+tag is, for two different purposes, and the first already counted a category
+while the second did not. A test asserts they agree.
+
+**`diversify` deliberately keeps the declared tags**, and that is the mirror
+of the same question. It caps how many tiles of one *heading* a rail shows,
+and `facet_of` returns an unknown tag unchanged - so a grown category would
+arrive as a facet of its own, every tile would be alone in its bucket, and
+the variety cap would silently stop binding. The join belongs where a tile is
+scored against a listener; a rule about the shape of a row wants the eight
+headings.
+
 ### What it is worth, measured
 
 On the same listener as above, after seeding:

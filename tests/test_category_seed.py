@@ -164,6 +164,72 @@ def test_the_seed_sharpens_the_bank_rather_than_flattening_it(seeded):
     assert after >= before
 
 
+def _live_story(tags=("sports",), query="what is happening in college football"):
+    """A tile shaped like the story pool's own output: one facet, and
+    `freshness` above zero, which is what `rank_from_history` reads as "this
+    is a live story" before applying `BROAD_MATCH_PENALTY`."""
+    return T.Topic("st-cfb", "A Live Story", "", query, tags, "sports",
+                   angle="x", source="gdelt", freshness=0.8)
+
+
+def test_a_grown_category_counts_as_a_specific_match(seeded):
+    """The other half of the same join, and the one that is easy to miss.
+
+    `BROAD_MATCH_PENALTY` is documented as answering the case the vocabulary
+    *cannot* express - "there is no tag for the NFL and none for college
+    football, both are `sports`". The vocabulary can express it now, so a
+    live story about college football must stop being damped for a listener
+    whose profile literally contains `college football`.
+    """
+    story = _live_story()
+    profile = {"college football": 1.0, "sports": 0.3}
+    assert not T._is_broad_match(story, profile)
+
+
+def test_a_tile_the_tree_cannot_place_is_still_broad(seeded):
+    """The penalty has to keep working, or this would have removed it rather
+    than sharpened it."""
+    story = _live_story(query="an unrelated matter of no particular subject")
+    assert T._is_broad_match(story, {"college football": 1.0, "sports": 0.3})
+
+
+def test_the_penalty_is_unchanged_with_no_tree(store):
+    """A deployment with no vocabulary damps exactly what it always did."""
+    story = _live_story()
+    assert T._is_broad_match(story, {"college football": 1.0, "sports": 0.3})
+
+
+def test_a_facet_is_never_specific(seeded):
+    """The distinction the penalty is built on. A tile matching only the
+    heading is matching the heading, whatever else is in the tree."""
+    assert not T._is_specific("sports")
+    assert T._is_specific("sports-drama"), "a subtag is specific"
+    assert T._is_specific("college football"), "a category is specific"
+    assert not T._is_specific("nothing anybody minted")
+
+
+def test_the_two_readers_of_specific_agree(seeded):
+    """`tag_weight` and `_is_broad_match` are the two places that ask how
+    specific a tag is, for two different purposes. A tag one of them counts
+    and the other does not is the bug this whole section is about, one
+    vocabulary later."""
+    for tag in ("sports", "sports-drama", "college football", "federal reserve"):
+        assert (T.tag_weight(tag) > 1.0) == T._is_specific(tag), tag
+
+
+def test_the_variety_cap_still_counts_the_eight_headings(seeded):
+    """`diversify` deliberately reads the declared tags. `facet_of` returns an
+    unknown tag unchanged, so a grown category would come through as a facet
+    of its own, every tile would be alone in its bucket, and the cap would
+    silently stop binding."""
+    tiles = [T.Topic(f"st-{i}", "T", "", "college football again today",
+                     ("sports",), "sports", freshness=0.5) for i in range(6)]
+    assert len(T.diversify(tiles, limit=6, max_per_facet=2)) == 6, (
+        "top-up should still return a full rail")
+    kept = T.diversify(tiles, limit=2, max_per_facet=2)
+    assert len(kept) == 2
+
+
 def test_the_tile_memo_is_dropped_when_the_tree_changes(store):
     """A node minted by the sweep has to be visible on the next page, not at
     the next restart."""
@@ -189,6 +255,31 @@ def test_reading_tiles_is_cheap_enough_for_a_browse_page(seeded):
 # --------------------------------------------------------------------------
 # it never blocks growth
 # --------------------------------------------------------------------------
+def test_seeding_is_bounded_and_costs_nothing_after_the_first_boot(store):
+    """A bound rather than a number, which is §122's prescription.
+
+    `mint` reloads the whole index after every insert, so a first seed is
+    O(n^2) in the size of the file - measured at ~180ms for 180 nodes, once
+    in the lifetime of a database, at start-up before any listener. That is
+    proportionate and deliberately not optimised, because making `mint` defer
+    its reload would mean a child minted before its parent was visible and a
+    depth computed against a stale index. What is not acceptable is it
+    growing quietly: doubling the seed would quadruple this.
+
+    The second call is the one that runs on every boot forever, and it must
+    stay a pass over a dict.
+    """
+    started = time.perf_counter()
+    C.apply_seed(store)
+    first = time.perf_counter() - started
+    assert first < 5.0, f"the first seed took {first:.2f}s"
+
+    started = time.perf_counter()
+    assert C.apply_seed(store) == 0
+    again = time.perf_counter() - started
+    assert again < 0.5, f"a no-op re-seed took {again:.2f}s"
+
+
 def test_seeding_twice_adds_nothing(seeded):
     assert C.apply_seed(seeded) == 0
     assert len(seeded.nodes()) == len(S.rows())
