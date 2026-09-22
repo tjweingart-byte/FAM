@@ -2144,7 +2144,7 @@ def tag_weight(tag: str) -> float:
     return CATEGORY_DEPTH_WEIGHT ** max(1, depth)
 
 
-#: Memoised `topic_tags`, keyed on `(tree generation, query)`.
+#: What the tree recognises in a tile's question, keyed on that question.
 #:
 #: Bounded by the number of distinct tile queries a process sees - the bank
 #: and the startup set are fixed, and the live pool is capped - and dropped
@@ -2199,23 +2199,31 @@ def topic_tags(topic: Topic) -> tuple[str, ...]:
     if gen != _TAG_MEMO_GEN:
         _TAG_MEMO = {}
         _TAG_MEMO_GEN = gen
-    hit = _TAG_MEMO.get(topic.query)
-    if hit is not None:
-        return hit
-    try:
-        extra = set(tree.match(topic.query)) - set(topic.tags)
-    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
-        log.exception("could not read the category tree for %r", topic.id)
-        return topic.tags
+    # **What is memoised is the tree's half only, and that is not an
+    # optimisation detail.** `tree.match(query)` is a pure function of the
+    # query and the tree; the combined answer is not - it also depends on
+    # this tile's declared tuple. Caching the combined answer under the query
+    # alone would mean two tiles that happen to share a question get each
+    # other's declared tags, which is silent, wrong, and exactly the kind of
+    # thing that would survive a long time. Nothing in the bank shares a
+    # query (a test says so), but a live story and a bank topic are minted by
+    # different code and nothing makes that true across inventories.
+    found = _TAG_MEMO.get(topic.query)
+    if found is None:
+        try:
+            found = tree.match(topic.query)
+        except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+            log.exception("could not read the category tree for %r", topic.id)
+            return topic.tags
+        if len(_TAG_MEMO) < MAX_TAG_MEMO:
+            _TAG_MEMO[topic.query] = found
+    extra = set(found) - set(topic.tags)
     # Returned unchanged when the tree has nothing to add, rather than sorted
     # into the same set. The guarantee worth being able to state is the
     # strong one - a deployment with no tree gets back the identical tuple -
     # and a caller that ever cares about declaration order is then not
     # quietly broken by a vocabulary it has nothing to do with.
-    found = tuple(sorted(set(topic.tags) | extra)) if extra else topic.tags
-    if len(_TAG_MEMO) < MAX_TAG_MEMO:
-        _TAG_MEMO[topic.query] = found
-    return found
+    return tuple(sorted(set(topic.tags) | extra)) if extra else topic.tags
 
 
 def reset_topic_tags() -> None:

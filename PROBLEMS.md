@@ -9965,6 +9965,17 @@ The one thing that had been rescuing such a tile was `_subject_is_familiar`,
 which reads raw search words - so the workaround was carrying a case the
 vocabulary now covers properly.
 
+One more thing the memo had to be right about, found in the same pass: it
+caches the **tree's half only**, keyed on the question, because
+`tree.match(query)` is a pure function of the query and the tree while the
+combined answer also depends on the tile's own declared tuple. Caching the
+combined answer under the query alone would hand two tiles that happen to
+share a question each other's declared tags. Nothing in the bank shares a
+query - a test says so - but a live story and a bank topic are minted by
+different code and nothing makes that true *across* inventories, which is
+the shape of failure that survives a long time because it is silent and
+rare.
+
 `_is_specific(tag)` is split out and read by both `tag_weight` and
 `_is_broad_match`, because they are the two places that ask how specific a
 tag is, for two different purposes, and the first already counted a category

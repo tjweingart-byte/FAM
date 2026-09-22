@@ -230,6 +230,26 @@ def test_the_variety_cap_still_counts_the_eight_headings(seeded):
     assert len(kept) == 2
 
 
+def test_two_tiles_sharing_a_question_keep_their_own_declared_tags(seeded):
+    """The memo caches the *tree's* half only, which is a pure function of
+    the question. Caching the combined answer under the question alone would
+    hand the second tile the first one's declared tags - silent, wrong, and
+    the kind of thing that survives a long time. Nothing in the bank shares a
+    query, but a live story and a bank topic are minted by different code."""
+    query = "what is happening in college football"
+    first = T.Topic("a", "A", "", query, ("sports",), "sports")
+    second = T.Topic("b", "B", "", query, ("world", "money"), "world")
+
+    assert "sports" in T.topic_tags(first)
+    tags = T.topic_tags(second)
+    assert {"world", "money"} <= set(tags), tags
+    assert "college football" in tags, "the tree's half should still apply"
+    # ...and asking in the other order gives the same two answers.
+    T.reset_topic_tags()
+    assert set(T.topic_tags(second)) == set(tags)
+    assert "world" not in T.topic_tags(first)
+
+
 def test_the_tile_memo_is_dropped_when_the_tree_changes(store):
     """A node minted by the sweep has to be visible on the next page, not at
     the next restart."""
