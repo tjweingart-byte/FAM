@@ -1165,8 +1165,15 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
 
 
 #: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The most
-#: constrained sections choose first; trending can fall back to the whole bank
-#: and therefore chooses last.
+#: constrained sections choose first.
+#:
+#: `most_played` is last, and since §125 for a different reason than it used
+#: to be. It was last because it could fall back to the whole bank and so
+#: could not be starved; it no longer falls back to anything - it holds what
+#: listeners actually played and is empty otherwise - so it is last because
+#: it is the rail that loses least by choosing late. A tile it wanted and a
+#: personal rail took is still a tile somebody is being offered, which is not
+#: true of a rail whose heading claims relevance.
 #:
 #: `missed` is first because it is still the narrowest inventory on the page:
 #: what this listener was shown in the last week and did not take, plus what
@@ -1198,9 +1205,11 @@ FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played"
 #: choose their topics first.)
 SECTIONS = (
     # Live stories the listener's own history argues for, mixed with the
-    # evergreen bank. The one rail that is allowed both inventories, because
+    # generic floor. The one rail that is allowed both inventories, because
     # it is the one whose question is "what would *you* want", and the answer
     # to that is sometimes today's news and sometimes a standing explainer.
+    # Which floor depends on whether there is an account - see
+    # `browse_inventory`, which is where that decision lives.
     ("from_history", "Made for you"),
     # What the *world* is paying attention to. A different question from what
     # this app's listeners are playing, and from a different place: the live
@@ -3054,9 +3063,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
 
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
-    # generic ones can fall back to the whole bank, so they claim the very
-    # topics the personal ones needed and those arrive empty - which is
-    # exactly backwards, since the personal sections are the point.
+    # generic ones draw on the whole inventory, so they claim the very topics
+    # the personal ones needed and those arrive empty - which is exactly
+    # backwards, since the personal sections are the point. (`most_played`
+    # stopped being one of those since §125 - it now holds only what has been
+    # played - but `might_like` still is, and the ordering is the same rule.)
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; the crowd rows stay globally *ranked*,
