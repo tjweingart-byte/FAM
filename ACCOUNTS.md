@@ -16,8 +16,15 @@ the shape below than anything else here.
 Every request resolves a session. If there is no session the server mints one,
 and that listener is anonymous and can do everything: search, myFAM, DailyFAM,
 Explore, Go Deeper, the whole audio path. Signing up *attaches* a way of
-proving who they are to the id they already have, so nothing is migrated and
-nothing is claimed - their history was already theirs.
+proving who they are to the id they already have, so nothing is migrated.
+
+**What an anonymous listener does is not remembered** (PROBLEMS.md §127, at
+the owner's direction). Everything the algorithm learns belongs to an account,
+so a guest's plays, impressions and events are accepted and dropped
+(`app._remembers`), their chosen interests live in page memory only, and
+"Pick up where you left off" is a server table keyed on the account. Signing
+up therefore starts the account's history; it does not adopt what that device
+had been doing.
 
 That is why there is no login screen in front of the product, and it is why
 the tier system below applies to anonymous listeners too. They are on `free`.

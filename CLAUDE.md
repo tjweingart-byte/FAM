@@ -525,8 +525,10 @@ the rest of this list it needs taste rather than a key.
    emptied database rather than reasoned about).* Signed out with an empty
    log, `taste_source` is `startup` and the first rail is §116's
    time-anchored starter set under the heading **Start here**; Trending,
-   "What you missed last week" and the friends rail are honestly empty with
-   their own sentences, and Explore says "Nothing here yet". Once there is
+   "What you missed last week" and the friends rail *choose* nothing and have
+   their own sentences, and Explore says "Nothing here yet". **Since §127 the
+   first two are then topped up to `RAIL_MINIMUM`** at the owner's direction,
+   so on screen only the friends rail is empty. Once there is
    listening, `taste_source` becomes `taste` and the rail is "Made for you",
    ranked. **The switch is on having a profile, not on being signed in** -
    §116's decision, not an oversight: a brand-new account has nothing to
@@ -892,9 +894,10 @@ the rest of this list it needs taste rather than a key.
 11. ~~**Personalisation needs state the app does not have**~~ - *identity is
    done; the recommender is still crude.* `accounts.py` gives every listener a
    server-minted session id in an HttpOnly cookie, and an account is *email and
-   password attached to the id they already have* - so signing up keeps their
-   history rather than starting a second listener beside it, and logging in on
-   a phone reaches the same data. **Listening still works with no account at
+   password attached to the id they already have* - so signing up keeps the
+   same identity rather than starting a second listener beside it (and, since
+   §127, starts its history: a guest's listening is never recorded), and
+   logging in on a phone reaches the same data. **Listening still works with no account at
    all** - search, myFAM, DailyFAM's episodes, Explore and Go Deeper - which is
    the constraint that stopped this becoming a login screen in front of the
    product. What an account now buys is durability: mixes, chosen interests and
@@ -1161,10 +1164,15 @@ the rest of this list it needs taste rather than a key.
   answers and a poll count was a guess at which.
   The rule that makes it affordable is unchanged: **it never generates.**
   Captions that could trigger a write would be a second full Claude call for
-  every episode somebody chose to read along with. Which sentence is
-  highlighted is still **estimated from character count, not measured** - the
-  audio is one PCM stream with no sentence marks in it - and the denominator
-  is the planned length, because `duration()` grows as the stream arrives.
+  every episode somebody chose to read along with. **Which sentence is shown
+  is measured now** *(§127)*: the speaking path publishes where each sentence
+  starts in the audio (`pipeline._sentence_starts` - the chunk's start and
+  length are measured, only the split inside one synthesised chunk is by
+  characters), `/api/transcript` returns `starts`, and the panel shows that
+  one sentence alone, cross-fading to the next. The old estimate divided by
+  the *planned* length, and an episode usually runs under its ceiling, so it
+  ran about a sentence behind; it survives only as the fallback for a script
+  read from the cache with no live track.
   The sources cluster shows **three** marks, overlapped, in the player's
   corner, an empty answer never clears a strip already showing publishers, and
   it is published to the same live track: on the retrieval path the evidence
@@ -1231,6 +1239,11 @@ the rest of this list it needs taste rather than a key.
   claims only what it can back.** *(§125, `topics.browse_inventory`,
   `MYFAM.md`.)* Two rules from one instruction, both reversing something this
   file had recorded as deliberate.
+  **Amended by §127, at the owner's direction: every drawn rail except the
+  friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
+  and Trending, four for the other two), topped up *after* each rail has
+  chosen from `_rail_fallback`, never by weakening a ranking. What follows is
+  still how each rail *chooses*; the floor is what fills the gap under it.
   **"What FAM can't stop listening to" fills from plays and from nothing
   else.** It used to top itself up from the bank so it was never empty, which
   is a true statement about the *content* and beside the point: the heading is
@@ -1389,6 +1402,9 @@ the rest of this list it needs taste rather than a key.
   **The standing bank is still not a source**: an evergreen explainer nobody
   was offered and nobody played did not happen last week, and putting one
   here to make the row look full is the padding this rail was built against.
+  *(§127, at the owner's direction: that is still what the rail **chooses**,
+  and the floor then tops it up to four from the rest of the inventory -
+  which is exactly that padding, asked for knowingly.)*
   **And relevance is a floor, not just a sort.** "Only the ABSOLUTE MOST
   RELEVANT" is the whole of the instruction, so a tile this listener has no
   affinity for is not offered at all - short beats padded. With **no profile
@@ -1555,9 +1571,14 @@ the rest of this list it needs taste rather than a key.
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
-  audio path do not. The interaction log is deliberately outside the gate - it
-  is ambient personalisation rather than something the listener made and can
-  point at, and gating it would mean an anonymous feed could never be ranked.
+  audio path do not. **The interaction log is inside the gate now** *(§127,
+  at the owner's direction, reversing what this line used to say)*: everything
+  the algorithm learns belongs to an account, a guest session is a device and
+  not a person, so `app._remembers` keeps every event, play and impression of
+  a guest out of the log, a guest's interests live in page memory only, and
+  resume positions are a server table keyed on the account rather than
+  `localStorage`. The cost, accepted: a guest's feed is the startup set every
+  time.
   `ACCOUNT_REQUIRED` in `app.py` holds the reasoning beside the code that
   enforces it. Nothing is lost by signing up late: a mix made before the gate
   is still under the same id and appears the moment credentials are attached.
@@ -2208,7 +2229,10 @@ for - twenty-eight evergreen tiles no wipe could ever have removed, because
 they are compiled into `topics.py` rather than seeded, offered to everybody
 including the listeners FAM knew enough about not to need them, under a
 crowd-row heading making a claim about listening nobody had done; and
-**§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
+**§127**, eleven changes from one packet - the event log moved behind the
+account gate, a floor under every rail but friends, titles and summaries
+before the first word, captions measured against the audio, and audio that
+plays with the ringer off; and **§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
 three, so a deployment with no traffic had no grown vocabulary at all, and
 the tree could already see "college football" in a tile's question while
 the ranker scored that tile on `sports` alone),
@@ -2234,12 +2258,15 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-one** named smoke
+**twice** - once per preview build - and **sixty-four** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 61 as of §123,
+prose does not fail when somebody adds a behaviour. (It is 64 as of §127,
+which replaced "Go Deeper fills for a new listener" and added the fixed myFAM
+header, the loading screen's cancel, and faces and typing in messages. It was
+61 as of §123,
 which added the new-mix gate, the topic bank surviving a locked mix list, and
 the search page opening on the length it will generate.)
 

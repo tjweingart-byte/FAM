@@ -31,6 +31,9 @@ import stories  # noqa: E402
 import topics as T  # noqa: E402
 
 
+# §127: every call here passes `floors={}` - these tests are about what a
+# rail *chooses*, and since §127 each drawn rail but friends is topped up to
+# a minimum afterwards. The floor is pinned in test_implementations_127.py.
 @pytest.fixture(autouse=True)
 def clean_pool():
     stories.reset()
@@ -119,7 +122,7 @@ def test_made_for_you_mixes_live_stories_with_the_evergreen_bank(store):
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
     ids = [t["id"] for t in made["topics"]]
     assert any(i.startswith("st-") for i in ids), "no live story reached the rail"
@@ -133,7 +136,7 @@ def test_a_fresh_story_outranks_a_standing_explainer_on_the_same_taste(store):
     bank wins every time and the page never changes."""
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips"))])
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
     assert made["topics"][0]["id"].startswith("st-")
 
@@ -143,7 +146,7 @@ def test_a_story_nobody_in_this_listener_cares_about_stays_off_their_rail(store)
     story with no affinity is not "made for you" however hot it is."""
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
     stories.seed([story("the transfer window", ("sports",))])
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
     assert "sports" not in {tag for t in made["topics"] for tag in t["tags"]}
 
@@ -154,7 +157,7 @@ def test_a_story_that_has_expired_is_off_the_page_entirely(store):
                 first_seen=time.time() - 40 * 3600)
     stories.seed([old])
     assert T.live_topics() == []
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     trending_row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert trending_row["topics"] == []
 
@@ -170,7 +173,7 @@ def test_trending_never_ranks_what_fam_has_already_played(store):
         play(store, listener, "chip-supply", tags=("tech",))
     stories.seed([story("the port strike", ("world",))])
 
-    feed = T.build_feed(store, "u4")
+    feed = T.build_feed(store, "u4", floors={})
     row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert [t["id"] for t in row["topics"]] == T.live_topics()[0].id.split()
 
@@ -190,7 +193,7 @@ def test_trending_is_drawn_from_one_inventory_for_everybody(store):
     play(store, "me", "chip-supply", kind="complete", tags=("tech",))
     pool_ids = {t.id for t in T.live_topics()}
     for listener in ("me", "somebody-else"):
-        feed = T.build_feed(store, listener)
+        feed = T.build_feed(store, listener, floors={})
         shown = [t["id"] for t in
                  [s for s in feed["sections"]
                   if s["key"] == "world_trending"][0]["topics"]]
@@ -205,7 +208,7 @@ def test_no_tile_is_shown_twice_on_one_page(store):
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips")),
                   story("the port strike", ("world",))])
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     shown = [t["id"] for s in feed["sections"] for t in s["topics"]]
     assert len(shown) == len(set(shown)), "a tile appears on two rails"
 
@@ -215,7 +218,7 @@ def test_the_loudest_story_leads_the_trending_row(store):
         story("quiet thing", ("world",), strength=0.2),
         story("loud thing", ("tech",), strength=1.0),
     ])
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert row["topics"][0]["title"] == "Loud Thing"
 
@@ -237,7 +240,7 @@ def test_no_rail_becomes_one_subject(store):
                           ("money", "fed-next-move"), ("science", "space-race")):
         play(store, "me", topic_id, kind="complete", tags=(tag,))
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     for section in feed["sections"]:
         facets = [T.facet_of(t["tags"][0]) for t in section["topics"] if t["tags"]]
         if len(facets) < T.SECTION_SIZE:
@@ -264,7 +267,7 @@ def test_a_listener_with_one_interest_still_gets_a_full_rail(store):
                   for n in range(8)])
     for _ in range(4):
         play(store, "me", "golf-evolution", kind="complete", tags=("sports",))
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
     assert len(made["topics"]) == T.SECTION_SIZE
 
@@ -354,7 +357,7 @@ def test_the_friends_rail_is_empty_rather_than_filled_with_strangers(store):
     play(store, "stranger", "space-race", tags=("science",))
     assert T.rank_friends(store, [], exclude=set()) == []
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     row = [s for s in feed["sections"] if s["key"] == "followers"][0]
     assert row["topics"] == []
     assert "Follow some people" in row["empty_reason"]
@@ -399,7 +402,7 @@ def test_an_empty_trending_rail_never_blames_the_sources_for_our_own_ordering(st
     # One story, and it is one this listener's history claims.
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
     assert by_key["from_history"]["topics"], "the rail above did not claim it"
     row = by_key["world_trending"]
@@ -416,7 +419,7 @@ def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
     """The other half. With nothing in the pool the honest sentence is about
     this deployment, and it is the pool's own - it knows which way it came up
     empty."""
-    feed = T.build_feed(store, "me")
+    feed = T.build_feed(store, "me", floors={})
     row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert row["empty_reason"] == stories.pool().empty_reason
     assert "isn't connected" in row["empty_reason"]
@@ -436,7 +439,7 @@ def _shown(store, topics, at, user="u"):
 
 
 def _missed(store, user="u", now=None):
-    feed = T.build_feed(store, user, now=now)
+    feed = T.build_feed(store, user, now=now, floors={})
     return [sec for sec in feed["sections"] if sec["key"] == "missed"][0]
 
 
@@ -505,7 +508,7 @@ def test_something_the_rest_of_fam_played_can_be_something_you_missed(store):
 
     ids = {t["id"] for t in _missed(store, now=now)["topics"]}
     assert theirs.id in ids or theirs.id in {
-        t["id"] for sec in T.build_feed(store, "u", now=now)["sections"]
+        t["id"] for sec in T.build_feed(store, "u", now=now, floors={})["sections"]
         for t in sec["topics"]}, "a popular episode they never saw went nowhere"
 
 

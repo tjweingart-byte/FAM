@@ -287,16 +287,16 @@ def test_skip_mode_cannot_save_a_mix(client):
     assert client.post("/api/mixes", json={"name": "Mine"}).status_code == 401
 
 
-def test_signing_up_later_keeps_what_they_already_did(client):
-    """accounts.py's whole design, restated as a gate consequence: skip mode
-    then signup must not read as starting over."""
+def test_signing_up_later_starts_the_accounts_own_history(client):
+    """Skip mode then signup keeps the identity - and, since §127, nothing a
+    guest did, because nothing a guest does is written into the log. The
+    account's taste starts at the account."""
     client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
     before = client.get("/api/auth/me").json()["user_id"]
     sign_up(client)
     assert client.get("/api/auth/me").json()["user_id"] == before
-    # The completion they recorded before signing up is still theirs, which is
-    # what "signing up does not start you over" means. Read off the feed,
-    # which is what reads the log now.
+    assert client.get("/api/myfam").json()["personalised"] is False
+    client.post("/api/event", json={"kind": "complete", "topic_id": "ai-agents"})
     assert client.get("/api/myfam").json()["personalised"] is True
 
 

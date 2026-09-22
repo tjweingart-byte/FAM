@@ -33,6 +33,9 @@ import topics as T  # noqa: E402
 import trending  # noqa: E402
 
 
+# §127: every call here passes `floors={}` - these tests are about what a
+# rail *chooses*, and since §127 each drawn rail but friends is topped up to
+# a minimum afterwards. The floor is pinned in test_implementations_127.py.
 def world_row_from_the_registry():
     """Put whatever the trending registry holds onto the myFAM rail.
 
@@ -127,7 +130,7 @@ def test_the_world_row_never_steals_tiles_from_the_personal_rows():
     store = T.EventStore(":memory:")
     trending.register(trending.FakeTrendingSource())
     asyncio.run(trending.refresh())
-    feed = T.build_feed(store, "u1")
+    feed = T.build_feed(store, "u1", floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
     world_ids = {t["id"] for t in by_key["world_trending"]["topics"]}
     # Every bank-filled rail, which is `FILL_ORDER` minus the ones that are
@@ -144,7 +147,7 @@ def test_the_world_row_never_steals_tiles_from_the_personal_rows():
 # --------------------------------------------------------------------------
 def test_with_no_source_the_row_is_empty_and_says_why():
     store = T.EventStore(":memory:")
-    feed = T.build_feed(store, "u1")
+    feed = T.build_feed(store, "u1", floors={})
     row = [s for s in feed["sections"] if s["key"] == "world_trending"][0]
     assert row["topics"] == []
     assert row["empty_reason"]
@@ -181,7 +184,7 @@ def test_a_source_that_fails_leaves_the_rest_of_myfam_intact():
     assert feed.outcome == trending.SOURCE_FAILED
     assert "upstream 500" in feed.detail
 
-    page = T.build_feed(T.EventStore(":memory:"), "u1")
+    page = T.build_feed(T.EventStore(":memory:"), "u1", floors={})
     by_key = {s["key"]: s for s in page["sections"]}
     # The rail that does not read the live pool at all. It used to be
     # `most_played`, which is a worse witness now that row holds only real
@@ -230,7 +233,7 @@ def test_one_refresh_serves_every_listener():
 
     store = T.EventStore(":memory:")
     for listener in ("u1", "u2", "u3"):
-        page = T.build_feed(store, listener)
+        page = T.build_feed(store, listener, floors={})
         row = [s for s in page["sections"] if s["key"] == "world_trending"][0]
         assert row["topics"], f"{listener} got an empty row"
     assert calls["n"] == 1, "the feed was fetched per listener"

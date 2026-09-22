@@ -418,6 +418,7 @@ window.FamAudio = (function () {
     if (!ended && streamDone && cursor >= totalSamples && ctx.currentTime >= playHead - 0.05) {
       ended = true;
       active = false;
+      releaseMediaChannel();
       if (handlers.onEnd) handlers.onEnd();
     }
   }
@@ -437,11 +438,89 @@ window.FamAudio = (function () {
     tick();
   }
 
+  /* ---- Playing with the ringer switch off ------------------------------
+   *
+   * On an iPhone, Web Audio is "ambient" sound by default: it obeys the
+   * silent switch, so a listener with the ringer off heard nothing at all
+   * (PROBLEMS.md §127). Media - a podcast, a video - ignores the switch, and
+   * the page has to say that this is media. Two ways, because iOS has had
+   * two:
+   *
+   *  - `navigator.audioSession.type = "playback"`, the proper answer, on
+   *    Safari 16.4 and later.
+   *  - For older iOS, a looping silent <audio> element playing alongside:
+   *    while an HTML media element plays, iOS moves the page's whole audio
+   *    session - Web Audio included - onto the media channel. It is silence,
+   *    so it is heard by nobody; it is paused whenever the episode is, so the
+   *    lock screen never claims something is playing when it is not.
+   *
+   * Started from inside `play`, which runs in the tap that asked for the
+   * episode - the one moment iOS lets a page start a media element.
+   */
+  var mediaEl = null;
+
+  function silentWavUri() {
+    // Half a second of 8 kHz 8-bit mono silence, built here rather than
+    // shipped as a file: a 44-byte header and 4,000 samples at the midpoint.
+    var n = 4000, bytes = new Uint8Array(44 + n), v = new DataView(bytes.buffer);
+    function str(at, s) { for (var i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i); }
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE");
+    str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, "data"); v.setUint32(40, n, true);
+    for (var i = 44; i < bytes.length; i++) bytes[i] = 128;
+    var bin = "";
+    for (var j = 0; j < bytes.length; j++) bin += String.fromCharCode(bytes[j]);
+    return "data:audio/wav;base64," + btoa(bin);
+  }
+
+  function preferPlaybackSession() {
+    try {
+      if (navigator.audioSession && navigator.audioSession.type !== "playback") {
+        navigator.audioSession.type = "playback";
+      }
+    } catch (e) { /* not supported here; the media element below covers it */ }
+  }
+
+  function holdMediaChannel() {
+    preferPlaybackSession();
+    // Where the session type exists it is the whole answer, and the silent
+    // element would only add a lock-screen "Now Playing" entry with nothing
+    // behind it - one whose pause button pauses the silence, not the episode.
+    if (navigator.audioSession) return;
+    try {
+      if (!mediaEl) {
+        mediaEl = document.createElement("audio");
+        mediaEl.setAttribute("playsinline", "");
+        mediaEl.setAttribute("x-webkit-airplay", "deny");
+        mediaEl.preload = "auto";
+        mediaEl.loop = true;
+        mediaEl.src = silentWavUri();
+      }
+      var started = mediaEl.play();
+      if (started && started.catch) started.catch(function () {});
+    } catch (e) { /* never let this be the reason an episode does not play */ }
+  }
+
+  function releaseMediaChannel() {
+    try { if (mediaEl) mediaEl.pause(); } catch (e) {}
+  }
+
+  // The session type is harmless to set early and costs nothing, so the first
+  // touch anywhere sets it - which covers a play started a beat after a tap.
+  try {
+    ["touchend", "click"].forEach(function (type) {
+      document.addEventListener(type, preferPlaybackSession, { once: true, capture: true });
+    });
+  } catch (e) {}
+
   function play(query, minutes, h, context, voice, listener) {
     handlers = h || {};
     stop();
     var myToken = ++token;
     active = true;
+    holdMediaChannel();
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     controller = new AbortController();
@@ -543,6 +622,7 @@ window.FamAudio = (function () {
     stop();
     var myToken = ++token;
     active = true;
+    holdMediaChannel();
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     timer = setInterval(tick, 80);
@@ -596,11 +676,16 @@ window.FamAudio = (function () {
     });
   }
 
-  function pause() { if (ctx && ctx.state === "running") ctx.suspend(); }
-  function resume() { if (ctx && ctx.state === "suspended") ctx.resume(); }
+  function pause() {
+    if (ctx && ctx.state === "running") ctx.suspend();
+    releaseMediaChannel();
+  }
+  function resume() {
+    if (ctx && ctx.state === "suspended") { holdMediaChannel(); ctx.resume(); }
+  }
   function isPaused() { return !!ctx && ctx.state === "suspended"; }
 
-  function stop() { token++; reset(); }
+  function stop() { token++; reset(); releaseMediaChannel(); }
 
   /* The furthest point that can be played right now. Once the whole episode
      has arrived that is its end; while it is still streaming, stop short so

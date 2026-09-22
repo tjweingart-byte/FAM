@@ -64,17 +64,22 @@ def ids(feed, key):
 
 # --------------------------------------------------------------------------
 # 1. the crowd row claims only what it can back
+#
+# Every test here that reads `build_feed` passes `floors={}`: since §127 each
+# drawn rail but the friends one is topped up to a minimum *after* it has
+# chosen, at the owner's direction, and these tests are about the choosing.
+# The floor itself is pinned in tests/test_implementations_127.py.
 # --------------------------------------------------------------------------
 def test_the_crowd_row_is_empty_until_somebody_plays(store):
     assert T.rank_most_played(store) == []
-    feed = T.build_feed(store, "u")
+    feed = T.build_feed(store, "u", floors={})
     assert ids(feed, "most_played") == []
 
 
 def test_the_crowd_rows_empty_sentence_is_about_this_app(store):
     """Not "nothing is popular", which is a claim about listeners this
     deployment has not got - §89, one rail over from where it was written."""
-    reason = [s for s in T.build_feed(store, "u")["sections"]
+    reason = [s for s in T.build_feed(store, "u", floors={})["sections"]
               if s["key"] == "most_played"][0]["empty_reason"]
     assert reason
     assert "played" in reason.lower()
@@ -96,10 +101,10 @@ def test_the_crowd_row_never_reaches_past_what_was_played(store):
         play(store, f"who-{topic_id}", topic_id)
     played = {"golf-evolution", "sleep-science", "chip-supply"}
     for has_account in (False, True):
-        feed = T.build_feed(store, "u", has_account=has_account)
+        feed = T.build_feed(store, "u", has_account=has_account, floors={})
         assert set(ids(feed, "most_played")) <= played, has_account
         full = T.build_section(store, "u", "most_played",
-                               has_account=has_account)
+                               has_account=has_account, floors={})
         assert {t["id"] for t in full["topics"]} <= played, has_account
 
 
@@ -175,7 +180,7 @@ def test_an_account_holder_is_never_offered_the_bank(store):
     for other in ("a", "b", "c"):
         play(store, other, "golf-evolution", kind="complete")
 
-    feed = T.build_feed(store, "member", has_account=True)
+    feed = T.build_feed(store, "member", has_account=True, floors={})
     by_key = {s["key"]: {t["id"] for t in s["topics"]} for s in feed["sections"]}
     for key in OFFER_RAILS:
         assert not by_key[key] & BANK_IDS, (key, by_key[key] & BANK_IDS)
@@ -195,7 +200,7 @@ def test_the_crowd_row_reports_a_bank_tile_that_was_really_played(store):
     for other in ("a", "b", "c"):
         play(store, other, "golf-evolution", kind="complete")
 
-    feed = T.build_feed(store, "member", has_account=True)
+    feed = T.build_feed(store, "member", has_account=True, floors={})
     crowd = {t["id"] for s in feed["sections"]
              if s["key"] == "most_played" for t in s["topics"]}
     assert crowd == {"golf-evolution"}, crowd
@@ -207,7 +212,7 @@ def test_an_account_holders_floor_is_the_startup_set_not_an_empty_page(store):
     every deployment today - and `WORLD_FLOOR` reserves its tiles on the
     stated premise that this rail has somewhere else to go."""
     play(store, "member", "golf-evolution", kind="complete")
-    offered = set(ids(T.build_feed(store, "member", has_account=True),
+    offered = set(ids(T.build_feed(store, "member", has_account=True, floors={}),
                       "from_history"))
     assert offered, "Made for you went empty when the bank was withdrawn"
     assert offered <= STARTUP_IDS
@@ -312,7 +317,10 @@ def test_the_api_reads_the_account_and_not_a_parameter(monkeypatch, tmp_path):
         "a query string changed the inventory")
 
 
-def test_the_api_withholds_the_bank_from_an_account(monkeypatch, tmp_path):
+def test_the_api_leads_an_account_with_its_own_inventory(monkeypatch, tmp_path):
+    """§127 put a floor under every rail, so on a deployment with no live pool
+    an account's page does reach the bank - but only once its own inventory,
+    the startup set, has run out. Made for you still leads with it."""
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
     monkeypatch.setattr(appmod, "EVENTS", T.EventStore(str(tmp_path / "b.db")))
     monkeypatch.setattr(appmod, "_has_account", lambda request: True)
@@ -321,4 +329,6 @@ def test_the_api_withholds_the_bank_from_an_account(monkeypatch, tmp_path):
     body = client.get("/api/myfam").json()
     offered = {t["id"] for s in body["sections"] for t in s["topics"]}
     assert offered, "the page came back with nothing on it"
-    assert not offered & BANK_IDS
+    made_for_you = [t["id"] for s in body["sections"]
+                    if s["key"] == "from_history" for t in s["topics"]]
+    assert made_for_you and made_for_you[0] in STARTUP_IDS, made_for_you

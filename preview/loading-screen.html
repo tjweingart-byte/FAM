@@ -63,6 +63,11 @@
     padding:0 32px; text-align:center;
   }
   .fam-loading.active{ display:flex; }
+  .fam-loading-x{ position:absolute; top:max(18px, env(safe-area-inset-top)); right:18px;
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--border-strong);
+    background:rgba(0,0,0,0.18); color:var(--text); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .fam-loading-x:active{ transform:scale(0.94); }
   .fam-loading-wm{ display:flex; align-items:center; gap:1px; color:var(--copper); opacity:.92; }
   .fam-loading-wm .wm-glyph, .fam-loading-wm .wm-a{ width:26px; height:26px; display:block; }
   .fam-loading-wm svg{ width:100%; height:100%; display:block; }
@@ -128,6 +133,13 @@
 
   <div class="phone"><div class="frame">
       <div class="fam-loading" id="famLoading" role="status" aria-live="polite">
+        <!-- A way out of the wait (§127). There was none: a mis-tap, or an
+             episode somebody no longer wants, held the whole app behind this
+             screen until the audio started. -->
+        <button class="fam-loading-x" id="famLoadingCancel" onclick="cancelGeneration()"
+                aria-label="Cancel this episode">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
         <div class="fam-loading-wm" aria-label="FAM">
           <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
         </div>

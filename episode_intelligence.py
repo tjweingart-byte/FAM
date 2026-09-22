@@ -254,6 +254,10 @@ class Brief:
     #: answered the second question while pretending to answer the first, and
     #: every stage downstream then took a finished event as given.
     outcome_dependent: bool = False
+    #: What the episode is called until the writer names it. Empty on a
+    #: degraded brief, and the player then keeps the title derived from the
+    #: question - which is what it showed before this existed (§127).
+    title: str = ""
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -312,6 +316,24 @@ def _window(days) -> int:
     if asked <= 0:
         return 0
     return max(asked, RECENCY_FLOOR_DAYS)
+
+
+def clean_title(title: str, query: str) -> str:
+    """A brief's title, or "" when it is not one worth showing.
+
+    Refused, not trimmed, when it is the question handed back: the whole point
+    is that somebody who typed a question is not shown it again with capital
+    letters on, and a title that only re-cases the query is exactly that.
+    """
+    text = " ".join(str(title or "").split()).strip(" .\"'")
+    text = text.rstrip("?").strip()
+    if not text:
+        return ""
+    def words(s: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9']+", s.lower()))
+    if words(text) == words(query):
+        return ""
+    return text[:80]
 
 
 def fallback_brief(query: str, reason: str) -> Brief:
@@ -544,11 +566,20 @@ BRIEF_SCHEMA = {
         "live_domain": {"type": "string",
                         "enum": [""] + list(live_facts.LIVE_DOMAINS)},
         "outcome_dependent": {"type": "boolean"},
+        # **What the episode is called, decided before a word of it exists**
+        # (§127). The model's own `<<TITLE:>>` line is better - it knows what
+        # the episode turned out to cover - but it arrives with the last token,
+        # and until then the player showed the listener's own words with
+        # capital letters on. This call is already being made, in front of the
+        # first word, so a handful of output tokens buys a real title from the
+        # first frame. It names a subject and an angle and never a result, for
+        # the same reason nothing else here may: nothing has been looked up.
+        "title": {"type": "string"},
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
                  "search_query", "search_fallback", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
-                 "outcome_dependent"],
+                 "outcome_dependent", "title"],
     "additionalProperties": False,
 }
 
@@ -649,7 +680,12 @@ Work out:
   price, a vote count. This is about their question, not about the world - you
   have no idea whether the thing has finished, and "who won" is
   outcome-dependent whether it finished an hour ago or is still going. False
-  for how something works, what someone is like, or what is at stake."""
+  for how something works, what someone is like, or what is at stake.
+- **title** - what this episode is called in a list: three to seven words
+  naming the resolved subject and the angle, in title case. **Never their own
+  wording handed back** - "what happened with the fed yesterday" is not a
+  title, "The Fed's Rate Decision" is. No question mark, no colon, and never a
+  result, a score or a winner: you have not looked anything up."""
 
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
@@ -726,6 +762,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         cautions=list(data.get("cautions") or []),
         live_domain=str(data.get("live_domain", "")),
         outcome_dependent=bool(data.get("outcome_dependent", False)),
+        title=clean_title(str(data.get("title", "")), query),
     )
     brief = gate(brief, query)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "

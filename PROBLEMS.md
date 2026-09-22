@@ -10071,3 +10071,171 @@ seeded base is the first thing to look at. `python tools/categories_report.py
 which is the number that answers it - a deployment still showing 180 declared
 and 0 learned is one where either nobody is searching or the sweep has stopped,
 and a node count cannot tell those apart.
+
+## 127. Eleven changes from one packet, and the three decisions they reverse
+
+"9.21.26 II Implementations" asked for eleven things. Eight are additions;
+three reverse something this log had recorded as deliberate, at the owner's
+direction, and those are written down first so nobody re-litigates them.
+
+### What is reversed
+
+**The event log is behind the account gate now.** `ACCOUNT_REQUIRED` used to
+say the interaction log was deliberately *outside* it, because gating it would
+mean an anonymous feed could never be ranked. The owner's answer is that it
+should not be: everything the algorithm learns belongs to an account, and a
+guest session is a device rather than a person. `app._remembers` is the one
+predicate every write site reads - `/api/event`, the play recorded from
+`/api/audio`, and the impressions on `/api/myfam`, `/api/myfam/section`,
+`/api/explorenew` and `/api/nextup`. A guest's event is answered
+`{"ok": true, "remembered": false}` rather than refused, because a client
+firing events on a timer must not read a guest as a broken server.
+
+On the client, a guest's chosen interests, subjects and language are now held
+in the page's memory (`sessionChoices`) and gone when it closes; the rest of
+`fam.prefs` - speed, browse length, whether the first run is done - is about
+the device and stays on it. The copy that promised "signing up keeps the
+listening you have already done" is gone from four places, because nothing a
+guest does is kept.
+
+**The concrete symptom was resume positions.** "Pick up where you left off"
+read `localStorage`, so it outlived a log-out and the next account on that
+phone was offered the previous one's half-heard episodes. Positions are now a
+`progress` table in `saved.db` (the shelf's store: same per-listener
+pointer-not-audio shape, same `(query, minutes)` identity), written through
+`POST /api/progress` every fifteen seconds of playback and at once on a pause
+or an end. `forget` erases it with the account.
+
+**Every drawn rail but the friends one has a floor** (`topics.RAIL_MINIMUM`):
+six for Made for you and Trending, four for "What you missed last week" and
+"What FAM can't stop listening to". This reverses §125's crowd row that
+"holds plays and nothing else", the missed rail's relevance floor as a
+*length*, and Trending drawing on the live pool alone. It is done by topping
+up **after** every rail has chosen, never by weakening a ranking - a rail's
+own picks keep their order and only the gap under the floor is filled, from
+`_rail_fallback`: Trending from the live pool, the held pool, then the
+startup set (one time-anchored question per facet, researched on the tap -
+the nearest thing to "what is happening" with no live provider configured,
+which is every deployment today), then the bank; the others from their own
+inventory in affinity order, then everything else. The friends row stays
+empty until somebody follows somebody, because a friends row filled with
+strangers is §102's bug. "View more" gets the same floor, so it never shows
+fewer than the rail that opened it.
+
+### What is added
+
+**Pick up where you left off** is empty until there is something to pick up
+- it used to top itself up to four with bank tiles, so a first run was told it
+had left something off. Now it is part-heard episodes, the `<<NEXT:>>`
+follow-ups of finished ones, and (only to fill) episodes like the last one
+heard, off `rank_next_up` so it cannot disagree with the post-episode popup.
+Each card carries a one-sentence summary, written by the model on a new
+`<<SUMMARY:>>` line beside `<<TITLE:>>` - free, never spoken, cached in a
+`summary` column - so the section reads like the rest of myFAM.
+
+**Titles arrive before the first word.** `<<TITLE:>>` is the better title, but
+it lands with the last token, and until then the player showed the question
+with capital letters on. The brief is a model call already made in front of
+the first word, so it now writes a `title` too (a handful of output tokens, no
+second call), refused by `ei.clean_title` when it is only the question
+re-cased. It is published to the live track (`live_captions.publish_title`),
+`/api/next` returns it with `title_final: false`, and the interface asks every
+two seconds during the wait and keeps asking until the writer's own replaces
+it. A provisional title can never overwrite a final one.
+
+**myFAM's header does not scroll** - the wordmark, messages and the episode
+length control sit outside the scroller. The length control moved there from
+the "Pick up where you left off" heading, which is no longer drawn at all for
+a listener with nothing to pick up.
+
+**The loading screen has an X.** It aborts the request (which is also the
+only signal the server has that nobody is listening), takes the screen down,
+records no skip - nothing was heard - and goes back to where the tap came
+from.
+
+**Messages draw faces.** The inbox, the conversation header, the new-chat
+picker and the share sheet drew initials for everybody; `personAvHTML` is now
+the one place a person's circle is drawn, a picture where they set one.
+`/api/messages` and `/api/messages/thread` carry `avatar`.
+
+**Typing dots.** `typing_indicator.py` is a dictionary with a clock - a note
+lasts five seconds, it is directed (A's typing is only ever told to B), it is
+cleared on send, and it is never written to disk. The thread poll carries
+`typing`, so the dots cost no request of their own; the sender posts at most
+one note every 2.5 seconds while typing. On more than one worker the note and
+the poll can land on different processes and the dots simply do not show,
+which is the right way for it to fail.
+
+**The drop-down banner** stays three seconds rather than six, swipes up to
+dismiss, and is announced within about three seconds rather than ten: the
+poll is 3s, skipped while the page is hidden, and fired at once when it comes
+back. It was already drawn above every screen; tapping it opens the
+conversation.
+
+**Captions follow the voice, one sentence at a time.** The lag was the
+estimate: it divided the playback position by the *planned* length, and an
+episode usually runs under its ceiling, so the highlight ran about a sentence
+behind. The speaking path now publishes where each sentence starts in the
+audio (`_sentence_starts`: the chunk's start and length are measured; only the
+split *inside* one synthesised chunk is by characters), `/api/transcript`
+returns `starts`, and the panel shows only the sentence being spoken, the old
+one fading out as the new one fades in. **It adds no latency**: the timings are
+arithmetic on audio already produced, and they ride on the caption poll that
+already existed. A replay publishes a fresh live track as it is spoken, so it
+is measured too; a script read only from the cache falls back to the estimate.
+
+**Audio plays with the ringer switch off.** iOS treats Web Audio as ambient
+sound, which obeys the silent switch, so a listener with the ringer off heard
+nothing. `FamAudio` now sets `navigator.audioSession.type = "playback"` where
+Safari has it (16.4+), and for older iOS plays a looping silent `<audio>`
+element alongside - while a media element plays, iOS moves the whole page onto
+the media channel. It is paused whenever the episode is, so the lock screen
+never claims something is playing when it is not.
+
+### What reviewing it found
+
+Two independent reads of the diff, one per half, found ten things - none
+visible to the suite, which passed throughout. All fixed, each with a test or
+a smoke check where one could see it:
+
+- **A guest's VIBE! still reached the log.** `/api/vibe` records a taste
+  event and was the one write site `_remembers` did not cover.
+- **The typing dots could stay on screen** after the state said they had
+  gone: a poll returning only already-drawn messages cleared the flag without
+  a redraw, and your own message coming back cleared *their* typing.
+- **A finished episode could be saved as part-heard**: the end handler paused
+  - which sends the position - before clearing it, as two unordered POSTs.
+- **The cancel X said "Cancelled" on Play All and started the episode anyway**
+  from a timer. Those timers now go through `afterLoading`, which a cancel
+  invalidates.
+- **A resume card started from 0:00**, and its first tick erased the position
+  it had promised to return to. It now jumps there once that audio exists and
+  writes nothing back until it has.
+- **The silent `<audio>` element ran even where `navigator.audioSession`
+  exists**, which would put an empty Now Playing entry on the lock screen.
+- **Logging out left the last account's resume cards on screen.**
+- **A near-match cache hit published its title under the neighbour's key**,
+  and `publish_title` could create a live track nothing would ever close -
+  which would hide the cached transcript behind an empty live one. Titles
+  now go under the listener's own key and never create a track.
+- **A resumed follow-up lost its context**, which is part of the cache key, so
+  its card found no title and the resume played a different episode. The
+  `progress` table keeps it now.
+- **`/api/next` computed the cache key three times** per poll - three model
+  calls each with `CACHE_SEMANTIC_KEY` on. `episode_meta` computes it once.
+
+**And CI found one the container could not.** The gate runs Node 20, which
+has no global `navigator`; this container runs Node 22, which does. The
+silent-switch guard read `navigator.audioSession` outside its `try`, so
+`tools/check_stretch.js` - which runs `fam-audio.js` under Node - passed here
+and threw a `ReferenceError` there. Reproduced here by deleting
+`globalThis.navigator` before the check, and guarded with `typeof`. §106's
+"a green `./dev.sh check` is not a green CI", with the Node version as the
+difference this time.
+
+### Still open
+
+**None of the interface half has been on a real iPhone.** The ringer fix in
+particular is a platform behaviour and can only be verified on a device with
+the switch flipped. The summary and the brief's title are prompt changes made
+without a key, so nobody has read one yet.

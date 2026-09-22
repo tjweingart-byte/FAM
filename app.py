@@ -38,6 +38,7 @@ from demo_script import DemoGenerator
 import credentials
 import entitlements
 import messages as messages_mod
+import typing_indicator as typing_mod
 import metering
 import oauth
 import quotas
@@ -1981,6 +1982,10 @@ async def messages_inbox(request: Request) -> dict:
         person = known.get(row["with"]) or SOCIAL.person(row["with"])
         row["name"] = person.get("name") or "Someone"
         row["handle"] = person.get("handle") or ""
+        # Their picture, where they have set one - the list drew initials for
+        # everybody, which made a conversation with a face look like one
+        # with a stranger (§127). "" means initials, as before.
+        row["avatar"] = person.get("avatar") or ""
     return {"threads": inbox, "unread": MESSAGES.unread_total(user)}
 
 
@@ -2017,7 +2022,12 @@ async def messages_thread(request: Request,
     person = SOCIAL.person(with_)
     head = max([m.id for m in thread] + [since])
     return {"with": {"user_id": with_, "name": person.get("name") or "Someone",
-                     "handle": person.get("handle") or ""},
+                     "handle": person.get("handle") or "",
+                     "avatar": person.get("avatar") or ""},
+            # Whether they are typing to this listener right now (§127). Read
+            # on the same two-second poll that tops the conversation up, so
+            # the dots cost no request of their own.
+            "typing": typing_mod.is_typing(with_, user),
             "messages": [m.as_dict(user) for m in thread],
             # True for the ordinary open, False for a poll that is topping one
             # up. The client replaces the conversation on one and appends on
@@ -2092,6 +2102,25 @@ async def notifications(request: Request,
     }
 
 
+class TypingRequest(BaseModel):
+    to: str = Field(..., max_length=64)
+
+
+@app.post("/api/messages/typing")
+async def messages_typing(req: TypingRequest, request: Request) -> dict:
+    """Say "I am typing to this person", for the three dots on their side.
+
+    Held in memory for a few seconds and never written anywhere - see
+    `typing_indicator.py` for why that is the whole design. Paced like the
+    rest of messaging, and a client sends it at most every couple of seconds
+    while keys are being pressed.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    typing_mod.note(user, req.to)
+    return {"ok": True}
+
+
 @app.post("/api/messages")
 async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     """Send a message, or share an episode into a conversation.
@@ -2104,6 +2133,10 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     kind = "episode" if req.query else "text"
+    # Sending ends the typing, now rather than when the dots time out - a
+    # message arriving under a still-bouncing indicator reads as a second one
+    # on its way.
+    typing_mod.clear(user, req.to)
     try:
         message = MESSAGES.send(user, req.to, kind=kind, text=req.text,
                                 query=req.query, minutes=req.minutes,
@@ -2832,12 +2865,29 @@ def _require_listener(request: Request) -> str:
 #: mixes, chosen interests and language, Save for Later - on the product
 #: decision that durable per-listener storage is what an account is for.
 #:
-#: The interaction log is deliberately NOT in that set. It is ambient
-#: personalisation rather than a thing the listener made and can point at, and
-#: gating it would mean an anonymous listener's feed could never be ranked -
-#: which is the product, not an account perk.
-ACCOUNT_REQUIRED = ("You need an account for this. Signing up keeps the "
-                    "listening you have already done — it does not start you over.")
+#: **The interaction log is in that set now too** (PROBLEMS.md §127, at the
+#: owner's direction, reversing what this comment used to say). It was left
+#: outside on the argument that gating it would mean an anonymous feed could
+#: never be ranked - true, and the owner's answer is that it should not be:
+#: everything the algorithm learns about somebody belongs to their *account*,
+#: and a guest session is a device, not a person. So a guest is never written
+#: into the log at all (`_remembers`), a guest's feed is the startup set every
+#: time, and signing up starts the account's history rather than adopting
+#: whatever a borrowed phone had been doing. Listening itself is untouched.
+ACCOUNT_REQUIRED = ("You need an account for this. Listening never needs one; "
+                    "an account is what FAM remembers you by.")
+
+
+def _remembers(request: Request) -> bool:
+    """Whether anything this listener does may be written into the event log.
+
+    One predicate for every write site, so "only accounts are remembered" is
+    one rule rather than eleven `if` statements that drift. Plays, impressions,
+    events from the client and the categories grown from them all read the
+    log, so gating the writes is gating all of it. `_has_account` is the
+    definition of an account, and this is only its name at the write sites.
+    """
+    return _has_account(request)
 
 
 def _require_account(request: Request) -> str:
@@ -3256,7 +3306,7 @@ async def next_up(
     # Recorded on the same terms as a shelf: one tile, one listener, one
     # ranking version. Without it the popup would be the one surface whose
     # picks nobody could account for afterwards.
-    if user:
+    if user and _remembers(request):
         EVENTS.record_impressions(user, [("next_up", t.id) for t in picks])
     return {"topics": [t.as_dict() for t in picks], "algo": topics_mod.ALGO_VERSION}
 
@@ -3302,7 +3352,7 @@ async def myfam_section(request: Request,
     body["topics"].sort(key=lambda t: not t["cached"])
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
-    if user:
+    if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = topics_mod.ALGO_VERSION
@@ -3359,7 +3409,7 @@ async def explore_new(request: Request, interests: str = Query("", max_length=20
     body = topics_mod.build_explore_new(
         EVENTS, user, interests=_interests_for(request, interests)
     )
-    if user:
+    if user and _remembers(request):
         EVENTS.record_impressions(user, [("explore_new", t["id"]) for t in body["topics"]])
     body["algo"] = topics_mod.ALGO_VERSION
     return body
@@ -3443,11 +3493,12 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # and a ranker that writes cannot be tested by calling it. The impression
     # is a fact about this *request*, so it belongs at the request boundary.
     SOCIAL.seen(user)
-    EVENTS.record_impressions(
-        user,
-        [(section["key"], topic["id"])
-         for section in feed["sections"] for topic in section["topics"]],
-    )
+    if _remembers(request):
+        EVENTS.record_impressions(
+            user,
+            [(section["key"], topic["id"])
+             for section in feed["sections"] for topic in section["topics"]],
+        )
     feed["algo"] = topics_mod.ALGO_VERSION
 
     # Guess what this listener might tap, and pay for the *understanding* of it
@@ -3476,13 +3527,19 @@ async def record_event(req: EventRequest, request: Request):
     # an interest carries its own tags, which is the whole point of it -
     # "Formula 1" is not something the eight pickable facets can say, and this
     # is how it reaches the ranker without anybody being shown a tag name.
+    #
+    # A guest's is accepted and dropped - `ok` with `remembered: false`, never
+    # an error, because a client firing events on a timer must not read a
+    # guest session as a broken server (§127).
+    if not _remembers(request):
+        return {"ok": True, "remembered": False}
     tags = topics_mod.tags_for_id(req.topic_id, req.text)
     EVENTS.record(
         topics_mod.Event(_listener(request), req.kind, req.topic_id, req.text, tags,
                          thread=req.thread)
     )
     SOCIAL.seen(_listener(request))
-    return {"ok": True}
+    return {"ok": True, "remembered": True}
 
 
 class PersonRequest(BaseModel):
@@ -3536,9 +3593,11 @@ async def post_echo(req: EchoRequest, request: Request):
     # line the ranker never heard about it. Recorded after the row is written,
     # so a failed vibe does not teach the feed anything happened - and, like
     # every other write to this log, it can be lost without costing the action
-    # the listener actually took.
-    EVENTS.record(topics_mod.Event(
-        user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
+    # the listener actually took. An account's only, like every other write
+    # to it (§127): a guest's vibe is still posted, and still not remembered.
+    if _remembers(request):
+        EVENTS.record(topics_mod.Event(
+            user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
     return echo.as_dict()
 
 
@@ -3647,17 +3706,118 @@ async def profile(request: Request):
     return body
 
 
-@app.get("/api/godeeper")
-async def go_deeper(request: Request):
-    """Follow-ups predicted for the episodes this listener finished.
+class ProgressRequest(BaseModel):
+    query: str = Field(..., max_length=saved_mod.MAX_QUERY)
+    minutes: int = Field(..., ge=1, le=10)
+    seconds: float = Field(..., ge=0, le=3600)
+    title: str = Field("", max_length=saved_mod.MAX_TITLE)
+    #: The topic a follow-up was asked from. Part of the episode's cache key,
+    #: so without it a resumed follow-up would be a different episode.
+    context: str = Field("", max_length=300)
 
-    Costs nothing: the model named it on the episode's trailing marker line,
-    which was never spoken. The episode itself does not tease it - it simply
-    ends - and the suggestion is waiting here afterwards for anyone who wants
-    to keep going.
+
+@app.post("/api/progress")
+async def progress_write(req: ProgressRequest, request: Request) -> dict:
+    """How far through an episode this listener got, kept on their account.
+
+    It was kept in the browser, so it belonged to the phone rather than the
+    person: it survived a log-out, and the next person on that device was
+    offered somebody else's half-heard episodes (§127). A guest's is accepted
+    and dropped rather than refused, like `/api/event`, because this is sent
+    from a playback timer and a timer must never surface an error.
     """
     _read_limit(request)
-    return {"threads": EVENTS.open_threads(_listener(request))}
+    if not _remembers(request):
+        return {"ok": True, "remembered": False}
+    kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
+                               req.seconds, title=req.title, context=req.context)
+    return {"ok": True, "remembered": True, "resumable": kept}
+
+
+async def _episode_blurb(pipeline, query: str, minutes: int,
+                         context: str = "") -> tuple[str, str]:
+    """`(title, summary)` for an episode the cache holds, or `("", "")`.
+
+    What a Go Deeper card draws, read from the same cache the player reads, so
+    a card cannot name an episode differently from the player that opens it.
+    Never generates. `pipeline` is built once per request by the caller - it
+    carries a voice engine, and four cards are not worth four of those.
+    """
+    if pipeline is None:
+        return "", ""
+    try:
+        plan = _validated_plan(query, minutes, context)
+    except HTTPException:
+        return "", ""
+    try:
+        meta = await pipeline.episode_meta(plan)
+        return meta["title"], meta["summary"]
+    except Exception:  # noqa: BLE001 - a card line must not fail the section
+        log.exception("could not read a Go Deeper card's title")
+        return "", ""
+
+
+@app.get("/api/godeeper")
+async def go_deeper(request: Request, interests: str = Query("", max_length=200)):
+    """"Pick up where you left off": part-heard episodes, the follow-ups the
+    finished ones predicted, and episodes like the last one heard.
+
+    **Empty until the listener has done something** (§127). It used to top
+    itself up from the bank so it was never empty, which meant a brand-new
+    listener was told they had left something off before they had played
+    anything. Now nothing is offered until there is something to pick up.
+
+    **Only for an account**, on the same rule as the event log: what somebody
+    was halfway through is part of what FAM remembers about them, and a guest
+    session is a device rather than a person.
+
+    Each card carries a one-sentence `summary` when the cache has one, which is
+    what makes the section read like the rest of myFAM rather than a bare list
+    of titles. Costs nothing: every line here is read, never written.
+    """
+    _read_limit(request)
+    user = _listener(request)
+    if not user or not _remembers(request):
+        return {"threads": [], "resume": [], "similar": []}
+
+    resume = SAVED.progress(user, limit=4)
+    try:
+        pipeline = _make_pipeline() if resume else None
+    except TTSUnavailable:
+        pipeline = None
+    for row in resume:
+        title, summary = await _episode_blurb(pipeline, row["query"], row["minutes"],
+                                              row.get("context", ""))
+        row["title"] = title or row.get("title") or ""
+        row["summary"] = summary
+
+    threads = EVENTS.open_threads(user)
+    for row in threads[:4]:
+        # The follow-up itself has usually not been made, so there is no
+        # summary of *it* to read - the line says where it comes from instead,
+        # which is the one true thing known about it.
+        row["summary"] = (f"Follows on from {row['from_title']}."
+                          if row.get("from_title") else "")
+
+    # "Similar": the feed's own next-up ranking, seeded with the last thing
+    # they heard - the same ranker as the post-episode popup, so the two
+    # cannot disagree. Only once there is something to be similar *to*.
+    similar: list[dict] = []
+    last = (resume[0]["query"] if resume
+            else next((e.text for e in EVENTS.for_user(user, limit=20)
+                       if e.kind in ("play", "complete") and e.text), ""))
+    if last:
+        picks = topics_mod.rank_next_up(
+            EVENTS, user, after_text=last,
+            interests=_interests_for(request, interests), has_account=True)
+        for topic in picks[:4]:
+            tile = topic.as_dict()
+            similar.append({"topic_id": tile.get("id", ""),
+                            "query": tile.get("query", ""),
+                            "title": tile.get("title", ""),
+                            "summary": tile.get("angle") or tile.get("subtitle")
+                                       or ""})
+    return {"threads": threads, "resume": resume, "similar": similar}
 
 
 @app.get("/api/explore")
@@ -3822,10 +3982,17 @@ async def episode_transcript(
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"sentences": [], "known": False, "live": False, "done": True}
+        return {"sentences": [], "known": False, "live": False, "done": True,
+                "starts": []}
     sentences, live, done = await pipeline.captions_for(plan)
+    # Where each sentence starts in the audio, measured on the speaking path
+    # (§127). Empty when unmeasured, and the interface then estimates as it
+    # always did - so a missing timing is a less precise caption, never a
+    # missing one.
+    starts = await pipeline.caption_starts(plan) if live else []
     return {"sentences": sentences, "known": bool(sentences),
-            "live": live, "done": done}
+            "live": live, "done": done,
+            "starts": starts if len(starts) == len(sentences) else []}
 
 
 @app.get("/api/next")
@@ -3866,9 +4033,11 @@ async def next_thread(
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"thread": "", "title": ""}
-    return {"thread": await pipeline.thread_for(plan),
-            "title": await pipeline.title_for(plan)}
+        return {"thread": "", "title": "", "title_final": False, "summary": ""}
+    # `title_final` is what lets the player ask early: the brief's title is on
+    # the live track before the first word (§127), and the interface keeps
+    # asking until the writer's own has replaced it.
+    return await pipeline.episode_meta(plan)
 
 
 @app.get("/api/audio")
@@ -4080,7 +4249,9 @@ async def audio(
     # play is a fact. A dropped event costs one weak signal, never the episode.
     # Both writes sit after the plan and the pipeline are ready and before the
     # response object is built, so neither is in front of the first word.
-    if user:
+    # A guest's play is served and not remembered (§127): nothing the
+    # algorithm learns is kept anywhere but an account.
+    if user and _remembers(request):
         SOCIAL.seen(user)
         EVENTS.record(
             topics_mod.Event(

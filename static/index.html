@@ -119,6 +119,12 @@
   .pill-tag.fantasy{ background:rgba(226,105,79,0.16); color:#F0B4A0; }
   .pill-tag.culture{ background:rgba(171,163,196,0.18); color:#D3CDE8; }/* -------- myFAM home (renamed Branches) -------- */
   .myfam-header{ padding:6px 20px 4px; display:flex; align-items:center; justify-content:space-between; }
+  /* myFAM's header sits outside the scroller (§127), so it is the scroller's
+     side padding plus its own that keeps it where it was, and a background of
+     its own so rails scrolling under its edge do not show through. */
+  .myfam-header-fixed{ flex:none; padding:8px 38px 6px; background:var(--bg);
+    position:relative; z-index:2; }
+  .myfam-head-actions{ display:flex; align-items:center; gap:10px; }
   .myfam-add-btn{
     width:34px; height:34px; border-radius:50%; background:var(--copper); color:var(--ink);
     border:none; font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;
@@ -576,6 +582,10 @@
      this is what they land on before that runs. */
   .share-contact .av, .thread-row .av, .back-row .thread-who .av{
     background:var(--paper); }
+  /* A real picture fills the circle; the colour behind it only shows while
+     it loads. */
+  .av.has-img{ overflow:hidden; padding:0; }
+  .av .av-img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
   .share-contact .nm{ font-size:9px; color:var(--text-muted); text-align:center; line-height:1.25; }
 
   /* -------- Messages inbox + thread -------- */
@@ -602,6 +612,16 @@
      not a delivery receipt - whether *they* got it is a promise about
      somebody else's attention, which this app does not invent. */
   .msg-row.pending .msg-bubble{ opacity:0.55; }
+  /* The other person is typing (§127): three dots in one of their bubbles,
+     rising in turn. */
+  .msg-typing{ display:flex; gap:4px; align-items:center; padding:12px 14px; }
+  .msg-typing i{ width:6px; height:6px; border-radius:50%; background:var(--text-muted);
+    animation:typingDot 1.2s ease-in-out infinite; }
+  .msg-typing i:nth-child(2){ animation-delay:.15s; }
+  .msg-typing i:nth-child(3){ animation-delay:.3s; }
+  @keyframes typingDot{ 0%,60%,100%{ opacity:.35; transform:translateY(0); }
+    30%{ opacity:1; transform:translateY(-3px); } }
+  @media (prefers-reduced-motion: reduce){ .msg-typing i{ animation:none; opacity:.7; } }
   .msg-fam-card{ max-width:78%; background:var(--surface-2); border:1px solid var(--border-strong); border-radius:14px; padding:10px 12px; display:flex; align-items:center; gap:10px; cursor:pointer; }
   .msg-row.out .msg-fam-card{ background:rgba(224,181,99,0.14); border-color:rgba(224,181,99,0.35); }
   .msg-fam-card .mf-play{ width:28px; height:28px; border-radius:50%; background:var(--ink); flex:none; display:flex; align-items:center; justify-content:center; }
@@ -721,6 +741,21 @@
   .captions-panel.on .cc-copybtn{ border-color:rgba(244,239,228,0.22); color:var(--paper); opacity:0.85; }
   .captions-panel.on .cc-text{ font-size:12px; color:var(--paper); line-height:1.55; }
   .captions-panel.on .cc-text mark{ background:var(--copper); color:var(--ink); border-radius:3px; padding:0 3px; }
+  /* One sentence at a time (§127): the leaving one and the arriving one share
+     a grid cell and cross-fade, so the panel never jumps in height between
+     them and never shows two sentences at rest. */
+  .captions-panel.on .cc-text{ display:grid; }
+  .captions-panel.on .cc-text .cc-line{ grid-area:1 / 1; }
+  .captions-panel.on .cc-text mark.cc-now{ background:none; color:var(--paper);
+    padding:0; font-size:13px; animation:ccIn .32s ease both; }
+  .captions-panel.on .cc-text .cc-leaving{ color:var(--paper);
+    animation:ccOut .32s ease both; pointer-events:none; }
+  @keyframes ccIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
+  @keyframes ccOut{ from{ opacity:1; } to{ opacity:0; transform:translateY(-4px); } }
+  @media (prefers-reduced-motion: reduce){
+    .captions-panel.on .cc-text mark.cc-now, .captions-panel.on .cc-text .cc-leaving{ animation:none; }
+    .captions-panel.on .cc-text .cc-leaving{ display:none; }
+  }
 
   /* Where this episode's facts came from. Collapsed by default: it is a thing
      a listener reaches for when they want to check, not something to read
@@ -951,6 +986,10 @@
   .gd-card{ position:relative; overflow:hidden; padding:7px 11px 8px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border); cursor:pointer;
     display:flex; flex-direction:column; justify-content:space-between; height:80px; }
+  /* A card with a summary line is taller by exactly the two lines it adds -
+     2 x 8.5px x 1.3 plus its margin - so the title keeps the four lines the
+     arithmetic below was done for (§127). */
+  .gd-card:has(.gd-card-sum){ height:104px; }
   .gd-card:active{ transform:scale(0.99); }
   /* flex:none matters. Without it the column shrinks the title below the
      lines the clamp allows, so text was cut with room still in the card -
@@ -962,6 +1001,9 @@
   .gd-card-title{ font-family:'Fraunces', serif; font-weight:500; font-size:10.5px;
     line-height:1.25; color:var(--text); margin-bottom:2px; flex:none;
     display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+  .gd-card-sum{ font-size:8.5px; line-height:1.3; color:var(--text-muted); flex:none;
+    margin-bottom:3px; display:-webkit-box; -webkit-line-clamp:2;
+    -webkit-box-orient:vertical; overflow:hidden; }
   .gd-card-meta{ font-family:'JetBrains Mono', monospace; font-size:7.5px; letter-spacing:0.06em;
     text-transform:uppercase; color:var(--copper); }
   .gd-card.resume .gd-card-meta{ color:var(--text-muted); }
@@ -1086,6 +1128,11 @@
     padding:0 32px; text-align:center;
   }
   .fam-loading.active{ display:flex; }
+  .fam-loading-x{ position:absolute; top:max(18px, env(safe-area-inset-top)); right:18px;
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--border-strong);
+    background:rgba(0,0,0,0.18); color:var(--text); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .fam-loading-x:active{ transform:scale(0.94); }
   .fam-loading-wm{ display:flex; align-items:center; gap:1px; color:var(--copper); opacity:.92; }
   .fam-loading-wm .wm-glyph, .fam-loading-wm .wm-a{ width:26px; height:26px; display:block; }
   .fam-loading-wm svg{ width:100%; height:100%; display:block; }
@@ -1663,6 +1710,13 @@
            the listener could not tell whether it had been received. An overlay
            you have to pick is an overlay you can forget to make. -->
       <div class="fam-loading" id="famLoading" role="status" aria-live="polite">
+        <!-- A way out of the wait (§127). There was none: a mis-tap, or an
+             episode somebody no longer wants, held the whole app behind this
+             screen until the audio started. -->
+        <button class="fam-loading-x" id="famLoadingCancel" onclick="cancelGeneration()"
+                aria-label="Cancel this episode">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
         <div class="fam-loading-wm" aria-label="FAM">
           <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
         </div>
@@ -2182,14 +2236,23 @@
            everybody without an account. The splash covers the gap instead and
            `bootToFirstScreen` is the only thing that opens a screen. -->
       <section class="screen" id="screen-myfam">
-        <div class="scroll">
-          <div class="myfam-header">
+        <!-- Outside the scroller, so the wordmark, messages and the episode
+             length stay put while the rails move under them (§127). The
+             length control moved up here from the "Pick up where you left
+             off" heading, which is not drawn at all until there is
+             something to pick up. -->
+        <div class="myfam-header myfam-header-fixed">
             <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
-            <button class="myfam-msg-btn" onclick="openMessages()" aria-label="Messages">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
-              <span class="msg-dot" id="msgUnread" hidden></span>
-            </button>
-          </div>
+            <div class="myfam-head-actions">
+              <span class="gd-len" onclick="openMyFamLengthMenu()" role="button"
+                    aria-label="Episode length on myFAM"><b id="myfamLengthVal">2 min</b><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span>
+              <button class="myfam-msg-btn" onclick="openMessages()" aria-label="Messages">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                <span class="msg-dot" id="msgUnread" hidden></span>
+              </button>
+            </div>
+        </div>
+        <div class="scroll">
           <div class="myfam-searchrow">
             <div class="search-bar-lg" onclick="openSearchFAM()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -3321,6 +3384,39 @@
     if(activeId !== "screen-player"){ navigate("player"); }
   }
 
+  // The X on the loading screen. Stops the request - which also stops the
+  // server writing, since an abandoned stream is the one signal it has that
+  // nobody is listening - takes the loading screen down and puts the listener
+  // back where they tapped from, as though the tap had not happened.
+  //: Bumped by every cancel, so a loading screen that starts its episode on a
+  //: timer (`afterLoading`) can tell it was cancelled while it waited - the X
+  //: is on that screen too, and a cancel the timer then ignores is a button
+  //: that says "Cancelled" and starts the episode anyway.
+  var genCancelSeq = 0;
+  function afterLoading(ms, fn){
+    var seq = genCancelSeq;
+    setTimeout(function(){ if(seq === genCancelSeq) fn(); }, ms);
+  }
+
+  function cancelGeneration(){
+    genCancelSeq++;
+    pendingResumeSeek = null;
+    var onPlayer = document.getElementById("screen-player")
+                     .classList.contains("active");
+    // Not an abandoned *episode*: nothing was heard, so nothing is recorded
+    // as a skip. The reporter is dropped rather than called for that reason.
+    famAbandonReporter = null;
+    stopSpeech();
+    awaitingFirstAudio = "";
+    clearGenOverlay();
+    hideNowBar();
+    setPlayState(false);
+    currentPlayingTopicKey = null;
+    episodeStamp = "";
+    if(onPlayer && stack.length > 1) goBack();
+    toast("Cancelled");
+  }
+
   function onGenerationFailed(message, err){
     clearGenOverlay();
     // An allowance running out is not a failure to generate, and a toast is
@@ -3774,15 +3870,19 @@
   //: The episode's own name, off the model's trailing `<<TITLE:>>` line. Read
   //: from the cache beside the thread, so one request answers both.
   var episodeTitle = "";
+  //: Whether `episodeTitle` is the writer's own, or the brief's provisional
+  //: one from before the first word (§127). Asking stops only once it is.
+  var episodeTitleFinal = false;
   var episodeStamp = "";
   function rememberEpisode(query, minutes, context){
     episodeStamp = query + "|" + minutes + "|" + (context || "");
     episodeThread = "";
     episodeTitle = "";
+    episodeTitleFinal = false;
   }
   function fetchEpisodeThread(){
     if(!episodeStamp) return;
-    if(episodeThread && episodeTitle) return;
+    if(episodeThread && episodeTitleFinal) return;
     var parts = episodeStamp.split("|");
     var stamp = episodeStamp;
     fetch("/api/next?q=" + encodeURIComponent(parts[0]) +
@@ -3799,7 +3899,12 @@
         // The episode's own name, off the same call and the same marker
         // lines. One request answers both, because both are read out of the
         // cache under one key and a second round trip would buy nothing.
-        if(data.title) applyEpisodeTitle(data.title);
+        // Provisional first - the brief names the episode before its first
+        // word (§127) - and replaced by the writer's own when that lands.
+        if(data.title && (data.title_final || !episodeTitleFinal)){
+          applyEpisodeTitle(data.title);
+          episodeTitleFinal = !!data.title_final;
+        }
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
   }
@@ -3852,6 +3957,13 @@
   // never cached - an attachment episode, which is deliberately private -
   // says that instead of waiting forever.
   var captionSentences = [];
+  //: Where each sentence starts in the audio, in seconds, parallel to
+  //: `captionSentences` - measured by the server as it produced the audio
+  //: (§127). Empty when unmeasured, and the index is then estimated as before.
+  var captionStarts = [];
+  //: Which sentence is on screen, so a redraw that lands on the same one
+  //: changes nothing and only a real change fades.
+  var captionShown = -1;
   var captionStamp = "";
   var captionTimer = null;
   //: True once the server has said this episode is finished being written.
@@ -3890,6 +4002,8 @@
 
   function resetCaptions(){
     captionSentences = [];
+    captionStarts = [];
+    captionShown = -1;
     captionStamp = "";
     captionDone = false;
     captionTick = 0;
@@ -3917,6 +4031,8 @@
         // is kilobytes.
         if((data.sentences || []).length){
           captionSentences = data.sentences;
+          var starts = data.starts || [];
+          captionStarts = starts.length === captionSentences.length ? starts : [];
           captionStamp = stamp;
         }
         // `live` is on the response and deliberately not kept: the panel's
@@ -3943,8 +4059,23 @@
   // The denominator is the *planned* length rather than what has buffered:
   // `FamAudio.duration()` grows as the stream arrives, so dividing by it
   // would keep the highlight pinned near the end for the whole episode.
+  //: How far ahead of the voice a caption changes, in seconds. A caption that
+  //: appears as the first word is spoken is already a beat late to the eye.
+  var CAPTION_LEAD = 0.12;
+
   function captionIndexNow(){
     if(!captionSentences.length) return 0;
+    // Measured, when the server measured it (§127). The old estimate below
+    // divided by the *planned* length, and an episode is usually shorter than
+    // its ceiling, so the highlight ran about a sentence behind the voice.
+    if(captionStarts.length === captionSentences.length){
+      var at = FamAudio.position() + CAPTION_LEAD;
+      var found = 0;
+      for(var k = 0; k < captionStarts.length; k++){
+        if(captionStarts[k] <= at) found = k; else break;
+      }
+      return found;
+    }
     var total = 0, lengths = [];
     captionSentences.forEach(function(line){
       var n = String(line || "").length || 1;
@@ -3991,15 +4122,21 @@
       return;
     }
     var here = captionIndexNow();
-    // A window rather than the whole script. The panel is four lines tall, and
-    // a transcript that scrolls itself is a reading surface - which a player
-    // is not (CLAUDE.md, on what the cold open got wrong).
-    var from = Math.max(0, here - 1);
-    var lines = captionSentences.slice(from, here + 3);
-    box.innerHTML = lines.map(function(line, i){
-      var text = escapeHtml(String(line || "").trim());
-      return (from + i === here) ? "<mark>" + text + "</mark>" : text;
-    }).join(" ");
+    // **One sentence: the one being spoken** (§127, at the owner's
+    // direction). It was a window of four with the current one marked, which
+    // is a transcript with a highlighter on it. Now the sentence being read
+    // is the only thing on screen, the one before fades out as it goes and
+    // the next fades in as it arrives. Redrawn only when the sentence
+    // changes, so the fade happens once per sentence rather than every tick.
+    if(here === captionShown && box.querySelector("mark.cc-now")) return;
+    var leaving = captionShown >= 0 && captionShown !== here
+      ? String(captionSentences[captionShown] || "").trim() : "";
+    captionShown = here;
+    var text = escapeHtml(String(captionSentences[here] || "").trim());
+    box.innerHTML = (leaving
+        ? '<span class="cc-line cc-leaving" aria-hidden="true">' + escapeHtml(leaving) + '</span>'
+        : '')
+      + '<mark class="cc-line cc-now">' + text + '</mark>';
   }
 
   // Runs only while the panel is open. A timer redrawing a hidden element on
@@ -4105,9 +4242,11 @@
         (nowBarState.source ? nowBarState.source + " \u00b7 " : "") + formatTime(left) + " left";
       document.getElementById("nowFill").style.width =
         Math.min(100, (at / total) * 100) + "%";
-      // Written continuously rather than only on pause, so closing the tab
-      // mid-episode still leaves a way back in.
-      noteResume(nowBarState.query, nowBarState.minutes, at);
+      // Written as it plays rather than only on pause, so closing the tab
+      // mid-episode still leaves a way back in. Throttled inside. Not while a
+      // resumed episode is still on its way back to where it was left.
+      if(applyPendingResumeSeek()) return;
+      noteResume(nowBarState.query, nowBarState.minutes, at, nowBarState.title);
     }, 1000);
   }
   function stopNowBarTicker(){
@@ -4240,10 +4379,13 @@
         onGenerationStarted();
         showNowBar(TOPICS[currentPlayingTopicKey] ? TOPICS[currentPlayingTopicKey].title : title,
                    title, minutes, opts.source || "");
-        // The script finishes well before the audio does, so by now the
-        // thread is usually already in the cache and the chip is ready
-        // before the listener thinks to reach for Go Deeper.
+        // Asked at once, because the episode already has a name by its first
+        // word - the brief wrote one (§127) - and the player should stop
+        // showing the question the moment it does. Then again as the script
+        // finishes, for the writer's own title and the thread.
+        fetchEpisodeThread();
         setTimeout(fetchEpisodeThread, 6000);
+        setTimeout(fetchEpisodeThread, 20000);
         // And the sources, for the same reason and on the same clock.
         //
         // This is why the strip was never on screen: it was fetched in
@@ -4260,6 +4402,13 @@
         awaitingFirstAudio = "";
         refreshProgressNow();
         stopProgress();
+        // Finished, so nothing to resume - said *before* the play state
+        // changes. `setPlayState(false)` sends the position on a pause, and
+        // doing that here raced this clear: an episode that ran under its
+        // planned length could be saved as part-heard (§127).
+        pendingResumeSeek = null;
+        noteResume(title, minutes, 0, "", true);
+        hideNowBar();
         setPlayState(false);
         reportOutcomeIfHeard = null;
         fetchEpisodeThread();
@@ -4272,8 +4421,6 @@
           reportedOutcome = true;
           recordFamEvent("complete", episodeTopicId, title, episodeThread);
         }
-        noteResume(title, minutes, 0);   // finished: nothing left to resume
-        hideNowBar();
         if(onEnd) onEnd();
         // Offered after the episode's own bookkeeping, and only where it
         // belongs - maybeOfferNextUp checks the surface for itself.
@@ -4289,6 +4436,15 @@
       topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
       attach: opts.attach || ""
     });
+
+    // The brief names the episode during the wait, several seconds before the
+    // first word (§127), so the player behind the loading screen stops saying
+    // the question as soon as it can. One cheap cache read every two seconds,
+    // only until audio starts or a title arrives.
+    var titleWatch = setInterval(function(){
+      if(!awaitingFirstAudio || episodeTitle){ clearInterval(titleWatch); return; }
+      fetchEpisodeThread();
+    }, 2000);
 
     // Abandoning an episode early is evidence in the other direction, and
     // must not be recorded as a quiet non-event.
@@ -4484,6 +4640,12 @@
     setReelPlaying(playing);
     setNowBarPlaying(playing);
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
+    // A pause is the moment a position is most likely to be the last one, so
+    // it is sent now rather than on the next throttled tick (§127).
+    if(!playing && nowBarState && !pendingResumeSeek){
+      noteResume(nowBarState.query, nowBarState.minutes, FamAudio.position(),
+                 nowBarState.title, true);
+    }
   }
   function togglePlay(){ setPlayState(!isPlaying); }
 
@@ -4816,6 +4978,11 @@
       var el = document.getElementById(id);
       if(el) el.textContent = selectedLengthMinutes + " min";
     });
+    // myFAM's own length, which is a different number on purpose (see
+    // `myfamLengthMinutes`) and lives in the fixed header now (§127), so it
+    // is painted with the rest before anything is drawn.
+    var browseVal = document.getElementById("myfamLengthVal");
+    if(browseVal) browseVal.textContent = myfamLengthMinutes + " min";
     updateSpeedLenPillText();
   }
   function updateSpeedLenPillText(){
@@ -5210,10 +5377,10 @@
     var albumKey = pendingPlayAllAlbum;
     closeGenerateConfig();
     showLoading("Writing your episodes…");
-    setTimeout(function(){
+    afterLoading(900, function(){
       clearGenOverlay();
       startPlayAll(albumKey);
-    }, 900);
+    });
   }
 
   function renderSegbar(){
@@ -5899,7 +6066,7 @@
             // rather than left showing the old one - a tile that says "3 min"
             // and generates five is the interface lying about the control the
             // listener just used.
-            renderGoDeeper(goDeeperThreadCache, goDeeperBankCache);
+            renderGoDeeper(goDeeperData);
             // And the rails are reloaded, for the same reason one step down:
             // "ready" means "already written *at this length*", so every badge
             // on the page was just answered against the old number. Costs no
@@ -6066,31 +6233,66 @@
   }
 
   // ---------------- Go Deeper ----------------
-  // Two kinds of unfinished business, in one place: episodes still part-heard,
-  // and the threads finished episodes left open. Both are things the listener
-  // already has a foothold in, which is why they sit above recommendations.
+  // "Pick up where you left off": episodes still part-heard, the threads
+  // finished episodes left open, and episodes like the last one heard. All of
+  // it is things the listener already has a foothold in, which is why it sits
+  // above the recommendations.
   //
-  // Resume positions live in localStorage rather than on the server: they are
-  // per-device by nature, worthless to anyone else, and not worth a write on
-  // every tick of playback.
-  var RESUME_KEY = "fam_resume";
+  // **Positions are kept on the account, not the phone** (PROBLEMS.md §127).
+  // They used to live in localStorage, which is per-device by nature - so they
+  // outlived a log-out, and the next person on that phone was offered
+  // somebody else's half-heard episodes. They go to `/api/progress` now, which
+  // keeps them for an account and drops them for a guest.
+  //
+  // Not on every tick of playback: every `RESUME_EVERY_MS` while playing, and
+  // at once when it matters - a pause, a stop, the end.
+  var RESUME_EVERY_MS = 15000;
+  var resumeSentAt = 0;
+  var resumeSentFor = "";
+  //: `{query, minutes, at}` while a resumed episode is waiting to jump to
+  //: where it was left. The jump waits for enough audio to exist - a stream
+  //: arrives from its first second - and until it lands nothing is written
+  //: back, or the first tick at 0:01 would erase the very position the card
+  //: promised to return to.
+  var pendingResumeSeek = null;
 
-  function readResume(){
-    try { return JSON.parse(localStorage.getItem(RESUME_KEY) || "{}"); }
-    catch(e){ return {}; }
+  function applyPendingResumeSeek(){
+    var p = pendingResumeSeek;
+    if(!p || !nowBarState) return false;
+    if(nowBarState.query !== p.query || nowBarState.minutes !== p.minutes){
+      pendingResumeSeek = null;
+      return false;
+    }
+    if(FamAudio.isComplete() || FamAudio.seekLimit() >= p.at){
+      FamAudio.seek(p.at);
+      pendingResumeSeek = null;
+      refreshProgressNow();
+      return false;
+    }
+    return true;   // still waiting for the audio to reach it
   }
-  function saveResume(map){
-    try { localStorage.setItem(RESUME_KEY, JSON.stringify(map)); } catch(e){}
-  }
-  function noteResume(query, minutes, seconds){
+
+  function noteResume(query, minutes, seconds, title, now){
     if(!query || !minutes) return;
-    var map = readResume();
-    var total = minutes * 60;
-    // Nearly finished is finished; a card offering the last four seconds of
-    // something is clutter, not a way back in.
-    if(seconds < 20 || seconds > total - 30){ delete map[query]; }
-    else { map[query] = { minutes: minutes, at: seconds, saved: Date.now() }; }
-    saveResume(map);
+    // A guest's position is not kept anywhere, so there is nothing to send.
+    if(!AUTH.authenticated) return;
+    var stamp = query + "|" + minutes;
+    var t = Date.now();
+    if(!now && stamp === resumeSentFor && t - resumeSentAt < RESUME_EVERY_MS) return;
+    resumeSentAt = t;
+    resumeSentFor = stamp;
+    // The follow-up context, when this is the episode on the player: it is
+    // part of the episode's cache key, so a resume without it would be a
+    // different episode.
+    var parts = (episodeStamp || "").split("|");
+    var context = (parts[0] === query && String(parts[1]) === String(minutes))
+      ? (parts[2] || "") : "";
+    fetch("/api/progress", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: query, minutes: minutes,
+                             seconds: Math.max(0, Math.round(seconds || 0)),
+                             title: title || "", context: context })
+    }).catch(function(){ /* a lost position costs a card, never playback */ });
   }
 
   // ---------------- sources ----------------
@@ -6289,110 +6491,96 @@
   function loadGoDeeper(){
     var el = document.getElementById("goDeeperBlock");
     if(!el) return;
-    // The bank is fetched alongside the threads so the section can always show
-    // four tiles. A listener on their first run has no threads and nothing
-    // half-heard; without this they met an empty space where the way in is.
-    Promise.all([
-      fetch("/api/godeeper")
-        .then(function(r){ return r.ok ? r.json() : { threads: [] }; })
-        .catch(function(){ return { threads: [] }; }),
-      fetch("/api/topics")
-        .then(function(r){ return r.ok ? r.json() : { topics: [] }; })
-        .catch(function(){ return { topics: [] }; })
-    ]).then(function(both){
-      renderGoDeeper(both[0].threads || [], both[1].topics || []);
-    });
+    // **Nothing until the listener has done something** (§127). This used to
+    // fetch the bank beside the threads and top the section up to four, so a
+    // first run met "Go deeper" over four standing explainers - a section
+    // about picking something back up, with nothing to pick up. Now it is
+    // part-heard episodes, the follow-ups finished ones predicted, and
+    // episodes like the last one heard, and it is not drawn at all until one
+    // of those exists. The server answers empty for a guest, whose listening
+    // is not kept anywhere (§127).
+    fetch(withInterests("/api/godeeper"))
+      .then(function(r){ return r.ok ? r.json() : {}; })
+      .catch(function(){ return {}; })
+      .then(function(d){ renderGoDeeper(d || {}); });
   }
 
   // What the section was last built from, so changing the length can redraw
   // it without another round trip.
-  var goDeeperThreadCache = [];
-  var goDeeperBankCache = [];
+  var goDeeperData = {};
 
-  function goDeeperCards(threads, bank){
-    var cards = [];
-    var resume = readResume();
-    Object.keys(resume).forEach(function(query){
-      var r = resume[query];
-      cards.push({
-        kind: "resume", query: query, minutes: r.minutes,
-        title: deriveTitleFromPrompt(query),
-        left: Math.max(0, r.minutes * 60 - r.at),
-        progress: Math.min(1, r.at / (r.minutes * 60)),
-        saved: r.saved || 0
-      });
+  function goDeeperCards(d){
+    var resume = (d.resume || []).map(function(r){
+      return {
+        kind: "resume", query: r.query, minutes: r.minutes,
+        // The episode's own name when the cache has one, never the question
+        // with capital letters on - see `deriveTitleFromPrompt` for why.
+        title: r.title || deriveTitleFromPrompt(r.query),
+        summary: r.summary || "",
+        context: r.context || "",
+        at: r.seconds,
+        left: Math.max(0, r.minutes * 60 - r.seconds),
+        progress: Math.min(1, r.seconds / (r.minutes * 60))
+      };
     });
-    cards.sort(function(a, b){ return b.saved - a.saved; });
-    var threadCards = threads.map(function(t){
+    var threads = (d.threads || []).map(function(t){
       return { kind: "thread", query: t.thread, minutes: myfamLengthMinutes,
-               title: t.title, from: t.from_title };
+               title: t.title, summary: t.summary || "" };
+    });
+    var similar = (d.similar || []).map(function(t){
+      return { kind: "similar", query: t.query, minutes: myfamLengthMinutes,
+               title: t.title, summary: t.summary || "", topicId: t.topic_id };
     });
     // Alternated rather than grouped: four part-heard episodes in a block
     // reads as a backlog, and the mix is what makes the section feel like a
-    // set of ways in rather than a list of chores.
+    // set of ways in rather than a list of chores. Similar episodes only fill
+    // what the other two leave.
     var out = [];
-    while(out.length < 4 && (cards.length || threadCards.length)){
-      if(cards.length) out.push(cards.shift());
-      if(out.length < 4 && threadCards.length) out.push(threadCards.shift());
+    while(out.length < 4 && (resume.length || threads.length)){
+      if(resume.length) out.push(resume.shift());
+      if(out.length < 4 && threads.length) out.push(threads.shift());
     }
-
-    // Top up from the shared bank. These are real topics that generate a real
-    // episode when tapped - not placeholder text dressed up as content. The
-    // rails below are already showing their own picks, so anything down there
-    // is skipped: the same title twice on one screen reads as a bug.
+    // The rails below are already showing their own picks, so a similar
+    // episode that is also down there is skipped: the same title twice on
+    // one screen reads as a bug.
     var shown = {};
     out.forEach(function(c){ shown[(c.title || "").toLowerCase()] = true; });
-    (bank || []).forEach(function(t){
+    similar.forEach(function(c){
       if(out.length >= 4) return;
-      if(myFamTopics[t.id]) return;
-      if(shown[(t.title || "").toLowerCase()]) return;
-      shown[(t.title || "").toLowerCase()] = true;
-      out.push({ kind: "starter", query: t.query, minutes: myfamLengthMinutes,
-                 title: t.title, topicId: t.id });
+      if(c.topicId && myFamTopics[c.topicId]) return;
+      var k = (c.title || "").toLowerCase();
+      if(!k || shown[k]) return;
+      shown[k] = true;
+      out.push(c);
     });
     return out;
   }
 
-  function renderGoDeeper(threads, bank){
+  function renderGoDeeper(d){
     var el = document.getElementById("goDeeperBlock");
-    goDeeperThreadCache = threads || [];
-    goDeeperBankCache = bank || [];
-    goDeeperCardCache = goDeeperCards(goDeeperThreadCache, goDeeperBankCache);
+    goDeeperData = d || {};
+    goDeeperCardCache = goDeeperCards(goDeeperData);
     if(!goDeeperCardCache.length){
-      // Only reachable if the bank could not be fetched either. Nothing to
-      // show and nothing to say about it; the search field is directly above.
+      // Nothing to pick up yet, and nothing said about it: the search field
+      // is directly above, and a heading over an empty space reads as broken.
       el.innerHTML = "";
       return;
     }
-    // The old line counted every card and called them all "threads", which was
-    // wrong twice over: half of them are part-heard episodes, and "thread" is
-    // a word from inside the codebase. This says what the row is for instead.
-    // It only claims they left something off when at least one tile really is
-    // theirs - on a first run every tile is a starting point, not a return.
-    var resumed = goDeeperCardCache.some(function(c){ return c.kind !== "starter"; });
-    // The right-hand slot used to hold a sentence about the tiles. It is now
-    // the length these tiles will generate at - the one thing on this header
-    // a listener might want to change before tapping one, and the same
-    // control the search player has.
-    //
-    // It is separate from search's on purpose: the length you want for a
-    // question you just typed and the length you want for a tile you are
-    // browsing past are different answers, and one knob meant changing either
-    // silently changed the other.
+    // The length control used to sit in this heading's right-hand slot. It
+    // is in the page header now, which does not scroll (§127), so this is a
+    // heading and nothing else.
     var html = '<div class="gd-head"><span class="gd-kicker">'
-      + (resumed ? "Pick up where you left off" : "Go deeper") + '</span>'
-      + '<span class="gd-len" onclick="openMyFamLengthMenu()" role="button"'
-      + ' aria-label="Episode length on myFAM">'
-      + '<b id="myfamLengthVal">' + myfamLengthMinutes + ' min</b>'
-      + '<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>'
-      + '</span></div>';
+      + 'Pick up where you left off</span></div>';
     html += '<div class="gd-grid">' + goDeeperCardCache.map(function(c, i){
       var meta = c.kind === "resume"
         ? formatTime(c.left) + " left"
-        : c.minutes + " min";
+        : c.kind === "thread" ? "Go deeper \u00b7 " + c.minutes + " min"
+        : "Similar \u00b7 " + c.minutes + " min";
       return '<div class="gd-card' + (c.kind === "resume" ? " resume" : "")
         + '" onclick="playGoDeeper(' + i + ')">'
         + '<div class="gd-card-title">' + escapeHtml(c.title) + '</div>'
+        // One sentence on what it is, like every other myFAM tile carries.
+        + (c.summary ? '<div class="gd-card-sum">' + escapeHtml(c.summary) + '</div>' : '')
         + '<div class="gd-card-meta">' + escapeHtml(meta) + '</div>'
         + (c.kind === "resume"
             ? '<div class="gd-bar"><span style="width:' + Math.round(c.progress * 100) + '%"></span></div>'
@@ -6409,22 +6597,26 @@
     if(!c) return;
     var key = "gd_" + i + "_" + Date.now();
     var source = c.kind === "resume" ? "Picking up where you left off"
-               : c.kind === "starter" ? "myFAM"
+               : c.kind === "similar" ? "myFAM"
                : "Following a thread";
     TOPICS[key] = {
       title: c.title,
       source: source,
       caption: "Live captions will appear here as this plays\u2014",
       prompt: c.query,
-      // A starter is a bank topic, so it carries its id and is counted as one
-      // in the event log - otherwise tapping here would teach the taste model
-      // nothing, and these tiles are most of what a new listener taps.
+      // A similar tile is a real feed tile, so it carries its id and is
+      // counted as one in the event log.
       bankTopicId: c.topicId || "",
+      // A resumed follow-up goes back to the same episode, context included.
+      parentTopic: c.context || "",
       // A resume card goes back to the episode that was half heard, at the
       // length it was written at; everything else honours the browse length.
       exploreMinutes: c.minutes || myfamLengthMinutes,
       titleOverridden: true
     };
+    // "2:41 left" is a promise to carry on from there, not to start again.
+    pendingResumeSeek = c.kind === "resume" && c.at > 0
+      ? { query: c.query, minutes: c.minutes, at: c.at } : null;
     generate(key);
   }
 
@@ -6581,19 +6773,19 @@
     }
     paIndex++;
     showLoading("Writing the next one…");
-    setTimeout(function(){
+    afterLoading(700, function(){
       clearGenOverlay();
       populatePlayAllTopic();
-    }, 700);
+    });
   }
 
   function paRegenerate(){
     showLoading("Writing that again…");
-    setTimeout(function(){
+    afterLoading(700, function(){
       clearGenOverlay();
       populatePlayAllTopic();
       toast("Regenerated ✓");
-    }, 700);
+    });
   }
 
   // ---------------- Share via FAM contacts or phone number ----------------
@@ -6753,10 +6945,20 @@
         notifAnnouncedFollows = {};
         threadMessages = [];
         currentThread = null;
+        threadTyping = false;
+        // The last account's part-heard episodes must not stay on screen for
+        // whoever uses the phone next (§127) - the section is otherwise only
+        // redrawn when the next feed load succeeds.
+        goDeeperData = {};
+        goDeeperCardCache = [];
+        resumeSentFor = "";
+        pendingResumeSeek = null;
+        var gdBlock = document.getElementById("goDeeperBlock");
+        if(gdBlock) gdBlock.innerHTML = "";
         savedCache = { items: [], folders: [] };
         viewingProfile = null;
         mixes = [];
-        try { localStorage.removeItem("fam.prefs"); } catch(e){}
+        forgetLocalPrefs();
         stopSpeech();
         hideNowBar();
         // Back to the entry screen, the way a new install arrives - the
@@ -7599,7 +7801,7 @@
               // A fresh anonymous listener is minted on the next request, so
               // the app keeps working - it just does not know them any more.
               AUTH = { user_id: "", email: "", authenticated: false };
-              try { localStorage.removeItem("fam.prefs"); } catch(e){}
+              forgetLocalPrefs();
               toast("Account deleted");
               goBack();
               openProfile();
@@ -8323,8 +8525,7 @@
         ? "Shared: " + (last.title || last.query || "an episode")
         : (last.text || "");
       return '<div class="thread-row" onclick="openThread(' + row.i + ')">'
-        + '<div class="av" style="background:' + personHue(t.handle || t.name)
-        + ';">' + escapeHtml(deriveInitials(t.name || t.handle || "?")) + '</div>'
+        + personAvHTML(t)
         + '<div class="tr-body"><div class="tr-name">'
         + escapeHtml(t.name || ("@" + (t.handle || ""))) + '</div>'
         + '<div class="tr-preview">' + escapeHtml(preview) + '</div></div>'
@@ -8336,16 +8537,15 @@
   function openThread(i){
     var t = inboxThreads[i];
     if(!t) return;
-    openThreadWith({ user_id: t["with"], name: t.name, handle: t.handle });
+    openThreadWith({ user_id: t["with"], name: t.name, handle: t.handle,
+                     avatar: t.avatar || "" });
   }
 
   function openThreadWith(person){
     currentThread = person;
     document.getElementById("thread-name").textContent =
       person.name || ("@" + (person.handle || ""));
-    var av = document.getElementById("thread-av");
-    av.textContent = deriveInitials(person.name || person.handle || "?");
-    av.style.background = personHue(person.handle || person.name);
+    paintPersonAv(document.getElementById("thread-av"), person);
     document.getElementById("thread-body").innerHTML =
       '<div class="pf-empty">Loading…</div>';
     navigate("thread");
@@ -8375,7 +8575,13 @@
       .then(function(d){
         threadMessages = d.messages || [];
         threadCursor = d.head || 0;
-        if(d["with"]) currentThread = d["with"];
+        if(d["with"]){
+          currentThread = d["with"];
+          // The picture may only be known now - a conversation opened by
+          // handle arrives with a name and nothing else.
+          paintPersonAv(document.getElementById("thread-av"), currentThread);
+        }
+        threadTyping = !!d.typing;
         renderThreadBody();
         startThreadPolling();
       })
@@ -8400,8 +8606,19 @@
         // They moved to another conversation while this was in flight.
         if(!d || !currentThread || currentThread.user_id !== who) return;
         threadCursor = d.head || threadCursor;
-        if(!(d.messages || []).length) return;
-        appendThreadMessages(d.messages);
+        // Before the early return, so the dots come and go on an empty poll
+        // too - which is almost every poll while somebody is typing. Only a
+        // message from *them* ends their typing: your own coming back from
+        // the server says nothing about their keyboard.
+        var fromThem = (d.messages || []).some(function(m){ return !m.mine; });
+        var typingNow = !!d.typing && !fromThem;
+        var typingChanged = typingNow !== threadTyping;
+        threadTyping = typingNow;
+        var added = (d.messages || []).length ? appendThreadMessages(d.messages) : false;
+        // `appendThreadMessages` redraws only for a new message, so a change
+        // in the dots alone has to redraw here, or they stay on screen after
+        // the state says they have gone.
+        if(typingChanged && !added) renderThreadBody();
       })
       // A poll that fails is a poll that failed. The next one is two seconds
       // away, and putting an error in front of somebody mid-conversation
@@ -8422,6 +8639,7 @@
       added = true;
     });
     if(added) renderThreadBody();
+    return added;
   }
 
   function threadScreenOpen(){
@@ -8438,11 +8656,43 @@
     if(threadTimer){ clearInterval(threadTimer); threadTimer = null; }
   }
 
+  // Whether the other person is typing to this listener, off the thread poll
+  // (§127). Drawn as the last bubble, and gone the moment their message lands.
+  var threadTyping = false;
+  function typingRowHTML(){
+    return threadTyping
+      ? '<div class="msg-row in" id="threadTypingRow"><div class="msg-bubble msg-typing"'
+        + ' aria-label="Typing"><i></i><i></i><i></i></div></div>'
+      : '';
+  }
+
+  // Telling the other side "I am typing". At most one note every couple of
+  // seconds while keys are going down - the server holds each for five, so
+  // this keeps the dots up without a request per keystroke. Nothing is sent
+  // for an empty box, so deleting a draft does not announce anything.
+  var TYPING_NOTE_MS = 2500;
+  var typingSentAt = 0;
+  function noteTyping(){
+    var input = document.getElementById("threadInput");
+    if(!currentThread || !AUTH.authenticated || !input || !input.value.trim()) return;
+    var now = Date.now();
+    if(now - typingSentAt < TYPING_NOTE_MS) return;
+    typingSentAt = now;
+    fetch("/api/messages/typing", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ to: currentThread.user_id })
+    }).catch(function(){});
+  }
+  (function(){
+    var input = document.getElementById("threadInput");
+    if(input) input.addEventListener("input", noteTyping);
+  })();
+
   function renderThreadBody(){
     var body = document.getElementById("thread-body");
     if(!threadMessages.length){
       body.innerHTML = '<div class="pf-empty">Nothing here yet. Say something, '
-        + 'or share an episode from any player.</div>';
+        + 'or share an episode from any player.</div>' + typingRowHTML();
       return;
     }
     body.innerHTML = threadMessages.map(function(m, i){
@@ -8461,7 +8711,7 @@
       return '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "")
         + '"><div class="msg-bubble">'
         + escapeHtml(m.text || "") + '</div></div>';
-    }).join("");
+    }).join("") + typingRowHTML();
     body.scrollTop = body.scrollHeight;
   }
 
@@ -8495,6 +8745,7 @@
     // acknowledged yet", which is a fact about this device; whether they read
     // it is a promise about somebody else's attention, and this app has a
     // rule against inventing that.
+    typingSentAt = 0;   // the server clears it on send; the next keystroke re-announces
     var draft = { id: 0, mine: true, kind: "text", text: val, pending: true };
     threadMessages.push(draft);
     renderThreadBody();
@@ -8552,9 +8803,7 @@
         }
         el.innerHTML = unique.map(function(person, i){
           return '<div class="share-contact" onclick="startChatWith(' + i + ')">'
-            + '<div class="av" style="background:' + personHue(person.handle || person.name)
-            + ';">' + escapeHtml(deriveInitials(person.name || person.handle || "?"))
-            + '</div><div class="nm">'
+            + personAvHTML(person) + '<div class="nm">'
             + escapeHtml((person.name || person.handle || "").split(" ")[0]) + '</div></div>';
         }).join("");
       })
@@ -8581,6 +8830,31 @@
       return (words[0][0] + words[1][0]).toUpperCase();
     }
     return String(text || "?").trim().replace(/^@/, "").slice(0, 2).toUpperCase();
+  }
+
+  // A person's face where they have set one, and their initials on their
+  // colour where they have not (§127). Messages, the new-chat picker and the
+  // share sheet all drew initials for everybody - a friend with a photo
+  // looked like a stranger in exactly the places you choose who to talk to.
+  // One function, so the three cannot drift into three answers again.
+  function personAvInner(person){
+    person = person || {};
+    if(person.avatar){
+      return '<img class="av-img" src="' + escapeHtml(person.avatar) + '" alt="">';
+    }
+    return escapeHtml(deriveInitials(person.name || person.handle || "?"));
+  }
+  function personAvHTML(person){
+    person = person || {};
+    return '<div class="av' + (person.avatar ? " has-img" : "") + '" style="background:'
+      + personHue(person.handle || person.name) + ';">' + personAvInner(person) + '</div>';
+  }
+  function paintPersonAv(el, person){
+    if(!el) return;
+    person = person || {};
+    el.innerHTML = personAvInner(person);
+    el.classList.toggle("has-img", !!person.avatar);
+    el.style.background = personHue(person.handle || person.name);
   }
   // Typing a handle rather than picking a face.
   function confirmNewChat(){
@@ -8813,9 +9087,7 @@
         }
         el.innerHTML = shareContacts.map(function(person, i){
           return '<div class="share-contact" onclick="sendToContact(' + i + ')">'
-            + '<div class="av" style="background:' + personHue(person.handle || person.name)
-            + ';">' + escapeHtml(deriveInitials(person.name || person.handle || "?"))
-            + '</div><div class="nm">'
+            + personAvHTML(person) + '<div class="nm">'
             + escapeHtml((person.name || person.handle || "").split(" ")[0])
             + '</div></div>';
         }).join("");
@@ -9328,15 +9600,50 @@
   var introSelection = [];
   var authMode = "signup";
 
+  // **What a guest chooses is kept for this visit only** (PROBLEMS.md §127,
+  // at the owner's direction). Interests, chosen subjects and language are
+  // what the algorithm learns from, and everything it learns belongs to an
+  // account - so for somebody without one they live in this page's memory
+  // and are gone when it closes, rather than in the phone's storage where
+  // the next person to pick the phone up inherits them. The rest of
+  // `fam.prefs` - playback speed, the browse length, whether the first run
+  // is done - is about this device and stays on it.
+  //
+  // A function rather than a table, and `sessionChoices` guarded where it is
+  // written: both are read by initialisers far above this line (the speed
+  // pill, the browse length), which run before a `var` down here is assigned.
+  function sessionOnlyPref(k){
+    return k === "interests" || k === "topics" || k === "language";
+  }
+  var sessionChoices = sessionChoices || {};
+
   function localPrefs(){
-    try { return JSON.parse(localStorage.getItem("fam.prefs") || "{}"); }
-    catch(e){ return {}; }
+    var stored = {};
+    try { stored = JSON.parse(localStorage.getItem("fam.prefs") || "{}") || {}; }
+    catch(e){ stored = {}; }
+    // Anything an older build left on the device is ignored, not trusted.
+    delete stored.interests; delete stored.topics; delete stored.language;
+    var mine = sessionChoices || {};
+    for(var c in mine){ stored[c] = mine[c]; }
+    return stored;
   }
   function saveLocalPrefs(patch){
-    var current = localPrefs();
-    for(var k in patch){ if(patch.hasOwnProperty(k)) current[k] = patch[k]; }
-    try { localStorage.setItem("fam.prefs", JSON.stringify(current)); } catch(e){}
-    return current;
+    var device = {};
+    try { device = JSON.parse(localStorage.getItem("fam.prefs") || "{}") || {}; }
+    catch(e){ device = {}; }
+    delete device.interests; delete device.topics; delete device.language;
+    if(!sessionChoices) sessionChoices = {};
+    for(var k in patch){
+      if(!patch.hasOwnProperty(k)) continue;
+      if(sessionOnlyPref(k)) sessionChoices[k] = patch[k];
+      else device[k] = patch[k];
+    }
+    try { localStorage.setItem("fam.prefs", JSON.stringify(device)); } catch(e){}
+    return localPrefs();
+  }
+  function forgetLocalPrefs(){
+    sessionChoices = {};
+    try { localStorage.removeItem("fam.prefs"); } catch(e){}
   }
 
   // The ranking hint for a listener with no account. Empty for everyone else,
@@ -9387,7 +9694,7 @@
   // The first run is shown once by design, which makes it the hardest screen
   // in the app to look at twice. This is how.
   function restartFirstRun(){
-    try { localStorage.removeItem("fam.prefs"); } catch(e){}
+    forgetLocalPrefs();
     introMode = "first-run";
     introSelection = [];
     showSplash();
@@ -10544,16 +10851,18 @@
   //: same follower is announced every ten seconds until somebody visits it.
   var notifAnnouncedFollows = {};
 
-  //: How often to ask. Ten seconds rather than the chat's two: an open
-  //: conversation is somebody waiting for a reply, and this is somebody who
-  //: is not - the cost of being a few seconds late to a banner is nothing,
-  //: and the cost of asking six times a minute for the life of a session is
-  //: real. The open thread polls faster on its own timer.
-  var NOTIF_POLL_MS = 10000;
+  //: How often to ask. It was ten seconds, on the argument that somebody not
+  //: in a conversation is not waiting for a reply - and a message then took up
+  //: to ten seconds to be announced, which is not what "appear instantly"
+  //: means (§127). Three: an idle poll is a primary-key comparison returning
+  //: an empty list, and it runs only while the app is in the foreground (see
+  //: `visibilitychange` below). The open thread still polls on its own timer.
+  var NOTIF_POLL_MS = 3000;
 
-  //: How long a banner stays before it withdraws. Long enough to read a name
-  //: and a line and decide, short enough that it is not in the way.
-  var NOTIF_SHOW_MS = 6000;
+  //: How long a banner stays before it withdraws: three seconds, at the
+  //: owner's direction (§127). Long enough to read a name and a line; a swipe
+  //: up takes it away sooner and a tap goes to the conversation.
+  var NOTIF_SHOW_MS = 3000;
 
   function startNotificationPolling(){
     stopNotificationPolling();
@@ -10576,6 +10885,8 @@
   }
 
   function pollNotifications(){
+    // A backgrounded tab asks nothing; coming back asks at once.
+    if(document.visibilityState === "hidden") return;
     fetch("/api/notifications?since=" + encodeURIComponent(notifCursor))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
@@ -10652,17 +10963,63 @@
 
   function dismissNotification(){ hideNotification(); }
 
+  // Swipe up to dismiss (§127). The banner follows the finger upward, and a
+  // pull past `NOTIF_SWIPE_PX` sends it away; anything less springs back.
+  // The hide timer is held while a finger is on it, so it cannot vanish out
+  // from under a thumb, and a swipe never also counts as a tap.
+  var NOTIF_SWIPE_PX = 28;
+  var notifSwiped = false;
+  (function(){
+    var banner = document.getElementById("notifBanner");
+    if(!banner) return;
+    var startY = null, dy = 0;
+    banner.addEventListener("touchstart", function(e){
+      if(!notifShowing || !e.touches.length) return;
+      startY = e.touches[0].clientY; dy = 0; notifSwiped = false;
+      clearTimeout(notifHideTimer);
+      banner.style.transition = "none";
+    }, { passive: true });
+    banner.addEventListener("touchmove", function(e){
+      if(startY === null || !e.touches.length) return;
+      dy = Math.min(0, e.touches[0].clientY - startY);
+      if(dy < -4) notifSwiped = true;
+      banner.style.transform = "translateY(" + dy + "px)";
+    }, { passive: true });
+    function end(){
+      if(startY === null) return;
+      startY = null;
+      banner.style.transition = "";
+      banner.style.transform = "";
+      if(dy <= -NOTIF_SWIPE_PX){ hideNotification(); }
+      else if(notifShowing){
+        notifHideTimer = setTimeout(hideNotification, NOTIF_SHOW_MS);
+      }
+      // The click that follows a swipe is not a tap on the banner.
+      if(notifSwiped) setTimeout(function(){ notifSwiped = false; }, 350);
+    }
+    banner.addEventListener("touchend", end);
+    banner.addEventListener("touchcancel", end);
+  })();
+
+  // Back in the foreground is exactly when a banner is most likely to be
+  // owed, so ask at once rather than on the next tick.
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible" && notifTimer) pollNotifications();
+  });
+
   // Tapping it does the thing it is about. A message opens that conversation;
   // a follow opens Friends, which is where following back lives - and which
   // is also what clears the new-follower badge, so the two cannot disagree.
   function openNotification(){
+    if(notifSwiped){ notifSwiped = false; return; }
     var item = notifShowing;
     hideNotification();
     if(!item) return;
     if(item.kind === "message" && item.who && item.who.user_id){
       closeMessages();
       openThreadWith({ user_id: item.who.user_id,
-                       name: item.who.name, handle: item.who.handle });
+                       name: item.who.name, handle: item.who.handle,
+                       avatar: item.who.avatar || "" });
       return;
     }
     if(item.kind === "follow"){
