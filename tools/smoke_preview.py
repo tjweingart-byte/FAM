@@ -1370,9 +1370,13 @@ def main() -> int:
             photo included, and a conversation gave no sign the other person
             was writing back."""
             page.evaluate("openMessages()")
-            page.wait_for_selector(".thread-row", timeout=8000, state="attached")
-            faces = page.eval_on_selector_all(".thread-row .av img", "e => e.length")
-            assert faces >= 1, "the inbox drew initials for a friend with a picture"
+            page.wait_for_timeout(1500)
+            # The fixture build has a friend with a picture; the live build
+            # starts with an empty inbox, so only the dots can be asked of it.
+            rows = page.eval_on_selector_all(".thread-row", "e => e.length")
+            if rows:
+                faces = page.eval_on_selector_all(".thread-row .av img", "e => e.length")
+                assert faces >= 1, "the inbox drew initials for a friend with a picture"
             page.evaluate(
                 """() => {
                     var real = window.fetch;
@@ -1390,9 +1394,10 @@ def main() -> int:
                 }""")
             page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
             page.wait_for_selector("#screen-thread.active", timeout=8000)
-            page.wait_for_selector("#threadTypingRow", timeout=6000)
-            assert page.query_selector("#thread-av img"), \
-                "the conversation header drew initials for a friend with a picture"
+            page.wait_for_selector("#threadTypingRow", timeout=6000, state="attached")
+            if rows:
+                assert page.query_selector("#thread-av img"), \
+                    "the conversation header drew initials for a friend with a picture"
             page.evaluate("stopThreadPolling(); window.fetch = window.__famRealFetch;"
                           " openMyFamTab()")
             page.wait_for_timeout(400)
