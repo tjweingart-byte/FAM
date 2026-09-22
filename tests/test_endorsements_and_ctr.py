@@ -98,6 +98,9 @@ def client(monkeypatch, tmp_path):
 
 
 def test_a_vibe_is_recorded_as_taste(client):
+    # An account's vibe: since §127 a guest's is posted and not remembered.
+    client.post("/api/auth/signup", json={"email": "vibe@fam.test",
+                                          "password": "a-long-enough-password"})
     client.post("/api/vibe", json={"query": "why chip fabs cost so much",
                                    "title": "Fabs", "minutes": 3})
     kinds = [e.kind for e in appmod.EVENTS.for_user(_listener(client))]

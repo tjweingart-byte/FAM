@@ -10192,6 +10192,38 @@ element alongside - while a media element plays, iOS moves the whole page onto
 the media channel. It is paused whenever the episode is, so the lock screen
 never claims something is playing when it is not.
 
+### What reviewing it found
+
+Two independent reads of the diff, one per half, found ten things - none
+visible to the suite, which passed throughout. All fixed, each with a test or
+a smoke check where one could see it:
+
+- **A guest's VIBE! still reached the log.** `/api/vibe` records a taste
+  event and was the one write site `_remembers` did not cover.
+- **The typing dots could stay on screen** after the state said they had
+  gone: a poll returning only already-drawn messages cleared the flag without
+  a redraw, and your own message coming back cleared *their* typing.
+- **A finished episode could be saved as part-heard**: the end handler paused
+  - which sends the position - before clearing it, as two unordered POSTs.
+- **The cancel X said "Cancelled" on Play All and started the episode anyway**
+  from a timer. Those timers now go through `afterLoading`, which a cancel
+  invalidates.
+- **A resume card started from 0:00**, and its first tick erased the position
+  it had promised to return to. It now jumps there once that audio exists and
+  writes nothing back until it has.
+- **The silent `<audio>` element ran even where `navigator.audioSession`
+  exists**, which would put an empty Now Playing entry on the lock screen.
+- **Logging out left the last account's resume cards on screen.**
+- **A near-match cache hit published its title under the neighbour's key**,
+  and `publish_title` could create a live track nothing would ever close -
+  which would hide the cached transcript behind an empty live one. Titles
+  now go under the listener's own key and never create a track.
+- **A resumed follow-up lost its context**, which is part of the cache key, so
+  its card found no title and the resume played a different episode. The
+  `progress` table keeps it now.
+- **`/api/next` computed the cache key three times** per poll - three model
+  calls each with `CACHE_SEMANTIC_KEY` on. `episode_meta` computes it once.
+
 ### Still open
 
 **None of the interface half has been on a real iPhone.** The ringer fix in

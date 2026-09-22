@@ -198,9 +198,12 @@ def publish_title(key: str, title: str, final: bool = False) -> None:
         return
     with _LOCK:
         track = _TRACKS.get(key)
+        # Never creates one. Only the speaking path opens a track, and only
+        # the speaking path closes it - a track made here would never be
+        # marked done, would never expire, and would hide the cached
+        # transcript behind an empty live one.
         if track is None:
-            track = _TRACKS[key] = _Track()
-            _evict()
+            return
         if track.title_final and not final:
             return
         track.title = str(title).strip()

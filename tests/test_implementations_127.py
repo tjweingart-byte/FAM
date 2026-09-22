@@ -261,3 +261,75 @@ def test_a_live_track_carries_starts_until_one_sentence_has_none():
     assert live_captions.read_starts("k") == [], \
         "a partial timing table would put every later caption on the wrong line"
     live_captions.reset()
+
+
+# --- found in review ---------------------------------------------------------
+
+def test_a_guest_vibe_is_posted_and_not_remembered(client):
+    """The one write site the first pass missed: /api/vibe records a taste
+    event, and a guest's must not reach the log."""
+    user = client.get("/api/auth/me").json()["user_id"]
+    r = client.post("/api/vibe", json={"query": "why bonds move", "title": "Bonds",
+                                       "minutes": 3})
+    assert r.status_code == 200, r.text
+    assert not [e for e in appmod.EVENTS.for_user(user) if e.kind == "vibe"]
+    signed_in(client, "vibe127@b.com")
+    client.post("/api/vibe", json={"query": "why bonds move", "title": "Bonds",
+                                   "minutes": 3})
+    assert [e for e in appmod.EVENTS.for_user(user) if e.kind == "vibe"]
+
+
+def test_a_title_never_creates_a_track():
+    """A track only the speaking path opens is one only it can close. One made
+    by a title would never be done, never expire, and would hide the cached
+    transcript behind an empty live one."""
+    live_captions.reset()
+    live_captions.publish_title("nobody-is-speaking", "A Title", final=True)
+    assert live_captions.read("nobody-is-speaking") is None
+    live_captions.reset()
+
+
+def test_progress_keeps_the_follow_up_context(tmp_path):
+    """Context is part of the episode's cache key, so a resumed follow-up
+    without it would be a different episode."""
+    store = saved_mod.SavedStore(str(tmp_path / "saved.db"))
+    store.note_progress("u", "why bonds move", 3, 90, context="the fed")
+    assert store.progress("u")[0]["context"] == "the fed"
+
+
+def test_a_progress_table_from_before_context_is_widened(tmp_path):
+    import sqlite3
+    path = str(tmp_path / "saved.db")
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE progress (user_id TEXT NOT NULL, query TEXT NOT NULL,"
+                 " minutes INTEGER NOT NULL, seconds REAL NOT NULL,"
+                 " title TEXT NOT NULL DEFAULT '', updated REAL NOT NULL,"
+                 " PRIMARY KEY (user_id, query, minutes))")
+    conn.execute("INSERT INTO progress VALUES ('u', 'q', 3, 90, 'T', 1)")
+    conn.commit(); conn.close()
+    store = saved_mod.SavedStore(path)
+    assert store.progress("u")[0]["context"] == ""
+    assert store.note_progress("u", "q", 3, 95, context="c")
+
+
+def test_episode_meta_computes_the_key_once(monkeypatch):
+    """With CACHE_SEMANTIC_KEY on a key is a model call, and /api/next is
+    polled every two seconds during the wait."""
+    import asyncio
+    calls = []
+
+    async def counting_key(plan, client=None):
+        calls.append(plan.query)
+        return "k"
+
+    monkeypatch.setattr(pipeline_mod, "key_for", counting_key)
+    store = cache_mod.MemoryScriptCache()
+    store.put("k", ["One."], 60, "why bonds move", thread="next", minutes=3,
+              title="Bonds", summary="What moves them.")
+    pipe = pipeline_mod.PodcastPipeline.__new__(pipeline_mod.PodcastPipeline)
+    pipe.cache = store
+    pipe.generator = None
+    meta = asyncio.run(pipe.episode_meta(sg.plan_episode("why bonds move", 3)))
+    assert meta == {"thread": "next", "title": "Bonds", "title_final": True,
+                    "summary": "What moves them."}
+    assert len(calls) == 1

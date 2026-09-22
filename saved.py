@@ -151,6 +151,15 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS progress_user"
                          " ON progress(user_id, updated)")
+            # The topic a follow-up was asked from. Part of the episode's
+            # cache key, so a resumed follow-up without it would be a
+            # different episode - and its card would find no title. Added as
+            # a column for a table created before it existed.
+            try:
+                conn.execute("ALTER TABLE progress ADD COLUMN context"
+                             " TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -346,7 +355,8 @@ class SavedStore:
     RESUME_TAIL = 30.0
 
     def note_progress(self, user_id: str, query: str, minutes: int,
-                      seconds: float, title: str = "", at: float = 0.0) -> bool:
+                      seconds: float, title: str = "", at: float = 0.0,
+                      context: str = "") -> bool:
         """Record how far through an episode this listener is.
 
         Returns True when a position is being kept and False when the episode
@@ -367,14 +377,15 @@ class SavedStore:
                 return False
             self._conn().execute(
                 "INSERT INTO progress (user_id, query, minutes, seconds, title,"
-                " updated) VALUES (?, ?, ?, ?, ?, ?)"
+                " updated, context) VALUES (?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
                 "  seconds = excluded.seconds, updated = excluded.updated,"
+                "  context = excluded.context,"
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
                 "               ELSE progress.title END",
                 (user_id, query, minutes, seconds,
                  " ".join(str(title or "").split())[:MAX_TITLE],
-                 at or time.time()))
+                 at or time.time(), str(context or "")[:300]))
             return True
         except Exception:
             log.exception("could not record progress for %r", user_id)
@@ -386,14 +397,16 @@ class SavedStore:
             return []
         try:
             rows = self._conn().execute(
-                "SELECT query, minutes, seconds, title, updated FROM progress"
+                "SELECT query, minutes, seconds, title, updated, context"
+                " FROM progress"
                 " WHERE user_id = ? ORDER BY updated DESC LIMIT ?",
                 (user_id, int(limit))).fetchall()
         except Exception:
             log.exception("could not read progress for %r", user_id)
             return []
         return [{"query": r[0], "minutes": int(r[1]), "seconds": float(r[2]),
-                 "title": r[3] or "", "at": r[4]} for r in rows]
+                 "title": r[3] or "", "at": r[4], "context": r[5] or ""}
+                for r in rows]
 
     # --- housekeeping -----------------------------------------------------
 

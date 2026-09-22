@@ -3593,9 +3593,11 @@ async def post_echo(req: EchoRequest, request: Request):
     # line the ranker never heard about it. Recorded after the row is written,
     # so a failed vibe does not teach the feed anything happened - and, like
     # every other write to this log, it can be lost without costing the action
-    # the listener actually took.
-    EVENTS.record(topics_mod.Event(
-        user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
+    # the listener actually took. An account's only, like every other write
+    # to it (§127): a guest's vibe is still posted, and still not remembered.
+    if _remembers(request):
+        EVENTS.record(topics_mod.Event(
+            user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
     return echo.as_dict()
 
 
@@ -3709,6 +3711,9 @@ class ProgressRequest(BaseModel):
     minutes: int = Field(..., ge=1, le=10)
     seconds: float = Field(..., ge=0, le=3600)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
+    #: The topic a follow-up was asked from. Part of the episode's cache key,
+    #: so without it a resumed follow-up would be a different episode.
+    context: str = Field("", max_length=300)
 
 
 @app.post("/api/progress")
@@ -3725,11 +3730,12 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     if not _remembers(request):
         return {"ok": True, "remembered": False}
     kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
-                               req.seconds, title=req.title)
+                               req.seconds, title=req.title, context=req.context)
     return {"ok": True, "remembered": True, "resumable": kept}
 
 
-async def _episode_blurb(pipeline, query: str, minutes: int) -> tuple[str, str]:
+async def _episode_blurb(pipeline, query: str, minutes: int,
+                         context: str = "") -> tuple[str, str]:
     """`(title, summary)` for an episode the cache holds, or `("", "")`.
 
     What a Go Deeper card draws, read from the same cache the player reads, so
@@ -3740,12 +3746,12 @@ async def _episode_blurb(pipeline, query: str, minutes: int) -> tuple[str, str]:
     if pipeline is None:
         return "", ""
     try:
-        plan = _validated_plan(query, minutes)
+        plan = _validated_plan(query, minutes, context)
     except HTTPException:
         return "", ""
     try:
-        title, _final = await pipeline.title_state(plan)
-        return title, await pipeline.summary_for(plan)
+        meta = await pipeline.episode_meta(plan)
+        return meta["title"], meta["summary"]
     except Exception:  # noqa: BLE001 - a card line must not fail the section
         log.exception("could not read a Go Deeper card's title")
         return "", ""
@@ -3780,7 +3786,8 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
     except TTSUnavailable:
         pipeline = None
     for row in resume:
-        title, summary = await _episode_blurb(pipeline, row["query"], row["minutes"])
+        title, summary = await _episode_blurb(pipeline, row["query"], row["minutes"],
+                                              row.get("context", ""))
         row["title"] = title or row.get("title") or ""
         row["summary"] = summary
 
@@ -4030,10 +4037,7 @@ async def next_thread(
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.
-    title, final = await pipeline.title_state(plan)
-    return {"thread": await pipeline.thread_for(plan),
-            "title": title, "title_final": final,
-            "summary": await pipeline.summary_for(plan)}
+    return await pipeline.episode_meta(plan)
 
 
 @app.get("/api/audio")

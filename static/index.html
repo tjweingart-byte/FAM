@@ -6281,11 +6281,17 @@
     if(!now && stamp === resumeSentFor && t - resumeSentAt < RESUME_EVERY_MS) return;
     resumeSentAt = t;
     resumeSentFor = stamp;
+    // The follow-up context, when this is the episode on the player: it is
+    // part of the episode's cache key, so a resume without it would be a
+    // different episode.
+    var parts = (episodeStamp || "").split("|");
+    var context = (parts[0] === query && String(parts[1]) === String(minutes))
+      ? (parts[2] || "") : "";
     fetch("/api/progress", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: query, minutes: minutes,
                              seconds: Math.max(0, Math.round(seconds || 0)),
-                             title: title || "" })
+                             title: title || "", context: context })
     }).catch(function(){ /* a lost position costs a card, never playback */ });
   }
 
@@ -6511,6 +6517,7 @@
         // with capital letters on - see `deriveTitleFromPrompt` for why.
         title: r.title || deriveTitleFromPrompt(r.query),
         summary: r.summary || "",
+        context: r.context || "",
         at: r.seconds,
         left: Math.max(0, r.minutes * 60 - r.seconds),
         progress: Math.min(1, r.seconds / (r.minutes * 60))
@@ -6600,6 +6607,8 @@
       // A similar tile is a real feed tile, so it carries its id and is
       // counted as one in the event log.
       bankTopicId: c.topicId || "",
+      // A resumed follow-up goes back to the same episode, context included.
+      parentTopic: c.context || "",
       // A resume card goes back to the episode that was half heard, at the
       // length it was written at; everything else honours the browse length.
       exploreMinutes: c.minutes || myfamLengthMinutes,

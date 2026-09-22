@@ -485,6 +485,10 @@ window.FamAudio = (function () {
 
   function holdMediaChannel() {
     preferPlaybackSession();
+    // Where the session type exists it is the whole answer, and the silent
+    // element would only add a lock-screen "Now Playing" entry with nothing
+    // behind it - one whose pause button pauses the silence, not the episode.
+    if (navigator.audioSession) return;
     try {
       if (!mediaEl) {
         mediaEl = document.createElement("audio");

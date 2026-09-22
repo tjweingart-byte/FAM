@@ -853,6 +853,28 @@ class PodcastPipeline:
                 return stored, True
         return live_captions.read_title(key)
 
+    async def episode_meta(self, plan: EpisodePlan) -> dict:
+        """Thread, title (and whether it is final) and summary, from one key.
+
+        One `_cache_key` rather than one per field: with `CACHE_SEMANTIC_KEY`
+        on, computing the key is a model call, and `/api/next` is polled
+        every couple of seconds while an episode is being written.
+        """
+        empty = {"thread": "", "title": "", "title_final": False, "summary": ""}
+        if not is_shareable(plan.query):
+            return empty
+        key = await self._cache_key(plan) if self.cache else ""
+        out = dict(empty)
+        if self.cache:
+            out["thread"] = self.cache.thread(key) or ""
+            stored = getattr(self.cache, "title", lambda _k: "")(key)
+            if stored:
+                out["title"], out["title_final"] = stored, True
+            out["summary"] = getattr(self.cache, "summary", lambda _k: "")(key) or ""
+        if not out["title"]:
+            out["title"], out["title_final"] = live_captions.read_title(key)
+        return out
+
     async def summary_for(self, plan: EpisodePlan) -> str:
         """The episode's one-sentence summary from the cache, or ""."""
         if not self.cache or not is_shareable(plan.query):
@@ -1015,8 +1037,11 @@ class PodcastPipeline:
                 stats.thread = self.cache.thread(key)
                 # A replay knows its name before its first word, so the player
                 # can show it from the first frame (§127).
+                # Under the *listener's* key, which is the one their player
+                # asks with - on a near hit `key` is the neighbour's.
                 live_captions.publish_title(
-                    key, getattr(self.cache, "title", lambda _k: "")(key),
+                    stats.caption_key,
+                    getattr(self.cache, "title", lambda _k: "")(key),
                     final=True)
                 # If prefetch put this here, the guess came true. Counted at
                 # the moment of the hit and with the key that actually hit,
@@ -1114,7 +1139,7 @@ class PodcastPipeline:
         # The writer's own name replaces the brief's provisional one, on the
         # live track as well as in the cache - an episode that is not cached
         # (a live game, ttl 0) would otherwise keep the guess for good.
-        live_captions.publish_title(key, notes.title, final=True)
+        live_captions.publish_title(stats.caption_key, notes.title, final=True)
 
         if self.cache and self.cache_writes and shareable and stats.script:
             # How long this stays true, from what the episode was actually
