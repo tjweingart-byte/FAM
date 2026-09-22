@@ -743,9 +743,17 @@ def category_tree() -> "categories.CategoryStore":
 
 
 def reset_category_tree() -> None:
-    """Drop the cached tree. For tests, and after a sweep in another process."""
+    """Drop the cached tree. For tests, and after a sweep in another process.
+
+    Takes the tile-tag memo with it. That memo keys itself on the tree's
+    `_loaded_at`, so in the ordinary case it would notice on its own - but
+    "on its own" there means *two floats from the clock differ*, and a
+    sentinel the clock could reproduce is exactly what §113 was. The memo is
+    derived from the tree; dropping one drops the other, by construction.
+    """
     global _CATEGORIES
     _CATEGORIES = None
+    reset_topic_tags()
 
 
 def tags_for_text(text: str) -> tuple[str, ...]:
@@ -828,16 +836,48 @@ def familiar_words(events: Iterable[Event]) -> frozenset[str]:
     return frozenset(out)
 
 
+def _is_specific(tag: str) -> bool:
+    """Whether this tag says something narrower than one of the eight headings.
+
+    Two vocabularies can say it and they are both counted here: a hand-written
+    subtag (`TAG_PARENT` holds exactly the tags nobody could have been
+    *offered* and everybody's behaviour still reveals) and a grown category
+    node, which is the same claim at any depth. `categories.mint` refuses to
+    mint a facet or a subtag slug, so the two sets cannot overlap and a facet
+    can never arrive here as a category.
+
+    Split out so `tag_weight` and `_is_broad_match` cannot drift about what
+    "specific" means. They are the two places that ask, they answer different
+    questions with it - how much is this worth, and is this tile broad - and
+    the first already counted a category and the second did not.
+    """
+    if tag in TAG_LABELS:
+        return False
+    return tag in TAG_PARENT or category_tree().get(tag) is not None
+
+
 def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     """True when nothing specific about this tile matches this listener.
 
-    "Specific" means a subtag: the whole point of `TAG_PARENT` is that it
-    holds the tags nobody could have been *offered* and everybody's behaviour
-    still reveals. A tile whose only positive tags are facets is matching the
-    heading and not the thing.
+    **It reads `topic_tags` and counts a grown category as specific**, and
+    that is the half of the vocabulary join that `_affinity` alone did not
+    finish. This penalty is documented as answering "the case the vocabulary
+    **cannot express**: there is no tag for the NFL and none for college
+    football, both are `sports`" - and since §126 the vocabulary *can* express
+    it. Left reading the declared tuple, this function damped a live story
+    about college football by `BROAD_MATCH_PENALTY` for a listener whose
+    profile literally contains `college football`, because the story's only
+    hand-written tag is `sports`. The one thing that rescued such a tile was
+    `_subject_is_familiar`, which reads raw search words precisely because the
+    tags could not say it - so the workaround was carrying a case the
+    vocabulary now covers properly.
+
+    A tile the tree says nothing about is unchanged: `topic_tags` returns the
+    declared tuple, and the only tags that can be specific in it are subtags,
+    which is exactly what this asked before.
     """
-    return not any(profile.get(tag, 0.0) > 0 for tag in topic.tags
-                   if tag in TAG_PARENT)
+    return not any(profile.get(tag, 0.0) > 0 for tag in topic_tags(topic)
+                   if _is_specific(tag))
 
 
 def _is_local(topic: Topic, local: frozenset[str]) -> bool:
@@ -1058,9 +1098,96 @@ def local_startup_topic(place: str) -> Optional[Topic]:
 #: well have wanted it. Every weight stays well clear of RELEVANCE_FLOOR.
 STARTUP_PRIOR_STEP = 0.08
 
+
+def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
+    """What a browse rail is allowed to *offer* this listener, as one list.
+
+    Three inventories exist and they are not interchangeable:
+
+    * the **live story pool** - today, composed once for everybody, and empty
+      until a deployment sets `GDELT=1`;
+    * the **startup set** - eight time-anchored questions, one per facet,
+      researched on the tap by `SEARCH_MODE=always` and therefore current
+      whenever it is played;
+    * the **evergreen bank** - twenty-eight standing explainers, as true in
+      March as today, which is what makes them cheap to share and what makes
+      them generic.
+
+    **The live pool is offered to everybody. Which generic floor sits behind
+    it depends on whether there is an account**, at the owner's direction:
+
+        no account   live + the evergreen bank
+        account      live + the startup set
+
+    It is a **swap and not a subtraction**, and that is the part worth
+    holding on to. Taking the bank away on its own would have left an account
+    holder on a deployment with no live provider - which is every deployment
+    today - looking at a page with nothing on it, and `WORLD_FLOOR` reserves
+    its four tiles on the stated premise that the personal rail has somewhere
+    else to go. So the floor is replaced rather than removed, and it is
+    replaced with the fresher of the two.
+
+    The reasoning for each side:
+
+    * The bank is a **first impression for somebody FAM knows nothing about
+      and can keep nothing for** - downloaded the app, has not signed up.
+      Twenty-eight hand-written subjects are the right answer to "show me
+      what this is" and the wrong answer to "what should I hear today", and
+      an account is the point where the second question becomes the one
+      being asked.
+    * The startup set is the same size of promise made about **now**. Every
+      query in it asks what changed recently, so an account holder's generic
+      tile is researched fresh on the tap rather than replayed from a script
+      about nothing in particular. That is the freshness half of the same
+      instruction, answered with a mechanism that already exists rather than
+      by rewriting twenty-eight topics into something they were deliberately
+      not.
+
+    **This does not make the startup set warm inventory for a guest.**
+    `startup.py` is explicit that the set exists for a listener who has said
+    and done nothing, and `rank_startup` still leads with it on exactly that
+    listener. A guest who has played something keeps the bank, which is the
+    behaviour that shipped; what changed is only what replaces the bank once
+    there is an account. Confining it that way is what keeps "the set is for
+    somebody who said nothing, and only them" true where it was written.
+
+    Ordering here is candidate order and never display order - every caller
+    ranks what comes back. Live first, so a tie inside a ranker breaks
+    towards the fresher inventory.
+
+    One function because §119: a rule with four call sites and one of them
+    reading something else is a rule that is not built. `rank_bank` (the
+    DailyFAM mix picker) and `rank_might_like` (Explore New) deliberately do
+    **not** read it - see their docstrings for why a menu somebody opened is
+    not the app offering them something.
+
+    **And the two crowd rows do not read it either, which is the sharper
+    version of the same boundary: this gates what FAM *offers*, never what it
+    *reports*.** `rank_most_played` and `rank_friends` are measurements over
+    the play log - what everybody played, what your friends played - and if
+    listeners really did play a bank topic then saying so is simply true. An
+    account holder can therefore see a bank tile in "What FAM can't stop
+    listening to", and should: hiding the most-played episode in the app
+    because of who is looking would be §125's own over-claim in reverse, a row
+    whose heading is a claim about this deployment quietly filtered per
+    listener. The rails that *choose for you* - Made for you, What you missed,
+    and the post-episode popup's own passes - are the ones where offering a
+    standing explainer to somebody with an account is the thing this rule is
+    about.
+    """
+    return list(live) + list(STARTUP_TOPICS if has_account else TOPIC_BANK)
+
+
 #: Sections are FILLED in this order and DISPLAYED in SECTIONS order. The most
-#: constrained sections choose first; trending can fall back to the whole bank
-#: and therefore chooses last.
+#: constrained sections choose first.
+#:
+#: `most_played` is last, and since §125 for a different reason than it used
+#: to be. It was last because it could fall back to the whole bank and so
+#: could not be starved; it no longer falls back to anything - it holds what
+#: listeners actually played and is empty otherwise - so it is last because
+#: it is the rail that loses least by choosing late. A tile it wanted and a
+#: personal rail took is still a tile somebody is being offered, which is not
+#: true of a rail whose heading claims relevance.
 #:
 #: `missed` is first because it is still the narrowest inventory on the page:
 #: what this listener was shown in the last week and did not take, plus what
@@ -1092,9 +1219,11 @@ FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played"
 #: choose their topics first.)
 SECTIONS = (
     # Live stories the listener's own history argues for, mixed with the
-    # evergreen bank. The one rail that is allowed both inventories, because
+    # generic floor. The one rail that is allowed both inventories, because
     # it is the one whose question is "what would *you* want", and the answer
     # to that is sometimes today's news and sometimes a standing explainer.
+    # Which floor depends on whether there is an account - see
+    # `browse_inventory`, which is where that decision lives.
     ("from_history", "Made for you"),
     # What the *world* is paying attention to. A different question from what
     # this app's listeners are playing, and from a different place: the live
@@ -2025,6 +2154,9 @@ def tag_weight(tag: str) -> float:
         return SUBTAG_WEIGHT
     if tag in TAG_LABELS:
         return 1.0
+    # Past here the tag is a category or nothing at all, which is exactly the
+    # case `_is_specific` answers True for - the two stay in step because the
+    # order of these checks is the same in both.
     depth = category_tree().depth_of(tag)
     if depth <= 0 and category_tree().get(tag) is None:
         # Not in any vocabulary. A tag written into the log months ago by a
@@ -2033,6 +2165,95 @@ def tag_weight(tag: str) -> float:
         # and the weight is the only thing that is uncertain.
         return 1.0
     return CATEGORY_DEPTH_WEIGHT ** max(1, depth)
+
+
+#: What the tree recognises in a tile's question, keyed on that question.
+#:
+#: Bounded by the number of distinct tile queries a process sees - the bank
+#: and the startup set are fixed, and the live pool is capped - and dropped
+#: wholesale whenever the tree is rebuilt, so a node minted by the sweep is
+#: visible on the next page rather than at the next restart.
+#:
+#: It exists because of §122 rather than out of caution: a word-set
+#: intersection is cheap and `_affinity` is called per tile per rail per
+#: page, and the last thing this file did on that path without measuring it
+#: cost 134ms. `MAX_TAG_MEMO` is the blast radius if a caller ever starts
+#: handing this unique strings.
+_TAG_MEMO: dict[str, tuple[str, ...]] = {}
+_TAG_MEMO_GEN = -1.0
+MAX_TAG_MEMO = 2000
+
+
+def topic_tags(topic: Topic) -> tuple[str, ...]:
+    """The tile's declared tags, plus whatever the grown vocabulary recognises
+    in its question.
+
+    **This is the join that was missing, and without it the tree could not
+    reach a browse page at all.** `categories.py` reads what listeners search
+    for and builds a vocabulary deep enough to tell college football from the
+    NFL; `taste` puts those words into a listener's profile. But a tile's
+    `tags` are a hand-written tuple compiled into `TOPIC_BANK`, so the scorer
+    was comparing a profile that could say `college football` against tiles
+    that could only say `sports` - and a listener whose whole history was
+    college football scored the bank's college-football tile *below* its golf
+    tile, because neither could say anything the other could not.
+
+    So a tile is scored as though somebody had hand-written onto it every tag
+    the tree finds in its own question. That is deliberately the *same*
+    treatment a subtag already gets rather than a new mechanism beside it:
+    `sports-business` is in the NIL tile's tuple and in its denominator, and
+    a category node behaves identically. A tile the tree says nothing about
+    is returned exactly as it was, so a deployment with an empty tree ranks
+    precisely as it did before any of this existed.
+
+    It reads the *query* and never the title or the hook. The query is the
+    thing that gets generated and is the only field that is reliably a
+    statement of subject - a title is a label, and `<<TITLE:>>` means it may
+    not even be the one the episode ends up with.
+    """
+    global _TAG_MEMO, _TAG_MEMO_GEN
+    if not topic.query:
+        return topic.tags
+    tree = category_tree()
+    # Read the generation once. The sweep rebuilds the tree on another
+    # thread, and taking it again below would risk filing an answer computed
+    # against one tree under the key of another.
+    gen = getattr(tree, "_loaded_at", 0.0)
+    if gen != _TAG_MEMO_GEN:
+        _TAG_MEMO = {}
+        _TAG_MEMO_GEN = gen
+    # **What is memoised is the tree's half only, and that is not an
+    # optimisation detail.** `tree.match(query)` is a pure function of the
+    # query and the tree; the combined answer is not - it also depends on
+    # this tile's declared tuple. Caching the combined answer under the query
+    # alone would mean two tiles that happen to share a question get each
+    # other's declared tags, which is silent, wrong, and exactly the kind of
+    # thing that would survive a long time. Nothing in the bank shares a
+    # query (a test says so), but a live story and a bank topic are minted by
+    # different code and nothing makes that true across inventories.
+    found = _TAG_MEMO.get(topic.query)
+    if found is None:
+        try:
+            found = tree.match(topic.query)
+        except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+            log.exception("could not read the category tree for %r", topic.id)
+            return topic.tags
+        if len(_TAG_MEMO) < MAX_TAG_MEMO:
+            _TAG_MEMO[topic.query] = found
+    extra = set(found) - set(topic.tags)
+    # Returned unchanged when the tree has nothing to add, rather than sorted
+    # into the same set. The guarantee worth being able to state is the
+    # strong one - a deployment with no tree gets back the identical tuple -
+    # and a caller that ever cares about declaration order is then not
+    # quietly broken by a vocabulary it has nothing to do with.
+    return tuple(sorted(set(topic.tags) | extra)) if extra else topic.tags
+
+
+def reset_topic_tags() -> None:
+    """Drop the memo. For tests, and after a tree is cleared under us."""
+    global _TAG_MEMO, _TAG_MEMO_GEN
+    _TAG_MEMO = {}
+    _TAG_MEMO_GEN = -1.0
 
 
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
@@ -2048,11 +2269,18 @@ def _affinity(topic: Topic, profile: dict[str, float]) -> float:
     Dividing by the weights would cancel the boost exactly - a tile made
     entirely of subtags would score the same as one made entirely of facets -
     which is the opposite of the point.
+
+    **The tags are `topic_tags(topic)` and not `topic.tags`** - the declared
+    tuple plus whatever the grown vocabulary recognises in the question. See
+    that function for why the two were not the same thing and what it cost.
+    Nothing else here changes: a tag the tree contributed is weighted,
+    counted and divided by exactly as if it had been typed into the tile.
     """
-    if not topic.tags:
+    tags = topic_tags(topic)
+    if not tags:
         return 0.0
-    total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in topic.tags)
-    return total / math.sqrt(len(topic.tags))
+    total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in tags)
+    return total / math.sqrt(len(tags))
 
 
 def _played_ids(events: Iterable[Event]) -> set[str]:
@@ -2104,6 +2332,25 @@ def rank_most_played(
     filter: a deployment whose cache has just expired would show an empty row,
     which is a fact about the cache being told as a fact about what people are
     playing.
+
+    **It fills from plays and from nothing else, and an unplayed row is
+    empty.** It used to top itself up from the evergreen bank on the argument
+    that "a stable slice beats an empty section, and beats a random one" -
+    true about the *content*, and beside the point, because the heading is a
+    claim. "What FAM can't stop listening to" over twenty-eight tiles nobody
+    has ever played says something about this deployment that is not so, and
+    a row that over-claims is worse than a row that is short: §89's rule
+    about empty rows is that the app may report a fact about itself and never
+    invent one about the world, and what its own listeners are playing is the
+    most checkable fact on the page. Reversed at the owner's direction, which
+    is what CLAUDE.md §124 said it would take - it recorded the filler as a
+    documented decision precisely so undoing it had to be one too.
+
+    The cost, stated rather than discovered: a fresh deployment shows this
+    row empty until somebody plays something, and `tools/seed_demo.py` is
+    what fills it for a demo. That is the same bargain Explore already makes
+    and for the same reason - it replays what listeners did, so on a database
+    where nobody has listened there is honestly nothing to replay.
     """
     now = time.time() if now is None else now
     exclude = exclude or set()
@@ -2121,11 +2368,7 @@ def rank_most_played(
     ready = _ready_set(candidates, written)
     ranked = sorted(
         candidates, key=lambda t: (t.id not in ready, -counts[t.id], t.id))
-    # A cold bank has no plays yet. A stable slice beats an empty section, and
-    # beats a random one - random means the tile a listener saw this morning is
-    # gone this afternoon, and it defeats the shared script cache.
-    filler = [t for t in TOPIC_BANK if t.id not in counts and t.id not in exclude]
-    return (ranked + filler)[:limit]
+    return ranked[:limit]
 
 
 def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
@@ -2392,6 +2635,17 @@ def rank_bank(profile: dict[str, float]) -> list[Topic]:
     listener with no history has expressed no preference, and inventing one
     from `topic.id` is what the picker was doing when its heading already
     said "Suggested topics".
+
+    **This keeps the whole bank whatever `browse_inventory` says**, and the
+    exemption is the point rather than an oversight. That rule is about what
+    FAM *offers* somebody unprompted - a tile on a shelf, under a heading
+    making a claim. This is a menu somebody opened in order to choose
+    subjects, and a mix holds topic ids rather than audio, so a bank member
+    in a mix is a fresh episode every morning and never a standing one
+    replayed. Applying the rule here would also empty the picker for exactly
+    the listeners who can use it, since a saved mix needs an account - which
+    is §123's failure, one screen over: a fact about the account gate
+    reported as a broken topic list.
     """
     if not profile:
         return list(TOPIC_BANK)
@@ -2575,6 +2829,14 @@ def rank_might_like(profile: dict[str, float], exclude: set[str],
     listener whose entire history is one tag has an empty profile the moment
     it is muted, and they are exactly who this section exists for; the earlier
     version returned nothing for them, which the tests caught.
+
+    **It keeps the bank whatever `browse_inventory` says**, on the same
+    distinction `rank_bank` draws. Explore New is off the page (`UNSHELVED`)
+    and is reached only by a listener who went looking for something outside
+    their taste; widening a taste is what it is for, and doing that over the
+    eight startup questions - one per facet, and the facets are what this
+    ranker mutes - would leave it with almost nothing to widen *into*. A
+    surface somebody opened on purpose is not the app offering them filler.
     """
     damp = damp or {}
     if not profile:
@@ -2674,7 +2936,7 @@ def rank_followers(
 def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
                written=None, place: Iterable[str] = (),
-               place_name: str = "") -> dict:
+               place_name: str = "", has_account: bool = False) -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
@@ -2712,6 +2974,22 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     from the other: a set of match words has lost the order and the
     capitalisation a question needs, and a label is the wrong thing to match a
     headline against.
+
+    `has_account` is whether credentials are attached to this listener, and it
+    decides one thing only: whether the evergreen bank is offered. See
+    `browse_inventory` for the rule and the reasoning. It arrives as a bare
+    bool from the request boundary for the same reason `circle` and `place`
+    do - this module stays a pure query over the event log and knows nothing
+    about `accounts`.
+
+    **It defaults to False, which is the generous answer**, and that is
+    deliberate: a caller that has not been taught about accounts - a test,
+    `write.py`, the fixture preview - is a caller that does not know, and the
+    honest reading of "we do not know" here is the cold-start one. The
+    failure it avoids is the one worth avoiding: defaulting to True would
+    silently take the bank away from every surface whose caller was never
+    updated, and an emptier page is exactly the failure that looks like a
+    design decision rather than a bug.
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
@@ -2742,6 +3020,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # plus that cache - which is what keeps it callable in a test with no
     # network, and what makes the page instant. See `stories.py`.
     live = live_topics(now)
+    # What every rail below is allowed to *offer*, decided once for the page.
+    # One list rather than four `live + list(TOPIC_BANK)` expressions, because
+    # a rule spelled out at each call site is a rule one of them will spell
+    # differently - which is §119 exactly. See `browse_inventory`.
+    inventory = browse_inventory(live, has_account)
     # Everything the pool holds, cap included. "What you missed" has to be able
     # to resolve a tile that was offered a few days ago and has since been
     # pushed under the variety cap - to that listener it was on the page, and
@@ -2794,14 +3077,19 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
 
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
-    # generic ones can fall back to the whole bank, so they claim the very
-    # topics the personal ones needed and those arrive empty - which is
-    # exactly backwards, since the personal sections are the point.
+    # generic ones draw on the whole inventory, so they claim the very topics
+    # the personal ones needed and those arrive empty - which is exactly
+    # backwards, since the personal sections are the point. (`most_played`
+    # stopped being one of those since §125 - it now holds only what has been
+    # played - but `might_like` still is, and the ordering is the same rule.)
+    # What an UNSHELVED rail claimed, kept apart from `used`. See the note on
+    # `most_played` below for why the difference matters.
+    unshelved_held: set[str] = set()
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; the crowd rows stay globally *ranked*,
         # they just stop offering back the one they finished this morning.
-        seen = used | mine | reserved
+        seen = used | mine | reserved | unshelved_held
         if key == "missed":
             # The bank plus whatever the pool still holds - `held` rather than
             # `live`, so a story the variety cap is hiding is still resolvable.
@@ -2814,7 +3102,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # one route into this rail that `include_trending=False` does not
             # close. Trending has already been promised that tile.
             picks = rank_missed(profile, shown, mine, seen,
-                                candidates=live_held + list(TOPIC_BANK),
+                                candidates=browse_inventory(live_held,
+                                                            has_account),
                                 limit=MISSED_SECTION_SIZE, now=now,
                                 popular=played_elsewhere, familiar=familiar,
                                 include_trending=False)
@@ -2836,13 +3125,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 # nothing about, and `startup.py` leads this rail with a
                 # question about their own town when they have given one.
                 picks = rank_startup(prior, seen, limit=wide,
-                                     candidates=live + list(TOPIC_BANK),
+                                     candidates=inventory,
                                      damp=damp, familiar=familiar, local=place,
                                      local_topic=local_startup_topic(place_name),
                                      engage=engage)
             else:
                 picks = rank_from_history(profile, seen, damp, limit=wide,
-                                          candidates=live + list(TOPIC_BANK),
+                                          candidates=inventory,
                                           familiar=familiar, local=place,
                                           engage=engage)
         elif key == "followers":
@@ -2853,11 +3142,30 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         else:
             # Not damped, deliberately: this row is the same list for
             # everyone, which is what makes it the cheapest section to serve.
-            picks = rank_most_played(store, now, seen, limit=wide, written=written)
+            #
+            # **And it ignores what the unshelved rail reserved**, which is
+            # the one exception to the mutual exclusion above. `might_like`
+            # is not drawn on this page; it claims its picks early so the
+            # *drawn* rails do not show what Explore New would show, and that
+            # is a sensible rule for a rail that chooses. This row does not
+            # choose - it reports what listeners actually played - so a tile
+            # held back by a ranking nobody is looking at is a genuinely
+            # most-played episode missing from a row whose whole job since
+            # §125 is to say what was played. It still avoids `mine` and the
+            # drawn rails, so no tile appears twice on the page.
+            #
+            # Latent until §125: this row used to top itself up from the
+            # bank, so being starved here was invisible. Removing the filler
+            # is what made an old coupling show.
+            picks = rank_most_played(store, now, used | mine | reserved,
+                                     limit=wide, written=written)
         picks = diversify(picks, MISSED_SECTION_SIZE if key == "missed"
                           else SECTION_SIZE)
         picked[key] = picks
-        used |= {t.id for t in picks}
+        if key in UNSHELVED:
+            unshelved_held |= {t.id for t in picks}
+        else:
+            used |= {t.id for t in picks}
 
     # The world row. Filled last and from what is left, which is a change
     # worth explaining: it used to take no part in the mutual exclusion above,
@@ -2960,7 +3268,7 @@ def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
                   written=None, place: Iterable[str] = (),
-                  place_name: str = "") -> dict:
+                  place_name: str = "", has_account: bool = False) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -2978,6 +3286,11 @@ def build_section(store: EventStore, user_id: str, key: str,
     is exactly why the one rule above is worth enforcing by construction
     rather than by care. `place` and `place_name` are here from the start for
     the same reason.
+
+    `has_account` is on that list too, and it is the one with teeth: this
+    screen and the rail it opens must draw from the same inventory, or "View
+    more" would hand a listener the twenty-eight standing explainers the rail
+    had just decided they should not be shown. See `browse_inventory`.
     """
     if key not in dict(SECTIONS):
         raise KeyError(key)
@@ -3003,6 +3316,8 @@ def build_section(store: EventStore, user_id: str, key: str,
     engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
     live = live_topics(now)
+    # The rail's inventory, on the rail's rule. See the docstring.
+    inventory = browse_inventory(live, has_account)
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -3017,13 +3332,13 @@ def build_section(store: EventStore, user_id: str, key: str,
         if cold:
             prior, _order = startup_profile(store, now)
             picks = rank_startup(prior, mine, limit=limit,
-                                 candidates=live + list(TOPIC_BANK), damp=damp,
+                                 candidates=inventory, damp=damp,
                                  familiar=familiar, local=place,
                                  local_topic=local_startup_topic(place_name),
                                  engage=engage)
         else:
             picks = rank_from_history(profile, mine, damp, limit=limit,
-                                      candidates=live + list(TOPIC_BANK),
+                                      candidates=inventory,
                                       familiar=familiar, local=place,
                                       engage=engage)
     elif key == "might_like":
@@ -3140,6 +3455,13 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
     spare: list = []
     counts: dict[str, int] = {}
     for topic in topics:
+        # **`topic.tags` and deliberately not `topic_tags`.** This caps how
+        # many tiles of one *heading* a rail shows, and `facet_of` returns an
+        # unknown tag unchanged - so a grown category would come through as a
+        # facet of its own, every tile would land in a bucket nobody else is
+        # in, and the cap would silently stop binding. The join belongs where
+        # a tile is scored against a listener; this is a rule about the shape
+        # of the row and the eight headings are the right vocabulary for it.
         facets = {facet_of(tag) for tag in topic.tags} or {"other"}
         if any(counts.get(f, 0) >= max_per_facet for f in facets):
             spare.append(topic)
@@ -3397,7 +3719,13 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
 
 def _empty_reason(key: str) -> str:
     return {
-        "most_played": "Nothing has been played yet today.",
+        # Reachable now that this row has no filler behind it, and worded for
+        # the only state it means: nobody has played anything in FAM's
+        # trending window. Not "today" - the window is three days - and not
+        # "nothing is popular", which would be a claim about listeners this
+        # deployment has not got.
+        "most_played": "Nothing has been played here yet. This fills up as "
+                       "people listen.",
         # Deliberately not "nothing is trending". An empty row here is a fact
         # about this deployment, never a claim about the world - the browse
         # surface's version of PROBLEMS.md §89. The live text comes from
@@ -3466,6 +3794,7 @@ def rank_next_up(
     after_text: str = "",
     interests: Iterable[str] = (),
     size: int = NEXT_UP_SIZE,
+    has_account: bool = False,
 ) -> list[Topic]:
     """The four episodes to offer when one finishes.
 
@@ -3486,6 +3815,13 @@ def rank_next_up(
     episode about today's news was offered four standing explainers, because
     the one place today's stories live was not in its candidate list. Same
     call to `live_topics`, same `FRESHNESS_BOOST`, same single score over both.
+
+    **"Both inventories" now means whichever two this listener is allowed**,
+    on `browse_inventory`'s rule - which this reads rather than restating,
+    including on the last-resort pass below. A popup is a browse surface with
+    a smaller grid, and a rule the shelves keep and the popup does not is a
+    back door into exactly the surface a listener looks at hardest: the one
+    that starts playing by itself in fifteen seconds.
     """
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
@@ -3509,22 +3845,29 @@ def rank_next_up(
                 picks.append(topic)
                 taken.add(topic.id)
 
-    add(rank_from_history(profile, taken, damp,
-                          candidates=live_topics(now) + list(TOPIC_BANK)))
+    inventory = browse_inventory(live_topics(now), has_account)
+    add(rank_from_history(profile, taken, damp, candidates=inventory))
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:
         add(rank_most_played(store, now, taken))
-    # A listener who has played most of the bank would otherwise get a short
-    # grid. Four tiles is the layout, so the last resort drops the "not already
-    # played" rule rather than the shape - re-hearing something is a far
-    # smaller disappointment than two empty squares. `taken` is rebuilt from
-    # what is actually on the grid, because it still carries the played-ids
-    # exclusion at this point and reusing it would filter out the very topics
-    # this fallback exists to reach.
+    # A listener who has played most of the inventory would otherwise get a
+    # short grid. Four tiles is the layout, so the last resort drops the "not
+    # already played" rule rather than the shape - re-hearing something is a
+    # far smaller disappointment than two empty squares. `taken` is rebuilt
+    # from what is actually on the grid, because it still carries the
+    # played-ids exclusion at this point and reusing it would filter out the
+    # very topics this fallback exists to reach.
+    #
+    # **It drops the played rule and not the inventory rule.** Reaching for
+    # the bank here would fill an account holder's grid with the standing
+    # explainers every other surface has stopped offering them, and it would
+    # do it on the one surface that plays its first tile without being asked.
+    # A grid of three is the honest shortfall; a fourth tile from an
+    # inventory this listener is not shown is not.
     if len(picks) < size:
         taken = {t.id for t in picks} | ({after_id} if after_id else set())
-        add(list(TOPIC_BANK))
+        add(inventory)
     return picks[:size]
 
 

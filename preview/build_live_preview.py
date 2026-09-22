@@ -471,7 +471,12 @@ LIVE_SHIM = r"""
     // `topics.UNSHELVED` and has no rail of its own, so nothing below draws
     // it. Deleting the fill would change what the *other* rails contain.
     out.might_like = take(exploreNewBody(myPrefs().interests).topics, 6);
-    out.most_played = take(byCount.concat(BANK), 6);
+    // `topics.rank_most_played`: plays and nothing else. It used to be
+    // `byCount.concat(BANK)`, which is what made this row never empty and the
+    // heading a claim the data could not back. On a live-preview database
+    // with no listening in it this row is now honestly empty, which is the
+    // whole point of the change and is what the app does.
+    out.most_played = take(byCount, 6);
     // The world row. Empty in the browser by construction: its inventory is
     // the live story pool, which a server sweeps and composes in the
     // background, and a published page has no server. The honest empty state
@@ -523,7 +528,8 @@ LIVE_SHIM = r"""
     ["from_history", "Made for you", "Your first episode starts this one off."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
     ["missed", "What you missed last week", "Nothing went past you this week."],
-    ["most_played", "What FAM can't stop listening to", "Nothing has been played yet."],
+    ["most_played", "What FAM can't stop listening to",
+     "Nothing has been played here yet. This fills up as people listen."],
     ["followers", "What your friends are listening to",
      "Follow some people and this fills up with what they play."]
   ];

@@ -468,6 +468,44 @@ the rest of this list it needs taste rather than a key.
    spends nothing. **Nothing here has been run against a real event log** -
    the seeds above are synthetic, and what the tree looks like on real
    searches is the first thing to look at.
+   **And it no longer starts from nothing** *(§126, `category_seed.py`).*
+   Everything about growing a vocabulary out of real searches was right
+   except its first day: `MIN_LISTENERS` is three, so a deployment with no
+   traffic has **no vocabulary at all** and ranks on the eight facets this
+   module exists because of. 180 hand-written nodes, two levels under each
+   facet, applied at boot and after a wipe. It buys two things - resolution
+   in a listener's *profile* from their first search rather than their
+   third, and the intermediate levels containment can never invent, so a
+   phrase a placer sees lands under "american football" instead of under
+   "sports". **A floor, never a ceiling**: the sweep is untouched, `mint`
+   still adds what nobody declared, a re-seed never reparents what a model
+   has since moved and never refreshes `last_seen` on a node it did not add
+   (which would make the whole tree immortal), and a seeded node claims zero
+   listeners because `MIN_LISTENERS` is the spam control and inflating it
+   would be lying about the one number that decides what gets in. `prune`
+   exempts it: `NODE_TTL` asks whether an *observation* went quiet, and on
+   the deployment a seed exists for every leaf of it looks stale by
+   construction.
+   **And the join that was missing** - `topics.topic_tags`. The tree could
+   already see "college football" in a tile's question and `_affinity` read
+   the tile's hand-written tuple, so a listener whose whole history was
+   college football scored the bank's college-football tile *below* its golf
+   tile. A tile is now scored as though somebody had typed onto it every tag
+   the tree finds in its query - the same treatment a subtag already gets,
+   numerator and denominator both - which is what makes a vocabulary visible
+   on a browse page at all. A tile the tree says nothing about comes back as
+   the identical tuple, so an empty tree ranks exactly as it did before any
+   of this existed. Memoised on the tree's generation, because §122.
+   **And `_is_broad_match` is the same join a second time**, which is the
+   half that is easy to miss: `BROAD_MATCH_PENALTY` decided "specific" by
+   looking for a subtag in the declared tuple, so a live story about college
+   football was still cut to 0.3 for a listener whose profile says `college
+   football` - by the mechanism that exists *because* the vocabulary could
+   not say it, at the moment it could. `_is_specific` is now read by both
+   that and `tag_weight`, and a test says they agree. **`diversify`
+   deliberately keeps the declared tags**: it caps tiles per *heading*, and
+   `facet_of` returns an unknown tag unchanged, so a category would arrive
+   as a facet of its own and the variety cap would stop binding.
    **And §122 is what happened when the work was checked rather than
    re-read.** Four defects, three of them §121's own, none visible to any
    test in the suite, all four found by running the thing at a realistic
@@ -493,13 +531,14 @@ the rest of this list it needs taste rather than a key.
    ranked. **The switch is on having a profile, not on being signed in** -
    §116's decision, not an oversight: a brand-new account has nothing to
    personalise on, so it gets the prior too, and one play retires it.
-   The one row that over-claims on a blank slate is
-   **"What FAM can't stop listening to"**, which fills from the bank when
-   nothing has been played ("a stable slice beats an empty section, and beats
-   a random one"). The content is fine and the heading is a claim a fresh
-   deployment cannot back. Left as it is deliberately - it is one line in
-   `rank_most_played` and reversing a documented decision belongs in a change
-   about that decision.
+   The one row that over-claimed on a blank slate was
+   **"What FAM can't stop listening to"**, which filled from the bank when
+   nothing had been played ("a stable slice beats an empty section, and beats
+   a random one"). §124 left it alone and said reversing a documented
+   decision belonged in a change about that decision; **§125 is that change,
+   at the owner's direction.** The row holds plays and nothing else now, an
+   unplayed row is empty and says so, and `tools/seed_demo.py` is what fills
+   it for a demo - the same bargain Explore already makes.
 
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
@@ -1188,6 +1227,67 @@ the rest of this list it needs taste rather than a key.
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+- **The evergreen bank is for a listener with no account, and the crowd row
+  claims only what it can back.** *(§125, `topics.browse_inventory`,
+  `MYFAM.md`.)* Two rules from one instruction, both reversing something this
+  file had recorded as deliberate.
+  **"What FAM can't stop listening to" fills from plays and from nothing
+  else.** It used to top itself up from the bank so it was never empty, which
+  is a true statement about the *content* and beside the point: the heading is
+  a claim about this deployment's listeners, and twenty-eight tiles nobody has
+  played do not support it. §89's rule, on the most checkable fact on the
+  page. An unplayed row is empty and says so; `tools/seed_demo.py` fills it
+  for a demo, the same bargain Explore already makes.
+  **And `browse_inventory` is the one definition of what a rail may offer**:
+  no account gets the live pool plus the bank, an account gets the live pool
+  plus the startup set. The bank is a first impression for somebody FAM knows
+  nothing about and can keep nothing for - downloaded the app, has not signed
+  up - and twenty-eight standing explainers are the right answer to "show me
+  what this is" and the wrong answer to "what should I hear today".
+  **It is a swap and never a subtraction**, and that is the load-bearing
+  half: removing the bank alone would empty Made for you on any deployment
+  with no live provider - every deployment today - and `WORLD_FLOOR` reserves
+  its four tiles on the stated premise that rail has somewhere else to go. It
+  is replaced with the fresher inventory, which is also the whole answer to
+  "make it up to date": a startup query asks what changed recently and
+  `SEARCH_MODE=always` researches it on the tap, so the tile is current
+  because it was *retrieved* rather than because somebody edited a string.
+  Rewriting the bank to be about today was the other reading and is the wrong
+  one - evergreen is the property that lets twenty-eight tiles serve everybody
+  from one shared script.
+  This does **not** make the startup set warm inventory for a guest: a guest
+  who has played something keeps the bank, and the set still leads only for
+  somebody who has said and done nothing, which is what `startup.py` says it
+  is for.
+  **Two exemptions, and they are decisions**: the DailyFAM mix picker
+  (`rank_bank`) and Explore New (`rank_might_like`) keep the whole bank,
+  because the rule is about what FAM offers *unprompted* and both are places
+  a listener went looking. Gating the picker would also empty it for exactly
+  the listeners who can save a mix, which is §123 one screen over.
+  Every surface reads the one function - `build_feed`, `build_section` and
+  `rank_next_up`, the last on both passes, because the popup starts its first
+  tile by itself and is the last place that should have a back door. The flag
+  comes off `request.state.listener.is_authenticated` via `app._has_account`
+  and never from a parameter. It defaults to **False**, the generous answer,
+  because a caller that was never taught about accounts does not know - and
+  defaulting the other way would silently empty a surface, which is the
+  failure that looks like a design decision rather than a bug (§119).
+  **And the gate is on what FAM *offers*, never on what it *reports*.** The
+  two crowd rows are measurements over the play log, so an account holder
+  legitimately sees a bank tile in "What FAM can't stop listening to" when
+  listeners really played it - hiding the most-played episode in the app
+  because of who is looking would be this change's own over-claim in
+  reverse. The rails the rule governs are the ones that choose for you.
+  Checking that also turned up a rail nobody is looking at starving that
+  row: `might_like` is `UNSHELVED` and fills before `most_played`,
+  reserving tiles so the drawn rails do not show what Explore New would -
+  right for a rail that chooses, wrong for one that reports. It was
+  invisible while the bank filler existed and data-dependent once it did
+  not, so `most_played` now ignores that reservation while still avoiding
+  every drawn rail.
+  Nobody has heard one of these episodes; the freshness claim is about the
+  mechanism, not yet about the writing.
+
 - **A browse tile is a title and an angle; the script waits for the tap.**
   *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen
   bank **plus** a live story pool built from four sources, and the pool is the
@@ -1704,6 +1804,13 @@ the rest of this list it needs taste rather than a key.
   holds topic ids, a saved item and a vibe hold a question - pointers, which
   play again from a freshly written script. Accounts, credentials and the
   metering ledger are untouched in both scopes.
+  **And what it puts back** *(§126)*: the starter vocabulary, re-applied
+  immediately after the clear. That is this rule read the other way round
+  rather than an exception to it - what goes is what the *log* taught, and a
+  seed node was never taught by anything. A wiped deployment is exactly the
+  deployment a seed exists for, and the next boot would mint it back anyway,
+  so the only thing leaving it out would change is which page saw the tree
+  half-built.
 - **Failures must be visible.** Silent success (empty audio, a placeholder tone,
   demo mode mistaken for live) has caused more lost time on this project than
   any real bug. Every fallback must announce itself. *(PROBLEMS.md §51: demo
@@ -2096,7 +2203,15 @@ that took two screens to say what the screen behind it already said, and a
 search page that opened on a length its own menu disagreed with; and
 **§124**, a blank slate that was not blank - the wipe took every store and
 left the vocabulary those stores had taught, which is a ranking input that
-outlived its own source),
+outlived its own source; and **§125**, the generic episodes and who they are
+for - twenty-eight evergreen tiles no wipe could ever have removed, because
+they are compiled into `topics.py` rather than seeded, offered to everybody
+including the listeners FAM knew enough about not to need them, under a
+crowd-row heading making a claim about listening nobody had done; and
+**§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
+three, so a deployment with no traffic had no grown vocabulary at all, and
+the tree could already see "college football" in a tile's question while
+the ranker scored that tile on `sports` alone),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

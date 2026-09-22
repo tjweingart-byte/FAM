@@ -7,10 +7,10 @@ Five rails, two inventories, and one rule that decides the shape of all of it:
 
 | # | rail | question it answers | inventory | comes from |
 |---|---|---|---|---|
-| 1 | **Made for you** / **Start here** | what would *you* want today | live stories **and** the bank, or the startup set on a cold start | `rank_from_history` / `rank_startup` |
+| 1 | **Made for you** / **Start here** | what would *you* want today | live stories **and** the generic floor (see below), or the startup set on a cold start | `rank_from_history` / `rank_startup` |
 | 2 | **Trending** | what is the world on | live stories only, `WORLD_FLOOR` reserved | `stories.pool()` |
 | 3 | **What you missed last week** | what went past you | offered to you, played across FAM, or trending | `rank_missed` |
-| 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays, cached first | `rank_most_played` |
+| 4 | **What FAM can't stop listening to** | what is everybody here playing | whatever has plays and **nothing else**, cached first | `rank_most_played` |
 | 5 | **What your friends are listening to** | what is *your graph* playing | whatever they played, cached first | `rank_friends` |
 
 **Rail 1 has two names, because on a cold start it is not personal** (§116).
@@ -157,11 +157,63 @@ The bank is what a browse page has when nothing has happened; the pool is what
 it has when something has. The startup set is what it has when nothing is
 known about *the listener*. None holds audio and none holds a script.
 
-The third is the smallest and the narrowest: it fills one rail, for one kind
-of listener, and `build_feed` stops reaching for it the moment there is any
-taste at all. It is deliberately **not** part of `TOPIC_BANK` — a question
+The third is the smallest and the narrowest: it *leads* one rail, for one
+kind of listener, and `build_feed` stops reaching for it as a lead the moment
+there is any taste at all. Since §125 it is also the generic floor behind
+rail 1 for a listener who has an account — see below. It is deliberately **not** part of `TOPIC_BANK` — a question
 written for a first impression has no business in the mix picker or in "What
 FAM can't stop listening to", and a test asserts the two sets do not overlap.
+
+## Which generic floor, and who gets which (§125)
+
+`topics.browse_inventory` is the one definition, read by `build_feed`,
+`build_section` and `rank_next_up`:
+
+    no account   live story pool + the evergreen bank
+    account      live story pool + the startup set
+
+The bank is a **first impression for somebody FAM knows nothing about and can
+keep nothing for** — downloaded the app, has not signed up. Twenty-eight
+standing explainers are the right answer to "show me what this is" and the
+wrong answer to "what should I hear today", and an account is where the
+second question becomes the one being asked.
+
+**It is a swap and never a subtraction.** Taking the bank away on its own
+would empty rail 1 on any deployment with no live provider — which is every
+deployment today — and `WORLD_FLOOR` reserves its four Trending tiles on the
+stated premise that rail 1 has somewhere else to go. The floor is replaced
+with the fresher of the two: every startup query asks what changed recently,
+and `SEARCH_MODE=always` researches it on the tap, so an account holder's
+generic tile is current because it is *retrieved* rather than because
+somebody edited a string.
+
+This does **not** make the startup set warm inventory for a guest. A guest
+who has played something keeps the bank; the set still leads rail 1 only for
+a listener who has said and done nothing, which is what `startup.py` was
+written for.
+
+**Two surfaces are exempt, deliberately** — the rule is about what FAM offers
+unprompted, not about what a listener can go and find. The DailyFAM mix
+picker (`rank_bank`) keeps the whole bank, because it is a menu somebody
+opened, because a mix holds topic ids rather than audio so a member is a
+fresh episode every morning, and because a saved mix needs an account — so
+gating it would empty the picker for exactly the listeners who can use it.
+Explore New (`rank_might_like`) keeps it because it is off the page and is
+reached only by somebody trying to widen a taste.
+
+**The gate is on what a rail *offers*, not on what it *reports*.** Rails 4
+and 5 are measurements over the play log, so an account holder does see a
+bank tile there when listeners really played one. Rails 1 and 3 are the ones
+that choose, and they are what `browse_inventory` governs. Rail 4 also
+ignores what `might_like` reserved - that rail is `UNSHELVED`, fills earlier
+so the drawn rails avoid Explore New's picks, and must not be able to hold
+back a genuinely most-played episode from the row whose job is to report one.
+
+**Rail 4 fills from plays and from nothing else.** It used to top itself up
+from the bank so it was never empty; the heading is a claim about this
+deployment's listeners and twenty-eight unplayed tiles do not support it. An
+unplayed row is empty and says so, and `tools/seed_demo.py` is what fills it
+for a demo.
 
 **All are shared.** Every listener sees the same inventory and a different
 ordering of it. That is CLAUDE.md's settled rule for the browse surfaces and

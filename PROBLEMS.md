@@ -9669,3 +9669,405 @@ is fine; the heading is a claim about FAM's listeners that a fresh
 deployment cannot back, which is the rule §89 and §90 both state. Left alone
 deliberately: it is one line in `rank_most_played`, and turning a documented
 decision over belongs in a change that is about that decision.
+
+## 125. The generic episodes, and who they are for
+
+Reported from the phone, against the DailyFAM mix picker: *these are the
+pre-populated episodes that have been in the app every time we open it for
+the first time, and I want them out so it can be a fresh start.*
+
+The first thing worth writing down is what they were, because it decided the
+whole shape of the change. They are not seeded rows and `wipe_demo_data.py`
+could never have touched them: they are `topics.TOPIC_BANK`, twenty-eight
+hand-written evergreen topics compiled into `topics.py`. That is why they
+came back on every fresh open of every deployment, and it is why "clear the
+demo data" was never going to be the fix.
+
+Asked which way to take it, the direction came back in three parts, and each
+one reverses something this file had previously recorded as deliberate:
+
+1. The bank stays - *"I like the idea of having guardrails in there"*.
+2. **"What FAM can't stop listening to" must only be populated by what people
+   are actually listening to in the app.**
+3. **The bank is meant for people who have downloaded the app but have not
+   made an account yet** - and it *"should be optimized... make sure it has
+   up to date information and is not directly using episodes from a while
+   ago"*.
+
+### The row that over-claimed
+
+§124 ends by naming this exact line and declining to touch it, on the ground
+that turning a documented decision over belongs in a change about that
+decision. This is that change.
+
+`rank_most_played` topped itself up from the bank whenever the play counts
+ran out, on the argument that "a stable slice beats an empty section, and
+beats a random one". That argument is about the **content** and it is true.
+It is also beside the point, because the heading is a **claim**: "What FAM
+can't stop listening to" over twenty-eight tiles nobody has ever played says
+something about this deployment's listeners that is not so. §89's rule is
+that an empty row may report a fact about this deployment and may never
+invent one about the world, and what FAM's own listeners have played is the
+most checkable fact on the whole page.
+
+So the filler is gone, the row is empty until somebody plays something, and
+its sentence says which: *"Nothing has been played here yet. This fills up as
+people listen."* Not "nothing is popular", which would be a claim about
+listeners this deployment has not got - and not "yet today" either, which the
+old copy said about a three-day window.
+
+The cost, stated rather than discovered later: a fresh deployment shows that
+row empty, and `tools/seed_demo.py` is what fills it for a demo. That is the
+same bargain Explore already makes, for the same reason - it replays what
+listeners did, so where nobody has listened there is honestly nothing to
+replay.
+
+### Who the bank is for
+
+The second half is a boundary rather than a deletion. `browse_inventory` is
+the one definition of what a rail may **offer**:
+
+    no account   live story pool + the evergreen bank
+    account      live story pool + the startup set
+
+**It is a swap and not a subtraction, and that is the load-bearing part.**
+Removing the bank on its own would have left an account holder on a
+deployment with no live provider - which is every deployment today, since the
+story pool is off until `GDELT=1` - looking at a page with nothing on it. It
+would also have broken the premise `WORLD_FLOOR` reserves its four Trending
+tiles on, which is written down in §114 as "Made for you draws on both
+inventories and can never be empty". So the floor is replaced rather than
+removed, and it is replaced with the fresher of the two.
+
+That replacement is also the answer to the third instruction, and it is worth
+saying why it is the *right* answer rather than a convenient one. "Make the
+bank up to date" reads as an instruction to rewrite twenty-eight topics, and
+a bank rewritten to be about today stops being evergreen - which is the one
+property that lets twenty-eight tiles serve every listener from one shared
+script. The mechanism for "a generic tile that is about now" already exists
+and `startup.py` already argues for it: eight time-anchored questions, one
+per facet, researched on the tap by `SEARCH_MODE=always`, refusing rather
+than answering from memory when there is no evidence. An account holder's
+generic tile is now one of those. Nothing was rewritten, nothing costs
+anything at page load, and the tile is current because it is *researched*
+rather than because somebody edited a string.
+
+**It does not make the startup set warm inventory for a guest.** `startup.py`
+is explicit that the set is for a listener who has said and done nothing, and
+`rank_startup` still leads with it on exactly that listener and nobody else.
+A guest who has played something keeps the bank, which is the behaviour that
+shipped. Confining the change to "what replaces the bank once there is an
+account" is what keeps *"the set is for somebody who said nothing, and only
+them"* true where it was written - and the test that says so
+(`test_choosing_interests_is_not_a_cold_start`) is what caught the first
+version of this, which had stacked the two inventories instead of swapping
+them.
+
+### Every surface reads it, including the one that starts by itself
+
+§119 is the reason this is one function with four call sites rather than four
+`live + list(TOPIC_BANK)` expressions. That section is about a ladder with
+one definition and a fifth caller still reading the variable it replaced, and
+the failure was invisible because falling back is a supported state. The same
+trap is set here in three places and all three are wired:
+
+* **"View more"** - `build_section` takes the flag, or the screen behind a
+  rail would hand back the twenty-eight tiles the rail had just decided this
+  listener is not shown. Two surfaces, one ranking.
+* **The post-episode popup** - `rank_next_up` takes it, on both passes. Its
+  last-resort pass drops the *already-played* rule to guarantee four tiles,
+  and it now drops that rule over the same inventory rather than reaching for
+  the bank. A grid of three is an honest shortfall; a fourth tile from an
+  inventory this listener has stopped being shown is not, and this is the one
+  surface that starts playing its first tile without being asked.
+* **The request boundary** - `app._has_account` reads
+  `request.state.listener.is_authenticated`, beside `_place_for`, which reads
+  the same field. Never a parameter: a query string that could ask for
+  somebody else's inventory is the rule `?user=` lost.
+
+The default is `False`, which is the **generous** answer, and that is
+deliberate. A caller that has not been taught about accounts - a test,
+`write.py`, the fixture preview - does not know, and the honest reading of
+"we do not know" here is the cold-start one. Defaulting the other way would
+have silently taken the bank off every surface whose caller was never
+updated, and an emptier page is exactly the kind of failure that looks like a
+design decision rather than a bug.
+
+### Two exemptions, written down so they are decisions
+
+Neither is an oversight and both turn on the same distinction: **the rule is
+about what FAM offers somebody unprompted, not about what a listener can go
+and find.**
+
+* **The DailyFAM mix picker** (`rank_bank`) keeps the whole bank. It is a
+  menu somebody opened in order to choose subjects, a mix holds topic ids
+  rather than audio - so a bank member in a mix is a fresh episode every
+  morning and never a standing one replayed - and a saved mix needs an
+  account, so applying the rule here would have emptied the picker for
+  exactly the listeners who can use it. That is §123's failure one screen
+  over: a fact about the account gate reported as a broken topic list. It is
+  also the screen the original report was made against, which is worth
+  noting - the complaint was that these episodes are *everywhere*, and a
+  picker is the one place a list of subjects is the point.
+* **Explore New** (`rank_might_like`) keeps it too. It is off the page
+  entirely (`UNSHELVED`) and reached only by a listener who went looking to
+  widen their taste; widening it over eight questions whose facets that
+  ranker mutes would leave almost nothing to widen into.
+
+### What the tests could not see, and now can
+
+Ten existing tests failed, and every one of them was asserting the old
+behaviour rather than finding a bug - which is the useful signal here: four
+separate tests about the *shape* of the crowd row (view-more shows more, a
+written tile leads, a broken store does not empty the page, the personal
+rails are not starved) were all passing against an inventory **nobody had
+touched**. A row that can always fill itself from a fixed list is a row whose
+tests never have to produce the data it is supposed to be made of.
+`crowd_plays` in `tests/test_myfam.py` supplies it now.
+
+`tests/test_generic_inventory.py` pins the three rules through
+`build_feed`, `build_section`, `rank_next_up` and HTTP rather than through
+the helper, because the helper being right has never been the failure mode
+here.
+
+### Two things the double-check found, both about what a test was really asserting
+
+**A rail nobody is looking at was starving the crowd row.** `might_like` is
+`UNSHELVED` - ranked, reachable at `/api/explorenew`, and not drawn on this
+page - and it fills before `most_played` in `FILL_ORDER` so the *drawn* rails
+do not show what Explore New would show. That is a sensible rule for a rail
+that chooses between things to offer. This row does not choose; it reports
+what listeners actually played. So a tile held back by a ranking nobody is
+looking at was a genuinely most-played episode missing from the one row whose
+job is to say what was played.
+
+The coupling is older than §125 and was invisible until it: the row used to
+top itself up from the bank, so being starved here never showed. Removing the
+filler is what made it visible - and it was **data-dependent**, which is
+worse than always-wrong: whether `might_like` wanted that particular tile
+decided whether the crowd row was right. `most_played` now ignores the
+unshelved rail's reservation and still avoids `mine` and every drawn rail, so
+nothing appears on two rails.
+
+**And the gate is on what FAM offers, never on what it reports.** The test
+asserting "an account holder is never offered the bank" swept every rail on
+the page, and it passed - because the only play in its fixture was the
+member's own, so every rail was empty of the bank whichever way the code
+went. Run at a realistic size, an account holder legitimately sees a bank
+tile in "What FAM can't stop listening to" when other listeners really played
+it, and should: `rank_most_played` and `rank_friends` are measurements over
+the play log, and hiding the most-played episode in the app because of who is
+looking would be this section's own over-claim in reverse. The rails the rule
+is about are the ones that *choose for you* - Made for you, What you missed,
+and the popup's own passes. The test names those two sets now and asserts
+both halves.
+
+Both findings have the same shape and it is §122's: a test that never runs at
+production scale is inspecting rather than verifying. Neither was visible to
+2,361 passing tests, and both turned up in one scripted boot of the real
+thing.
+
+### What is still open
+
+**Nobody has heard one of these episodes.** There is no API key in the build
+container, so the claim that an account holder's generic tile is better
+because it is researched fresh is a claim about the mechanism and not about
+the writing - the same gap §116 left on the startup set and for the same
+reason. It is the first thing to listen for on a machine with a key.
+
+## 126. A vocabulary that started from nothing, and a ranker that never read it
+
+Asked for, in the owner's words: keep the topics and subtopics growing from
+what people search for, and *"have an initial topic tree already inside the
+database"* serving two purposes - more variety on myFAM before there is heavy
+traffic, and something for the algorithm to build on later.
+
+### What was actually wrong, which was two things
+
+The first is the one that was asked about. §121 built a vocabulary that grows
+itself out of real searches, and everything about it is right except its first
+day. `MIN_LISTENERS` is three and `MIN_TEXTS` is two, deliberately - that pair
+is the whole spam control, and §121 found what happens without it (thirty-nine
+nodes from eight queries, mostly fragments). But it means a deployment with no
+traffic has **no grown vocabulary at all**, and one with a little has whatever
+shape the first few arrivals gave it. Until then the ranker is back on the
+eight facets and twenty-nine subtags that `categories.py` exists because of.
+
+The second was found while checking whether a seed would actually do anything,
+and it is the larger of the two:
+
+    >>> tree.match(BANK_BY_ID["nil-arms-race"].query)
+    ('college football', 'sports')
+    >>> BANK_BY_ID["nil-arms-race"].tags
+    ('sports', 'money', 'sports-business')
+
+The tree could see that the tile is about college football. `_affinity` reads
+`topic.tags`. So against a listener whose entire history was college football:
+
+    nil-arms-race   0.173
+    golf-evolution  0.212
+
+The bank's college-football tile scored **below** its golf tile, for the
+listener it was most obviously right for. That is the exact complaint CLAUDE.md
+records as the reason `BROAD_MATCH_PENALTY` and `familiar_words` exist - "there
+is no tag for the NFL and none for college football, both are `sports`" - and
+§121 built the vocabulary that can say it. Nothing joined the two up. A seed
+tree shipped on its own would have been a table nothing read.
+
+### The seed
+
+`category_seed.py`: 180 nodes, two levels under each of the eight facets,
+which are roots and not rows. Applied by `categories.apply_seed` at boot -
+awaited rather than scheduled, unlike the story and growth sweeps beside it,
+because it is a pass over a dict into SQLite with no network in it, so
+scheduling would buy nothing and would leave a window where the first browse
+page ranked without it.
+
+Three rules on what went in, because the obvious way to write that file is the
+wrong one. **Real subjects, not the bank's table of contents** - it would be
+easy to write twenty-eight nodes that each match one evergreen topic and get a
+vocabulary that is worthless the moment somebody searches for something else,
+so the test that counts bank coverage asserts a floor and never a total.
+**Broad at the top, specific at the bottom**, because the middle of a branch is
+what containment has nothing to deepen against and what no amount of reading
+what people typed can invent. And **nothing the hand-written vocabulary already
+owns** - `mint` silently returns None on a collision, so a bad entry is not an
+error, it is a node that never exists and a tree quietly smaller than the file
+claims. A test asserts every entry mints.
+
+It is a **floor and never a ceiling**, which took four separate refusals:
+
+* `apply_seed` never reparents. `mint` leaves an existing node's parent alone,
+  and that is what this relies on: once a placer has moved something, this
+  file is a record of where the tree started.
+* It never refreshes what it did not add. Bumping `last_seen` on every boot
+  would make the whole vocabulary immortal, because a process restart would
+  look exactly like somebody being interested in something.
+* It claims zero listeners and zero uses. `MIN_LISTENERS` is the spam control
+  and a seed that inflated it would be lying about the one number deciding
+  what gets in.
+* `prune` exempts it, and the reason is worth separating from the one already
+  there. `NODE_TTL` asks "has this subject stopped being talked about", which
+  is a question about an *observation*; a seed node was never an observation,
+  and on the deployment it exists for - no traffic - every leaf of it looks
+  stale by construction. Pruning it would also be a loop rather than an
+  eviction, since the next boot mints it straight back.
+
+**A wipe puts it back.** §124's rule is that a wipe takes what the *log*
+taught, and a seed node was never taught by anything - a wiped deployment is
+precisely the deployment a seed is for. Read the other way round rather than
+an exception to it.
+
+### The join
+
+`topics.topic_tags(topic)` is the tile's declared tags plus whatever the tree
+recognises in its **query** - the query rather than the title, because a title
+is a label and `<<TITLE:>>` means it may not even be the one the episode ends
+up with.
+
+The scoring change is deliberately *not* a new mechanism. A tile is scored as
+though somebody had hand-written those tags onto it: numerator and denominator
+both, exactly as `sports-business` already is. A tile the tree says nothing
+about comes back as the **identical tuple** rather than a re-sorted copy of the
+same set, so the guarantee is the strong one - a deployment with an empty tree
+ranks precisely as it did before any of this existed, which is the rule this
+whole layer lives by.
+
+Memoised on the tree's generation, because §122. Measured: 5,600 lookups in
+1.4ms warm, 28 cold against a 180-node tree in 0.21ms. The memo is dropped by
+`reset_category_tree` rather than only by noticing the generation changed -
+noticing means *two floats from the clock differ*, and a sentinel the clock
+could reproduce is what §113 was.
+
+### The half of the join that was nearly missed
+
+`_affinity` was not the only thing reading a tile's declared tuple, and the
+other one is the function this whole problem is named after. `BROAD_MATCH_
+PENALTY` cuts a live story to 0.3 when "nothing specific about this tile
+matches this listener", and `_is_broad_match` decided *specific* by looking
+for a subtag in `topic.tags`. Its own constant is documented as answering
+"the case the vocabulary **cannot express** - there is no tag for the NFL and
+none for college football, both are `sports`".
+
+So with the tree seeded and `_affinity` fixed, a live story about college
+football, whose only hand-written tag is `sports`, was still being damped to
+0.3 for a listener whose profile contains `college football` - by the
+mechanism that exists because the vocabulary could not say it, at the moment
+it finally could. Measured on a pool-shaped tile:
+
+    empty tree   broad match: True    affinity 0.300
+    seeded       broad match: False   affinity 1.681
+
+The one thing that had been rescuing such a tile was `_subject_is_familiar`,
+which reads raw search words - so the workaround was carrying a case the
+vocabulary now covers properly.
+
+One more thing the memo had to be right about, found in the same pass: it
+caches the **tree's half only**, keyed on the question, because
+`tree.match(query)` is a pure function of the query and the tree while the
+combined answer also depends on the tile's own declared tuple. Caching the
+combined answer under the query alone would hand two tiles that happen to
+share a question each other's declared tags. Nothing in the bank shares a
+query - a test says so - but a live story and a bank topic are minted by
+different code and nothing makes that true *across* inventories, which is
+the shape of failure that survives a long time because it is silent and
+rare.
+
+`_is_specific(tag)` is split out and read by both `tag_weight` and
+`_is_broad_match`, because they are the two places that ask how specific a
+tag is, for two different purposes, and the first already counted a category
+while the second did not. A test asserts they agree.
+
+**`diversify` deliberately keeps the declared tags**, and that is the mirror
+of the same question. It caps how many tiles of one *heading* a rail shows,
+and `facet_of` returns an unknown tag unchanged - so a grown category would
+arrive as a facet of its own, every tile would be alone in its bucket, and
+the variety cap would silently stop binding. The join belongs where a tile is
+scored against a listener; a rule about the shape of a row wants the eight
+headings.
+
+### What it is worth, measured
+
+On the same listener as above, after seeding:
+
+    nil-arms-race   1.373   (was 0.173)
+    golf-evolution  0.173   (was 0.212)
+
+and for a golf listener the two swap, which they could not do before. The bank
+goes from 27 distinct tag signatures to 28 of 28 - every tile now
+distinguishable from every other - and the tree recognises a subject in 19 of
+the 28 bank queries.
+
+The nine it does not are the honest result rather than a gap to close: the
+bank is broad on purpose, and "why worrying feels useful when it is not" names
+no subject a vocabulary should have. The same goes for six of the eight
+startup tiles, which are *written* to name no particular subject ("the biggest
+storylines in professional sport right now") - the tree correctly says nothing
+about them, and forcing it to would be inventing a claim about a tile that has
+not been researched yet.
+
+### What this does not do, said plainly because it was half the ask
+
+**A category is never a tile.** The request was for a seed that would "populate
+the myFAM page with more variety", and a vocabulary cannot populate anything -
+it is the words the ranker reasons in. A deployment with a rich tree and an
+empty bank still has an empty bank. What it changes is how sharply the tiles
+that *are* there can be told apart, which on a page of five rails drawn from
+one shared inventory is most of what "variety" means in practice: before this,
+a listener with one corner of `sports` in their history got several
+identically-scored candidates and a grid ordered by `topic.id` (§80's finding,
+one vocabulary later).
+
+If what is wanted is more *tiles*, that is a third inventory or a live
+provider, not a vocabulary - `GDELT=1` and `MYFAM.md`.
+
+### Still open
+
+**Nothing here has been run against a real event log.** §121 ended with that
+sentence and it is still true: the seed is hand-written and checked against the
+bank, and what the tree looks like after real searches have grown on top of a
+seeded base is the first thing to look at. `python tools/categories_report.py
+--tree` now says how much of a tree was declared and how much was learned,
+which is the number that answers it - a deployment still showing 180 declared
+and 0 learned is one where either nobody is searching or the sweep has stopped,
+and a node count cannot tell those apart.

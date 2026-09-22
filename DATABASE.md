@@ -34,7 +34,7 @@ working directory, and the `Dockerfile` pins all fourteen to the mounted
 | `metering.db` | `metering.py` | One row per episode: tokens, searches, GPU seconds, dollars. |
 | `attachments.db` | `attachments.py` | Extracted text from documents a search carried. |
 | `voice_registry.db` | `voice_registry.py` | Which GPU workers have announced themselves. |
-| `categories.db` | `categories.py` | **The grown vocabulary.** A category tree with no depth limit, minted from what listeners search for. |
+| `categories.db` | `categories.py` | **The vocabulary.** A category tree with no depth limit: seeded from `category_seed.py` at boot, then grown from what listeners search for. |
 
 **There are no foreign keys and no joins across files.** `user_id` is the only
 thing that connects them, and the connecting happens in Python, in `app.py`,
