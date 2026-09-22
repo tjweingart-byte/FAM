@@ -3388,7 +3388,19 @@
   // server writing, since an abandoned stream is the one signal it has that
   // nobody is listening - takes the loading screen down and puts the listener
   // back where they tapped from, as though the tap had not happened.
+  //: Bumped by every cancel, so a loading screen that starts its episode on a
+  //: timer (`afterLoading`) can tell it was cancelled while it waited - the X
+  //: is on that screen too, and a cancel the timer then ignores is a button
+  //: that says "Cancelled" and starts the episode anyway.
+  var genCancelSeq = 0;
+  function afterLoading(ms, fn){
+    var seq = genCancelSeq;
+    setTimeout(function(){ if(seq === genCancelSeq) fn(); }, ms);
+  }
+
   function cancelGeneration(){
+    genCancelSeq++;
+    pendingResumeSeek = null;
     var onPlayer = document.getElementById("screen-player")
                      .classList.contains("active");
     // Not an abandoned *episode*: nothing was heard, so nothing is recorded
@@ -4231,7 +4243,9 @@
       document.getElementById("nowFill").style.width =
         Math.min(100, (at / total) * 100) + "%";
       // Written as it plays rather than only on pause, so closing the tab
-      // mid-episode still leaves a way back in. Throttled inside.
+      // mid-episode still leaves a way back in. Throttled inside. Not while a
+      // resumed episode is still on its way back to where it was left.
+      if(applyPendingResumeSeek()) return;
       noteResume(nowBarState.query, nowBarState.minutes, at, nowBarState.title);
     }, 1000);
   }
@@ -4388,6 +4402,13 @@
         awaitingFirstAudio = "";
         refreshProgressNow();
         stopProgress();
+        // Finished, so nothing to resume - said *before* the play state
+        // changes. `setPlayState(false)` sends the position on a pause, and
+        // doing that here raced this clear: an episode that ran under its
+        // planned length could be saved as part-heard (§127).
+        pendingResumeSeek = null;
+        noteResume(title, minutes, 0, "", true);
+        hideNowBar();
         setPlayState(false);
         reportOutcomeIfHeard = null;
         fetchEpisodeThread();
@@ -4400,8 +4421,6 @@
           reportedOutcome = true;
           recordFamEvent("complete", episodeTopicId, title, episodeThread);
         }
-        noteResume(title, minutes, 0, "", true);   // finished: nothing left to resume
-        hideNowBar();
         if(onEnd) onEnd();
         // Offered after the episode's own bookkeeping, and only where it
         // belongs - maybeOfferNextUp checks the surface for itself.
@@ -4623,7 +4642,7 @@
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
     // A pause is the moment a position is most likely to be the last one, so
     // it is sent now rather than on the next throttled tick (§127).
-    if(!playing && nowBarState){
+    if(!playing && nowBarState && !pendingResumeSeek){
       noteResume(nowBarState.query, nowBarState.minutes, FamAudio.position(),
                  nowBarState.title, true);
     }
@@ -5358,10 +5377,10 @@
     var albumKey = pendingPlayAllAlbum;
     closeGenerateConfig();
     showLoading("Writing your episodes…");
-    setTimeout(function(){
+    afterLoading(900, function(){
       clearGenOverlay();
       startPlayAll(albumKey);
-    }, 900);
+    });
   }
 
   function renderSegbar(){
@@ -6230,6 +6249,28 @@
   var RESUME_EVERY_MS = 15000;
   var resumeSentAt = 0;
   var resumeSentFor = "";
+  //: `{query, minutes, at}` while a resumed episode is waiting to jump to
+  //: where it was left. The jump waits for enough audio to exist - a stream
+  //: arrives from its first second - and until it lands nothing is written
+  //: back, or the first tick at 0:01 would erase the very position the card
+  //: promised to return to.
+  var pendingResumeSeek = null;
+
+  function applyPendingResumeSeek(){
+    var p = pendingResumeSeek;
+    if(!p || !nowBarState) return false;
+    if(nowBarState.query !== p.query || nowBarState.minutes !== p.minutes){
+      pendingResumeSeek = null;
+      return false;
+    }
+    if(FamAudio.isComplete() || FamAudio.seekLimit() >= p.at){
+      FamAudio.seek(p.at);
+      pendingResumeSeek = null;
+      refreshProgressNow();
+      return false;
+    }
+    return true;   // still waiting for the audio to reach it
+  }
 
   function noteResume(query, minutes, seconds, title, now){
     if(!query || !minutes) return;
@@ -6470,6 +6511,7 @@
         // with capital letters on - see `deriveTitleFromPrompt` for why.
         title: r.title || deriveTitleFromPrompt(r.query),
         summary: r.summary || "",
+        at: r.seconds,
         left: Math.max(0, r.minutes * 60 - r.seconds),
         progress: Math.min(1, r.seconds / (r.minutes * 60))
       };
@@ -6563,6 +6605,9 @@
       exploreMinutes: c.minutes || myfamLengthMinutes,
       titleOverridden: true
     };
+    // "2:41 left" is a promise to carry on from there, not to start again.
+    pendingResumeSeek = c.kind === "resume" && c.at > 0
+      ? { query: c.query, minutes: c.minutes, at: c.at } : null;
     generate(key);
   }
 
@@ -6719,19 +6764,19 @@
     }
     paIndex++;
     showLoading("Writing the next one…");
-    setTimeout(function(){
+    afterLoading(700, function(){
       clearGenOverlay();
       populatePlayAllTopic();
-    }, 700);
+    });
   }
 
   function paRegenerate(){
     showLoading("Writing that again…");
-    setTimeout(function(){
+    afterLoading(700, function(){
       clearGenOverlay();
       populatePlayAllTopic();
       toast("Regenerated ✓");
-    }, 700);
+    });
   }
 
   // ---------------- Share via FAM contacts or phone number ----------------
@@ -6891,6 +6936,16 @@
         notifAnnouncedFollows = {};
         threadMessages = [];
         currentThread = null;
+        threadTyping = false;
+        // The last account's part-heard episodes must not stay on screen for
+        // whoever uses the phone next (§127) - the section is otherwise only
+        // redrawn when the next feed load succeeds.
+        goDeeperData = {};
+        goDeeperCardCache = [];
+        resumeSentFor = "";
+        pendingResumeSeek = null;
+        var gdBlock = document.getElementById("goDeeperBlock");
+        if(gdBlock) gdBlock.innerHTML = "";
         savedCache = { items: [], folders: [] };
         viewingProfile = null;
         mixes = [];
@@ -8543,14 +8598,18 @@
         if(!d || !currentThread || currentThread.user_id !== who) return;
         threadCursor = d.head || threadCursor;
         // Before the early return, so the dots come and go on an empty poll
-        // too - which is almost every poll while somebody is typing.
-        var typingNow = !!d.typing && !(d.messages || []).length;
-        if(!(d.messages || []).length){
-          if(typingNow !== threadTyping){ threadTyping = typingNow; renderThreadBody(); }
-          return;
-        }
-        threadTyping = false;
-        appendThreadMessages(d.messages);
+        // too - which is almost every poll while somebody is typing. Only a
+        // message from *them* ends their typing: your own coming back from
+        // the server says nothing about their keyboard.
+        var fromThem = (d.messages || []).some(function(m){ return !m.mine; });
+        var typingNow = !!d.typing && !fromThem;
+        var typingChanged = typingNow !== threadTyping;
+        threadTyping = typingNow;
+        var added = (d.messages || []).length ? appendThreadMessages(d.messages) : false;
+        // `appendThreadMessages` redraws only for a new message, so a change
+        // in the dots alone has to redraw here, or they stay on screen after
+        // the state says they have gone.
+        if(typingChanged && !added) renderThreadBody();
       })
       // A poll that fails is a poll that failed. The next one is two seconds
       // away, and putting an error in front of somebody mid-conversation
@@ -8571,6 +8630,7 @@
       added = true;
     });
     if(added) renderThreadBody();
+    return added;
   }
 
   function threadScreenOpen(){
