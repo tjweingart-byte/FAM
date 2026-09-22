@@ -493,6 +493,20 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
+    #: The episode's `EpisodeMarks`, when the pipeline is timing it, so the
+    #: steps *before* the writing call - the brief, the live lookup, the
+    #: retrieval - are marked on the same clock as everything after it. They
+    #: used to be one invisible span inside `claude_ttft`, which made "where
+    #: did 45 seconds go" unanswerable from a production log. Written to and
+    #: never read back: instrumentation must not change what is heard.
+    marks: object = None
+
+
+def _mark(notes: "ScriptNotes | None", name: str) -> None:
+    """Record one pre-writing stage on the episode's clock, if it has one."""
+    marks = getattr(notes, "marks", None)
+    if marks is not None:
+        marks.mark(name)
 
 
 def extract_thread(text: str) -> str:
@@ -1039,6 +1053,7 @@ class ScriptGenerator:
         # a model call. Trying the expensive one earlier would make a rare
         # miss expensive for everybody.
         packet = await self._retrieve(query, plan.brief, configured)
+        _mark(notes, "first_rung_ready")
         spent = [packet]
 
         # **Every rung after the first asks the broader question.** The first
@@ -1063,6 +1078,7 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
+        _mark(notes, "retrieval_ready")
 
         if notes is not None:
             # The winning packet describes what the writer actually reads;
@@ -1194,6 +1210,7 @@ class ScriptGenerator:
         if plan.brief is None or plan.live is not None:
             return plan
         result = await live_facts.lookup(plan.brief, notes)
+        _mark(notes, "live_ready")
         return plan if result is None else dataclasses.replace(plan, live=result)
 
     async def prepare(self, plan: EpisodePlan,
@@ -1208,7 +1225,9 @@ class ScriptGenerator:
         Its own method so a caller can see, time and skip the whole of the
         pre-writing phase, the same reason `research` was split out.
         """
+        _mark(notes, "brief_start")
         plan = await self.understand(plan, notes)
+        _mark(notes, "brief_ready")
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`
@@ -1217,8 +1236,10 @@ class ScriptGenerator:
         # its whole latency on top of retrieval, in front of the first word,
         # for nothing. They are merged field-by-field rather than chained
         # because each returns a copy derived from the *same* input plan.
+        _mark(notes, "evidence_start")
         live_plan, research_plan = await asyncio.gather(
             self.live_lookup(plan, notes), self.research(plan, notes))
+        _mark(notes, "evidence_ready")
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
             thin_on=research_plan.thin_on)
@@ -1336,6 +1357,7 @@ class ScriptGenerator:
         # concurrent episodes and each stream has its own opening to protect.
         guard = OpeningGuard()
 
+        _mark(notes, "writer_request")
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
             async for event in stream.text_stream:
                 buffer += event

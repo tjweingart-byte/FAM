@@ -10239,3 +10239,62 @@ difference this time.
 particular is a platform behaviour and can only be verified on a device with
 the switch flipped. The summary and the brief's title are prompt changes made
 without a key, so nobody has read one yet.
+
+## 128. Some episodes take 45 seconds, and nothing could say which step
+
+**The report:** search episodes taking up to 45 seconds to start, with the
+instruction that any fix must cost no quality at all.
+
+**The first finding was that the question could not be answered from a log.**
+`claude_start` is marked before the brief, so `claude_ttft` - the number the
+episode log and `pod_episode.py` both print as "Claude first token" - was
+brief + live lookup + retrieval + the writer's own thinking, as one span. On a
+researched episode those are four different costs with four different fixes,
+and a 45-second one could have been any of them.
+
+**Instrumentation only; nothing a listener hears changed.** `ScriptNotes.marks`
+carries the episode's clock into the generator, which marks `brief_start` /
+`brief_ready`, `evidence_start` / `first_rung_ready` / `retrieval_ready` /
+`live_ready` / `evidence_ready`, and `writer_request`. `EpisodeMarks.stages()`
+is the critical path to the first audio - setup, brief, evidence, writer
+thinking, first sentence, voice queue, first synthesis - consecutive, so the
+parts add up to `first_pcm` and anything left is printed as `unaccounted`
+rather than absorbed. Three places read it: a `stages q=...` log line written
+**at the first audio** rather than at the end of the episode, an
+`X-Stage-Seconds` header that `tools/pod_episode.py` prints, and
+`tools/latency_probe.py`, which runs the production pipeline in-process with
+the cache off and prints the table and its median across questions.
+
+**Nothing here has measured a real episode.** There is no key in the build
+container and the proxy refuses `fam.onrender.com`, so the numbers that matter
+come from the next slow episode on Render (read its `stages` line) or from
+`python tools/latency_probe.py` where the server's credentials are.
+`tests/test_stage_marks.py` proves the plumbing: stubbed delays come back out
+of the right labels and the parts sum to the first audio.
+
+### What reading the path found without a key
+
+Each of these costs no quality, because none of them changes a prompt, a model,
+an effort level or what is retrieved:
+
+- **EI builds a new client on every call**, so every brief pays a fresh TCP
+  and TLS handshake to the API; `research_client()` already caches its one.
+- **The writer's ~2,500-token system prompt is never cached.** It is byte-for-
+  byte stable (checked), above Sonnet 5's 1,024-token minimum, and re-prefilled
+  on every episode.
+- **Retrieval is serial where it need not be**: the one retry searches only
+  after the first search comes back thin, and the GDELT cross-check (off by
+  default) runs after Exa rather than beside it.
+- **Retrieval waits for the whole brief** although it reads only the fields EI
+  writes first (`search_query` .. `recency_days`); the rest (`structure`,
+  `cautions`, `live_domain`, `outcome_dependent`, `title`) could be generated
+  while Exa searches.
+- **`render.yaml` declares no `EXA_API_KEY`.** If the dashboard has none either,
+  every episode falls down the ladder to the model's own search - 10-25 seconds
+  by this file's own measurement - which alone could explain the report.
+  `/api/health`'s `research` block says which.
+
+### Still open
+
+All of the above is a proposal until a real `stages` line says which step the
+45 seconds is in.

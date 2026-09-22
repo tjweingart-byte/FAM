@@ -4198,6 +4198,12 @@ async def audio(
             "log, and that ANTHROPIC_API_KEY is set and a speech engine is installed.",
         )
 
+    # Where the wait in front of the first word went, one step at a time, at
+    # the moment it is known - this line is written when the first audio
+    # exists, not when the episode ends minutes later, so a slow episode can
+    # be read off the deploy's log while it is still playing.
+    if stats.cache != "hit":
+        log.info("stages q=%r %s", plan.query, stats.marks.stage_line())
     primed_bytes = max(0, sum(len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
 
@@ -4284,6 +4290,13 @@ async def audio(
             "X-Audio-Primed-Seconds": f"{primed_seconds:.3f}",
             "X-First-PCM-Seconds": f"{first_pcm_at:.4f}" if first_pcm_at is not None else "",
             "X-Preroll-Satisfied-Seconds": f"{preroll_at:.4f}" if preroll_at is not None else "",
+            # The same breakdown the `stages` log line prints, for a client
+            # that can read headers - `tools/pod_episode.py` does. Complete by
+            # now: every stage ends at or before the first synthesis, which is
+            # what the preroll above waited for.
+            "X-Stage-Seconds": json.dumps(
+                {k: round(v, 3) for k, v in stats.marks.stages().items()},
+                separators=(",", ":")),
             # The episode's own marks, so a client-side probe can read the
             # server's view of the same request rather than inferring it.
             "X-Episode-Marks": json.dumps(stats.marks.summary(), default=str),
