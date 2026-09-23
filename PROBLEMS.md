@@ -10299,3 +10299,41 @@ an effort level or what is retrieved:
 
 All of the above is a proposal until a real `stages` line says which step the
 45 seconds is in.
+
+## 129. The writer's hidden thinking goes back to `low`
+
+**At the owner's explicit direction**, after §128 traced where the wait in
+front of the first word goes: `EFFORT` for the writing call is `low` again,
+reversing §108's `high`.
+
+**Why this is not simply undoing §108.** §108 raised effort because openings
+were confused, and in the same commit deleted the from-knowledge cover half -
+the call that actually wrote those openings with no brief and no evidence - and
+the search tool on the writing call. Nothing ever separated what the effort
+bought from what the deletions bought. What `high` costs is hidden thinking
+before the first token, which reading the path suggests is the largest single
+step on search and which varies by question - consistent with some episodes
+taking far longer than others, though no real episode has been timed yet.
+
+**What is unchanged, and pinned:** the order. The writer holds the brief and
+the evidence before its first token, the call that speaks carries no tools, EI
+runs on every episode, and the prompt still says to decide the whole piece
+before opening. Only the thinking budget for that planning is smaller.
+`tests/test_writer_effort.py` pins the default, that it reaches the request,
+that an environment value still wins, and that the ordering rules are intact.
+
+**A dashboard value would silently undo this**, because `EFFORT` in the
+environment beats the code default on every push - §77's finding. So
+`/api/health` reports `writer_effort` and `writer_effort_source` beside
+`search_mode_source`. `render.yaml` does not set it; the Render dashboard
+might.
+
+### Still open
+
+**Nobody has heard an episode written at `low` since the cover was removed**,
+and the risk is specific: the reasoning-heavy parts of the job - whether an
+event has started, is under way or is finished from dated evidence (§88),
+relative dates, and contradictions between sources - and the opening. Listen
+to those first. `EFFORT=medium` is the measured middle ground in Anthropic's
+published runs and is one environment variable away; the `episode timing`
+block (§128) shows what each setting costs in seconds.

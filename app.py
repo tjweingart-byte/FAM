@@ -1340,6 +1340,14 @@ async def health(request: Request) -> dict:
                                else "ENABLE_WEB_SEARCH env var"
                                if os.environ.get("ENABLE_WEB_SEARCH", "").strip()
                                else "config.py default"),
+        # How much hidden thinking the writing call does before its first
+        # word, and where that came from - same reason as the line above: an
+        # EFFORT left in a dashboard beats the code default on every push,
+        # and it is expected to be the largest wait on search (PROBLEMS.md §129).
+        "writer_effort": settings.effort,
+        "writer_effort_source": ("EFFORT env var"
+                                 if os.environ.get("EFFORT", "").strip()
+                                 else "config.py default"),
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
         # Built, and switched on or not. A tier system that is not enforcing
