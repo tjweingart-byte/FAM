@@ -21,10 +21,26 @@ WORKDIR /app
 # always installed both; this image was the one left behind.
 #
 # It costs nothing to carry: exa-py is pure Python, no torch, no CUDA.
-COPY requirements.txt requirements-exa.txt ./
+COPY requirements.txt requirements-exa.txt requirements-embed.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 
 COPY . .
+
+# The local sentence embedder that orders "Made for you" by meaning as well as
+# by tag (PROBLEMS.md §128). ~110 MB with its runtime, CPU only, no torch.
+# `--build-arg FAM_EMBED=0` leaves it out and the ranker runs on tags alone,
+# exactly as before it existed.
+#
+# A failed download does not fail the build - an image with no model is a
+# working FAM - but it is not silent either: the line below prints it in the
+# build log, and /api/health reports `ranking.semantic.enabled: false` with the
+# reason, which is where a deploy's state is read from.
+ARG FAM_EMBED=1
+RUN if [ "$FAM_EMBED" = "1" ]; then \
+      pip install --no-cache-dir -r requirements-embed.txt \
+      && (python tools/install_embed_model.py \
+          || echo "WARNING: embedding model not installed; ranking on tags alone"); \
+    fi
 
 # Every database lives on a mounted disk where the host provides one, so they
 # survive a redeploy. Without a disk they are ephemeral and every deploy is a

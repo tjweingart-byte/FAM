@@ -10239,3 +10239,135 @@ difference this time.
 particular is a platform behaviour and can only be verified on a device with
 the switch flipped. The summary and the brief's title are prompt changes made
 without a key, so nobody has read one yet.
+
+## 128. A real sentence model, a meaning term in Made for you, and an order fitted to taps
+
+Three changes asked for together, in the order they depend on each other:
+install the embedding model the cache had been written for and never run;
+use it where it can actually help, which turned out to be the ranker and not
+the cache; and fit the order of Made for you to the taps the impression log
+has been recording since §121.
+
+### 1. The model, installed and measured
+
+`embeddings._OnnxEmbedder` had existed since the near-match cache and had
+never produced a vector - no model had ever been in `~/.fam/embed`. Hugging
+Face is refused by this container's network policy; Chroma publishes the same
+all-MiniLM-L6-v2 ONNX export as one tarball on S3, which is reachable, so
+`tools/install_embed_model.py` fetches that, **pins its SHA-256**, extracts the
+two files the encoder reads, and **encodes a sentence before reporting
+success** (§52: files on disk are the cheaper question). The Dockerfile runs it
+by default (`--build-arg FAM_EMBED=0` to leave it out); a failed download does
+not fail the build, prints a warning in the build log, and shows on
+`/api/health` as `ranking.semantic.enabled: false` with the reason.
+`requirements-embed.txt` is onnxruntime and tokenizers - CPU only, no torch.
+
+It works: 384 dimensions, unit length, ~10 ms a sentence on one core, ~9 ms
+each in a batch. Then `tools/bench_vector_cache.py` with it, which is the
+number CLAUDE.md said to re-read "on the day a real sentence model is
+installed":
+
+    backend   shipped point (0.68 / 0.6)   best with no false hit
+    hashing   23/41, 0 false               23/41 (guards alone: 23)
+    onnx      23/41, 0 false               23/41 at overlap 0.6
+                                           16/41 at overlap 0.0, threshold 0.94
+
+**The model finds far more re-phrasings and cannot be trusted with them.**
+With the overlap guard removed it reaches 37 of 41 at a threshold of 0.60 -
+and serves wrong episodes, the most confident being "how old is the eiffel
+tower" for "how tall is the eiffel tower" at **0.879**, above most real
+re-phrasings. That is the known failure of a bi-encoder: two sentences that
+differ in one attribute word are close in meaning-space and different
+questions. Separating them needs a model that reads both questions at once (a
+cross-encoder), which this container cannot download. A stricter lexical
+guard was prototyped (every content word must have a counterpart after light
+stemming) and reached 32 of 41 with no false hit - but only with a frame-word
+list tuned to the bench's own corpus; with an honest one it found 22, one
+fewer than today. So **the cache is unchanged**: same guards, same defaults,
+same lexical backend unless `FAM_EMBED_BACKEND=onnx` is set, and the bench
+now says so with numbers rather than with a prediction.
+
+The bench's scan-cost line was also wrong, invisibly: it timed the creation
+of 400 stored vectors as though the miss path did that. Microseconds with the
+hashing backend; **230 ms of fiction** with a real model. The rows are built
+before the clock now: 5 ms hashing, 19 ms onnx (one embedding plus the scan).
+
+### 2. Meaning in Made for you (`taste_vectors.py`)
+
+Where a near miss is cheap. A wrong cache hit plays the wrong episode; a
+slightly-off semantic match puts a slightly-less-good tile third. And the gap
+it fills is real: `_affinity` scores by shared tags, so every `money` tile is
+identical to a listener whose history says `money`, however specific their
+searches were. `BROAD_MATCH_PENALTY` and `familiar_words` both exist because
+of that gap.
+
+For each candidate: the closest item in the listener's recent **positive**
+history (searches as their own words, plays as the tile's title and query),
+by cosine, discounted by that item's strength (the same `EVENT_WEIGHT` and
+decay `taste` uses), turned into a bounded **additive** term -
+`SEMANTIC_WEIGHT` × how far it clears `SEMANTIC_FLOOR`. Additive because a
+multiplier on a tag score of zero is zero, and finding what the tags missed is
+the point. Max rather than mean, because a mean of "golf" and "AI chips" is
+about neither. A tile with a real match is exempt from the broad-match
+penalty, which exists for subjects a listener was never near.
+
+Applied where Made for you is ranked - the rail, its View more screen and the
+post-episode popup, all three, and a test spies on `rank_from_history` to keep
+them one ranking. Not on a cold start (no history means nothing to mean).
+
+**What it costs a page, measured with the real model**: the model is loaded at
+boot and the bank embedded in a background thread; a page embeds at most
+`MAX_INLINE` (6) new texts itself and queues the rest, so a new listener's
+first page is **~58 ms** and every page after it **~2 ms**. No model - every
+deployment built with `FAM_EMBED=0`, and the whole test suite, which points
+`FAM_EMBED_MODEL` at an empty directory - is `{}` and the ranking that shipped
+before this existed, pinned by a test. `SEMANTIC_TASTE=0` turns it off.
+
+### 3. An order fitted to taps (`learned_rank.py`, `tools/learn_rank.py`)
+
+Every constant in the ranker is set by hand with its reasoning beside it, and
+the impression log (`impression_outcomes`) is thirty days of labelled
+examples nobody fitted anything to. `tools/learn_rank.py` fits a logistic
+regression over the six signals the ranker already computes - affinity,
+semantic, fatigue, engagement, live, broad - and stores it in the event
+database, in a one-row table beside the log it was fitted to.
+
+The rules it keeps, each for a stated reason:
+
+* **Point in time.** Every feature is rebuilt from what the log held *before*
+  that offer, or a listener who played a tile has a profile that likes it and
+  the model learns to recognise taps rather than predict them. A test gives a
+  listener exactly one play - the tap being predicted - and asserts the
+  offer's affinity is zero.
+* **It has to win.** The most recent fifth is held out; the model is stored
+  only if it ranks those offers better than the hand-tuned score by
+  `MIN_AUC_GAIN`, on at least `MIN_POSITIVES` taps each side. A model that
+  says it lost is never served even if `--force` stored it, and one fitted to
+  a different feature list is refused rather than scoring the wrong columns.
+* **It re-orders and never selects.** The hand-tuned score still decides what
+  clears `RELEVANCE_FLOOR`; the model sorts what did. A bad model can put a
+  relevant tile third, never an irrelevant one on a rail whose heading says it
+  was chosen for you. Freshness and a listener's place are not in the log, so
+  they stay hand-applied on top of the model's probability.
+* **Global, not per listener**, for `ENGAGEMENT_WEIGHT`'s reason.
+* **Linear at a realistic size** (§122): the first version rescanned every
+  earlier tap for every offer. 49,000 offers now take 1.3 s, or 7.5 s with the
+  semantic feature on; a test asserts a bound on 18,000.
+* **A wipe takes it** (`EventStore.clear`, §124's rule); account deletion
+  does not, since six coefficients hold nothing about anybody.
+
+Impressions now carry which of these were in force: `algo_stamp()` is
+`ALGO_VERSION` plus `+sem` and `+lr<trained_at>`, because both switch on with
+no code change and the constant alone could not tell the regimes apart in
+`tools/ctr_report.py --by algo`. `ALGO_VERSION` moved to `2026-09-23.1`.
+`/api/health` reports all three under `ranking`.
+
+### Still open
+
+**Nothing here has run against real listening.** The model has encoded real
+sentences and the ranker has been timed with it, but whether Made for you is
+*better* is a question for `tools/ctr_report.py --by algo` after a week with
+`+sem` on, and `tools/learn_rank.py --dry-run` on a real log will say whether
+there is yet enough to fit anything - on a young deployment it will most
+likely say "too few taps to judge", which is the correct answer. The cache's
+remaining gain is behind a cross-encoder nobody has installed.

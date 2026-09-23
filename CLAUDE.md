@@ -2129,8 +2129,22 @@ which is the go/no-go for all of it.
   today's facts - rather than by the threshold sitting above it, so the vector
   is carrying none of the gain. A real sentence model in `~/.fam/embed` is the
   only thing that changes that, and it is the same trade as the voices - ship
-  a model with the app, or pay a service per call. Nobody has run one yet, and
-  re-running `tools/bench_vector_cache.py` is how anybody will know it helped.
+  a model with the app, or pay a service per call.
+  **Answered for the cache, and the answer is "not by itself"** *(§128).*
+  all-MiniLM-L6-v2 is installed by `tools/install_embed_model.py` and by the
+  Dockerfile, and the bench with it finds the same 23 at the safe point: it
+  reaches 37 of 41 with the overlap guard off, and serves "how old is the
+  eiffel tower" for "how tall" at 0.879 on the way. Only a cross-encoder
+  separates those, so the cache's guards and defaults are unchanged.
+  **The model is used by the ranker instead** (`taste_vectors.py`), where a
+  near miss costs a weaker tile rather than a wrong episode: a bounded
+  additive term in Made for you for how close a tile is to what the listener
+  has asked for, ~2 ms a warm page, `{}` and the old ranking with no model.
+  And the order of that rail can now be **fitted to taps**
+  (`learned_rank.py`, `python tools/learn_rank.py`): a logistic regression over
+  the ranker's own six signals, rebuilt point in time from the impression
+  log, stored only if it beats the hand-tuned order on held-out offers, and
+  allowed to re-order what cleared the floor but never to choose it.
 
 ## How to ship a change (standing instruction)
 
@@ -2235,7 +2249,10 @@ before the first word, captions measured against the audio, and audio that
 plays with the ringer off; and **§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
 three, so a deployment with no traffic had no grown vocabulary at all, and
 the tree could already see "college football" in a tile's question while
-the ranker scored that tile on `sports` alone),
+the ranker scored that tile on `sports` alone); and **§128**, the embedding
+model finally installed and measured - no help to the cache on its own, used
+by the ranker instead - and an order for Made for you fitted to thirty days of
+taps that is only served if it beats the hand-tuned one),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
