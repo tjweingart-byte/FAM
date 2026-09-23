@@ -318,10 +318,10 @@ def test_a_named_subject_can_be_pinned_beside_a_facet(store):
     assert shown[0]["label"] == "Formula 1"
 
 
-def test_the_store_refuses_a_fifth_pinned_interest(tmp_path):
+def test_the_store_refuses_a_sixth_pinned_interest(tmp_path):
     store = prefs_mod.PreferenceStore(str(tmp_path / "p.db"))
     saved = store.save("u", profile_interests=["tech", "money", "sports",
-                                               "health", "culture"])
+                                               "health", "culture", "world"])
     assert len(saved.profile_interests) == prefs_mod.PROFILE_INTERESTS_MAX
 
 

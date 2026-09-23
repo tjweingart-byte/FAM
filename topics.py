@@ -3782,7 +3782,7 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
 #: and is not imported from it, because `topics` is the module `preferences`
 #: imports and not the other way round. The two are pinned together by a test
 #: rather than by an import, which is the same trade `pipeline.key_for` makes.
-PROFILE_INTEREST_SLOTS = 4
+PROFILE_INTEREST_SLOTS = 5
 
 
 def _interest_score(tags: Iterable[str], profile: dict[str, float]) -> float:

@@ -31,7 +31,7 @@ the tier system below applies to anonymous listeners too. They are on `free`.
 
 ### The one screen a guest does not get (§114)
 
-The **Profile tab**, at the owner's direction. It used to draw the whole page
+The **Profile tab** (called **YourFAM** since §133), at the owner's direction. It used to draw the whole page
 for somebody with no account - name, counts, shelves, vibes - with a note at
 the bottom offering one. Everything on it was true, which is why it lasted,
 and it is still the wrong screen: a profile is the one page that is *about*

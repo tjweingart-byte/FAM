@@ -170,14 +170,16 @@ def test_the_welcome_screen_offers_to_continue_as_a_guest():
 
 
 def test_edit_profile_no_longer_asks_which_interests_are_shared():
-    """That choice is on the profile now, next to the row it changes."""
+    """The old shared-or-hidden block is gone, and so is the profile's own
+    chooser that replaced it: YourFAM's Edit profile chooses them now."""
     page = _interface()
     # The heading itself is gone; the comment explaining where it went stays.
     assert '<div class="set-group">Shared on your profile</div>' not in page
     assert 'id="identityShared"' not in page
     assert "function renderSharedInterests" not in page
     assert "function toggleSharedInterest" not in page
-    assert "function openProfileInterests" in page
+    assert "function openProfileInterests" not in page
+    assert 'id="identityInterests"' in page
 
 
 def _interface() -> str:
@@ -195,7 +197,7 @@ def test_the_profile_returns_the_row_and_the_choices(client):
     client.post("/api/preferences",
                 json={"interests": ["tech", "sports"], "topics": ["Formula 1"]})
     body = client.get("/api/profile").json()
-    assert body["interests_max"] == 4
+    assert body["interests_max"] == 5
     assert len(body["interests_shown"]) <= 4
     assert body["interests_source"] in ("top", "pinned")
     # The editor needs the whole ranked list, not just the four on screen.

@@ -10667,3 +10667,113 @@ under it that said nothing keeps audio - CLAUDE.md is amended.
 
 Written as §131 on its branch and renumbered on merging `Main`, which had
 taken §131 in the meantime.
+
+## 133. Profile became YourFAM
+
+The owner handed over a design packet (`yourfam-tab-spec.md` and six screens
+at 390x844) that replaces the Profile tab with **YourFAM**: one tab for who
+you are, your friends, your messages and what you show. Built into the real
+interface rather than beside it.
+
+### What changed
+
+* **The last tab is YourFAM** on all five tab bars: a people icon and a red
+  unread count (`[data-social-badge]`, painted by `setUnreadDot` from the same
+  notification poll that already drove myFAM's message dot).
+* **The hub** (`renderProfile`): the YourFAM mark with a gold (+) for a new
+  message and the Settings gear; photo, name, `@handle · N friends · N vibes`;
+  Edit profile and a strong **Saved for Later**; up to five interest chips,
+  each opening the Topic screen; **Your friends** as story avatars with an
+  Invite circle; **Messages** as one card ("1 new from TJ"); and **Your shelf
+  · what friends see** as two counts. Removed on purpose, and a test says so:
+  the This month card, the inline conversation list and the "From your FAM"
+  feed. The four-tile hub, the "my FAM is your FAM" headline and the
+  profile's own interest chooser sheet went with them.
+* **Messages** is a back-arrow screen titled Messages; a shared episode is
+  previewed as "Shared an episode · Money & markets".
+* **The chat** header opens their profile and carries their interest chips
+  plus "N in common"; a shared episode is a card with Listen, Go Deeper and
+  Save; a "You finished it · N min" receipt follows it; the composer is (+),
+  a field and a round send. No shelf in the chat, and no VIBE! in the
+  composer - share (private, one person) and vibe (public) stay separate.
+* **A friend's profile**: ringed avatar, Message (gold) and Following, their
+  chips with "N in common", `{NAME}'S SHELF · PUBLIC MIXES` and `VIBES · N`,
+  each with View more.
+* **Topic** (`screen-topic`, new): an interest as a page of episodes, Latest
+  and Friends vibed, and **myFAM's own length pill and sheet** - the badges
+  follow it, because it sets how long a tapped episode is written rather than
+  filtering by duration.
+* **Edit profile** keeps every field it had and gains **Your interests - N of
+  5**: suggestions from `interests_ranked` plus the eight facets, toggled,
+  dimmed at five, and "add your own" for anything typed.
+
+### Server
+
+* `GET /api/interest` - episodes on one interest. Live stories, then finished
+  episodes in the shared cache, then the bank as the evergreen tail; or, with
+  `filter=friends`, what the listener's circle vibed. **Generates nothing.** A
+  catalogue subject matches on its most specific tags so "Formula 1" is not a
+  page about every sport; a typed topic the vocabulary cannot see is matched
+  on its words.
+* `/api/profile` gains `circle`: friends first, then follows, each flagged
+  `vibed` (a vibe this week) and `fresh` (a vibe in two days, or an unread
+  message). Only things they chose to show or sent may light a face - never a
+  play.
+* Messages and a person's vibes carry `topic` (`app._topic_label`, keyword
+  tagging, no model call); a thread's shared episode carries `finished`, read
+  off this listener's own completions.
+* **The interest cap is five** (`PROFILE_INTERESTS_MAX`,
+  `PROFILE_INTEREST_SLOTS`), at the owner's direction in the handoff. It was
+  four.
+
+### Where the build departs from the handoff, and why
+
+* **No mock social module.** The spec asked for one because the prototype it
+  was drawn in had no backend. This app has the follow graph, the inbox and
+  the vibes, and a surface that invents people is the thing this codebase has
+  a rule against (the three invented contacts once shipped in `index.html`).
+  The "one small interface" is the API.
+* **The app's fonts and scale, not the design's.** Fraunces rather than
+  Newsreader, and sizes at about four-fifths, because the frame is ~312px
+  wide rather than 390. The spec says match what is already there first.
+* **Choosing interests pins the profile; typing one also adds it to
+  `topics`.** Toggling a suggestion off changes what is shown, never what is
+  played. A save that touched nothing writes nothing, so fixing a typo in a
+  name does not freeze the automatic chips.
+* **The composer's (+) shares episodes only** - what is playing, saved or
+  vibed. There is no message kind for a mix, and a menu item that did nothing
+  would be worse than none.
+* **The Friends tile's new-follower count is gone with the tile.** The popup
+  and the notification banner still announce a follow, and opening Friends
+  still clears it.
+
+### Found in review, before merging
+
+An independent pass over the diff found five bugs and one limitation. All
+five are fixed.
+
+* **The hub's Messages line could say "1 new, from 0 people"** or name the
+  wrong sender. The poll's unread count is newer than the inbox the page
+  holds. A count the inbox does not account for now says "N new messages"
+  and refetches, but only when the count has moved since the last read, so
+  an inbox capped at 50 threads cannot refetch itself in a loop.
+* **A friend could lose their VIBE badge** when a second friend vibed the
+  same episode. `echoes_among` keeps one row per episode and caps its scan.
+  `social.latest_echo_at` is one grouped read per person instead.
+* **Edit profile could wipe every chosen topic.** It appended typed topics to
+  `PREF_CHOICES.topics`, which is undefined until preferences load, and the
+  server replaces the list wholesale. It now reads the stored list first,
+  and adds nothing rather than replace it with a list it never had.
+* **Topic's View more could draw one page twice** on a double tap.
+* **A friend's profile opened by handle alone never got Message or Follow.**
+  It is re-resolved from the graph when the graph arrives.
+* **Not fixed: "You finished it" matches the question only.** A completion
+  event carries no length, so finishing the two-minute version counts for a
+  shared five-minute one.
+
+### Still open
+
+* Nobody has looked at it on a phone against the design files side by side
+  beyond the Playwright screenshots taken while building it.
+* Topic's Latest on a deployment with an empty cache and no live pool is the
+  bank alone - honest, and evergreen rather than fresh.
