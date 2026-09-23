@@ -269,3 +269,35 @@ def test_only_the_production_voices_keep_audio():
     assert ChatterboxEngine.keeps_audio and RemoteChatterboxEngine.keeps_audio
     assert not PLACEHOLDER_ENGINE.keeps_audio
     assert not any(cls.keeps_audio for cls in DEV_ENGINES.values())
+
+
+def test_a_stored_replay_is_not_metered_as_gpu_time(store):
+    """Metering allocates GPU cost from the seconds the voice made. A replay
+    out of kept audio made none, and billing it would put the saving back in
+    the ledger as a cost."""
+    engine = CountingVoice()
+    pipe = PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=store)
+    plan = plan_episode("how comets form", 1)
+    _, first = play(pipe, plan)
+    _, second = play(pipe, plan)
+    assert first.voiced_seconds == first.audio_seconds > 0
+    assert second.audio == "stored" and second.voiced_seconds == 0.0
+    assert second.audio_seconds > 0
+
+
+def test_the_audio_endpoint_meters_voiced_seconds_not_played_ones():
+    import pathlib
+
+    source = (pathlib.Path(__file__).resolve().parent.parent / "app.py").read_text()
+    assert "audio_seconds=stats.audio_seconds" not in source
+    assert source.count("audio_seconds=stats.voiced_seconds") == 2
+
+
+def test_an_episode_larger_than_the_ceiling_is_not_reported_kept(tmp_path, monkeypatch):
+    import cache as cache_mod
+
+    store = SqliteScriptCache(str(tmp_path / "s.db"))
+    monkeypatch.setattr(cache_mod, "audio_ceiling_bytes", lambda: 1000)
+    store.put("k", ["x."], ttl=60, query="k")
+    assert not store.put_audio("k", "v", 24000, os.urandom(5000), ["x."], [0.0])
+    assert store.stats()["audio_entries"] == 0

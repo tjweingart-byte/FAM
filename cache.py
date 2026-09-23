@@ -914,7 +914,9 @@ class SqliteScriptCache:
             if not cur.rowcount:
                 return False
             self._evict_audio()
-            return True
+            # An episode larger than the whole ceiling is evicted by its own
+            # write; saying it was kept would be a claim nothing can serve.
+            return self.has_audio(key, voice, sample_rate)
         except Exception:
             log.exception("audio cache write failed; continuing")
             return False

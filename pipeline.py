@@ -248,6 +248,16 @@ class GenerationStats:
     usage: metering.Usage = field(default_factory=metering.Usage)
 
     @property
+    def voiced_seconds(self) -> float:
+        """Seconds of audio the voice engine actually made for this play.
+
+        What metering allocates GPU cost from. A replay out of kept audio made
+        none (§131), and billing it as though it had would put the saving
+        this whole mechanism exists for back into the ledger as a cost.
+        """
+        return 0.0 if self.audio == "stored" else self.audio_seconds
+
+    @property
     def drift(self) -> float:
         return self.audio_seconds - self.plan_seconds
 

@@ -4203,7 +4203,7 @@ async def audio(
         # invoice.
         _record_usage(user, stats.usage,
                       surface=_surface(cached_only, topic_id, context),
-                      minutes=plan.minutes, audio_seconds=stats.audio_seconds,
+                      minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
@@ -4283,7 +4283,7 @@ async def audio(
             _record_usage(
                 user, stats.usage,
                 surface=_surface(cached_only, topic_id, context),
-                minutes=plan.minutes, audio_seconds=stats.audio_seconds,
+                minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
                 cache_hit=stats.cache == "hit",
             )
 
