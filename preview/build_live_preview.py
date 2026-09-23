@@ -93,6 +93,7 @@ LIVE_SHIM = r"""
   var VOLATILE = __VOLATILE__;     // cache.research_words(), verbatim
   var NEAR = __NEAR__;             // the shipped CACHE_VECTOR thresholds
   var realFetch = window.fetch.bind(window);
+__MIX_ITEMS__
 
   // ------------------------------------------------------------ db plumbing
   var db = null, MEM = {}, COLS =
@@ -991,16 +992,20 @@ LIVE_SHIM = r"""
     return { episodes: eps };
   }
 
+  // `mixes.items` is the comma-joined id list: `f:nfl~Eagles` for a
+  // followed subject (built by the same rules as `mixes.followed_item`, see
+  // MIX_ITEMS_JS), a bank id for an older mix, `q:<words>` for a typed one.
   function shapeMix(m) {
     var ids = String(m.items || "").split(",").filter(Boolean);
     var items = ids.map(function (id) {
+      var followed = mixFollowItem(id, CATALOGUE);
+      if (followed) return followed;
       var t = BY_ID[id];
       return t ? { id: t.id, title: t.title, query: t.query, custom: false,
                    subtitle: t.subtitle, icon: t.icon }
-               : { id: id, title: id.replace(/^q:/, ""), query: id.replace(/^q:/, ""),
-                   custom: true, subtitle: "Added by you", icon: "leaf" };
+               : mixTypedItem(id.replace(/^q:/, ""));
     });
-    return { id: m.id, name: m.name, items: items,
+    return { id: m.id, name: m.name, items: items, cover: m.cover || "",
              topics: items.filter(function (i) { return !i.custom; }),
              topic_ids: items.filter(function (i) { return !i.custom; }).map(function (i) { return i.id; }),
              custom_count: items.filter(function (i) { return i.custom; }).length,
@@ -1393,6 +1398,8 @@ LIVE_SHIM = r"""
         }),
         interests_yours_source: mineNow.source,
         catalogue: CATALOGUE,
+        tag_parent: TAG_PARENT,
+        tag_labels: TAG_LABELS,
         languages: LANGUAGES,
         language_active: false,
         account: !!EMAIL, saved: !!EMAIL,
@@ -1495,9 +1502,10 @@ LIVE_SHIM = r"""
       return put("mixes", mid, {
         user_id: UID, name: body.name || "New mix",
         items: (body.topic_ids || []).map(function (e) {
-          return typeof e === "string" ? e : ("q:" + String(e.query || "").toLowerCase().slice(0, 24));
+          return typeof e === "string" ? e : ("q:" + mixCleanFocus(e.query || ""));
         }).join(","),
-        created_at: now(), updated_at: now(), public: 0
+        created_at: now(), updated_at: now(), public: 0,
+        cover: typeof body.cover === "string" ? body.cover : ""
       }).then(function () {
         paint();
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === mid; })[0]));
@@ -1513,11 +1521,12 @@ LIVE_SHIM = r"""
         name: body.name !== undefined ? body.name : cur.name,
         items: body.topic_ids !== undefined
           ? body.topic_ids.map(function (e) {
-              return typeof e === "string" ? e : ("q:" + String(e.query || "").toLowerCase().slice(0, 24));
+              return typeof e === "string" ? e : ("q:" + mixCleanFocus(e.query || ""));
             }).join(",")
           : cur.items,
         created_at: cur.created_at, updated_at: now(),
-        public: body.public !== undefined ? (body.public ? 1 : 0) : cur.public
+        public: body.public !== undefined ? (body.public ? 1 : 0) : cur.public,
+        cover: body.cover !== undefined ? String(body.cover || "") : (cur.cover || "")
       }).then(function () {
         paint();
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === mixId; })[0]));
@@ -2045,7 +2054,7 @@ LIVE_SHIM = r"""
     var jobs = [];
     jobs.push(put("mixes", rid(), {
       user_id: UID, name: "Morning Run",
-      items: BANK.slice(0, 4).map(function (t) { return t.id; }).join(","),
+      items: ["f:nfl~Eagles", "f:nfl", "f:stocks~Nvidia", BANK[0].id].join(","),
       created_at: now() - 86400, updated_at: now() - 86400, public: 1
     }));
     jobs.push(put("mixes", rid(), {
@@ -2226,6 +2235,7 @@ def build() -> pathlib.Path:
     shim = (LIVE_SHIM
             .replace("__FIXTURES__", json.dumps(bp.load_fixtures()))
             .replace("__ALGO__", json.dumps(topics.ALGO_VERSION))
+            .replace("__MIX_ITEMS__", bp.mix_items_js())
             .replace("__SHARE_TEMPLATES__", json.dumps([
                 {"key": t.key, "label": t.label, "kind": t.kind,
                  "needs_image": t.needs_image, "text": t.template}

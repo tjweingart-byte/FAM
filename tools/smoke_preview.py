@@ -12,6 +12,7 @@ import os
 import re
 import pathlib
 import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT = ROOT / "preview" / "fam-preview.html"
@@ -1999,19 +2000,157 @@ def main() -> int:
             # uppercased in CSS and innerText reports what is rendered.
             body = page.inner_text("#pickerBody").lower()
             assert typed in body, "the typed topic is not shown in the picker"
-            assert "your own topics" in body, "the typed topic has no heading"
+            assert "also in this mix" in body, "the typed topic has no heading"
             assert page.eval_on_selector("#pickerSearch", "e => e.value") == "", \
                 "adding a typed topic left the search box full"
-            chosen = page.evaluate("pickerSelection.length")
-            assert f"{chosen} topic" in page.inner_text("#pickerCount"), \
+            # Counted in briefings, which is what a narrowed subject makes
+            # several of (§136).
+            chosen = page.evaluate("pickerPayload().length")
+            assert f"{chosen} briefing" in page.inner_text("#pickerCount"), \
                 "the count did not notice the topic"
 
-            # A bank topic is the other half of the same screen.
+            # A subject to follow is the other half of the same screen.
             page.evaluate("document.querySelectorAll('#pickerBody .mix-topic')"
                           "[document.querySelectorAll('#pickerBody .mix-topic').length - 1].click()")
             page.wait_for_timeout(300)
             assert page.evaluate("pickerSelection.length") == before + 2, \
-                "tapping a bank topic kept nothing"
+                "tapping a subject to follow kept nothing"
+
+        def a_new_mix_follows_narrowed_subjects():
+            """The §136 flow end to end: name it on its own screen, follow NFL,
+            narrow it to the Eagles and keep the whole league too, find a team
+            by searching for it, save - and land in a mix whose rows are the
+            briefings chosen, with recommendations under them that are
+            subjects to follow and never something already followed.
+
+            Every step is a screen the listener meets, so every step is
+            asserted on the screen rather than in a variable alone."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.evaluate("openNewMix()")
+            page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            assert page.eval_on_selector("#nmCreate", "e => e.disabled"), \
+                "Create is offered before the mix has a name"
+            name = "Smoke %d" % int(time.time() * 1000 % 100000)
+            page.fill("#nmInput", name)
+            page.evaluate("onNewMixName()")
+            assert not page.eval_on_selector("#nmCreate", "e => e.disabled"), \
+                "a named mix still cannot be created"
+            assert page.text_content("#nmPreview").strip() == name, \
+                "the folder preview does not show the name"
+            before = page.evaluate("mixes.length")
+            page.click("#nmCreate")
+            page.wait_for_selector("#screen-mixpicker.active", timeout=5000)
+            assert page.evaluate("mixes.length") == before, \
+                "Create made the mix before a topic was chosen"
+            # Back keeps the name: the naming screen is step one of two.
+            page.evaluate("cancelMixPicker()")
+            page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            assert page.eval_on_selector("#nmInput", "e => e.value") == name, \
+                "going back from the topics lost the name"
+            page.click("#nmCreate")
+            page.wait_for_selector("#screen-mixpicker.active .fol-ic",
+                                   timeout=10000, state="attached")
+            assert page.query_selector("#pickerChips .pk-chip.on"), \
+                "no interest filters over the topics"
+
+            # Follow NFL: "anything specific?" opens on its own.
+            page.evaluate("toggleMixTopic('f:nfl')")
+            page.wait_for_timeout(200)
+            panel = page.inner_text("#pickerBody .fol-wrap.open .focus-panel")
+            assert "Anything specific in NFL?" in panel, panel[:200]
+            page.click("#pickerBody .focus-sugg .focus-chip[data-v='Eagles']")
+            page.wait_for_timeout(200)
+            assert page.query_selector("#pickerBody .focus-all"), \
+                "no way to keep all of NFL beside the Eagles"
+            page.click("#pickerBody .focus-all")
+            page.wait_for_timeout(200)
+            assert "2 briefings" in page.inner_text("#pickerCount"), \
+                page.inner_text("#pickerCount")
+
+            # Search reaches into the specifics: people think in teams.
+            page.fill("#pickerSearch", "lakers")
+            page.evaluate("onPickerSearch()")
+            page.wait_for_timeout(300)
+            body = page.inner_text("#pickerBody")
+            assert "Lakers" in body and "Basketball" in body, body[:300]
+            page.click("#pickerBody .mix-topic[data-v='Lakers']")
+            page.wait_for_timeout(200)
+            payload = page.evaluate("pickerPayload()")
+            assert payload == ["f:nfl~Eagles", "f:nfl", "f:basketball~Lakers"], payload
+
+            page.evaluate("saveMixPicker()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=8000)
+            page.wait_for_timeout(400)
+            rows = page.eval_on_selector_all(
+                "#mixBody > .mix-topic .mix-topic-title",
+                "els => els.map(e => e.textContent)")
+            assert rows == ["NFL \u00b7 Eagles", "NFL", "Basketball \u00b7 Lakers"], rows
+            assert "edition \u00b7" in page.inner_text("#mixBody").lower(), \
+                "the edition is not dated"
+
+            # Recommendations: five subjects, none already followed, shuffled.
+            recs = page.eval_on_selector_all(
+                "#mixBody .rec-list .mix-topic-title", "els => els.map(e => e.textContent)")
+            assert len(recs) == 5, recs
+            assert "NFL" not in recs and "Basketball" not in recs, recs
+            page.click("#mixBody .rec-shuffle")
+            page.wait_for_timeout(200)
+            again = page.eval_on_selector_all(
+                "#mixBody .rec-list .mix-topic-title", "els => els.map(e => e.textContent)")
+            assert len(again) == 5 and again != recs, (recs, again)
+
+            # A play is today's edition of the subject, narrowed to the team.
+            prompt = page.evaluate("""() => {
+                var real = generate, sent = null;
+                generate = function(key){ sent = TOPICS[key]; };
+                try { playMixItem(mixById(currentMixId).items[0], false); }
+                finally { generate = real; }
+                return sent && [sent.prompt, sent.title, sent.bankTopicId];
+            }""")
+            assert prompt, "playing a followed subject asked for nothing"
+            text, title, bank = prompt
+            assert "Cover only Eagles, not NFL in general" in text, text
+            assert str(time.localtime().tm_year) in text and "{date}" not in text, text
+            assert title.endswith("today") and bank == "", (title, bank)
+            page.evaluate("openPlayFAM()")
+            page.wait_for_timeout(300)
+
+        def a_cover_is_square_and_the_avatar_is_not():
+            """A mix cover goes through the avatar's own editor, square; the
+            avatar must come out of it still a circle."""
+            page.evaluate("openNewMix()")
+            page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            page.evaluate(
+                """() => {
+                    var c = document.createElement('canvas');
+                    c.width = 300; c.height = 200;
+                    c.getContext('2d').fillRect(0, 0, 300, 200);
+                    window.__coverPhoto = c.toDataURL('image/jpeg', 0.9);
+                    openPhotoEditor(window.__coverPhoto, { square: true, px: COVER_PX,
+                        title: 'Position your cover',
+                        onSave: function(d){ applyCover('new', d); } });
+                }""")
+            page.wait_for_selector("#photoOverlay.active.cover-mode", timeout=8000)
+            page.wait_for_timeout(400)
+            assert page.text_content("#photoTitle").strip() == "Position your cover", \
+                "the cover editor kept the avatar title"
+            page.evaluate("savePhotoCrop()")
+            page.wait_for_timeout(300)
+            assert page.evaluate("newMixCover.indexOf('data:image/jpeg') === 0"), \
+                "the crop was not kept for the new mix"
+            assert page.eval_on_selector("#nmFolder", "e => e.classList.contains('has-cover')"), \
+                "the folder does not show the cover"
+            page.evaluate("openPhotoEditor(window.__coverPhoto)")
+            page.wait_for_selector("#photoOverlay.active", timeout=8000)
+            assert not page.eval_on_selector(
+                "#photoOverlay", "e => e.classList.contains('cover-mode')"), \
+                "the avatar editor opened square after a cover"
+            assert page.evaluate("photo.onSave === null"), \
+                "the avatar crop would be handed to the cover"
+            page.evaluate("closePhotoEditor()")
+            page.evaluate("cancelNewMix()")
+            page.wait_for_timeout(300)
 
         def messages_sheet():
             # The sheet has to be leavable. A tab that cannot be left is the
@@ -2749,6 +2888,9 @@ def main() -> int:
         check("Search opens on the length it will generate",
               the_search_page_opens_on_the_length_it_will_generate)
         check("picker offers a typed topic", picker)
+        check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
+        check("A mix cover is square and the avatar is not",
+              a_cover_is_square_and_the_avatar_is_not)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)

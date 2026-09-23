@@ -11048,3 +11048,84 @@ pending.
   rather than merging two stories - the cheaper mistake.
 - **The composer still keeps results out of news tiles.** Only the score line
   is exempt; a news story's title is written the §102 way.
+
+## 136. DailyFAM mixes follow subjects, narrowed, with a cover
+
+The owner's prototype handoff (`dailyfam-mixes-handoff`, prototype v118),
+ported from the built file into the sources that build it. The handoff said
+it plainly: a rebuild from the repo had already overwritten these changes
+once, and would again until they lived in source.
+
+### What changed for a listener
+
+- **`+` opens a naming screen** (`#screen-newmix`, step 1 of 2): quick-pick
+  names, a folder preview, and a **cover photo** chosen through the avatar's
+  own move-and-scale editor, square. Create goes to the topics and makes
+  nothing; **Save** on the topics page makes the mix. An empty mix is never
+  created, and Back from the topics keeps the name and the cover.
+- **The picker offers subjects to follow, not bank episodes.** Catalogue
+  subjects (Soccer, NFL, Stocks & Economy...), under a row of the listener's
+  own interests as filter chips. A bank episode is one story; a mix is a list
+  of things somebody wants a new episode on every day.
+- **Following a subject asks "Anything specific in NFL?" at once**, with
+  suggested teams and a free-text box, up to three. **Each specific is its
+  own daily briefing**, and "Also all of NFL" adds the whole subject as a
+  separate one. Search reaches into the specifics: "eagles" offers
+  Eagles - NFL.
+- **The mix page** has the cover and name, a dated "Today's edition", and
+  **Recommended topics**: five subjects to follow, ranked by what the mix
+  already follows, with Shuffle, on every visit. `+` on one opens the same
+  "anything specific?" panel before it is followed.
+- **Every play is that day's edition.** A followed or typed item asks for
+  "The latest on Eagles (NFL) as of Wednesday, September 23, 2026. Cover only
+  Eagles, not NFL in general: ...". Cards count briefings, not topics.
+
+### Where the handoff's shortcuts went
+
+- **The contract is the server's now.** `mixes.py` accepts `f:<catalogue
+  id>` and `f:<catalogue id>~<url-encoded focus>`, validates the subject
+  against `topics.CATALOGUE_BY_ID`, cleans the focus (`,` `~` `|` become
+  spaces, 40 characters), rebuilds the id the way `encodeURIComponent` does
+  so the page and the store agree on the string, and stores a **cover** as a
+  data URL on the row: images only, base64 checked, `MAX_COVER_CHARS`. Bank
+  ids still validate and play, so no existing mix breaks.
+- **`window.FAM_TAGS` is gone.** The catalogue, `tag_parent` and
+  `tag_labels` come off `/api/preferences`, which the client already loads
+  into `PREF_CHOICES`; the mix page and the picker fetch it if a listener
+  arrived without it.
+- **`FOCUS_HINTS` moved into `topics.py`** (the handoff's own follow-up) and
+  rides on each catalogue entry as `focus_noun` and `focus_picks`, so the iOS
+  app gets the same suggestions and there is one list to edit.
+- **The daily prompt is built once, on the server.** `mixes.daily_prompt`
+  returns it with `{date}` left open, on every item as `daily_prompt`; the
+  page fills in the listener's local date and `MixSource` fills in the
+  server's. The prototype built it in the page, which would have left
+  prefetch warming the bare subject ("NFL") under a key no tap ever asks for.
+  It picks the longest ending that fits `MAX_PROMPT` (300), because
+  `/api/next`, a vibe and a saved item all cap a query there.
+- **The cache worry in the handoff (§4) does not apply to the server.** It
+  was about the prototype's mock, which cut the key at sixty characters.
+  `cache.normalize_query` keeps every token, so the date is in the key, and
+  the near-match cache refuses any pair whose numbers differ.
+  `test_yesterdays_briefing_is_never_todays` pins both. The same day's
+  briefing is shared between listeners who follow the same thing, which is
+  the shared-cost design working.
+- **One fix the handoff did not have:** a mix row's play button carried the
+  item id inside a quoted `onclick`, and a focus like `O'Brien` is a button
+  that throws. It reads a `data-id` now.
+- The two preview shims share `MIX_ITEMS_JS`, with every phrase and limit
+  injected from `mixes.py`, and the fixture mixes are built through
+  `mixes.clean_items` rather than written by hand.
+
+### Still true, and worth knowing
+
+- **Nobody has heard a daily-edition episode.** There is no key here; the
+  prompt wording is the handoff's, untested against real output.
+- **Prefetch dates on the server's clock**, so a listener whose local day
+  differs from the server's misses the warmed brief. A wasted warm, never a
+  stale episode.
+- A typed topic is followed the same way ("The latest on Stanford as of..."),
+  which reads oddly for a question rather than a subject. That was the
+  handoff's decision and is kept.
+- Covers are inline on the mix row. If they ever move to object storage,
+  `mixes.clean_cover` is where the URL comes back instead.

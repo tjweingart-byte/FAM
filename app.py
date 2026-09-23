@@ -3022,6 +3022,9 @@ class MixRequest(BaseModel):
     topic_ids: Optional[list[Union[str, dict]]] = None
     #: Public mixes appear on the listener's profile.
     public: Optional[bool] = None
+    #: The mix's cover photo as a data URL; "" removes it, omitted keeps it.
+    #: Checked in mixes.clean_cover, which says why it is refused.
+    cover: Optional[str] = Field(None, max_length=mixes_mod.MAX_COVER_CHARS)
 
 
 def _attachments_for(user: str, ids: str) -> tuple:
@@ -3142,7 +3145,8 @@ async def list_mixes(request: Request):
 async def create_mix(req: MixRequest, request: Request):
     _read_limit(request)
     try:
-        mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [])
+        mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [],
+                           req.cover or "")
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3154,7 +3158,8 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
     try:
-        mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public)
+        mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
+                           req.cover)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return mix.as_dict()
@@ -3364,6 +3369,13 @@ async def read_preferences(request: Request):
         # lets it be seventy-odd entries without widening the vocabulary the
         # ranker reasons in by a single word.
         "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
+        # The vocabulary a DailyFAM mix ranks catalogue subjects in: which
+        # facet each subtag lives under, and what each facet is called. The
+        # picker filters and orders subjects by the listener's interests and
+        # a mix's recommendations by what it already follows, and both need
+        # "ai" to count as Technology (§136).
+        "tag_parent": dict(topics_mod.TAG_PARENT),
+        "tag_labels": dict(topics_mod.TAG_LABELS),
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
         # False until per-language generation exists. Printed under the picker
         # rather than left implicit: a setting that silently changes nothing is
