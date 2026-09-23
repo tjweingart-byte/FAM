@@ -289,6 +289,20 @@ configured and returning them.
 
 # Configured providers
 
+**A key is the switch** (§135). With `LIVE_SPORTS_PROVIDER` unset and
+`API_SPORTS_KEY` present, sports is served by API-Sports; the same for
+`FINNHUB_KEY` and markets (`live_sources.DERIVED_FROM_KEY`). `none` switches a
+domain off. `/api/health` lists which were derived under
+`live_sources.derived_from_key`.
+
+**API-Sports shares one daily allowance** between the myFAM story sweep and
+these lookups (`live_sources.API_SPORTS_BUDGET`, `API_SPORTS_DAILY_REQUESTS`).
+A lookup reads the sweep's card first (`live_sources.CARD`): finding the game
+is free when the sweep listed it, and a card inside half the sports freshness
+limit is used as the state. When the allowance is spent the lookup says so
+(`BudgetSpent`, reported as a provider failure) rather than being refused by
+the provider in a reply that reads like an empty card.
+
 Added in PROBLEMS.md §91. **None has been verified against its live service
 from this build** — the container's egress proxy blocks every host below, so
 each adapter is written from the vendor's documented shapes and pinned against

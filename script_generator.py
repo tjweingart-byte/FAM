@@ -1023,18 +1023,14 @@ class ScriptGenerator:
         that the retrieval is a step a caller can see, time and skip, rather
         than something buried inside the streaming call.
 
-        **Both backends retrieve now.** `claude` used to mean "let the writing
-        call search while it writes", which is how an episode came to open on
-        a sentence composed before anything had been looked up. It is a
-        retrieval of its own now, and the writing call never carries a search
-        tool - see PROBLEMS.md §108.
+        **Exa and GDELT, and nothing else** (§135). The model never searches:
+        a `claude` backend used to run Anthropic's `web_search` in a research
+        call of its own, and before that on the writing call itself (§108).
+        Both are deleted. The writing call never carries a tool.
 
         **A backend that cannot serve falls back to the other one, and says
-        so.** That is a change from refusing, and the reasoning is that the
-        alternative on a deployment with no Exa key was never "no research" -
-        it was the search tool riding along on the writing call, silently.
-        Between two fallbacks, the one recorded on the episode
-        (`fell_back_from` in `notes.research`) beats the one nobody could see.
+        so** (`fell_back_from` in `notes.research`), rather than an episode
+        quietly being researched some way nobody chose.
         """
         if not plan.search or plan.evidence:
             return plan
@@ -1049,9 +1045,8 @@ class ScriptGenerator:
         # The order is not a ranking of quality, it is what each one costs to
         # try: the configured backend first because it is the one this
         # deployment chose, then GDELT because it is keyless and takes one
-        # HTTP call, then the model's own search, which is 10-25 seconds and
-        # a model call. Trying the expensive one earlier would make a rare
-        # miss expensive for everybody.
+        # HTTP call. Since §135 there is nothing below GDELT: the model's own
+        # search was the last rung and is deleted.
         packet = await self._retrieve(query, plan.brief, configured)
         _mark(notes, "first_rung_ready")
         spent = [packet]
@@ -1094,8 +1089,7 @@ class ScriptGenerator:
             notes.research["seconds"] = round(
                 sum(r.seconds for r in spent if r is not None), 3)
             # **Every rung that ran is metered, including the ones that came
-            # back empty.** A rung whose packet is discarded still spent: the
-            # `claude` rung is a real model call with a web search in it, and
+            # back empty.** A rung whose packet is discarded still spent, and
             # it is *most* likely to be discarded on exactly the episodes
             # that then get refused. Recording only the winner would report
             # the expensive failures as free.
@@ -1104,16 +1098,14 @@ class ScriptGenerator:
                     continue
                 # Exa's own reported cost where it gave one, its published
                 # rate otherwise. **Only for Exa**: `Usage.exa_searches` is a
-                # count of Exa searches, and filing GDELT's fetches or the
-                # model's web searches under it would make the one number
-                # `usage_report.py` prints about retrieval a mixture of three
-                # things.
+                # count of Exa searches, and filing GDELT's fetches under it
+                # would make the one number `usage_report.py` prints about
+                # retrieval a mixture of two things.
                 if rung.backend == "exa":
                     notes.usage.add_research(rung.searches, rung.cost)
-                # The searching call's tokens, on the backend that spends
-                # them. A research call this size is not free and was
-                # invisible for as long as the searching happened inside the
-                # writing turn.
+                # A searching model call's tokens, should a rung ever spend
+                # them again. None does since §135; kept because metering a
+                # rung is cheaper to leave right than to remember to restore.
                 if rung.usage is not None:
                     notes.usage.add_model_call(settings.model, rung.usage)
         if not packet:
@@ -1400,18 +1392,6 @@ class ScriptGenerator:
             # the text: cache reads and writes are invisible in the output.
             if notes is not None:
                 notes.usage.add_model_call(settings.model, getattr(final, "usage", None))
-                # And who the model itself read, when it did the looking.
-                #
-                # The packet and the tool are alternatives (CLAUDE.md, "a tool
-                # is not an instruction"), so exactly one of them produced this
-                # episode's evidence - but only the packet was ever recorded.
-                # On a deployment with no Exa key that is *every* episode, so
-                # the sources panel had nothing to show and hid itself, which
-                # read as a broken panel rather than as missing provenance.
-                #
-                # Merged rather than assigned: `prepare` may have attached live
-                # facts already, and a tool search does not replace them.
-                _merge_search_provenance(notes, final)
             if final.stop_reason == "refusal":
                 detail = getattr(final, "stop_details", None)
                 reason = getattr(detail, "explanation", None) or "the request was declined"
@@ -1477,33 +1457,6 @@ async def _demo() -> None:  # pragma: no cover - manual check
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(_demo())
-
-
-def _merge_search_provenance(notes: "ScriptNotes", message) -> None:
-    """Fold the model's own `web_search` results into this episode's sources.
-
-    Separate from the call site so that "what a tool search contributed" is
-    one readable thing, and so that a failure to read a provider object can be
-    swallowed *here* rather than inside the stream - a sources panel must never
-    be the reason an episode does not play, which is the rule every other
-    provenance path in this file keeps.
-    """
-    try:
-        import provenance as provenance_mod
-
-        found = provenance_mod.from_web_search(message)
-        if not found:
-            return
-        if notes.provenance is None:
-            notes.provenance = provenance_mod.Provenance()
-        for item in found.items:
-            notes.provenance.add(item)
-        for retriever in found.retrievers:
-            if retriever not in notes.provenance.retrievers:
-                notes.provenance.retrievers.append(retriever)
-        _publish_sources(notes)
-    except Exception:
-        log.exception("could not read the search results; the episode is unaffected")
 
 
 def _publish_title(notes: "ScriptNotes | None", brief) -> None:

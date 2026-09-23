@@ -247,6 +247,17 @@ Plus the `trending` registry, which is where `TRENDING_SOURCE` installs a feed;
 it became one source among several rather than being deprecated, so anything
 already configured keeps working and produces the same row it always did.
 
+**Since §135** the GDELT source finds stories rather than themes: it reads a
+few hundred recent headlines worldwide and from each region's press, groups
+them (`news_clusters`), and counts the outlets running each. API-Sports sweeps
+on its whole daily allowance (about every fourteen minutes for one sport) and
+carries each game's score as a `live_line` drawn beside the tile. A signal from
+any source that matches a news story takes that story's coverage
+(`stories.corroborate`). Every story knows where it is trending
+(`geography.py`), the Trending rail keeps two of its four places for the
+listener's own part of the world, and "View more" on Trending is grouped by
+place. The pool refreshes itself every `STORIES_BACKGROUND_SECONDS`.
+
 ### One refresh, one small model call, everybody
 
 A refresh window is:

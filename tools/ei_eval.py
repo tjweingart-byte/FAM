@@ -41,7 +41,7 @@ something we have, without claiming the world has reported nothing.
 **Not touched.** Whether the story is any good. That is `write.py` and a
 judgement call, and no harness is going to make it otherwise.
 
-Needs an ANTHROPIC_API_KEY, and an EXA_API_KEY unless RESEARCH_BACKEND=claude.
+Needs an ANTHROPIC_API_KEY, and an EXA_API_KEY unless RESEARCH_BACKEND=gdelt.
 Nothing in the build container has either, so this is a tool to run where the
 keys are - it says so rather than reporting a green run on no data.
 """
@@ -150,7 +150,7 @@ def keys_present() -> tuple[bool, str]:
         ok, detail = research_mod.diagnose()
         if not ok:
             return False, (f"RESEARCH_BACKEND=exa but {detail}. Set EXA_API_KEY, "
-                           "or RESEARCH_BACKEND=claude to let the model search.")
+                           "or RESEARCH_BACKEND=gdelt (with GDELT=1) to use the keyless index.")
     return True, ""
 
 

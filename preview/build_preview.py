@@ -64,6 +64,67 @@ def load_fixtures() -> dict:
         ])
     ]
 
+    # **Trending, as the story pool builds it since §135**: real clustered
+    # stories ranked by how many outlets run them, worldwide and region by
+    # region, and a game carrying its score line. Invented, like every
+    # fixture here, and run through the real conversion and the real ranker
+    # - `rank_world` for the rail and `trending_groups` for "View more" - so
+    # the preview shows the page those functions build rather than a
+    # description of it. Ranked for a listener in the United States.
+    import geography
+
+    def trending_story(subject, title, angle, coverage, countries, tags,
+                       domain=stories_mod.ATTENTION, live_line="",
+                       live_status="", hint=""):
+        scope, key, label = geography.scope_for(countries, hint)
+        return stories_mod.Story(
+            subject=subject, title=title, angle=angle,
+            query=f"{subject}: what is happening and why it matters",
+            domain=domain, source="fixture feed", tags=tuple(tags),
+            strength=min(1.0, 0.25 + coverage / 60.0),
+            first_seen=__import__("time").time() - 3600,
+            shelf_life=stories_mod.DOMAIN_SHELF_LIFE[domain],
+            countries=tuple(countries), coverage=coverage, region_hint=hint,
+            geo_scope=scope, geo_key=key, geo=label,
+            live_line=live_line, live_status=live_status,
+            live_as_of=__import__("time").time() - 300 if live_line else 0.0)
+
+    everywhere = (("united states", 0.35), ("united kingdom", 0.25),
+                  ("india", 0.2), ("japan", 0.2))
+    trending_stories = [
+        trending_story("the ceasefire talks in Cairo", "The Ceasefire Talks",
+                       "What each side is actually asking for", 58,
+                       everywhere, ("world",)),
+        trending_story("the chip export rules", "The New Chip Export Rules",
+                       "Who they hit, and who they miss", 41, everywhere,
+                       ("tech",)),
+        trending_story("Chiefs vs Bills", "Chiefs vs Bills",
+                       "The matchup inside the matchup", 22,
+                       (("united states", 1.0),), ("sports",),
+                       domain=stories_mod.SPORTS,
+                       live_line="Live \u00b7 Chiefs 21\u201314 Bills \u00b7 Third Quarter",
+                       live_status="in_progress"),
+        trending_story("the Ohio school funding vote", "Ohio's School Funding Vote",
+                       "Why a state budget fight went national", 14,
+                       (("united states", 1.0),), ("world",)),
+        trending_story("the French rail strike", "France's Rail Strike",
+                       "What the unions want this time", 19,
+                       (("france", 0.8), ("united kingdom", 0.2)), ("world",)),
+        trending_story("the Delhi heatwave", "The Delhi Heatwave",
+                       "How hot a city can get before it stops", 16,
+                       (("india", 1.0),), ("science",)),
+        trending_story("the Bank of Japan decision", "The Bank of Japan's Move",
+                       "Why the yen cares more than anyone", 12,
+                       (("japan", 0.7), ("south korea", 0.3)), ("money",)),
+    ]
+    trending_tiles = topics_mod.topics_from_stories(trending_stories)
+    trending_rail = [t.as_dict() for t in topics_mod.rank_world(
+        trending_tiles, "US")]
+    trending_view = [
+        {"key": g["key"], "label": g["label"], "yours": g["yours"],
+         "topics": [dict(x.as_dict(), cached=False) for x in g["topics"]]}
+        for g in topics_mod.trending_groups(trending_tiles, "US")]
+
     def section(key, title, ids):
         # A live story tile is passed through as a dict - its inventory is not
         # the bank - and a bank id is looked up. **Copied either way**: the
@@ -112,7 +173,7 @@ def load_fixtures() -> dict:
         # draw on one pool now and a page showing the same tile twice reads as
         # a bug - so a fixture that repeated them would preview a page the app
         # does not build.
-        "world_trending": live_tiles[2:],
+        "world_trending": trending_rail,
         # What this listener was shown last week and did not take. Eight,
         # because the rail's own size is eight and a fixture that showed six
         # would preview a shorter row than the app builds. Bank topics only:
@@ -212,6 +273,13 @@ def load_fixtures() -> dict:
     return {
         "/api/interest": interest,
         "/api/myfam": myfam,
+        # Trending's "View more", grouped by where each story is trending -
+        # built by `topics.trending_groups`, as the server builds it (§135).
+        "/api/myfam/section:world_trending": {
+            "key": "world_trending", "title": "Trending",
+            "topics": [x for g in trending_view for x in g["topics"]],
+            "groups": trending_view, "ready": 0, "empty_reason": "",
+            "personalised": True, "taste_source": "taste"},
         "/api/mixes": mixes,
         "/api/topics": {"topics": bank},
         # The preview never reads a real file: it stands in for the extraction
@@ -939,6 +1007,12 @@ SHIM = """
     // be looked at on a phone.
     if (path === "/api/myfam/section") {
       var wantKey = qs.get("key") || "most_played";
+      var grouped = FIXTURES["/api/myfam/section:" + wantKey];
+      if (grouped) {
+        var copy = JSON.parse(JSON.stringify(grouped));
+        copy.minutes = Number(qs.get("minutes") || 3);
+        return json(copy);
+      }
       var section = FIXTURES["/api/myfam"].sections.filter(function (s) {
         return s.key === wantKey; })[0];
       if (!section) return json({ error: "No such section." }, 404);

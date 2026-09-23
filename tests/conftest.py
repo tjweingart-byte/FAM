@@ -51,7 +51,7 @@ FAM_ENVIRONMENT = (
     "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN",
     "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
     "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
-    "RESEARCH_MAX_TOKENS", "RESEARCH_RETRY",
+    "RESEARCH_RETRY",
     # Episode intelligence: whether the layer in front of retrieval runs, and
     # how. A developer with EPISODE_INTELLIGENCE=0 set must not run a suite
     # that quietly skips every EI behaviour and still reports green.
@@ -81,6 +81,7 @@ FAM_ENVIRONMENT = (
     # live APIs, so a clean environment here is what keeps the browse-page
     # tests offline as well as deterministic.
     "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
+    "STORIES_BACKGROUND_SECONDS", "API_SPORTS_DAILY_REQUESTS",
     "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
     "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",

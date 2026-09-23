@@ -89,8 +89,8 @@ def test_a_rung_that_is_switched_off_is_not_a_rung(monkeypatch):
                                brief=BRIEF_CURRENT)
     with pytest.raises(research.NoEvidence):
         prepared_without_live(monkeypatch, plan)
-    assert [b for b, _ in tried] == ["exa", "claude"], "gdelt was asked anyway"
-    assert research.ladder("exa") == ["exa", "claude"]
+    assert [b for b, _ in tried] == ["exa"], "gdelt was asked anyway"
+    assert research.ladder("exa") == ["exa"]
 
 
 def test_the_ladder_stops_at_the_first_rung_that_finds_anything(monkeypatch):
@@ -102,30 +102,33 @@ def test_the_ladder_stops_at_the_first_rung_that_finds_anything(monkeypatch):
     assert tried == [("exa", "who won")], "a rung ran after a success"
 
 
-def test_an_empty_backend_falls_to_the_keyless_one_before_the_expensive_one(
-        monkeypatch):
-    """Order is cost, not quality. GDELT is one keyless HTTP call; the model's
-    own search is 10-25 seconds and a model call, so it goes last."""
+def test_an_empty_backend_falls_to_the_keyless_one(monkeypatch):
+    """GDELT is the only rung below the configured backend (§135)."""
     backend(monkeypatch, "exa")
     tried = rungs(monkeypatch, {"gdelt": found("gdelt")})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     notes = ScriptNotes()
     assert "from gdelt" in research_with(plan, notes).evidence
-    assert [b for b, _ in tried] == ["exa", "gdelt"], "the expensive rung ran"
+    assert [b for b, _ in tried] == ["exa", "gdelt"], "a rung ran after a success"
     # The precise query already found nothing, so the second index is asked
     # the wider question rather than the same one again.
     assert tried[0][1] == "who won" and tried[1][1] == "the game, result"
     assert notes.research["fell_back_from"] == "exa", "the fallback was silent"
 
 
-def test_the_model_s_own_search_is_the_last_rung(monkeypatch):
+def test_gdelt_is_the_last_rung_and_the_model_never_searches(monkeypatch):
+    """The model's own search was the last rung until §135, at the owner's
+    direction: everything an episode is written from comes from Exa, GDELT
+    and the live providers. Below GDELT is the refusal, never a model."""
     backend(monkeypatch, "exa")
-    tried = rungs(monkeypatch, {"claude": found("claude")})
+    tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    assert "from claude" in research_with(plan).evidence
-    assert [b for b, _ in tried] == ["exa", "gdelt", "claude"]
+    assert research.ladder("exa") == ["exa", "gdelt"]
+    with pytest.raises(research.NoEvidence):
+        prepared_without_live(monkeypatch, plan)
+    assert [b for b, _ in tried] == ["exa", "gdelt"]
 
 
 def test_a_rung_that_raises_is_a_rung_that_failed(monkeypatch):
@@ -142,11 +145,11 @@ def test_a_rung_that_raises_is_a_rung_that_failed(monkeypatch):
 
 def test_the_configured_backend_is_never_tried_twice(monkeypatch):
     backend(monkeypatch, "gdelt")
-    tried = rungs(monkeypatch, {"claude": found("claude")})
+    tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     research_with(plan)
-    assert [b for b, _ in tried] == ["gdelt", "claude"]
+    assert [b for b, _ in tried] == ["gdelt"]
 
 
 # --------------------------------------------------------------------------
@@ -285,32 +288,27 @@ def test_an_attachment_is_evidence_and_is_never_refused(monkeypatch):
 
 
 def test_every_rung_that_ran_is_metered_even_when_it_is_discarded(monkeypatch):
-    """The claude rung is a real model call with a web search in it, and it
-    is most likely to be discarded on exactly the episodes that then get
-    refused and refunded. Recording only the winner reports the expensive
-    failures as free."""
+    """A rung whose packet is discarded still spent, and it is most likely
+    to be discarded on exactly the episodes that then get refused and
+    refunded. Recording only the winner reports the failures as free."""
     backend(monkeypatch, "exa")
-    usage = types.SimpleNamespace(input_tokens=900, output_tokens=200,
-                                  cache_read_input_tokens=0,
-                                  cache_creation_input_tokens=0)
-    empty_but_paid = research.Packet(backend="claude", usage=usage)
-    rungs(monkeypatch, {"claude": empty_but_paid})
+    empty_but_paid = research.Packet(backend="exa", searches=2, cost=0.01)
+    rungs(monkeypatch, {"exa": empty_but_paid, "gdelt": found("gdelt")})
 
     notes = ScriptNotes()
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     research_with(plan, notes)
-    assert notes.usage.model_calls == 1, "a rung that spent was reported free"
-    assert notes.usage.input_tokens == 900
+    assert notes.usage.exa_searches == 2, "a rung that spent was reported free"
 
 
 def test_only_exa_searches_are_counted_as_exa_searches(monkeypatch):
     """`Usage.exa_searches` is a count of Exa searches. Filing GDELT's
-    fetches or the model's web searches under it makes the one retrieval
-    number `usage_report.py` prints a mixture of three things."""
+    fetches under it makes the one retrieval number `usage_report.py`
+    prints a mixture of two things."""
     backend(monkeypatch, "exa")
-    rungs(monkeypatch, {"claude": research.Packet(
-        context="SOURCE 1\nTitle: x", backend="claude", searches=3)})
+    rungs(monkeypatch, {"gdelt": research.Packet(
+        context="SOURCE 1\nTitle: x", backend="gdelt", searches=3)})
     notes = ScriptNotes()
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
@@ -318,7 +316,7 @@ def test_only_exa_searches_are_counted_as_exa_searches(monkeypatch):
     assert notes.usage.exa_searches == 0
     # But the episode's own record still says what the whole ladder did.
     assert notes.research["searches"] == 3
-    assert notes.research["rungs"] == ["exa", "gdelt", "claude"]
+    assert notes.research["rungs"] == ["exa", "gdelt"]
 
 
 def test_the_script_endpoint_refuses_and_refunds_like_the_audio_one(monkeypatch):

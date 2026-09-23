@@ -13,16 +13,23 @@ What a source may return, and what it may not
 ---------------------------------------------
 A `Signal` is a **measurement**, never a report. Coverage volume, a traded
 price, a betting line, a fixture on today's card: all things that are true
-whatever happens next. **No source here ever puts a result in an
-`observation`** - not a score, not a winner, not a settled market - because
-that text is the only thing the composer is given and a result in it becomes a
-result on a tile, and from there an episode written around a claim nobody
-checked. PROBLEMS.md §88 is what that costs.
+whatever happens next. **No source puts a result in an `observation` for the
+composer to write into a title** - because a title is written once and read
+for hours, and a result in it becomes a result on a tile long after it
+stopped being true. PROBLEMS.md §88 is what that costs.
 
-That rule has one place it looks odd and is still right: a game that has
-finished. API-Sports knows the score, and this file deliberately does not pass
-it on. The tile says "what decided it"; the *episode* finds out, from dated
-evidence, on the research path built for exactly that.
+**One exception, and it is not in the title** (§135, at the owner's
+direction). API-Sports passes the score on now, as `Signal.live_line`: a line
+written in code from the scoreboard on every sweep, drawn beside the tile and
+never composed into it. A score that is re-read every fourteen minutes and
+says how old it is is a different thing from a score frozen into a sentence.
+
+GDELT is no longer a list of themes. It finds the actual stories - headlines
+grouped by `news_clusters` - worldwide and in each region's press, and counts
+the outlets running each. That count is what Trending ranks on, and
+`stories.corroborate` lends it to a game, a price or a market the press is
+also running, so the row is ranked on everything FAM knows rather than on
+each feed alone.
 
 Why these four and not a news API
 ---------------------------------
@@ -45,6 +52,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -88,24 +97,38 @@ def _tags(text: str, *extra: str) -> tuple:
 # GDELT - what the press is writing about
 # --------------------------------------------------------------------------
 class GdeltSignals(stories.StorySource):
-    """Coverage volume across a fixed set of GKG themes, plus the headlines.
+    """The stories the world's press is running, worldwide and region by region.
 
-    `gdelt.py` already sweeps these themes for the Trending row and turns each
-    into a templated question. Its own docstring names the better version and
-    leaves it undone: *one model call per refresh window turning the top
-    themes and their leading headlines into real questions*. This is the half
-    that makes that possible - it measures the theme and then goes and reads
-    what is actually being written under it, so the composer has something
-    specific to write about rather than the word "sport".
+    **Stories, not themes** (§135). This used to emit one signal per GKG
+    theme - "inflation", "sport", "the stock market" - with the leading
+    headlines pasted under it, so the Trending row was fifteen subjects that
+    are always being written about and read the same every day. Now it reads
+    the articles and finds the stories in them:
 
-    **The identity trade, stated because it is the one thing here that is not
-    obviously right.** A story's id is hashed from its subject, and the
-    subject is the *theme* - so the tile that appears under "energy" keeps its
-    id while the leading headlines underneath it move on. That is what keeps
-    fatigue, impressions and the cooldown working on a stable thing, and it is
-    why the attention shelf life is the shortest of the broad domains: after
-    it, the theme is retired, cools off, and comes back with a fresh angle
-    rather than silently acquiring one.
+    1. **Which themes are hot** - `gdelt.volume_for` over `gdelt.THEMES`, the
+       sweep it always did. Cheap, and it decides where the worldwide sample
+       is drawn from.
+    2. **What is being run** - `gdelt.discover`: the recent articles under
+       the hottest themes (the worldwide sample) and under each region's own
+       press (`geography.GDELT_SOURCES`), a few hundred headlines in all.
+    3. **Which of them are one story** - `news_clusters.cluster` groups
+       headlines that share their people, places and organisations, and
+       counts the **distinct outlets** running each group. That count is the
+       story's popularity, and it is what Trending ranks on.
+
+    Geography comes with it for free: every article carries its publisher's
+    country, so a story knows whether the whole world is running it or one
+    region's press is - `geography.scope_for`. A story found only in one
+    region's sweep keeps that region when its rows carry no country.
+
+    **Every region gets a voice.** The worldwide sample is dominated by the
+    largest newsrooms, so a region's top stories are guaranteed places before
+    the rest are filled by popularity - otherwise "trending regionally" would
+    be whichever region publishes most in English.
+
+    Identity is by fingerprint, not by headline: a story's leading headline
+    changes between sweeps, and `stories._adopt_identity` matches it to the
+    tile it already has.
     """
 
     name = "GDELT"
@@ -113,19 +136,23 @@ class GdeltSignals(stories.StorySource):
     cost_per_refresh = 0.0
     #: Keyless and generous, so this may run on the pool's own clock.
     min_interval_seconds = 0.0
+    #: Room for the world and every region, rather than one provider's eight.
+    max_signals = 32
+    #: Twenty-odd requests, six at a time. Nobody waits on a sweep, and one
+    #: cut short by the shared ceiling is a sweep that found nothing.
+    timeout_seconds = 45.0
 
-    #: How many themes get a headline read after the volume sweep. Each one is
-    #: a second request, so this is the knob between "specific" and "cheap".
-    #:
-    #: Eight rather than six, at the owner's direction ("there should be more
-    #: variety"): it is the whole of `stories.MAX_PER_SOURCE`, so GDELT can fill
-    #: its share of a sweep rather than stopping two short of it.
-    HEADLINE_THEMES = 8
-    HEADLINES_PER_THEME = 4
-    #: How many articles are *read* per theme, which is more than are quoted.
-    #: The extra rows cost nothing - it is the same request - and they are the
-    #: sample `stories.country_shares` measures where coverage is coming from.
-    ARTICLES_PER_THEME = 20
+    #: How many of the hottest themes the worldwide sample is drawn from.
+    HOT_THEMES = 8
+    #: How far back a trending story may have been published.
+    WINDOW_HOURS = 12
+    #: Articles read per query. The extra rows cost nothing - it is the same
+    #: request - and they are what clustering and the country split measure.
+    ARTICLES_PER_QUERY = 75
+    #: Places guaranteed to each region's own top stories.
+    PER_REGION = 2
+    #: Headlines quoted to the composer per story.
+    HEADLINES_PER_STORY = 4
 
     def diagnose(self) -> tuple[bool, str]:
         import gdelt
@@ -140,60 +167,97 @@ class GdeltSignals(stories.StorySource):
 
         return await gdelt.GdeltTrendingSource().verify()
 
-    async def collect(self, limit: int) -> list:
+    async def hot_themes(self, timeout: float) -> list:
         import gdelt
 
-        timeout = float(settings.gdelt_timeout_seconds)
-
-        async def measure(theme: str, subject: str):
+        async def measure(theme: str):
             try:
-                return subject, theme, await gdelt.volume_for(theme, timeout)
+                return theme, await gdelt.volume_for(theme, timeout)
             except Exception as exc:  # noqa: BLE001 - one theme must not sink the sweep
                 log.debug("stories/gdelt: theme %s failed: %s", theme, exc)
-                return subject, theme, -1.0
+                return theme, -1.0
 
         measured = [row for row in await asyncio.gather(
-            *(measure(theme, subject) for theme, subject in gdelt.THEMES))
-            if row[2] > 0]
-        if not measured:
+            *(measure(theme) for theme, _subject in gdelt.THEMES)) if row[1] > 0]
+        measured.sort(key=lambda row: (-row[1], row[0]))
+        return [theme for theme, _v in measured[:self.HOT_THEMES]]
+
+    async def collect(self, limit: int) -> list:
+        import gdelt
+        import geography
+        import news_clusters
+
+        timeout = float(settings.gdelt_timeout_seconds)
+        themes = await self.hot_themes(timeout)
+        articles, scope_of, (failed, asked) = await gdelt.discover(
+            themes, timeout, hours=self.WINDOW_HOURS,
+            per_query=self.ARTICLES_PER_QUERY)
+        if asked and failed == asked:
+            # Every request failed: an outage, which `collect` must raise so
+            # the report says so, rather than a quiet day with no news.
+            raise RuntimeError(f"all {asked} GDELT requests failed")
+        groups = news_clusters.cluster(articles, scope_of=scope_of)
+        if not groups:
             return []
 
-        measured.sort(key=lambda row: -row[2])
-        top = measured[:min(limit, self.HEADLINE_THEMES)]
-        peak = top[0][2] or 1.0
-
-        async def headlines(subject: str):
-            try:
-                results = await gdelt.retrieve(
-                    f'"{subject}"', limit=self.ARTICLES_PER_THEME, recency_days=1)
-            except Exception as exc:  # noqa: BLE001
-                log.debug("stories/gdelt: headlines for %r failed: %s", subject, exc)
-                return [], ()
-            titles = [r.title for r in results if getattr(r, "title", "")]
-            return titles, stories.country_shares(
-                getattr(r, "country", "") for r in results)
-
-        heads = await asyncio.gather(*(headlines(subject) for subject, _t, _v in top))
-
         now = datetime.now(timezone.utc)
-        out = []
-        for (subject, _theme, volume), (titles, countries) in zip(top, heads):
-            said = (f"coverage of {subject} is running at about "
-                    f"{volume / peak:.0%} of today's busiest subject")
-            if titles:
-                said += (". What is being written under it right now: "
-                         + "; ".join(t[:120] for t in titles[:self.HEADLINES_PER_THEME]))
-            out.append(stories.Signal(
-                subject=subject,
-                observation=said,
-                domain=self.domain,
-                source=self.name,
-                tags=_tags(f"{subject} {' '.join(titles[:3])}"),
-                strength=min(1.0, volume / peak),
-                as_of=now,
-                countries=countries,
-            ))
-        return out
+        signals = [self._signal(g, now) for g in groups]
+        # Popularity, log-scaled so the one story every outlet is running
+        # does not flatten the rest of the row to nothing.
+        peak = math.log1p(max(s.coverage for s in signals) or 1)
+        signals = [replace(s, strength=round(min(1.0, math.log1p(s.coverage) / peak), 3))
+                   for s in signals]
+
+        def home(signal) -> str:
+            """The region a story belongs to, or "world"."""
+            scope, key, _label = geography.scope_for(signal.countries,
+                                                      signal.region_hint)
+            if scope == geography.WORLD:
+                return geography.WORLD
+            return key if scope == "region" else geography.REGION_OF.get(key, "")
+
+        chosen: list = []
+        seen: set = set()
+        for region in geography.REGIONS:
+            for signal in [s for s in signals if home(s) == region][:self.PER_REGION]:
+                seen.add(signal.subject)
+                chosen.append(signal)
+        for signal in signals:
+            if len(chosen) >= limit:
+                break
+            if signal.subject not in seen:
+                seen.add(signal.subject)
+                chosen.append(signal)
+        chosen.sort(key=lambda s: (-s.coverage, s.subject))
+        return chosen[:limit]
+
+    def _signal(self, group, now: datetime) -> "stories.Signal":
+        headline = group.headline()
+        titles = [headline] + [t for t in group.titles if t != headline]
+        region = group.main_scope()
+        countries = stories.country_shares(group.countries)
+        said = (f"{group.outlets} different outlets"
+                + (f" in {len({c for c, _s in countries})} countries" if countries else "")
+                + f" have run this in the last {self.WINDOW_HOURS} hours. "
+                + "What they are saying: "
+                + "; ".join(t[:120] for t in titles[:self.HEADLINES_PER_STORY]))
+        subject = headline[:140]
+        return stories.Signal(
+            subject=subject,
+            observation=said,
+            domain=self.domain,
+            source=self.name,
+            tags=_tags(" ".join(titles[:3])),
+            strength=0.5,
+            as_of=now,
+            url=group.urls[0] if group.urls else "",
+            countries=countries,
+            keywords=group.keywords(),
+            coverage=group.outlets,
+            region_hint="" if region in ("", "world") else region,
+            suggested_query=f"{subject}: what is happening and why it matters",
+            suggested_angle=f"Running across {group.outlets} outlets right now",
+        )
 
 
 class TrendingRegistrySignals(stories.StorySource):
@@ -484,42 +548,47 @@ def _first_price(row: dict) -> Optional[float]:
 # API-Sports - what is being played today
 # --------------------------------------------------------------------------
 class ApiSportsSignals(stories.StorySource):
-    """Today's card for the sports this deployment serves.
+    """Today's card for the sports this deployment serves - **with the score**.
 
-    **The score is deliberately not passed on.** API-Sports has it, and
-    putting it in an `observation` would put it on a tile - a claim about an
-    outcome made by the one layer that must never make one, on the one subject
-    where FAM has already got it wrong (PROBLEMS.md §88: a final score written
-    for a game in its third quarter). What the signal carries is the *status*,
-    from the provider's own closed vocabulary, and the tile is written to be
-    true either way. The episode finds out what happened, from dated evidence,
-    on the path built for it.
+    **The score is passed on now** (§135, at the owner's direction: "it
+    should include score so people can have updates on current sports events
+    happening"). It used to be withheld, on §88's reasoning - a tile is
+    written once, before anything is researched, so a score in its title is
+    true for one sweep and wrong for the rest of the game. That reasoning
+    still holds for the *title*, and it is kept: the composer is told the
+    score and told not to write it. What carries it is `Signal.live_line`,
+    a line written **in code from the provider's own numbers on every
+    sweep** - "Live · Chiefs 21–14 Bills · Third Quarter", "Final · ...",
+    "Starts 20:15 UTC" - so it is never older than one sweep and the card
+    says how old it is. The episode still researches the game on the tap,
+    and the live lookup reads the same feed.
 
-    Free tier is 100 requests a day, which is why this sweeps at most once
-    every two hours and asks for one date per sport rather than one per
-    league: at fifteen-minute windows it would spend its whole daily quota on
-    a browse page nobody had opened.
+    **Swept on the whole daily allowance, paced** (§135). It used to sweep at
+    most every two hours to keep the free tier's hundred requests a day in
+    reserve. `min_interval_seconds` now comes from
+    `live_sources.API_SPORTS_BUDGET`: whatever is left of the day's
+    allowance, spread over what is left of the day - about every fourteen
+    minutes with one sport on the free tier, and slower on a day episode
+    lookups have spent a share of it. One request per sport per sweep.
 
-    **The known gap, and it is a real one: there is no league filter.** One
-    date on one product returns that day's fixtures *everywhere* - so a
-    listener could be offered a third-division match they have never heard of
-    while the game they care about is three hundred rows further down. The
-    ordering below is by status and then deterministic, which makes the choice
-    stable rather than good, and `MAX_PER_SOURCE` plus the pool's facet cap
-    stop it swamping the page.
-    Closing it properly means a `league` (and for some products a `season`)
-    parameter and a decision about which leagues a deployment serves - both of
-    which want a real key in front of the real API to get right, and guessing
-    at them from the documentation is how the wrong parameter ships looking
-    like it works. `PROVIDER_ROLLOUT.md` carries it as the step to take when
-    this source is switched on for real.
+    **Major leagues first.** A date request returns every fixture in the
+    world; `live_sources.MAJOR_LEAGUES` puts the NFL, the NBA and the Premier
+    League ahead of the third division, and a game the press is also running
+    rises further when `stories.corroborate` finds it in the news sweep. The
+    league's country is the tile's geography.
     """
 
     name = "API-Sports"
     domain = stories.SPORTS
     #: Flat-rate plan; the bill is not per call.
     cost_per_refresh = 0.0
-    min_interval_seconds = 7200.0
+    max_signals = 12
+
+    @property
+    def min_interval_seconds(self) -> float:
+        import live_sources
+
+        return live_sources.API_SPORTS_BUDGET.sweep_interval(len(self.sports()))
 
     def diagnose(self) -> tuple[bool, str]:
         import live_sources
@@ -530,8 +599,12 @@ class ApiSportsSignals(stories.StorySource):
             if key not in live_sources.SPORTS:
                 return False, (f"STORIES_SPORTS lists {key!r}, which is not one of "
                                f"{', '.join(sorted(live_sources.SPORTS))}")
+        budget = live_sources.API_SPORTS_BUDGET
         return True, (f"API_SPORTS_KEY present, sweeping "
-                      f"{', '.join(self.sports())} (not verified from this machine)")
+                      f"{', '.join(self.sports())} about every "
+                      f"{budget.sweep_interval(len(self.sports())) / 60:.0f} min "
+                      f"({budget.remaining()} of {budget.daily} requests left "
+                      f"today; not verified from this machine)")
 
     async def verify(self) -> tuple[bool, str]:
         import live_sources
@@ -547,36 +620,38 @@ class ApiSportsSignals(stories.StorySource):
     async def collect(self, limit: int) -> list:
         import live_sources
 
-        headers = {"x-apisports-key": settings.api_sports_key}
-        timeout = float(settings.live_timeout_seconds)
+        timeout = float(settings.live_timeout_seconds) * 4
         today = datetime.now(timezone.utc).date().isoformat()
 
         async def card(key: str):
             sport = live_sources.SPORTS[key]
-            try:
-                data = await _json(f"{sport.host}/{sport.path}", headers,
-                                   {"date": today}, timeout)
-            except Exception as exc:  # noqa: BLE001 - one sport is not the sweep
-                log.debug("stories/api-sports: %s failed: %s", key, exc)
-                return sport, []
-            return sport, (data or {}).get("response", []) or []
+            data = await live_sources.api_sports_json(
+                f"{sport.host}/{sport.path}", {"date": today}, timeout)
+            rows = (data or {}).get("response", []) or []
+            live_sources.remember_card(key, rows)
+            return sport, rows
 
-        now = datetime.now(timezone.utc)
         out = []
-        for sport, rows in await asyncio.gather(*(card(k) for k in self.sports()
-                                                 if k in live_sources.SPORTS)):
+        failures: list = []
+        for result in await asyncio.gather(
+                *(card(k) for k in self.sports() if k in live_sources.SPORTS),
+                return_exceptions=True):
+            if isinstance(result, BaseException):
+                failures.append(result)
+                continue
+            sport, rows = result
+            now = datetime.now(timezone.utc)
             for row in rows:
                 signal = self._signal(sport, row, now)
                 if signal is not None:
                     out.append(signal)
+        if failures and not out:
+            # Every sport failed - the allowance, the key or the host. An
+            # outage, raised so the report names it, never a day with no games.
+            raise failures[0]
         if not out:
             return []
         # Deterministic, because the provider's own order is not a ranking.
-        # Three strength values over a whole day's card means most fixtures
-        # tie, and a stable sort then hands the tie to whatever the API listed
-        # first - so the tiles changed between sweeps for no reason anybody
-        # could see. Sorting the tie by subject makes the same card produce the
-        # same tiles twice.
         out.sort(key=lambda s: (-s.strength, s.subject))
         return out[:limit]
 
@@ -589,38 +664,56 @@ class ApiSportsSignals(stories.StorySource):
         live_facts.SCHEDULED: 0.8,
         live_facts.FINAL: 0.55,
     }
+    #: A game outside `MAJOR_LEAGUES` is worth this share of one inside it.
+    MINOR_LEAGUE = 0.45
 
     def _signal(self, sport, row: dict, now: datetime):
+        import geography
         import live_sources
 
-        # A staticmethod on the live-facts adapter: the row shape is that
-        # provider's, so the one place that already knows how to read it is
-        # the right place to keep knowing.
         home, away = live_sources.ApiSportsSource._team_names(row)  # noqa: SLF001
         if not (home and away):
             return None
-        status = sport.statuses.get(_status_code(row), live_facts.UNKNOWN)
-        if status == live_facts.UNKNOWN:
+        status, line = live_sources.ApiSportsSource.live_line(row, sport)
+        if status == live_facts.UNKNOWN or not line:
             # `unknown` is not "probably fine" - it is the state in which
             # nothing may be said. A game FAM cannot describe is a game it
             # does not offer.
             return None
+        league, country = live_sources.league_of(row)
+        major = live_sources.is_major(league, country)
+        where = stories.normalise_country(country)
+        hint = ""
+        if where in ("world", "international", ""):
+            where = ""
+        elif where == "europe":
+            where, hint = "", "europe"
+        elif where not in geography.REGION_OF:
+            where = ""
+        stamp = now.strftime("%H:%M UTC")
         said = {
-            live_facts.IN_PROGRESS: "is under way right now",
-            live_facts.SCHEDULED: "is on today's card and has not started",
-            live_facts.FINAL: "was played earlier today and has finished",
+            live_facts.IN_PROGRESS: f"is under way right now: {line} (as of {stamp})",
+            live_facts.SCHEDULED: f"is on today's card and has not started ({line})",
+            live_facts.FINAL: f"has finished: {line}",
         }[status]
         return stories.Signal(
             subject=f"{home} vs {away}",
-            observation=(f"this {sport.key.replace('-', ' ')} fixture {said}. "
-                         f"Nothing here says what the score is or who is "
-                         f"ahead, and you must not imply either."),
+            observation=(f"this {sport.key.replace('-', ' ')} game"
+                         + (f" in the {league}" if league else "")
+                         + f" {said}. The score is shown to the listener beside "
+                         "the tile and updates on its own; keep it out of the "
+                         "title, the angle and the query."),
             domain=self.domain,
             source=self.name,
-            tags=_tags(f"{home} {away} {sport.key}", "sports"),
-            strength=self.STRENGTH.get(status, 0.5),
+            tags=_tags(f"{home} {away} {sport.key} {league}", "sports"),
+            strength=round(self.STRENGTH.get(status, 0.5)
+                           * (1.0 if major else self.MINOR_LEAGUE), 3),
             as_of=now,
             outcome_pending=status != live_facts.FINAL,
+            countries=((where, 1.0),) if where else (),
+            region_hint=hint,
+            live_line=line,
+            live_status=status,
         )
 
 

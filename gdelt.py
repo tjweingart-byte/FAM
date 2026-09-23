@@ -28,13 +28,15 @@ DOC 2.0, a single keyless endpoint over a rolling three-month window:
 over time. No credential, no account, generous limits - which is why this can
 be a second opinion on every episode without a second bill.
 
-**The honest limitation**, worth knowing before trusting the trending half:
-DOC is query-driven. It tells you how much coverage *a query you name* is
-getting; it does not hand you a ranked list of everything hot right now. So
+**The limitation, and how the story pool gets round it** (§135). DOC is
+query-driven: it tells you how much coverage *a query you name* is getting;
+it does not hand you a ranked list of everything hot right now. So
 `GdeltTrendingSource` sweeps a set of GKG themes and ranks them by measured
-volume. That is real measurement over a fixed vocabulary, not open-ended
-discovery - open-ended needs the bulk GKG exports, which are a heavier path
-and deliberately not taken here.
+volume - real measurement over a fixed vocabulary. The story pool no longer
+stops there: `discover` reads the recent articles under the hottest themes
+and under each region's own press, and `news_clusters` groups them into the
+actual stories, ranked by how many outlets are running each one. Open-ended
+discovery without the bulk GKG exports.
 
 Not verified against the live service
 -------------------------------------
@@ -210,6 +212,94 @@ async def retrieve(query: str, limit: int = 0,
     results = parse_articles(payload)
     log.info("gdelt: %d article(s) for %r", len(results), query)
     return results
+
+
+async def artlist(query: str, limit: int, hours: int, timeout: float) -> list:
+    """Recent articles for `query`. **Raises** on failure, unlike `retrieve`.
+
+    The trending sweep needs to tell "GDELT answered with nothing" from
+    "GDELT did not answer" - the second is an outage `/api/health` has to be
+    able to say - so this is the half of `retrieve` without its safety net.
+    `retrieve` is the one to call on an episode's path.
+    """
+    params = {
+        "query": query,
+        "mode": "artlist",
+        "maxrecords": str(max(1, min(250, limit))),
+        "format": "json",
+        # Hybrid relevance leans towards the outlets GDELT weights most, which
+        # is what a trending row wants from a sample: the stories the big
+        # newsrooms are running, rather than the most recent two minutes.
+        "sort": "hybridrel",
+        "timespan": f"{max(1, min(2160, hours))}h",
+    }
+    return parse_articles(await _get(params, timeout))
+
+
+def region_query(region: str) -> str:
+    """How to ask for one region's press: its main source countries, OR'd.
+
+    GDELT wants OR'd terms in parentheses, and `sourcecountry:` takes the
+    country name with its spaces removed - the FIPS codes it also accepts are
+    not ISO codes (`UK`, `GM`), which is a mistake waiting in a lookup table.
+    """
+    import geography
+
+    names = geography.GDELT_SOURCES.get(region, ())
+    if not names:
+        return ""
+    if len(names) == 1:
+        return f"sourcecountry:{names[0]}"
+    return "(" + " OR ".join(f"sourcecountry:{n}" for n in names) + ")"
+
+
+async def discover(hot_themes: list, timeout: float, hours: int = 12,
+                   per_query: int = 75, regions=None,
+                   concurrency: int = 6) -> tuple:
+    """Read what the world's press, and each region's, is running right now.
+
+    One `artlist` per hot theme for the worldwide sample, and one per region
+    over that region's own press. Returns `(articles, scope_of, failures)`:
+    every article read, a function saying which sweep found each one ("world"
+    or a region key), and how many requests failed - so a sweep that lost
+    every request is reported as an outage rather than as a quiet news day.
+
+    Bounded concurrency, because GDELT is a research project's free service
+    and asks to be treated like one; a sweep of fifteen at once is how a
+    keyless API becomes a rate-limited one.
+    """
+    import geography
+
+    regions = tuple(geography.REGIONS if regions is None else regions)
+    jobs = [("world", f"theme:{theme}") for theme in hot_themes]
+    jobs += [(region, region_query(region)) for region in regions
+             if region_query(region)]
+    gate = asyncio.Semaphore(max(1, concurrency))
+    found_in: dict = {}
+    failures = 0
+
+    async def run(scope: str, query: str):
+        async with gate:
+            try:
+                return scope, await artlist(query, per_query, hours, timeout), None
+            except Exception as exc:  # noqa: BLE001 - one query is not the sweep
+                return scope, [], exc
+
+    articles: list = []
+    for scope, rows, error in await asyncio.gather(
+            *(run(scope, query) for scope, query in jobs)):
+        if error is not None:
+            failures += 1
+            log.debug("gdelt: %s sweep failed: %s", scope, error)
+            continue
+        for row in rows:
+            # First finder wins, and a worldwide finding beats a regional
+            # one: the world sweep runs first in `jobs`.
+            found_in.setdefault(row.url, scope)
+            articles.append(row)
+
+    return articles, (lambda article: found_in.get(article.url, "")), \
+        (failures, len(jobs))
 
 
 async def volume_for(theme: str, timeout: float) -> float:

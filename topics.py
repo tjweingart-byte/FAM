@@ -199,6 +199,21 @@ COUNTRY_WEIGHT = 1.0
 #: all one subject still fills the row, from the tiles the cap passed over.
 WORLD_MAX_PER_FACET = 1
 
+#: How much the press's coverage lifts a story on the Trending rail (§135).
+#: "The trending section should carry stories based off of their popularity
+#: on trending news" - so a story is ranked on how many outlets are running
+#: it, log-scaled against the most-covered story in the pool, on top of its
+#: own push. A game or a price nobody is writing about still has a place; a
+#: story forty newsrooms are running outranks it.
+COVERAGE_WEIGHT = 3.0
+
+#: How many of the rail's four places go to the listener's own part of the
+#: world before the rest are filled worldwide (§135: "trending stories from
+#: over the world and regionally"). At most half, so the row is never only
+#: local; zero when the listener's country is unknown or nothing is trending
+#: there, in which case the row is ranked worldwide exactly as before.
+WORLD_LOCAL_SLOTS = 2
+
 #: What a live story is worth next to an evergreen one of the same affinity.
 #:
 #: Made for you draws from both inventories, and without this the bank wins
@@ -358,6 +373,20 @@ class Topic:
     #: by `rank_world` only, and deliberately not serialised: it is an input
     #: to one rail's order, not something a card says.
     countries: tuple = ()
+    #: How many distinct outlets are running it - `Story.coverage`, the
+    #: popularity Trending ranks on (§135). Zero for the bank.
+    coverage: int = 0
+    #: Where it is trending - `Story.geo_scope`/`geo_key`/`geo`. The label is
+    #: what a Trending card shows; the scope and key are what the rail's
+    #: geography mix and the "View more" grouping read.
+    geo_scope: str = ""
+    geo_key: str = ""
+    geo: str = ""
+    #: A game's score line and status, refreshed every sweep, and when
+    #: (`Story.live_line`). Drawn beside the title, never inside it.
+    live_line: str = ""
+    live_status: str = ""
+    live_as_of: float = 0.0
 
     def as_dict(self) -> dict:
         return {
@@ -370,6 +399,13 @@ class Topic:
             "angle": self.angle,
             "source": self.source,
             "freshness": round(self.freshness, 3),
+            "coverage": self.coverage,
+            "geo": self.geo,
+            "geo_scope": self.geo_scope,
+            "geo_key": self.geo_key,
+            "live_line": self.live_line,
+            "live_status": self.live_status,
+            "live_as_of": round(self.live_as_of, 1),
         }
 
 
@@ -3519,11 +3555,12 @@ def build_section(store: EventStore, user_id: str, key: str,
     elif key == "world_trending":
         # The rail's own ranker at full length, and like the rail it takes
         # nothing of the listener but their country - not even what they have
-        # played (§134). See `rank_world`.
-        picks = rank_world(
+        # played (§134). Grouped by where each story is trending (§135): the
+        # screen is the whole of Trending, worldwide and region by region.
+        groups = trending_groups(
             live, country,
-            topics_from_stories(stories.pool().held(now), now=now),
-            limit=limit)
+            topics_from_stories(stories.pool().held(now), now=now))
+        picks = [t for g in groups for t in g["topics"]][:limit]
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)
     # The same variety rule the rail uses, at the same ratio. A screen showing
@@ -3540,7 +3577,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         picks = picks + _fill_to_minimum(
             picks, floors[key],
             _rail_fallback(key, profile, live, live_held, inventory), mine)
-    return {
+    section = {
         "key": key,
         "title": dict(SECTIONS)[key],
         "topics": [t.as_dict() for t in picks],
@@ -3548,6 +3585,16 @@ def build_section(store: EventStore, user_id: str, key: str,
         "personalised": bool(profile),
         "taste_source": "startup" if cold else "taste",
     }
+    if key == "world_trending":
+        # The same tiles as `topics`, in the same order, under the geography
+        # they are trending in. A client that ignores this still gets the
+        # whole list; one that reads it draws a heading per place.
+        shown = {t.id for t in picks}
+        section["groups"] = [
+            {"key": g["key"], "label": g["label"], "yours": g["yours"],
+             "topics": [t.as_dict() for t in g["topics"] if t.id in shown]}
+            for g in groups if any(t.id in shown for t in g["topics"])]
+    return section
 
 
 def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> list:
@@ -3583,6 +3630,13 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             source=story.source,
             freshness=story.push(now),
             countries=tuple(getattr(story, "countries", ()) or ()),
+            coverage=int(getattr(story, "coverage", 0) or 0),
+            geo_scope=getattr(story, "geo_scope", "") or "",
+            geo_key=getattr(story, "geo_key", "") or "",
+            geo=getattr(story, "geo", "") or "",
+            live_line=getattr(story, "live_line", "") or "",
+            live_status=getattr(story, "live_status", "") or "",
+            live_as_of=float(getattr(story, "live_as_of", 0.0) or 0.0),
         ))
     return tiles[:limit] if limit else tiles
 
@@ -3599,6 +3653,41 @@ def live_topics(now: Optional[float] = None) -> list:
     return topics_from_stories(stories.pool().live(now), now=now)
 
 
+def trending_score(tile, country: str = "", peak_coverage: int = 0) -> float:
+    """How trending one tile is, for the listener's country. The Trending order.
+
+    Three things and nothing else (§134, extended by §135):
+
+    * **Push** - `Topic.freshness`, the story's own measured strength
+      weighted by domain and decayed by age.
+    * **Coverage** - how many outlets are running it, log-scaled against the
+      most-covered story on offer (`COVERAGE_WEIGHT`). This is "popularity
+      on trending news", and it is measured across every source:
+      `stories.corroborate` lends a game or a market the coverage of the
+      news story it matches.
+    * **Country** - the share of that coverage from the listener's own
+      country (`COUNTRY_WEIGHT`). A boost, never a filter.
+    """
+    import math
+
+    want = stories.normalise_country(country)
+    share = next((float(v) for name, v in getattr(tile, "countries", ())
+                  if name == want), 0.0) if want else 0.0
+    covered = int(getattr(tile, "coverage", 0) or 0)
+    heat = (math.log1p(covered) / math.log1p(peak_coverage)
+            if covered and peak_coverage else 0.0)
+    return (float(tile.freshness) * (1.0 + COVERAGE_WEIGHT * heat)
+            * (1.0 + COUNTRY_WEIGHT * share))
+
+
+def _ranked_trending(tiles: list, country: str, peak: int) -> list:
+    # Pool order breaks ties - the pool's own loudest-first order - so a tie
+    # never falls through to an id sort, an order nobody chose.
+    return [t for _s, _i, t in sorted(
+        ((-trending_score(t, country, peak), i, t) for i, t in enumerate(tiles)),
+        key=lambda row: row[:2])]
+
+
 def rank_world(live: list, country: str = "", held: Iterable = (),
                limit: int = SECTION_SIZE) -> list:
     """The Trending rail: the world's loudest stories, and nothing about you.
@@ -3609,12 +3698,13 @@ def rank_world(live: list, country: str = "", held: Iterable = (),
     engagement, not the learned order - every one of those is "the user's
     algorithm", and this row is the one on the page that is not theirs.
 
-    * **Popularity** is `Topic.freshness` - `Story.push()`, the story's own
-      measured strength weighted by domain and decayed by age, which is what
-      "the absolute most trending stories of that day" is in this codebase.
-    * **Country** lifts a story by the share of its coverage that comes from
-      the listener's own country (`COUNTRY_WEIGHT`). Only GDELT measures that
-      today; a story with no country data keeps its global weight exactly.
+    * **Popularity** is `trending_score` - push, times how widely the press
+      is running it (§135), times the share of that from their country.
+    * **Geography** (§135): up to `WORLD_LOCAL_SLOTS` places go to what is
+      trending in the listener's own part of the world
+      (`geography.matches`), and the rest to the most popular stories
+      anywhere. Then the row is shown in popularity order, each card saying
+      where it is trending.
     * **Variety** is one tile per facet (`WORLD_MAX_PER_FACET`), topped back
       up from what the cap passed over when the pool is all one subject.
 
@@ -3627,30 +3717,83 @@ def rank_world(live: list, country: str = "", held: Iterable = (),
     cannot fill four leaves the row short, and an empty pool leaves it empty
     with a sentence saying why (`_world_empty_reason`).
     """
-    want = stories.normalise_country(country)
+    import geography
 
-    def score(tile) -> float:
-        share = next((float(v) for name, v in getattr(tile, "countries", ())
-                      if name == want), 0.0) if want else 0.0
-        return float(tile.freshness) * (1.0 + COUNTRY_WEIGHT * share)
+    live = list(live)
+    held = [t for t in held if t.id not in {x.id for x in live}]
+    peak = max((int(getattr(t, "coverage", 0) or 0) for t in live + held),
+               default=0)
+    order = _ranked_trending(live, country, peak)
 
-    def ranked(tiles: list) -> list:
-        # Pool order breaks ties - the pool's own loudest-first order - so a
-        # tie never falls through to an id sort, an order nobody chose.
-        return [t for _s, _i, t in sorted(
-            ((-score(t), i, t) for i, t in enumerate(tiles)),
-            key=lambda row: row[:2])]
-
+    local_slots = min(WORLD_LOCAL_SLOTS, limit // 2) if country else 0
+    mine = [t for t in order
+            if geography.matches(getattr(t, "geo_scope", ""),
+                                 getattr(t, "geo_key", ""), country)]
+    rows = diversify(mine, min(local_slots, len(mine)),
+                     max_per_facet=WORLD_MAX_PER_FACET) if local_slots and mine else []
+    taken = {t.id for t in rows}
+    rows += diversify([t for t in order if t.id not in taken],
+                      limit - len(rows), max_per_facet=WORLD_MAX_PER_FACET)
+    # Shown most popular first, wherever it is trending - the local places
+    # are a reservation, not a position at the front.
+    position = {t.id: i for i, t in enumerate(order)}
+    rows.sort(key=lambda t: position[t.id])
     # **Live first, and held only to fill** - what the docstring promises.
     # The pool's variety cap is what keeps a story out of `live`, so letting a
     # held one outrank a live one would undo that cap on the one row that
     # reads the pool most directly.
-    rows = diversify(ranked(list(live)), limit, max_per_facet=WORLD_MAX_PER_FACET)
     if len(rows) < limit:
         have = {t.id for t in rows}
-        rows += [t for t in ranked([t for t in held if t.id not in have])
-                 ][:limit - len(rows)]
+        rows += [t for t in _ranked_trending(held, country, peak)
+                 if t.id not in have][:limit - len(rows)]
     return rows
+
+
+def trending_groups(live: list, country: str = "", held: Iterable = (),
+                    limit: int = 0) -> list:
+    """Every trending story, by where it is trending. "View more" (§135).
+
+    `[{"key", "label", "topics"}]`: **Worldwide** first, then the listener's
+    own region, then every other region with something trending, busiest
+    first. Within a group, `trending_score` order. A country-scoped story is
+    grouped under its region and keeps its own label on the card, so a
+    listener in Ohio sees "United States" stories under North America.
+    """
+    import geography
+
+    live = list(live)
+    everything = live + [t for t in held if t.id not in {x.id for x in live}]
+    peak = max((int(getattr(t, "coverage", 0) or 0) for t in everything),
+               default=0)
+    groups: dict = {}
+    for tile in _ranked_trending(everything, country, peak):
+        scope = getattr(tile, "geo_scope", "") or geography.WORLD
+        key = getattr(tile, "geo_key", "") or geography.WORLD
+        if scope == geography.WORLD:
+            group = geography.WORLD
+        elif scope == "country":
+            group = geography.REGION_OF.get(key, geography.WORLD)
+        else:
+            group = key
+        groups.setdefault(group, []).append(tile)
+
+    mine = geography.region_of(country) if country else ""
+
+    def order(key: str) -> tuple:
+        if key == geography.WORLD:
+            return (0, 0.0, key)
+        if key == mine:
+            return (1, 0.0, key)
+        busy = sum(trending_score(t, country, peak) for t in groups[key])
+        return (2, -busy, key)
+
+    out = []
+    for key in sorted(groups, key=order):
+        tiles = groups[key][:limit] if limit else groups[key]
+        out.append({"key": key, "label": geography.label_for(key),
+                    "yours": key == mine and key != geography.WORLD,
+                    "topics": tiles})
+    return out
 
 
 def _rail_fallback(key: str, profile: dict, live: list, live_held: list,

@@ -1039,9 +1039,15 @@ the rest of this list it needs taste rather than a key.
   paid for in front of the first word.
   **And an empty search is a ladder, never a shrug** *(§109, §110).* The
   rungs, in cost order, stopping at the first with evidence: the configured
-  backend, the same backend with the recency window dropped, **GDELT**
+  backend, the same backend with the recency window dropped, then **GDELT**
   (keyless, one HTTP call - promoted from additive cross-check to a retriever
-  of its own), then the model's own search, last because it is 10-25 seconds.
+  of its own). **Nothing below GDELT** *(§135, at the owner's direction)*:
+  the model's own search was the last rung and is **deleted**, not switched
+  off - everything an episode is written from comes from **Exa, GDELT,
+  API-Sports, Finnhub and Polymarket**, and the model never searches the web
+  for FAM. A deployment still setting `RESEARCH_BACKEND=claude` runs on Exa
+  and says so at startup and on `/api/health` - replaced rather than refused,
+  so merging the removal cannot stop a server booting.
   `research.ladder()` is the **one** definition of that order and it lists
   only rungs that can actually serve - a GDELT switched off is not a rung -
   and the runtime, `/api/health` and the startup warning all read it rather
@@ -1081,11 +1087,10 @@ the rest of this list it needs taste rather than a key.
   — the `web_search` tool used to be attached to the **writing** call, so the
   model searched while it wrote and the first sentence was composed before
   anything had been read. §77 made the prompt ask it to search first, which is
-  a mitigation of an ordering. The ordering is fixed instead: the model's own
-  search is a **retrieval of its own** (`research.retrieve_with_claude`), its
-  report is shaped into the same packet Exa produces, and **the call that
-  speaks carries no tools at all**. A packet is now the only way evidence
-  reaches the writer, which is one path rather than two.
+  a mitigation of an ordering. The ordering was fixed by making the model's
+  own search a retrieval of its own, and §135 then deleted that too: **the
+  call that speaks carries no tools at all**, and a packet from Exa or GDELT
+  (plus a live fact) is the only way evidence reaches the writer.
 - **Something decides what to search for, before the search.** *(PROBLEMS.md
   §82.)* `episode_intelligence.py` runs one model call between the typed
   question and Exa and produces a `Brief`: intent, resolved subject, a why-now
@@ -1168,8 +1173,8 @@ the rest of this list it needs taste rather than a key.
   night while holding nothing about last night, a lone answerer should say so,
   and one of them did, on air.
   §94 told it that it was not a lone answerer. **§108 stopped putting it in
-  that position**: the cover is deleted, the model's own search is a retrieval
-  that finishes first, and the writing call reasons before its first token
+  that position**: the cover is deleted, retrieval (Exa or GDELT - the
+  model's own search went in §135) finishes first, and the writing call reasons before its first token
   (at `EFFORT=low` since §129) - so it decides what the whole episode is, from the brief
   and the evidence, and *then* opens. The prompt says exactly that, and adds
   the test the opening has to pass: read the first two sentences back against
@@ -1227,16 +1232,10 @@ the rest of this list it needs taste rather than a key.
   packet exists *before the first sentence*, so keeping it only in the cache
   meant a panel that could not appear until the episode had finished.
 - **Every way an episode is researched records who it read.** *(§107.)*
-  Provenance was built from the Exa packet, from live facts and from
-  attachments, and from nothing else - so the sources panel was empty on every
-  episode of a deployment with no Exa key, which is what Render has always
-  been. That is not an edge case: with no packet, `_request_kwargs` attaches
-  the `web_search` tool and the model does the looking, and
-  `provenance.from_web_search` now reads the results off the final message the
-  usage accounting already fetches. It claims **no grade and no date** -
-  `research.credibility` reads an Exa result's own fields and a web_search
-  result carries none, and `page_age` is prose rather than the ISO date `at`
-  is documented as. A confidence nothing measured is worse than a blank.
+  Provenance is built from the Exa packet, the GDELT packet, live facts and
+  attachments - which since §135 is every way there is. §107's
+  `provenance.from_web_search` read the model's own search results off the
+  final message; it went with the search itself.
 - **Nothing on the player generates an episode except a button.** *(§104.)*
   `.mini-stage` is `flex:1`, so it is most of the player, and it carried a tap
   handler that jumped to the next episode in the album or - with no album -
@@ -1297,6 +1296,24 @@ the rest of this list it needs taste rather than a key.
   which the owner calls dummy data. A deployment with no live source has an
   empty Trending row that says why; `render.yaml` turns GDELT on for that
   reason. "Different picks" is gone - View more holds the rest.
+  **And Trending is the stories now, by place** *(§135, at the owner's
+  direction).* GDELT used to hand the row fifteen fixed *themes* - "inflation",
+  "sport" - so it read the same every day. The sweep now reads a few hundred
+  recent headlines worldwide and from each region's own press
+  (`gdelt.discover`), groups the ones that share their names and words into
+  stories (`news_clusters`, no model), and counts the **distinct outlets**
+  running each: that count is the popularity the row ranks on
+  (`topics.trending_score`). `stories.corroborate` folds a matching news story
+  into a game, a price or a market, so the ranking is across everything FAM
+  reads rather than each feed alone. Every story knows **where it is
+  trending** (`geography.scope_for` over its publishers' countries: worldwide,
+  a region, or a country); the rail keeps up to two of its four places for
+  the listener's own part of the world (`WORLD_LOCAL_SLOTS`) and each card
+  says the place, and View more is the whole of it grouped Worldwide, then
+  theirs, then everywhere else (`topics.trending_groups`). The pool refreshes
+  itself every fifteen minutes with nobody looking
+  (`STORIES_BACKGROUND_SECONDS`). Nothing here has made a real request from
+  the build container.
   **Amended by §127, at the owner's direction: every drawn rail except the
   friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
   and Trending, four for the other two), topped up *after* each rail has
@@ -1368,8 +1385,11 @@ the rest of this list it needs taste rather than a key.
   Four rules hold it up. **A signal is a measurement and never a result** -
   coverage volume, a traded price, a betting line, a fixture status - because
   a tile is written before anything is researched, so a result on one is §88
-  with a larger audience; API-Sports knows the score and deliberately does not
-  pass it on. **How hard and how long to push** is written down
+  with a larger audience. **One exception, at the owner's direction (§135)**:
+  a game's score reaches the card as `live_line`, written in code from
+  API-Sports' scoreboard on every sweep and drawn *beside* the title, never
+  composed into it - a score re-read every fourteen minutes that says how old
+  it is, not one frozen into a sentence. **How hard and how long to push** is written down
   (`DOMAIN_WEIGHT`, `DOMAIN_SHELF_LIFE`, a cooldown after expiry) rather than
   left implicit in a sort order, and `first_seen` is the clock, so a story
   that keeps being reported does not get to be new again. **Variety is capped
@@ -2320,7 +2340,11 @@ rebuilt as YourFAM from the owner's design handoff - on the real social API
 rather than the mock module the handoff asked for; and **§134**, the
 22/09 packet - four tiles a rail, a Trending row ranked on popularity and
 country alone with no dummy tiles, DailyFAM playlists that play through
-and stop, real play counts and thumbs on Explore, and four RunPod leaks),
+and stop, real play counts and thumbs on Explore, and four RunPod leaks;
+and **§135**, where an episode's information comes from - the model's own
+web search deleted, API-Sports swept on its whole daily allowance with the
+score on the card, and a Trending row of real stories ranked by how many
+outlets run them, worldwide and region by region),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
