@@ -134,7 +134,7 @@ services:
       # the articles outrank it. Results need AP or DDHQ, both sales-gated.
       - key: LIVE_ELECTIONS_PROVIDER
         value: polymarket
-      # The Trending rail's source (§133). Trending now holds live stories and
+      # The Trending rail's source (§134). Trending now holds live stories and
       # nothing else - the owner ruled the startup set and the bank off it -
       # so a deployment without a live source has an empty Trending row. GDELT
       # is keyless and measures what worldwide news is covering, including

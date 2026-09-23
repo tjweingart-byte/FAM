@@ -1031,7 +1031,7 @@ class PodcastPipeline:
         no voice was chosen, so a default that moves to a different engine is
         a different voice rather than somebody else's audio.
 
-        **No voice chosen means the default voice, by its own id** (§133).
+        **No voice chosen means the default voice, by its own id** (§134).
         The app sends `remote:reference_3` - the first voice `/api/voices`
         lists - while a shared link, a tap made before that list loaded and
         every other caller that names no voice sent nothing, and nothing was
@@ -1057,7 +1057,7 @@ class PodcastPipeline:
         For `/api/audio` to decide whether to wake a serverless GPU: waking one
         for an episode that will be read out of SQLite is paying for a boot
         nobody uses. A hint only, and it answers False rather than spend a
-        model call when the key needs one. Since §133 a near match counts: see
+        model call when the key needs one. Since §134 a near match counts: see
         below.
         """
         if (not self._keeps_audio() or settings.cache_semantic_key
@@ -1070,7 +1070,7 @@ class PodcastPipeline:
         if self.cache.has_audio(key, voice, rate):
             return True
         # **A near match plays the neighbour's audio, so it must not wake the
-        # GPU either** (§133). The serving path already swaps to the
+        # GPU either** (§134). The serving path already swaps to the
         # neighbour's key and reads its stored audio; this hint answered for
         # the exact key only, so every re-phrased replay of a kept episode
         # booted a serverless worker to read nothing. The same local scan the
@@ -1211,7 +1211,7 @@ class PodcastPipeline:
                 # Counted here, where an episode is about to be *played*, and
                 # nowhere that merely looks: `get` also runs for the pacing
                 # probe and for prefetch, which is why `hits` could never be
-                # the number on an Explore card (§133).
+                # the number on an Explore card (§134).
                 self._count_play(key)
                 stats.thread = self.cache.thread(key)
                 # A replay knows its name before its first word, so the player
@@ -1362,7 +1362,7 @@ class PodcastPipeline:
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                                plan.minutes, bucket, sources, self.author,
                                stats.title, **extra)
-                # The listen that wrote it is its first play (§133).
+                # The listen that wrote it is its first play (§134).
                 self._count_play(key)
                 # The audio goes beside it once the tail pad is out, and only
                 # when the script itself was kept - audio with no script row

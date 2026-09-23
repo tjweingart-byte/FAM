@@ -563,19 +563,29 @@ def main() -> int:
                 "the Your FAM tiles came back"
             assert not page.query_selector("#recapOverlay"), \
                 "the weekly recap popup came back"
+            # Messages is its own screen now, titled for what it is - the
+            # YourFAM mark moved to the hub the tab opens on.
+            title = page.query_selector("#screen-messages .yf-title")
+            assert title and title.text_content().strip() == "Messages", \
+                "the Messages screen is not titled Messages"
+            ensure_account()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .yf-head .wordmark",
+                                   timeout=10000)
             # "Your" in type, "FAM" as the mark - the same three glyphs
-            # myFAM, DailyFAM and exploreFAM all set. It was plain text.
-            head = page.query_selector("#screen-messages .myfam-header h2")
-            assert head, "Your FAM has no heading"
-            assert "wordmark" in (head.get_attribute("class") or ""), \
-                "the Your FAM heading is not set as a wordmark"
+            # myFAM, DailyFAM and exploreFAM all set.
             glyphs = page.eval_on_selector_all(
-                "#screen-messages .myfam-header h2 .wm-glyph,"
-                " #screen-messages .myfam-header h2 .wm-a",
+                "#screen-profile .yf-head .wordmark .wm-glyph,"
+                " #screen-profile .yf-head .wordmark .wm-a",
                 "e => e.length")
             assert glyphs == 3, f"the FAM mark drew {glyphs} glyphs, not three"
-            assert head.text_content().strip() == "Your", \
+            assert page.text_content("#screen-profile .yf-head .wordmark").strip() == "Your", \
                 "the heading still spells FAM out in type"
+            # And what came off the hub on purpose stays off it.
+            assert not page.query_selector("#screen-profile .pf-time"), \
+                "the This month card came back"
+            assert not page.query_selector("#screen-profile .thread-row"), \
+                "the conversation list came back onto the hub"
             # Explore New is off myFAM at the owner's direction, but the
             # ranking, the endpoint and the screen are all still here - which
             # is what makes putting the rail back a one-line change rather
@@ -618,9 +628,12 @@ def main() -> int:
             # not a check that can be run as a guest - the shelf is behind it.
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+            page.wait_for_selector("#screen-profile.active .yf-btn.cream",
                                    timeout=10000, state="attached")
-            page.evaluate("openSavedAll()")
+            # Clicked in the page rather than by the mouse: the new-follower
+            # popup can be over the hub, and what is under test is where the
+            # button goes, not the popup.
+            page.evaluate("document.querySelector('#screen-profile .yf-btn.cream').click()")
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-saved"
             page.evaluate("goBack()")
@@ -876,8 +889,9 @@ def main() -> int:
             screen now."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .pf-hub-tile",
+            page.wait_for_selector("#screen-profile.active .yf-msgcard",
                                    timeout=10000, state="attached")
+            page.wait_for_timeout(600)
             mine = page.text_content("#profileBody")
             page.evaluate("openFriends()")
             page.wait_for_timeout(1200)
@@ -936,13 +950,18 @@ def main() -> int:
                 page.evaluate("openMyFamTab()")
                 page.wait_for_timeout(400)
                 return
-            assert page.eval_on_selector_all("#personBody .pf-echo",
+            assert page.eval_on_selector_all("#personBody .yf-vrow",
                                              "e => e.length") >= 1, \
                 "their vibes are not listed"
-            assert page.eval_on_selector_all("#personBody .pf-tag",
+            assert page.eval_on_selector_all("#personBody .yf-chip",
                                              "e => e.length") >= 1, \
-                "no interest pills on a friend's profile"
-            assert "DailyFAM mixes" in body, "no public mixes on their profile"
+                "no interest chips on a friend's profile"
+            assert "public mixes" in body.lower(), "no public mixes on their profile"
+            # Message is the primary action and opens the chat with them.
+            page.evaluate("document.querySelector('#personBody .yf-btn.gold').click()")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.evaluate("stopThreadPolling(); goBack()")
+            page.wait_for_timeout(400)
             page.evaluate("goBack()")
             page.wait_for_timeout(400)
             page.evaluate("openMyFamTab()")
@@ -989,19 +1008,15 @@ def main() -> int:
             assert not page.query_selector("#followerOverlay.active"), \
                 "the popup did not close"
 
-            # The unread count on the profile's Friends tile, and the rule
-            # that it clears on the *tab* and never when a popup is drawn -
-            # otherwise it is a number nobody got to read.
+            # Who is new clears on the Friends *screen* and never when a popup
+            # is drawn - otherwise it is a fact nobody got to read. (The
+            # count on a Friends tile went with the tile: YourFAM has no such
+            # tile, and the popup and the banner are what announce a follow.)
             page.evaluate("""() => {
               newFollowers = [{ user_id: 'u_test', name: 'Nadia Okoro',
                                 handle: 'nadia', avatar: '',
                                 follows_back: false }];
-              renderProfile(profileNow || { finished: 0, follows: {} });
             }""")
-            page.wait_for_timeout(300)
-            badge = page.query_selector(".pf-hub-badge")
-            assert badge and int(badge.text_content()) == 1, \
-                "no unread follower count on the Friends tile"
             page.evaluate("openFriends()")
             page.wait_for_timeout(1200)
             assert page.evaluate("newFollowers.length") == 0, \
@@ -1043,7 +1058,9 @@ def main() -> int:
             rows = page.text_content("#identityAccountRows") or ""
             assert "Change password" in rows, "no way to change a password"
             assert not page.query_selector("#identityShared"), \
-                "the interests editor is still three taps from the row it changes"
+                "the old shared-interests block came back"
+            assert not page.eval_on_selector("#identityInterests", "e => e.hidden"), \
+                "Edit profile has no interests section"
 
             # Prefilled from what is stored, so an editor opens on the current
             # state rather than on empty fields somebody has to retype.
@@ -1403,33 +1420,49 @@ def main() -> int:
                           " openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def the_profile_says_what_its_pills_are():
-            """§107, item 6. A bare row of words with nothing naming them, so
-            a listener had to work out from the words themselves whether they
-            were looking at what they chose, what they played, or something
-            the app decided about them.
-
-            Edit opens the profile's own chooser now rather than the first-run
-            interests screen (§114). Those are two different questions - that
-            screen asks what to *play*, this one asks what to *show* - and
-            answering the second inside the first was how "Shared on your
-            profile" ended up three taps from the row it changed."""
+        def an_interest_chip_opens_its_topic():
+            """YourFAM's chips are doors, not labels: each opens the Topic
+            screen for that interest, with the length pill every browse
+            surface uses. There is no inline Edit - interests are changed in
+            Edit profile - and the page generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .pf-tags", timeout=10000)
-            page.wait_for_timeout(400)
-            assert page.text_content(".pf-tags-lab").strip().rstrip(":") == "Interests"
-            edit = page.query_selector(".pf-tags-edit")
-            assert edit, "there is no way to change what is on show"
-            page.evaluate("document.querySelector('.pf-tags-edit').click()")
-            page.wait_for_selector("#sheetOverlay.active .pi-grid", timeout=10000)
-            page.wait_for_timeout(300)
-            # And it closes back to the profile it was opened from, rather
-            # than to Settings - the trap this app has now hit three times.
-            page.evaluate("closeSheet()")
+            page.wait_for_selector("#screen-profile.active .yf-chips .yf-chip",
+                                   timeout=10000)
+            page.wait_for_timeout(600)
+            assert not page.query_selector("#screen-profile .pf-tags-edit"), \
+                "the inline interests Edit came back"
+            # A listener with no interests yet gets one muted chip that opens
+            # Edit profile instead; give this one something to tap.
+            if not page.query_selector("#screen-profile .yf-chips .yf-chip:not(.muted)"):
+                page.evaluate("""() => savePreferences({ interests: ['tech'] })
+                    .then(function(){ loadProfile(); })""")
+                page.wait_for_selector(
+                    "#screen-profile .yf-chips .yf-chip:not(.muted)", timeout=10000)
+            chip = "#screen-profile .yf-chips .yf-chip:not(.muted)"
+            label = page.text_content(chip).strip()
+            page.evaluate(f"document.querySelector('{chip}').click()")
+            page.wait_for_selector("#screen-topic.active .yf-topic-h", timeout=10000)
+            page.wait_for_timeout(900)
+            heading = page.text_content("#screen-topic .yf-topic-h").strip()
+            assert heading.lower() == label.lower(), \
+                f"the topic screen ({heading!r}) is not about the chip that opened it ({label!r})"
+            page.wait_for_timeout(900)
+            # The badges follow the pill: it sets how long a tapped episode is
+            # written, it does not filter by duration.
+            pill = page.text_content("#topicLengthVal").strip()
+            badges = page.eval_on_selector_all(
+                "#screen-topic .yf-card-len", "e => e.map(x => x.textContent.trim())")
+            assert all(b.lower() == pill.lower() for b in badges), \
+                f"card lengths {badges} do not follow the pill ({pill})"
+            page.evaluate("setTopicFilter('friends')")
+            page.wait_for_timeout(700)
+            assert page.query_selector("#screen-topic .yf-filter.on:nth-child(2)"), \
+                "Friends vibed did not become the active filter"
+            page.evaluate("goBack()")
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
-                == "screen-profile", "editing from the profile landed elsewhere"
+                == "screen-profile", "back from a topic did not reach YourFAM"
 
         def a_phone_number_says_which_country(  ):
             """§107, item 7. Composed from the ISO code rather than drawn, so
@@ -1622,44 +1655,64 @@ def main() -> int:
             page.wait_for_selector("#screen-profile.active", timeout=10000)
             signed_back_in()
 
-        def the_profile_shows_four_interests_and_can_be_edited_there():
-            """"Only the top 3-4", and the control next to the row it changes.
-
-            It used to be twelve pills in a fixed order - what they chose,
-            then what the log inferred - so six words picked in thirty
-            seconds on the first run outranked a month of listening for good,
-            and the row grew with every episode until it listed everything
-            somebody had been near.
-            """
+        def edit_profile_chooses_up_to_five_interests():
+            """"Tap to swap, or add your own - up to 5." Selected chips are
+            gold; at five the rest dim and a tap on one does nothing; a typed
+            topic becomes a chip and is chosen if there is room; and what was
+            chosen is what the hub shows after Save."""
             ensure_account()
+            page.evaluate("""() => fetch('/api/me', { method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ name: 'Smoke Tester',
+                                     handle: 'smoketester' }) })""")
+            page.wait_for_timeout(500)
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile .pf-tags", timeout=10000)
+            page.wait_for_selector("#screen-profile .yf-chips", timeout=10000)
+            page.wait_for_timeout(500)
             shown = page.eval_on_selector_all(
-                "#screen-profile .pf-tags .pf-tag", "e => e.length")
-            assert shown <= 4, f"the profile drew {shown} interests"
-            page.click("#screen-profile .pf-tags-edit")
-            page.wait_for_selector("#sheetOverlay.active .pi-grid", timeout=10000)
-            available = page.eval_on_selector_all("#sheetOverlay .pi-pill",
-                                                  "e => e.length")
-            assert available, "the editor offered nothing to choose from"
-            # Four is the cap, and the fifth tap has to say so rather than
-            # doing nothing - a tap that does nothing reads as a broken
-            # button, which is worse than a cap.
-            #
-            # Re-queried each time rather than held: every toggle redraws the
-            # grid, so a handle taken before the first tap is detached by the
-            # second. That is also the behaviour under test - a list that
-            # shortened as you chose would make the cap look like the app
-            # losing options - so the check has to survive it.
-            for i in range(min(5, available)):
-                page.eval_on_selector_all(
-                    "#sheetOverlay .pi-pill",
-                    "(e, i) => e[i] && e[i].click()", i)
-                page.wait_for_timeout(120)
-            on = page.eval_on_selector_all("#sheetOverlay .pi-pill.on",
-                                           "e => e.length")
-            assert on <= 4, f"the editor let {on} interests be chosen"
-            page.evaluate("closeSheet()")
+                "#screen-profile .yf-chips .yf-chip:not(.muted)", "e => e.length")
+            assert shown <= 5, f"the hub drew {shown} interests"
+            page.evaluate("editIdentity()")
+            page.wait_for_selector("#screen-identity.active #identityIntChips .yf-int",
+                                   timeout=10000)
+            # Clear, then choose until full.
+            page.evaluate("""() => { identityIntPick = []; renderIdentityInterests(); }""")
+            n = page.eval_on_selector_all("#identityIntChips .yf-int", "e => e.length")
+            for i in range(min(n, 6)):
+                page.eval_on_selector_all("#identityIntChips .yf-int",
+                                          "(e, i) => e[i] && e[i].click()", i)
+                page.wait_for_timeout(60)
+            on = page.eval_on_selector_all("#identityIntChips .yf-int.on", "e => e.length")
+            assert on <= 5, f"the editor let {on} interests be chosen"
+            if n > 5:
+                assert page.eval_on_selector_all("#identityIntChips .yf-int.dim",
+                                                 "e => e.length") >= 1, \
+                    "a full set did not dim the rest"
+            assert page.text_content("#identityIntCount").strip() == f"{on} OF 5"
+            # Room for a typed one: take one off, then add it.
+            page.eval_on_selector_all("#identityIntChips .yf-int.on",
+                                      "e => e[0] && e[0].click()")
+            page.fill("#identityIntAdd", "Surfing")
+            page.evaluate("addIdentityInterest()")
+            page.wait_for_timeout(200)
+            typed = page.eval_on_selector_all(
+                "#identityIntChips .yf-int.on",
+                "e => e.map(x => x.textContent.trim())")
+            assert "Surfing" in typed, f"a typed topic was not chosen: {typed}"
+            page.evaluate("saveIdentity()")
+            page.wait_for_selector("#screen-profile.active .yf-chips", timeout=10000)
+            page.wait_for_timeout(900)
+            hub = page.eval_on_selector_all("#screen-profile .yf-chips .yf-chip",
+                                            "e => e.map(x => x.textContent.trim())")
+            assert "Surfing" in hub, f"the hub did not show what was chosen: {hub}"
+            # Put it back: a typed topic is a real interest (it joins
+            # `topics`), and a check further down asserts the catalogue starts
+            # with nothing chosen.
+            page.evaluate("""() => savePreferences({ topics: [], profile_interests: [] })
+                .then(function(){ return loadPrefChoices(); })""")
+            page.wait_for_timeout(500)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
 
         def the_bar_can_be_dragged_to_seek():
             """Sliding the bar is a seek, and it has to be a real one.
@@ -1746,7 +1799,7 @@ def main() -> int:
             assert page.eval_on_selector_all(".mix-card", "e => e.length") >= 1
 
         def a_playlist_plays_through_and_then_stops():
-            """§133. "Play all" used to play the first episode and stop, and
+            """§134. "Play all" used to play the first episode and stop, and
             the What's next popup then counted down into a recommendation. A
             playlist now plays every episode once, in order, with a skip on
             the player - and at the end nothing else starts: the screen says
@@ -1968,7 +2021,7 @@ def main() -> int:
             page.click("#screen-myfam .myfam-msg-btn")
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-messages"
-            page.click("#screen-messages .sheet-close")
+            page.click("#screen-messages .yf-back")
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "closing messages did not return to myFAM"
@@ -1977,10 +2030,17 @@ def main() -> int:
             page.evaluate("openProfile()")
             page.wait_for_timeout(1200)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile"
-            assert page.query_selector(".pf-name"), "no identity block"
-            assert page.eval_on_selector_all(".pf-echo", "e => e.length") > 0, "no echoes"
-            assert page.eval_on_selector_all(".pf-art b", "e => e.length") > 0, "no public mixes"
-            assert page.query_selector(".pf-headline"), "no my-FAM-is-your-FAM headline"
+            assert page.query_selector("#screen-profile .yf-name"), "no identity block"
+            assert page.eval_on_selector_all("#screen-profile .yf-shelf-tile",
+                                             "e => e.length") == 2, \
+                "the shelf is not public mixes and vibes"
+            assert page.query_selector("#screen-profile .yf-friend.invite"), \
+                "the friends row has no Invite"
+            assert page.query_selector("#screen-profile .yf-msgcard"), \
+                "Messages is not one entry point on the hub"
+            assert page.text_content(
+                "#screen-profile .tabbar .tab.active .lbl").strip() == "YourFAM", \
+                "the last tab is not YourFAM"
 
         def location_is_collected_and_editable():
             """Where a listener says they are, on both surfaces it lives on.
@@ -2611,7 +2671,7 @@ def main() -> int:
             assert first and "Loading" not in first, f"reel never loaded ({first!r})"
             page.wait_for_timeout(2000)
             assert page.evaluate("FamAudio.position()") > 0, "audio never started"
-            # §133: the corner is the episode's play count, never how many
+            # §134: the corner is the episode's play count, never how many
             # cards this session has swiped - and the thumbs are on the card.
             corner = page.text_content("#reelCount") or ""
             assert re.fullmatch(r"[\d,]+ plays?", corner), \
@@ -2668,7 +2728,7 @@ def main() -> int:
               tapping_the_player_generates_nothing)
         check("An episode can be shared outside FAM",
               an_episode_can_be_shared_outside_fam)
-        check("Your FAM is messages and only messages",
+        check("Messages is its own screen, and the hub keeps its shape",
               your_fam_is_messages_and_only_messages)
         check("What's next offers four with a countdown",
               whats_next_offers_four_and_counts_down)
@@ -2678,8 +2738,8 @@ def main() -> int:
               the_profile_tab_is_a_door_until_there_is_an_account)
         check("An account gate opens the real sign-up screen",
               an_account_gate_opens_the_real_sign_up_screen)
-        check("The profile shows four interests and edits them there",
-              the_profile_shows_four_interests_and_can_be_edited_there)
+        check("Edit profile chooses up to five interests",
+              edit_profile_chooses_up_to_five_interests)
         check("DailyFAM lists mixes", dailyfam)
         check("A playlist plays through, then stops", a_playlist_plays_through_and_then_stops)
         check("The new-mix + waits for an account",
@@ -2692,7 +2752,7 @@ def main() -> int:
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)
-        check("Profile renders identity, mixes and echoes", profile)
+        check("YourFAM renders identity, friends, messages and shelf", profile)
         check("The interests wheel turns and stays tappable",
               the_interests_wheel_turns_and_stays_tappable)
         check("The settings wheel is the listener's own",
@@ -2714,8 +2774,8 @@ def main() -> int:
               a_message_arrives_without_being_asked_for)
         check("A sent message appears before the server answers",
               a_sent_message_appears_before_the_server_answers)
-        check("The profile says what its pills are",
-              the_profile_says_what_its_pills_are)
+        check("An interest chip opens its topic",
+              an_interest_chip_opens_its_topic)
         check("A phone number says which country",
               a_phone_number_says_which_country)
         check("VIBE! is on every real player", echo_button)

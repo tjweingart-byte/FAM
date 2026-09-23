@@ -666,12 +666,65 @@ LIVE_SHIM = r"""
       interests_ranked: rankedInterests(),
       interests_pinned: (myPrefs().profile_interests || []).slice(),
       interests_shown: profileInterests().shown,
-      interests_source: profileInterests().source
+      interests_source: profileInterests().source,
+      // The YourFAM avatar row. Nobody else is in this database, so it is
+      // honestly empty - the Invite circle is the whole row.
+      circle: []
     };
   }
 
+  // The one facet an episode is about, as `app._topic_label` reads it.
+  function topicLabel(query, title) {
+    var tags = tagsForText(String(query || "") + " " + String(title || ""))
+      .filter(function (t) { return TAG_LABELS[t]; });
+    return tags.length ? TAG_LABELS[tags[0]] : "";
+  }
+
+  // `/api/interest`, the Topic screen: finished episodes in this database on
+  // the subject, freshest first, then the bank as the evergreen tail - the
+  // same order and the same tagging the server uses. Generates nothing.
+  function interestBody(id, label, filter, offset, limit) {
+    var name = TAG_LABELS[id] || label || id;
+    var tags = TAG_LABELS[id] ? [id] : tagsForText(name);
+    var specific = tags.filter(function (t) { return !TAG_LABELS[t]; });
+    if (specific.length) tags = specific;
+    var words = String(name).toLowerCase().replace(/&/g, " ").split(/\s+/)
+      .filter(function (w) { return w.length >= 3; });
+    function on(text) {
+      var got = tagsForText(text);
+      if (tags.some(function (t) { return got.indexOf(t) !== -1; })) return true;
+      var low = String(text).toLowerCase();
+      return words.length > 0 && words.every(function (w) { return low.indexOf(w) !== -1; });
+    }
+    if (filter === "friends") {
+      return { label: name, episodes: [], more: false,
+               reason: "Follow some people and what they vibe on this shows up here." };
+    }
+    var seen = {}, cards = [];
+    function add(q, title, minutes, source, age) {
+      var k = String(q).toLowerCase();
+      if (!q || seen[k]) return;
+      seen[k] = 1;
+      cards.push({ query: q, title: title || (q.charAt(0).toUpperCase() + q.slice(1)),
+                   minutes: minutes || 0, source: source, age_seconds: age });
+    }
+    rows("scripts").filter(function (s) { return s.expires > now(); })
+      .sort(function (a, b) { return b.created - a.created; })
+      .forEach(function (s) {
+        if (on(s.query)) add(s.query, "", s.minutes, "cache", Math.max(0, now() - s.created));
+      });
+    BANK.forEach(function (t) {
+      if ((t.tags || []).some(function (x) { return tags.indexOf(x) !== -1; })) {
+        add(t.query, t.title, 0, "bank", null);
+      }
+    });
+    return { label: name, episodes: cards.slice(offset, offset + limit),
+             more: cards.length > offset + limit,
+             reason: cards.length ? "" : "Nothing on this yet. Search it, and yours is the first." };
+  }
+
   //: Mirrors `topics.PROFILE_INTEREST_SLOTS` / `preferences.PROFILE_INTERESTS_MAX`.
-  var PROFILE_INTEREST_SLOTS = 4;
+  var PROFILE_INTEREST_SLOTS = 5;
 
   // Every interest this listener could put on their profile, best match
   // first. Facets scored against the family they head - a listener whose
@@ -1092,6 +1145,11 @@ LIVE_SHIM = r"""
     }
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
+    if (path === "/api/interest") {
+      return json(interestBody(qs.get("id") || "", qs.get("label") || "",
+                               qs.get("filter") || "latest",
+                               Number(qs.get("offset") || 0), Number(qs.get("limit") || 6)));
+    }
     if (path === "/api/next") {
       var t = threads()[0];
       // The title comes from the fixtures for the same reason the transcript
@@ -1240,7 +1298,8 @@ LIVE_SHIM = r"""
         id: NEXT_MSG_ID++, thread: to, mine: true,
         kind: body.query ? "episode" : "text", text: body.text || "",
         query: body.query || "", minutes: body.minutes || 3,
-        title: body.title || "", at: now()
+        title: body.title || "", at: now(),
+        topic: body.query ? topicLabel(body.query, body.title) : ""
       };
       THREADS[to].push(written);
       // The written row: the sender draws their message immediately and swaps

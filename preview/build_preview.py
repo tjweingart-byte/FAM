@@ -190,8 +190,27 @@ def load_fixtures() -> dict:
         ]
     ]}
 
+    # The Topic screen's episodes, per facet, decided at build time by the
+    # same tagging the server's `/api/interest` uses: finished episodes from
+    # the Explore fixture first, then the bank as the evergreen tail.
+    interest = {}
+    for tag in topics_mod.TAG_LABELS:
+        cards = []
+        for ep in explore["episodes"]:
+            if tag in topics_mod.tags_for_text(ep["query"]):
+                cards.append({"query": ep["query"], "title": ep["title"],
+                              "minutes": ep["minutes"], "source": "cache",
+                              "age_seconds": ep["age_seconds"]})
+        for t in topics_mod.TOPIC_BANK:
+            if tag in topics_mod.topic_tags(t):
+                cards.append({"query": t.query, "title": t.title, "minutes": 0,
+                              "source": "bank", "age_seconds": None,
+                              "angle": t.subtitle})
+        interest[tag] = cards
+
     import time as _time
     return {
+        "/api/interest": interest,
         "/api/myfam": myfam,
         "/api/mixes": mixes,
         "/api/topics": {"topics": bank},
@@ -329,7 +348,7 @@ def load_fixtures() -> dict:
             # whole list the editor offers and `interests_source` says whether
             # the four were pinned or chosen, because those look identical on
             # screen and the copy under them is only true of one.
-            "interests_max": 4,
+            "interests_max": 5,
             "interests_shown": [
                 {"id": "tech", "label": "Technology", "kind": "facet"},
                 {"id": "money", "label": "Money & markets", "kind": "facet"},
@@ -565,18 +584,20 @@ SHIM = """
       u_beth: [
         { id: 1, thread: "u_beth", mine: true, kind: "episode", text: "",
           query: "how reusable rockets changed the economics of spaceflight",
-          minutes: 5, title: "Inside the New Space Race", at: 0 },
+          minutes: 5, title: "Inside the New Space Race", topic: "Science",
+          at: Date.now() / 1000 - 3 * 86400 },
         { id: 2, thread: "u_beth", mine: false, kind: "text",
           text: "didn't realize they scrubbed this launch twice before it flew",
-          query: "", minutes: 0, title: "", at: 0 }
+          query: "", minutes: 0, title: "", at: Date.now() / 1000 - 3 * 86400 + 600 }
       ],
       u_mike: [
-        { id: 3, thread: "u_mike", mine: true, kind: "episode", text: "",
-          query: "who actually makes the world's chips", minutes: 3,
-          title: "Who Actually Makes the World's Chips", at: 0 },
+        { id: 3, thread: "u_mike", mine: false, kind: "episode", text: "",
+          query: "what the Federal Reserve is likely to do about interest rates", minutes: 3,
+          title: "The Fed's Next Move, Explained", topic: "Money & markets",
+          finished: true, at: Date.now() / 1000 - 5400 },
         { id: 4, thread: "u_mike", mine: false, kind: "text",
-          text: "Just listened — explains a lot about why the stock moved",
-          query: "", minutes: 0, title: "", at: 0 }
+          text: "the part at minute 2 is exactly our pitch",
+          query: "", minutes: 0, title: "", at: Date.now() / 1000 - 5300 }
       ]
     },
     byId: function (id) {
@@ -612,6 +633,24 @@ SHIM = """
                          friends: friends.length } };
     },
     seenFollowers: false,
+    //: The YourFAM avatar row, the shape `/api/profile`'s `circle` has:
+    //: friends first, then follows, each flagged from a vibe or an unread
+    //: message the fixture actually holds.
+    circle: function () {
+      var self = this, g = this.graph(), seen = {}, out = [];
+      g.friends.concat(g.following).forEach(function (p) {
+        if (seen[p.user_id]) return;
+        seen[p.user_id] = true;
+        out.push({ user_id: p.user_id, name: p.name, handle: p.handle,
+                   avatar: p.avatar || "", friend: g.friends.some(function (f) {
+                     return f.user_id === p.user_id; }),
+                   vibed: p.user_id === "u_beth",
+                   fresh: p.user_id === "u_beth" || !!self.unread[p.user_id] });
+      });
+      return out;
+    },
+    //: Unread per conversation, cleared when the conversation is opened.
+    unread: { u_mike: 1 },
     //: What another listener has chosen to publish. Only ever these three
     //: things: public mixes, vibes, and interests they have not hidden. A
     //: play count here would be a fixture of something the server has no
@@ -643,10 +682,12 @@ SHIM = """
       var rows = Object.keys(this.threads).map(function (id) {
         var msgs = self.threads[id];
         var who = self.byId(id) || { name: "Someone", handle: "" };
+        var last = msgs[msgs.length - 1];
         return { thread: id, with: id, name: who.name, handle: who.handle,
-                 avatar: who.avatar || "", last: msgs[msgs.length - 1], unread: 0 };
+                 avatar: who.avatar || "", last: last, unread: self.unread[id] || 0 };
       });
-      return { threads: rows, unread: 0 };
+      var total = rows.reduce(function (n, r) { return n + r.unread; }, 0);
+      return { threads: rows, unread: total };
     }
   };
 
@@ -724,14 +765,14 @@ SHIM = """
         var mine = FIXTURES["/api/profile"];
         var by = {};
         (mine.interests_ranked || []).forEach(function (r) { by[r.id] = r; });
-        mine.interests_pinned = chosen.profile_interests.slice(0, 4);
+        mine.interests_pinned = chosen.profile_interests.slice(0, 5);
         mine.interests_source = mine.interests_pinned.length ? "pinned" : "top";
         if (mine.interests_pinned.length) {
           mine.interests_shown = mine.interests_pinned.map(function (id) {
             return by[id] || { id: id, label: id, kind: "topic" };
           });
         } else {
-          mine.interests_shown = (mine.interests_ranked || []).slice(0, 4);
+          mine.interests_shown = (mine.interests_ranked || []).slice(0, 5);
         }
       }
       // `topics_chosen` is the resolved form the interface draws, and the
@@ -761,6 +802,35 @@ SHIM = """
       if (who.handle) mine.handle = who.handle;
       if (who.avatar !== undefined && who.avatar !== null) mine.avatar = who.avatar;
       return json(mine);
+    }
+    if (path === "/api/profile") {
+      var prof = FIXTURES["/api/profile"];
+      prof.circle = PEOPLE.circle();
+      return json(prof);
+    }
+    if (path === "/api/interest") {
+      var iid = qs.get("id") || "", ilabel = qs.get("label") || iid;
+      var cards = [];
+      if (qs.get("filter") === "friends") {
+        // What the people this listener follows vibed, on the subject. The
+        // fixture's friends vibed two things; matched on the facet's words.
+        var onIt = {};
+        (FIXTURES["/api/interest"][iid] || []).forEach(function (c) { onIt[c.query] = true; });
+        cards = PEOPLE.published("beth").vibes.filter(function (v) {
+          return onIt[v.query];
+        }).map(function (v) {
+          return { query: v.query, title: v.title, minutes: v.minutes, source: "vibe",
+                   vibed_by: { name: "Beth Solomon", handle: "beth", avatar: "" } };
+        });
+        return json({ label: ilabel, episodes: cards, more: false,
+                      reason: cards.length ? "" : "Nobody you follow has vibed anything on this yet." });
+      }
+      cards = (FIXTURES["/api/interest"][iid] || []).slice();
+      var off = Number(qs.get("offset") || 0), lim = Number(qs.get("limit") || 6);
+      return json({ label: (FIXTURES["/api/preferences"].interests_all || []).filter(function (r) {
+                      return r.id === iid; }).map(function (r) { return r.label; })[0] || ilabel,
+                    episodes: cards.slice(off, off + lim), more: cards.length > off + lim,
+                    reason: cards.length ? "" : "Nothing on this yet. Search it, and yours is the first." });
     }
     if (path === "/api/friends") return json(PEOPLE.graph());
     if (path === "/api/friends/seen") {
@@ -804,6 +874,8 @@ SHIM = """
       var since = Number(qs.get("since") || 0);
       var all = (PEOPLE.threads[withId] || []).slice();
       var fresh = since ? all.filter(function (m) { return m.id > since; }) : all;
+      // Opening a conversation reads it, the way `mark_read` does.
+      if (!since) PEOPLE.unread[withId] = 0;
       var head = all.length ? all[all.length - 1].id : since;
       return json({
         with: PEOPLE.byId(withId) || { user_id: withId, name: "Someone", handle: "" },

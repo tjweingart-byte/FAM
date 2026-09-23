@@ -1,4 +1,4 @@
-"""The 22/09 packet (PROBLEMS.md §133): myFAM rails, Trending, caching,
+"""The 22/09 packet (PROBLEMS.md §134): myFAM rails, Trending, caching,
 DailyFAM playlists and Explore's counts.
 
 Seven asks, and each test here names the behaviour a listener would notice

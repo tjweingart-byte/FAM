@@ -518,7 +518,7 @@ class MemoryScriptCache:
         #: last played]. The memory half of `episode_audio`.
         self._audio: dict[tuple[str, str], list] = {}
         #: key -> how many times it was played. The memory half of the
-        #: `plays` column (§133).
+        #: `plays` column (§134).
         self._plays: dict[str, int] = {}
         self.hits = 0
         self.misses = 0
@@ -549,7 +549,7 @@ class MemoryScriptCache:
         before = self._data.get(key)
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
         # New words, so any audio kept for the old ones no longer matches -
-        # and only new words (§133): a re-write that said the same thing keeps
+        # and only new words (§134): a re-write that said the same thing keeps
         # the audio it already paid for.
         if before is None or list(before[1]) != list(sentences):
             self._drop_audio(key)
@@ -751,12 +751,12 @@ class SqliteScriptCache:
                 # `title`, and the same fallback: a row without one draws no
                 # line rather than an invented one.
                 ("summary", "ALTER TABLE scripts ADD COLUMN summary TEXT NOT NULL DEFAULT ''"),
-                # The lifetime the entry was written with (§133), so a play
+                # The lifetime the entry was written with (§134), so a play
                 # can tell an evergreen entry - which may slide - from a
                 # volatile one, which must not. Rows written before this have
                 # 0 and never slide, which is what they did before.
                 ("ttl", "ALTER TABLE scripts ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0"),
-                # How many times the episode was actually *played* (§133) -
+                # How many times the episode was actually *played* (§134) -
                 # the number on an Explore card. `hits` is not that: it counts
                 # every `get`, and a normal play reads the cache two or three
                 # times (the pacing probe, the pipeline's own lookup, a near
@@ -825,7 +825,7 @@ class SqliteScriptCache:
 
     @staticmethod
     def _slide(conn, key: str, expires: float, ttl, created, now: float) -> None:
-        """Keep an evergreen entry alive while people keep asking for it (§133).
+        """Keep an evergreen entry alive while people keep asking for it (§134).
 
         Only an entry written at the ordinary ceiling slides - `ttl_for` gave
         anything time-sensitive a shorter one, and a claim about now must not
@@ -925,7 +925,7 @@ class SqliteScriptCache:
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
             #
-            # **Only if the words are actually new** (§133). Two listeners
+            # **Only if the words are actually new** (§134). Two listeners
             # generating one key at once both write it, with a script that
             # may well be word for word the same, and a re-write that changed
             # nothing was throwing away a whole voiced episode - one more

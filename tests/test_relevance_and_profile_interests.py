@@ -88,7 +88,7 @@ def test_trending_keeps_four_tiles_when_the_pool_can_fill_it(store):
 
 
 def test_a_pool_too_small_to_fill_trending_leaves_it_short_and_never_fakes_it(store):
-    """§133 replaces the old rule here. Trending used to give a thin pool's one
+    """§134 replaces the old rule here. Trending used to give a thin pool's one
     story to the personal rail and top itself up from the startup set and the
     evergreen bank; the owner has since ruled both off the row ("the trending
     section of myFAM should never show the dummy data episodes"). So one story
@@ -200,7 +200,7 @@ def test_trending_is_the_last_source_for_what_you_missed(store):
     one Made for you exists to offer them. So the rail's first pass excludes
     trending and it is topped up from the leftovers afterwards."""
     finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"))
-    # Four louder stories for Trending, which since §133 takes the loudest
+    # Four louder stories for Trending, which since §134 takes the loudest
     # four before any personal rail chooses, and one left over for this.
     stories.seed([story(f"world story {n}", (facet,))
                   for n, facet in enumerate(("world", "money", "culture", "science"))]
@@ -324,10 +324,10 @@ def test_a_named_subject_can_be_pinned_beside_a_facet(store):
     assert shown[0]["label"] == "Formula 1"
 
 
-def test_the_store_refuses_a_fifth_pinned_interest(tmp_path):
+def test_the_store_refuses_a_sixth_pinned_interest(tmp_path):
     store = prefs_mod.PreferenceStore(str(tmp_path / "p.db"))
     saved = store.save("u", profile_interests=["tech", "money", "sports",
-                                               "health", "culture"])
+                                               "health", "culture", "world"])
     assert len(saved.profile_interests) == prefs_mod.PROFILE_INTERESTS_MAX
 
 

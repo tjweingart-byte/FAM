@@ -121,7 +121,7 @@ def test_a_tile_carries_a_question_worth_an_episode_and_not_a_headline():
 def _world_takes_four_louder_ones():
     """Four loud stories on four subjects, for Trending to take first.
 
-    Since §133 Trending chooses before any personal rail and takes the four
+    Since §134 Trending chooses before any personal rail and takes the four
     loudest stories whoever is looking, so a test about what Made for you does
     with a live story has to leave one over for it.
     """
@@ -264,7 +264,7 @@ def test_no_rail_becomes_one_subject(store):
         # the one a listener would actually make: this row is about more than
         # one thing.
         #
-        # Four tiles since §133, so "about more than one thing" is at most two
+        # Four tiles since §134, so "about more than one thing" is at most two
         # of any one subject - `MAX_PER_FACET` - and therefore at least two.
         assert len(set(facets)) >= 2, (
             f"{section['key']} is really one subject: {facets}")
@@ -411,7 +411,7 @@ def test_an_impression_on_a_live_story_is_recorded_with_its_tags(store):
 
 def test_trending_takes_the_story_even_when_it_is_exactly_this_listeners_taste(store):
     """It used to be the other way round: Made for you chose first, so a story
-    this listener's history claimed was taken off the world row. §133 reverses
+    this listener's history claimed was taken off the world row. §134 reverses
     that at the owner's direction - "a user's interests or past listens should
     not affect the content of the trending section" - so the loudest story in
     the world is on Trending whoever is looking, and the personal rail avoids
@@ -574,5 +574,5 @@ def test_the_rail_offers_no_more_than_the_packet_asks_for(store):
     now = time.time()
     _shown(store, list(T.TOPIC_BANK)[:20], now - 86400)
     rail = _missed(store, now=now)
-    # Exactly four since §133, like every rail; the rest is behind View more.
+    # Exactly four since §134, like every rail; the rest is behind View more.
     assert len(rail["topics"]) == T.MISSED_SECTION_SIZE == T.SECTION_SIZE

@@ -88,7 +88,7 @@ TRENDING_WINDOW = 3 * 86400
 #: Never show the same tile in two sections; the feed should look wider than
 #: the bank actually is.
 #:
-#: **Exactly four on the page, and "View more" holds the rest** (§133, at the
+#: **Exactly four on the page, and "View more" holds the rest** (§134, at the
 #: owner's direction: "make sure there are exactly 4 tiles in each rail at all
 #: times"). It was six, with per-rail floors under it, and a rail that could
 #: show anything from one to eight tiles read as broken. The two rails that
@@ -127,7 +127,7 @@ MAX_PER_FACET = 2
 #: is enough and is honestly short when there is not. Padding it out to eight
 #: from things the listener was never offered would make the heading a lie.
 MISSED_WINDOW = 7 * 86400
-#: Four, like every rail since §133. It was eight; the rest of what went past
+#: Four, like every rail since §134. It was eight; the rest of what went past
 #: somebody is one tap away behind "View more".
 MISSED_SECTION_SIZE = SECTION_SIZE
 
@@ -149,7 +149,7 @@ MISSED_SECTION_SIZE = SECTION_SIZE
 #: pool alone and has nowhere else to go. An empty rail is a worse answer
 #: than a rail that had to give up its first pick.
 #:
-#: **Superseded by §133**: Trending now chooses first and alone
+#: **Superseded by §134**: Trending now chooses first and alone
 #: (`rank_world`), so it is never starved by the personal rails and there is
 #: nothing left to reserve. Kept as the number the row aims for.
 WORLD_FLOOR = SECTION_SIZE
@@ -168,7 +168,7 @@ WORLD_FLOOR = SECTION_SIZE
 #: picks still lead, in its own order, and only the gap under the minimum is
 #: filled. See `_rail_fallback` for what each rail is filled from and why.
 #:
-#: **Narrowed by §133, at the owner's direction.** Every rail shows exactly
+#: **Narrowed by §134, at the owner's direction.** Every rail shows exactly
 #: `SECTION_SIZE`, and only the rails that *choose* are topped up to it:
 #:
 #: * **What FAM can't stop listening to** is out of this table. Topping it up
@@ -182,7 +182,7 @@ WORLD_FLOOR = SECTION_SIZE
 RAIL_MINIMUM = {"from_history": SECTION_SIZE, "missed": SECTION_SIZE}
 
 #: How much a story running in the listener's own country is lifted on the
-#: Trending rail, per unit of that country's share of the coverage (§133).
+#: Trending rail, per unit of that country's share of the coverage (§134).
 #:
 #: The owner's rule for that row: popularity, and "the only factor that should
 #: have input in it other than popularity is the country the user is in (and
@@ -1269,7 +1269,7 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
 #: tops it up from what is left over afterwards, which makes trending the
 #: last source for this row rather than the first.
 #: `world_trending` is filled outside this loop and before it - see
-#: `rank_world`, which since §133 takes its tiles before any of these choose
+#: `rank_world`, which since §134 takes its tiles before any of these choose
 #: and takes nothing of the listener's into account but their country.
 FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played")
 #: `might_like` stays in the fill order even though it is no longer displayed.
@@ -2967,7 +2967,7 @@ def rank_friends(
 
 
 #: How many Explore New shows. Six, and deliberately not `SECTION_SIZE`: that
-#: became four in §133 as a rule about *rails on myFAM*, and Explore New is a
+#: became four in §134 as a rule about *rails on myFAM*, and Explore New is a
 #: screen somebody opened on purpose rather than a rail.
 EXPLORE_NEW_SIZE = 6
 
@@ -3142,7 +3142,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     caller says otherwise (§127). `{}` turns the top-up off, which is how a
     test asks what a rail *chose* rather than what it was filled to.
 
-    `country` is the one input Trending takes from the listener (§133) - see
+    `country` is the one input Trending takes from the listener (§134) - see
     `rank_world`. Nothing else on the page reads it.
 
     `has_account` is whether credentials are attached to this listener, and it
@@ -3236,7 +3236,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                         if user != user_id} if user_id else set()
     wide = SECTION_SIZE * CANDIDATE_FACTOR
 
-    # **Trending chooses first, and chooses alone** (§133, at the owner's
+    # **Trending chooses first, and chooses alone** (§134, at the owner's
     # direction). "The trending section should be trending news from around
     # the world, not based on the user's algorithm ... a user's interests or
     # past listens should not affect the content of the trending section."
@@ -3388,7 +3388,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             on_page | mine)
         picked[key] = picked[key] + extra
         used |= {t.id for t in extra}
-    # **Exactly `SECTION_SIZE` on the page, never more** (§133). Every ranker
+    # **Exactly `SECTION_SIZE` on the page, never more** (§134). Every ranker
     # is asked for this many already; this is the line that makes it a fact
     # about the page rather than a habit of each ranker, so a rail added
     # later cannot show five. "View more" is where the rest lives.
@@ -3519,7 +3519,7 @@ def build_section(store: EventStore, user_id: str, key: str,
     elif key == "world_trending":
         # The rail's own ranker at full length, and like the rail it takes
         # nothing of the listener but their country - not even what they have
-        # played (§133). See `rank_world`.
+        # played (§134). See `rank_world`.
         picks = rank_world(
             live, country,
             topics_from_stories(stories.pool().held(now), now=now),
@@ -3603,7 +3603,7 @@ def rank_world(live: list, country: str = "", held: Iterable = (),
                limit: int = SECTION_SIZE) -> list:
     """The Trending rail: the world's loudest stories, and nothing about you.
 
-    §133, at the owner's direction, and the rule is narrow on purpose:
+    §134, at the owner's direction, and the rule is narrow on purpose:
     **popularity, and the listener's country, and nothing else.** Not their
     taste, not their interests, not what they have played, not fatigue, not
     engagement, not the learned order - every one of those is "the user's
@@ -3656,11 +3656,11 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
 
     * **Trending**: the live pool, then what the pool's variety cap is
       holding, and nothing else. It used to fall through to the startup set
-      and the bank; the owner has ruled both off that row (§133).
+      and the bank; the owner has ruled both off that row (§134).
     * **Made for you** and **What you missed**: this listener's own
       inventory in affinity order, then the rest of the tiles FAM has.
     * **What FAM can't stop listening to** is no longer topped up at all
-      (§133) - a tile nobody played under a heading that says it was played
+      (§134) - a tile nobody played under a heading that says it was played
       is making one up.
 
     The bank is always last, and for an account it is the one place it can
@@ -3675,7 +3675,7 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
         return [t for _s, _i, t in scored]
 
     if key == "world_trending":
-        # Live stories only, and never the startup set or the bank (§133):
+        # Live stories only, and never the startup set or the bank (§134):
         # "the trending section of myFAM should never show the dummy data
         # episodes". Nothing calls this for Trending today - it is not in
         # `RAIL_MINIMUM` - and this answer is what makes that safe to change.
@@ -3847,7 +3847,7 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
 #: and is not imported from it, because `topics` is the module `preferences`
 #: imports and not the other way round. The two are pinned together by a test
 #: rather than by an import, which is the same trade `pipeline.key_for` makes.
-PROFILE_INTEREST_SLOTS = 4
+PROFILE_INTEREST_SLOTS = 5
 
 
 def _interest_score(tags: Iterable[str], profile: dict[str, float]) -> float:
@@ -3983,7 +3983,7 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
     is about this page: the rail above got there first, and saying the feed
     had nothing would be describing our own ordering as the world's silence.
     """
-    # Since §133 the first clause cannot happen - Trending chooses before any
+    # Since §134 the first clause cannot happen - Trending chooses before any
     # personal rail, so a pool with stories in it always puts them here. It
     # stays because the sentence is still the right one if that order ever
     # changes, and a wrong one is §89.

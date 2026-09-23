@@ -767,7 +767,7 @@ class Settings:
     cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 86400)
     # Lifetime for queries that read as time-sensitive ("latest", "today").
     cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 900)
-    # How long an evergreen episode may be kept alive by being played (§133).
+    # How long an evergreen episode may be kept alive by being played (§134).
     # A play of an entry written at the ordinary ceiling pushes its expiry a
     # full `cache_ttl_seconds` forward, up to this age from when it was
     # written. The voice is a rented GPU, so an episode that keeps being
