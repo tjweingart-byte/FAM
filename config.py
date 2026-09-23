@@ -181,9 +181,10 @@ def _env_float(name: str, default: float) -> float:
 #:
 #: **`claude` is gone** (§135, at the owner's direction): everything an episode
 #: is written from comes from Exa, GDELT and the live providers, and the model
-#: never searches the web for FAM. It is refused by name below, with the reason,
-#: rather than as an unknown word - a deployment that still sets it deserves to
-#: be told what happened to it.
+#: never searches the web for FAM. A deployment that still sets it runs on the
+#: default backend and is told so at startup and on /api/health - not refused,
+#: because it was a working value until now and a refusal would stop the
+#: server booting on the deploy that removed it.
 #:
 #: A value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
@@ -349,6 +350,9 @@ class Settings:
     research_backend: str = field(
         default_factory=lambda: os.environ.get(
             "RESEARCH_BACKEND", DEFAULT_RESEARCH_BACKEND).strip().lower())
+    # The retired value `research_backend` was set to and replaced from, or
+    # "" - see `__post_init__`. Reported, never read to decide anything.
+    research_backend_replaced: str = ""
     # The three numbers the manual Exa benchmark hard-coded, which are exactly
     # the knobs worth sweeping. Their defaults reproduce that run: 8 results
     # fetched, the top 3 in the packet, 2 highlights each. Raising
@@ -544,7 +548,7 @@ class Settings:
     # A ceiling rather than a target. Nobody is waiting on this - a slow
     # composition costs one window of freshness, never a listener's wait.
     stories_compose_timeout_seconds: float = _env_float(
-        "STORIES_COMPOSE_TIMEOUT_SECONDS", 25.0)
+        "STORIES_COMPOSE_TIMEOUT_SECONDS", 45.0)
 
     # --- the category tree ------------------------------------------------
     #
@@ -1178,10 +1182,14 @@ class Settings:
                     f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
                     f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
         if self.research_backend == "claude":
-            raise ValueError(
-                "RESEARCH_BACKEND=claude was removed (PROBLEMS.md §135): FAM no "
-                "longer lets the model search the web. Use RESEARCH_BACKEND=exa "
-                "with EXA_API_KEY, or RESEARCH_BACKEND=gdelt with GDELT=1.")
+            # **Replaced, loudly, rather than refused** (§135). `claude` was a
+            # working value until this change, so a deployment may still carry
+            # it in its dashboard - and refusing it here would turn merging
+            # the change that removed it into a server that will not boot.
+            # It runs as the default backend instead; the startup log and
+            # `/api/health` (`research.backend_replaced`) both say so.
+            object.__setattr__(self, "research_backend_replaced", "claude")
+            object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
         if self.research_backend not in RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_BACKEND={self.research_backend!r} is not a research "

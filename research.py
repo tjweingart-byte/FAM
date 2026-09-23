@@ -16,8 +16,9 @@ the whole of where an episode's information comes from.
 owner's direction). A `claude` backend used to give a separate research call
 Anthropic's `web_search` tool, and it was the last rung of the ladder below.
 It is deleted rather than switched off - the Piper reasoning: a backend left
-behind is a knob somebody turns back on - and `RESEARCH_BACKEND=claude` is
-refused at boot with a sentence saying so. Before that it was attached to the
+behind is a knob somebody turns back on - and a deployment still setting
+`RESEARCH_BACKEND=claude` runs on Exa and is told so at startup and on
+`/api/health`. Before that it was attached to the
 *writing* call (PROBLEMS.md §108), which is how the first sentence of an
 episode came to be written before anything had been looked up.
 
@@ -825,9 +826,8 @@ def _rung_available(rung: str) -> bool:
         return gdelt.available()[0]
     if rung == "exa":
         return available()
-    # The model's own search needs the credential the app already cannot run
-    # without, so there is nothing separate to check.
-    return True
+    # Nothing else is a retriever (§135). An unknown name is not a rung.
+    return False
 
 
 def report() -> dict:
@@ -835,6 +835,9 @@ def report() -> dict:
     ok, detail = diagnose()
     return {
         "backend": settings.research_backend,
+        # A retired value this deployment still sets, and was run as the
+        # default instead (§135). "" when nothing was replaced.
+        "backend_replaced": getattr(settings, "research_backend_replaced", ""),
         "backends": list(RESEARCH_BACKENDS),
         "exa_configured": ok,
         "exa_detail": detail,

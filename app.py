@@ -208,6 +208,12 @@ def _announce_research() -> None:
     happening.
     """
     report = research_report()
+    if report.get("backend_replaced"):
+        log.warning(
+            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135: the "
+            "model never searches the web for FAM). Running as %s. Remove the "
+            "variable, or set it to exa or gdelt.",
+            report["backend_replaced"], report["backend"])
     if not report["unavailable"]:
         log.info("research: %s (%s)", report["backend"], report["exa_detail"])
         return

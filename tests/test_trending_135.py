@@ -427,3 +427,61 @@ def test_the_card_draws_the_score_beside_the_title_and_the_place_on_trending():
     assert "if(d.groups && d.groups.length)" in INDEX
     # Both surfaces that draw a card draw the score the same way.
     assert INDEX.count("+ seedLiveHtml(t)") == 2
+
+
+# --------------------------------------------------------------------------
+# found on review
+# --------------------------------------------------------------------------
+def test_a_game_is_not_matched_to_news_about_its_city():
+    """"Kansas City Chiefs vs Buffalo Bills" shares two words with a story
+    about a Kansas City tornado - and only one side of the fixture."""
+    game = stories.Signal(subject="Kansas City Chiefs vs Buffalo Bills",
+                          observation="under way", domain=stories.SPORTS)
+    storm = stories.Signal(subject="Tornado tears through Kansas City",
+                           observation="9", domain=stories.ATTENTION,
+                           coverage=9, keywords=("kansa", "city", "tornado"))
+    out = stories.corroborate([game, storm])
+    assert [s.coverage for s in out if s.domain == stories.SPORTS] == [0]
+    assert storm in out, "the storm story was folded into a football game"
+
+
+def test_a_score_read_off_the_sweep_is_as_old_as_the_sweep(monkeypatch):
+    """Stamping it with this moment would let the freshness check that
+    withholds a stale score pass one it should have questioned."""
+    row = {"game": {"id": 7, "status": {"short": "Q2"}},
+           "teams": {"home": {"name": "Chiefs"}, "away": {"name": "Bills"}},
+           "scores": {"home": {"total": 7}, "away": {"total": 3}}}
+    monkeypatch.setattr(live_sources, "CARD", {})
+    swept = time.time() - 40
+    live_sources.remember_card("american-football", [row], now=swept)
+    entity = live_facts.Entity(domain="sports", provider="API-Sports",
+                               id="american-football:7", label="Chiefs v Bills")
+    facts = asyncio.run(live_sources.ApiSportsSource().fetch(entity))
+    assert abs(facts.as_of.timestamp() - swept) < 1
+
+
+def test_an_api_sports_refusal_is_never_an_empty_card(monkeypatch):
+    """A bad key is answered 200 with the reason in `errors` and an empty
+    `response`. Read as data, that is a day with no games."""
+    async def _json(url, headers, params, timeout):
+        return {"errors": {"token": "Error/Missing application key."},
+                "response": []}
+
+    monkeypatch.setattr(live_sources, "_json", _json)
+    monkeypatch.setattr(live_sources, "API_SPORTS_BUDGET", live_sources.RequestBudget())
+    with pytest.raises(RuntimeError, match="application key"):
+        asyncio.run(live_sources.api_sports_json("https://x", {}, 1.0))
+    assert live_sources.API_SPORTS_BUDGET.remaining() > 0, \
+        "a bad key is not a spent allowance"
+
+
+def test_nothing_but_exa_and_gdelt_is_a_rung():
+    import research
+
+    assert research._rung_available("claude") is False
+    assert research._rung_available("anything") is False
+
+
+def test_health_reports_the_api_sports_allowance():
+    report = live_sources.report()["api_sports_budget"]
+    assert set(report) == {"daily", "used_today", "remaining"}

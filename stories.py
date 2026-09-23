@@ -1225,7 +1225,10 @@ def corroborate(signals: list) -> list:
     Matching is by shared salient words (`news_clusters.tokens`): both team
     names, a company name, the subject of a market. At least two words, or
     every word of a one-word subject - "Nvidia" is a match for a story whose
-    fingerprint holds "nvidia", and "the" never is anything.
+    fingerprint holds "nvidia", and "the" never is anything. **A game needs
+    both sides named** (`_sides_named`): "Kansas City Chiefs vs Buffalo
+    Bills" shares two words with a story about a Kansas City tornado, and
+    only one side of it.
     """
     import news_clusters
 
@@ -1246,7 +1249,10 @@ def corroborate(signals: list) -> list:
         for index, story in enumerate(news):
             if index in absorbed:
                 continue
-            shared = news_clusters.overlap(mine, _fingerprint(story))
+            fingerprint = _fingerprint(story)
+            shared = news_clusters.overlap(mine, fingerprint)
+            if not _sides_named(signal.subject, fingerprint):
+                continue
             if shared >= need and (shared > best_shared or (
                     shared == best_shared and best is not None
                     and story.coverage > news[best].coverage)):
@@ -1268,6 +1274,20 @@ def corroborate(signals: list) -> list:
         ))
     out.extend(s for i, s in enumerate(news) if i not in absorbed)
     return out
+
+
+def _sides_named(subject: str, fingerprint) -> bool:
+    """For "A vs B", whether the news story names both A and B.
+
+    Anything that is not a fixture has one side and always passes.
+    """
+    import news_clusters
+
+    sides = [side for side in re.split(r"\s+(?:vs\.?|v)\s+", subject or "")
+             if side.strip()]
+    if len(sides) < 2:
+        return True
+    return all(news_clusters.tokens(side) & set(fingerprint) for side in sides)
 
 
 def _adopt_identity(signal, known: list):

@@ -261,8 +261,11 @@ def test_the_claude_backend_is_gone_and_says_so():
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
         assert not hasattr(research, name), f"research.{name} is still here"
-    with pytest.raises(ValueError, match="removed"):
-        dataclasses.replace(settings, research_backend="claude")
+    # A deployment still setting it runs on the default, and says so -
+    # replaced rather than refused, so the deploy that removed it still boots.
+    left_over = dataclasses.replace(settings, research_backend="claude")
+    assert left_over.research_backend == config.DEFAULT_RESEARCH_BACKEND
+    assert left_over.research_backend_replaced == "claude"
     with pytest.raises(research.ResearchUnavailable, match="is not a backend"):
         asyncio.run(research.retrieve("q", backend="claude"))
 
@@ -913,3 +916,16 @@ def test_the_evidence_survives_being_replaced_onto_the_plan(exa, monkeypatch):
     assert done.evidence
     assert dataclasses.replace(done, minutes=5).evidence == done.evidence
 
+
+
+def test_a_left_over_claude_backend_is_announced(monkeypatch, caplog):
+    import logging
+
+    import app
+
+    left_over = dataclasses.replace(settings, research_backend="claude")
+    monkeypatch.setattr(research, "settings", left_over)
+    assert research.report()["backend_replaced"] == "claude"
+    with caplog.at_level(logging.WARNING, logger="app"):
+        app._announce_research()
+    assert any("no longer a backend" in r.getMessage() for r in caplog.records)

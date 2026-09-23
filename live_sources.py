@@ -51,7 +51,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -249,6 +249,8 @@ def report() -> dict:
             "derived_from_key": sorted(
                 d for d, name in configured().items()
                 if name and not (named[d] or "").strip()),
+            # Shared by the story sweep and episode lookups (§135).
+            "api_sports_budget": API_SPORTS_BUDGET.as_dict(),
             "known": {d: sorted(v) for d, v in BUILDERS.items()}}
 
 
@@ -459,6 +461,12 @@ async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
     if _limit_reached(data):
         API_SPORTS_BUDGET.exhaust()
         raise BudgetSpent(f"API-Sports refused: {(data or {}).get('errors')}")
+    errors = (data or {}).get("errors")
+    if errors:
+        # A bad key, a bad parameter, a suspended account: all answered 200
+        # with the reason in `errors` and an empty `response`. Read as data,
+        # that is a day with no games and nothing to say it is wrong.
+        raise RuntimeError(f"API-Sports refused: {errors}")
     return data
 
 
@@ -628,6 +636,7 @@ class ApiSportsSource(LiveSource):
         # having saved a request on.
         fresh = card_rows(sport.key, max_age=live_facts.MAX_AGE_SECONDS["sports"] / 2)
         rows = [r for r in (fresh or []) if self._game_id(r) == game_id]
+        swept_at = CARD[sport.key][0] if rows else None
         if not rows:
             data = await api_sports_json(f"{sport.host}/{sport.path}",
                                          {"id": game_id},
@@ -635,7 +644,14 @@ class ApiSportsSource(LiveSource):
             rows = (data or {}).get("response", []) or []
         if not rows:
             return None
-        return self.to_facts(rows[0], entity, sport)
+        facts = self.to_facts(rows[0], entity, sport)
+        if facts is not None and swept_at is not None:
+            # Read off the sweep, so it is as old as the sweep - never stamped
+            # with this moment, which would make the freshness check that
+            # withholds a stale score pass a score it should have questioned.
+            facts = replace(facts, as_of=datetime.fromtimestamp(
+                swept_at, tz=timezone.utc))
+        return facts
 
     # --- shape readers ----------------------------------------------------
     # Small and separate because this is where the sports genuinely differ,

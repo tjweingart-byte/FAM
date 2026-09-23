@@ -10901,9 +10901,13 @@ switched off - `retrieve_with_claude`, `shape_claude_packet`,
 `research_client`, `CLAUDE_RESEARCH_SYSTEM`, `RESEARCH_MAX_TOKENS`,
 `provenance.from_web_search` and `script_generator._merge_search_provenance`
 (which read tool results off a writing call that has carried no tools since
-§108, so it could never find any). `RESEARCH_BACKENDS` is `("exa", "gdelt")`,
-`research.FALLBACK_RUNGS` is `("gdelt",)`, and `RESEARCH_BACKEND=claude` is
-refused at boot with a sentence naming this section rather than as a typo.
+§108, so it could never find any). `RESEARCH_BACKENDS` is `("exa", "gdelt")`
+and `research.FALLBACK_RUNGS` is `("gdelt",)`. A deployment still setting
+`RESEARCH_BACKEND=claude` runs as `exa` and says so at startup and on
+`/api/health` (`research.backend_replaced`). **Replaced rather than refused,
+on review**: it was a working value until this change, nothing here can see
+the Render dashboard, and refusing it would have made the deploy that removed
+it a server that does not boot.
 
 What changes for a listener: on a deployment with neither Exa nor GDELT
 answering, a question that turns on current facts is refused (`NoEvidence`)
@@ -10971,8 +10975,9 @@ Now `GdeltSignals` does three things per sweep:
    drawn from;
 2. `gdelt.discover` reads the recent articles (12 hours, `hybridrel`) under
    the eight hottest themes and under **each region's own press**
-   (`geography.GDELT_SOURCES`, `sourcecountry:` OR'd) - about twenty requests,
-   six at a time, with its own 45-second ceiling;
+   (`geography.GDELT_SOURCES`, `sourcecountry:` OR'd) - seventeen article
+   lists six at a time after fifteen volume checks, with its own 45-second
+   ceiling;
 3. `news_clusters.cluster` groups headlines that share at least two salient
    words **and a name** (a capitalised word - "Fed holds rates" and "ECB holds
    rates" are two stories), and counts **distinct outlets** per group. A
@@ -11033,8 +11038,9 @@ pending.
   written from GDELT's documentation; the API-Sports limit reply from its. Run
   `python tools/stories_report.py` against the deployment and read which
   regions came back.
-- **GDELT's rate limit is the new exposure.** About twenty requests every
-  fifteen minutes from one IP, six at a time. If GDELT starts answering 429,
+- **GDELT's rate limit is the new exposure.** About thirty requests every
+  fifteen minutes from one IP (fifteen volume checks, then seventeen article
+  lists six at a time). If GDELT starts answering 429,
   the report will say `source_failed` and the row keeps its held stories;
   lowering `HOT_THEMES` or the concurrency in `gdelt.discover` is the knob.
 - **Clustering is words, and English-leaning.** Headlines in other languages

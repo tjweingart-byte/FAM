@@ -1045,7 +1045,9 @@ the rest of this list it needs taste rather than a key.
   the model's own search was the last rung and is **deleted**, not switched
   off - everything an episode is written from comes from **Exa, GDELT,
   API-Sports, Finnhub and Polymarket**, and the model never searches the web
-  for FAM. `RESEARCH_BACKEND=claude` is refused at boot by name.
+  for FAM. A deployment still setting `RESEARCH_BACKEND=claude` runs on Exa
+  and says so at startup and on `/api/health` - replaced rather than refused,
+  so merging the removal cannot stop a server booting.
   `research.ladder()` is the **one** definition of that order and it lists
   only rungs that can actually serve - a GDELT switched off is not a rung -
   and the runtime, `/api/health` and the startup warning all read it rather
@@ -1171,8 +1173,8 @@ the rest of this list it needs taste rather than a key.
   night while holding nothing about last night, a lone answerer should say so,
   and one of them did, on air.
   §94 told it that it was not a lone answerer. **§108 stopped putting it in
-  that position**: the cover is deleted, the model's own search is a retrieval
-  that finishes first, and the writing call reasons before its first token
+  that position**: the cover is deleted, retrieval (Exa or GDELT - the
+  model's own search went in §135) finishes first, and the writing call reasons before its first token
   (at `EFFORT=low` since §129) - so it decides what the whole episode is, from the brief
   and the evidence, and *then* opens. The prompt says exactly that, and adds
   the test the opening has to pass: read the first two sentences back against
