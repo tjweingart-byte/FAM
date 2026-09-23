@@ -11264,3 +11264,39 @@ true or false, so the toast says "Card saved" only when something was saved,
 and "Not saved" when the listener declined. The words go to the clipboard
 either way. The artifact is published with `downloads` declared beside `db`
 (CLAUDE.md's publish step says so).
+
+### Found reviewing the branch before merge (§137 and §138)
+
+An independent read of both sections' diff found three defects and five
+smaller ones. All are fixed:
+
+- **A photo chosen on the naming screen and abandoned rode along on the next
+  mix.** Only a starter mix could pick it up, and it did, along with any
+  team a previous picker had narrowed to. `cancelNewMix` now drops the cover
+  and `useStarterMix` starts clean. The cover smoke check asserts it.
+- **A typed topic with `"` or `\` in "Also in this mix" could not be
+  removed.** Its id went inside a quoted `onclick`. It is a `data-id` now,
+  like the mix page's play buttons.
+- **An oversized cover got a 422 the interface could not read** ("Could not
+  save that mix"). `MixRequest.cover` no longer has a pydantic `max_length`,
+  so `clean_cover` refuses it with "That photo is too large". Tested.
+- Adding a team from search to a subject already followed whole swapped the
+  whole subject out; it now keeps "all of NFL" as its own briefing.
+- The interest filter chip was an index, so it pointed at a different chip
+  once `/api/profile` answered. It is keyed on the row now.
+- A "narrow it down" panel opened under one mix stayed open under the next.
+- A pinned facet arriving labelled `kind: "topic"` filtered the picker to
+  nothing. It is treated as the facet it is.
+- `f:nfl~a|b|...` was unbounded, so another client could make a prompt past
+  the 300 characters the echo endpoints accept. At most
+  `MAX_FOCUS_PER_ITEM` (3), and `daily_prompt` drops the "cover only"
+  sentence before it overruns. Tested at the worst case.
+
+And one decision in the same spirit: **the starter mixes follow subjects
+now** (News, Stocks & Economy, AI; NFL, Basketball, Health & Fitness; Music,
+Movies & TV, Space). They were bank episodes, the one place a mix was still
+offered one-off stories.
+
+Left as it is, knowingly: covers ride inline on every `/api/mixes` list, up
+to about 50 KB each. That is fine at thirty mixes; it is the thing to move to
+`assets` or object storage if mixes ever become shared or many.

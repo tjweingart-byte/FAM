@@ -2151,6 +2151,10 @@ def main() -> int:
             page.evaluate("closePhotoEditor()")
             page.evaluate("cancelNewMix()")
             page.wait_for_timeout(300)
+            # Walking away from the naming screen walks away from its cover,
+            # or the next mix made another way (a starter) would carry it.
+            assert page.evaluate("newMixCover === ''"), \
+                "an abandoned cover was kept for the next mix"
 
         def messages_sheet():
             # The sheet has to be leavable. A tab that cannot be left is the

@@ -3023,8 +3023,10 @@ class MixRequest(BaseModel):
     #: Public mixes appear on the listener's profile.
     public: Optional[bool] = None
     #: The mix's cover photo as a data URL; "" removes it, omitted keeps it.
-    #: Checked in mixes.clean_cover, which says why it is refused.
-    cover: Optional[str] = Field(None, max_length=mixes_mod.MAX_COVER_CHARS)
+    #: No `max_length` here on purpose: pydantic would refuse an oversized
+    #: photo with a 422 the interface cannot read, where mixes.clean_cover
+    #: refuses it with a sentence the listener can act on.
+    cover: Optional[str] = None
 
 
 def _attachments_for(user: str, ids: str) -> tuple:

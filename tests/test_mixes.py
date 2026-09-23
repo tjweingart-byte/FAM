@@ -128,11 +128,14 @@ def test_mixes_survive_a_restart(tmp_path):
 
 
 def test_the_starter_mixes_only_use_real_topics():
-    """They are offered on an empty page; a broken one is a bad first run."""
+    """They are offered on an empty page; a broken one is a bad first run.
+    And they follow subjects (§137): a starter of bank episodes would be a
+    mix of one-off stories."""
     for name, ids in M.STARTER_MIXES:
         assert name
-        for topic_id in ids:
-            assert topic_id in T.BANK_BY_ID, f"{name} references missing {topic_id}"
+        items = M.clean_items(ids)
+        assert len(items) == len(ids), f"{name} lost a topic"
+        assert all(i.follow for i in items), f"{name} offers a bank episode"
 
 
 # --- the API --------------------------------------------------------------

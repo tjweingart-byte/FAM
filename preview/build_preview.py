@@ -608,6 +608,12 @@ MIX_ITEMS_JS = r"""
     item.daily_prompt = mixDailyPrompt(item);
     return item;
   }
+  // A typed topic as the store keeps it: whole, up to the server's
+  // MAX_QUERY, with the commas that separate stored items taken out.
+  function mixTypedQuery(query) {
+    return String(query || "").replace(/,/g, " ").replace(/\s+/g, " ").trim()
+      .slice(0, MIX_RULES.max_query);
+  }
   function mixTypedItem(query, title) {
     query = String(query || "").replace(/\s+/g, " ").trim();
     var item = { id: "q:" + query.toLowerCase().slice(0, 40), query: query,
@@ -625,6 +631,7 @@ def mix_items_js() -> str:
     return MIX_ITEMS_JS.replace("__MIX_RULES__", json.dumps({
         "date": mixes_mod.DAILY_DATE, "longest": mixes_mod.LONGEST_DATE,
         "max_prompt": mixes_mod.MAX_PROMPT, "max_focus": mixes_mod.MAX_FOCUS,
+        "max_query": mixes_mod.MAX_QUERY,
         "endings": list(mixes_mod.DAILY_ENDINGS)}))
 
 

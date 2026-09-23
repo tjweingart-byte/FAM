@@ -239,3 +239,25 @@ def test_every_suggestion_list_belongs_to_a_real_subject():
         assert noun and picks
         for pick in picks:
             assert M.clean_focus(pick) == pick, f"{pick!r} would be altered when followed"
+
+
+# --- found in review ------------------------------------------------------------
+
+
+def test_one_id_carries_a_bounded_number_of_specifics():
+    """The interface writes one specific per item; another client can send
+    `a|b|c`, and it is bounded so every prompt still fits."""
+    three = "|".join("x" * M.MAX_FOCUS for _ in range(M.MAX_FOCUS_PER_ITEM))
+    item = M.followed_item("f:dating~" + three)
+    prompt = M.daily_prompt(item).replace(M.DAILY_DATE, M.LONGEST_DATE)
+    assert len(prompt) <= M.MAX_PROMPT, len(prompt)
+    with pytest.raises(M.MixError):
+        M.followed_item("f:nfl~" + "|".join("t%d" % i for i in range(M.MAX_FOCUS_PER_ITEM + 1)))
+
+
+def test_an_oversized_cover_is_refused_in_words(client):
+    """Not a pydantic 422 the interface cannot read: the listener is told."""
+    huge = "data:image/jpeg;base64," + "A" * (M.MAX_COVER_CHARS + 4)
+    res = client.post("/api/mixes", json={"name": "Big", "topic_ids": ["f:nfl"], "cover": huge})
+    assert res.status_code == 400
+    assert "too large" in res.json()["error"]

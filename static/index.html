@@ -5968,6 +5968,8 @@
   function openMix(id){
     var m = mixById(id);
     if(!m) return;
+    // A "narrow it down" panel belongs to the mix it was opened under.
+    if(currentMixId !== id) recFocus = { id: null, picks: [], all: false };
     currentMixId = id;
     document.getElementById("mixTitle").textContent = m.name;
     renderMixBody(m);
@@ -6613,7 +6615,9 @@
     box.value = n;
     onNewMixName();
   }
-  function cancelNewMix(){ openPlayFAM(); }
+  // Abandoning the naming screen abandons its cover too, so it cannot ride
+  // along on the next mix made some other way.
+  function cancelNewMix(){ newMixCover = ""; openPlayFAM(); }
   function confirmNewMix(){
     var value = document.getElementById("nmInput").value.trim();
     if(!value){ document.getElementById("nmInput").focus(); return; }
@@ -6636,6 +6640,13 @@
     pickerMixId = null;
     pickerNewName = st.name;
     pickerSelection = st.topic_ids.slice();
+    // A fresh mix: nothing carried over from a naming screen or a picker
+    // somebody walked away from - not a cover, and not a team they had
+    // narrowed a topic to.
+    newMixCover = "";
+    pickerFocus = {};
+    pickerAll = {};
+    pickerOpenFocus = null;
     openMixPicker(st.name);
   }
 
@@ -6685,7 +6696,16 @@
   }
 
   // ---------------- Interest filters on the picker ----------------
-  var pickerFilter = null;   // index into pickerInterests(), or null for All
+  // The chosen chip, as "kind:id", or null for All. A key rather than an
+  // index: the chips change from the broad facets to the listener's own
+  // interests when /api/profile answers, and an index would then point at a
+  // different chip.
+  var pickerFilter = null;
+  function pickerRowKey(r){ return r.kind + ":" + r.id; }
+  function pickerFilterRow(){
+    if(pickerFilter === null) return null;
+    return pickerInterests().filter(function(r){ return pickerRowKey(r) === pickerFilter; })[0] || null;
+  }
 
   function pickerInterests(){
     var rows = (profileNow && profileNow.interests_shown) || [];
@@ -6701,14 +6721,15 @@
     var rows = pickerInterests();
     el.innerHTML = '<button class="pk-chip' + (pickerFilter === null ? " on" : "") + '" '
       + 'onclick="setPickerFilter(null)">All</button>'
-      + rows.map(function(r, i){
-          return '<button class="pk-chip' + (pickerFilter === i ? " on" : "") + '" '
-            + 'onclick="setPickerFilter(' + i + ')">' + escapeHtml(r.label) + '</button>';
+      + rows.map(function(r){
+          return '<button class="pk-chip' + (pickerFilter === pickerRowKey(r) ? " on" : "") + '" '
+            + 'data-key="' + escapeHtml(pickerRowKey(r)) + '" '
+            + 'onclick="setPickerFilter(this.dataset.key)">' + escapeHtml(r.label) + '</button>';
         }).join("");
   }
 
-  function setPickerFilter(i){
-    pickerFilter = (i === null || pickerFilter === i) ? null : i;
+  function setPickerFilter(key){
+    pickerFilter = (key === null || pickerFilter === key) ? null : key;
     renderPickerChips();
     renderMixPicker();
     var body = document.getElementById("pickerBody");
@@ -6794,7 +6815,11 @@
         var id = typeof sel === "string" ? sel : sel.id;
         var b = typeof sel === "string" ? bankById(sel) : null;
         var title = typeof sel === "string" ? (b ? b.title : sel) : sel.title;
-        return '<div class="mix-topic chosen" onclick="toggleMixTopic(\'' + id.replace(/'/g, "\\'") + '\')">'
+        // By data attribute: a typed topic's id is what they typed, and a
+        // quote or a backslash inside a quoted onclick argument is a row
+        // that cannot be removed.
+        return '<div class="mix-topic chosen" data-id="' + escapeHtml(id) + '" '
+          + 'onclick="toggleMixTopic(this.dataset.id)">'
           + '<div class="mix-topic-body">'
           + '<div class="mix-topic-title">' + escapeHtml(title) + '</div>'
           + '<div class="mix-topic-sub">' + (typeof sel === "string" ? "Earlier pick" : "Added by you") + '</div>'
@@ -6835,10 +6860,11 @@
     var matches = followRanked().filter(function(c){
       return !term || c.label.toLowerCase().indexOf(term) !== -1;
     });
-    var filterRow = pickerFilter !== null ? pickerInterests()[pickerFilter] : null;
+    var filterRow = pickerFilterRow();
     if(filterRow){
       matches = matches.filter(function(c){
-        if(filterRow.kind === "topic"){
+        // A pinned facet can arrive labelled as a topic; it is still a facet.
+        if(filterRow.kind === "topic" && !famTagLabels()[filterRow.id]){
           var own = followById(filterRow.id);
           if(own && own.id === c.id) return true;
           // Same broad area as the interest (Soccer -> other Sport topics).
@@ -6916,6 +6942,9 @@
   }
 
   function followWithFocus(fid, value){
+    // Already following the whole of it: adding a team from search keeps
+    // the whole topic as a briefing of its own rather than swapping it out.
+    if(selectionIndex(fid) !== -1 && !(pickerFocus[fid] || []).length) pickerAll[fid] = true;
     if(selectionIndex(fid) === -1) pickerSelection.push(fid);
     addFocus(fid, value, true);
     var box = document.getElementById("pickerSearch");

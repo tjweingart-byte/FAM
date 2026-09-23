@@ -1502,7 +1502,7 @@ __MIX_ITEMS__
       return put("mixes", mid, {
         user_id: UID, name: body.name || "New mix",
         items: (body.topic_ids || []).map(function (e) {
-          return typeof e === "string" ? e : ("q:" + mixCleanFocus(e.query || ""));
+          return typeof e === "string" ? e : ("q:" + mixTypedQuery(e.query));
         }).join(","),
         created_at: now(), updated_at: now(), public: 0,
         cover: typeof body.cover === "string" ? body.cover : ""
@@ -1521,7 +1521,7 @@ __MIX_ITEMS__
         name: body.name !== undefined ? body.name : cur.name,
         items: body.topic_ids !== undefined
           ? body.topic_ids.map(function (e) {
-              return typeof e === "string" ? e : ("q:" + mixCleanFocus(e.query || ""));
+              return typeof e === "string" ? e : ("q:" + mixTypedQuery(e.query));
             }).join(",")
           : cur.items,
         created_at: cur.created_at, updated_at: now(),

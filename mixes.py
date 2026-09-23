@@ -53,6 +53,9 @@ MAX_MIXES_PER_USER = 30
 #: prompt names it twice and has to fit under the 300 characters the endpoints
 #: that echo a query back (`/api/next`, a vibe, a saved item) accept.
 MAX_FOCUS = 40
+#: Specifics one id may carry. The interface writes one per item; `a|b` is
+#: accepted from another client, and bounded so its prompt still fits.
+MAX_FOCUS_PER_ITEM = 3
 #: A cover is a 360px square JPEG from the in-app cropper, 10-40 KB. The cap
 #: is on the base64 text, with room for a PNG from a client that did not crop.
 MAX_COVER_CHARS = 200_000
@@ -155,14 +158,20 @@ def daily_prompt(item: "MixItem") -> str:
         return ""
     if item.focus:
         shown = " and ".join(item.focus)
-        head = (f"The latest on {shown} ({item.topic_label}) as of {DAILY_DATE}. "
-                f"Cover only {shown}, not {item.topic_label} in general")
+        # The "cover only" sentence is the first thing to go when a prompt
+        # carrying several long specifics would not otherwise fit.
+        heads = (f"The latest on {shown} ({item.topic_label}) as of {DAILY_DATE}. "
+                 f"Cover only {shown}, not {item.topic_label} in general",
+                 f"The latest on {shown} ({item.topic_label}) as of {DAILY_DATE}")
     else:
-        head = f"The latest on {item.query} as of {DAILY_DATE}"
-    for ending in DAILY_ENDINGS:
-        if len((head + ending).replace(DAILY_DATE, LONGEST_DATE)) <= MAX_PROMPT:
-            return head + ending
-    return head + DAILY_ENDINGS[-1]
+        heads = (f"The latest on {item.query} as of {DAILY_DATE}",)
+    for head in heads:
+        for ending in DAILY_ENDINGS:
+            if len((head + ending).replace(DAILY_DATE, LONGEST_DATE)) <= MAX_PROMPT:
+                return head + ending
+    # Unreachable with today's limits (a typed topic is at most MAX_QUERY and
+    # a followed one at most MAX_FOCUS_PER_ITEM x MAX_FOCUS); a test says so.
+    return heads[-1] + DAILY_ENDINGS[-1]
 
 
 def date_label(day: date) -> str:
@@ -232,6 +241,8 @@ def followed_item(entry: str) -> MixItem:
         f = clean_focus(unquote(part))
         if f and f.lower() not in (x.lower() for x in focus):
             focus.append(f)
+    if len(focus) > MAX_FOCUS_PER_ITEM:
+        raise MixError(f"Pick up to {MAX_FOCUS_PER_ITEM} specifics per topic.")
     # Encoded exactly as the interface's `encodeURIComponent` does, which
     # leaves `!'()*` alone, so an id the client built and the one stored here
     # are the same string.
@@ -534,9 +545,11 @@ class MixStore:
 
 #: Offered on an empty playFAM page. Starting from a named example is easier
 #: than starting from a blank field, and these are only suggestions - the
-#: listener names their own.
+#: listener names their own. Subjects to follow, like everything else a mix
+#: is offered since §137: a starter made of bank episodes would be a mix of
+#: one-off stories, which is the thing a daily mix stopped being.
 STARTER_MIXES = (
-    ("Morning", ("fed-next-move", "ai-agents", "morning-mindset")),
-    ("At the gym", ("training-load", "the-trade", "habits-research")),
-    ("Wind down", ("sleep-science", "anxiety-loop", "hollywood-comebacks")),
+    ("Morning", ("f:news", "f:stocks", "f:ai")),
+    ("At the gym", ("f:nfl", "f:basketball", "f:health")),
+    ("Wind down", ("f:music", "f:movies-tv", "f:space")),
 )
