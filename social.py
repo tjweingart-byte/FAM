@@ -428,6 +428,28 @@ class SocialStore:
                         "at": at, "title": title or ""}
         return out
 
+    def latest_echo_at(self, user_ids) -> dict:
+        """user_id -> when they last vibed anything, for a named set only.
+
+        What YourFAM's avatar row asks. `echoes_among` cannot answer it: it
+        keeps one row per *episode*, so two friends vibing the same one hides
+        the earlier of them, and its row cap lets one prolific account crowd
+        everybody else out. One grouped read per person has neither problem.
+        """
+        ids = [str(u) for u in (user_ids or []) if u]
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, MAX(at) FROM echoes"
+                f" WHERE user_id IN ({marks}) GROUP BY user_id", ids,
+            ).fetchall()
+        except Exception:
+            log.exception("could not read the circle's latest vibes")
+            return {}
+        return {user_id: float(at or 0.0) for user_id, at in rows}
+
     # --- the follow graph -------------------------------------------------
 
     def follow(self, user_id: str, target_id: str, at: float = 0.0) -> bool:

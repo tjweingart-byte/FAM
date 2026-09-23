@@ -7667,17 +7667,22 @@
   }
 
   // "1 new from TJ", off the same inbox the Messages screen reads.
+  var hubInboxLoading = false;
+  var hubInboxUnread = -1;
   function loadHubMessages(){
     if(!AUTH.authenticated) return;
+    hubInboxLoading = true;
     fetch("/api/messages")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
+        hubInboxLoading = false;
         if(!d) return;
         inboxThreads = d.threads || [];
+        hubInboxUnread = d.unread || 0;
         paintHubMessages(d.unread || 0);
         setUnreadDot(d.unread || 0);
       })
-      .catch(function(){});
+      .catch(function(){ hubInboxLoading = false; });
   }
 
   function paintHubMessages(unread){
@@ -7689,7 +7694,17 @@
       count.textContent = unread > 9 ? "9+" : String(unread || "");
     }
     var from = inboxThreads.filter(function(t){ return t.unread > 0; });
-    if(unread > 0 && from.length === 1){
+    var fromCount = from.reduce(function(n, t){ return n + t.unread; }, 0);
+    // The poll's count can be newer than the inbox this page holds. Naming a
+    // sender off a stale list would name the wrong one (or "0 people"), so a
+    // count the list does not account for says the number and fetches.
+    if(unread > 0 && fromCount !== unread){
+      sub.textContent = unread + " new " + plural(unread, "message");
+      // Fetched only when the count moved since the inbox was last read, so
+      // an inbox that honestly disagrees with the total (it is capped at 50
+      // threads) cannot refetch itself in a loop.
+      if(!hubInboxLoading && unread !== hubInboxUnread) loadHubMessages();
+    } else if(unread > 0 && from.length === 1){
       sub.textContent = unread + " new from " + firstName(from[0]);
     } else if(unread > 0){
       sub.textContent = unread + " new, from " + from.length + " people";
@@ -8292,6 +8307,11 @@
           friendsData = d;
           if(viewingProfile && viewingProfile.handle === handle
              && document.getElementById("screen-person").classList.contains("active")){
+            // Opened by handle alone, the person had no id - and without one
+            // there is no Message or Follow. The graph has it now.
+            var found = (d.friends || []).concat(d.following || [], d.followers || [])
+              .filter(function(p){ return p.handle === handle; })[0];
+            if(found) viewingProfile = found;
             renderFriendProfile(viewingProfile, personPublished);
           }
         }).catch(function(){});
@@ -8534,6 +8554,12 @@
   }
 
   function loadTopic(append){
+    // A second "View more" while one is in flight would ask for the same
+    // offset and draw the same page twice.
+    if(append){
+      if(topicState.loading) return;
+      topicState.loading = true;
+    }
     var seq = topicState.seq;
     var offset = append ? topicState.cards.length : 0;
     fetch("/api/interest?id=" + encodeURIComponent(topicState.id)
@@ -8714,14 +8740,27 @@
   function saveIdentityInterests(){
     if(!identityIntDirty || !AUTH.authenticated) return Promise.resolve();
     var body = { profile_interests: identityIntPick.slice() };
-    if(identityIntTyped.length){
-      var kept = (PREF_CHOICES && PREF_CHOICES.topics) || [];
-      body.topics = kept.concat(identityIntTyped.filter(function(t){
-        return kept.map(function(k){ return String(k).toLowerCase(); })
-                   .indexOf(t.toLowerCase()) === -1;
-      }));
-    }
-    return savePreferences(body).then(function(saved){
+    var typed = identityIntTyped.slice();
+    // `topics` is replaced wholesale by the server, so the typed ones are
+    // added to the stored list - which has to be the *stored* list. If
+    // preferences never loaded, it is fetched first; if that fails too, the
+    // typed topics are pinned but not added, rather than wiping every topic
+    // somebody already chose.
+    var stored = (PREF_CHOICES && Array.isArray(PREF_CHOICES.topics))
+      ? Promise.resolve(PREF_CHOICES.topics)
+      : fetch("/api/preferences")
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){ return (d && Array.isArray(d.topics)) ? d.topics : null; })
+          .catch(function(){ return null; });
+    return stored.then(function(kept){
+      if(typed.length && kept){
+        var have = kept.map(function(k){ return String(k).toLowerCase(); });
+        body.topics = kept.concat(typed.filter(function(t){
+          return have.indexOf(t.toLowerCase()) === -1;
+        }));
+      }
+      return savePreferences(body);
+    }).then(function(saved){
       if(saved && PREF_CHOICES && saved.topics) PREF_CHOICES.topics = saved.topics;
     });
   }
@@ -8947,6 +8986,7 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         inboxThreads = d.threads || [];
+        hubInboxUnread = d.unread || 0;
         var dot = document.getElementById("msgUnread");
         if(dot) dot.hidden = !(d.unread > 0);
         renderThreadRows();

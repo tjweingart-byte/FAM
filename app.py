@@ -2084,7 +2084,9 @@ async def messages_thread(request: Request,
     rows = [m.as_dict(user) for m in thread]
     # What the chat's episode card and its receipt draw. `finished` is read
     # off this listener's own completions, so "You finished it" is a fact the
-    # event log holds rather than a guess from the conversation.
+    # event log holds rather than a guess from the conversation. Matched on
+    # the question alone: a completion event carries no length, so finishing
+    # the two-minute version counts for a shared five-minute one.
     if any(r["kind"] == "episode" for r in rows):
         done = {e.text for e in EVENTS.for_user(user, limit=1000)
                 if e.kind == "complete" and e.text}
@@ -3810,10 +3812,7 @@ def _circle_row(user: str) -> list[dict]:
     if not people:
         return []
     now = time.time()
-    latest: dict[str, float] = {}
-    for row in SOCIAL.echoes_among([p["user_id"] for p in people]).values():
-        uid = row.get("user_id") or ""
-        latest[uid] = max(latest.get(uid, 0.0), float(row.get("at") or 0.0))
+    latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
     unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
     friends = {p["user_id"] for p in SOCIAL.friends(user)}
     out = []

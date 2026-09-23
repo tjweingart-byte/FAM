@@ -10747,6 +10747,30 @@ interface rather than beside it.
   and the notification banner still announce a follow, and opening Friends
   still clears it.
 
+### Found in review, before merging
+
+An independent pass over the diff found five bugs and one limitation. All
+five are fixed.
+
+* **The hub's Messages line could say "1 new, from 0 people"** or name the
+  wrong sender. The poll's unread count is newer than the inbox the page
+  holds. A count the inbox does not account for now says "N new messages"
+  and refetches, but only when the count has moved since the last read, so
+  an inbox capped at 50 threads cannot refetch itself in a loop.
+* **A friend could lose their VIBE badge** when a second friend vibed the
+  same episode. `echoes_among` keeps one row per episode and caps its scan.
+  `social.latest_echo_at` is one grouped read per person instead.
+* **Edit profile could wipe every chosen topic.** It appended typed topics to
+  `PREF_CHOICES.topics`, which is undefined until preferences load, and the
+  server replaces the list wholesale. It now reads the stored list first,
+  and adds nothing rather than replace it with a list it never had.
+* **Topic's View more could draw one page twice** on a double tap.
+* **A friend's profile opened by handle alone never got Message or Follow.**
+  It is re-resolved from the graph when the graph arrives.
+* **Not fixed: "You finished it" matches the question only.** A completion
+  event carries no length, so finishing the two-minute version counts for a
+  shared five-minute one.
+
 ### Still open
 
 * Nobody has looked at it on a phone against the design files side by side

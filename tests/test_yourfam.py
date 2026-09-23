@@ -191,3 +191,30 @@ def test_the_chat_composer_has_no_vibe_button():
     start = page.index('<section class="screen" id="screen-thread">')
     end = page.index("</section>", start)
     assert "VIBE" not in page[start:end].upper().replace("VIBES", "")
+
+
+def test_two_friends_vibing_the_same_episode_both_get_their_badge(client):
+    """One row per episode would keep only the later of the two."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    ids = []
+    for email, name, handle in (("beth@b.com", "Beth", "beth"),
+                                ("mike@b.com", "Mike", "mike")):
+        other = TestClient(appmod.app)
+        with other:
+            ids.append(signed_in(other, email, name, handle))
+            other.post("/api/vibe", json={"query": "why bonds move",
+                                          "minutes": 3, "title": "Bonds"})
+    for uid in ids:
+        client.post("/api/friends/follow", json={"user_id": uid})
+    circle = client.get("/api/profile").json()["circle"]
+    assert all(p["vibed"] for p in circle), circle
+
+
+def test_edit_profile_never_replaces_topics_with_a_list_it_never_loaded():
+    """`topics` is replaced wholesale, so appending to an unloaded list would
+    wipe every topic somebody chose."""
+    page = _interface()
+    start = page.index("  function saveIdentityInterests(){")
+    body = page[start:page.index("\n  }\n", start)]
+    assert "Array.isArray(PREF_CHOICES.topics)" in body
+    assert "PREF_CHOICES.topics) || []" not in body
