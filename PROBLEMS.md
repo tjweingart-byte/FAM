@@ -11048,3 +11048,95 @@ pending.
   rather than merging two stories - the cheaper mistake.
 - **The composer still keeps results out of news tiles.** Only the score line
   is exempt; a news story's title is written the §102 way.
+
+## 136. myFAM's order of operations: taste, cached first, no repeats
+
+**Asked for.** One path for choosing a listener's tiles: (1) decide what they
+are into from what is known about them; (2) prefer tiles whose episode is
+already cached over ones that would be generated; (3) cross-check against
+their listening history, and a tile they have heard is either remade with new
+information or replaced by a different topic.
+
+**What was already true, and what was not.** Step 1 was built (`taste`, the
+startup prior on a cold start). Steps 2 and 3 were each half there:
+
+- **Cached first reached only the two crowd rows.** `rank_most_played` and
+  `rank_friends` sorted written tiles first; Made for you and What you missed
+  - the two rails that *choose* for a listener, and most of the page - never
+  asked the cache. "View more" sorted ready-first at the endpoint, so the rail
+  and its own screen disagreed about it.
+- **"Already heard" was a tile id in the last 400 events.** `_played_ids`
+  read `for_user`, which is capped for `taste`'s sake, so a play that had
+  scrolled out of the taste window could come back. And it matched on
+  `topic_id` only: somebody who typed the bank's own question into search, or
+  replayed it on Explore, had heard the tile's episode with no tile id on the
+  event, and was offered it again.
+- **Nothing was ever remade.** A heard tile was excluded for good, including
+  a startup question like "what changed in the NFL this week", whose answer is
+  different every week.
+
+**What changed.**
+
+- `EventStore.heard` reads every play and completion for the listener, all
+  time, with the question beside the id. `heard_from` indexes it both ways,
+  with questions normalised (case, punctuation, spacing).
+- `is_repeat` is the rule, and `repeats` applies it to everything the page
+  could offer; `build_feed` and `build_section` both exclude the result from
+  every rail. A heard tile is a repeat unless **its answer moves** (a startup
+  question; the bank is evergreen, so a second script is the first one
+  reworded, and a live story is handled by follow-ups, below) **and** it was heard at least `REMAKE_AFTER` (a day)
+  ago **and** either no script is live (the tap researches and writes a new
+  one) or the live script was written after they heard it
+  (`REMAKE_MARGIN`, an hour, because their own tap writes the script just
+  after their play is recorded). Otherwise the next-best topic takes the slot
+  - the rankers were already asked for three times a rail, so nothing shrinks.
+- `ScriptCache.written_at(key)` on both backends, and `app._written_at_probe`
+  passes it to both endpoints. Not `get`, which counts a hit. **An unknown is
+  never fresh**: no probe, a backend without the method, or a probe that
+  raises all mean "treat as heard", because None means "no script, a tap
+  writes a new one".
+- `ready_first` puts written tiles first inside Made for you, What you missed
+  and the minimum top-up, after the relevance floor and before `diversify`.
+  A stable sort and never a filter. The two personal rankers look
+  `READY_REACH` (24) deep when there is a cache to ask, so a cached tile at
+  rank 15 that cleared the floor can take a slot from an unwritten one at
+  rank 3. That is the trade asked for, stated: relevance decides what is
+  *eligible*, the cache decides the *order* among the eligible.
+- `ALGO_VERSION` is `2026-09-23.2`.
+
+**Trending, decided by the owner the same day.** The first pass left Trending
+out on §134's rule ("past listens should not affect the content"). The owner's
+answer: a repeat is not acceptable there either. A heard story is replaced by
+one of two things:
+
+1. **A follow-up with new information** (`followup_for`): the same story, asked
+   as "What's new with <story> since <the day they heard it>?". A different
+   question, so a new researched episode under its own cache key, shared by
+   everybody who heard the story the same day. Offered only when the pool has
+   kept seeing the story for `FOLLOWUP_AFTER` (six hours) after they heard it
+   (`Topic.last_seen`, from `Story.last_seen`). That is evidence there is
+   something new to say, not a guess. A heard follow-up counts as hearing the
+   story, so the next one needs coverage after *that*.
+2. **Otherwise the next trending story** moves into its place.
+
+`trending_for` does this to the pool *before any rail sees it*, so the row's
+order is still popularity and country alone, and so the personal rails follow
+the same rule: a heard story is never offered as itself on Made for you or
+What you missed either. That is why `answer_moves` covers only the startup
+questions. Their titles are about "this week", so the same tile with a new
+script really is new. A story's title names one event, so the same tile
+offered again reads as a repeat whatever the script says. A follow-up is
+exempt from `repeats`, which cannot tell a new follow-up from a heard one
+because they share an id. `trending_for` already made that call. §134's rule about ranking
+stands; only repeats are removed. A follow-up's original story is reserved as
+well, so no personal rail shows it beside the follow-up. "View more" on
+Trending runs the same pass.
+
+**"View more" on What you missed, fixed.** `build_section("missed")` fell
+through to `rank_most_played`, so the screen showed the crowd row's ranking.
+It now runs `rank_missed` with the rail's own membership (offered, played by
+others, or in the pool). `ALGO_VERSION` is `2026-09-23.3`.
+
+**Unmeasured.** How many tiles on a real page are cached is a fact about a
+deployment's traffic. The `cached` flag on every tile already says it per
+page; nothing aggregates it yet.

@@ -472,6 +472,11 @@ class ScriptCache(Protocol):
     #: would be titled with somebody else's typed question while a freshly
     #: generated one had a real name.
     def title(self, key: str) -> str: ...
+    #: When the live script under this key was written, or None if there is
+    #: none. myFAM reads it to tell the episode a listener heard from one
+    #: written since - see `topics.is_repeat`. Optional on a backend, like
+    #: `summary`: callers read it with `getattr`.
+    def written_at(self, key: str) -> Optional[float]: ...
     #: One sentence saying what the episode is, off the model's `<<SUMMARY:>>`
     #: line. What a "Pick up where you left off" card draws under its title,
     #: for the same reason every other myFAM tile carries a hook (§127).
@@ -520,6 +525,9 @@ class MemoryScriptCache:
         #: key -> how many times it was played. The memory half of the
         #: `plays` column (§134).
         self._plays: dict[str, int] = {}
+        #: key -> when its current script was written. Beside the tuple for
+        #: the same reason as everything above it.
+        self._created: dict[str, float] = {}
         self.hits = 0
         self.misses = 0
 
@@ -532,6 +540,15 @@ class MemoryScriptCache:
         if not entry or entry[0] < time.time():
             return 0
         return self._plays.get(key, 0)
+
+    def written_at(self, key: str) -> Optional[float]:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return None
+        # A live entry with no recorded write time was written at some
+        # unknown point, which must read as "long ago" and never as "no
+        # script" - None is what tells myFAM a tap would write a new one.
+        return self._created.get(key, 0.0)
 
     def get(self, key: str) -> Optional[list[str]]:
         entry = self._data.get(key)
@@ -548,6 +565,7 @@ class MemoryScriptCache:
     ) -> None:
         before = self._data.get(key)
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
+        self._created[key] = time.time()
         # New words, so any audio kept for the old ones no longer matches -
         # and only new words (§134): a re-write that said the same thing keeps
         # the audio it already paid for.
@@ -820,6 +838,21 @@ class SqliteScriptCache:
             # generated the slow way rather than failing.
             log.exception("script cache read failed; regenerating")
             return None
+
+    def written_at(self, key: str) -> Optional[float]:
+        """When the live script under `key` was written, or None.
+
+        Not `get`: that counts a hit, and asking about a tile on a browse page
+        is nobody listening. Raises rather than answering None on a broken
+        database, because None means "no script" and myFAM reads that as "a
+        tap would write a new one" - a failure must not look like freshness.
+        """
+        row = self._conn().execute(
+            "SELECT created, expires FROM scripts WHERE key = ?", (key,)
+        ).fetchone()
+        if not row or row[1] < time.time():
+            return None
+        return float(row[0])
 
     @staticmethod
     def _slide(conn, key: str, expires: float, ttl, created, now: float) -> None:

@@ -67,7 +67,7 @@ import re
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable, Optional
 
 import startup
@@ -387,6 +387,14 @@ class Topic:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: The last sweep that saw this story still being reported
+    #: (`Story.last_seen`). Read by `trending_for` only: coverage continuing
+    #: after somebody heard a story is the evidence there is something new
+    #: to say about it. Not serialised.
+    last_seen: float = 0.0
+    #: On a follow-up tile, the id of the story it follows (§136). Empty on
+    #: everything else. Not serialised.
+    follows: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -1430,7 +1438,7 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-23.1"
+ALGO_VERSION = "2026-09-23.3"
 
 #: **Fatigue**: how a tile that keeps being shown and never played stops being
 #: offered quite so hard. This is the one thing impressions are allowed to do
@@ -1885,6 +1893,28 @@ class EventStore:
             if len(out) >= limit:
                 break
         return out
+
+    def heard(self, user_id: str, limit: int = 5000) -> list[tuple[str, str, float]]:
+        """(topic_id, question, at) for everything this listener has played.
+
+        Separate from `for_user` on purpose: that read is capped at the last
+        400 behavioural events because it feeds `taste`, and a play that has
+        scrolled out of a taste window is still an episode they have heard.
+        "No repeats" is a statement about their whole history, so it gets a
+        read of its own. Every surface counts - a search, an Explore replay,
+        a shared link - which is why the question is returned beside the id.
+        """
+        try:
+            rows = self._conn().execute(
+                "SELECT topic_id, text, at FROM events"
+                " WHERE user_id = ? AND kind IN ('play', 'complete')"
+                " ORDER BY at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read listening history")
+            return []
+        return [(r[0] or "", r[1] or "", float(r[2])) for r in rows]
 
     def plays_since(self, since: float) -> list[tuple[str, str]]:
         """(user_id, topic_id) for every bank topic played in the window."""
@@ -2450,6 +2480,126 @@ def _played_ids(events: Iterable[Event]) -> set[str]:
     return {e.topic_id for e in events if e.topic_id and e.kind in ("play", "complete")}
 
 
+#: The soonest a heard episode whose answer moves may be offered again. A
+#: day, because "what changed in the NFL this week" re-asked the same
+#: afternoon is the same episode with a new timestamp.
+REMAKE_AFTER = 86400.0
+
+#: A script written this soon after the listener's own play is the one they
+#: heard. Their tap is what wrote it, and the write lands at the end of the
+#: generation - after the play was recorded - so "written after they heard
+#: it" needs a margin or every episode anybody generated would look remade.
+REMAKE_MARGIN = 3600.0
+
+
+def _norm_question(text: str) -> str:
+    return " ".join(_WORD.findall((text or "").lower()))
+
+
+@dataclass(frozen=True)
+class Heard:
+    """When this listener last heard each episode, by tile and by question.
+
+    Both, because an episode is a question and a length rather than a tile:
+    somebody who typed the bank's own question into search, or replayed it on
+    Explore, has heard the tile's episode without ever tapping the tile.
+    """
+    by_id: dict
+    by_question: dict
+
+    def last(self, topic: "Topic") -> float:
+        return max(self.by_id.get(topic.id, 0.0),
+                   self.by_question.get(_norm_question(topic.query), 0.0))
+
+
+def heard_from(rows: Iterable[tuple[str, str, float]]) -> Heard:
+    by_id: dict[str, float] = {}
+    by_question: dict[str, float] = {}
+    for topic_id, text, at in rows:
+        if topic_id:
+            by_id[topic_id] = max(by_id.get(topic_id, 0.0), at)
+        question = _norm_question(text)
+        if question:
+            by_question[question] = max(by_question.get(question, 0.0), at)
+    return Heard(by_id, by_question)
+
+
+def answer_moves(topic: "Topic") -> bool:
+    """Whether writing this *same tile* again would say something new.
+
+    A startup question is about now by construction - "what changed in the
+    NFL this week" - and is researched on the tap against a recency window,
+    so a fresh script of it is fresh information under the same title. A bank
+    topic is evergreen: its second script says what its first one did in
+    different words, which is a repeat.
+
+    **A live story is not on this list, and that is deliberate.** Its title
+    names one thing that happened, so the same tile offered again reads as a
+    repeat whatever the script says. A heard story is handled by
+    `trending_for` instead: a follow-up with a question and a card of its
+    own, or nothing.
+    """
+    return topic.id in STARTUP_BY_ID or topic.id == LOCAL_STARTUP.id
+
+
+def is_repeat(topic: "Topic", heard: Heard, now: float,
+              written_at=None) -> bool:
+    """Would offering this tile hand the listener an episode they have heard?
+
+    Not heard: no. Heard, and the answer is evergreen: yes, always - the
+    recommendation changes rather than the episode being made again. Heard,
+    and the answer moves: it may come back **only as a different episode** -
+    at least `REMAKE_AFTER` later, and either with no live script (the tap
+    researches and writes a new one) or with a script written since they
+    heard it (somebody else's tap already remade it, so it is new *and*
+    cached).
+
+    `written_at` is `query -> Optional[float]`, when the tile's live script
+    was written or None if there is none. Without it - a test, the preview,
+    a cache that cannot say - nothing heard comes back, which is the rule
+    this replaced. A probe that raises is treated the same way: an unknown
+    must never be read as "fresh".
+    """
+    at = heard.last(topic)
+    if not at:
+        return False
+    if not answer_moves(topic) or written_at is None:
+        return True
+    if now - at < REMAKE_AFTER:
+        return True
+    try:
+        made = written_at(topic.query)
+    except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+        log.exception("could not date the script for %r; treating as heard",
+                      topic.id)
+        return True
+    return made is not None and made <= at + REMAKE_MARGIN
+
+
+def repeats(topics: Iterable["Topic"], heard: Heard, now: float,
+            written_at=None) -> set[str]:
+    """Every tile id that would be a repeat for this listener.
+
+    Starts from every id they have played - so a tile no inventory holds any
+    more stays excluded - and then answers `is_repeat` for each tile the page
+    could actually offer, which is what lets a remade one back in.
+    """
+    blocked = set(heard.by_id)
+    for topic in topics:
+        if topic.follows:
+            # A follow-up was already judged by `trending_for`, which is the
+            # only thing that knows a heard one may come back once the story
+            # has moved on again. Its id is the same each time, so the rule
+            # below would call every second follow-up a repeat.
+            blocked.discard(topic.id)
+            continue
+        if is_repeat(topic, heard, now, written_at):
+            blocked.add(topic.id)
+        else:
+            blocked.discard(topic.id)
+    return blocked
+
+
 def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
     """Every tile this server could name right now: the bank, the startup
     set, then the pool.
@@ -2554,6 +2704,28 @@ def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
             log.exception("could not check the cache for %r; treating as unwritten",
                           topic.id)
     return ready
+
+
+#: How deep into a personal rail's ranking a cached episode is looked for.
+#: Twice the usual candidate width: every tile here has already cleared the
+#: relevance floor, so reaching further for one that plays instantly and costs
+#: nothing trades a little rank for a lot of latency and money.
+READY_REACH = SECTION_SIZE * CANDIDATE_FACTOR * 2
+
+
+def ready_first(topics: list, written=None) -> list:
+    """The same tiles, those with a script already written first.
+
+    A stable sort, so each group keeps the ranking's own order - the best
+    cached tile leads, then the next best, and the best unwritten tile follows
+    the last cached one. Never a filter: an unwritten tile is still offered,
+    it just stops outranking one that is ready. `written=None` changes nothing.
+    """
+    ready = _ready_set(topics, written)
+    if not ready:
+        return list(topics)
+    return ([t for t in topics if t.id in ready]
+            + [t for t in topics if t.id not in ready])
 
 
 def rank_from_history(profile: dict[str, float], exclude: set[str],
@@ -3135,8 +3307,19 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
                written=None, place: Iterable[str] = (),
                place_name: str = "", has_account: bool = False,
-               floors: Optional[dict] = None, country: str = "") -> dict:
+               floors: Optional[dict] = None, country: str = "",
+               written_at=None) -> dict:
     """The whole myFAM page for one listener.
+
+    **The order of operations** (the owner's, stated as a path): decide what
+    this listener is into (`taste`, or the startup prior with nothing to go
+    on); rank each personal rail on it, looking `READY_REACH` deep and putting
+    the tiles whose script is already written first (`ready_first`) so the
+    page holds as many instant, already-paid-for episodes as it can; and
+    cross-check every tile against everything they have ever heard
+    (`repeats`). A heard tile is dropped and the next-best topic takes its
+    place, unless its answer moves and it has since been remade - see
+    `is_repeat`. `written_at` is what makes that last case knowable.
 
     Sections are filled in order and never repeat a topic, so the page looks
     as wide as possible from two deliberately small inventories.
@@ -3214,10 +3397,10 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     prior: dict[str, float] = {}
     if cold:
         prior, startup_source = startup_profile(store, now)
-    mine = _played_ids(events)
+    played = _played_ids(events)
     # One read for the whole page. Every personalised section damps the same
     # way, so computing this per section would be the same answer four times.
-    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    damp = fatigue(store.impression_occasions(user_id), played) if user_id else {}
     used: set[str] = set()
     picked: dict[str, list[Topic]] = {}
 
@@ -3226,6 +3409,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # plus that cache - which is what keeps it callable in a test with no
     # network, and what makes the page instant. See `stories.py`.
     live = live_topics(now)
+    # **No repeats, part one: a heard live story is never offered as itself**
+    # (§136). Anywhere on the page it becomes a "what's new since you
+    # listened" follow-up if it has kept being reported, or it is gone and
+    # the next story takes its place - `trending_for`. Done here, before any
+    # rail sees the pool, so Trending and the personal rails cannot disagree.
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    live = trending_for(live, heard, now)
     # What every rail below is allowed to *offer*, decided once for the page.
     # One list rather than four `live + list(TOPIC_BANK)` expressions, because
     # a rule spelled out at each call site is a rule one of them will spell
@@ -3235,7 +3425,17 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # to resolve a tile that was offered a few days ago and has since been
     # pushed under the variety cap - to that listener it was on the page, and
     # a rail that quietly dropped it would be answering a different question.
-    live_held = topics_from_stories(stories.pool().held(now), now=now)
+    live_held = trending_for(
+        topics_from_stories(stories.pool().held(now), now=now), heard, now)
+    # **No repeats, part two.** Everything this listener has ever heard, from
+    # every surface, checked against every tile this page could offer. What
+    # comes back is excluded from every rail below; a startup question that
+    # has been remade since they heard it is not in it. Named `mine` because
+    # it replaced the played-ids set every rail already excluded.
+    local_topic = local_startup_topic(place_name)
+    universe = (list(known_topics(now).values()) + list(inventory)
+                + list(live_held) + ([local_topic] if local_topic else []))
+    mine = repeats(universe, heard, now, written_at) if heard else set()
     # Which tiles were put in front of them this week. Read once, like the
     # fatigue table, and for a different purpose - see `rank_missed` on why
     # membership may come from an impression and order may not.
@@ -3271,6 +3471,9 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                         in store.plays_since(now - MISSED_WINDOW)
                         if user != user_id} if user_id else set()
     wide = SECTION_SIZE * CANDIDATE_FACTOR
+    # How deep the personal rails look for a written tile. Only deeper when
+    # there is a cache to ask, so a caller with none ranks exactly as before.
+    reach = READY_REACH if written is not None else wide
 
     # **Trending chooses first, and chooses alone** (§134, at the owner's
     # direction). "The trending section should be trending news from around
@@ -3289,8 +3492,15 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     #
     # And never the startup set or the bank - see `rank_world`. A deployment
     # with no live source has an empty Trending row that says why.
+    #
+    # **And never a story this listener has heard** (§136, at the owner's
+    # direction): it comes back as a follow-up if the story has moved on, or
+    # the next trending story takes its place. See `trending_for`.
     world_first = rank_world(live, country, live_held)
-    reserved = {t.id for t in world_first}
+    # A follow-up's story is reserved as well, so no personal rail offers the
+    # original beside the "what's new" episode about it.
+    reserved = ({t.id for t in world_first}
+                | {t.follows for t in world_first if t.follows})
 
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
@@ -3321,7 +3531,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             picks = rank_missed(profile, shown, mine, seen,
                                 candidates=browse_inventory(live_held,
                                                             has_account),
-                                limit=MISSED_SECTION_SIZE, now=now,
+                                limit=(reach if written is not None
+                                       else MISSED_SECTION_SIZE), now=now,
                                 popular=played_elsewhere, familiar=familiar,
                                 include_trending=False)
         elif key == "from_history":
@@ -3341,13 +3552,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 # the one fact we hold about somebody we otherwise know
                 # nothing about, and `startup.py` leads this rail with a
                 # question about their own town when they have given one.
-                picks = rank_startup(prior, seen, limit=wide,
+                picks = rank_startup(prior, seen, limit=reach,
                                      candidates=inventory,
                                      damp=damp, familiar=familiar, local=place,
-                                     local_topic=local_startup_topic(place_name),
+                                     local_topic=local_topic,
                                      engage=engage)
             else:
-                picks = rank_from_history(profile, seen, damp, limit=wide,
+                picks = rank_from_history(profile, seen, damp, limit=reach,
                                           candidates=inventory,
                                           familiar=familiar, local=place,
                                           engage=engage, semantic=semantic,
@@ -3377,6 +3588,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # is what made an old coupling show.
             picks = rank_most_played(store, now, used | mine | reserved,
                                      limit=wide, written=written)
+        if key in ("missed", "from_history"):
+            # Cached first, inside what the ranking chose. The two rails that
+            # choose for this listener; the two crowd rows already lead with
+            # written tiles in their own rankers.
+            picks = ready_first(picks, written)
         picks = diversify(picks, MISSED_SECTION_SIZE if key == "missed"
                           else SECTION_SIZE)
         picked[key] = picks
@@ -3418,10 +3634,15 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             continue
         on_page = {t.id for rail, tiles in picked.items()
                    if rail not in UNSHELVED for t in tiles}
-        extra = _fill_to_minimum(
-            picked[key], floors[key],
-            _rail_fallback(key, profile, live, live_held, inventory),
-            on_page | mine)
+        fallback = _rail_fallback(key, profile, live, live_held, inventory)
+        # A top-up is chosen for nobody in particular, so a written tile is
+        # the better filler by every measure. Only the head is asked about:
+        # the fallback is the whole inventory, and one cache read per tile of
+        # it on every short rail is a cost nothing on the page would repay.
+        fallback = (ready_first(fallback[:READY_REACH], written)
+                    + fallback[READY_REACH:])
+        extra = _fill_to_minimum(picked[key], floors[key], fallback,
+                                 on_page | mine)
         picked[key] = picked[key] + extra
         used |= {t.id for t in extra}
     # **Exactly `SECTION_SIZE` on the page, never more** (§134). Every ranker
@@ -3471,7 +3692,8 @@ def build_section(store: EventStore, user_id: str, key: str,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
                   written=None, place: Iterable[str] = (),
                   place_name: str = "", has_account: bool = False,
-                  floors: Optional[dict] = None, country: str = "") -> dict:
+                  floors: Optional[dict] = None, country: str = "",
+                  written_at=None) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -3510,8 +3732,8 @@ def build_section(store: EventStore, user_id: str, key: str,
     # say whether behaviour has since arrived. One play, one search or one
     # chosen interest and this is False again for good.
     cold = not profile
-    mine = _played_ids(events)
-    damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
+    damp = (fatigue(store.impression_occasions(user_id), _played_ids(events))
+            if user_id else {})
     # The same two reads the rail does, for the same two thumbs. See the note
     # in the docstring about why their absence here was invisible.
     familiar = familiar_words(events) | frozenset(w for w in place if w)
@@ -3519,8 +3741,20 @@ def build_section(store: EventStore, user_id: str, key: str,
     engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
     live = live_topics(now)
+    # The same no-repeats pass as the rail, in the same place, or "View more"
+    # would offer back the story the rail had just replaced (§136).
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    live = trending_for(live, heard, now)
     # The rail's inventory, on the rail's rule. See the docstring.
     inventory = browse_inventory(live, has_account)
+    # The same no-repeats check as the rail, or "View more" would offer back
+    # the episode the rail had just dropped for being heard.
+    live_held = trending_for(
+        topics_from_stories(stories.pool().held(now), now=now), heard, now)
+    local_topic = local_startup_topic(place_name)
+    universe = (list(known_topics(now).values()) + list(inventory)
+                + list(live_held) + ([local_topic] if local_topic else []))
+    mine = repeats(universe, heard, now, written_at) if heard else set()
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -3537,7 +3771,7 @@ def build_section(store: EventStore, user_id: str, key: str,
             picks = rank_startup(prior, mine, limit=limit,
                                  candidates=inventory, damp=damp,
                                  familiar=familiar, local=place,
-                                 local_topic=local_startup_topic(place_name),
+                                 local_topic=local_topic,
                                  engage=engage)
         else:
             # The same two §131 terms the rail reads, or this screen would
@@ -3549,6 +3783,21 @@ def build_section(store: EventStore, user_id: str, key: str,
                 learned=learned_rank.active(store, now))
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
+    elif key == "missed":
+        # Its own ranking. It used to fall through to `rank_most_played`, so
+        # "View more" on What you missed opened the crowd row (§136). The
+        # same membership the rail uses - offered, played by others, or in
+        # the pool - with trending included from the start, because on this
+        # screen there is no Made for you for it to leave new stories to.
+        shown = (store.impressions_since(user_id, now - MISSED_WINDOW)
+                 if user_id else {})
+        popular = ({u_topic for u, u_topic
+                    in store.plays_since(now - MISSED_WINDOW) if u != user_id}
+                   if user_id else set())
+        picks = rank_missed(profile, shown, mine, set(),
+                            candidates=browse_inventory(live_held, has_account),
+                            limit=limit, now=now, popular=popular,
+                            familiar=familiar)
     elif key == "followers":
         picks = rank_friends(store, circle, mine, damp, limit=limit, now=now,
                              written=written)
@@ -3558,8 +3807,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         groups = trending_groups(
-            live, country,
-            topics_from_stories(stories.pool().held(now), now=now))
+            live, country, live_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)
@@ -3573,7 +3821,6 @@ def build_section(store: EventStore, user_id: str, key: str,
     # "View more" never shows fewer than the rail it opened (§127).
     floors = RAIL_MINIMUM if floors is None else floors
     if floors.get(key):
-        live_held = topics_from_stories(stories.pool().held(now), now=now)
         picks = picks + _fill_to_minimum(
             picks, floors[key],
             _rail_fallback(key, profile, live, live_held, inventory), mine)
@@ -3637,6 +3884,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             live_line=getattr(story, "live_line", "") or "",
             live_status=getattr(story, "live_status", "") or "",
             live_as_of=float(getattr(story, "live_as_of", 0.0) or 0.0),
+            last_seen=float(getattr(story, "last_seen", 0.0) or 0.0),
         ))
     return tiles[:limit] if limit else tiles
 
@@ -3686,6 +3934,67 @@ def _ranked_trending(tiles: list, country: str, peak: int) -> list:
     return [t for _s, _i, t in sorted(
         ((-trending_score(t, country, peak), i, t) for i, t in enumerate(tiles)),
         key=lambda row: row[:2])]
+
+
+#: How long a story has to have kept being reported after a listener heard
+#: it before a follow-up is offered. Six hours: less and "what's new" is the
+#: same wire copy re-filed; a story still running half a day later has moved.
+FOLLOWUP_AFTER = 6 * 3600.0
+
+
+def followup_for(tile: Topic, since: float) -> Topic:
+    """The same story, asked again for what has happened since `since`.
+
+    A different question, so a different episode and a different cache key -
+    and researched on the tap like every live tile, so the new information is
+    retrieved rather than assumed. The date is in the question because it is
+    what the writer needs to know to skip what the listener already heard; it
+    also means everybody who heard the story on the same day shares one
+    follow-up script. Every other field is the story's, so it ranks and is
+    placed exactly where the story would have been.
+    """
+    when = time.strftime("%B %d", time.gmtime(since)).replace(" 0", " ")
+    subject = tile.title.rstrip(" ?.!")
+    return replace(
+        tile,
+        id=f"{tile.id}-new"[:64],
+        query=f"What's new with {subject} since {when}?",
+        angle="What has changed since you last listened",
+        subtitle="What has changed since you last listened",
+        follows=tile.id,
+    )
+
+
+def trending_for(tiles: Iterable[Topic], heard: Optional[Heard],
+                 now: float) -> list:
+    """The trending inventory with this listener's heard stories dealt with.
+
+    Every tile comes back as one of three things, in its own position:
+
+    * **itself**, if they have not heard it;
+    * **a follow-up** (`followup_for`) if they have, and the story has kept
+      being reported for `FOLLOWUP_AFTER` since - directly related, with new
+      information;
+    * **nothing**, otherwise - so the next trending story moves up into its
+      place in `rank_world`.
+
+    A heard follow-up counts as hearing the story, so the next follow-up is
+    dated from it and needs fresh coverage after *that*. This is the one
+    input Trending takes from a listener's history, and it decides only
+    whether an episode would be a repeat: the order is still popularity and
+    country alone (§134).
+    """
+    tiles = list(tiles)
+    if heard is None:
+        return tiles
+    out = []
+    for tile in tiles:
+        last = max(heard.last(tile), heard.by_id.get(f"{tile.id}-new"[:64], 0.0))
+        if not last:
+            out.append(tile)
+        elif (tile.freshness > 0 and tile.last_seen - last >= FOLLOWUP_AFTER):
+            out.append(followup_for(tile, last))
+    return out
 
 
 def rank_world(live: list, country: str = "", held: Iterable = (),
