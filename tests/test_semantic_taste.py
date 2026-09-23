@@ -1,4 +1,4 @@
-"""The semantic term in Made for you (§128, `taste_vectors.py`).
+"""The semantic term in Made for you (§131, `taste_vectors.py`).
 
 Two halves, and the first is the one that has to hold everywhere: **with no
 model installed the ranking is exactly the one that shipped before this

@@ -4,12 +4,12 @@
     python tools/eval_recommendations.py --verbose
 
 There is no real listening log to measure against yet, so this is a labelled
-proxy (§128): for each of the 28 bank topics, three searches somebody who
+proxy (§131): for each of the 28 bank topics, three searches somebody who
 wants that episode might plausibly have typed - written as a listener would
 ask, not as paraphrases of the tile, and deliberately *including* ones that
 share words with it, so the tag vocabulary gets its fair chance. Each set of
 searches becomes one listener's whole history; the question is where the
-intended tile lands in Made for you, with the ranker as shipped before §128
+intended tile lands in Made for you, with the ranker as shipped before §131
 (tags only) and with the semantic term added.
 
 Three scenarios, easiest first:

@@ -1,4 +1,4 @@
-# Optional: the local sentence embedder (PROBLEMS.md §128).
+# Optional: the local sentence embedder (PROBLEMS.md §131).
 #
 # Without these FAM runs exactly as it always has - the cache's near-match uses
 # lexical hashing vectors and the ranker scores on tags alone - and says so on

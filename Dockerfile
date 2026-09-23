@@ -25,7 +25,7 @@ COPY requirements.txt requirements-exa.txt requirements-embed.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 
 # The local sentence embedder that orders "Made for you" by meaning as well as
-# by tag (PROBLEMS.md §128). ~110 MB with its runtime, CPU only, no torch.
+# by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.
 # `--build-arg FAM_EMBED=0` leaves it out and the ranker runs on tags alone,
 # exactly as before it existed.
 #
@@ -34,6 +34,10 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 # In /opt rather than ~/.fam, and named by FAM_EMBED_MODEL, so a platform
 # that runs the container as another user or with another HOME still finds
 # it.
+#
+# Memory: ~215 MB resident once loaded, ~313 MB peak for the whole app,
+# against the starter plan's 512 MB (PROBLEMS.md §131). `SEMANTIC_TASTE=0` at
+# runtime stops it loading without a rebuild.
 #
 # Nothing here fails the build - an image with no model is a working FAM -
 # and nothing here is silent either: the warning is in the build log, and

@@ -285,25 +285,31 @@ class Settings:
     anthropic_http2: bool = field(
         default_factory=lambda: os.environ.get("ANTHROPIC_HTTP2", "0") not in ("0", "false", "False", "")
     )
-    # low | medium | high | xhigh | max. **This was `low`, and the reason
-    # given was speed** - "script writing is not a hard reasoning task and
-    # effort directly costs time-to-first-audio". Both halves of that were
-    # wrong in the way that matters here (PROBLEMS.md §108).
+    # low | medium | high | xhigh | max. How much hidden reasoning the writing
+    # call does before its first word.
     #
-    # The first sentence is written before any of the rest exists, and it is
-    # the one a listener uses to decide whether there will be a second. To
-    # write it well the model has to have decided what the whole episode is:
-    # which angle, what the evidence actually establishes, where it lands.
-    # That is a planning task, it happens entirely before the first token, and
-    # effort is the only budget there is for it. At `low` the model started
-    # talking before it had worked out what it was going to say - which is a
-    # confusing opening followed by a good episode, the exact shape reported.
+    # **`low`, at the owner's explicit direction (PROBLEMS.md §129)**, which
+    # reverses §108's `high`. §108 raised it because openings were confused -
+    # a model that "started talking before it had worked out what it was going
+    # to say". But §108 made that change in the same commit that deleted the
+    # from-knowledge cover half and the search tool on the writing call, and
+    # the cover half is what wrote those openings; nothing ever separated what
+    # effort bought from what the deletions bought. What `high` costs is hidden
+    # thinking in front of the first word, none of it audible - by reading the
+    # path the largest single wait on search, not yet measured (§128's
+    # `episode timing` block is what measures it).
     #
-    # What it costs is seconds in front of the first word, once, and those
-    # seconds are now explicitly the trade this product makes: the writing is
-    # the product, and an episode that opens on the wrong thing is worth less
-    # than one that starts later and opens on the right thing.
-    effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "high"))
+    # What stays from §108 is everything about *order*: the writer still holds
+    # the brief and the evidence before its first token, still carries no
+    # tools, and the prompt still asks it to decide the whole piece before it
+    # opens. Only the thinking budget for doing so is smaller.
+    #
+    # Unheard at `low` since the cover was removed - there is no key where this
+    # was changed - so the openings are the first thing to listen to. `EFFORT`
+    # in the environment overrides this, and `/api/health` says which is in
+    # force (`writer_effort_source`), because a dashboard value left at `high`
+    # would silently undo this change on every push.
+    effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
     # Padding a short script back to length reintroduces the filler the opener
     # was removed for. Off by default: a briefing that ends when it runs out of
     # substance is better than one stretched to fill the slider.
@@ -801,7 +807,7 @@ class Settings:
     # what a lexical embedding is worth, and it is the number to re-read on
     # the day a real sentence model is installed in ~/.fam/embed.
     #
-    # That day was §128, and the number did not move: with all-MiniLM-L6-v2
+    # That day was §131, and the number did not move: with all-MiniLM-L6-v2
     # the shipped point still finds 23/41, because the overlap guard decides.
     # Without the guard it finds 37 and serves "how old is the eiffel tower"
     # for "how tall" at 0.879 - so these defaults stand, and the model's

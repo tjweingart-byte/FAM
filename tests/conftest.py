@@ -163,7 +163,7 @@ LIMIT_ENVIRONMENT = _limit_environment()
 #: The embedding backend, which decides whether near matching is lexical or
 #: semantic - and therefore what half the cache tests are actually measuring.
 EMBED_ENVIRONMENT = ("FAM_EMBED_BACKEND", "FAM_EMBED_MODEL",
-                     # The ranker's two §128 switches. Cleared so a developer
+                     # The ranker's two §131 switches. Cleared so a developer
                      # who turned either off runs the suite CI runs.
                      "SEMANTIC_TASTE", "LEARNED_RANK")
 

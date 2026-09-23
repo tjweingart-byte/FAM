@@ -1,4 +1,4 @@
-"""The fitted order of Made for you (§128, `learned_rank.py`,
+"""The fitted order of Made for you (§131, `learned_rank.py`,
 `tools/learn_rank.py`).
 
 What has to hold, most important first:

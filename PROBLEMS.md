@@ -10240,7 +10240,134 @@ particular is a platform behaviour and can only be verified on a device with
 the switch flipped. The summary and the brief's title are prompt changes made
 without a key, so nobody has read one yet.
 
-## 128. A real sentence model, a meaning term in Made for you, and an order fitted to taps
+## 128. Some episodes take 45 seconds, and nothing could say which step
+
+**The report:** search episodes taking up to 45 seconds to start, with the
+instruction that any fix must cost no quality at all.
+
+**The first finding was that the question could not be answered from a log.**
+`claude_start` is marked before the brief, so `claude_ttft` - the number the
+episode log and `pod_episode.py` both print as "Claude first token" - was
+brief + live lookup + retrieval + the writer's own thinking, as one span. On a
+researched episode those are four different costs with four different fixes,
+and a 45-second one could have been any of them.
+
+**Instrumentation only; nothing a listener hears changed.** `ScriptNotes.marks`
+carries the episode's clock into the generator, which marks `brief_start` /
+`brief_ready`, `evidence_start` / `first_rung_ready` / `retrieval_ready` /
+`live_ready` / `evidence_ready`, and `writer_request`. `EpisodeMarks.stages()`
+is the critical path to the first audio - setup, brief, evidence, writer
+thinking, first sentence, voice queue, first synthesis - consecutive, so the
+parts add up to `first_pcm` and anything left is printed as `unaccounted`
+rather than absorbed. Three places read it: an `episode timing` block in the log - one step per
+line, each with its measured seconds - written
+**at the first audio** rather than at the end of the episode, an
+`X-Stage-Seconds` header that `tools/pod_episode.py` prints, and
+`tools/latency_probe.py`, which runs the production pipeline in-process with
+the cache off and prints the table and its median across questions.
+
+**Nothing here has measured a real episode.** There is no key in the build
+container and the proxy refuses `fam.onrender.com`, so the numbers that matter
+come from the next slow episode on Render (read its `stages` line) or from
+`python tools/latency_probe.py` where the server's credentials are.
+`tests/test_stage_marks.py` proves the plumbing: stubbed delays come back out
+of the right labels and the parts sum to the first audio.
+
+### What reading the path found without a key
+
+Each of these costs no quality, because none of them changes a prompt, a model,
+an effort level or what is retrieved:
+
+- **EI builds a new client on every call**, so every brief pays a fresh TCP
+  and TLS handshake to the API; `research_client()` already caches its one.
+- **The writer's ~2,500-token system prompt is never cached.** It is byte-for-
+  byte stable (checked), above Sonnet 5's 1,024-token minimum, and re-prefilled
+  on every episode.
+- **Retrieval is serial where it need not be**: the one retry searches only
+  after the first search comes back thin, and the GDELT cross-check (off by
+  default) runs after Exa rather than beside it.
+- **Retrieval waits for the whole brief** although it reads only the fields EI
+  writes first (`search_query` .. `recency_days`); the rest (`structure`,
+  `cautions`, `live_domain`, `outcome_dependent`, `title`) could be generated
+  while Exa searches.
+- **`render.yaml` declares no `EXA_API_KEY`.** If the dashboard has none either,
+  every episode falls down the ladder to the model's own search - 10-25 seconds
+  by this file's own measurement - which alone could explain the report.
+  `/api/health`'s `research` block says which.
+
+### Still open
+
+All of the above is a proposal until a real `stages` line says which step the
+45 seconds is in.
+
+## 129. The writer's hidden thinking goes back to `low`
+
+**At the owner's explicit direction**, after §128 traced where the wait in
+front of the first word goes: `EFFORT` for the writing call is `low` again,
+reversing §108's `high`.
+
+**Why this is not simply undoing §108.** §108 raised effort because openings
+were confused, and in the same commit deleted the from-knowledge cover half -
+the call that actually wrote those openings with no brief and no evidence - and
+the search tool on the writing call. Nothing ever separated what the effort
+bought from what the deletions bought. What `high` costs is hidden thinking
+before the first token, which reading the path suggests is the largest single
+step on search and which varies by question - consistent with some episodes
+taking far longer than others, though no real episode has been timed yet.
+
+**What is unchanged, and pinned:** the order. The writer holds the brief and
+the evidence before its first token, the call that speaks carries no tools, EI
+runs on every episode, and the prompt still says to decide the whole piece
+before opening. Only the thinking budget for that planning is smaller.
+`tests/test_writer_effort.py` pins the default, that it reaches the request,
+that an environment value still wins, and that the ordering rules are intact.
+
+**A dashboard value would silently undo this**, because `EFFORT` in the
+environment beats the code default on every push - §77's finding. So
+`/api/health` reports `writer_effort` and `writer_effort_source` beside
+`search_mode_source`. `render.yaml` does not set it; the Render dashboard
+might.
+
+### Still open
+
+**Nobody has heard an episode written at `low` since the cover was removed**,
+and the risk is specific: the reasoning-heavy parts of the job - whether an
+event has started, is under way or is finished from dated evidence (§88),
+relative dates, and contradictions between sources - and the opening. Listen
+to those first. `EFFORT=medium` is the measured middle ground in Anthropic's
+published runs and is one environment variable away; the `episode timing`
+block (§128) shows what each setting costs in seconds.
+
+## 130. The category placer was refused on every sweep
+
+**Seen in Render's log after §129 deployed:** `categories: the placer failed
+(Error code: 400 ... 'output_config.format.schema: For 'object' type,
+'additionalProperties' must be explicitly set to false')`, then
+`2 subjects keep their keyless parents` - which is `categories.py` falling
+back exactly as designed, so nothing broke that a listener could see. What was
+lost is the half of §121 that only a model can do: placing a subject under the
+levels nobody typed ("sports -> american football -> nfl").
+
+**The cause:** `PLACER_SCHEMA` left `additionalProperties` unset on both of
+its objects, and the API requires it set to `false` on every object in a
+structured-output schema. `BRIEF_SCHEMA` and `STORY_SCHEMA` already did.
+Every test passed because every test stubs the model; nothing ever sent the
+schema anywhere. §52 again: a check that never makes the real call is
+inspecting rather than verifying.
+
+**The fix:** both objects close their properties, and
+`tests/test_structured_output_schemas.py` walks every schema FAM passes as
+`output_config.format` - **found by reading the source**, not listed by hand
+(§107), so the next schema somebody adds is checked without anybody
+remembering to add it. It fails on the old placer schema and passes on the new.
+
+### Noticed in the same log, not fixed here
+
+httpx logs every request URL at INFO, and Finnhub takes its key as a
+`token=` query parameter, so **the Finnhub key is in Render's logs in
+plain text**. It should be rotated, and the log line redacted.
+
+## 131. A real sentence model, a meaning term in Made for you, and an order fitted to taps
 
 Three changes asked for together, in the order they depend on each other:
 install the embedding model the cache had been written for and never run;
@@ -10435,3 +10562,30 @@ it, which only `tools/ctr_report.py --by algo` on real traffic can say.
 The learned order has **no measurable effect yet**, by design: it serves
 nothing until a real log trains a model that beats the hand order, and a young
 deployment will not have the taps to judge.
+
+### Before merging: what it costs to run, measured
+
+**Memory is the budget to watch.** Render's `starter` plan is 512 MB. The app
+alone peaks at ~89 MB at boot; with the model loaded and the bank embedded it
+peaks at **~313 MB**, the model and its runtime being ~215 MB of that - mostly
+the fp32 weights themselves. Disabling onnxruntime's memory arena saved
+nothing and pinning it to one thread tripled the encode time, so neither is
+set. That leaves roughly 200 MB of headroom on one worker, which is enough
+and not generous. Two consequences, stated so neither is a surprise:
+
+* `tools/learn_rank.py` loads its own copy of the model. Run on the same
+  512 MB instance as the server it adds ~215 MB and can exhaust it; run it
+  against a copy of `myfam.db` elsewhere (`--db`), or on a larger plan.
+  Running it with `SEMANTIC_TASTE=0` instead is not a fix: the `semantic`
+  feature would be zero in training and real in serving.
+* If the service is ever short of memory, `SEMANTIC_TASTE=0` stops the model
+  loading at all (checked before anything is imported), and
+  `--build-arg FAM_EMBED=0` leaves it out of the image. Both return the
+  ranking to exactly what it was before this change.
+
+`Dockerfile.gpu` - the pod image that runs the app beside the voice - does not
+install the model, so a deployment on that image ranks on tags alone and says
+so on `/api/health`. Deliberate for now: the pod's memory is the GPU worker's.
+
+Merged with `Main` at §130; this entry was written as §128 on the branch and
+renumbered, because `Main` had taken §128-§130 in the meantime.

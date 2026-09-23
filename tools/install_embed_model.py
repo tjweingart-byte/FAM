@@ -41,7 +41,7 @@ import embeddings  # noqa: E402
 
 DEFAULT_URL = ("https://chroma-onnx-models.s3.amazonaws.com/"
                "all-MiniLM-L6-v2/onnx.tar.gz")
-#: Of the archive at DEFAULT_URL, as downloaded for §128.
+#: Of the archive at DEFAULT_URL, as downloaded for §131.
 DEFAULT_SHA256 = "913d7300ceae3b2dbc2c50d1de4baacab4be7b9380491c27fab7418616a16ec3"
 #: The two files `embeddings._OnnxEmbedder` reads. Everything else in the
 #: archive (vocab.txt, the configs) is for other runtimes.

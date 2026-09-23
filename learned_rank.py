@@ -27,7 +27,7 @@ everything else that decides whether a tile is *eligible* for a rail whose
 heading says it was chosen for this listener. The model sorts the eligible
 tiles - and because the rail shows the first six of that order, it does
 decide **which** eligible tiles are visible (an earlier draft said it never
-changed what was on the rail; review of §128 showed that was false once more
+changed what was on the rail; review of §131 showed that was false once more
 tiles clear the floor than fit). That is the standard two-stage shape - a
 cheap, explainable pass for *what may be shown*, a fitted one for *order* -
 and it means a bad model can promote a weaker relevant tile, never an

@@ -1528,7 +1528,7 @@ class EventStore:
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass  # already there
-            # The fitted ranking order (`learned_rank`, §128). One row, in
+            # The fitted ranking order (`learned_rank`, §131). One row, in
             # this database rather than a file of its own, because it is
             # *derived from* this log: it lives where the log lives, is on
             # the same disk, and goes when the log is cleared.
@@ -1566,7 +1566,7 @@ class EventStore:
         learned_rank.reset()
 
     def algo_stamp(self) -> str:
-        """`ALGO_VERSION`, plus which of the conditional §128 terms were in
+        """`ALGO_VERSION`, plus which of the conditional §131 terms were in
         force: `+sem` when a semantic model is ranking, `+lr<trained_at>`
         when a fitted order is. Both switch on with no code change - an
         install, a training run - so the version constant alone could not
@@ -3163,7 +3163,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # listener on this deployment. See `ENGAGEMENT_WEIGHT` for which rails
     # are allowed to use it.
     engage = engagement_for(store, now)
-    # Meaning and a fitted order, for Made for you only (§128). Both are `{}`
+    # Meaning and a fitted order, for Made for you only (§131). Both are `{}`
     # / None on a deployment with no model and no trained ranking, which is
     # the page that shipped before either existed. Never on a cold start:
     # there is no history to mean anything, and the prior is not a taste.
@@ -3474,7 +3474,7 @@ def build_section(store: EventStore, user_id: str, key: str,
                                  local_topic=local_startup_topic(place_name),
                                  engage=engage)
         else:
-            # The same two §128 terms the rail reads, or this screen would
+            # The same two §131 terms the rail reads, or this screen would
             # be a different ranking from the rail that opened it.
             picks = rank_from_history(
                 profile, mine, damp, limit=limit, candidates=inventory,

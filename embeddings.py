@@ -29,9 +29,9 @@ Two backends, and the difference between them is the honest part:
   a service that bills per call. `python tools/install_embed_model.py` puts
   all-MiniLM-L6-v2 there (384 dims, ~10 ms a sentence on one CPU core) and
   proves it by encoding a sentence, which is the first time this path was ever
-  run (PROBLEMS.md §128).
+  run (PROBLEMS.md §131).
 
-**What the real model bought, measured rather than hoped** (§128). For the
+**What the real model bought, measured rather than hoped** (§131). For the
 cache, nothing yet: at the shipped threshold and overlap it finds the same 23
 of 41 re-phrasings the lexical vector does, because the overlap guard is what
 decides and the guard is lexical. Loosening the guard is where the model's
@@ -179,7 +179,7 @@ def model_dir() -> Path:
 class _OnnxEmbedder:
     """A sentence-transformers-style ONNX encoder: tokenise, run, mean-pool.
 
-    Run for real against all-MiniLM-L6-v2 in §128, and `install_embed_model`
+    Run for real against all-MiniLM-L6-v2 in §131, and `install_embed_model`
     encodes a sentence before it reports success, so a model that installs and
     cannot produce a vector is a failed install rather than a quiet fallback.
     """

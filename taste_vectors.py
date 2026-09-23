@@ -72,7 +72,7 @@ SEMANTIC_WEIGHT = 0.6
 
 #: Cosine below which a match is worth nothing. all-MiniLM-L6-v2 puts
 #: unrelated short questions at roughly 0.0-0.2 and related ones at 0.45 and
-#: up (measured in §128: "who won the game last night" against "the result of
+#: up (measured in §131: "who won the game last night" against "the result of
 #: yesterday's match" is 0.58, against "how do vaccines work" 0.05). The
 #: floor sits above the unrelated band so noise adds exactly zero.
 SEMANTIC_FLOOR = 0.3

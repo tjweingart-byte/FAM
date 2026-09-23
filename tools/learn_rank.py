@@ -59,7 +59,7 @@ import topics  # noqa: E402
 #: not training rows: their order was never the hand-tuned score's, and a
 #: baseline scored on offers it never ranked is a baseline that loses by
 #: default. The first version trained on all of them and "won" on exactly
-#: that (review of §128).
+#: that (review of §131).
 RANKED_SECTIONS = ("from_history", "section:from_history", "next_up")
 
 #: Rows the serving path reads per listener (`EventStore.for_user`'s default),

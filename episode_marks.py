@@ -108,6 +108,20 @@ class EpisodeMarks:
         first = self.first_chunk
         return {
             "claude_ttft": self.span("claude_start", "claude_first_token"),
+            # **Where `claude_ttft` goes**, one step at a time. It is marked
+            # from `claude_start`, which is before the brief, so on a
+            # researched episode it is brief + retrieval + the writer's own
+            # thinking, and a slow one could be any of the three. Each of
+            # these is absent rather than zero when its step did not run - a
+            # warmed brief still has both marks, a microsecond apart.
+            "brief_seconds": self.span("brief_start", "brief_ready"),
+            "first_rung_seconds": self.span("evidence_start", "first_rung_ready"),
+            "retrieval_seconds": self.span("evidence_start", "retrieval_ready"),
+            "live_seconds": self.span("evidence_start", "live_ready"),
+            "evidence_seconds": self.span("evidence_start", "evidence_ready"),
+            "writer_ttft": self.span("writer_request", "claude_first_token"),
+            "writer_to_first_sentence": self.span("writer_request",
+                                                  "first_sentence"),
             "claude_to_first_sentence": self.span("claude_start",
                                                   "first_sentence"),
             "first_sentence_to_synthesis": self.span("first_sentence",
@@ -145,6 +159,78 @@ class EpisodeMarks:
             # is on `ScriptNotes.research`, beside what it retrieved.
         }
 
+    #: The critical path to the first audio, in the order a listener waits
+    #: through it. Each is (label, from-mark, to-mark); `from` of None means
+    #: the episode's own origin. Consecutive on purpose, so the parts add up to
+    #: `first_pcm` and anything left over is reported as unaccounted rather
+    #: than silently absorbed into whichever stage is printed last.
+    CRITICAL_PATH = (
+        ("setup", None, "claude_start"),
+        ("brief", "brief_start", "brief_ready"),
+        ("evidence", "evidence_start", "evidence_ready"),
+        ("writer thinking", "writer_request", "claude_first_token"),
+        ("first sentence", "claude_first_token", "first_sentence"),
+        ("voice queue", "first_sentence", "first_tts_start"),
+        ("first synthesis", "first_tts_start", "first_tts_complete"),
+    )
+
+    def stages(self) -> dict:
+        """Seconds spent in each step before the first audio, plus the rest.
+
+        Absent stages are left out rather than written as zero - a cache hit
+        has no brief, and "0.0s brief" would read as a brief that was free.
+        """
+        out: dict = {}
+        for label, start, end in self.CRITICAL_PATH:
+            first = 0.0 if start is None else self.at(start)
+            last = self.at(end)
+            if first is not None and last is not None:
+                out[label] = last - first
+        total = self.at("first_tts_complete")
+        if total is not None:
+            out["unaccounted"] = max(0.0, total - sum(out.values()))
+            out["first audio"] = total
+        return out
+
+    #: What each step on the critical path is, in words, for the log.
+    STAGE_NAMES = {
+        "setup": "setup (cache check)",
+        "brief": "brief (episode intelligence)",
+        "evidence": "evidence (search + live lookup)",
+        "writer thinking": "writer thinking (request to first word)",
+        "first sentence": "first sentence (first word to full sentence)",
+        "voice queue": "voice queue (waiting for the voice)",
+        "first synthesis": "first synthesis (voice renders sentence 1)",
+    }
+
+    def stage_report(self, query: str = "") -> str:
+        """Measured seconds per step, one step per line, for a deploy's log.
+
+        Every step is listed, in order. One that did not run - a cache hit
+        has no brief - says so rather than printing 0.00s, which would read
+        as a step that ran and was free. The search and the live lookup run
+        at the same time, so they are listed under `evidence` rather than
+        added to it.
+        """
+        stages = self.stages()
+        rows = []
+        # +3 for the "N. " each step label carries.
+        width = max(len(name) for name in self.STAGE_NAMES.values()) + 3
+
+        def row(label: str, seconds: Optional[float], indent: str = "  ") -> None:
+            value = "did not run" if seconds is None else f"{seconds:6.2f}s"
+            rows.append(f"{indent}{label:<{width + 2}}{value:>11}")
+
+        for number, (key, label) in enumerate(self.STAGE_NAMES.items(), 1):
+            row(f"{number}. {label}", stages.get(key))
+            if key == "evidence":
+                row("     search", self.span("evidence_start", "retrieval_ready"))
+                row("     live lookup", self.span("evidence_start", "live_ready"))
+        row("   unaccounted", stages.get("unaccounted"))
+        row("= first audio", stages.get("first audio"))
+        head = f"episode timing q={query!r}" if query else "episode timing"
+        return "\n".join([head] + rows)
+
     def _decoupled(self) -> Optional[bool]:
         """Did synthesis start before the model finished writing?"""
         started = self.events.get("first_tts_start")
@@ -157,7 +243,8 @@ class EpisodeMarks:
         return {"events": {k: round(v, 4) for k, v in self.events.items()},
                 "chunks": [c.to_dict() for c in self.chunks],
                 "summary": {k: (round(v, 4) if isinstance(v, float) else v)
-                            for k, v in self.summary().items()}}
+                            for k, v in self.summary().items()},
+                "stages": {k: round(v, 3) for k, v in self.stages().items()}}
 
 
 class TimedStream:
