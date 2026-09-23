@@ -17,6 +17,11 @@ Three surfaces, all backed by generated audio:
    you missed last week**, replaced the weekly recap popup.*
 2b. **DailyFAM** (was playFAM) — named daily mixes. A mix holds topic ids or
    questions the listener typed, never audio, so it is fresh every morning.
+   *Since §137 it **follows subjects**: catalogue entries (`f:nfl`), each
+   optionally narrowed to one specific (`f:nfl~Eagles`), each specific its
+   own briefing, and every play asks for that day's edition by date
+   (`mixes.daily_prompt`). A mix has a name screen, a square cover and
+   recommended subjects under it.*
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
    have already generated*. It never writes a script: cards come from the
    shared cache and playing one sends `cached_only`, which the pipeline
@@ -707,7 +712,11 @@ the rest of this list it needs taste rather than a key.
    everyone, personalisation in the ordering, not the inventory** - so two
    people tapping a tile share one script through `cache.py`. That is
    unchanged by the live pool, which is shared for exactly the same reason.
-6. **playFAM is built as its own tab.** `mixes.py` stores named daily mixes -
+6. **playFAM is built as its own tab.** *(§137 changed what a mix holds:
+   followed catalogue subjects, narrowed or whole, rather than bank episodes -
+   the picker below now lists subjects, and bank ids survive only in older
+   mixes. The dated prompt is the server's, so prefetch warms what a tap
+   sends.)* `mixes.py` stores named daily mixes -
    a mix holds *topic ids*, never audio, so "At the gym" is the same subjects
    every day and a different set of episodes. Members are validated against the
    same shared bank, which is what keeps the cost design intact.
@@ -2256,9 +2265,11 @@ being asked:
    **What lives at that URL is now `preview/fam-live-artifact.html`**, built by
    `python preview/build_live_preview.py` - the same interface, but running on
    a real database rather than fixtures, with the store shown beside it.
-   Publish it with `capabilities: {"db": {}}`; without that declaration
-   `claude.use("db")` resolves null in the viewer, the page falls back to
-   memory, and the whole point of it is quietly gone. The fixture build
+   Publish it with `capabilities: {"db": {}, "downloads": true}`; without
+   `db`, `claude.use("db")` resolves null in the viewer, the page falls back
+   to memory, and the whole point of it is quietly gone. `downloads` is what
+   lets the story card save inside the viewer (§138) - a declaration is the
+   full set, so passing `db` alone revokes it. The fixture build
    (`preview/fam-artifact.html`) is still what `./dev.sh check` produces and
    smoke-tests; it is just no longer what the bookmarked link serves.
 3. Reply with a short summary of what changed and the preview URL. Not a zip,
@@ -2356,7 +2367,12 @@ and stop, real play counts and thumbs on Explore, and four RunPod leaks;
 and **§135**, where an episode's information comes from - the model's own
 web search deleted, API-Sports swept on its whole daily allowance with the
 score on the card, and a Trending row of real stories ranked by how many
-outlets run them, worldwide and region by region),
+outlets run them, worldwide and region by region; and **§136**, myFAM's
+order of operations - taste, then cached first, then no repeats; and
+**§137**, DailyFAM mixes that follow subjects - narrowed to a team or
+company, each its own dated daily briefing - with a cover; and **§138**, a
+smoke check that sampled a 450ms window, and a story card that said "saved"
+inside a viewer that had saved nothing),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2379,12 +2395,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-five** named smoke
+**twice** - once per preview build - and **sixty-seven** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 65 as of §134,
+prose does not fail when somebody adds a behaviour. (It is 67 as of §137,
+which added a new mix following narrowed subjects and a square mix cover. It
+was 65 as of §134,
 which added a DailyFAM playlist playing through and then stopping. It was
 64 as of §127,
 which replaced "Go Deeper fills for a new listener" and added the fixed myFAM

@@ -609,8 +609,13 @@ class Interest:
     tags: tuple[str, ...]
 
     def as_dict(self) -> dict:
+        noun, picks = FOCUS_HINTS.get(self.id, ("specific", ()))
         return {"id": self.id, "label": self.label, "icon": self.icon,
-                "tags": list(self.tags)}
+                "tags": list(self.tags),
+                # What a DailyFAM mix offers when somebody follows this
+                # subject: "Anything specific in NFL?" and ten teams. See
+                # FOCUS_HINTS.
+                "focus_noun": noun, "focus_picks": list(picks)}
 
 
 #: The catalogue behind "View more" on the first run.
@@ -710,6 +715,76 @@ INTEREST_CATALOGUE: tuple[Interest, ...] = (
 )
 
 CATALOGUE_BY_ID: dict[str, Interest] = {i.id: i for i in INTEREST_CATALOGUE}
+
+#: What a followed subject can be narrowed to, for a DailyFAM mix (§137).
+#:
+#: Following "NFL" is a start; most people mean their team. When a catalogue
+#: subject is followed in a mix, the picker asks "Anything specific in NFL?"
+#: and offers these, and each one picked becomes its own daily briefing
+#: (`f:nfl~Eagles` - see `mixes.py`). `noun` is what the thing is called for
+#: this subject, so the question reads "Type a team" for football and "Type a
+#: company or index" for stocks.
+#:
+#: **Suggestions, never a whitelist.** Anything typed into the box is
+#: accepted, because no list of the world's teams is both complete and short
+#: enough to ship. These are also what the picker's search reaches into, so
+#: typing "eagles" offers "Eagles - NFL" without the listener having to know
+#: which subject holds it; a team not listed here is still followed by
+#: typing it. A subject with no entry gets a generic noun and no chips.
+#:
+#: Held here rather than in the interface so there is one copy, served with
+#: the catalogue on `/api/preferences`, for the web app and the iOS app alike.
+FOCUS_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "soccer": ("team or league", ("Arsenal", "Real Madrid", "Barcelona", "Man City",
+               "Liverpool", "Inter Miami", "USMNT", "San Diego FC",
+               "Premier League", "Champions League")),
+    "nfl": ("team", ("Eagles", "Chiefs", "Cowboys", "49ers", "Bills", "Ravens",
+            "Packers", "Chargers", "Lions", "Bears")),
+    "basketball": ("team", ("Lakers", "Celtics", "Warriors", "Knicks", "Nuggets",
+                   "Thunder", "76ers", "Heat", "March Madness", "WNBA")),
+    "baseball": ("team", ("Padres", "Dodgers", "Yankees", "Mets", "Cubs",
+                 "Red Sox", "Braves", "Astros", "Phillies", "Giants")),
+    "hockey": ("team", ("Rangers", "Maple Leafs", "Oilers", "Bruins", "Panthers",
+               "Golden Knights", "Kings", "Ducks")),
+    "formula1": ("team or driver", ("Ferrari", "McLaren", "Red Bull", "Mercedes",
+                 "Max Verstappen", "Lewis Hamilton", "Lando Norris")),
+    "motorsport": ("series or driver", ("NASCAR", "IndyCar", "MotoGP", "WEC")),
+    "tennis": ("player or tournament", ("Carlos Alcaraz", "Jannik Sinner",
+               "Coco Gauff", "Aryna Sabalenka", "Wimbledon", "US Open")),
+    "golf": ("player or tour", ("Scottie Scheffler", "Rory McIlroy", "LIV Golf",
+             "PGA Tour", "The Masters")),
+    "mma": ("fighter or promotion", ("UFC", "WWE", "PFL")),
+    "boxing": ("fighter", ("Canelo \u00c1lvarez", "Naoya Inoue", "Oleksandr Usyk")),
+    "cricket": ("team", ("India", "England", "Australia", "IPL")),
+    "rugby": ("team", ("All Blacks", "Springboks", "England", "Six Nations")),
+    "olympics": ("sport or team", ("Team USA", "LA 2028", "Track & field", "Swimming")),
+    "sports": ("team or sport", ("Eagles", "Padres", "Lakers", "Arsenal", "F1", "UFC")),
+    "stocks": ("company or index", ("S&P 500", "Nasdaq", "Nvidia", "Apple", "Tesla",
+               "The Fed", "Interest rates")),
+    "crypto": ("coin", ("Bitcoin", "Ethereum", "Solana", "Stablecoins")),
+    "business": ("company or industry", ("Apple", "Amazon", "Nvidia", "Airlines", "Retail")),
+    "startups": ("company or sector", ("OpenAI", "Anthropic", "Y Combinator",
+                 "Climate tech", "Fintech")),
+    "ai": ("company or area", ("Anthropic", "OpenAI", "Google DeepMind",
+           "AI regulation", "AI agents", "Robotics")),
+    "technology": ("company or product", ("Apple", "Google", "Microsoft", "Meta",
+                   "Smartphones", "Chips")),
+    "politics": ("place or issue", ("Congress", "The White House", "California",
+                 "Supreme Court", "Immigration", "Economy")),
+    "elections": ("race or place", ("2026 midterms", "California", "Senate races",
+                  "Governor races")),
+    "news": ("place", ("San Diego", "California", "Europe", "Middle East", "Asia")),
+    "movies-tv": ("show, studio or franchise", ("Marvel", "Netflix", "HBO", "Oscars",
+                  "Star Wars")),
+    "music": ("artist or genre", ("Taylor Swift", "Beyonc\u00e9", "Drake",
+              "New releases", "Tours")),
+    "gaming": ("game or platform", ("Nintendo", "PlayStation", "Xbox", "GTA VI",
+               "Fortnite")),
+    "esports": ("game or team", ("League of Legends", "Valorant", "CS2", "Fortnite")),
+    "real-estate": ("market", ("San Diego", "California", "Mortgage rates", "Rentals")),
+    "space": ("mission or company", ("SpaceX", "NASA", "Artemis", "Blue Origin")),
+    "health": ("area", ("Running", "Strength training", "Nutrition", "Sleep")),
+}
 
 #: Every subtag, and the facet it lives under.
 #:

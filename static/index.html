@@ -304,6 +304,9 @@
   .photo-mask{ position:absolute; inset:0; border-radius:50%;
     box-shadow:0 0 0 9999px rgba(24,21,31,0.62);
     border:1px solid rgba(244,239,228,0.35); pointer-events:none; }
+  /* Mix covers are square: the whole stage is kept, so the mask is a frame. */
+  #photoOverlay.cover-mode .photo-mask{ border-radius:14px; box-shadow:none;
+    border:1.5px solid rgba(244,239,228,0.5); }
   .photo-zoom{ width:100%; margin:0 0 16px; accent-color:var(--copper);
     background:transparent; }
 
@@ -542,6 +545,121 @@
     padding:13px; border-radius:999px; background:var(--copper); color:var(--ink); border:none;
     font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer;
     margin:2px 0 16px; }
+  /* Picker: the listener's interests as filters, Spotify-style. */
+  .pk-chips{ display:flex; gap:7px; overflow-x:auto; padding:0 18px 12px; scrollbar-width:none; flex:none; }
+  .pk-chips::-webkit-scrollbar{ display:none; }
+  .pk-chip{ flex:0 0 auto; height:28px; padding:0 13px; border-radius:14px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Space Grotesk',sans-serif;
+    font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .pk-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .pk-chips:empty{ display:none; }
+  /* Inside a mix: recommended additions under the list. */
+  .rec-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; margin:22px 0 10px; }
+  .rec-title{ font-family:'Fraunces', serif; font-weight:600; font-size:16px; color:var(--text); }
+  .rec-sub{ font-size:9.5px; color:var(--text-muted); margin-top:2px; }
+  .rec-shuffle{ flex:none; display:flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+    border-radius:14px; background:transparent; border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:600; cursor:pointer; }
+  .rec-shuffle:active{ background:rgba(244,239,228,0.06); }
+  .rec-list .mix-topic-act{ cursor:pointer; }
+  .fol-ic{ flex:none; width:32px; height:32px; border-radius:9px; background:var(--surface-2);
+    color:var(--copper); display:flex; align-items:center; justify-content:center; }
+  .fol-ic svg{ width:17px; height:17px; }
+  .mix-topic.chosen .fol-ic{ background:rgba(224,181,99,0.16); }
+  /* A followed topic and its "narrow it down" panel read as one card. */
+  /* Naming a new mix: its own screen, step 1 of 2, in the picker's language. */
+  .nm-step{ font-family:'JetBrains Mono', monospace !important; font-size:9.5px !important; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--text-muted); font-weight:500 !important; }
+  .nm-body{ display:flex; flex-direction:column; align-items:center; text-align:center; padding-top:18px; }
+  .nm-folder{ position:relative; width:128px; height:128px; border-radius:22px; background:var(--paper); color:var(--ink);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    box-shadow:0 18px 36px -18px rgba(0,0,0,0.7); margin-bottom:8px; padding:0 12px;
+    border:none; cursor:pointer; overflow:visible; font:inherit; }
+  .nm-folder:active{ transform:scale(0.97); }
+  .nm-folder-art{ display:flex; }
+  .nm-folder.has-cover{ background-size:cover; background-position:center; justify-content:flex-end; padding:0 0 11px; }
+  .nm-folder.has-cover::before{ content:""; position:absolute; inset:0; border-radius:22px;
+    background:linear-gradient(to top, rgba(24,21,31,0.78), rgba(24,21,31,0) 58%); }
+  .nm-folder.has-cover .nm-folder-art{ display:none; }
+  .nm-folder.has-cover .nm-folder-name{ position:relative; color:#F4EFE4; padding:0 10px; }
+  .nm-cam{ position:absolute; right:-7px; bottom:-7px; width:30px; height:30px; border-radius:50%;
+    background:var(--copper); color:var(--ink); border:2.5px solid var(--bg);
+    display:flex; align-items:center; justify-content:center; }
+  .nm-cover-hint{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--copper); margin:6px 0 16px; cursor:pointer; }
+  /* A mix's cover, wherever the folder is drawn. */
+  .mix-folder.has-cover{ background-size:cover; background-position:center; }
+  .mix-folder.has-cover svg{ display:none; }
+  .mix-hero{ display:flex; align-items:center; gap:14px; margin:0 0 16px; }
+  .mix-hero-art{ position:relative; flex:none; width:84px; height:84px; border-radius:16px; background:var(--paper);
+    color:var(--ink); display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;
+    background-size:cover; background-position:center; box-shadow:0 12px 26px -14px rgba(0,0,0,0.7); }
+  .mix-hero-art.has-cover svg.fold{ display:none; }
+  .mix-hero-art .nm-cam{ width:24px; height:24px; right:-5px; bottom:-5px; border-width:2px; }
+  .mix-hero-t{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; color:var(--text); line-height:1.2; }
+  .mix-hero-s{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--text-muted); margin-top:5px; }
+  .mix-hero-c{ background:none; border:none; padding:0; margin-top:7px; color:var(--copper); font-family:'Space Grotesk',sans-serif;
+    font-size:11px; font-weight:700; cursor:pointer; }
+  .nm-folder-name{ font-family:'Fraunces', serif; font-weight:600; font-size:13px; line-height:1.2;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nm-folder-name.empty{ opacity:0.4; }
+  .nm-h{ font-family:'Fraunces', serif; font-weight:500; font-size:24px; margin:0; color:var(--text); }
+  .nm-sub{ font-size:11.5px; line-height:1.5; color:var(--text-muted); margin:6px 0 20px; max-width:240px; }
+  .nm-input{ width:100%; background:transparent; border:none; border-bottom:1.5px solid var(--border-strong);
+    color:var(--text); font-family:'Fraunces', serif; font-weight:500; font-size:22px; text-align:center;
+    padding:6px 4px 9px; outline:none; border-radius:0; }
+  .nm-input::placeholder{ color:var(--text-faint); opacity:0.6; }
+  .nm-input:focus{ border-bottom-color:var(--copper); }
+  .nm-count{ align-self:flex-end; font-family:'JetBrains Mono', monospace; font-size:8.5px; color:var(--text-faint); margin-top:6px; }
+  .nm-label{ align-self:flex-start; font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--text-muted); margin:18px 0 9px; }
+  .nm-chips{ display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-start; align-self:stretch; }
+  .nm-chip{ height:30px; padding:0 13px; border-radius:15px; background:var(--surface); border:1px solid var(--border-strong);
+    color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:11.5px; font-weight:600; cursor:pointer; }
+  .nm-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .nm-create:disabled{ opacity:0.35; cursor:default; transform:none; }
+  .focus-all{ display:flex; align-items:center; gap:10px; width:100%; margin:2px 0 9px; padding:9px 10px;
+    border-radius:9px; background:var(--bg); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:11px; text-align:left; cursor:pointer; }
+  .focus-all b{ font-weight:600; }
+  .focus-all small{ display:block; font-size:9px; color:var(--text-muted); margin-top:1px; }
+  .focus-all .sw{ margin-left:auto; flex:none; width:32px; height:19px; border-radius:10px; background:var(--surface-2);
+    position:relative; transition:background .15s; }
+  .focus-all .sw::after{ content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%;
+    background:var(--text-muted); transition:left .15s, background .15s; }
+  .focus-all.on .sw{ background:var(--copper); }
+  .focus-all.on .sw::after{ left:15px; background:var(--ink); }
+  .fol-wrap{ margin-bottom:9px; border:1px solid var(--copper); border-radius:12px; background:var(--surface); overflow:hidden; }
+  .fol-wrap > .mix-topic{ margin:0; border:none; border-radius:0; background:transparent; }
+  /* Open: the card holding the "anything specific?" panel sits a little forward. */
+  .fol-wrap.open{ box-shadow:0 14px 28px -20px rgba(0,0,0,0.75); }
+  .focus-bar{ display:flex; align-items:center; gap:8px; width:100%; padding:9px 12px 10px 55px;
+    background:rgba(224,181,99,0.06); border:none; border-top:1px solid var(--border);
+    color:var(--text); font-family:'Space Grotesk',sans-serif; text-align:left; cursor:pointer; }
+  .focus-bar-l{ font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-muted); flex:none; }
+  .focus-bar-v{ flex:1; min-width:0; font-size:11px; font-weight:600; color:var(--copper);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .focus-bar-go{ flex:none; font-size:10.5px; font-weight:700; color:var(--copper); }
+  .focus-panel{ padding:11px 12px 12px; border-top:1px solid var(--border); background:rgba(224,181,99,0.05); }
+  .focus-q{ font-family:'Fraunces', serif; font-weight:600; font-size:13px; color:var(--text); }
+  .focus-help{ font-size:9.5px; line-height:1.45; color:var(--text-muted); margin:3px 0 9px; }
+  .focus-chosen, .focus-sugg{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .focus-chip{ display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 10px; border-radius:13px;
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:600; cursor:pointer; }
+  .focus-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .focus-chip.on span{ font-size:12px; opacity:0.7; }
+  .focus-row{ display:flex; gap:7px; }
+  .focus-input{ flex:1; min-width:0; height:32px; padding:0 11px; border-radius:9px; background:var(--bg);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:11.5px; outline:none; }
+  .focus-input:focus{ border-color:var(--copper); }
+  .focus-follow{ display:block; width:100%; margin-top:9px; height:36px; border-radius:10px; background:var(--copper);
+    border:none; color:var(--ink); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
+  .focus-done{ flex:none; height:32px; padding:0 13px; border-radius:9px; background:var(--copper); border:none;
+    color:var(--ink); font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; cursor:pointer; }
+  .rec-list .mix-topic-act:active{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
   .mix-empty{ padding:16px 14px; border:1px dashed var(--border-strong); border-radius:12px;
     font-size:11px; line-height:1.5; color:var(--text-muted); margin-bottom:14px; }.tile-big .tname{ font-size:12.5px; font-weight:600; color:var(--text); }.connect-sub{ font-size:10.5px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }.cr-toggle .knob{
     position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%;
@@ -2650,6 +2768,36 @@
         <div class="scroll" id="mixBody"></div>
       </section>
 
+      <!-- ============ DAILYFAM — name a new mix ============ -->
+      <section class="screen" id="screen-newmix">
+        <div class="back-row">
+          <span class="back" onclick="cancelNewMix()" aria-label="Cancel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+          <h2 class="nm-step">Step 1 of 2 &middot; Name</h2>
+        </div>
+        <div class="scroll nm-body">
+          <button class="nm-folder" id="nmFolder" onclick="coverTapped('new')" aria-label="Choose a cover photo">
+            <span class="nm-folder-art" id="nmArt">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            </span>
+            <span class="nm-folder-name" id="nmPreview">Your mix</span>
+            <span class="nm-cam" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+          </button>
+          <div class="nm-cover-hint" id="nmCoverHint">Tap to add a cover photo</div>
+          <input type="file" id="coverFile" hidden accept="image/*" onchange="coverChosen(this)">
+          <h3 class="nm-h">Name your mix</h3>
+          <p class="nm-sub">Name it after when you listen. You&rsquo;ll pick the topics next.</p>
+          <input class="nm-input" id="nmInput" type="text" maxlength="40" autocomplete="off" autocorrect="off" spellcheck="false"
+                 placeholder="Morning commute" aria-label="Mix name"
+                 oninput="onNewMixName()" onkeydown="if(event.key==='Enter') confirmNewMix()">
+          <div class="nm-count" id="nmCount">0 / 40</div>
+          <div class="nm-label">Quick picks</div>
+          <div class="nm-chips" id="nmChips"></div>
+        </div>
+        <div style="padding:0 18px 18px;">
+          <button class="np-save-btn nm-create" id="nmCreate" onclick="confirmNewMix()" disabled>Create</button>
+        </div>
+      </section>
+
       <!-- ============ PLAYFAM — choose topics ============ -->
       <section class="screen" id="screen-mixpicker">
         <div class="back-row">
@@ -2661,6 +2809,7 @@
                  placeholder="Search topics, or type your own"
                  oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedMixTopic()">
         </div>
+        <div class="pk-chips" id="pickerChips"></div>
         <div class="connect-sub" style="margin:0 18px 12px;" id="pickerCount">Nothing chosen yet.</div>
         <div class="scroll" id="pickerBody"></div>
         <div style="padding:0 18px 18px;">
@@ -3090,7 +3239,7 @@
            onclick="if(event.target===this) closePhotoEditor()">
         <div class="modal-card photo-card">
           <button class="modal-x" onclick="closePhotoEditor()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-          <div class="modal-title">Move and scale</div>
+          <div class="modal-title" id="photoTitle">Move and scale</div>
           <div class="photo-stage" id="photoStage">
             <img class="photo-img" id="photoImg" alt="" draggable="false">
             <div class="photo-mask" aria-hidden="true"></div>
@@ -5673,6 +5822,13 @@
   var topicBankRanked = false;
   var currentMixId = null;
   var pickerSelection = [];
+  //: Specifics per followed topic in the picker: { "f:nfl": ["Eagles"] }.
+  var pickerFocus = {};
+  //: Followed topics that also get a briefing on the whole topic alongside
+  //: their specifics: { "f:nfl": true } -> "NFL · Eagles" and "NFL".
+  var pickerAll = {};
+  //: The followed topic whose "narrow it down" panel is open.
+  var pickerOpenFocus = null;
   var pickerMixId = null;      // null => the picker is creating a new mix
   var pickerNewName = "";
 
@@ -5787,11 +5943,11 @@
       var entries = m.items || m.topics;
       var names = entries.map(function(t){ return t.title; }).join(" · ");
       return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
-        + '<div class="mix-folder">' + folderSVG() + '</div>'
+        + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
         + '<div class="mix-card-body">'
         + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
         + '<div class="mix-meta">' + entries.length
-        + (entries.length === 1 ? " topic · daily" : " topics · daily")
+        + (entries.length === 1 ? " briefing · daily" : " briefings · daily")
         + ' · <span class="' + (m.public ? "mix-public" : "mix-private") + '">'
         + (m.public ? "public" : "private") + '</span></div>'
         + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
@@ -5812,23 +5968,54 @@
   function openMix(id){
     var m = mixById(id);
     if(!m) return;
+    // A "narrow it down" panel belongs to the mix it was opened under.
+    if(currentMixId !== id) recFocus = { id: null, picks: [], all: false };
     currentMixId = id;
     document.getElementById("mixTitle").textContent = m.name;
+    renderMixBody(m);
+    navigate("mixdetail");
+    // The recommendations are drawn from the catalogue; if it has not
+    // arrived yet, draw them when it does rather than leaving the space empty.
+    ensureFollowCatalogue(function(){
+      var again = mixById(currentMixId);
+      if(again && again.id === id) rerenderMixKeepScroll(again);
+    });
+  }
+
+  function renderMixBody(m){
     var html = "";
+    var nBrief = (m.items || []).length;
+    html += '<div class="mix-hero">'
+      + '<button class="mix-hero-art' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m)
+      + ' onclick="coverTapped(\'' + m.id + '\')" aria-label="' + (m.cover ? "Change" : "Add") + ' cover photo">'
+      + '<svg class="fold" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+      + 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
+      + '<span class="nm-cam" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>'
+      + '</button><div>'
+      + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-hero-s">' + nBrief + (nBrief === 1 ? " briefing" : " briefings") + ' \u00b7 daily \u00b7 '
+      + (m.public ? "public" : "private") + '</div>'
+      + '<button class="mix-hero-c" onclick="coverTapped(\'' + m.id + '\')">' + (m.cover ? "Change cover" : "Add a cover photo") + '</button>'
+      + '</div></div>';
     if(m.items && m.items.length){
       html += '<button class="mix-play" onclick="playMix()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
         + '<path d="M8 5v14l11-7z"/></svg>Play today\u2019s ' + m.items.length
         + (m.items.length === 1 ? " episode" : " episodes") + '</button>';
-      html += '<div class="mix-meta" style="margin:0 0 9px;">Today\u2019s edition</div>';
+      html += '<div class="mix-meta" style="margin:0 0 9px;">Today\u2019s edition \u00b7 '
+        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
       html += (m.items || m.topics).map(function(t){
         return '<div class="mix-topic">'
           + '<div class="mix-topic-body">'
           + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
           + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle || "") + '</div>'
           + '</div>'
-          + '<button class="mix-topic-act" title="Play this one" '
-          + 'onclick="event.stopPropagation(); playMixFrom(\'' + t.id + '\')">'
+          // By data attribute, not inside the handler: a followed item's id
+          // carries the specific the listener typed, and "O'Brien" in a
+          // quoted onclick argument is a button that throws.
+          + '<button class="mix-topic-act" title="Play this one" data-id="' + escapeHtml(t.id) + '" '
+          + 'onclick="event.stopPropagation(); playMixFrom(this.dataset.id)">'
           + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
           + '<path d="M8 5v14l11-7z"/></svg></button>'
           + '</div>';
@@ -5860,9 +6047,291 @@
     html += '<button class="mix-new" onclick="editMixTopics()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
-      + 'Edit topics</button>';
+      + ((m.items && m.items.length) ? 'Edit topics' : 'Add topics') + '</button>';
+    html += recommendedHTML(m);
     document.getElementById("mixBody").innerHTML = html;
-    navigate("mixdetail");
+  }
+
+  // ---------------- Recommended topics, under a mix ----------------
+  // Spotify's "Recommended songs" under a playlist: five at a time, one tap
+  // to add, Shuffle for five more. Ranked by what is already in the mix (tag
+  // overlap), falling back to the listener's taste order that `topicBank`
+  // already arrives in. Never repeats something already in the mix.
+  var REC_COUNT = 5;
+  var recState = { mixId: null, order: [], pos: 0, shown: [] };
+
+  // The catalogue and the tag vocabulary (sub-tag -> facet, facet labels)
+  // arrive with `/api/preferences`, which the first run and Settings already
+  // fetch into PREF_CHOICES. `ensureFollowCatalogue` fetches it for somebody
+  // who reached DailyFAM without either.
+  function famTagParent(){ return (PREF_CHOICES && PREF_CHOICES.tag_parent) || {}; }
+  function famTagLabels(){ return (PREF_CHOICES && PREF_CHOICES.tag_labels) || {}; }
+  function followCatalogue(){ return (PREF_CHOICES && PREF_CHOICES.catalogue) || []; }
+  function ensureFollowCatalogue(then){
+    if(followCatalogue().length && PREF_CHOICES.tag_parent){ return; }
+    loadPrefChoices().then(function(){ if(followCatalogue().length) then(); });
+  }
+
+  // ---------------- Narrowing a topic down ("focus") ----------------
+  // Following "NFL" is a start; most people mean their team. A followed topic
+  // can be narrowed to one or more specifics, and the daily brief is written
+  // about those. `noun` is what the thing is called for this topic, so the
+  // prompt reads "Type a team" for football and "Type a company" for stocks.
+  // The suggestions live on the catalogue (`topics.FOCUS_HINTS`), so there
+  // is one copy for this page and the iOS app.
+  function focusHint(catId){
+    var c = followById("f:" + catId);
+    return { noun: (c && c.focus_noun) || "specific", pick: (c && c.focus_picks) || [] };
+  }
+  function splitFocusId(id){
+    var cut = String(id).indexOf("~");
+    if(cut === -1) return { base: String(id), focus: [] };
+    return { base: String(id).slice(0, cut),
+             focus: String(id).slice(cut + 1).split("|").filter(Boolean).map(function(f){
+               try { return decodeURIComponent(f); } catch(e){ return f; } }) };
+  }
+  function joinFocusId(base, focus){
+    return focus && focus.length
+      ? base + "~" + focus.map(function(f){ return encodeURIComponent(f); }).join("|")
+      : base;
+  }
+  function followById(fid){
+    var id = String(fid).replace(/^f:/, "");
+    return followCatalogue().filter(function(c){ return c.id === id; })[0] || null;
+  }
+  function facetLabel(tags){
+    var labels = famTagLabels(), parent = famTagParent();
+    for(var i = 0; i < (tags || []).length; i++){
+      var g = tags[i];
+      if(labels[g]) return labels[g];
+      if(parent[g] && labels[parent[g]]) return labels[parent[g]];
+    }
+    return "";
+  }
+  // Tags for anything that can sit in a mix: a followed topic, an older bank
+  // episode, or a typed topic (which has none).
+  function itemTags(id){
+    id = splitFocusId(id).base;
+    var c = followById(id);
+    if(String(id).indexOf("f:") === 0 && c) return c.tags;
+    var b = bankById(id);
+    return b ? b.tags : [];
+  }
+  // The catalogue in this listener's order: subjects under their interests
+  // first, then everything else in the catalogue's own order.
+  function followRanked(){
+    var want = {};
+    pickerInterests().forEach(function(r){
+      if(r.kind === "topic"){ var c = followById(r.id); if(c) want["id:" + c.id] = 3;
+        (c ? c.tags : []).forEach(function(g){ want[g] = Math.max(want[g] || 0, 1); }); }
+      else want[r.id] = 2;
+    });
+    return followCatalogue().map(function(c, idx){
+      var f = facetsOf(c.tags), score = want["id:" + c.id] || 0;
+      for(var k in f) score = Math.max(score, want[k] || 0);
+      return { c: c, score: score, idx: idx };
+    }).sort(function(a, b){ return (b.score - a.score) || (a.idx - b.idx); })
+      .map(function(r){ return r.c; });
+  }
+  function followRowHTML(c, on, onclick, actHTML, sub){
+    return '<div class="mix-topic' + (on ? " chosen" : "") + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + '>'
+      + '<div class="fol-ic">' + catIcon(c.icon) + '</div>'
+      + '<div class="mix-topic-body">'
+      + '<div class="mix-topic-title">' + escapeHtml(c.label) + '</div>'
+      + '<div class="mix-topic-sub">' + escapeHtml(sub) + '</div>'
+      + '</div>' + actHTML + '</div>';
+  }
+  function facetsOf(tags){
+    var parent = famTagParent(), out = {};
+    (tags || []).forEach(function(g){ out[g] = 1; if(parent[g]) out[parent[g]] = 1; });
+    return out;
+  }
+  function bankById(id){
+    for(var i = 0; i < topicBank.length; i++){ if(topicBank[i].id === id) return topicBank[i]; }
+    return null;
+  }
+  function mixItemIds(m){
+    var ids = {};
+    (m.items || []).forEach(function(i){ ids[splitFocusId(i.id).base] = 1; });
+    return ids;
+  }
+
+  function recRanked(m){
+    var inMix = mixItemIds(m), want = {};
+    (m.items || []).forEach(function(i){
+      var f = facetsOf(itemTags(i.id));
+      for(var k in f) want[k] = (want[k] || 0) + 1;
+    });
+    var hasWant = Object.keys(want).length > 0;
+    // Topics to follow, never episodes: the catalogue, in interest order, then
+    // re-ranked by what the mix already follows.
+    return followRanked()
+      .map(function(c, idx){
+        var score = 0;
+        if(hasWant){ var f = facetsOf(c.tags); for(var k in f) score += (want[k] || 0); }
+        return { id: "f:" + c.id, score: score, idx: idx };
+      })
+      .filter(function(r){ return !inMix[r.id]; })
+      .sort(function(a, b){ return (b.score - a.score) || (a.idx - b.idx); })
+      .map(function(r){ return r.id; });
+  }
+
+  function recNext(m, n){
+    var inMix = mixItemIds(m), out = [], tries = 0, order = recState.order;
+    if(!order.length) return out;
+    while(out.length < n && tries < order.length){
+      var id = order[recState.pos % order.length];
+      recState.pos++; tries++;
+      if(!inMix[id] && recState.shown.indexOf(id) === -1 && out.indexOf(id) === -1) out.push(id);
+    }
+    return out;
+  }
+
+  function recEnsure(m){
+    if(recState.mixId === m.id && recState.order.length) return;
+    recState = { mixId: m.id, order: recRanked(m), pos: 0, shown: [] };
+    recState.shown = recNext(m, REC_COUNT);
+  }
+
+  function recommendedHTML(m){
+    if(!followCatalogue().length) return "";
+    recEnsure(m);
+    var inMix = mixItemIds(m);
+    recState.shown = recState.shown.filter(function(id){ return !inMix[id]; });
+    if(recState.shown.length < REC_COUNT){
+      recState.shown = recState.shown.concat(recNext(m, REC_COUNT - recState.shown.length));
+    }
+    if(!recState.shown.length) return "";
+    var basis = (m.items && m.items.length) ? "Topics to follow, based on this mix" : "Topics to follow, based on your interests";
+    return '<div class="rec-head"><div><div class="rec-title">Recommended topics</div>'
+      + '<div class="rec-sub">' + basis + '</div></div>'
+      + '<button class="rec-shuffle" onclick="shuffleRecs()" aria-label="Shuffle recommendations">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+      + 'stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/>'
+      + '<path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>Shuffle</button></div>'
+      + '<div class="rec-list">' + recState.shown.map(function(id){
+          var c = followById(id);
+          if(!c) return "";
+          var cat = facetLabel(c.tags);
+          if(recFocus.id === id) return recFocusHTML(c, id);
+          return followRowHTML(c, false, "",
+            '<button class="mix-topic-act" aria-label="Follow ' + escapeHtml(c.label) + ' in this mix" '
+            + 'onclick="openRecFocus(\'' + id + '\')">+</button>',
+            (cat ? cat + " \u00b7 " : "") + "new briefing every day");
+        }).join("") + '</div>';
+  }
+
+  function rerenderMixKeepScroll(m){
+    var body = document.getElementById("mixBody");
+    var top = body ? body.scrollTop : 0;
+    renderMixBody(m);
+    if(body) body.scrollTop = top;
+  }
+
+  function shuffleRecs(){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    var prev = recState.shown.slice();
+    recState.shown = [];
+    var fresh = recNext(m, REC_COUNT);
+    // A small bank can run out of unseen picks; wrap round rather than show fewer.
+    if(fresh.length < REC_COUNT){
+      recState.shown = fresh;
+      fresh = fresh.concat(recNext(m, REC_COUNT - fresh.length));
+    }
+    recState.shown = fresh.length ? fresh : prev;
+    rerenderMixKeepScroll(m);
+  }
+
+  // Tapping + on a recommendation asks "anything specific?" first, the same
+  // question the topics page asks - narrowing belongs at the moment of
+  // following, not in an edit screen found later.
+  var recFocus = { id: null, picks: [], all: false };
+
+  function openRecFocus(id){
+    recFocus = { id: id, picks: [], all: false };
+    var m = mixById(currentMixId);
+    if(m) rerenderMixKeepScroll(m);
+  }
+  function toggleRecAll(){
+    recFocus.all = !recFocus.all;
+    var m = mixById(currentMixId);
+    if(m) rerenderMixKeepScroll(m);
+  }
+  function closeRecFocus(){
+    recFocus = { id: null, picks: [], all: false };
+    var m = mixById(currentMixId);
+    if(m) rerenderMixKeepScroll(m);
+  }
+  function recFocusToggle(value){
+    var v = String(value || "").trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
+    if(!v) return;
+    var at = recFocus.picks.map(function(x){ return x.toLowerCase(); }).indexOf(v.toLowerCase());
+    if(at !== -1) recFocus.picks.splice(at, 1);
+    else if(recFocus.picks.length >= 3){ toast("Up to 3 per topic"); return; }
+    else recFocus.picks.push(v);
+    var m = mixById(currentMixId);
+    if(m) rerenderMixKeepScroll(m);
+  }
+  function recFocusHTML(c, id){
+    var h = focusHint(c.id), picks = recFocus.picks;
+    var sugg = h.pick.filter(function(p){ return picks.indexOf(p) === -1; });
+    var label = picks.length
+      ? "Follow " + picks.join(", ") + (recFocus.all ? " + all " + c.label : "")
+      : "Follow all of " + c.label;
+    return '<div class="fol-wrap open">'
+      + followRowHTML(c, true, "",
+          '<button class="mix-topic-act" aria-label="Cancel" onclick="closeRecFocus()">\u00d7</button>',
+          picks.length ? picks.join(", ") + (recFocus.all ? " + all " + c.label : "") : "All " + c.label)
+      + '<div class="focus-panel">'
+      + '<div class="focus-q">Anything specific in ' + escapeHtml(c.label) + '?</div>'
+      + '<div class="focus-help">Each ' + escapeHtml(h.noun) + ' you pick gets its own daily briefing, '
+      + 'or follow all of ' + escapeHtml(c.label) + '.</div>'
+      + (picks.length ? '<div class="focus-chosen">' + picks.map(function(f){
+          return '<button class="focus-chip on" onclick="recFocusToggle(this.dataset.v)" data-v="' + escapeHtml(f) + '">'
+            + escapeHtml(f) + '<span aria-hidden="true">\u00d7</span></button>';
+        }).join("") + '</div>' : '')
+      + (sugg.length ? '<div class="focus-sugg">' + sugg.map(function(p){
+          return '<button class="focus-chip" onclick="recFocusToggle(this.dataset.v)" data-v="' + escapeHtml(p) + '">'
+            + escapeHtml(p) + '</button>';
+        }).join("") + '</div>' : '')
+      + (picks.length ? focusAllHTML(c, recFocus.all, "toggleRecAll()") : '')
+      + '<div class="focus-row">'
+      + '<input class="focus-input" id="recFocusInput" type="text" autocomplete="off" '
+      + 'placeholder="Type a ' + escapeHtml(h.noun) + (h.pick[0] ? ', e.g. ' + escapeHtml(h.pick[0]) : '') + '" '
+      + 'onkeydown="if(event.key===\'Enter\'){ recFocusToggle(this.value); }">'
+      + '</div>'
+      + '<button class="focus-follow" onclick="confirmRecFocus()">' + escapeHtml(label) + '</button>'
+      + '</div></div>';
+  }
+  function confirmRecFocus(){
+    var box = document.getElementById("recFocusInput");
+    if(box && box.value.trim()){
+      var v = box.value.trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
+      if(recFocus.picks.length < 3 && recFocus.picks.indexOf(v) === -1) recFocus.picks.push(v);
+    }
+    var id = recFocus.id, picks = recFocus.picks.slice(), all = recFocus.all;
+    recFocus = { id: null, picks: [], all: false };
+    addRecTopic(id, picks, all);
+  }
+
+  function addRecTopic(id, focus, alsoAll){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    var payload = (m.items || []).map(function(i){
+      return i.custom ? { query: i.query, title: i.title } : i.id;
+    });
+    if(mixItemIds(m)[id]) return;
+    (focus || []).forEach(function(f){ payload.push(joinFocusId(id, [f])); });
+    if(!(focus && focus.length) || alsoAll) payload.push(id);
+    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      recState.shown = recState.shown.filter(function(x){ return x !== id; });
+      rerenderMixKeepScroll(saved);
+      var c = followById(id);
+      toast("Following " + ((focus && focus.length) ? focus.join(", ") + (alsoAll && c ? " + all " + c.label : "")
+        : (c ? c.label : "that"))
+        + " in " + saved.name);
+    });
   }
 
   // ---------------- A DailyFAM playlist, played through ----------------
@@ -5968,12 +6437,20 @@
   // ends any running playlist rather than joining it (§134).
   function playMixItem(item, inQueue){
     var key = "mix_" + item.id.replace(/[^a-z0-9]/gi, "") + "_" + Date.now();
+    // A followed or typed topic is a standing subject, so it is asked for as
+    // of today: every play of the mix is that day's edition, never a rerun.
+    // The words come from the server (`mixes.daily_prompt`) with the date
+    // left open, and are filled with the listener's own date here - prefetch
+    // fills the same template, so a warmed brief is found by the tap.
+    var today = new Date().toLocaleDateString("en-US",
+      { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    var daily = item.daily_prompt ? item.daily_prompt.split("{date}").join(today) : "";
     TOPICS[key] = {
-      title: item.title,
+      title: daily ? item.title + " \u00b7 today" : item.title,
       source: "DailyFAM",
       caption: "Live captions will appear here as this plays\u2014",
-      prompt: item.query,
-      bankTopicId: item.custom ? "" : item.id,
+      prompt: daily || item.query,
+      bankTopicId: (item.custom || item.follow) ? "" : item.id,
       titleOverridden: true,
       // What makes the player treat this as a playlist entry: its end plays
       // the next one instead of offering What's next. See `populatePlayer`.
@@ -5994,6 +6471,7 @@
     showActionSheet([
       { label: m.public ? "Make private" : "Make public", action: toggleMixVisibility },
       { label: "Rename", action: renameMix },
+      { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
       { label: "Edit topics", action: editMixTopics },
       { label: "Delete mix", action: deleteMix }
     ]);
@@ -6034,18 +6512,126 @@
   }
 
   // --- choosing topics ---
-  function openNewMix(){
-    showModal({
-      title: "New mix",
-      placeholder: "e.g. Morning, At the gym",
-      confirmLabel: "Choose topics",
-      onConfirm: function(value){
-        pickerMixId = null;
-        pickerNewName = value;
-        pickerSelection = [];
-        openMixPicker(value);
-      }
+  // Step 1 of 2: a screen of its own rather than the app's generic text
+  // popup - naming the mix is where the playlist starts, so it gets the same
+  // treatment as the step after it. Create goes to the topics; Save there
+  // makes the mix.
+  // ---------------- Mix covers ----------------
+  // Picked like a profile photo - choose a file, then move and scale it in
+  // the same editor - but square, because a mix is a folder, not a face.
+  // `coverFor` is which mix the chosen photo is for: "new" on the naming
+  // screen (held until the mix is saved), or a mix id.
+  var COVER_PX = 360;
+  var newMixCover = "";
+  var coverFor = null;
+
+  function coverTapped(target){
+    coverFor = target;
+    var has = target === "new" ? !!newMixCover : !!((mixById(target) || {}).cover);
+    if(!has){ chooseCoverFile(); return; }
+    showActionSheet([
+      { label: "Choose a different photo", action: chooseCoverFile },
+      { label: "Remove cover", danger: true, action: function(){ applyCover(target, ""); } }
+    ]);
+  }
+  function chooseCoverFile(){
+    var input = document.getElementById("coverFile");
+    if(input) input.click();
+  }
+  function coverChosen(input){
+    var file = input.files && input.files[0];
+    input.value = "";
+    if(!file) return;
+    var target = coverFor;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var scale = Math.min(1, AVATAR_SOURCE_PX / Math.max(img.width, img.height));
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        openPhotoEditor(canvas.toDataURL("image/jpeg", 0.9), {
+          square: true, px: COVER_PX, title: "Position your cover",
+          onSave: function(cropped){ applyCover(target, cropped); }
+        });
+      };
+      img.onerror = function(){ toast("That file is not an image FAM can read"); };
+      img.src = reader.result;
+    };
+    reader.onerror = function(){ toast("Could not read that file"); };
+    reader.readAsDataURL(file);
+  }
+  function applyCover(target, dataUrl){
+    if(target === "new"){
+      newMixCover = dataUrl;
+      paintNewMixCover();
+      return;
+    }
+    saveMix("PATCH", "/api/mixes/" + target, { cover: dataUrl }, function(saved){
+      if(currentMixId === saved.id) rerenderMixKeepScroll(saved);
+      toast(dataUrl ? "Cover updated" : "Cover removed");
     });
+  }
+  function paintNewMixCover(){
+    var f = document.getElementById("nmFolder");
+    f.classList.toggle("has-cover", !!newMixCover);
+    f.style.backgroundImage = newMixCover ? "url(" + newMixCover + ")" : "";
+    document.getElementById("nmCoverHint").textContent =
+      newMixCover ? "Tap to change the cover" : "Tap to add a cover photo";
+  }
+  function coverStyle(m){
+    return m && m.cover ? ' style="background-image:url(' + m.cover + ')"' : '';
+  }
+
+  var NEW_MIX_PICKS = ["Morning commute", "At the gym", "Game day", "Lunch break", "Wind down", "Weekend catch-up"];
+
+  function openNewMix(prefill){
+    var box = document.getElementById("nmInput");
+    var returning = typeof prefill === "string";
+    if(!returning) newMixCover = "";
+    paintNewMixCover();
+    box.value = returning ? prefill : "";
+    onNewMixName();
+    navigate("newmix");
+    setTimeout(function(){ box.focus(); }, 80);
+  }
+  function onNewMixName(){
+    var box = document.getElementById("nmInput");
+    var v = box.value.trim();
+    var prev = document.getElementById("nmPreview");
+    prev.textContent = v || "Your mix";
+    prev.classList.toggle("empty", !v);
+    document.getElementById("nmCount").textContent = box.value.length + " / 40";
+    document.getElementById("nmCreate").disabled = !v;
+    document.getElementById("nmChips").innerHTML = NEW_MIX_PICKS.map(function(n){
+      return '<button class="nm-chip' + (n === v ? " on" : "") + '" onclick="pickNewMixName(this.textContent)">'
+        + escapeHtml(n) + '</button>';
+    }).join("");
+  }
+  function pickNewMixName(n){
+    var box = document.getElementById("nmInput");
+    box.value = n;
+    onNewMixName();
+  }
+  // Abandoning the naming screen abandons its cover too, so it cannot ride
+  // along on the next mix made some other way.
+  function cancelNewMix(){ newMixCover = ""; openPlayFAM(); }
+  function confirmNewMix(){
+    var value = document.getElementById("nmInput").value.trim();
+    if(!value){ document.getElementById("nmInput").focus(); return; }
+    if(mixes.some(function(m){ return m.name.toLowerCase() === value.toLowerCase(); })){
+      toast("You already have a mix called " + value);
+      return;
+    }
+    pickerMixId = null;
+    pickerNewName = value;
+    pickerSelection = [];
+    pickerFocus = {};
+    pickerAll = {};
+    pickerOpenFocus = null;
+    openMixPicker(value);
   }
 
   function useStarterMix(i){
@@ -6054,6 +6640,13 @@
     pickerMixId = null;
     pickerNewName = st.name;
     pickerSelection = st.topic_ids.slice();
+    // A fresh mix: nothing carried over from a naming screen or a picker
+    // somebody walked away from - not a cover, and not a team they had
+    // narrowed a topic to.
+    newMixCover = "";
+    pickerFocus = {};
+    pickerAll = {};
+    pickerOpenFocus = null;
     openMixPicker(st.name);
   }
 
@@ -6062,9 +6655,21 @@
     if(!m) return;
     pickerMixId = m.id;
     pickerNewName = m.name;
-    pickerSelection = (m.items || []).map(function(i){
-      return i.custom ? { id: i.id, query: i.query, title: i.title } : i.id;
+    pickerFocus = {};
+    pickerAll = {};
+    pickerOpenFocus = null;
+    pickerSelection = [];
+    var whole = {};
+    (m.items || []).forEach(function(i){
+      if(i.custom){ pickerSelection.push({ id: i.id, query: i.query, title: i.title }); return; }
+      var sp = splitFocusId(i.id);
+      if(pickerSelection.indexOf(sp.base) === -1) pickerSelection.push(sp.base);
+      if(sp.focus.length){
+        var list = pickerFocus[sp.base] || (pickerFocus[sp.base] = []);
+        sp.focus.forEach(function(f){ if(list.indexOf(f) === -1) list.push(f); });
+      } else whole[sp.base] = true;
     });
+    Object.keys(whole).forEach(function(b){ if(pickerFocus[b]) pickerAll[b] = true; });
     openMixPicker(m.name);
   }
 
@@ -6072,8 +6677,63 @@
     document.getElementById("pickerTitle").textContent = name;
     var box = document.getElementById("pickerSearch");
     if(box) box.value = "";
+    pickerFilter = null;
+    renderPickerChips();
     renderMixPicker();
     navigate("mixpicker");
+    ensureFollowCatalogue(function(){ renderPickerChips(); renderMixPicker(); });
+    // The chips are the listener's own interests - the same ones on their
+    // profile. Fetch the profile if it has not been opened yet this session.
+    if(!(profileNow && profileNow.interests_shown)){
+      fetch("/api/profile").then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(p){
+          if(!p) return;
+          profileNow = profileNow ? Object.assign(profileNow, { interests_shown: p.interests_shown })
+                                  : p;
+          renderPickerChips();
+        }).catch(function(){});
+    }
+  }
+
+  // ---------------- Interest filters on the picker ----------------
+  // The chosen chip, as "kind:id", or null for All. A key rather than an
+  // index: the chips change from the broad facets to the listener's own
+  // interests when /api/profile answers, and an index would then point at a
+  // different chip.
+  var pickerFilter = null;
+  function pickerRowKey(r){ return r.kind + ":" + r.id; }
+  function pickerFilterRow(){
+    if(pickerFilter === null) return null;
+    return pickerInterests().filter(function(r){ return pickerRowKey(r) === pickerFilter; })[0] || null;
+  }
+
+  function pickerInterests(){
+    var rows = (profileNow && profileNow.interests_shown) || [];
+    if(rows.length) return rows.slice(0, 8);
+    // No interests yet: the broad categories, so the row is never empty.
+    var labels = famTagLabels();
+    return Object.keys(labels).map(function(g){ return { id: g, label: labels[g], kind: "facet" }; });
+  }
+
+  function renderPickerChips(){
+    var el = document.getElementById("pickerChips");
+    if(!el) return;
+    var rows = pickerInterests();
+    el.innerHTML = '<button class="pk-chip' + (pickerFilter === null ? " on" : "") + '" '
+      + 'onclick="setPickerFilter(null)">All</button>'
+      + rows.map(function(r){
+          return '<button class="pk-chip' + (pickerFilter === pickerRowKey(r) ? " on" : "") + '" '
+            + 'data-key="' + escapeHtml(pickerRowKey(r)) + '" '
+            + 'onclick="setPickerFilter(this.dataset.key)">' + escapeHtml(r.label) + '</button>';
+        }).join("");
+  }
+
+  function setPickerFilter(key){
+    pickerFilter = (key === null || pickerFilter === key) ? null : key;
+    renderPickerChips();
+    renderMixPicker();
+    var body = document.getElementById("pickerBody");
+    if(body) body.scrollTop = 0;
   }
 
   // What the listener has chosen: bank ids as strings, typed topics as
@@ -6116,77 +6776,227 @@
   }
 
   function renderMixPicker(){
-    if(!topicBank || !topicBank.length){
-      document.getElementById("pickerCount").textContent = "";
-      document.getElementById("pickerBody").innerHTML =
-        '<div class="mix-empty">Could not load the topic list. '
-        + '<span style="color:var(--copper);cursor:pointer" onclick="reloadTopicBank()">Try again</span></div>';
-      return;
-    }
+    var cat = followCatalogue();
     var term = (document.getElementById("pickerSearch") || {}).value || "";
     term = term.trim().toLowerCase();
 
-    document.getElementById("pickerCount").textContent = pickerSelection.length
-      ? pickerSelection.length + (pickerSelection.length === 1 ? " topic chosen" : " topics chosen")
-      : "Nothing chosen yet.";
+    var nBrief = pickerPayload().length;
+    document.getElementById("pickerCount").textContent = nBrief
+      ? nBrief + (nBrief === 1 ? " briefing" : " briefings") + " a day \u00b7 each one written fresh"
+      : "Pick the topics you want a fresh briefing on every day.";
 
     var html = "";
 
-    // Offer the typed question first, so the fastest path is always "type it
-    // and hit add" rather than "read the list, fail to find it, give up".
+    // Anything typed is a valid topic to follow - the list is a shortcut.
+    // Held back and placed under any team/company match, which is the more
+    // likely meaning of "eagles" than a topic of its own.
+    var typedOffer = "";
     if(term){
       var typedId = "typed:" + term;
       var already = selectionIndex(typedId) !== -1;
-      html += '<div class="mix-topic typed-offer' + (already ? " chosen" : "") + '" '
+      typedOffer += '<div class="mix-topic typed-offer' + (already ? " chosen" : "") + '" '
         + 'onclick="addTypedMixTopic()">'
         + '<div class="mix-topic-body">'
         + '<div class="mix-topic-title">' + escapeHtml(document.getElementById("pickerSearch").value.trim()) + '</div>'
-        + '<div class="mix-topic-sub">' + (already ? "Already in this mix" : "Add this as your own topic") + '</div>'
+        + '<div class="mix-topic-sub">' + (already ? "Already in this mix" : "Follow this as your own topic") + '</div>'
         + '</div>'
         + '<div class="mix-topic-act">' + (already ? "\u2713" : "+") + '</div>'
         + '</div>';
     }
 
-    // Then anything the listener already typed into this mix.
-    var typed = typedSelections();
-    if(typed.length){
-      html += '<div class="mix-meta" style="margin:14px 0 8px;">Your own topics</div>';
-      html += typed.map(function(sel){
-        return '<div class="mix-topic chosen" onclick="toggleMixTopic(\'' + sel.id + '\')">'
+    // What is already in the mix that the list below does not show: typed
+    // topics, and older episodes from before mixes followed topics.
+    var extra = pickerSelection.filter(function(sel){
+      return typeof sel !== "string" || sel.indexOf("f:") !== 0;
+    });
+    if(extra.length){
+      html += '<div class="mix-meta" style="margin:14px 0 8px;">Also in this mix</div>';
+      html += extra.map(function(sel){
+        var id = typeof sel === "string" ? sel : sel.id;
+        var b = typeof sel === "string" ? bankById(sel) : null;
+        var title = typeof sel === "string" ? (b ? b.title : sel) : sel.title;
+        // By data attribute: a typed topic's id is what they typed, and a
+        // quote or a backslash inside a quoted onclick argument is a row
+        // that cannot be removed.
+        return '<div class="mix-topic chosen" data-id="' + escapeHtml(id) + '" '
+          + 'onclick="toggleMixTopic(this.dataset.id)">'
           + '<div class="mix-topic-body">'
-          + '<div class="mix-topic-title">' + escapeHtml(sel.title) + '</div>'
-          + '<div class="mix-topic-sub">Added by you</div>'
+          + '<div class="mix-topic-title">' + escapeHtml(title) + '</div>'
+          + '<div class="mix-topic-sub">' + (typeof sel === "string" ? "Earlier pick" : "Added by you") + '</div>'
           + '</div><div class="mix-topic-act">\u2713</div></div>';
       }).join("");
     }
 
-    var matches = topicBank.filter(function(t){
-      if(!term) return true;
-      return (t.title + " " + t.subtitle + " " + t.query).toLowerCase().indexOf(term) !== -1;
+    // Search reaches inside topics too: "Eagles" finds NFL · Eagles, so a
+    // listener who thinks in teams never has to know which topic holds one.
+    var hits = [];
+    if(term && term.length >= 2){
+      followRanked().forEach(function(c){
+        focusHint(c.id).pick.forEach(function(p){
+          if(p.toLowerCase().indexOf(term) !== -1 && c.id !== "sports") hits.push({ c: c, p: p });
+        });
+      });
+      hits = hits.slice(0, 5);
+      if(hits.length){
+        html += '<div class="mix-meta" style="margin:14px 0 8px;">Teams, companies &amp; more</div>';
+        html += hits.map(function(hit){
+          var fid = "f:" + hit.c.id;
+          var on = selectionIndex(fid) !== -1 && (pickerFocus[fid] || []).indexOf(hit.p) !== -1;
+          return followRowHTML(hit.c, on,
+            on ? "" : "followWithFocus(\'" + fid + "\', this.dataset.v)",
+            '<div class="mix-topic-act">' + (on ? "\u2713" : "+") + '</div>',
+            on ? "Following in " + hit.c.label : hit.c.label + " \u00b7 follow just this")
+            .replace('<div class="mix-topic', '<div data-v="' + escapeHtml(hit.p) + '" class="mix-topic')
+            .replace('<div class="mix-topic-title">' + escapeHtml(hit.c.label),
+                     '<div class="mix-topic-title">' + escapeHtml(hit.p));
+        }).join("");
+      }
+    }
+    if(typedOffer){
+      if(hits.length) html += '<div class="mix-meta" style="margin:14px 0 8px;">Or your own</div>';
+      html += typedOffer;
+    }
+
+    var matches = followRanked().filter(function(c){
+      return !term || c.label.toLowerCase().indexOf(term) !== -1;
     });
-    if(matches.length){
-      // Says what the order actually is. "Suggested topics" over a list
-      // nobody had ranked was a claim the screen could not back, which is the
-      // same failure as a profile inventing a number - smaller, and the same
-      // shape. `personalised` comes from the server and is false for a
-      // listener who has expressed no preference, in which case the order is
-      // the bank's own and the heading says so.
+    var filterRow = pickerFilterRow();
+    if(filterRow){
+      matches = matches.filter(function(c){
+        // A pinned facet can arrive labelled as a topic; it is still a facet.
+        if(filterRow.kind === "topic" && !famTagLabels()[filterRow.id]){
+          var own = followById(filterRow.id);
+          if(own && own.id === c.id) return true;
+          // Same broad area as the interest (Soccer -> other Sport topics).
+          var ft = facetsOf(own ? own.tags : []), cf = facetsOf(c.tags);
+          return Object.keys(cf).some(function(k){ return ft[k]; });
+        }
+        return !!facetsOf(c.tags)[filterRow.id];
+      });
+    }
+    if(!cat.length){
+      html += '<div class="mix-empty">Could not load the topic list. Type a topic above to follow it.</div>';
+    } else if(!matches.length && !hits.length){
+      html += '<div class="mix-empty" style="margin-top:14px;">No topics'
+        + (filterRow ? ' in ' + escapeHtml(filterRow.label) : '') + (term ? ' match that' : '')
+        + '. Follow it as your own topic above' + (filterRow ? ', or tap All' : '') + '.</div>';
+    } else if(matches.length){
       html += '<div class="mix-meta" style="margin:14px 0 8px;">'
-        + (term ? "Matching topics"
-                : (topicBankRanked ? "Suggested for you" : "All topics")) + '</div>';
-      html += matches.map(function(t){
-        var on = selectionIndex(t.id) !== -1;
-        return '<div class="mix-topic' + (on ? " chosen" : "") + '" '
-          + 'onclick="toggleMixTopic(\'' + t.id + '\')">'
-          + '<div class="mix-topic-body">'
-          + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
-          + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle) + '</div>'
-          + '</div>'
-          + '<div class="mix-topic-act">' + (on ? "\u2713" : "+") + '</div>'
+        + (filterRow ? escapeHtml(filterRow.label) + " topics" + (term ? " \u00b7 matching" : "")
+           : term ? "Matching topics" : "Topics to follow") + '</div>';
+      html += matches.map(function(c){
+        var fid = "f:" + c.id, on = selectionIndex(fid) !== -1;
+        var catLabel = facetLabel(c.tags);
+        if(!on){
+          return followRowHTML(c, false, "toggleMixTopic(\'" + fid + "\')",
+            '<div class="mix-topic-act">+</div>', catLabel || "Topic");
+        }
+        var focus = pickerFocus[fid] || [];
+        var open = pickerOpenFocus === fid;
+        var sub = focus.length
+          ? focus.join(", ") + (pickerAll[fid] ? " + all " + c.label : "")
+          : "All " + c.label;
+        return '<div class="fol-wrap' + (open ? " open" : "") + '">'
+          + followRowHTML(c, true, "toggleMixTopic(\'" + fid + "\')",
+              '<div class="mix-topic-act">\u2713</div>', sub)
+          + focusPanelHTML(c, fid, focus, open)
           + '</div>';
       }).join("");
     }
     document.getElementById("pickerBody").innerHTML = html;
+  }
+
+  // Under a followed topic: collapsed, one line saying what it covers and a
+  // way in; open, the chosen specifics, suggestions, and a box for your own.
+  function focusPanelHTML(c, fid, focus, open){
+    var h = focusHint(c.id);
+    var q = "\'" + fid + "\'";
+    if(!open){
+      return '<button class="focus-bar" onclick="openFocus(' + q + ')">'
+        + '<span class="focus-bar-l">' + (focus.length ? "Narrowed to" : "Narrow it down") + '</span>'
+        + '<span class="focus-bar-v">' + escapeHtml(focus.length
+            ? focus.join(", ") + (pickerAll[fid] ? " + all " + c.label : "")
+            : (h.pick[0] ? "e.g. " + h.pick[0] : "Optional")) + '</span>'
+        + '<span class="focus-bar-go">' + (focus.length ? "Edit" : "+") + '</span></button>';
+    }
+    var picks = h.pick.filter(function(p){ return focus.indexOf(p) === -1; });
+    return '<div class="focus-panel">'
+      + '<div class="focus-q">Anything specific in ' + escapeHtml(c.label) + '?</div>'
+      + '<div class="focus-help">Each ' + escapeHtml(h.noun) + ' you pick gets its own daily briefing. '
+      + 'Leave it empty to hear all of ' + escapeHtml(c.label) + '.</div>'
+      + (focus.length ? '<div class="focus-chosen">' + focus.map(function(f, i){
+          return '<button class="focus-chip on" onclick="removeFocus(' + q + ',' + i + ')" aria-label="Remove '
+            + escapeHtml(f) + '">' + escapeHtml(f) + '<span aria-hidden="true">\u00d7</span></button>';
+        }).join("") + '</div>' : '')
+      + (picks.length ? '<div class="focus-sugg">' + picks.map(function(p){
+          return '<button class="focus-chip" onclick="addFocus(' + q + ',this.dataset.v)" data-v="'
+            + escapeHtml(p) + '">' + escapeHtml(p) + '</button>';
+        }).join("") + '</div>' : '')
+      + (focus.length ? focusAllHTML(c, !!pickerAll[fid], "togglePickerAll(" + q + ")") : '')
+      + '<div class="focus-row">'
+      + '<input class="focus-input" id="focusInput" type="text" autocomplete="off" '
+      + 'placeholder="Type a ' + escapeHtml(h.noun) + (h.pick[0] ? ', e.g. ' + escapeHtml(h.pick[0]) : '') + '" '
+      + 'onkeydown="if(event.key===\'Enter\'){ addFocus(' + q + ', this.value); }">'
+      + '<button class="focus-done" onclick="closeFocus()">Done</button>'
+      + '</div></div>';
+  }
+
+  function followWithFocus(fid, value){
+    // Already following the whole of it: adding a team from search keeps
+    // the whole topic as a briefing of its own rather than swapping it out.
+    if(selectionIndex(fid) !== -1 && !(pickerFocus[fid] || []).length) pickerAll[fid] = true;
+    if(selectionIndex(fid) === -1) pickerSelection.push(fid);
+    addFocus(fid, value, true);
+    var box = document.getElementById("pickerSearch");
+    if(box) box.value = "";
+    pickerOpenFocus = fid;
+    renderMixPicker();
+    toast("Following " + value);
+  }
+
+  function openFocus(fid){ pickerOpenFocus = fid; renderMixPicker(); }
+
+  // "NFL · Eagles" and plain "NFL" side by side: the switch that adds the
+  // whole topic back as a briefing of its own.
+  function focusAllHTML(c, on, onclick){
+    return '<button class="focus-all' + (on ? " on" : "") + '" role="switch" aria-checked="' + on + '" onclick="' + onclick + '">'
+      + '<span><b>Also all of ' + escapeHtml(c.label) + '</b>'
+      + '<small>A separate briefing on the whole topic</small></span><span class="sw"></span></button>';
+  }
+  function togglePickerAll(fid){
+    pickerAll[fid] = !pickerAll[fid];
+    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
+    renderMixPicker();
+    if(body) body.scrollTop = top;
+  }
+  function closeFocus(){
+    var box = document.getElementById("focusInput");
+    if(box && box.value.trim() && pickerOpenFocus){ addFocus(pickerOpenFocus, box.value, true); }
+    pickerOpenFocus = null;
+    renderMixPicker();
+  }
+  function addFocus(fid, value, silent){
+    var v = String(value || "").trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
+    if(!v) return;
+    var list = pickerFocus[fid] || (pickerFocus[fid] = []);
+    if(list.map(function(x){ return x.toLowerCase(); }).indexOf(v.toLowerCase()) === -1){
+      if(list.length >= 3){ toast("Up to 3 per topic"); return; }
+      list.push(v);
+    }
+    if(silent) return;
+    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
+    renderMixPicker();
+    if(body) body.scrollTop = top;
+    var box = document.getElementById("focusInput");
+    if(box) box.focus();
+  }
+  function removeFocus(fid, i){
+    var list = pickerFocus[fid] || [];
+    list.splice(i, 1);
+    if(!list.length) delete pickerAll[fid];
+    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
+    renderMixPicker();
+    if(body) body.scrollTop = top;
   }
 
   function reloadTopicBank(){
@@ -6202,27 +7012,51 @@
 
   function toggleMixTopic(id){
     var at = selectionIndex(id);
-    if(at === -1) pickerSelection.push(id); else pickerSelection.splice(at, 1);
+    if(at === -1){
+      pickerSelection.push(id);
+      // Just followed: open "narrow it down" right away, where there is
+      // something useful to suggest.
+      if(String(id).indexOf("f:") === 0) pickerOpenFocus = id;
+    } else {
+      pickerSelection.splice(at, 1);
+      delete pickerFocus[id];
+      delete pickerAll[id];
+      if(pickerOpenFocus === id) pickerOpenFocus = null;
+    }
+    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
     renderMixPicker();
+    if(body) body.scrollTop = top;
   }
 
   function cancelMixPicker(){
-    if(pickerMixId) openMix(pickerMixId); else openPlayFAM();
+    if(pickerMixId) openMix(pickerMixId); else openNewMix(pickerNewName);
   }
 
+  // One briefing per specific: following NFL with Eagles and Chiefs is two
+  // briefings, "NFL · Eagles" and "NFL · Chiefs", plus "NFL" itself when the
+  // listener also wants the whole league.
   function pickerPayload(){
-    return pickerSelection.map(function(sel){
-      return typeof sel === "string" ? sel : { query: sel.query, title: sel.title };
+    var out = [];
+    pickerSelection.forEach(function(sel){
+      if(typeof sel !== "string"){ out.push({ query: sel.query, title: sel.title }); return; }
+      if(sel.indexOf("f:") !== 0){ out.push(sel); return; }
+      var focus = pickerFocus[sel] || [];
+      if(!focus.length){ out.push(sel); return; }
+      focus.forEach(function(f){ out.push(joinFocusId(sel, [f])); });
+      if(pickerAll[sel]) out.push(sel);
     });
+    return out;
   }
 
   function saveMixPicker(){
+    var fbox = document.getElementById("focusInput");
+    if(fbox && fbox.value.trim() && pickerOpenFocus) addFocus(pickerOpenFocus, fbox.value, true);
     if(pickerMixId){
       saveMix("PATCH", "/api/mixes/" + pickerMixId, { topic_ids: pickerPayload() },
               function(m){ openMix(m.id); });
     } else {
       saveMix("POST", "/api/mixes",
-              { name: pickerNewName, topic_ids: pickerPayload() },
+              { name: pickerNewName, topic_ids: pickerPayload(), cover: newMixCover },
               function(m){ openMix(m.id); });
     }
   }
@@ -7555,7 +8389,15 @@
   //           the square is never uncovered
   var photo = { img: null, stage: 0, base: 1, zoom: 1, ox: 0, oy: 0 };
 
-  function openPhotoEditor(source){
+  // `opts` makes the same editor crop a mix cover: square rather than a
+  // circle, its own title and size, and the result handed back to the caller
+  // rather than saved as the avatar.
+  function openPhotoEditor(source, opts){
+    opts = opts || {};
+    photo.onSave = opts.onSave || null;
+    photo.px = opts.px || 0;
+    document.getElementById("photoOverlay").classList.toggle("cover-mode", !!opts.square);
+    document.getElementById("photoTitle").textContent = opts.title || "Move and scale";
     var img = new Image();
     img.onload = function(){
       var stageEl = document.getElementById("photoStage");
@@ -7649,15 +8491,19 @@
   function savePhotoCrop(){
     if(!photo.img){ closePhotoEditor(); return; }
     var k = photoScale();
-    var ratio = AVATAR_PX / photo.stage;
+    var px = photo.px || AVATAR_PX;
+    var ratio = px / photo.stage;
     var canvas = document.createElement("canvas");
-    canvas.width = canvas.height = AVATAR_PX;
+    canvas.width = canvas.height = px;
     var ctx = canvas.getContext("2d");
     // The same numbers the preview is painted from, in crop pixels.
     ctx.drawImage(photo.img, photo.ox * ratio, photo.oy * ratio,
                   photo.img.width * k * ratio, photo.img.height * k * ratio);
     var cropped = canvas.toDataURL("image/jpeg", 0.85);
+    var onSave = photo.onSave;
     closePhotoEditor();
+    photo.onSave = null;
+    if(onSave){ onSave(cropped); return; }
     saveAvatar(cropped);
   }
 
@@ -10224,14 +11070,10 @@
               // A cancelled share sheet is not a failure and must not be
               // reported as one - it is somebody changing their mind.
               if(err && err.name === "AbortError") return;
-              downloadBlob(blob, "fam-episode.png");
-              copyQuietly(t.text);
-              toast("Card saved \u2014 the words are on your clipboard");
+              return saveCardInstead(blob, t);
             });
         }
-        downloadBlob(blob, "fam-episode.png");
-        copyQuietly(t.text);
-        toast("Card saved \u2014 the words are on your clipboard");
+        return saveCardInstead(blob, t);
       })
       .catch(function(err){
         // Visible, like every other failure here. A share that appears to do
@@ -10265,7 +11107,46 @@
     });
   }
 
+  // The fallback when there is no share sheet to hand the card to. "Card
+  // saved" is said only once something was actually saved: the words go on
+  // the clipboard either way, and a save the listener declined is their
+  // decision, not a failure.
+  function saveCardInstead(blob, t){
+    copyQuietly(t.text);
+    return downloadBlob(blob, "fam-episode.png").then(function(saved){
+      toast(saved ? "Card saved \u2014 the words are on your clipboard"
+                  : "Not saved \u2014 the words are on your clipboard");
+    });
+  }
+
+  // Inside a claude.ai artifact the page runs in a frame that may not start
+  // a download itself, so a plain `<a download>` does nothing there - and a
+  // toast saying "Card saved" over nothing is the failure this project keeps
+  // paying for. The viewer offers the `downloads` capability instead, which
+  // asks the viewer to confirm. Asked for at load so the answer is ready by
+  // the time somebody shares; everywhere else (the real server, a phone)
+  // there is no `window.claude` and this is null.
+  var famDownloads = (window.claude && typeof window.claude.use === "function")
+    ? Promise.resolve(window.claude.use("downloads")).catch(function(){ return null; })
+    : Promise.resolve(null);
+
+  // Resolves true once the file was handed over, false if the viewer
+  // declined; rejects with a sentence when it could not be saved at all.
   function downloadBlob(blob, filename){
+    return famDownloads.then(function(downloads){
+      if(downloads){
+        return downloads.save({ filename: filename, data: blob }).then(
+          function(){ return true; },
+          function(err){
+            if(err && err.code === "declined") return false;
+            throw new Error("The card could not be saved here");
+          });
+      }
+      anchorDownload(blob, filename);
+      return true;
+    });
+  }
+  function anchorDownload(blob, filename){
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url; a.download = filename;

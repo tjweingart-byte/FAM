@@ -11140,3 +11140,185 @@ others, or in the pool). `ALGO_VERSION` is `2026-09-23.3`.
 **Unmeasured.** How many tiles on a real page are cached is a fact about a
 deployment's traffic. The `cached` flag on every tile already says it per
 page; nothing aggregates it yet.
+
+## 137. DailyFAM mixes follow subjects, narrowed, with a cover
+
+The owner's prototype handoff (`dailyfam-mixes-handoff`, prototype v118),
+ported from the built file into the sources that build it. The handoff said
+it plainly: a rebuild from the repo had already overwritten these changes
+once, and would again until they lived in source.
+
+### What changed for a listener
+
+- **`+` opens a naming screen** (`#screen-newmix`, step 1 of 2): quick-pick
+  names, a folder preview, and a **cover photo** chosen through the avatar's
+  own move-and-scale editor, square. Create goes to the topics and makes
+  nothing; **Save** on the topics page makes the mix. An empty mix is never
+  created, and Back from the topics keeps the name and the cover.
+- **The picker offers subjects to follow, not bank episodes.** Catalogue
+  subjects (Soccer, NFL, Stocks & Economy...), under a row of the listener's
+  own interests as filter chips. A bank episode is one story; a mix is a list
+  of things somebody wants a new episode on every day.
+- **Following a subject asks "Anything specific in NFL?" at once**, with
+  suggested teams and a free-text box, up to three. **Each specific is its
+  own daily briefing**, and "Also all of NFL" adds the whole subject as a
+  separate one. Search reaches into the specifics: "eagles" offers
+  Eagles - NFL.
+- **The mix page** has the cover and name, a dated "Today's edition", and
+  **Recommended topics**: five subjects to follow, ranked by what the mix
+  already follows, with Shuffle, on every visit. `+` on one opens the same
+  "anything specific?" panel before it is followed.
+- **Every play is that day's edition.** A followed or typed item asks for
+  "The latest on Eagles (NFL) as of Wednesday, September 23, 2026. Cover only
+  Eagles, not NFL in general: ...". Cards count briefings, not topics.
+
+### Where the handoff's shortcuts went
+
+- **The contract is the server's now.** `mixes.py` accepts `f:<catalogue
+  id>` and `f:<catalogue id>~<url-encoded focus>`, validates the subject
+  against `topics.CATALOGUE_BY_ID`, cleans the focus (`,` `~` `|` become
+  spaces, 40 characters), rebuilds the id the way `encodeURIComponent` does
+  so the page and the store agree on the string, and stores a **cover** as a
+  data URL on the row: images only, base64 checked, `MAX_COVER_CHARS`. Bank
+  ids still validate and play, so no existing mix breaks.
+- **`window.FAM_TAGS` is gone.** The catalogue, `tag_parent` and
+  `tag_labels` come off `/api/preferences`, which the client already loads
+  into `PREF_CHOICES`; the mix page and the picker fetch it if a listener
+  arrived without it.
+- **`FOCUS_HINTS` moved into `topics.py`** (the handoff's own follow-up) and
+  rides on each catalogue entry as `focus_noun` and `focus_picks`, so the iOS
+  app gets the same suggestions and there is one list to edit.
+- **The daily prompt is built once, on the server.** `mixes.daily_prompt`
+  returns it with `{date}` left open, on every item as `daily_prompt`; the
+  page fills in the listener's local date and `MixSource` fills in the
+  server's. The prototype built it in the page, which would have left
+  prefetch warming the bare subject ("NFL") under a key no tap ever asks for.
+  It picks the longest ending that fits `MAX_PROMPT` (300), because
+  `/api/next`, a vibe and a saved item all cap a query there.
+- **The cache worry in the handoff (§4) does not apply to the server.** It
+  was about the prototype's mock, which cut the key at sixty characters.
+  `cache.normalize_query` keeps every token, so the date is in the key, and
+  the near-match cache refuses any pair whose numbers differ.
+  `test_yesterdays_briefing_is_never_todays` pins both. The same day's
+  briefing is shared between listeners who follow the same thing, which is
+  the shared-cost design working.
+- **One fix the handoff did not have:** a mix row's play button carried the
+  item id inside a quoted `onclick`, and a focus like `O'Brien` is a button
+  that throws. It reads a `data-id` now.
+- The two preview shims share `MIX_ITEMS_JS`, with every phrase and limit
+  injected from `mixes.py`, and the fixture mixes are built through
+  `mixes.clean_items` rather than written by hand.
+
+### Still true, and worth knowing
+
+- **Nobody has heard a daily-edition episode.** There is no key here; the
+  prompt wording is the handoff's, untested against real output.
+- **Prefetch dates on the server's clock**, so a listener whose local day
+  differs from the server's misses the warmed brief. A wasted warm, never a
+  stale episode.
+- A typed topic is followed the same way ("The latest on Stanford as of..."),
+  which reads oddly for a question rather than a subject. That was the
+  handoff's decision and is kept.
+- Covers are inline on the mix row. If they ever move to object storage,
+  `mixes.clean_cover` is where the URL comes back instead.
+
+## 138. A smoke check that sampled a 450ms window, and a card that said "saved" over nothing
+
+Both left open at the end of §137, both fixed.
+
+### "Searching shows the loading screen" failed one run in four
+
+The loading screen is up from the tap until audio arrives and is held for at
+least `GEN_MIN_VISIBLE_MS` (450). The preview's audio is immediate, so the
+screen is up for about 450ms. The check looked once, 400ms after the tap: a
+50ms margin, which a loaded machine (the full `./dev.sh check`) overshot, so
+it reported a missing screen that had been shown and correctly taken down.
+
+It watches now. A `MutationObserver` installed before the tap records that
+the screen came up, what it said, and, once it comes down, how long it was
+held. Proved against the case that broke it: a forced 1.5s stall after the
+tap, where the old single look sees nothing and the observer sees the whole
+of it. And it now asserts the floor itself, which the old check could not
+see.
+
+One trap found on the way, worth knowing before writing the next observer
+check: **an observer's own timestamps under-read.** Its callback runs only
+after the tap's synchronous work finishes, 35-40ms after the class went on,
+so the first measurement said the screen was held 409ms and looked like the
+floor was broken. Logging `clearGenOverlay` and `finishGenOverlay` against
+the page's clock showed audio at 36ms, the hide deferred, and the screen
+down at 451ms: the floor holds. The hold is measured against `genShownAt`,
+the page's own stamp.
+
+### The story card's fallback saved nothing inside the artifact viewer
+
+Where the share sheet cannot take a file, `shareStoryCard` saves the PNG
+with an `<a download>`. The claude.ai viewer never lets a page start a
+download, so in the published preview nothing was saved and the toast still
+said "Card saved". §51's failure, small.
+
+`downloadBlob` now asks for the viewer's `downloads` capability when
+`window.claude` exists (the viewer asks the listener to confirm) and uses the
+anchor everywhere else, which is the real server and a phone. It resolves
+true or false, so the toast says "Card saved" only when something was saved,
+and "Not saved" when the listener declined. The words go to the clipboard
+either way. The artifact is published with `downloads` declared beside `db`
+(CLAUDE.md's publish step says so).
+
+### Found reviewing the branch before merge (§137 and §138)
+
+An independent read of both sections' diff found three defects and five
+smaller ones. All are fixed:
+
+- **A photo chosen on the naming screen and abandoned rode along on the next
+  mix.** Only a starter mix could pick it up, and it did, along with any
+  team a previous picker had narrowed to. `cancelNewMix` now drops the cover
+  and `useStarterMix` starts clean. The cover smoke check asserts it.
+- **A typed topic with `"` or `\` in "Also in this mix" could not be
+  removed.** Its id went inside a quoted `onclick`. It is a `data-id` now,
+  like the mix page's play buttons.
+- **An oversized cover got a 422 the interface could not read** ("Could not
+  save that mix"). `MixRequest.cover` no longer has a pydantic `max_length`,
+  so `clean_cover` refuses it with "That photo is too large". Tested.
+- Adding a team from search to a subject already followed whole swapped the
+  whole subject out; it now keeps "all of NFL" as its own briefing.
+- The interest filter chip was an index, so it pointed at a different chip
+  once `/api/profile` answered. It is keyed on the row now.
+- A "narrow it down" panel opened under one mix stayed open under the next.
+- A pinned facet arriving labelled `kind: "topic"` filtered the picker to
+  nothing. It is treated as the facet it is.
+- `f:nfl~a|b|...` was unbounded, so another client could make a prompt past
+  the 300 characters the echo endpoints accept. At most
+  `MAX_FOCUS_PER_ITEM` (3), and `daily_prompt` drops the "cover only"
+  sentence before it overruns. Tested at the worst case.
+
+And one decision in the same spirit: **the starter mixes follow subjects
+now** (News, Stocks & Economy, AI; NFL, Basketball, Health & Fitness; Music,
+Movies & TV, Space). They were bank episodes, the one place a mix was still
+offered one-off stories.
+
+Left as it is, knowingly: covers ride inline on every `/api/mixes` list, up
+to about 50 KB each. That is fine at thirty mixes; it is the thing to move to
+`assets` or object storage if mixes ever become shared or many.
+
+### And a pacing test that measured the runner
+
+CI failed on this branch once, in `test_a_pacing_refusal_carries_no_quota`,
+code this branch never touched, on a run that took 19m50s where ten minutes
+is usual. The limiter refills one start per `RATE_LIMIT_SECONDS` (3s), and
+the test's first request streams a whole placeholder episode before the
+second is sent. On a runner slow enough, the bucket refilled in between and
+the second request was admitted: `assert 200 == 429`. Reproduced exactly by
+making the refill shorter than the first request, which is all a slow runner
+is. The same test passes in 0.73s here.
+
+The test and the three with the same shape (`test_demo_and_limits.py` x2,
+`test_rate_limit_production.py` x2, every one that expects a pace refusal)
+now pin `rate_limit_seconds=3600` beside `rate_limit_burst`, so what they
+assert is the rule rather than the machine's speed. The one sibling that
+asserts *no* refusal is left alone; a refill can only help it.
+
+One trap on the way: `RATE_LIMIT_SECONDS=0.001` in the environment does not
+reach the test - the suite's own setup puts the setting back to 3.0 - so a
+reproduction that sets the environment variable passes and proves nothing.
+Set it on `settings` inside the test.

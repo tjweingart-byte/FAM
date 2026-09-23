@@ -205,23 +205,20 @@ def load_fixtures() -> dict:
             for index, tile in enumerate(row["topics"]):
                 tile["cached"] = index < 3
 
-    def mix(mix_id, name, ids, typed=(), public=False):
-        items = [dict(by_id[i], query=by_id[i]["query"], custom=False) for i in ids]
-        items += [{"id": "q:" + t.lower().replace(" ", "")[:10], "title": t, "query": t,
-                   "custom": True, "subtitle": "Added by you", "icon": "leaf"} for t in typed]
-        return {"id": mix_id, "name": name, "items": items,
-                "topics": [i for i in items if not i["custom"]],
-                "topic_ids": [i["id"] for i in items if not i["custom"]],
-                "custom_count": len(typed), "public": public,
-                "created_at": 0, "updated_at": 0}
+    # Through the real `mixes.clean_items`, so a fixture mix is exactly the
+    # shape the server stores - followed subjects, one narrowed to a team and
+    # beside the whole league, an older bank episode, a typed topic (§137).
+    def mix(mix_id, name, entries, public=False):
+        return mixes_mod.Mix(mix_id, "preview", name, mixes_mod.clean_items(entries),
+                             0, 0, public).as_dict()
 
     mixes = {
         "mixes": [
-            mix("m1", "Morning", ["fed-next-move", "ai-agents", "morning-mindset"],
+            mix("m1", "Morning", ["f:stocks~Nvidia", "f:ai", "fed-next-move"],
                 public=True),
-            mix("m2", "At the gym", ["training-load", "the-trade", "habits-research"]),
-            mix("m3", "Wind down", ["sleep-science", "anxiety-loop"],
-                typed=["what my council is doing about the high street"]),
+            mix("m2", "At the gym", ["f:nfl~Eagles", "f:nfl", "f:basketball~Lakers"]),
+            mix("m3", "Wind down", ["sleep-science",
+                                    {"query": "what my council is doing about the high street"}]),
         ],
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
@@ -504,6 +501,8 @@ def load_fixtures() -> dict:
             # Imported rather than copied, like every other fixture here, so
             # the catalogue the preview shows cannot drift from the real one.
             "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
+            "tag_parent": dict(topics_mod.TAG_PARENT),
+            "tag_labels": dict(topics_mod.TAG_LABELS),
             "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
             "language_active": prefs_mod.LANGUAGE_ACTIVE,
             "account": True, "saved": True,
@@ -555,6 +554,87 @@ def load_fixtures() -> dict:
     }
 
 
+#: How a mix entry becomes an item, for both preview shims (§137). The
+#: server's own rules - `mixes.followed_item`, `mixes.daily_prompt` - in the
+#: browser, with every phrase and limit injected from `mixes.py` rather than
+#: typed here, so the one thing a shim could get wrong is the assembly.
+MIX_ITEMS_JS = r"""
+  var MIX_RULES = __MIX_RULES__;
+  function mixCleanFocus(text) {
+    return String(text).replace(/[,~|]/g, " ").replace(/\s+/g, " ").trim()
+      .slice(0, MIX_RULES.max_focus).trim();
+  }
+  function mixDailyPrompt(item) {
+    if (!(item.follow || item.custom)) return "";
+    var head;
+    if (item.focus && item.focus.length) {
+      var shown = item.focus.join(" and ");
+      head = "The latest on " + shown + " (" + item.topic_label + ") as of " + MIX_RULES.date
+        + ". Cover only " + shown + ", not " + item.topic_label + " in general";
+    } else {
+      head = "The latest on " + item.query + " as of " + MIX_RULES.date;
+    }
+    for (var i = 0; i < MIX_RULES.endings.length; i++) {
+      var whole = head + MIX_RULES.endings[i];
+      if (whole.split(MIX_RULES.date).join(MIX_RULES.longest).length <= MIX_RULES.max_prompt) return whole;
+    }
+    return head + MIX_RULES.endings[MIX_RULES.endings.length - 1];
+  }
+  // `f:nfl` or `f:nfl~Eagles`: a followed catalogue subject. null for
+  // anything else, including an id naming no subject.
+  function mixFollowItem(id, catalogue) {
+    id = String(id);
+    if (id.indexOf("f:") !== 0) return null;
+    var cut = id.indexOf("~"), base = cut === -1 ? id : id.slice(0, cut);
+    var c = catalogue.filter(function (x) { return x.id === base.slice(2); })[0];
+    if (!c) return null;
+    var focus = [];
+    (cut === -1 ? [] : id.slice(cut + 1).split("|")).forEach(function (part) {
+      var f = part;
+      try { f = decodeURIComponent(part); } catch (e) {}
+      f = mixCleanFocus(f);
+      var have = focus.map(function (x) { return x.toLowerCase(); });
+      if (f && have.indexOf(f.toLowerCase()) === -1) focus.push(f);
+    });
+    var shown = focus.join(", ");
+    var item = {
+      id: base + (focus.length ? "~" + focus.map(encodeURIComponent).join("|") : ""),
+      title: focus.length ? c.label + " \u00b7 " + shown : c.label,
+      query: c.label, custom: false,
+      subtitle: focus.length ? "Focused on " + shown + " \u00b7 new briefing every day"
+                             : "New briefing every day",
+      icon: c.icon, follow: true, base: base, focus: focus, topic_label: c.label
+    };
+    item.daily_prompt = mixDailyPrompt(item);
+    return item;
+  }
+  // A typed topic as the store keeps it: whole, up to the server's
+  // MAX_QUERY, with the commas that separate stored items taken out.
+  function mixTypedQuery(query) {
+    return String(query || "").replace(/,/g, " ").replace(/\s+/g, " ").trim()
+      .slice(0, MIX_RULES.max_query);
+  }
+  function mixTypedItem(query, title) {
+    query = String(query || "").replace(/\s+/g, " ").trim();
+    var item = { id: "q:" + query.toLowerCase().slice(0, 40), query: query,
+                 title: title || (query.charAt(0).toUpperCase() + query.slice(1)),
+                 custom: true, subtitle: "Added by you", icon: "leaf" };
+    item.daily_prompt = mixDailyPrompt(item);
+    return item;
+  }
+"""
+
+
+def mix_items_js() -> str:
+    sys.path.insert(0, str(ROOT))
+    import mixes as mixes_mod
+    return MIX_ITEMS_JS.replace("__MIX_RULES__", json.dumps({
+        "date": mixes_mod.DAILY_DATE, "longest": mixes_mod.LONGEST_DATE,
+        "max_prompt": mixes_mod.MAX_PROMPT, "max_focus": mixes_mod.MAX_FOCUS,
+        "max_query": mixes_mod.MAX_QUERY,
+        "endings": list(mixes_mod.DAILY_ENDINGS)}))
+
+
 SHIM = """
 <script>
 /* ---- Preview shim -------------------------------------------------------
@@ -567,6 +647,7 @@ SHIM = """
   var FIXTURES = __FIXTURES__;
   var SAMPLE_RATE = 22050;
   var realFetch = window.fetch.bind(window);
+__MIX_ITEMS__
   var mixes = JSON.parse(JSON.stringify(FIXTURES["/api/mixes"]));
   var nextMixId = 100;
 
@@ -1038,7 +1119,7 @@ SHIM = """
     if (path === "/api/mixes" && method === "POST") {
       var body = JSON.parse((init && init.body) || "{}");
       var made = buildMix("m" + (nextMixId++), body.name || "New mix",
-                          body.topic_ids || [], !!body.public);
+                          body.topic_ids || [], !!body.public, body.cover || "");
       mixes.mixes.push(made);
       return json(made);
     }
@@ -1051,7 +1132,8 @@ SHIM = """
       var current = mixes.mixes[at];
       mixes.mixes[at] = buildMix(id, patch.name || current.name,
         patch.topic_ids !== undefined ? patch.topic_ids : current.items,
-        patch.public !== undefined ? patch.public : current.public);
+        patch.public !== undefined ? patch.public : current.public,
+        patch.cover !== undefined ? String(patch.cover || "") : current.cover);
       return json(mixes.mixes[at]);
     }
     // Save for later. Kept in memory for the life of the page: the point of
@@ -1140,23 +1222,26 @@ SHIM = """
     return json({ error: "Not available in the preview build." }, 404);
   };
 
-  function buildMix(id, name, entries, isPublic) {
+  function buildMix(id, name, entries, isPublic, cover) {
     var bank = {};
     FIXTURES["/api/topics"].topics.forEach(function (t) { bank[t.id] = t; });
+    var catalogue = FIXTURES["/api/preferences"].catalogue;
+    var seen = {};
     var items = entries.map(function (e) {
+      if (typeof e === "string" && e.indexOf("f:") === 0) return mixFollowItem(e, catalogue);
       if (typeof e === "string") {
         var t = bank[e];
         return t ? { id: t.id, title: t.title, query: t.query, custom: false,
                      subtitle: t.subtitle, icon: t.icon } : null;
       }
       if (e && e.custom !== undefined) return e;           // already an item
-      if (e && e.query) {
-        return { id: "q:" + e.query.toLowerCase().slice(0, 24), title: e.title || e.query,
-                 query: e.query, custom: true, subtitle: "Added by you", icon: "leaf" };
-      }
+      if (e && e.query) return mixTypedItem(e.query, e.title);
       return null;
-    }).filter(Boolean);
-    return { id: id, name: name, items: items,
+    }).filter(function (i) {
+      if (!i || seen[i.id.toLowerCase()]) return false;
+      return (seen[i.id.toLowerCase()] = true);
+    });
+    return { id: id, name: name, items: items, cover: cover || "",
              topics: items.filter(function (i) { return !i.custom; }),
              topic_ids: items.filter(function (i) { return !i.custom; })
                              .map(function (i) { return i.id; }),
@@ -1209,6 +1294,7 @@ def build() -> pathlib.Path:
         at += len(line) / 15.0 + 0.35
     transcript["starts"] = starts
     shim = (SHIM.replace("__FIXTURES__", json.dumps(fixtures))
+               .replace("__MIX_ITEMS__", mix_items_js())
                .replace("__SHARE_TEMPLATES__", json.dumps([
                    {"key": t.key, "label": t.label, "kind": t.kind,
                     "needs_image": t.needs_image, "text": t.template}
