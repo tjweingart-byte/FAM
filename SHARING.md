@@ -162,7 +162,8 @@ that is the whole specification:
 * **vibes** — a vibe *is* the act of showing somebody an episode, so a list of
   them is a list of things they published;
 * **the interests they pinned**, or failing that the ones they declared and
-  have not hidden — at most four, the same number their own profile draws.
+  have not hidden — at most five (four until §133), the same number their own
+  profile draws.
 
 There is no play count, no completion total, no subjects inferred from
 behaviour and no history. What somebody has listened to is theirs. The

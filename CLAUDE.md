@@ -2298,7 +2298,9 @@ and **§131**, the embedding model finally installed and measured - no help
 to the cache on its own, used by the ranker instead - and an order for Made
 for you fitted to thirty days of taps that is only served if it beats the
 hand-tuned one; and **§132**, the audio of a cached episode kept beside its
-script so a replay never goes back to RunPod),
+script so a replay never goes back to RunPod; and **§133**, the Profile tab
+rebuilt as YourFAM from the owner's design handoff - on the real social API
+rather than the mock module the handoff asked for),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
