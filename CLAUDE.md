@@ -385,6 +385,13 @@ the rest of this list it needs taste rather than a key.
    / What your friends are listening to**, in that order - the crowd row that
    always has something in it above the one that is empty until somebody
    follows anybody.
+   **Every choosing rail runs one path** *(§136)*: taste, then the tiles
+   whose script is already written first (`ready_first`, `READY_REACH` deep,
+   never a filter), then **no repeats** against everything the listener has
+   ever heard on any surface (`topics.is_repeat`). A heard evergreen tile is
+   replaced by the next-best topic; a heard live or startup tile may come
+   back only as a different episode - a day later, and remade or unwritten.
+   Trending is exempt, by §134's rule.
    **Made for you draws on both inventories** and Trending draws only on the
    live one, because answering "what is trending" with what FAM's listeners
    have already played would make it a laggier copy of the row below it. The
