@@ -217,6 +217,17 @@ class GenerationStats:
     #: listener hears.
     marks: EpisodeMarks = field(default_factory=EpisodeMarks)
     script: list[str] = field(default_factory=list)
+    #: Where each sentence in `script` starts in the audio, in seconds - kept
+    #: with the audio (§131) so a stored replay can caption itself.
+    starts: list[float] = field(default_factory=list)
+    #: "stored" when the audio came out of the episode cache and the voice
+    #: engine was never called; "kept" when this play's audio was written
+    #: there for next time; "" otherwise.
+    audio: str = ""
+    #: The script key to keep this play's audio under, set by the path that
+    #: knows it is allowed to - "" means keep nothing. On a near hit it is the
+    #: neighbour's key, because the audio is the neighbour's script.
+    audio_key: str = ""
     #: The cache key live captions are published under while this episode is
     #: being spoken, or "" for an episode that has none (an attachment, which
     #: is deliberately uncacheable and therefore deliberately uncaptioned).
@@ -252,6 +263,7 @@ class GenerationStats:
             "truncated": self.truncated,
             "topups": self.topups,
             "cache": self.cache,
+            "audio_cache": self.audio,
             "match": self.match,
             "match_score": round(self.match_score, 3),
             "prefetched": self.prefetched,
@@ -627,6 +639,7 @@ class PodcastPipeline:
         # and give up after twelve seconds, which is nothing like how long a
         # researched ten-minute episode takes to write - see live_captions.py.
         live_captions.publish(stats.caption_key, fit.spoken, starts)
+        stats.starts.extend(starts)
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
             log.info("first audio ready after %.2fs", stats.first_audio_at)
@@ -722,6 +735,7 @@ class PodcastPipeline:
         stats.sentences += 1
         stats.words += words
         stats.script.append(sentence)
+        stats.starts.append(start)
         live_captions.publish(stats.caption_key, (sentence,), (start,))
         if not stats.first_audio_at:
             stats.first_audio_at = time.perf_counter() - stats.started_at
@@ -979,11 +993,115 @@ class PodcastPipeline:
         key = await self._cache_key(plan) if is_shareable(plan.query) else ""
         return live_captions.read_starts(key)
 
+    # ---- kept audio (§131) -------------------------------------------------
+
+    def _keeps_audio(self) -> bool:
+        """Whether this pipeline reads and writes finished audio.
+
+        A production voice only (`TTSEngine.keeps_audio`), and a cache that
+        knows how - a test double standing in for the script cache does not,
+        and must not be asked to.
+        """
+        return bool(settings.audio_cache and self.cache is not None
+                    and getattr(self.engine, "keeps_audio", False)
+                    and hasattr(self.cache, "get_audio"))
+
+    def _audio_voice(self) -> str:
+        """The voice half of an audio row's key. The engine is named even when
+        no voice was chosen, so a default that moves to a different engine is
+        a different voice rather than somebody else's audio."""
+        return self.voice or f"{self.engine.name}:default"
+
+    async def has_stored_audio(self, plan: EpisodePlan) -> bool:
+        """True when this exact episode can be played without the voice engine.
+
+        For `/api/audio` to decide whether to wake a serverless GPU: waking one
+        for an episode that will be read out of SQLite is paying for a boot
+        nobody uses. A hint only - a near match still wakes it, and it answers
+        False rather than spend a model call when the key needs one.
+        """
+        if (not self._keeps_audio() or settings.cache_semantic_key
+                or not is_shareable(plan.query) or plan.attachments):
+            return False
+        key = await self._cache_key(plan)
+        return bool(key) and self.cache.has_audio(
+            key, self._audio_voice(), self.engine.sample_rate)
+
+    async def _play_stored(self, stored, stats: GenerationStats) -> AsyncIterator[bytes]:
+        """Stream kept audio exactly as it was first streamed. No engine call.
+
+        In one-second slices rather than one blob, so it reaches the player
+        through the same streaming path, primes the same pre-roll and can be
+        cancelled mid-episode like anything else.
+        """
+        stats.audio = "stored"
+        stats.script = list(stored.sentences)
+        stats.starts = list(stored.starts)
+        stats.sentences = len(stored.sentences)
+        stats.words = sum(count_words(s) for s in stored.sentences)
+        live_captions.publish(stats.caption_key, stored.sentences,
+                              stored.starts if len(stored.starts)
+                              == len(stored.sentences) else None)
+        pcm = stored.pcm
+        step = max(2, int(stats.sample_rate) * 2)
+        stats.first_audio_at = time.perf_counter() - stats.started_at
+        log.info("stored audio for this episode: %.1fs, no synthesis",
+                 pcm_duration(len(pcm), stats.sample_rate))
+        try:
+            for i in range(0, len(pcm), step):
+                yield pcm[i:i + step]
+                await asyncio.sleep(0)
+        finally:
+            stats.audio_seconds = pcm_duration(len(pcm), stats.sample_rate)
+            live_captions.close(stats.caption_key)
+
+    async def _keep_audio(self, pcm: bytes, stats: GenerationStats) -> None:
+        """Write this play's audio for next time. Never raises.
+
+        Off the event loop: compressing ten minutes of PCM is a few hundred
+        milliseconds, and it happens after the last byte has already gone.
+        """
+        try:
+            kept = await asyncio.to_thread(
+                self.cache.put_audio, stats.audio_key, self._audio_voice(),
+                self.engine.sample_rate, pcm, list(stats.script),
+                list(stats.starts))
+            if kept:
+                stats.audio = "kept"
+                log.info("kept %.1fs of audio for %s", pcm_duration(
+                    len(pcm), self.engine.sample_rate), stats.audio_key[:12])
+        except Exception:
+            log.exception("could not keep this episode's audio; continuing")
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:
-        """Yield raw PCM for the whole episode, starting as soon as possible."""
+        """Yield raw PCM for the whole episode, starting as soon as possible.
+
+        Records what it yields when the audio may be kept, and keeps it once
+        the whole episode has gone out - never a partial one, because a stream
+        the listener abandoned stops here without reaching the end.
+        """
         stats = stats if stats is not None else GenerationStats()
+        recorded = bytearray() if (self._keeps_audio() and self.cache_writes) else None
+        inner = self._stream_pcm(plan, stats)
+        try:
+            async for chunk in inner:
+                if recorded is not None and stats.audio != "stored":
+                    recorded.extend(chunk)
+                yield chunk
+        finally:
+            # Closed here rather than left to the collector: the inner stream
+            # owns the model call and the synthesis queue, and a listener who
+            # walks away must stop both at once, exactly as before it was
+            # wrapped.
+            await inner.aclose()
+        if recorded and stats.audio_key and stats.sentences:
+            await self._keep_audio(bytes(recorded), stats)
+
+    async def _stream_pcm(
+        self, plan: EpisodePlan, stats: GenerationStats
+    ) -> AsyncIterator[bytes]:
         # Somebody is waiting on this one. Prefetch reads the clock this sets
         # and stands aside - a speculative episode that delays a real one has
         # inverted the entire point of prefetching.
@@ -1052,6 +1170,20 @@ class PodcastPipeline:
                 log.info("cache %s hit for %r (%d min)%s", stats.match, plan.query,
                          plan.minutes, " [warmed ahead of the tap]"
                          if stats.prefetched else "")
+                # The audio, if it has been made before in this voice: read
+                # from the database and the voice engine is never called. That
+                # is the whole of §131 - a cached episode used to cost a GPU
+                # round trip on every play.
+                if self._keeps_audio():
+                    stored = self.cache.get_audio(key, self._audio_voice(),
+                                                  self.engine.sample_rate)
+                    if stored is not None and stored.pcm:
+                        async for chunk in self._play_stored(stored, stats):
+                            yield chunk
+                        return
+                    # Not kept yet - a script from before §131, another voice,
+                    # or evicted. Synthesised once more, and kept this time.
+                    stats.audio_key = key
                 # Replaying the same sentences through the same controller
                 # reproduces the episode - the same script, in the same order,
                 # for zero API tokens. Not sample-identical under Phase 6: the
@@ -1169,6 +1301,10 @@ class PodcastPipeline:
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                                plan.minutes, bucket, sources, self.author,
                                stats.title, **extra)
+                # The audio goes beside it once the tail pad is out, and only
+                # when the script itself was kept - audio with no script row
+                # would be an episode nothing can find or expire.
+                stats.audio_key = key
                 log.info("cached %d sentences for %r (ttl %ds)",
                          len(stats.script), plan.query, ttl)
             else:

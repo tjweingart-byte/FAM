@@ -21,7 +21,7 @@ working directory, and the `Dockerfile` pins all fourteen to the mounted
 
 | File | Module | What it holds |
 |---|---|---|
-| `scripts.db` | `cache.py` | **The shared script cache.** The only store not keyed by person. |
+| `scripts.db` | `cache.py` | **The shared episode cache** - the script, and since §131 its audio (`episode_audio`, one row per script and voice). The only store not keyed by person. |
 | `myfam.db` | `topics.py` | **The event log.** Every interaction *of an account* - a guest is never written (§127, `app._remembers`). This is the taste model's entire input. |
 | `preferences.db` | `preferences.py` | One row per listener: chosen interests, chosen topics, language, what is shown on the profile. |
 | `accounts.db` | `accounts.py` | Credentials, sessions, third-party identities. |

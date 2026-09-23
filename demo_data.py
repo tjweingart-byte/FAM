@@ -79,8 +79,9 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
     "wipe all the fake episode titles completely so we start seeing only new
     ones" - and it is a bigger thing than it looks: real listening goes with
     it and the taste model starts from nothing for everybody. It costs
-    nothing that cannot be regenerated (a script is about three cents, audio
-    is never stored) and it does cost history that cannot.
+    nothing that cannot be regenerated (a script is about three cents, and
+    the audio kept beside it since §131 goes with it and is voiced again on
+    the next play) and it does cost history that cannot.
 
     Neither scope touches accounts, credentials or the metering ledger.
     Somebody who signed up stays signed up; what the app spent stays

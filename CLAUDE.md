@@ -41,6 +41,11 @@ know what the listener might tap *before* they tap it. So:
 > **Decouple script generation from speech synthesis in time.**
 > The script is the expensive part (~$0.03, several seconds, cacheable text).
 > The audio is nearly free (~330x realtime, milliseconds).
+>
+> *(Amended by §131: nearly free per episode, but not per replay once the
+> voice is a rented GPU - so the audio of a cached episode is now kept beside
+> its script and played from there. Prefetch still warms scripts and briefs,
+> never audio: a speculative guess should still cost only text.)*
 > Pre-generate *scripts* for likely-next episodes; synthesise audio on tap.
 
 That yields instant playback with no wait at all, and wastes only cheap
@@ -354,7 +359,9 @@ the rest of this list it needs taste rather than a key.
    speak; `voice=` on `/api/audio` selects one; the player has a picker.
    Note: voice is deliberately **not** part of the script cache key, because a
    voice changes the audio and not the words. Switching voice therefore reuses
-   the cached script — measured at ~90 ms and zero API cost.
+   the cached script — measured at ~90 ms and zero API cost. The *audio* kept
+   since §131 is keyed on the voice as well, so a new voice is voiced once and
+   kept like any other.
 3. ~~**The cold-open → script gap**~~ — *dissolved, not fixed* (PROBLEMS.md
    §55). Two sessions went into making the opener cover the research wait, and
    heard on a real machine it was 3-5 seconds of contentless speech in front of
@@ -921,12 +928,27 @@ the rest of this list it needs taste rather than a key.
   and is played as it arrives. This is the core of the product. Compression
   (Opus over a stream) is compatible with it and is the right answer at scale;
   writing a *file* is not.
-  **Nothing anywhere keeps audio now, which makes this simpler rather than
-  weaker** *(SHARING.md).* Downloads - the audio held in the listener's own
-  IndexedDB - used to be the one thing that came close, and they never broke
-  the rule either, because the server wrote nothing then either. The feature
-  is **removed** at the owner's direction, and removed rather than switched
-  off, on the Piper reasoning. `saved.py` now holds pointers and only
+  **The server keeps a cached episode's audio now, at the owner's direction**
+  *(PROBLEMS.md §131, reversing "nothing anywhere keeps audio").* The voice
+  runs on RunPod, and re-voicing a cached script on every play made the GPU
+  the largest line on the bill. So the first time an episode is spoken in a
+  production voice its PCM is kept in `scripts.db` (`episode_audio`, beside
+  the script, keyed on script and voice), and every later play - a search
+  hit, an Explore card, a shared link - is read from there and **never
+  reaches the voice engine**; `/api/audio` does not even wake the GPU for
+  one. What this does not change is the subject of the rule: it is raw PCM
+  in a database row, zlib-compressed, streamed as raw PCM exactly as it was
+  the first time. No audio *file* is written, and nothing is sent to the
+  listener as one. Four rules keep it honest: the audio is readable only
+  while its script is, and a re-written script drops it; only a production
+  voice is ever kept (`TTSEngine.keeps_audio`), because a placeholder tone
+  written there would outlive the outage that produced it (§51); only a
+  whole episode is kept, never an abandoned stream; and it has a ceiling
+  (`AUDIO_CACHE_MAX_MB`, 512 by default against a 1 GB disk), least recently
+  played out first, evicting only audio - an evicted episode keeps its
+  script and costs one re-voicing. `AUDIO_CACHE=0` restores re-synthesis on
+  every play exactly. Downloads - audio in the listener's own IndexedDB -
+  are still **removed**, and `saved.py` still holds pointers and only
   pointers.
 - **Duration is a ceiling, not a quota.** *(Revised.)* The selected length still
   caps the episode and over-runs are trimmed, but a script that runs out of
@@ -2245,7 +2267,8 @@ the tree could already see "college football" in a tile's question while
 the ranker scored that tile on `sports` alone; and **§128**, where the wait
 in front of the first word goes, logged one step per line as `episode
 timing`; and **§129**, the writer's hidden thinking back to `EFFORT=low` at
-the owner's direction),
+the owner's direction; and **§131**, the audio of a cached episode kept
+beside its script so a replay never goes back to RunPod),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

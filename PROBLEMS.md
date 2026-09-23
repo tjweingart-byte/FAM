@@ -10366,3 +10366,78 @@ remembering to add it. It fails on the old placer schema and passes on the new.
 httpx logs every request URL at INFO, and Finnhub takes its key as a
 `token=` query parameter, so **the Finnhub key is in Render's logs in
 plain text**. It should be rotated, and the log line redacted.
+
+## 131. Every replay of a cached episode went back to RunPod
+
+**Reported by the owner:** the voice GPU is the largest line on the bill, and
+most of what it was doing was speaking episodes it had already spoken. A cache
+hit saved the model call and nothing else - `cache.py` stored the script and
+deliberately not the audio, on the reasoning that synthesis "costs essentially
+nothing". That was true of a GPU in the same process and stopped being true
+the day the voice moved to a rented one: every search hit, every Explore card,
+every shared link and every replay paid a RunPod round trip (and, on a
+serverless endpoint, possibly a wake) for audio that already existed once.
+
+**The change, at the owner's direction:** a cached episode's audio is kept in
+SQLite and replayed from there, and never enters the voice engine again.
+
+* `episode_audio` sits in `scripts.db` beside `scripts`, one row per
+  (script key, voice), holding the PCM exactly as it was first streamed -
+  tail room tone included - zlib-compressed at level 1 (74% of raw on the
+  reference recording, ~30 ms per second of audio; level 6 bought under half
+  a percent more, lzma 59% at fifteen times the time). It also holds the
+  sentences in that audio and where each starts, so a stored replay publishes
+  captions that match what is heard.
+* `PodcastPipeline.stream_pcm` records what it yields and keeps it once the
+  **whole** episode has gone out, off the event loop, after the last byte. An
+  abandoned stream never reaches that point, so half an episode can never be
+  replayed as all of one. The generation body moved to `_stream_pcm` - the
+  source-reading tests that guard it read that now.
+* On a hit, the audio is looked up first; if it is there, it streams in
+  one-second slices through the same path and the engine is never called. A
+  script from before this change, a new voice, or an evicted row is voiced
+  **once more** and kept.
+* `/api/audio` skips the RunPod wake when the exact episode's audio is kept -
+  a boot for an episode read from a database is a bill for nothing.
+
+**What keeps it honest:**
+
+* **Only a production voice is kept** (`TTSEngine.keeps_audio`, true on
+  `ChatterboxEngine` and `RemoteChatterboxEngine` only). A placeholder tone in
+  the cache would be served long after the voice came back - §51's lesson
+  that announcing a failure is not enough if the thing keeps a record.
+* **Audio lives and dies with its script.** No clock of its own: readable only
+  while the script row is live, dropped when the script is re-written (new
+  words, old audio), purged with it, cleared with it, forgotten with its
+  author by the demo wipe.
+* **Keyed on voice**, because a voice changes the audio and not the words -
+  the script stays shared across voices exactly as before.
+* **A rate mismatch is a miss**, because the stream header is written at the
+  engine's rate before any audio, and PCM at another rate plays at the wrong
+  pitch rather than failing.
+* **A ceiling**, `AUDIO_CACHE_MAX_MB=512`, least recently played out first,
+  because `render.yaml`'s disk is 1 GB and every other database lives on it.
+  Eviction takes only audio; the script stays and costs one re-voicing.
+  `/api/health`'s `cache` block reports `audio_entries`, `audio_mb` and the
+  ceiling.
+* `cache_writes=False` (demo mode) keeps no audio, like it keeps no script.
+* `AUDIO_CACHE=0` restores re-synthesis on every play exactly.
+
+**The settled constraint this touches**, "no MP3, no audio files", still
+holds in the sense it was written: nothing writes an audio file, and the
+listener still receives raw PCM as a stream. What changed is the paragraph
+under it that said nothing keeps audio - CLAUDE.md is amended.
+
+### Still open
+
+* **The disk.** At ~2 MB per compressed minute, 512 MB is roughly 250 minutes
+  of distinct episodes. If the working set is larger, eviction will re-voice
+  the tail, which still costs RunPod. Raising the Render disk (and
+  `AUDIO_CACHE_MAX_MB` with it) is the lever; Opus would cut the size about
+  tenfold and needs a codec dependency on both ends.
+* **Prefetch still warms scripts and briefs, never audio**, so the first tap
+  on a warmed tile still voices it once. Deliberate: a speculative guess
+  should cost text, not GPU time.
+* **Nobody has measured the saving on a real deployment.** `audio_cache` on
+  each episode's stats (`stored` / `kept` / blank) and the health counts are
+  where to read it.

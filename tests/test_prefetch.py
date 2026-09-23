@@ -212,7 +212,7 @@ def test_the_pipeline_tells_prefetch_when_a_real_listener_starts():
 
     import pipeline
 
-    source = inspect.getsource(pipeline.PodcastPipeline.stream_pcm)
+    source = inspect.getsource(pipeline.PodcastPipeline._stream_pcm)
     assert "note_live_generation()" in source
 
 
@@ -352,7 +352,7 @@ def test_the_serving_path_is_what_records_a_hit():
 
     import pipeline
 
-    source = inspect.getsource(pipeline.PodcastPipeline.stream_pcm)
+    source = inspect.getsource(pipeline.PodcastPipeline._stream_pcm)
     assert "prefetch.note_consumed(key)" in source
 
 
