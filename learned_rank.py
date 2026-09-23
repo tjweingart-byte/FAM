@@ -21,13 +21,17 @@ than inventing new ones:
     live        a story from the live pool rather than the standing bank
     broad       a live story matching only a whole facet they never named
 
-**It re-orders; it never decides membership.** The hand-tuned score still
-applies `RELEVANCE_FLOOR`, the broad-match penalty and everything else that
-decides whether a tile belongs on a rail whose heading says it was chosen for
-this listener. The model sorts what survives. That is the standard two-stage
-shape - a cheap, explainable pass for *what*, a fitted one for *order* - and
-it means a bad model can put a relevant tile third instead of first, never a
-wrong tile on the rail.
+**It re-orders what cleared the floor; it never admits anything else.** The
+hand-tuned score still applies `RELEVANCE_FLOOR`, the broad-match penalty and
+everything else that decides whether a tile is *eligible* for a rail whose
+heading says it was chosen for this listener. The model sorts the eligible
+tiles - and because the rail shows the first six of that order, it does
+decide **which** eligible tiles are visible (an earlier draft said it never
+changed what was on the rail; review of §128 showed that was false once more
+tiles clear the floor than fit). That is the standard two-stage shape - a
+cheap, explainable pass for *what may be shown*, a fitted one for *order* -
+and it means a bad model can promote a weaker relevant tile, never an
+irrelevant one.
 
 **Global, never per listener**, for `ENGAGEMENT_WEIGHT`'s reason: per
 listener there are a handful of offers per tile, and the per-listener part of
@@ -123,7 +127,9 @@ def features(topic, profile: dict, semantic: dict, damp: dict,
     import topics
 
     live = 1.0 if (topic.freshness > 0 or topic.id.startswith("st-")) else 0.0
-    broad = 1.0 if (live and topics._is_broad_match(topic, profile)
+    # `freshness > 0` and not `live`: that is the condition the served
+    # penalty uses, and a feature that fires where serving does not is skew.
+    broad = 1.0 if (topic.freshness > 0 and topics._is_broad_match(topic, profile)
                     and not topics._subject_is_familiar(topic, familiar)
                     and not semantic.get(topic.id)) else 0.0
     return [
@@ -139,7 +145,10 @@ def features(topic, profile: dict, semantic: dict, damp: dict,
 def hand_score(row: list[float]) -> float:
     """The hand-tuned score, rebuilt from the same features - what the
     learner has to beat. Everything `rank_from_history` multiplies in except
-    freshness, which the log does not record."""
+    freshness and a listener's place, which the log does not record; both are
+    multiplied back on top of the model's probability when it serves
+    (`rerank`'s `thumbs`), so the two sides are compared without them and
+    served with them."""
     import topics
 
     affinity, semantic, fatigue, engagement, _live, broad = row

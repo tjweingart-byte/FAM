@@ -53,9 +53,27 @@ import taste_vectors  # noqa: E402
 import topics  # noqa: E402
 
 
+#: The rails the model is ever applied to. Offers on the others (Trending,
+#: the crowd rows, friends, what you missed) still move the running tap
+#: rates, because serving's engagement table counts every rail - but they are
+#: not training rows: their order was never the hand-tuned score's, and a
+#: baseline scored on offers it never ranked is a baseline that loses by
+#: default. The first version trained on all of them and "won" on exactly
+#: that (review of §128).
+RANKED_SECTIONS = ("from_history", "section:from_history", "next_up")
+
+#: Rows the serving path reads per listener (`EventStore.for_user`'s default),
+#: so a training profile is built from the same window a live one is.
+SERVING_HISTORY = 400
+
+
 def training_rows(store: topics.EventStore, now: float, since: float,
                   limit: int = 0) -> tuple[list, list, dict]:
     """`(rows, labels, counts)`, in time order.
+
+    Only offers the model could ever re-order become rows: Made for you and
+    the post-episode popup, and only tiles whose hand-tuned score cleared
+    `RELEVANCE_FLOOR` - the set `rank_from_history` hands a model.
 
     Linear in the offers (a heap of pending taps, and the per-listener state
     memoised per occasion hour) - §122's rule, since a month of impressions
@@ -68,7 +86,8 @@ def training_rows(store: topics.EventStore, now: float, since: float,
     known = topics.known_topics(now)
     history: dict[str, list] = {}
     times: dict[str, list] = {}
-    counts = {"offers": len(outcomes), "unresolved": 0, "used": 0}
+    counts = {"offers": len(outcomes), "unresolved": 0, "used": 0,
+              "other_rails": 0, "under_floor": 0}
 
     # Point-in-time engagement: offers so far, and taps whose play has
     # already happened. A tap is known at `at + lag`, not at its offer, so
@@ -93,7 +112,10 @@ def training_rows(store: topics.EventStore, now: float, since: float,
             took[done] += 1
             all_took += 1
         topic = known.get(tid)
-        if topic is not None:
+        ranked_here = row.get("section") in RANKED_SECTIONS
+        if topic is not None and not ranked_here:
+            counts["other_rails"] += 1
+        elif topic is not None:
             if user not in history:
                 # Oldest first, so "before this offer" is a prefix.
                 history[user] = sorted(store.for_user(user, limit=2000),
@@ -102,7 +124,8 @@ def training_rows(store: topics.EventStore, now: float, since: float,
             n = bisect.bisect_left(times[user], at)
             key = (user, n, int(at // topics.FATIGUE_BUCKET))
             if key not in state:
-                prior = list(reversed(history[user][:n]))  # newest first
+                # Newest first, and no deeper than serving reads.
+                prior = list(reversed(history[user][max(0, n - SERVING_HISTORY):n]))
                 state[key] = (prior, topics.taste(prior, at),
                               topics.familiar_words(prior))
             prior, profile, familiar = state[key]
@@ -111,10 +134,14 @@ def training_rows(store: topics.EventStore, now: float, since: float,
                                        all_offered, all_took)
             semantic = taste_vectors.for_listener(prior, [topic], at, known=known,
                                                   settled=True)
-            rows.append(learned_rank.features(topic, profile, semantic, damp,
-                                              engage, familiar))
-            labels.append(bool(row["taken"]))
-            counts["used"] += 1
+            feats = learned_rank.features(topic, profile, semantic, damp,
+                                          engage, familiar)
+            if learned_rank.hand_score(feats) <= topics.RELEVANCE_FLOOR:
+                counts["under_floor"] += 1
+            else:
+                rows.append(feats)
+                labels.append(bool(row["taken"]))
+                counts["used"] += 1
         else:
             counts["unresolved"] += 1
         # Update the running state *after* the row, so a row never sees itself.
@@ -152,7 +179,9 @@ def main() -> int:
     started = time.perf_counter()
     rows, labels, counts = training_rows(store, now, now - args.days * 86400,
                                          args.limit)
-    print(f"Offers: {counts['offers']}, resolved {counts['used']}, "
+    print(f"Offers: {counts['offers']}; used {counts['used']} "
+          f"(Made for you / next-up, above the floor); other rails "
+          f"{counts['other_rails']}, under the floor {counts['under_floor']}, "
           f"unresolvable {counts['unresolved']} (stories no longer held) "
           f"- {time.perf_counter() - started:.1f}s")
     model, report = learned_rank.train(rows, labels, now=now)
@@ -174,6 +203,10 @@ def main() -> int:
     if not report.get("beat_hand") and not args.force:
         print("Nothing stored: the hand-tuned order stays in force.")
         return 0
+    current = learned_rank.active(store, now)
+    if current is not None and not report.get("beat_hand"):
+        print("WARNING: this replaces a model that is in force with one that "
+              "lost; serving falls back to the hand-tuned order.")
     store.save_learned_model(model.to_json(), now)
     print("Stored. " + ("In force from the next page load (within "
                         f"{int(learned_rank.CACHE_SECONDS)}s on a running server)."

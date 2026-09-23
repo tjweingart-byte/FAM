@@ -10344,10 +10344,10 @@ The rules it keeps, each for a stated reason:
   `MIN_AUC_GAIN`, on at least `MIN_POSITIVES` taps each side. A model that
   says it lost is never served even if `--force` stored it, and one fitted to
   a different feature list is refused rather than scoring the wrong columns.
-* **It re-orders and never selects.** The hand-tuned score still decides what
+* **It re-orders and never admits.** The hand-tuned score still decides what
   clears `RELEVANCE_FLOOR`; the model sorts what did. A bad model can put a
-  relevant tile third, never an irrelevant one on a rail whose heading says it
-  was chosen for you. Freshness and a listener's place are not in the log, so
+  relevant tile third, or below the visible six, and never an irrelevant one
+  on a rail whose heading says it was chosen for you. Freshness and a listener's place are not in the log, so
   they stay hand-applied on top of the model's probability.
 * **Global, not per listener**, for `ENGAGEMENT_WEIGHT`'s reason.
 * **Linear at a realistic size** (§122): the first version rescanned every
@@ -10371,3 +10371,67 @@ sentences and the ranker has been timed with it, but whether Made for you is
 there is yet enough to fit anything - on a young deployment it will most
 likely say "too few taps to judge", which is the correct answer. The cache's
 remaining gain is behind a cross-encoder nobody has installed.
+
+### What checking it found, and what it measures
+
+An independent review of the commit found three things that mattered and
+several that did not, and an offline benchmark put a number on the part that
+can be measured without real traffic.
+
+**The learned order was being judged on the wrong offers.** `training_rows`
+trained on every impression - Trending, the crowd rows, friends, what you
+missed - including offers whose hand score was at or below the floor. On
+those the hand baseline is all ties (a listener with no matching history
+scores zero on every tile), so a model beat it almost for free, and the
+synthetic test passed for exactly that reason. Rows are now Made for you, its
+View more screen and the popup only, above `RELEVANCE_FLOOR` - the set a model
+is ever handed - while every rail's offers still move the running tap rates,
+as serving's engagement table does. The test was rebuilt so the baseline has a
+real opinion (AUC 0.54 on the synthetic log where the hand weights are wrong;
+the model 0.80), and a second case where taps follow the hand order exactly
+now declines to store a model (0.827 against 0.829). Training profiles are
+also built from the same 400-event window serving reads, and `broad` fires on
+the same condition as the served penalty.
+
+**"It never changes what is on the rail" was false.** The model orders
+everything that cleared the floor and the rail shows the first six of that
+order, so it does decide which eligible tiles are visible. What it cannot do
+is admit a tile under the floor. The docstrings, this log and CLAUDE.md say
+that now.
+
+Smaller, all fixed: the vector cache was first-in-first-out rather than
+least-recently-used, so the bank's vectors would have been the first evicted;
+a batch an encoder failed on could stay queued forever; `/api/myfam` and its
+neighbours returned `ALGO_VERSION` while the impression log recorded the
+stamp, so the API and the log disagreed; `--force` could replace a model in
+force with a losing one without saying so; and the Dockerfile's pip step could
+fail the build despite its comment, installed under `~/.fam` where another
+user would not find it, and re-downloaded 110 MB on every source change.
+Left as known: the page path's at most six inline embeddings run on the event
+loop (~60 ms worst case, once per new listener text), training cannot see a
+listener's declared interests or tags minted after an offer, and the stamp
+says `+sem` on every rail rather than only the one the term reached.
+
+**How much better Made for you is, measured offline**
+(`tools/eval_recommendations.py`). 84 searches written for the 28 bank topics,
+each set one listener's whole history, the intended tile's tie-aware rank
+compared with the tag ranker as it ships - including the 180-node seeded
+vocabulary, without which the baseline is weaker and the gain looks larger:
+
+    scenario             metric   tags only  +semantic
+    one search           MRR        0.52       0.67
+                         hit@6      0.61       0.74    (off the rail 39% -> 25%)
+    three searches       MRR        0.88       0.95
+    two interests mixed  MRR        0.62       0.70
+                         hit@3      0.70       0.95
+
+Of the 84 single-search cases, 18 improve and **none get worse**. The gain is
+largest exactly where the tags are weakest - one search, words the keyword
+lists do not hold - and small where the tags already work. The searches were
+written by the author of the feature, which is the bias to discount; and this
+measures putting the right subject in front of somebody, not whether they tap
+it, which only `tools/ctr_report.py --by algo` on real traffic can say.
+
+The learned order has **no measurable effect yet**, by design: it serves
+nothing until a real log trains a model that beats the hand order, and a young
+deployment will not have the taps to judge.

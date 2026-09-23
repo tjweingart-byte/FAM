@@ -24,23 +24,31 @@ WORKDIR /app
 COPY requirements.txt requirements-exa.txt requirements-embed.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 
-COPY . .
-
 # The local sentence embedder that orders "Made for you" by meaning as well as
 # by tag (PROBLEMS.md §128). ~110 MB with its runtime, CPU only, no torch.
 # `--build-arg FAM_EMBED=0` leaves it out and the ranker runs on tags alone,
 # exactly as before it existed.
 #
-# A failed download does not fail the build - an image with no model is a
-# working FAM - but it is not silent either: the line below prints it in the
-# build log, and /api/health reports `ranking.semantic.enabled: false` with the
-# reason, which is where a deploy's state is read from.
+# Before `COPY . .` and from the two files it needs, so an ordinary source
+# change does not re-download the runtime and the model on every build.
+# In /opt rather than ~/.fam, and named by FAM_EMBED_MODEL, so a platform
+# that runs the container as another user or with another HOME still finds
+# it.
+#
+# Nothing here fails the build - an image with no model is a working FAM -
+# and nothing here is silent either: the warning is in the build log, and
+# /api/health reports `ranking.semantic.enabled: false` with the reason.
+ENV FAM_EMBED_MODEL=/opt/fam/embed
 ARG FAM_EMBED=1
+COPY embeddings.py ./
+COPY tools/install_embed_model.py ./tools/
 RUN if [ "$FAM_EMBED" = "1" ]; then \
-      pip install --no-cache-dir -r requirements-embed.txt \
-      && (python tools/install_embed_model.py \
-          || echo "WARNING: embedding model not installed; ranking on tags alone"); \
+      (pip install --no-cache-dir -r requirements-embed.txt \
+       && python tools/install_embed_model.py) \
+      || echo "WARNING: embedding model not installed; ranking on tags alone"; \
     fi
+
+COPY . .
 
 # Every database lives on a mounted disk where the host provides one, so they
 # survive a redeploy. Without a disk they are ephemeral and every deploy is a

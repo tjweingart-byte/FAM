@@ -2144,7 +2144,7 @@ which is the go/no-go for all of it.
   (`learned_rank.py`, `python tools/learn_rank.py`): a logistic regression over
   the ranker's own six signals, rebuilt point in time from the impression
   log, stored only if it beats the hand-tuned order on held-out offers, and
-  allowed to re-order what cleared the floor but never to choose it.
+  allowed to re-order what cleared the floor but never to admit a tile under it.
 
 ## How to ship a change (standing instruction)
 

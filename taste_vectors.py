@@ -187,6 +187,10 @@ def _encode(encoder, texts: list[str]) -> None:
         _store(texts, encoder(texts))
     except Exception:  # noqa: BLE001
         log.exception("semantic embedding failed for %d texts", len(texts))
+    finally:
+        # The whole batch leaves the queue whatever happened - an encoder that
+        # threw, or returned fewer vectors than texts, must cost those texts a
+        # term, never keep the worker re-encoding them forever.
         with _LOCK:
             _PENDING.difference_update(texts)
 
@@ -241,7 +245,15 @@ def vectors(texts: Iterable[str], inline: int = MAX_INLINE) -> dict[str, list[fl
             if later_part:
                 _later(later_part)
     with _LOCK:
-        return {t: _VECTORS[t] for t in wanted if t in _VECTORS}
+        found = {}
+        for t in wanted:
+            if t in _VECTORS:
+                # Least recently *used*, not first in: without this the bank
+                # vectors warmed at boot are the first evicted once 5000
+                # listener texts have passed, and re-embedded six a page.
+                _VECTORS.move_to_end(t)
+                found[t] = _VECTORS[t]
+        return found
 
 
 def warm(topics: Iterable) -> None:

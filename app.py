@@ -3328,7 +3328,7 @@ async def next_up(
     # picks nobody could account for afterwards.
     if user and _remembers(request):
         EVENTS.record_impressions(user, [("next_up", t.id) for t in picks])
-    return {"topics": [t.as_dict() for t in picks], "algo": topics_mod.ALGO_VERSION}
+    return {"topics": [t.as_dict() for t in picks], "algo": EVENTS.algo_stamp()}
 
 
 @app.get("/api/myfam/section")
@@ -3375,7 +3375,7 @@ async def myfam_section(request: Request,
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
-    body["algo"] = topics_mod.ALGO_VERSION
+    body["algo"] = EVENTS.algo_stamp()
     return body
 
 
@@ -3431,7 +3431,7 @@ async def explore_new(request: Request, interests: str = Query("", max_length=20
     )
     if user and _remembers(request):
         EVENTS.record_impressions(user, [("explore_new", t["id"]) for t in body["topics"]])
-    body["algo"] = topics_mod.ALGO_VERSION
+    body["algo"] = EVENTS.algo_stamp()
     return body
 
 
@@ -3519,7 +3519,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
             [(section["key"], topic["id"])
              for section in feed["sections"] for topic in section["topics"]],
         )
-    feed["algo"] = topics_mod.ALGO_VERSION
+    feed["algo"] = EVENTS.algo_stamp()
 
     # Guess what this listener might tap, and pay for the *understanding* of it
     # now rather than when they are waiting (PROBLEMS.md §105).
