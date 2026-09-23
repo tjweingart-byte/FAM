@@ -100,21 +100,32 @@ def seed_busy_day(countries=None):
 # --------------------------------------------------------------------------
 def test_trending_is_the_same_for_two_listeners_with_opposite_histories(store):
     """"A user's interests or past listens should not affect the content of
-    the trending section." Two people who have played nothing in common, one
-    of whom has even played a story's own tile, see one Trending row."""
+    the trending section." Two people who have played nothing in common see
+    one Trending row - taste, interests and history do not move it."""
     seed_busy_day()
     finished(store, "sporty", "golf-evolution", "golf", ("sports",))
     finished(store, "techy", "chip-supply", "chips", ("tech", "chips"))
-    chip = stories.story_id("the chip export rules")
-    store.record(T.Event("techy", "complete", chip, "chips", ("tech",),
-                         at=time.time() - 50))
 
     a = ids(rail(T.build_feed(store, "sporty", interests=("sports",)),
                  "world_trending"))
     b = ids(rail(T.build_feed(store, "techy", interests=("tech",)),
                  "world_trending"))
     assert a == b, "Trending moved with the listener"
-    assert chip in b, "a story they had played was taken off the world row"
+
+
+def test_trending_drops_a_story_the_listener_has_heard(store):
+    """The one exception, at the owner's direction (§136): no repeats. A
+    story they have heard leaves their row and the next one moves up - and
+    only theirs."""
+    seed_busy_day()
+    chip = stories.story_id("the chip export rules")
+    before = ids(rail(T.build_feed(store, "techy"), "world_trending"))
+    assert chip in before
+    store.record(T.Event("techy", "complete", chip, "chips", ("tech",),
+                         at=time.time() - 50))
+    after = ids(rail(T.build_feed(store, "techy"), "world_trending"))
+    assert chip not in after and len(after) == len(before)
+    assert chip in ids(rail(T.build_feed(store, "sporty"), "world_trending"))
 
 
 def test_trending_takes_the_loudest_stories_with_one_per_subject(store):

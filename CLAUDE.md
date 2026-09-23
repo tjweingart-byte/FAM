@@ -17,7 +17,7 @@ Three surfaces, all backed by generated audio:
    you missed last week**, replaced the weekly recap popup.*
 2b. **DailyFAM** (was playFAM) — named daily mixes. A mix holds topic ids or
    questions the listener typed, never audio, so it is fresh every morning.
-   *Since §136 it **follows subjects**: catalogue entries (`f:nfl`), each
+   *Since §137 it **follows subjects**: catalogue entries (`f:nfl`), each
    optionally narrowed to one specific (`f:nfl~Eagles`), each specific its
    own briefing, and every play asks for that day's edition by date
    (`mixes.daily_prompt`). A mix has a name screen, a square cover and
@@ -390,6 +390,18 @@ the rest of this list it needs taste rather than a key.
    / What your friends are listening to**, in that order - the crowd row that
    always has something in it above the one that is empty until somebody
    follows anybody.
+   **Every choosing rail runs one path** *(§136)*: taste, then the tiles
+   whose script is already written first (`ready_first`, `READY_REACH` deep,
+   never a filter), then **no repeats** against everything the listener has
+   ever heard on any surface (`topics.is_repeat`). A heard evergreen tile is
+   replaced by the next-best topic; a heard startup question may come back
+   only as a different episode - a day later, and remade or unwritten. **A
+   heard live story is never offered as itself on any rail, Trending
+   included** (the owner's direction): it becomes a "what's new since you
+   listened" follow-up if it is still being reported six hours on
+   (`topics.trending_for`, applied to the pool before any rail sees it), and
+   otherwise the next story takes its place. Trending's order is still
+   popularity and country alone.
    **Made for you draws on both inventories** and Trending draws only on the
    live one, because answering "what is trending" with what FAM's listeners
    have already played would make it a laggier copy of the row below it. The
@@ -700,7 +712,7 @@ the rest of this list it needs taste rather than a key.
    everyone, personalisation in the ordering, not the inventory** - so two
    people tapping a tile share one script through `cache.py`. That is
    unchanged by the live pool, which is shared for exactly the same reason.
-6. **playFAM is built as its own tab.** *(§136 changed what a mix holds:
+6. **playFAM is built as its own tab.** *(§137 changed what a mix holds:
    followed catalogue subjects, narrowed or whole, rather than bank episodes -
    the picker below now lists subjects, and bank ids survive only in older
    mixes. The dated prompt is the server's, so prefetch warms what a tap
@@ -2256,7 +2268,7 @@ being asked:
    Publish it with `capabilities: {"db": {}, "downloads": true}`; without
    `db`, `claude.use("db")` resolves null in the viewer, the page falls back
    to memory, and the whole point of it is quietly gone. `downloads` is what
-   lets the story card save inside the viewer (§137) - a declaration is the
+   lets the story card save inside the viewer (§138) - a declaration is the
    full set, so passing `db` alone revokes it. The fixture build
    (`preview/fam-artifact.html`) is still what `./dev.sh check` produces and
    smoke-tests; it is just no longer what the bookmarked link serves.
@@ -2352,11 +2364,15 @@ rather than the mock module the handoff asked for; and **§134**, the
 22/09 packet - four tiles a rail, a Trending row ranked on popularity and
 country alone with no dummy tiles, DailyFAM playlists that play through
 and stop, real play counts and thumbs on Explore, and four RunPod leaks;
-and **§136**, DailyFAM mixes that follow subjects - narrowed to a team or
-company, each its own dated daily briefing - with a cover; and **§135**, where an episode's information comes from - the model's own
+and **§135**, where an episode's information comes from - the model's own
 web search deleted, API-Sports swept on its whole daily allowance with the
 score on the card, and a Trending row of real stories ranked by how many
-outlets run them, worldwide and region by region),
+outlets run them, worldwide and region by region; and **§136**, myFAM's
+order of operations - taste, then cached first, then no repeats; and
+**§137**, DailyFAM mixes that follow subjects - narrowed to a team or
+company, each its own dated daily briefing - with a cover; and **§138**, a
+smoke check that sampled a 450ms window, and a story card that said "saved"
+inside a viewer that had saved nothing),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2384,7 +2400,7 @@ behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 67 as of §136,
+prose does not fail when somebody adds a behaviour. (It is 67 as of §137,
 which added a new mix following narrowed subjects and a square mix cover. It
 was 65 as of §134,
 which added a DailyFAM playlist playing through and then stopping. It was

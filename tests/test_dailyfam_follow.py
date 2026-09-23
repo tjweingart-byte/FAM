@@ -1,4 +1,4 @@
-"""DailyFAM mixes follow subjects, narrowed or whole, with a cover (§136).
+"""DailyFAM mixes follow subjects, narrowed or whole, with a cover (§137).
 
 A mix used to hold bank episodes - one-off stories. It now holds catalogue
 subjects (`f:nfl`), each optionally narrowed to one specific
@@ -106,7 +106,7 @@ def test_followed_items_survive_a_restart(tmp_path):
 
 
 def test_an_older_mix_of_bank_episodes_still_reads(store):
-    """Mixes made before §136 hold bank ids, and still play."""
+    """Mixes made before §137 hold bank ids, and still play."""
     mix = store.create("u", "Old", ["fed-next-move", "sleep-science"])
     got = store.get("u", mix.id).as_dict()
     assert [i["id"] for i in got["items"]] == ["fed-next-move", "sleep-science"]

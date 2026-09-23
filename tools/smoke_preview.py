@@ -2004,7 +2004,7 @@ def main() -> int:
             assert page.eval_on_selector("#pickerSearch", "e => e.value") == "", \
                 "adding a typed topic left the search box full"
             # Counted in briefings, which is what a narrowed subject makes
-            # several of (§136).
+            # several of (§137).
             chosen = page.evaluate("pickerPayload().length")
             assert f"{chosen} briefing" in page.inner_text("#pickerCount"), \
                 "the count did not notice the topic"
@@ -2017,7 +2017,7 @@ def main() -> int:
                 "tapping a subject to follow kept nothing"
 
         def a_new_mix_follows_narrowed_subjects():
-            """The §136 flow end to end: name it on its own screen, follow NFL,
+            """The §137 flow end to end: name it on its own screen, follow NFL,
             narrow it to the Eagles and keep the whole league too, find a team
             by searching for it, save - and land in a mix whose rows are the
             briefings chosen, with recommendations under them that are

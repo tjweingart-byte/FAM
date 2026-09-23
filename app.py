@@ -3373,7 +3373,7 @@ async def read_preferences(request: Request):
         # facet each subtag lives under, and what each facet is called. The
         # picker filters and orders subjects by the listener's interests and
         # a mix's recommendations by what it already follows, and both need
-        # "ai" to count as Technology (§136).
+        # "ai" to count as Technology (§137).
         "tag_parent": dict(topics_mod.TAG_PARENT),
         "tag_labels": dict(topics_mod.TAG_LABELS),
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
@@ -3492,6 +3492,7 @@ async def myfam_section(request: Request,
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=SOCIAL.circle_of(user), written=written,
+            written_at=_written_at_probe(minutes),
             place=place.words, place_name=place.label,
             has_account=_has_account(request),
             country=_country_for(request, place))
@@ -3538,6 +3539,35 @@ def _written_probe(minutes: int):
         if key not in answers:
             answers[key] = _topic_is_written(key, minutes)
         return answers[key]
+
+    return probe
+
+
+def _written_at_probe(minutes: int):
+    """A memoised `query -> when its live script was written, or None`, or
+    None when this cache cannot say.
+
+    What myFAM's no-repeats check reads (`topics.is_repeat`) to tell the
+    episode a listener heard from one written since. None rather than a probe
+    on a backend without `written_at`, because a probe answering None means
+    "no script, a tap writes a new one" - and an unknown must not look fresh.
+    A probe that cannot ask raises for the same reason, and the ranker counts
+    that tile as heard.
+    """
+    reader = getattr(SCRIPT_CACHE, "written_at", None)
+    if reader is None:
+        return None
+    answers: dict[str, Optional[float]] = {}
+
+    def probe(query: str) -> Optional[float]:
+        if query not in answers:
+            if not query:
+                raise ValueError("a tile with no question cannot be dated")
+            key = _episode_key(_validated_plan(query, minutes))
+            if not key:
+                raise ValueError(f"no episode key for {query!r}")
+            answers[query] = reader(key)
+        return answers[query]
 
     return probe
 
@@ -3639,6 +3669,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
         circle=SOCIAL.circle_of(user), written=written,
+        written_at=_written_at_probe(minutes),
         place=place.words, place_name=place.label,
         has_account=_has_account(request),
         country=_country_for(request, place))

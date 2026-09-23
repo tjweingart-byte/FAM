@@ -7,7 +7,7 @@ goes stale the moment it is made, and would break the no-files rule the rest
 of the product is built on; saving topic ids means "at the gym" is fresh every
 morning and costs nothing to keep.
 
-**A mix follows subjects now, not episodes** (§136). Its members are
+**A mix follows subjects now, not episodes** (§137). Its members are
 catalogue subjects (`f:nfl`), optionally narrowed to one specific
 (`f:nfl~Eagles`), plus anything the listener typed. A bank id - a written,
 evergreen episode - is still accepted and still plays, because mixes made
@@ -141,7 +141,7 @@ def daily_prompt(item: "MixItem") -> str:
     version of each subject. So the prompt carries the date, and that is also
     what keeps one day's briefing from being served the next: the cache key
     is built from the words, dates included, and the near-match cache
-    refuses any pair whose numbers differ (§136 has the test). Two listeners
+    refuses any pair whose numbers differ (§137 has the test). Two listeners
     following the Eagles on the same day share one script, which is the
     shared-cost design working as intended.
 

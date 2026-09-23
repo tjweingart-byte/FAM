@@ -207,7 +207,7 @@ def load_fixtures() -> dict:
 
     # Through the real `mixes.clean_items`, so a fixture mix is exactly the
     # shape the server stores - followed subjects, one narrowed to a team and
-    # beside the whole league, an older bank episode, a typed topic (§136).
+    # beside the whole league, an older bank episode, a typed topic (§137).
     def mix(mix_id, name, entries, public=False):
         return mixes_mod.Mix(mix_id, "preview", name, mixes_mod.clean_items(entries),
                              0, 0, public).as_dict()
@@ -554,7 +554,7 @@ def load_fixtures() -> dict:
     }
 
 
-#: How a mix entry becomes an item, for both preview shims (§136). The
+#: How a mix entry becomes an item, for both preview shims (§137). The
 #: server's own rules - `mixes.followed_item`, `mixes.daily_prompt` - in the
 #: browser, with every phrase and limit injected from `mixes.py` rather than
 #: typed here, so the one thing a shim could get wrong is the assembly.
