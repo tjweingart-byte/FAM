@@ -10259,7 +10259,8 @@ carries the episode's clock into the generator, which marks `brief_start` /
 is the critical path to the first audio - setup, brief, evidence, writer
 thinking, first sentence, voice queue, first synthesis - consecutive, so the
 parts add up to `first_pcm` and anything left is printed as `unaccounted`
-rather than absorbed. Three places read it: a `stages q=...` log line written
+rather than absorbed. Three places read it: an `episode timing` block in the log - one step per
+line, each with its measured seconds - written
 **at the first audio** rather than at the end of the episode, an
 `X-Stage-Seconds` header that `tools/pod_episode.py` prints, and
 `tools/latency_probe.py`, which runs the production pipeline in-process with

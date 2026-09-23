@@ -192,16 +192,44 @@ class EpisodeMarks:
             out["first audio"] = total
         return out
 
-    def stage_line(self) -> str:
-        """`stages()` as one line a person can read in a deploy's log."""
+    #: What each step on the critical path is, in words, for the log.
+    STAGE_NAMES = {
+        "setup": "setup (cache check)",
+        "brief": "brief (episode intelligence)",
+        "evidence": "evidence (search + live lookup)",
+        "writer thinking": "writer thinking (request to first word)",
+        "first sentence": "first sentence (first word to full sentence)",
+        "voice queue": "voice queue (waiting for the voice)",
+        "first synthesis": "first synthesis (voice renders sentence 1)",
+    }
+
+    def stage_report(self, query: str = "") -> str:
+        """Measured seconds per step, one step per line, for a deploy's log.
+
+        Every step is listed, in order. One that did not run - a cache hit
+        has no brief - says so rather than printing 0.00s, which would read
+        as a step that ran and was free. The search and the live lookup run
+        at the same time, so they are listed under `evidence` rather than
+        added to it.
+        """
         stages = self.stages()
-        if not stages:
-            return "no stage reached"
-        total = stages.pop("first audio", None)
-        parts = [f"{name} {seconds:.2f}s" for name, seconds in stages.items()
-                 if name != "unaccounted" or seconds >= 0.05]
-        head = f"first audio {total:.2f}s = " if total is not None else ""
-        return head + " + ".join(parts)
+        rows = []
+        # +3 for the "N. " each step label carries.
+        width = max(len(name) for name in self.STAGE_NAMES.values()) + 3
+
+        def row(label: str, seconds: Optional[float], indent: str = "  ") -> None:
+            value = "did not run" if seconds is None else f"{seconds:6.2f}s"
+            rows.append(f"{indent}{label:<{width + 2}}{value:>11}")
+
+        for number, (key, label) in enumerate(self.STAGE_NAMES.items(), 1):
+            row(f"{number}. {label}", stages.get(key))
+            if key == "evidence":
+                row("     search", self.span("evidence_start", "retrieval_ready"))
+                row("     live lookup", self.span("evidence_start", "live_ready"))
+        row("   unaccounted", stages.get("unaccounted"))
+        row("= first audio", stages.get("first audio"))
+        head = f"episode timing q={query!r}" if query else "episode timing"
+        return "\n".join([head] + rows)
 
     def _decoupled(self) -> Optional[bool]:
         """Did synthesis start before the model finished writing?"""

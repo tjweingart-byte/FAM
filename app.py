@@ -4203,7 +4203,7 @@ async def audio(
     # exists, not when the episode ends minutes later, so a slow episode can
     # be read off the deploy's log while it is still playing.
     if stats.cache != "hit":
-        log.info("stages q=%r %s", plan.query, stats.marks.stage_line())
+        log.info("%s", stats.marks.stage_report(plan.query))
     primed_bytes = max(0, sum(len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
 
@@ -4224,6 +4224,16 @@ async def audio(
             # only be logged. The player detects the short stream and says so.
             log.exception("audio stream failed mid-flight")
         finally:
+            # The two times that only exist once the episode is over, in the
+            # same plain form as the per-step list written at first audio.
+            if stats.cache != "hit":
+                wrote = stats.marks.span("claude_start", "claude_complete")
+                log.info(
+                    "episode finished q=%r\n  writer finished writing      %s\n"
+                    "  whole request, start to end  %.2fs",
+                    plan.query,
+                    "did not finish" if wrote is None else f"{wrote:.2f}s",
+                    time.monotonic() - started)
             log.info(
                 "episode q=%r %s wall=%.1fs preroll=%.2fs chunks_primed=%d "
                 "audio_primed=%.2fs first_pcm=%s preroll_satisfied=%s "

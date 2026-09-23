@@ -156,7 +156,24 @@ def test_an_absent_stage_is_left_out_rather_than_zero():
     stages = marks.stages()
     assert "brief" not in stages and "writer thinking" not in stages
     assert "first audio" in stages
-    assert "brief" not in marks.stage_line()
+    report = marks.stage_report()
+    assert "brief (episode intelligence)" in report
+    assert "0.00s" not in report.split("brief")[1].splitlines()[0]
+    assert "did not run" in report
+
+
+def test_the_log_lists_each_step_with_its_own_time(stubbed):
+    """One step per line, the measured time beside it - not a sum to decode."""
+    report = _run(stubbed).marks.stage_report("the fed")
+    lines = report.splitlines()
+    assert lines[0] == "episode timing q='the fed'"
+    for label in EpisodeMarks.STAGE_NAMES.values():
+        line = next(l for l in lines if label in l)
+        assert line.rstrip().endswith("s"), line
+    brief = next(l for l in lines if "brief (" in l)
+    assert float(brief.split()[-1].rstrip("s")) == pytest.approx(BRIEF_DELAY, abs=0.08)
+    assert any("search" in l and l.rstrip().endswith("s") for l in lines)
+    assert lines[-1].strip().startswith("= first audio")
 
 
 def test_the_log_carries_the_stages(stubbed):
