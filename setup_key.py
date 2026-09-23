@@ -144,8 +144,8 @@ def main() -> int:
             path.write_text("\n".join(kept + [""]) if kept else "")
         print(f"Removed {name} from {path}")
         if args.exa:
-            print("Researched episodes will now fail unless you also set "
-                  "RESEARCH_BACKEND=claude.")
+            print("Researched episodes will now fall to GDELT (GDELT=1) or be "
+                  "refused unless you also set RESEARCH_BACKEND=gdelt.")
         return 0
 
     if args.exa:
@@ -230,8 +230,9 @@ def exa_main(path, show: bool) -> int:
         if not stored:
             print("\nNo Exa key. Run: python setup_key.py --exa")
             if settings.research_backend == "exa":
-                print("Researched episodes will fail until you do, or until "
-                      "you set RESEARCH_BACKEND=claude.")
+                print("Researched episodes fall to GDELT (GDELT=1) or are "
+                      "refused until you do, or until you set "
+                      "RESEARCH_BACKEND=gdelt.")
             return 1
         print("  checking it with Exa (one search, about half a cent)…")
         ok, detail = asyncio.run(exa_works(stored))

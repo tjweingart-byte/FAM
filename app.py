@@ -202,8 +202,8 @@ def _announce_research() -> None:
     **What it says changed with §109**, and this is the kind of line that goes
     stale silently: it used to say researched episodes would FAIL rather than
     search another way, which was true when the configured backend was the
-    only one. They now fall down a ladder - GDELT, then the model's own search
-    - so the consequence is slower and weaker research rather than no episode,
+    only one. They now fall down a ladder - GDELT, since §135 the only rung
+    below Exa - so the consequence is weaker research rather than no episode,
     and saying otherwise would send somebody looking for failures that are not
     happening.
     """
@@ -215,12 +215,13 @@ def _announce_research() -> None:
         "RESEARCH UNAVAILABLE: RESEARCH_BACKEND=%s but %s.", report["backend"],
         report["exa_detail"])
     log.warning(
-        "  Every researched episode will fall down the ladder to %s - slower, "
-        "weaker evidence, and the episode still gets made.",
+        "  Every researched episode will fall down the ladder to %s - weaker "
+        "evidence, and a question that needs today's facts and finds none is "
+        "refused.",
         " then ".join(report["ladder"][1:]) or "nothing else")
     log.warning(
-        "  Set EXA_API_KEY, or set RESEARCH_BACKEND=claude to make the "
-        "fallback the configured path.")
+        "  Set EXA_API_KEY, or set RESEARCH_BACKEND=gdelt with GDELT=1 to make "
+        "the keyless index the configured path.")
     log.warning("  Every tab says the same thing; /api/health carries it too.")
 
 
@@ -237,6 +238,27 @@ async def _warm_stories() -> None:
     except Exception:  # noqa: BLE001 - a browse page is never worth a failed boot
         log.exception("stories: the warming sweep failed; myFAM will serve its "
                       "evergreen bank until the next refresh")
+
+
+async def _refresh_stories_forever() -> None:
+    """Keep the story pool current with nobody looking (§135).
+
+    The pool used to refresh only when somebody drew myFAM and found it
+    stale, so the first listener after a quiet hour saw an hour-old Trending
+    row while the sweep they had just triggered ran behind it, and the
+    API-Sports allowance the owner asked to be spent on fresh scores sat
+    unused overnight. This ticks once a minute and sweeps whenever the pool
+    is `STORIES_BACKGROUND_SECONDS` old - every fifteen minutes by default,
+    one sweep for every listener, exactly as a page load would have paid.
+
+    Never raises: a sweep that fails is logged by `_warm_stories` and the
+    next tick tries again.
+    """
+    period = float(settings.stories_background_seconds)
+    while True:
+        await asyncio.sleep(min(60.0, period))
+        if time.time() - stories_mod.pool().fetched_at >= period:
+            await _warm_stories()
 
 
 async def _grow_categories() -> None:
@@ -419,6 +441,8 @@ async def lifespan(_: FastAPI):
     # say why. This just means the first listener usually does not see that.
     stories_mod.install()
     asyncio.create_task(_warm_stories())
+    if settings.stories and settings.stories_background_seconds > 0:
+        _BACKGROUND.add(asyncio.create_task(_refresh_stories_forever()))
     # The starter vocabulary, before the first growth sweep and before the
     # first listener. Awaited rather than scheduled, unlike the two beside it,
     # and the difference is the point: those two call the network and this one
@@ -451,6 +475,11 @@ async def lifespan(_: FastAPI):
     if settings.voice_backend == "remote" and settings.voice_supervise_seconds > 0:
         _BACKGROUND.add(asyncio.create_task(_supervise_voice()))
     yield
+    # Loops that live as long as the process end with it, rather than being
+    # destroyed pending when the event loop closes under them.
+    for task in list(_BACKGROUND):
+        task.cancel()
+    _BACKGROUND.clear()
 
 
 app = FastAPI(title="Search to Podcast", version="1.0.0", lifespan=lifespan)
@@ -3454,6 +3483,12 @@ async def myfam_section(request: Request,
 
     for topic in body["topics"]:
         topic["cached"] = written(topic.get("query", ""))
+    # Trending's geography groups carry the same tiles; they are marked the
+    # same way, and deliberately *not* re-sorted ready-first - within a place
+    # the order is popularity, which is what the row is about (§135).
+    for group in body.get("groups", ()):
+        for topic in group["topics"]:
+            topic["cached"] = written(topic.get("query", ""))
     # Ready ones first, each rail's own order preserved inside those two
     # groups. A listener on this screen is browsing, and an episode that
     # starts instantly is a better thing to put in front of them than one

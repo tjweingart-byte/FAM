@@ -164,40 +164,33 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: `claude` gives the model Anthropic's server-side `web_search` tool, so it
-#: searches while it writes: one call, one credential, and the searching
-#: happens inside the model's turn.
+#: `exa` retrieves first and hands Claude an evidence packet to read. The
+#: retrieval is a bounded, timed step this codebase can measure - `research.py`
+#: keeps the call and the packet byte-for-byte as the manual benchmark measured
+#: them, so the numbers already taken by hand stay comparable.
 #:
-#: `exa` retrieves first and hands Claude an evidence packet to read. Two
-#: calls and a second credential, but the retrieval is a bounded, timed step
-#: this codebase can measure - `research.py` keeps the call and the packet
-#: byte-for-byte as the manual benchmark measured them, so the numbers already
-#: taken by hand stay comparable.
+#: `exa` is the default. That is a real cost: it needs a credential, and a
+#: deployment without EXA_API_KEY falls to GDELT (when `GDELT=1`) or refuses a
+#: question that needs today's facts. The app says so at startup and on every
+#: /api/health, because a missing credential discovered on a listener's first
+#: researched question is the shape of failure this project has paid for most.
 #:
-#: `exa` is the default. That is a real cost: it needs a second credential, and
-#: a deployment without EXA_API_KEY cannot research at all - a researched
-#: episode will fail rather than quietly search another way. The app says so at
-#: startup and on every /api/health, because a missing credential discovered on
-#: a listener's first researched question is the shape of failure this project
-#: has paid for most.
+#: **`gdelt` is the keyless one** (§109). A retriever in its own right and the
+#: ladder's fallback rung: weaker than Exa - an article index with no
+#: highlights - and available to a deployment with no retrieval credential.
 #:
-#: `claude` remains one variable away and needs nothing installed, so a
-#: deployment without an Exa key has a working configuration to move to rather
-#: than a broken one to endure.
-#:
-#: **`gdelt` is the third, and it is the keyless one** (§109). It was already
-#: in the codebase as an additive cross-check beside Exa; it is a retriever in
-#: its own right now, because the ladder that runs when a search comes back
-#: empty needs a rung that costs nothing to try. Weaker than Exa - an article
-#: index with no highlights - and available to a deployment that has no
-#: retrieval credential at all.
+#: **`claude` is gone** (§135, at the owner's direction): everything an episode
+#: is written from comes from Exa, GDELT and the live providers, and the model
+#: never searches the web for FAM. It is refused by name below, with the reason,
+#: rather than as an unknown word - a deployment that still sets it deserves to
+#: be told what happened to it.
 #:
 #: A value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
 #: - rather than falling back to one silently. What the *ladder* does when a
 #: rung comes back empty is a different thing, and it is recorded on the
 #: packet every time (`fell_back_from`).
-RESEARCH_BACKENDS = ("claude", "exa", "gdelt")
+RESEARCH_BACKENDS = ("exa", "gdelt")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
@@ -350,13 +343,7 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # How much the searching call may write back. It reports evidence rather
-    # than an episode - a few sources with their passages - so this is small
-    # on purpose: it is a ceiling on a research note, not on a script, and a
-    # large one would let a model that misread the job write the episode here
-    # instead. See `research.retrieve_with_claude`.
-    research_max_tokens: int = _env_int("RESEARCH_MAX_TOKENS", 4000)
-    # claude | exa - see RESEARCH_BACKENDS above. Only consulted when an
+    # exa | gdelt - see RESEARCH_BACKENDS above. Only consulted when an
     # episode is actually being researched; an unresearched one costs nothing
     # either way.
     research_backend: str = field(
@@ -523,6 +510,13 @@ class Settings:
     # global news index actually moves, and the per-source floors in
     # `story_sources` keep the providers with daily quotas off this clock.
     stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
+    # How often the pool refreshes itself with nobody looking (§135). It used
+    # to refresh only when somebody drew myFAM and found it stale, so a quiet
+    # hour left Trending an hour old for the next listener and the API-Sports
+    # allowance unspent. A background loop on the same clock keeps both
+    # current. 0 switches the loop off and leaves the page-load trigger.
+    stories_background_seconds: float = _env_float(
+        "STORIES_BACKGROUND_SECONDS", 900.0)
     # Generous, because this never sits in front of the first word: the pool
     # refreshes in the background and myFAM renders from whatever it holds.
     stories_timeout_seconds: float = _env_float("STORIES_TIMEOUT_SECONDS", 12.0)
@@ -543,7 +537,10 @@ class Settings:
             "STORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
     stories_effort: str = field(
         default_factory=lambda: os.environ.get("STORIES_EFFORT", "low"))
-    stories_max_tokens: int = _env_int("STORIES_MAX_TOKENS", 3000)
+    # Room for a first sweep's worth of tiles: since §135 the GDELT sweep
+    # finds stories in every region, so a cold pool composes thirty rather
+    # than eight.
+    stories_max_tokens: int = _env_int("STORIES_MAX_TOKENS", 6000)
     # A ceiling rather than a target. Nobody is waiting on this - a slow
     # composition costs one window of freshness, never a listener's wait.
     stories_compose_timeout_seconds: float = _env_float(
@@ -652,6 +649,14 @@ class Settings:
     api_sports_sport: str = field(
         default_factory=lambda: os.environ.get(
             "API_SPORTS_SPORT", "american-football").strip())
+    # API-Sports' daily request allowance, shared by the story sweep and the
+    # live lookups episodes make (§135). 100 is the free tier. The sweep is
+    # paced to spend what is left evenly over what is left of the UTC day -
+    # about every fourteen minutes for one sport on the free tier - so the
+    # scores on myFAM are as fresh as the plan allows and the quota is never
+    # spent by lunchtime. Counted per process: a deployment running several
+    # workers should divide its plan between them.
+    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 100)
     sportsdataio_key: str = field(
         default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
     finnhub_key: str = field(
@@ -1172,6 +1177,11 @@ class Settings:
                 raise ValueError(
                     f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
                     f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
+        if self.research_backend == "claude":
+            raise ValueError(
+                "RESEARCH_BACKEND=claude was removed (PROBLEMS.md §135): FAM no "
+                "longer lets the model search the web. Use RESEARCH_BACKEND=exa "
+                "with EXA_API_KEY, or RESEARCH_BACKEND=gdelt with GDELT=1.")
         if self.research_backend not in RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_BACKEND={self.research_backend!r} is not a research "

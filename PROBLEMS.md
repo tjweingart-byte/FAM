@@ -10877,3 +10877,168 @@ and all are fixed:
 
 Still true: audio already stored under `remote:default` before this change is
 not found under the new key and costs one re-voicing per episode.
+
+## 135. Where an episode's information comes from, and a Trending row of real stories
+
+Four instructions from the owner, in one packet:
+
+> Claude web search is not supposed to be a part of the process. All
+> information for the episodes should be gathered from Exa, GDELT,
+> Polymarket, Finnhub, and API-sports. For API-sports, the sweep should not
+> be every two hours, it should be using the full 100 requests a day ...
+> and it should include score. ... The Trending section on myFAM should be
+> populated using the browse path ... trending stories from over the world
+> and regionally ... categorized by geography ... based off of their
+> popularity on trending news ... not limited to Finnhub, Polymarket, and
+> API-sports data.
+
+### The model's own web search, deleted
+
+It was the last rung of the retrieval ladder (§109): a separate research call
+with Anthropic's `web_search` tool, 10-25 seconds, used when Exa and GDELT
+both came back empty or when `RESEARCH_BACKEND=claude`. Deleted rather than
+switched off - `retrieve_with_claude`, `shape_claude_packet`,
+`research_client`, `CLAUDE_RESEARCH_SYSTEM`, `RESEARCH_MAX_TOKENS`,
+`provenance.from_web_search` and `script_generator._merge_search_provenance`
+(which read tool results off a writing call that has carried no tools since
+§108, so it could never find any). `RESEARCH_BACKENDS` is `("exa", "gdelt")`,
+`research.FALLBACK_RUNGS` is `("gdelt",)`, and `RESEARCH_BACKEND=claude` is
+refused at boot with a sentence naming this section rather than as a typo.
+
+What changes for a listener: on a deployment with neither Exa nor GDELT
+answering, a question that turns on current facts is refused (`NoEvidence`)
+where it used to fall to the model's search. An evergreen question is written
+from the model's knowledge exactly as before - that is the brief's call, not
+a search.
+
+**A live provider with a key is switched on by the key.** A deployment
+holding `API_SPORTS_KEY` or `FINNHUB_KEY` and no `LIVE_*_PROVIDER` line was
+answering live questions from articles alone - §119's "configured and not
+used". `live_sources.configured()` now derives `api-sports` and `finnhub`
+from their credentials (`DERIVED_FROM_KEY`); `none` still switches a domain
+off; `/api/health` says which were derived. Polymarket is keyless, so it is
+named in `render.yaml` as before, and `STORIES_POLYMARKET=1` is added there
+so its markets reach the story pool too.
+
+### API-Sports: the whole allowance, and the score
+
+`live_sources.RequestBudget` counts every API-Sports request - the story
+sweep's and the episode lookups' - against `API_SPORTS_DAILY_REQUESTS` (100,
+the free tier), reset at UTC midnight when the provider resets it. The
+sweep's `min_interval_seconds` is now whatever is left spread over what is
+left of the day: 864 s for one sport at midnight, which with the pool's
+fifteen-minute clock is a sweep every fifteen minutes, slower on a day
+lookups spent a share of it, and never out by lunchtime. A reply whose
+`errors` says the limit is reached is an outage (`BudgetSpent`), never a card
+with no games - it answers 200.
+
+**The score.** It was withheld on §88's reasoning: a tile is written once,
+so a score in its title is right for one sweep and wrong for the rest of the
+game. That is still true of the title, and the composer is still told to keep
+the score out of it. The score now travels as `Signal.live_line`, written in
+code from the scoreboard on every sweep - `Live · Chiefs 21–14 Bills · Third
+Quarter`, `Final · ...`, `Starts 20:15 UTC` - carried on `Story` and `Topic`,
+drawn under the card title (`seedLiveHtml`), and marked with its age once it
+is older than a sweep should make it. A held sports story's question is
+rewritten when its status changes (`stories.sports_query`), because "what to
+watch for" is the wrong question after the final whistle.
+
+Two more things the sweep does now: `MAJOR_LEAGUES` puts the NFL, NBA and the
+top football leagues ahead of the third division a date request also returns
+(the "no league filter" gap, narrowed rather than closed), and the league's
+country is the tile's geography. And the episode lookup reads the sweep's card
+(`live_sources.CARD`) before it spends: finding which game a question is about
+costs nothing when the sweep listed it, and a card inside half the sports
+freshness limit is used as the state too.
+
+**The trade, stated.** On the free tier the sweep spends most of the day's
+hundred, so an episode lookup that needs a fresh score takes from the same
+allowance and slows the sweep; past the allowance it says so rather than
+failing obscurely. A $19 plan (7,500 a day) removes the tension. Counted per
+process: several workers should divide the plan between them.
+
+### Trending: the stories, by place
+
+GDELT's half of the story pool was fifteen fixed GKG *themes* ranked by
+volume, each a tile - "inflation", "sport", "the stock market" - so Trending
+was a list of things that are always being written about and read the same
+every day. `gdelt.py`'s own docstring had named it as the limitation of a
+query-driven index.
+
+Now `GdeltSignals` does three things per sweep:
+
+1. measures the themes, as before, to choose where the worldwide sample is
+   drawn from;
+2. `gdelt.discover` reads the recent articles (12 hours, `hybridrel`) under
+   the eight hottest themes and under **each region's own press**
+   (`geography.GDELT_SOURCES`, `sourcecountry:` OR'd) - about twenty requests,
+   six at a time, with its own 45-second ceiling;
+3. `news_clusters.cluster` groups headlines that share at least two salient
+   words **and a name** (a capitalised word - "Fed holds rates" and "ECB holds
+   rates" are two stories), and counts **distinct outlets** per group. A
+   group one outlet is running is not a trend and is dropped.
+
+Each story's popularity is its outlet count (log-scaled to strength), and
+every region's top two are guaranteed places so "regional" is not whichever
+region publishes most in English. A story's subject is its best headline,
+which moves between sweeps; `stories._adopt_identity` matches it to the story
+already held by fingerprint (`news_clusters.same_story`), so it keeps its id,
+its clock and its tile - without that, §103's never-ageing story would come
+back through a new door.
+
+**All known information.** `stories.corroborate` runs over every sweep's
+signals: a game, a price or a market whose subject a news story shares takes
+that story's coverage and countries, and the news story is folded in rather
+than offered beside it. So a game the press is running outranks one nobody is
+writing about, and the row is ranked across all five sources.
+
+**Geography.** `geography.py` maps every country the app can spell to one of
+nine regions, and `scope_for` turns a story's publisher-country split into
+where it is trending: **worldwide** when three regions' press each carry a
+real share or no region owns it, a **region** when one does, a **country**
+when one country does. It is where a story is being *covered*, not where it
+happened - which is what "trending in Europe" means, and a count GDELT already
+gives rather than a model call per headline.
+
+**The rail.** `topics.trending_score` is push × (1 + `COVERAGE_WEIGHT` ×
+log-coverage) × §134's country boost. `rank_world` keeps up to
+`WORLD_LOCAL_SLOTS` (two) of the four places for stories trending in the
+listener's own part of the world, fills the rest with the most popular
+anywhere, and shows them in popularity order; each Trending card's tag is the
+place ("Worldwide", "Europe", "United States") rather than the subject.
+**View more** is `trending_groups`: Worldwide, then the listener's region
+("Where you are"), then every other region busiest first, drawn with a heading
+per place. §134's rules stand: popularity and country only, never the bank or
+the startup set, held stories only to fill.
+
+The pool's variety cap now counts a facet **within a place**
+(`stories._variety_keys`), because five world-news stories used to use up the
+pool's whole allowance for world news and a story trending in India competed
+for it with one trending in Europe. `POOL_SIZE` 24→40 and `POOL_STORE` 48→96
+to hold the world and every region; `STORIES_MAX_TOKENS` 3000→6000 for a cold
+pool's first composition.
+
+**The pool refreshes itself.** It used to refresh only when somebody drew
+myFAM and found it stale, so a quiet hour left Trending an hour old and the
+API-Sports allowance unspent. `app._refresh_stories_forever` ticks once a
+minute and sweeps whenever the pool is `STORIES_BACKGROUND_SECONDS` (900)
+old. Background loops are now cancelled at shutdown rather than destroyed
+pending.
+
+### Still true, and worth knowing
+
+- **Nothing here has made a real request.** GDELT and API-Sports are blocked
+  from the build container, as every previous section on them says. The
+  `sourcecountry:` query form, operator-only queries and `hybridrel` are
+  written from GDELT's documentation; the API-Sports limit reply from its. Run
+  `python tools/stories_report.py` against the deployment and read which
+  regions came back.
+- **GDELT's rate limit is the new exposure.** About twenty requests every
+  fifteen minutes from one IP, six at a time. If GDELT starts answering 429,
+  the report will say `source_failed` and the row keeps its held stories;
+  lowering `HOT_THEMES` or the concurrency in `gdelt.discover` is the knob.
+- **Clustering is words, and English-leaning.** Headlines in other languages
+  group only with each other, which under-counts a story's worldwide reach
+  rather than merging two stories - the cheaper mistake.
+- **The composer still keeps results out of news tiles.** Only the score line
+  is exempt; a news story's title is written the §102 way.

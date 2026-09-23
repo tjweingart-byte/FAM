@@ -1,9 +1,9 @@
 """Exa retrieval, and Claude reading the packet instead of searching.
 
-Two ways to research an episode, and the difference is who does the looking.
-On `claude` the model gets Anthropic's `web_search` tool and searches inside
-its own turn. On `exa` this codebase retrieves first, builds an evidence packet
-and puts it in the prompt - so the model reads rather than searches.
+This codebase retrieves first - Exa, then GDELT when Exa comes back empty -
+builds an evidence packet and puts it in the prompt, so the model reads rather
+than searches. The model never searches: the `claude` backend that gave a
+research call Anthropic's `web_search` tool is deleted (§135).
 
 The packet is byte-for-byte the one the manual benchmark measured on
 2026-09-05 and the experiment layer then repeated. That is the point of it:
@@ -82,48 +82,28 @@ def exa(monkeypatch):
     return calls
 
 
-#: What the searching call comes back with: text blocks in the shape it was
-#: asked for, and the tool-result blocks provenance is read off. Shaped like
-#: the SDK's objects rather than like a convenient dict, because the code
-#: under test reads `block.type` and `block.text`.
-CLAUDE_REPORT = (
-    "SOURCE 1\n"
-    "Title: Fed holds rates\n"
-    "URL: https://reuters.com/a\n"
-    "Published: 2026-09-18\n"
-    "Key evidence:\n"
-    "Rates held at 4.25%, the third hold running.\n"
-)
-
-
 @pytest.fixture
-def fake_search(monkeypatch):
-    """The model's own search, without a credential or the network."""
+def fake_gdelt(monkeypatch):
+    """GDELT switched on and answering, without the network.
+
+    Patched at `gdelt.retrieve`, so the real `research.retrieve_with_gdelt`
+    runs - ranking, grading, dating and provenance included. A fixture that
+    patched the rung itself would prove only that the stub works.
+    """
+    import gdelt
+
     calls: list = []
 
-    class _Message:
-        stop_reason = "end_turn"
-        usage = types.SimpleNamespace(input_tokens=900, output_tokens=200,
-                                      cache_read_input_tokens=0,
-                                      cache_creation_input_tokens=0)
-        content = [
-            types.SimpleNamespace(
-                type="web_search_tool_result",
-                content=[types.SimpleNamespace(
-                    url="https://reuters.com/a", title="Fed holds rates",
-                    page_age="1 day ago")]),
-            types.SimpleNamespace(type="text", text=CLAUDE_REPORT),
-        ]
+    async def retrieve(query, limit=0, recency_days=0):
+        calls.append({"query": query, "recency_days": recency_days})
+        return [gdelt._Result(
+            title="Fed holds rates", url="https://reuters.com/a",
+            published_date="2026-09-18", highlights=["Fed holds rates"],
+            country="United States")]
 
-    class _Messages:
-        async def create(self, **kwargs):
-            calls.append(kwargs)
-            return _Message()
-
-    class _Client:
-        messages = _Messages()
-
-    monkeypatch.setattr(research, "research_client", lambda: _Client())
+    monkeypatch.setattr(gdelt, "settings",
+                        dataclasses.replace(gdelt.settings, gdelt=True))
+    monkeypatch.setattr(gdelt, "retrieve", retrieve)
     return calls
 
 
@@ -271,14 +251,24 @@ def test_the_credential_never_reaches_the_result(exa):
 # --------------------------------------------------------------------------
 # it refuses rather than guessing
 # --------------------------------------------------------------------------
-def test_the_claude_backend_retrieves_nothing_and_that_is_not_an_error(monkeypatch):
-    use_backend(monkeypatch, "claude")
-    packet = asyncio.run(research.retrieve("what did the fed do"))
-    assert packet.backend == "claude"
-    assert not packet, "the claude backend must not produce a packet"
+def test_the_claude_backend_is_gone_and_says_so():
+    """The model never searches for FAM (§135). Deleted rather than switched
+    off, so there is no rung, no backend and no function left to turn back
+    on - and a deployment that still sets it is told what happened, by name,
+    rather than being refused as though it had made a typo."""
+    assert "claude" not in RESEARCH_BACKENDS
+    assert research.FALLBACK_RUNGS == ("gdelt",)
+    for name in ("retrieve_with_claude", "shape_claude_packet",
+                 "research_client", "CLAUDE_RESEARCH_SYSTEM"):
+        assert not hasattr(research, name), f"research.{name} is still here"
+    with pytest.raises(ValueError, match="removed"):
+        dataclasses.replace(settings, research_backend="claude")
+    with pytest.raises(research.ResearchUnavailable, match="is not a backend"):
+        asyncio.run(research.retrieve("q", backend="claude"))
 
 
-@pytest.mark.parametrize("value", ["exaa", "web", "google", "none", "exa-py"])
+@pytest.mark.parametrize("value", ["exaa", "web", "google", "none", "exa-py",
+                                   "claude"])
 def test_an_unrecognised_backend_is_refused_at_retrieval(value, monkeypatch):
     """The second gate. `Settings.__post_init__` is bypassable; this is not.
 
@@ -289,14 +279,14 @@ def test_an_unrecognised_backend_is_refused_at_retrieval(value, monkeypatch):
     exa and refusing that is pedantry rather than safety.
     """
     monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="claude"))
+                        dataclasses.replace(settings, research_backend="exa"))
     with pytest.raises(research.ResearchUnavailable) as exc:
         asyncio.run(research.retrieve("q", backend=value))
     assert "is not a backend" in str(exc.value)
     assert "falling back" in str(exc.value)
 
 
-@pytest.mark.parametrize("value", ["EXA", " exa ", "Exa", "CLAUDE"])
+@pytest.mark.parametrize("value", ["EXA", " exa ", "Exa"])
 def test_case_and_whitespace_normalise_rather_than_being_refused(value,
                                                                  monkeypatch,
                                                                  exa):
@@ -326,13 +316,13 @@ def test_a_missing_key_names_the_variable_and_the_way_out(monkeypatch):
     with pytest.raises(research.ResearchUnavailable) as exc:
         asyncio.run(research.retrieve("q"))
     assert "EXA_API_KEY" in str(exc.value)
-    assert "RESEARCH_BACKEND=claude" in str(exc.value)
+    assert "RESEARCH_BACKEND=gdelt" in str(exc.value)
 
 
-def test_exa_failure_does_not_become_a_claude_search():
+def test_exa_failure_does_not_fall_back_inside_retrieve():
     """The failure this refuses. An episode that asked for Exa and quietly got
-    the model's own search is unattributable - and would report Exa's cost of
-    zero while paying Claude's.
+    another retriever is unattributable - the fallback belongs to the ladder,
+    which records it, and never to `retrieve`, which would not.
 
     Parsed rather than grepped: a substring search for "except" also matches
     the word "exception" in a comment, which is how this test first passed
@@ -393,57 +383,16 @@ def test_evidence_reaches_the_prompt_and_the_tool_does_not(exa, monkeypatch):
         "the search tool was attached on top of an evidence packet")
 
 
-def test_the_claude_backend_retrieves_before_the_writing_call(monkeypatch,
-                                                               fake_search):
-    """It used to hand the writing call a tool and let it search mid-episode,
-    which is how a first sentence came to be written before anything had been
-    looked up. It is a retrieval of its own now. PROBLEMS.md §108."""
-    use_backend(monkeypatch, "claude")
-    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
-    plan = plan_episode("what did the fed do today", 3, search=True)
-    notes = ScriptNotes()
-    researched = asyncio.run(generator.research(plan, notes))
-
-    assert "Rates held at 4.25%" in researched.evidence
-    assert "<evidence>" in build_prompt(researched)
-    assert "tools" not in generator._request_kwargs(researched), (
-        "the call that speaks was given a search tool")
-    assert notes.research["backend"] == "claude"
-    assert notes.research["sources"] == ["reuters.com"]
-    # The searching call's tokens are the episode's, and were invisible for as
-    # long as the searching happened inside the writing turn.
-    assert notes.usage.model_calls == 1
-
-
-def test_the_packet_the_model_writes_is_graded_and_dated_in_code(monkeypatch,
-                                                                 fake_search):
-    """Three rules from the Exa path, applied to evidence that arrives as
-    prose: no hostname reaches the writer, the grade is computed from the URL
-    rather than taken from the model, and the relative phrase is subtraction."""
-    use_backend(monkeypatch, "claude")
-    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
-    researched = asyncio.run(generator.research(
-        plan_episode("what did the fed do today", 3, search=True), ScriptNotes()))
-
-    assert "reuters.com" not in researched.evidence
-    assert "URL:" not in researched.evidence
-    assert ("Source type: " + research.TIER_LABELS["primary"]
-            in researched.evidence)
-    # The model wrote "Published: 2026-09-18" and nothing else; "yesterday" is
-    # subtraction done here, which is the rule §82 paid for.
-    assert "Published: 2026-09-18 (" in researched.evidence
-
-
 def test_a_search_that_cannot_run_leaves_the_episode_answerable(monkeypatch):
     """A layer that adds quality must not subtract availability. No key, a
     refusal, a timeout - all of them are an unresearched episode, which is a
     thing this app already knows how to be."""
-    use_backend(monkeypatch, "claude")
+    import gdelt
 
-    def broken():
-        raise RuntimeError("no credential")
-
-    monkeypatch.setattr(research, "research_client", broken)
+    use_backend(monkeypatch, "exa")
+    monkeypatch.setitem(sys.modules, "exa_py", None)
+    monkeypatch.setattr(gdelt, "settings",
+                        dataclasses.replace(gdelt.settings, gdelt=False))
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
     researched = asyncio.run(generator.research(plan, ScriptNotes()))
@@ -460,15 +409,13 @@ def test_an_unresearched_episode_never_retrieves(exa, monkeypatch):
     assert not [c for c in exa if "query" in c], "an unresearched episode searched"
 
 
-def test_an_empty_packet_asks_the_model_to_look_before_writing(monkeypatch,
-                                                                fake_search):
+def test_an_empty_packet_falls_to_gdelt_before_writing(monkeypatch,
+                                                       fake_gdelt):
     """Retrieval succeeded and found nothing usable.
 
-    The old behaviour was to leave the search tool attached to the writing
-    call, which is a fallback to the model's own search that nobody could see
-    and that happened while the episode was being spoken. The same fallback
-    now happens as a retrieval, before the first word, and the episode's own
-    record names the backend that could not serve it.
+    The next rung is GDELT - the only one since §135 - and it runs before
+    the first word, and the episode's own record names the backend that
+    could not serve it.
     """
     class Empty:
         def __init__(self, key):
@@ -487,12 +434,13 @@ def test_an_empty_packet_asks_the_model_to_look_before_writing(monkeypatch,
     plan = plan_episode("todays news", 3, search=True)
     notes = ScriptNotes()
     researched = asyncio.run(generator.research(plan, notes))
-    assert "Rates held at 4.25%" in researched.evidence
+    assert "Fed holds rates" in researched.evidence
     assert "tools" not in generator._request_kwargs(researched)
+    assert notes.research["backend"] == "gdelt"
     assert notes.research["fell_back_from"] == "exa"
 
 
-def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_search):
+def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_gdelt):
     """Exa with no key used to raise, and the episode failed. What made that
     survivable was the cover half speaking underneath it, which is gone - so
     the other retriever gets one go, and says on the record that it did."""
@@ -505,55 +453,12 @@ def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_search)
     researched = asyncio.run(generator.research(
         plan_episode("todays news", 3, search=True), notes))
     assert researched.evidence
-    assert notes.research["backend"] == "claude"
+    assert notes.research["backend"] == "gdelt"
     assert notes.research["fell_back_from"] == "exa"
 
 
-def test_a_report_of_having_found_nothing_is_not_evidence(monkeypatch):
-    """Asked to search and report, a model that finds nothing sometimes
-    writes a sentence saying so. A sentence is non-empty, so it would satisfy
-    `Packet.__bool__`, stop the ladder, suppress the refusal, and land inside
-    the <evidence> block as though it were a source. The test is whether it
-    reported a URL it actually read."""
-    class _Message:
-        stop_reason = "end_turn"
-        usage = None
-        content = [types.SimpleNamespace(
-            type="text",
-            text="I searched and no source reports a result for this yet.")]
-
-    class _Client:
-        messages = types.SimpleNamespace(create=lambda **kw: _answer(_Message()))
-
-    async def _answer(value):
-        return value
-
-    monkeypatch.setattr(research, "research_client", lambda: _Client())
-    packet = asyncio.run(research.retrieve_with_claude("who won"))
-    assert not packet, "prose about finding nothing was taken for evidence"
-    assert packet.context == ""
-
-
-def test_the_searching_client_is_built_once_per_credential(monkeypatch):
-    """Each `AsyncAnthropic` carries its own httpx connection pool, so one
-    per retrieval leaks a pool per researched episode."""
-    built: list = []
-
-    monkeypatch.setattr(research, "_CLIENT", ("", None))
-    monkeypatch.setattr(research.credentials if hasattr(research, "credentials")
-                        else __import__("credentials"), "active",
-                        lambda name: "sk-one")
-    import anthropic_client
-    monkeypatch.setattr(anthropic_client, "build_async_client",
-                        lambda key=None: built.append(key) or object())
-
-    first = research.research_client()
-    assert research.research_client() is first
-    assert len(built) == 1, "a client was built per call"
-
-
 def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
-                                                                 fake_search):
+                                                                 fake_gdelt):
     """The availability rule, applied to what replaced the thing it was
     written for.
 
@@ -584,7 +489,7 @@ def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
         plan_episode("todays news", 3, search=True), notes))
 
     # It did not raise, and it did not give up either: the next rung ran.
-    assert "Rates held at 4.25%" in researched.evidence
+    assert "Fed holds rates" in researched.evidence
     assert notes.research["fell_back_from"] == "exa"
 
 
@@ -604,10 +509,14 @@ def test_every_rung_failing_is_an_unresearched_episode_not_a_dead_one(monkeypatc
     monkeypatch.setenv("EXA_API_KEY", "k")
     use_backend(monkeypatch, "exa")
 
-    def broken_client():
-        raise RuntimeError("no credential either")
+    import gdelt
 
-    monkeypatch.setattr(research, "research_client", broken_client)
+    async def broken_gdelt(query, limit=0, recency_days=0):
+        raise RuntimeError("GDELT is down too")
+
+    monkeypatch.setattr(gdelt, "settings",
+                        dataclasses.replace(gdelt.settings, gdelt=True))
+    monkeypatch.setattr(gdelt, "retrieve", broken_gdelt)
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("todays news", 3, search=True)
     researched = asyncio.run(generator.research(plan, ScriptNotes()))
@@ -677,11 +586,12 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(exa, monkeypatch):
 # configuration
 # --------------------------------------------------------------------------
 def test_a_fresh_deployment_researches_with_exa():
-    """The production default. Reversed from `claude`, deliberately, and with
-    a real cost attached: it needs a second credential."""
+    """The production default, with a real cost attached: it needs a
+    credential. The keyless alternative is GDELT; the model's own search is
+    not an alternative any more (§135)."""
     assert config.DEFAULT_RESEARCH_BACKEND == "exa"
     assert settings.research_backend == "exa"
-    assert "claude" in RESEARCH_BACKENDS and "exa" in RESEARCH_BACKENDS
+    assert RESEARCH_BACKENDS == ("exa", "gdelt")
 
 
 def test_the_default_is_one_fact_in_one_place():
@@ -694,14 +604,13 @@ def test_the_default_is_one_fact_in_one_place():
     assert settings.research_backend == config.DEFAULT_RESEARCH_BACKEND
 
 
-def test_rollback_to_claude_is_still_one_variable(monkeypatch):
+def test_a_keyless_configuration_is_still_one_variable(monkeypatch, fake_gdelt):
     """A deployment with no Exa key must have a working configuration to move
-    to, not a broken one to endure."""
-    patched = dataclasses.replace(settings, research_backend="claude")
+    to, not a broken one to endure - and since §135 that is GDELT."""
+    patched = dataclasses.replace(settings, research_backend="gdelt")
     monkeypatch.setattr(research, "settings", patched)
-    assert patched.research_backend == "claude"
-    assert not asyncio.run(research.retrieve("q")), (
-        "the fallback configuration must need no key and no package")
+    assert asyncio.run(research.retrieve("q")), (
+        "the keyless configuration must need no key and no package")
 
 
 def test_the_env_example_ships_the_default_it_documents():
@@ -790,13 +699,15 @@ def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
     assert any("fall down the ladder" in m for m in messages), messages
     # Named from `research.ladder()` rather than from a list written out
     # here, so the warning stays true of whatever this deployment has
-    # switched on - with GDELT=0, the shipped default, it is claude alone.
+    # switched on - with GDELT=0, the shipped default, it is nothing at all
+    # since the model's own search went (§135), and it says so.
     rungs = research.ladder()[1:]
-    assert rungs, "a deployment with no fallback rung at all"
     assert any(all(rung in m for rung in rungs) for m in messages), (
         f"the warning must name the rungs that will actually serve: {rungs}")
+    if not rungs:
+        assert any("nothing else" in m for m in messages), messages
     assert not any("will FAIL" in m for m in messages)
-    assert any("RESEARCH_BACKEND=claude" in m for m in messages), (
+    assert any("RESEARCH_BACKEND=gdelt" in m for m in messages), (
         "the warning must name the working configuration to move to")
 
 
@@ -858,10 +769,14 @@ def test_health_is_clear_when_exa_can_actually_run(monkeypatch):
     assert report["unavailable"] is False
 
 
-def test_the_claude_backend_never_reports_unavailable_for_a_missing_exa_key(monkeypatch):
-    """Exa's prerequisites are not the Claude backend's problem."""
+def test_the_gdelt_backend_never_reports_unavailable_for_a_missing_exa_key(monkeypatch):
+    """Exa's prerequisites are not GDELT's problem."""
+    import gdelt
+
     monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="claude"))
+                        dataclasses.replace(settings, research_backend="gdelt"))
+    monkeypatch.setattr(gdelt, "settings",
+                        dataclasses.replace(gdelt.settings, gdelt=True))
     _exa_py(monkeypatch, installed=False)
     monkeypatch.delenv("EXA_API_KEY", raising=False)
     assert research.report()["unavailable"] is False

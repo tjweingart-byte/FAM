@@ -149,7 +149,7 @@ SUBJECT_COOLDOWN = 36 * 3600.0
 #: sharing one facet. The second is the variety rule applied before the
 #: rankers ever see the inventory: a busy Sunday in sport must not be able to
 #: crowd everything else out of the bank.
-POOL_SIZE = 24
+POOL_SIZE = 40
 MAX_PER_FACET = 5
 
 #: At most this many stories **kept**, which is a different number on purpose.
@@ -166,10 +166,13 @@ MAX_PER_FACET = 5
 #: and `_FIRST_SEEN` remembers the clock of anything that falls out of even
 #: this. What is shown is capped; what is remembered is what makes the cap
 #: honest.
-POOL_STORE = 48
+POOL_STORE = 96
 
 #: How many signals one source may contribute to a single refresh. Without it
-#: the provider with the chattiest endpoint decides what FAM is about.
+#: the provider with the chattiest endpoint decides what FAM is about. A
+#: source may declare its own `max_signals` - GDELT does, because since §135
+#: it is the one source that finds stories in every region at once, and eight
+#: would be one region's worth.
 MAX_PER_SOURCE = 8
 
 
@@ -243,6 +246,26 @@ class Signal:
     #: Empty when a provider cannot say, which every provider but GDELT is
     #: today, and which ranks exactly as it did before this existed.
     countries: tuple = ()
+    #: The story's fingerprint - its most shared salient words
+    #: (`news_clusters`). What lets one story be recognised across two sweeps
+    #: whose leading headline differs, and across two sources that name it
+    #: differently. Empty for a source with nothing to fingerprint.
+    keywords: tuple = ()
+    #: How many distinct outlets are running this - the popularity Trending
+    #: ranks on (§135). Zero when no news index has seen it, which a
+    #: scoreboard or a price on its own has not.
+    coverage: int = 0
+    #: Where the source that found it was looking, when it knows better than
+    #: the publisher countries: a regional sweep's region, a league's country.
+    region_hint: str = ""
+    #: A live state the tile carries beside its title, written in code from
+    #: the provider's own numbers and refreshed on every sweep - a score and
+    #: the period, today. Never composed and never part of the title, so it
+    #: cannot go stale inside a sentence somebody wrote an hour ago (§135).
+    live_line: str = ""
+    #: The provider's status for `live_line`, in `live_facts`' closed
+    #: vocabulary (`scheduled`/`in_progress`/`final`).
+    live_status: str = ""
 
     @property
     def id(self) -> str:
@@ -411,6 +434,22 @@ class Story:
     #: `Signal.countries`, carried through - where the coverage is coming
     #: from. Read by Trending and nothing else.
     countries: tuple = ()
+    #: `Signal.keywords`, `coverage` and `region_hint`, carried through and
+    #: refreshed every sweep the story is seen on.
+    keywords: tuple = ()
+    coverage: int = 0
+    region_hint: str = ""
+    #: Where it is trending - `geography.scope_for` over `countries`:
+    #: `world`, `region` or `country`, the key, and the label a card shows.
+    geo_scope: str = ""
+    geo_key: str = ""
+    geo: str = ""
+    #: `Signal.live_line` / `live_status`, and when the provider said so.
+    #: Refreshed every sweep, so a score is never older than one sweep and
+    #: the card can say how old it is.
+    live_line: str = ""
+    live_status: str = ""
+    live_as_of: float = 0.0
 
     @property
     def id(self) -> str:
@@ -450,7 +489,9 @@ class Story:
                 "source": self.source, "tags": list(self.tags),
                 "first_seen": self.first_seen, "shelf_life": self.shelf_life,
                 "outcome_pending": self.outcome_pending,
-                "degraded": self.degraded}
+                "degraded": self.degraded, "coverage": self.coverage,
+                "geo": self.geo, "geo_scope": self.geo_scope,
+                "live_line": self.live_line, "live_status": self.live_status}
 
 
 @dataclass
@@ -726,16 +767,20 @@ async def collect(limit: int = MAX_PER_SOURCE,
         ready.append(source)
 
     async def sweep(source: StorySource):
+        # A source may ask for more room and more time than the default. The
+        # GDELT story sweep does both: it reads every region's press, which is
+        # more requests and more stories than one provider's endpoint.
+        cap = int(getattr(source, "max_signals", 0) or limit)
+        ceiling = float(getattr(source, "timeout_seconds", 0.0)
+                        or settings.stories_timeout_seconds)
         try:
-            rows = await asyncio.wait_for(
-                source.collect(limit),
-                timeout=float(settings.stories_timeout_seconds))
+            rows = await asyncio.wait_for(source.collect(cap), timeout=ceiling)
         except asyncio.TimeoutError:
             return source, TIMEOUT, [], f"{source.name} timed out"
         except Exception as exc:  # noqa: BLE001 - one provider must not sink the sweep
             log.warning("stories: %s failed: %s", source.name, exc, exc_info=True)
             return source, SOURCE_FAILED, [], f"{type(exc).__name__}: {exc}"
-        rows = [r for r in (rows or []) if r.subject and r.observation][:limit]
+        rows = [r for r in (rows or []) if r.subject and r.observation][:cap]
         if not rows:
             return source, EMPTY, [], f"{source.name} returned nothing"
         return source, SIGNALS, rows, f"{source.name} returned {len(rows)} signal(s)"
@@ -839,7 +884,7 @@ def template(signal: Signal, now: Optional[float] = None) -> Story:
         title, angle, query = (
             label,
             "What actually decides it",
-            f"what to watch for in {subject} and what would decide it")
+            sports_query(subject, signal.live_status))
     elif signal.domain == MARKETS:
         title, angle, query = (
             label,
@@ -863,6 +908,7 @@ def template(signal: Signal, now: Optional[float] = None) -> Story:
 
 def _story_from(signal: Signal, title: str, angle: str, query: str,
                 degraded: bool, now: float) -> Story:
+    scope, key, label = _geography(signal.countries, signal.region_hint)
     return Story(
         subject=signal.subject,
         title=title.strip()[:80],
@@ -879,7 +925,36 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         degraded=degraded,
         url=signal.url,
         countries=tuple(signal.countries or ()),
+        keywords=tuple(signal.keywords or ()),
+        coverage=int(signal.coverage or 0),
+        region_hint=signal.region_hint,
+        geo_scope=scope, geo_key=key, geo=label,
+        live_line=signal.live_line,
+        live_status=signal.live_status,
+        live_as_of=now if signal.live_line else 0.0,
     )
+
+
+def _geography(countries, region_hint: str = "") -> tuple:
+    """`geography.scope_for`, imported late - `geography` imports this."""
+    import geography
+
+    return geography.scope_for(tuple(countries or ()), region_hint)
+
+
+def sports_query(subject: str, status: str) -> str:
+    """The question a sports tile researches, for the state the game is in.
+
+    Status-aware because the state moves under a tile whose words were
+    written once: "what to watch for" is the right question before kick-off
+    and the wrong one after the final whistle. Rewritten in code on every
+    sweep that sees the status change (see `refresh`), never by the composer.
+    """
+    if status == "in_progress":
+        return f"what is happening in {subject} right now and what will decide it"
+    if status == "final":
+        return f"how {subject} played out and what decided it"
+    return f"what to watch for in {subject} and what would decide it"
 
 
 def build_composer_prompt(signals: list, when: str) -> str:
@@ -921,8 +996,11 @@ _DOMAIN_NOTE = {
               "market, not a verdict on a company."),
     PREDICTION: ("what people are betting will happen. A forecast, and often "
                  "a wrong one - never a report, and never a result."),
-    SPORTS: ("something on today's schedule. Whether it has finished, and how, "
-             "is not known here."),
+    SPORTS: ("a game on today's schedule, with its status and score from the "
+             "league's own feed. The score is shown to the listener beside "
+             "your tile and updates by itself every few minutes, so never put "
+             "a score, a leader or a result in the title, angle or query - "
+             "write the tile so it stays true however the game moves."),
 }
 
 
@@ -1020,6 +1098,25 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
 # --------------------------------------------------------------------------
 # Refreshing
 # --------------------------------------------------------------------------
+def _variety_keys(tags, domain: str, geo_key: str) -> set:
+    """What one story counts against in the variety cap.
+
+    A facet **within a geography** (§135). The cap exists so one subject
+    cannot crowd out everything else, and it used to count facets alone - so
+    five `world` stories filled the whole pool's allowance for world news,
+    and a story trending in Europe competed for it with one trending in
+    India. Two places' news is not the same subject twice. A story with no
+    geography counts as worldwide, which is what it was before this.
+    """
+    facets = {_facet(tag) for tag in tags} or {domain}
+    where = geo_key or "world"
+    return {f"{facet}@{where}" for facet in facets}
+
+
+def _signal_geo(signal) -> str:
+    return _geography(signal.countries, signal.region_hint)[1]
+
+
 def _diversified(stories: list, now: float) -> list:
     """The pool's own variety rule, applied before any ranker sees it.
 
@@ -1032,7 +1129,7 @@ def _diversified(stories: list, now: float) -> list:
     per_facet: dict = {}
     kept: list = []
     for story in stories:
-        facets = {_facet(tag) for tag in story.tags} or {story.domain}
+        facets = _variety_keys(story.tags, story.domain, story.geo_key)
         if any(per_facet.get(f, 0) >= MAX_PER_FACET for f in facets):
             continue
         for facet in facets:
@@ -1063,7 +1160,7 @@ def _worth_composing(signals: list, holding: list) -> list:
     """
     per_facet: dict = {}
     for story in holding:
-        for facet in ({_facet(tag) for tag in story.tags} or {story.domain}):
+        for facet in _variety_keys(story.tags, story.domain, story.geo_key):
             per_facet[facet] = per_facet.get(facet, 0) + 1
 
     room = max(0, POOL_SIZE - len(holding))
@@ -1075,7 +1172,7 @@ def _worth_composing(signals: list, holding: list) -> list:
                        s.subject))
     kept: list = []
     for signal in ordered:
-        facets = {_facet(tag) for tag in signal.tags} or {signal.domain}
+        facets = _variety_keys(signal.tags, signal.domain, _signal_geo(signal))
         if any(per_facet.get(f, 0) >= MAX_PER_FACET for f in facets):
             continue
         for facet in facets:
@@ -1096,6 +1193,140 @@ def _facet(tag: str) -> str:
     import topics
 
     return topics.TAG_PARENT.get(tag, tag)
+
+
+#: How much of a news story's popularity a structured signal takes on when
+#: the two are the same thing. A game or a market the press is also running
+#: is a bigger story than the scoreboard alone can say - and the news cluster
+#: that told us so is folded into it rather than offered beside it.
+CORROBORATION_SHARE = 1.0
+
+
+def _fingerprint(signal) -> frozenset:
+    import news_clusters
+
+    if signal.keywords:
+        return frozenset(signal.keywords)
+    return news_clusters.tokens(signal.subject)
+
+
+def corroborate(signals: list) -> list:
+    """Every source's view of one story, as one signal (§135).
+
+    **Trending is ranked on everything FAM knows, not on each feed alone.**
+    A game on API-Sports' card, a contract on Polymarket and a move on
+    Finnhub each measure one thing; the press measures how much the world
+    cares. So a structured signal whose subject the news sweep also found
+    takes the news story's coverage, and its countries when it had none, and
+    the news story itself is folded in rather than offered as a second tile
+    about the same thing. The structured one is kept because it is the more
+    specific tile - it carries a live score, a price or a line.
+
+    Matching is by shared salient words (`news_clusters.tokens`): both team
+    names, a company name, the subject of a market. At least two words, or
+    every word of a one-word subject - "Nvidia" is a match for a story whose
+    fingerprint holds "nvidia", and "the" never is anything.
+    """
+    import news_clusters
+
+    news = [s for s in signals if s.domain == ATTENTION and s.coverage]
+    others = [s for s in signals if not (s.domain == ATTENTION and s.coverage)]
+    if not news or not others:
+        return list(signals)
+
+    absorbed: set = set()
+    out: list = []
+    for signal in others:
+        mine = news_clusters.tokens(signal.subject)
+        if not mine:
+            out.append(signal)
+            continue
+        need = min(news_clusters.MIN_SHARED, len(mine))
+        best, best_shared = None, 0
+        for index, story in enumerate(news):
+            if index in absorbed:
+                continue
+            shared = news_clusters.overlap(mine, _fingerprint(story))
+            if shared >= need and (shared > best_shared or (
+                    shared == best_shared and best is not None
+                    and story.coverage > news[best].coverage)):
+                best, best_shared = index, shared
+        if best is None:
+            out.append(signal)
+            continue
+        story = news[best]
+        absorbed.add(best)
+        out.append(replace(
+            signal,
+            coverage=max(signal.coverage, story.coverage),
+            countries=tuple(signal.countries) or tuple(story.countries),
+            strength=max(float(signal.strength),
+                         CORROBORATION_SHARE * float(story.strength)),
+            keywords=tuple(signal.keywords) or tuple(story.keywords),
+            observation=(f"{signal.observation}. The press is running it too: "
+                         f"{story.coverage} outlets"),
+        ))
+    out.extend(s for i, s in enumerate(news) if i not in absorbed)
+    return out
+
+
+def _adopt_identity(signal, known: list):
+    """A news story seen again under a different leading headline.
+
+    A cluster's subject is its best headline, and that moves between sweeps
+    while the story does not - so without this every sweep would mint a new
+    id for the same event, and it would never age, never expire and never be
+    damped by fatigue: the §103 failure through a new door. A signal whose
+    fingerprint matches a story already held takes that story's subject, and
+    with it its id, its clock and its tile.
+    """
+    import news_clusters
+
+    if signal.domain != ATTENTION or not signal.keywords:
+        return signal
+    held = {s.subject: s for s in known}
+    if signal.subject in held:
+        return signal
+    for story in known:
+        if (story.domain == ATTENTION and story.keywords
+                and news_clusters.same_story(signal.keywords, story.keywords)):
+            return replace(signal, subject=story.subject)
+    return signal
+
+
+def _seen_again(previous: Story, signal, now: float) -> Story:
+    """A held story, updated from this sweep's signal. Title and clock kept.
+
+    What moves with every sweep: how strong it is, how many outlets carry it,
+    where they are, and - for a game - the score and the status. A provider
+    that could not say this time keeps the last answer rather than erasing it.
+    """
+    countries = tuple(signal.countries) or previous.countries
+    scope, key, label = _geography(countries, signal.region_hint
+                                   or previous.region_hint)
+    live_line = signal.live_line or previous.live_line
+    live_status = signal.live_status or previous.live_status
+    query = previous.query
+    if (previous.domain == SPORTS and signal.live_status
+            and signal.live_status != previous.live_status):
+        # The game moved on under a question written for its old state.
+        query = sports_query(previous.subject, signal.live_status)
+    return replace(
+        previous,
+        strength=float(signal.strength),
+        last_seen=now,
+        countries=countries,
+        keywords=tuple(signal.keywords) or previous.keywords,
+        coverage=int(signal.coverage or 0) or previous.coverage,
+        region_hint=signal.region_hint or previous.region_hint,
+        geo_scope=scope, geo_key=key, geo=label,
+        live_line=live_line,
+        live_status=live_status,
+        live_as_of=now if signal.live_line else previous.live_as_of,
+        outcome_pending=(bool(signal.outcome_pending) if signal.live_status
+                         else previous.outcome_pending),
+        query=query,
+    )
 
 
 async def refresh(now: Optional[float] = None) -> Pool:
@@ -1120,6 +1351,10 @@ async def refresh(now: Optional[float] = None) -> Pool:
     _REFRESHING = True
     try:
         signals, reports = await collect(now=now)
+        # One signal per story, whichever sources saw it - see `corroborate`.
+        signals = corroborate(signals)
+        # And one id per story across sweeps - see `_adopt_identity`.
+        signals = [_adopt_identity(s, _POOL.stories) for s in signals]
 
         # Anything already in the pool keeps its title, its angle and - the
         # part that matters - its `first_seen`. A story that keeps being
@@ -1139,12 +1374,8 @@ async def refresh(now: Optional[float] = None) -> Pool:
             previous = existing.get(key)
             if previous is not None and not previous.expired(now):
                 # Where it is being covered moves with every sweep, like its
-                # strength does; a provider that could not say this time keeps
-                # the last answer rather than erasing it.
-                kept.append(replace(previous, strength=float(signal.strength),
-                                    last_seen=now,
-                                    countries=(tuple(signal.countries)
-                                               or previous.countries)))
+                # strength, its coverage and a game's score do.
+                kept.append(_seen_again(previous, signal, now))
                 continue
             # Not held - but possibly *known*. A subject dropped for room, or
             # one whose story expired while nothing was looking, has a clock

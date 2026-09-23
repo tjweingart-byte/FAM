@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -136,12 +137,45 @@ BUILDERS = {
 }
 
 
+#: The provider a domain gets when nobody named one and its credential is
+#: present (§135). The owner's rule is that an episode's information comes
+#: from Exa, GDELT, API-Sports, Finnhub and Polymarket - so a deployment that
+#: holds an API-Sports or Finnhub key and forgot the second line naming it was
+#: quietly answering live questions from articles alone, which is the "a
+#: capability configured and not used" shape §119 was paid for. The key is
+#: the statement of intent; a separate switch saying so again is a second
+#: place to forget. `none` still switches a domain off on purpose.
+#:
+#: Elections is not here: Polymarket is keyless, so there is no credential
+#: whose presence says anything, and `render.yaml` names it explicitly.
+DERIVED_FROM_KEY = {
+    "sports": ("api-sports", "api_sports_key"),
+    "markets": ("finnhub", "finnhub_key"),
+}
+
+
+def _provider(domain: str, named: str) -> str:
+    named = (named or "").strip().lower()
+    if named in ("none", "off", "0"):
+        return ""
+    if named:
+        return named
+    derived = DERIVED_FROM_KEY.get(domain)
+    if derived and getattr(settings, derived[1], ""):
+        return derived[0]
+    return ""
+
+
 def configured() -> dict:
-    """Which provider each domain is set to. Empty string means none."""
+    """Which provider each domain is set to. Empty string means none.
+
+    A domain nobody named gets its provider from its credential - see
+    `DERIVED_FROM_KEY`.
+    """
     return {
-        "sports": settings.live_sports_provider,
-        "markets": settings.live_markets_provider,
-        "elections": settings.live_elections_provider,
+        "sports": _provider("sports", settings.live_sports_provider),
+        "markets": _provider("markets", settings.live_markets_provider),
+        "elections": _provider("elections", settings.live_elections_provider),
     }
 
 
@@ -206,7 +240,15 @@ def report() -> dict:
     registered = {d: [s.name for s in live_facts.sources_for(d)
                       if getattr(s, "_fam_installed", False)]
                   for d in live_facts.LIVE_DOMAINS}
+    named = {"sports": settings.live_sports_provider,
+             "markets": settings.live_markets_provider,
+             "elections": settings.live_elections_provider}
     return {"configured": configured(), "registered": registered,
+            # Which of those came from a key rather than a name, because the
+            # two look identical in `configured` and only one was typed.
+            "derived_from_key": sorted(
+                d for d, name in configured().items()
+                if name and not (named[d] or "").strip()),
             "known": {d: sorted(v) for d, v in BUILDERS.items()}}
 
 
@@ -313,6 +355,170 @@ SPORTS = {
 }
 
 
+# --------------------------------------------------------------------------
+# One daily allowance, shared by the sweep and the lookups (§135)
+# --------------------------------------------------------------------------
+class RequestBudget:
+    """API-Sports' daily request allowance, counted as it is spent.
+
+    The free tier is a hundred requests a *day*, and two things spend them:
+    the story sweep that keeps myFAM's scores current, and the live lookup an
+    episode about a game makes. The owner's direction is that the sweep uses
+    the allowance to the full - roughly every fifteen minutes - rather than
+    the two-hourly trickle it had. So the sweep is **paced**: whatever is
+    left, spread evenly over what is left of the UTC day. A day where
+    episodes spent a lot sweeps a little less often; a quiet one sweeps as
+    often as the plan allows; neither runs out before midnight.
+
+    Per process and reset at UTC midnight, which is when API-Sports resets.
+    Several workers each keep their own count, which is why the setting says
+    to divide the plan between them.
+    """
+
+    #: Never faster than this, however much is left late in the day - the
+    #: pool refreshes on a fifteen-minute clock and a request that lands
+    #: between two refreshes buys nothing.
+    MIN_INTERVAL_SECONDS = 300.0
+
+    def __init__(self) -> None:
+        self.day = ""
+        self.used = 0
+
+    @staticmethod
+    def _today(now: Optional[float] = None) -> str:
+        at = datetime.fromtimestamp(time.time() if now is None else now,
+                                    tz=timezone.utc)
+        return at.date().isoformat()
+
+    def _roll(self, now: Optional[float] = None) -> None:
+        today = self._today(now)
+        if today != self.day:
+            self.day, self.used = today, 0
+
+    def spend(self, requests: int = 1, now: Optional[float] = None) -> None:
+        self._roll(now)
+        self.used += max(0, int(requests))
+
+    def exhaust(self, now: Optional[float] = None) -> None:
+        """The provider said the day's allowance is gone; believe it."""
+        self._roll(now)
+        self.used = max(self.used, self.daily)
+
+    @property
+    def daily(self) -> int:
+        return max(0, int(settings.api_sports_daily_requests))
+
+    def remaining(self, now: Optional[float] = None) -> int:
+        self._roll(now)
+        return max(0, self.daily - self.used)
+
+    def sweep_interval(self, per_sweep: int, now: Optional[float] = None) -> float:
+        """How long to wait between sweeps that each cost `per_sweep`."""
+        now = time.time() if now is None else now
+        per_sweep = max(1, int(per_sweep))
+        at = datetime.fromtimestamp(now, tz=timezone.utc)
+        midnight = datetime(at.year, at.month, at.day, tzinfo=timezone.utc)
+        left_today = max(1.0, 86400.0 - (at - midnight).total_seconds())
+        sweeps_left = self.remaining(now) // per_sweep
+        if sweeps_left <= 0:
+            return left_today           # nothing left: next sweep is tomorrow
+        return max(self.MIN_INTERVAL_SECONDS, left_today / sweeps_left)
+
+    def as_dict(self) -> dict:
+        return {"daily": self.daily, "used_today": self.used if self.day ==
+                self._today() else 0, "remaining": self.remaining()}
+
+
+API_SPORTS_BUDGET = RequestBudget()
+
+
+class BudgetSpent(RuntimeError):
+    """The day's API-Sports allowance is gone. Said, not guessed around."""
+
+
+def _limit_reached(data: dict) -> bool:
+    """Whether a reply is API-Sports saying the day's allowance is spent.
+
+    It answers 200 with the refusal in `errors`, so a status check would read
+    it as a quiet day with no games - which is §89's failure exactly.
+    """
+    errors = (data or {}).get("errors")
+    text = str(errors or "").lower()
+    return bool(errors) and ("request" in text and "limit" in text)
+
+
+async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
+    """One API-Sports request, counted against the day's allowance."""
+    if API_SPORTS_BUDGET.remaining() <= 0:
+        raise BudgetSpent(
+            f"API-Sports' {API_SPORTS_BUDGET.daily} requests for today are "
+            "spent; they come back at 00:00 UTC")
+    API_SPORTS_BUDGET.spend(1)
+    data = await _json(url, {"x-apisports-key": settings.api_sports_key},
+                       params, timeout)
+    if _limit_reached(data):
+        API_SPORTS_BUDGET.exhaust()
+        raise BudgetSpent(f"API-Sports refused: {(data or {}).get('errors')}")
+    return data
+
+
+#: Today's card, as the last story sweep read it: sport key -> (when, rows).
+#: The live lookup reads it before spending a request of its own, because on
+#: a plan of a hundred a day a request saved is fourteen minutes of fresher
+#: scores on myFAM.
+CARD: dict = {}
+
+
+def remember_card(sport_key: str, rows: list, now: Optional[float] = None) -> None:
+    CARD[sport_key] = (time.time() if now is None else now, list(rows or []))
+
+
+def card_rows(sport_key: str, max_age: float,
+              now: Optional[float] = None) -> Optional[list]:
+    """The swept card for a sport, if it is younger than `max_age` seconds."""
+    held = CARD.get(sport_key)
+    if not held:
+        return None
+    at, rows = held
+    now = time.time() if now is None else now
+    return rows if now - at <= max_age else None
+
+
+#: Leagues whose games lead the card, as (league, country) with "" meaning
+#: any country. A date request returns every fixture in the world - a
+#: Tuesday's football card is hundreds of rows - and without this a
+#: third-division match outranks the game half the listeners are watching.
+#: Pairs, because "Premier League" is a name in a dozen countries.
+MAJOR_LEAGUES = frozenset({
+    ("nfl", ""), ("ncaa", ""), ("nba", ""), ("wnba", ""), ("mlb", ""),
+    ("premier league", "england"), ("la liga", "spain"),
+    ("serie a", "italy"), ("bundesliga", "germany"), ("ligue 1", "france"),
+    ("eredivisie", "netherlands"), ("primeira liga", "portugal"),
+    ("major league soccer", "usa"), ("liga mx", "mexico"),
+    ("uefa champions league", ""), ("uefa europa league", ""),
+    ("uefa nations league", ""), ("world cup", ""), ("fifa world cup", ""),
+    ("copa libertadores", ""), ("euroleague", ""),
+})
+
+
+def league_of(row: dict) -> tuple:
+    """`(league name, country)` for a row, whichever sport's shape it is."""
+    league = (row or {}).get("league") or {}
+    name = str(league.get("name") or "").strip()
+    country = league.get("country")
+    if isinstance(country, dict):
+        country = country.get("name")
+    if not country:
+        block = (row or {}).get("country") or {}
+        country = block.get("name") if isinstance(block, dict) else block
+    return name, str(country or "").strip()
+
+
+def is_major(name: str, country: str) -> bool:
+    name, country = name.lower(), country.lower()
+    return (name, "") in MAJOR_LEAGUES or (name, country) in MAJOR_LEAGUES
+
+
 def sport_for(subject: str) -> Sport:
     """Which API-Sports product answers this question.
 
@@ -384,11 +590,21 @@ class ApiSportsSource(LiveSource):
         if not subject:
             return None
         sport = sport_for(subject)
-        data = await _json(f"{sport.host}/{sport.path}", self._headers(),
-                           {"live": "all"}, settings.live_timeout_seconds)
-
+        # Today's card from the last sweep first: finding *which* game costs
+        # no request when the sweep already listed it. Only a game the sweep
+        # did not see costs one. The state itself is always fetched fresh -
+        # see `fetch`.
+        rows = card_rows(sport.key, max_age=6 * 3600.0)
         wanted = {w for w in subject.lower().split() if len(w) > 3}
-        for row in (data or {}).get("response", []) or []:
+        if rows is None or not any(
+                wanted and any(w in " ".join(self._team_names(r)).lower()
+                               for w in wanted) for r in rows):
+            data = await api_sports_json(f"{sport.host}/{sport.path}",
+                                         {"live": "all"},
+                                         settings.live_timeout_seconds)
+            rows = (data or {}).get("response", []) or []
+
+        for row in rows:
             names = " ".join(self._team_names(row)).lower()
             if wanted and any(word in names for word in wanted):
                 home, away = self._team_names(row)
@@ -406,9 +622,17 @@ class ApiSportsSource(LiveSource):
         sport = SPORTS.get(sport_key)
         if sport is None or not game_id:
             return None
-        data = await _json(f"{sport.host}/{sport.path}", self._headers(),
-                           {"id": game_id}, settings.live_timeout_seconds)
-        rows = (data or {}).get("response", []) or []
+        # A sweep inside half the freshness limit is as good as a request, and
+        # free. Anything older is fetched: a score is withheld past
+        # `MAX_AGE_SECONDS`, and a fact about to be withheld is not worth
+        # having saved a request on.
+        fresh = card_rows(sport.key, max_age=live_facts.MAX_AGE_SECONDS["sports"] / 2)
+        rows = [r for r in (fresh or []) if self._game_id(r) == game_id]
+        if not rows:
+            data = await api_sports_json(f"{sport.host}/{sport.path}",
+                                         {"id": game_id},
+                                         settings.live_timeout_seconds)
+            rows = (data or {}).get("response", []) or []
         if not rows:
             return None
         return self.to_facts(rows[0], entity, sport)
@@ -449,6 +673,53 @@ class ApiSportsSource(LiveSource):
         if isinstance(home, dict):
             home, away = home.get("total"), (away or {}).get("total")
         return home, away
+
+    @classmethod
+    def live_line(cls, row: dict, sport: Sport) -> tuple:
+        """`(status, line)` for a card: the score and where the game is.
+
+        Written in code from the provider's own numbers, never by a model -
+        the one place on a browse tile a result may appear (§135), because it
+        is read off the scoreboard on every sweep rather than written once
+        into a sentence. `unknown` status gives no line at all.
+        """
+        status_block = cls._status_block(row)
+        status = sport.statuses.get(str(status_block.get("short") or "").upper(),
+                                    live_facts.UNKNOWN)
+        home, away = cls._team_names(row)
+        if status == live_facts.UNKNOWN or not (home and away):
+            return live_facts.UNKNOWN, ""
+        hs, as_ = cls._score(row)
+        scored = hs is not None and as_ is not None
+        if status == live_facts.SCHEDULED:
+            when = cls._start_time(row)
+            return status, (f"Starts {when}" if when else "Today")
+        score = f"{home} {hs}\u2013{as_} {away}" if scored else f"{home} v {away}"
+        if status == live_facts.FINAL:
+            return status, f"Final \u00b7 {score}"
+        where = status_block.get("long") or ""
+        elapsed = status_block.get("elapsed") or status_block.get("timer")
+        if not where and elapsed:
+            where = f"{elapsed}'"
+        return status, "Live \u00b7 " + score + (f" \u00b7 {where}" if where else "")
+
+    @staticmethod
+    def _start_time(row: dict) -> str:
+        """Kick-off as `HH:MM UTC`, from whichever field this sport uses."""
+        stamp = None
+        for holder in ("game", "fixture"):
+            block = (row or {}).get(holder) or {}
+            date = block.get("date")
+            if isinstance(date, dict):
+                stamp = date.get("timestamp") or stamp
+            elif block.get("timestamp"):
+                stamp = block.get("timestamp")
+        stamp = stamp or (row or {}).get("timestamp")
+        try:
+            at = datetime.fromtimestamp(int(stamp), tz=timezone.utc)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return ""
+        return at.strftime("%H:%M UTC")
 
     def to_facts(self, row: dict, entity: Entity,
                  sport: Optional[Sport] = None) -> Optional[LiveFacts]:

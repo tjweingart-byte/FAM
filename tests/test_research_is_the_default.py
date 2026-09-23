@@ -148,12 +148,14 @@ def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
     from research import Packet
 
     async def retrieve(q, backend=None, brief=None):
-        if backend != "claude":
+        if backend != "gdelt":
             raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
-        return Packet(context="SOURCE 1\nTitle: x", backend="claude",
+        return Packet(context="SOURCE 1\nTitle: x", backend="gdelt",
                       sources=["reuters.com"])
 
     monkeypatch.setattr(research_mod, "retrieve", retrieve)
+    monkeypatch.setattr(research_mod, "ladder",
+                        lambda backend=None: ["exa", "gdelt"])
     notes = ScriptNotes()
     researched = asyncio.run(ScriptGenerator(api_key="").research(
         plan_episode("what is the NASDAQ", 3), notes))
@@ -274,25 +276,25 @@ def test_nothing_in_the_prompt_asks_the_model_to_go_and_look():
         assert "Search first" not in prompt
 
 
-def test_the_claude_backend_retrieves_like_any_other(monkeypatch):
-    """`research()` used to return the plan untouched on `claude`, which is
-    what put that backend on the write-while-searching path for *every*
-    episode it served."""
+def test_the_gdelt_backend_retrieves_like_any_other(monkeypatch):
+    """The keyless backend is a retriever in its own right, run once when it
+    is the configured one - and since §135 it is the only alternative to
+    Exa; the model's own search is gone."""
     from research import Packet
 
     seen: list = []
 
     async def retrieve(q, backend=None, brief=None):
         seen.append(backend)
-        return Packet(context="SOURCE 1\nTitle: x", backend="claude")
+        return Packet(context="SOURCE 1\nTitle: x", backend="gdelt")
 
     monkeypatch.setattr(
-        sg, "settings", dataclasses.replace(sg.settings, research_backend="claude"))
+        sg, "settings", dataclasses.replace(sg.settings, research_backend="gdelt"))
     monkeypatch.setattr(research_mod, "retrieve", retrieve)
     returned = asyncio.run(ScriptGenerator(api_key="").research(
         plan_episode("what is the NASDAQ", 3)))
-    assert returned.evidence, "the claude backend retrieved nothing"
-    assert seen == ["claude"], "it should run the configured backend once"
+    assert returned.evidence, "the gdelt backend retrieved nothing"
+    assert seen == ["gdelt"], "it should run the configured backend once"
 
 
 # --- the server can say which code it is running ----------------------------

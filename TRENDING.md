@@ -190,6 +190,22 @@ Sweeps a fixed list of GKG themes (`gdelt.THEMES`), measures each one's
 coverage volume via `mode=timelinevolraw`, ranks by volume, and turns the top
 few into tiles. Concurrent, on the shared clock, so nobody waits on it.
 
+## Stories, not themes (§135)
+
+The limitation below is what the Trending *row* no longer has. The myFAM
+story pool's GDELT source (`story_sources.GdeltSignals`) measures the themes
+only to choose where to look, then reads the recent articles under the
+hottest ones and under **each region's own press** (`gdelt.discover`,
+`geography.GDELT_SOURCES`), groups the headlines into the actual stories
+(`news_clusters`), and counts the distinct outlets running each - the
+popularity the row is ranked on. Every story knows where it is trending
+(`geography.scope_for`): worldwide, a region, or a country. The rail keeps
+two of its four places for the listener's own part of the world and "View
+more" groups everything by place (`topics.rank_world`, `trending_groups`).
+`GdeltTrendingSource` below is the older registry feed and still templates
+themes; it is what `TRENDING_SOURCE=gdelt` installs, and the story pool no
+longer depends on it.
+
 ## The honest limitation
 
 **GDELT's DOC API is query-driven.** It tells you how much coverage *a query

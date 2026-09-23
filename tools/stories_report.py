@@ -73,6 +73,11 @@ def print_pool(pool: stories.Pool, now: float) -> None:
               f"{', '.join(story.tags) or 'no tags'} · "
               f"{hours:.1f}h old, {left:.1f}h left"
               f"{' · outcome pending' if story.outcome_pending else ''}")
+        # Where it is trending and how widely - what the Trending row ranks
+        # on (§135). "Worldwide" with no outlets means no news index saw it.
+        print(f"        trending: {story.geo or 'Worldwide'}"
+              f" · {story.coverage} outlet(s)"
+              f"{' · ' + story.live_line if story.live_line else ''}")
 
 
 def print_rails(now: float) -> None:

@@ -162,9 +162,9 @@ def main() -> int:
     research_ok, research_detail = research.diagnose()
     backend = settings.research_backend
     rungs = research.ladder()
-    if backend == "claude":
-        say(f"  research   {BOLD}claude{RESET} - one search call before the writing "
-            f"call (costs 10-25s before the first word)")
+    if backend == "gdelt":
+        say(f"  research   {BOLD}gdelt{RESET} - keyless article index, titles and "
+            f"dates only")
     elif research_ok:
         say(f"  research   {BOLD}exa{RESET} - retrieves first, then Claude writes "
             f"from the packet")
@@ -183,7 +183,7 @@ def main() -> int:
         say(f"             not guessed. Everything else is unaffected.")
         say(f"             Fix: pip install -r requirements-exa.txt and set "
             f"EXA_API_KEY,")
-        say(f"             or set RESEARCH_BACKEND=claude.{RESET}")
+        say(f"             or set RESEARCH_BACKEND=gdelt with GDELT=1.{RESET}")
         worst = max(worst, 1)
 
     if episodes < 0:

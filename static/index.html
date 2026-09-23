@@ -1057,6 +1057,26 @@
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
     overflow:hidden; }
   .seed-why b{ color:var(--copper); font-weight:700; }
+  /* A game's score, read off the scoreboard on every sweep (PROBLEMS.md
+     §135). Its own line and never part of the title: a title is written once,
+     a score moves, and a score frozen into a sentence is §88 on a timer. One
+     line, so a long team name costs the end of the line and not a card
+     taller than its neighbours. */
+  .seed-live{ font-family:'JetBrains Mono', monospace; font-size:8.5px;
+    letter-spacing:0.02em; line-height:1.4; color:var(--text-muted);
+    margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seed-live.is-live{ color:var(--copper); font-weight:700; }
+  .seed-live.is-live::before{ content:""; display:inline-block; width:6px;
+    height:6px; border-radius:50%; background:currentColor; margin-right:5px;
+    vertical-align:1px; }
+  /* Trending's "View more" is grouped by where each story is trending
+     (§135): a heading per place across both columns of the grid. */
+  .sec-group{ grid-column:1 / -1; font-family:'Fraunces', serif; font-weight:400;
+    font-size:17px; color:var(--text); margin:14px 0 2px; }
+  .sec-group:first-child{ margin-top:0; }
+  .sec-group small{ display:block; font-family:'JetBrains Mono', monospace;
+    font-size:8.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--copper); margin-top:2px; }
 
   /* Now playing, docked above the tab bar so a part-heard episode is one tap
      away rather than something to go and find again. */
@@ -6365,6 +6385,32 @@
     return "Playing across FAM now";
   }
 
+  // **What sits on a card's picture: its heading, or - on Trending - where
+  // it is trending.** Trending is organised by geography (PROBLEMS.md §135),
+  // so its cards say "Worldwide", "Europe", "United States" where every other
+  // rail says the subject. A tile with no geography falls back to the subject.
+  function seedTagText(sectionKey, topic){
+    if(sectionKey === "world_trending" && topic && topic.geo) return topic.geo;
+    return (topic && topic.tags && topic.tags[0]) ? topic.tags[0] : "";
+  }
+
+  // **A game's score, and how old it is.** Written by the server from the
+  // scoreboard on every sweep (§135) and drawn beside the title rather than
+  // in it. Says its age once it is older than one sweep should make it, so a
+  // score is never presented as current when the feed behind it has stalled.
+  function seedLiveHtml(topic){
+    if(!topic || !topic.live_line) return "";
+    var line = escapeHtml(topic.live_line);
+    var at = Number(topic.live_as_of || 0);
+    if(at){
+      var mins = Math.round((Date.now() / 1000 - at) / 60);
+      if(mins >= 20) line += " \u00b7 " + (mins < 90 ? mins + " min ago"
+        : Math.round(mins / 60) + " h ago");
+    }
+    var live = topic.live_status === "in_progress" ? " is-live" : "";
+    return '<div class="seed-live' + live + '">' + line + '</div>';
+  }
+
   var myFamTopics = {};   // id -> topic, so a tap knows what to generate
 
   // How long an episode started from a browse surface runs for.
@@ -6435,7 +6481,7 @@
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
         + sec.topics.map(function(t){
         myFamTopics[t.id] = t;
-        var tag = (t.tags && t.tags[0]) ? t.tags[0] : "";
+        var tag = seedTagText(sec.key, t);
         return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
           + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
@@ -6447,6 +6493,7 @@
           + '</div>'
           + '<div class="seed-card-body">'
           + '<div class="seed-card-title">' + escapeHtml(t.title) + '</div>'
+          + seedLiveHtml(t)
           + '<div class="seed-why">' + seedHook(sec.key, t) + '</div>'
           + '</div></div>';
       }).join("")
@@ -6536,9 +6583,9 @@
         + "written and start straight away, at " + d.minutes + " min."
       : "Every one of these is written when you tap it, at "
         + d.minutes + " min.";
-    grid.innerHTML = topics.map(function(t){
+    function card(t){
       sectionTopics[t.id] = t;
-      var tag = (t.tags && t.tags[0]) ? t.tags[0] : "";
+      var tag = seedTagText(d.key, t);
       return '<div class="seed-card" onclick="startSectionTopic(\'' + t.id + '\')">'
         + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
@@ -6546,13 +6593,28 @@
         + '</div>'
         + '<div class="seed-card-body">'
         + '<div class="seed-card-title">' + escapeHtml(t.title) + '</div>'
+        + seedLiveHtml(t)
         // Through `seedHook`, like the rail's own cards. This screen already
         // showed the subtitle and the rail did not, which is how one card
         // ended up with two different second lines depending on which surface
         // was drawing it.
         + '<div class="seed-why">' + seedHook(d.key, t) + '</div>'
         + '</div></div>';
-    }).join("");
+    }
+    // **Trending, by where it is trending** (§135): Worldwide, then the
+    // listener's own part of the world, then everywhere else with something
+    // trending. The same tiles as `topics`, in popularity order inside each
+    // place; a server that sends no groups gets the flat grid it always did.
+    if(d.groups && d.groups.length){
+      grid.innerHTML = d.groups.map(function(g){
+        return '<div class="sec-group" data-geo="' + escapeHtml(g.key) + '">'
+          + escapeHtml(g.label)
+          + (g.yours ? '<small>Where you are</small>' : '')
+          + '</div>' + g.topics.map(card).join("");
+      }).join("");
+      return;
+    }
+    grid.innerHTML = topics.map(card).join("");
   }
 
   function startSectionTopic(topicId){
