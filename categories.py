@@ -1094,10 +1094,16 @@ PLACER_SCHEMA = {
                     "path": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["subject", "path"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["paths"],
+    # The API refuses a structured-output schema with an object that does not
+    # say this explicitly (400 invalid_request_error), and a refused placer
+    # is a sweep that places nothing - every subject keeps its keyless
+    # parent. Both objects, not only the outer one. PROBLEMS.md §130.
+    "additionalProperties": False,
 }
 
 

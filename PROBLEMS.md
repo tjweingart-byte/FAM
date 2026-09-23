@@ -10337,3 +10337,32 @@ relative dates, and contradictions between sources - and the opening. Listen
 to those first. `EFFORT=medium` is the measured middle ground in Anthropic's
 published runs and is one environment variable away; the `episode timing`
 block (§128) shows what each setting costs in seconds.
+
+## 130. The category placer was refused on every sweep
+
+**Seen in Render's log after §129 deployed:** `categories: the placer failed
+(Error code: 400 ... 'output_config.format.schema: For 'object' type,
+'additionalProperties' must be explicitly set to false')`, then
+`2 subjects keep their keyless parents` - which is `categories.py` falling
+back exactly as designed, so nothing broke that a listener could see. What was
+lost is the half of §121 that only a model can do: placing a subject under the
+levels nobody typed ("sports -> american football -> nfl").
+
+**The cause:** `PLACER_SCHEMA` left `additionalProperties` unset on both of
+its objects, and the API requires it set to `false` on every object in a
+structured-output schema. `BRIEF_SCHEMA` and `STORY_SCHEMA` already did.
+Every test passed because every test stubs the model; nothing ever sent the
+schema anywhere. §52 again: a check that never makes the real call is
+inspecting rather than verifying.
+
+**The fix:** both objects close their properties, and
+`tests/test_structured_output_schemas.py` walks every schema FAM passes as
+`output_config.format` - **found by reading the source**, not listed by hand
+(§107), so the next schema somebody adds is checked without anybody
+remembering to add it. It fails on the old placer schema and passes on the new.
+
+### Noticed in the same log, not fixed here
+
+httpx logs every request URL at INFO, and Finnhub takes its key as a
+`token=` query parameter, so **the Finnhub key is in Render's logs in
+plain text**. It should be rotated, and the log line redacted.
