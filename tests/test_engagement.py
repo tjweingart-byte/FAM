@@ -232,4 +232,4 @@ def test_the_ranking_version_moved():
     """A ranking change that cannot be told apart from the one before it in
     the impression log is a ranking change nobody can judge. This is the
     assertion that fails if somebody adds a signal and forgets."""
-    assert T.ALGO_VERSION == "2026-09-21.2"
+    assert T.ALGO_VERSION == "2026-09-23.1"

@@ -286,8 +286,13 @@ def main() -> int:
         print("  the problem - the embedding is - and this line is how you will")
         print("  know a real sentence model has changed the answer.")
 
-    started = time.perf_counter()
+    # The rows are built *before* the clock starts. They are stored vectors -
+    # written once when each script was cached - and timing their creation
+    # charged the miss path for 400 embeddings it never does. Invisible with
+    # the hashing backend (microseconds each); 230 ms of fiction with a real
+    # model (§131), where the true cost is one ~10 ms embedding plus the scan.
     rows = rows_for([g[0] for g in SAME] * 20)
+    started = time.perf_counter()
     for _ in range(20):
         cache_mod.best_match("why is the sky blue", rows)
     per = (time.perf_counter() - started) / 20.0

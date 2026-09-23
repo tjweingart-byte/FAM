@@ -10367,7 +10367,230 @@ httpx logs every request URL at INFO, and Finnhub takes its key as a
 `token=` query parameter, so **the Finnhub key is in Render's logs in
 plain text**. It should be rotated, and the log line redacted.
 
-## 131. Every replay of a cached episode went back to RunPod
+## 131. A real sentence model, a meaning term in Made for you, and an order fitted to taps
+
+Three changes asked for together, in the order they depend on each other:
+install the embedding model the cache had been written for and never run;
+use it where it can actually help, which turned out to be the ranker and not
+the cache; and fit the order of Made for you to the taps the impression log
+has been recording since §121.
+
+### 1. The model, installed and measured
+
+`embeddings._OnnxEmbedder` had existed since the near-match cache and had
+never produced a vector - no model had ever been in `~/.fam/embed`. Hugging
+Face is refused by this container's network policy; Chroma publishes the same
+all-MiniLM-L6-v2 ONNX export as one tarball on S3, which is reachable, so
+`tools/install_embed_model.py` fetches that, **pins its SHA-256**, extracts the
+two files the encoder reads, and **encodes a sentence before reporting
+success** (§52: files on disk are the cheaper question). The Dockerfile runs it
+by default (`--build-arg FAM_EMBED=0` to leave it out); a failed download does
+not fail the build, prints a warning in the build log, and shows on
+`/api/health` as `ranking.semantic.enabled: false` with the reason.
+`requirements-embed.txt` is onnxruntime and tokenizers - CPU only, no torch.
+
+It works: 384 dimensions, unit length, ~10 ms a sentence on one core, ~9 ms
+each in a batch. Then `tools/bench_vector_cache.py` with it, which is the
+number CLAUDE.md said to re-read "on the day a real sentence model is
+installed":
+
+    backend   shipped point (0.68 / 0.6)   best with no false hit
+    hashing   23/41, 0 false               23/41 (guards alone: 23)
+    onnx      23/41, 0 false               23/41 at overlap 0.6
+                                           16/41 at overlap 0.0, threshold 0.94
+
+**The model finds far more re-phrasings and cannot be trusted with them.**
+With the overlap guard removed it reaches 37 of 41 at a threshold of 0.60 -
+and serves wrong episodes, the most confident being "how old is the eiffel
+tower" for "how tall is the eiffel tower" at **0.879**, above most real
+re-phrasings. That is the known failure of a bi-encoder: two sentences that
+differ in one attribute word are close in meaning-space and different
+questions. Separating them needs a model that reads both questions at once (a
+cross-encoder), which this container cannot download. A stricter lexical
+guard was prototyped (every content word must have a counterpart after light
+stemming) and reached 32 of 41 with no false hit - but only with a frame-word
+list tuned to the bench's own corpus; with an honest one it found 22, one
+fewer than today. So **the cache is unchanged**: same guards, same defaults,
+same lexical backend unless `FAM_EMBED_BACKEND=onnx` is set, and the bench
+now says so with numbers rather than with a prediction.
+
+The bench's scan-cost line was also wrong, invisibly: it timed the creation
+of 400 stored vectors as though the miss path did that. Microseconds with the
+hashing backend; **230 ms of fiction** with a real model. The rows are built
+before the clock now: 5 ms hashing, 19 ms onnx (one embedding plus the scan).
+
+### 2. Meaning in Made for you (`taste_vectors.py`)
+
+Where a near miss is cheap. A wrong cache hit plays the wrong episode; a
+slightly-off semantic match puts a slightly-less-good tile third. And the gap
+it fills is real: `_affinity` scores by shared tags, so every `money` tile is
+identical to a listener whose history says `money`, however specific their
+searches were. `BROAD_MATCH_PENALTY` and `familiar_words` both exist because
+of that gap.
+
+For each candidate: the closest item in the listener's recent **positive**
+history (searches as their own words, plays as the tile's title and query),
+by cosine, discounted by that item's strength (the same `EVENT_WEIGHT` and
+decay `taste` uses), turned into a bounded **additive** term -
+`SEMANTIC_WEIGHT` × how far it clears `SEMANTIC_FLOOR`. Additive because a
+multiplier on a tag score of zero is zero, and finding what the tags missed is
+the point. Max rather than mean, because a mean of "golf" and "AI chips" is
+about neither. A tile with a real match is exempt from the broad-match
+penalty, which exists for subjects a listener was never near.
+
+Applied where Made for you is ranked - the rail, its View more screen and the
+post-episode popup, all three, and a test spies on `rank_from_history` to keep
+them one ranking. Not on a cold start (no history means nothing to mean).
+
+**What it costs a page, measured with the real model**: the model is loaded at
+boot and the bank embedded in a background thread; a page embeds at most
+`MAX_INLINE` (6) new texts itself and queues the rest, so a new listener's
+first page is **~58 ms** and every page after it **~2 ms**. No model - every
+deployment built with `FAM_EMBED=0`, and the whole test suite, which points
+`FAM_EMBED_MODEL` at an empty directory - is `{}` and the ranking that shipped
+before this existed, pinned by a test. `SEMANTIC_TASTE=0` turns it off.
+
+### 3. An order fitted to taps (`learned_rank.py`, `tools/learn_rank.py`)
+
+Every constant in the ranker is set by hand with its reasoning beside it, and
+the impression log (`impression_outcomes`) is thirty days of labelled
+examples nobody fitted anything to. `tools/learn_rank.py` fits a logistic
+regression over the six signals the ranker already computes - affinity,
+semantic, fatigue, engagement, live, broad - and stores it in the event
+database, in a one-row table beside the log it was fitted to.
+
+The rules it keeps, each for a stated reason:
+
+* **Point in time.** Every feature is rebuilt from what the log held *before*
+  that offer, or a listener who played a tile has a profile that likes it and
+  the model learns to recognise taps rather than predict them. A test gives a
+  listener exactly one play - the tap being predicted - and asserts the
+  offer's affinity is zero.
+* **It has to win.** The most recent fifth is held out; the model is stored
+  only if it ranks those offers better than the hand-tuned score by
+  `MIN_AUC_GAIN`, on at least `MIN_POSITIVES` taps each side. A model that
+  says it lost is never served even if `--force` stored it, and one fitted to
+  a different feature list is refused rather than scoring the wrong columns.
+* **It re-orders and never admits.** The hand-tuned score still decides what
+  clears `RELEVANCE_FLOOR`; the model sorts what did. A bad model can put a
+  relevant tile third, or below the visible six, and never an irrelevant one
+  on a rail whose heading says it was chosen for you. Freshness and a listener's place are not in the log, so
+  they stay hand-applied on top of the model's probability.
+* **Global, not per listener**, for `ENGAGEMENT_WEIGHT`'s reason.
+* **Linear at a realistic size** (§122): the first version rescanned every
+  earlier tap for every offer. 49,000 offers now take 1.3 s, or 7.5 s with the
+  semantic feature on; a test asserts a bound on 18,000.
+* **A wipe takes it** (`EventStore.clear`, §124's rule); account deletion
+  does not, since six coefficients hold nothing about anybody.
+
+Impressions now carry which of these were in force: `algo_stamp()` is
+`ALGO_VERSION` plus `+sem` and `+lr<trained_at>`, because both switch on with
+no code change and the constant alone could not tell the regimes apart in
+`tools/ctr_report.py --by algo`. `ALGO_VERSION` moved to `2026-09-23.1`.
+`/api/health` reports all three under `ranking`.
+
+### Still open
+
+**Nothing here has run against real listening.** The model has encoded real
+sentences and the ranker has been timed with it, but whether Made for you is
+*better* is a question for `tools/ctr_report.py --by algo` after a week with
+`+sem` on, and `tools/learn_rank.py --dry-run` on a real log will say whether
+there is yet enough to fit anything - on a young deployment it will most
+likely say "too few taps to judge", which is the correct answer. The cache's
+remaining gain is behind a cross-encoder nobody has installed.
+
+### What checking it found, and what it measures
+
+An independent review of the commit found three things that mattered and
+several that did not, and an offline benchmark put a number on the part that
+can be measured without real traffic.
+
+**The learned order was being judged on the wrong offers.** `training_rows`
+trained on every impression - Trending, the crowd rows, friends, what you
+missed - including offers whose hand score was at or below the floor. On
+those the hand baseline is all ties (a listener with no matching history
+scores zero on every tile), so a model beat it almost for free, and the
+synthetic test passed for exactly that reason. Rows are now Made for you, its
+View more screen and the popup only, above `RELEVANCE_FLOOR` - the set a model
+is ever handed - while every rail's offers still move the running tap rates,
+as serving's engagement table does. The test was rebuilt so the baseline has a
+real opinion (AUC 0.54 on the synthetic log where the hand weights are wrong;
+the model 0.80), and a second case where taps follow the hand order exactly
+now declines to store a model (0.827 against 0.829). Training profiles are
+also built from the same 400-event window serving reads, and `broad` fires on
+the same condition as the served penalty.
+
+**"It never changes what is on the rail" was false.** The model orders
+everything that cleared the floor and the rail shows the first six of that
+order, so it does decide which eligible tiles are visible. What it cannot do
+is admit a tile under the floor. The docstrings, this log and CLAUDE.md say
+that now.
+
+Smaller, all fixed: the vector cache was first-in-first-out rather than
+least-recently-used, so the bank's vectors would have been the first evicted;
+a batch an encoder failed on could stay queued forever; `/api/myfam` and its
+neighbours returned `ALGO_VERSION` while the impression log recorded the
+stamp, so the API and the log disagreed; `--force` could replace a model in
+force with a losing one without saying so; and the Dockerfile's pip step could
+fail the build despite its comment, installed under `~/.fam` where another
+user would not find it, and re-downloaded 110 MB on every source change.
+Left as known: the page path's at most six inline embeddings run on the event
+loop (~60 ms worst case, once per new listener text), training cannot see a
+listener's declared interests or tags minted after an offer, and the stamp
+says `+sem` on every rail rather than only the one the term reached.
+
+**How much better Made for you is, measured offline**
+(`tools/eval_recommendations.py`). 84 searches written for the 28 bank topics,
+each set one listener's whole history, the intended tile's tie-aware rank
+compared with the tag ranker as it ships - including the 180-node seeded
+vocabulary, without which the baseline is weaker and the gain looks larger:
+
+    scenario             metric   tags only  +semantic
+    one search           MRR        0.52       0.67
+                         hit@6      0.61       0.74    (off the rail 39% -> 25%)
+    three searches       MRR        0.88       0.95
+    two interests mixed  MRR        0.62       0.70
+                         hit@3      0.70       0.95
+
+Of the 84 single-search cases, 18 improve and **none get worse**. The gain is
+largest exactly where the tags are weakest - one search, words the keyword
+lists do not hold - and small where the tags already work. The searches were
+written by the author of the feature, which is the bias to discount; and this
+measures putting the right subject in front of somebody, not whether they tap
+it, which only `tools/ctr_report.py --by algo` on real traffic can say.
+
+The learned order has **no measurable effect yet**, by design: it serves
+nothing until a real log trains a model that beats the hand order, and a young
+deployment will not have the taps to judge.
+
+### Before merging: what it costs to run, measured
+
+**Memory is the budget to watch.** Render's `starter` plan is 512 MB. The app
+alone peaks at ~89 MB at boot; with the model loaded and the bank embedded it
+peaks at **~313 MB**, the model and its runtime being ~215 MB of that - mostly
+the fp32 weights themselves. Disabling onnxruntime's memory arena saved
+nothing and pinning it to one thread tripled the encode time, so neither is
+set. That leaves roughly 200 MB of headroom on one worker, which is enough
+and not generous. Two consequences, stated so neither is a surprise:
+
+* `tools/learn_rank.py` loads its own copy of the model. Run on the same
+  512 MB instance as the server it adds ~215 MB and can exhaust it; run it
+  against a copy of `myfam.db` elsewhere (`--db`), or on a larger plan.
+  Running it with `SEMANTIC_TASTE=0` instead is not a fix: the `semantic`
+  feature would be zero in training and real in serving.
+* If the service is ever short of memory, `SEMANTIC_TASTE=0` stops the model
+  loading at all (checked before anything is imported), and
+  `--build-arg FAM_EMBED=0` leaves it out of the image. Both return the
+  ranking to exactly what it was before this change.
+
+`Dockerfile.gpu` - the pod image that runs the app beside the voice - does not
+install the model, so a deployment on that image ranks on tags alone and says
+so on `/api/health`. Deliberate for now: the pod's memory is the GPU worker's.
+
+Merged with `Main` at §130; this entry was written as §128 on the branch and
+renumbered, because `Main` had taken §128-§130 in the meantime.
+
+## 132. Every replay of a cached episode went back to RunPod
 
 **Reported by the owner:** the voice GPU is the largest line on the bill, and
 most of what it was doing was speaking episodes it had already spoken. A cache
@@ -10441,3 +10664,6 @@ under it that said nothing keeps audio - CLAUDE.md is amended.
 * **Nobody has measured the saving on a real deployment.** `audio_cache` on
   each episode's stats (`stored` / `kept` / blank) and the health counts are
   where to read it.
+
+Written as §131 on its branch and renumbered on merging `Main`, which had
+taken §131 in the meantime.

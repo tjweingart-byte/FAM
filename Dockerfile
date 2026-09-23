@@ -21,8 +21,36 @@ WORKDIR /app
 # always installed both; this image was the one left behind.
 #
 # It costs nothing to carry: exa-py is pure Python, no torch, no CUDA.
-COPY requirements.txt requirements-exa.txt ./
+COPY requirements.txt requirements-exa.txt requirements-embed.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
+
+# The local sentence embedder that orders "Made for you" by meaning as well as
+# by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.
+# `--build-arg FAM_EMBED=0` leaves it out and the ranker runs on tags alone,
+# exactly as before it existed.
+#
+# Before `COPY . .` and from the two files it needs, so an ordinary source
+# change does not re-download the runtime and the model on every build.
+# In /opt rather than ~/.fam, and named by FAM_EMBED_MODEL, so a platform
+# that runs the container as another user or with another HOME still finds
+# it.
+#
+# Memory: ~215 MB resident once loaded, ~313 MB peak for the whole app,
+# against the starter plan's 512 MB (PROBLEMS.md §131). `SEMANTIC_TASTE=0` at
+# runtime stops it loading without a rebuild.
+#
+# Nothing here fails the build - an image with no model is a working FAM -
+# and nothing here is silent either: the warning is in the build log, and
+# /api/health reports `ranking.semantic.enabled: false` with the reason.
+ENV FAM_EMBED_MODEL=/opt/fam/embed
+ARG FAM_EMBED=1
+COPY embeddings.py ./
+COPY tools/install_embed_model.py ./tools/
+RUN if [ "$FAM_EMBED" = "1" ]; then \
+      (pip install --no-cache-dir -r requirements-embed.txt \
+       && python tools/install_embed_model.py) \
+      || echo "WARNING: embedding model not installed; ranking on tags alone"; \
+    fi
 
 COPY . .
 

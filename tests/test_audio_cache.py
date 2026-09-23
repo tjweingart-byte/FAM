@@ -1,4 +1,4 @@
-"""Kept audio (PROBLEMS.md §131): a cached episode never goes back to the voice.
+"""Kept audio (PROBLEMS.md §132): a cached episode never goes back to the voice.
 
 The voice runs on a rented GPU, and replaying cached episodes through it was
 the largest line on the bill. So the first time an episode is spoken in a
@@ -98,7 +98,7 @@ def test_a_second_play_never_calls_the_voice(store):
 
 
 def test_a_script_cached_before_audio_was_kept_is_voiced_once_more_then_kept(store):
-    """Every script written before §131 has no audio: the first play of one
+    """Every script written before §132 has no audio: the first play of one
     pays for synthesis a last time, and nothing after it does."""
     engine = CountingVoice()
     plan = plan_episode("how tides work", 1)

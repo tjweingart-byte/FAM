@@ -42,7 +42,7 @@ know what the listener might tap *before* they tap it. So:
 > The script is the expensive part (~$0.03, several seconds, cacheable text).
 > The audio is nearly free (~330x realtime, milliseconds).
 >
-> *(Amended by §131: nearly free per episode, but not per replay once the
+> *(Amended by §132: nearly free per episode, but not per replay once the
 > voice is a rented GPU - so the audio of a cached episode is now kept beside
 > its script and played from there. Prefetch still warms scripts and briefs,
 > never audio: a speculative guess should still cost only text.)*
@@ -360,7 +360,7 @@ the rest of this list it needs taste rather than a key.
    Note: voice is deliberately **not** part of the script cache key, because a
    voice changes the audio and not the words. Switching voice therefore reuses
    the cached script — measured at ~90 ms and zero API cost. The *audio* kept
-   since §131 is keyed on the voice as well, so a new voice is voiced once and
+   since §132 is keyed on the voice as well, so a new voice is voiced once and
    kept like any other.
 3. ~~**The cold-open → script gap**~~ — *dissolved, not fixed* (PROBLEMS.md
    §55). Two sessions went into making the opener cover the research wait, and
@@ -929,7 +929,7 @@ the rest of this list it needs taste rather than a key.
   (Opus over a stream) is compatible with it and is the right answer at scale;
   writing a *file* is not.
   **The server keeps a cached episode's audio now, at the owner's direction**
-  *(PROBLEMS.md §131, reversing "nothing anywhere keeps audio").* The voice
+  *(PROBLEMS.md §132, reversing "nothing anywhere keeps audio").* The voice
   runs on RunPod, and re-voicing a cached script on every play made the GPU
   the largest line on the bill. So the first time an episode is spoken in a
   production voice its PCM is kept in `scripts.db` (`episode_audio`, beside
@@ -2158,8 +2158,22 @@ which is the go/no-go for all of it.
   today's facts - rather than by the threshold sitting above it, so the vector
   is carrying none of the gain. A real sentence model in `~/.fam/embed` is the
   only thing that changes that, and it is the same trade as the voices - ship
-  a model with the app, or pay a service per call. Nobody has run one yet, and
-  re-running `tools/bench_vector_cache.py` is how anybody will know it helped.
+  a model with the app, or pay a service per call.
+  **Answered for the cache, and the answer is "not by itself"** *(§131).*
+  all-MiniLM-L6-v2 is installed by `tools/install_embed_model.py` and by the
+  Dockerfile, and the bench with it finds the same 23 at the safe point: it
+  reaches 37 of 41 with the overlap guard off, and serves "how old is the
+  eiffel tower" for "how tall" at 0.879 on the way. Only a cross-encoder
+  separates those, so the cache's guards and defaults are unchanged.
+  **The model is used by the ranker instead** (`taste_vectors.py`), where a
+  near miss costs a weaker tile rather than a wrong episode: a bounded
+  additive term in Made for you for how close a tile is to what the listener
+  has asked for, ~2 ms a warm page, `{}` and the old ranking with no model.
+  And the order of that rail can now be **fitted to taps**
+  (`learned_rank.py`, `python tools/learn_rank.py`): a logistic regression over
+  the ranker's own six signals, rebuilt point in time from the impression
+  log, stored only if it beats the hand-tuned order on held-out offers, and
+  allowed to re-order what cleared the floor but never to admit a tile under it.
 
 ## How to ship a change (standing instruction)
 
@@ -2267,8 +2281,12 @@ the tree could already see "college football" in a tile's question while
 the ranker scored that tile on `sports` alone; and **§128**, where the wait
 in front of the first word goes, logged one step per line as `episode
 timing`; and **§129**, the writer's hidden thinking back to `EFFORT=low` at
-the owner's direction; and **§131**, the audio of a cached episode kept
-beside its script so a replay never goes back to RunPod),
+the owner's direction;
+and **§131**, the embedding model finally installed and measured - no help
+to the cache on its own, used by the ranker instead - and an order for Made
+for you fitted to thirty days of taps that is only served if it beats the
+hand-tuned one; and **§132**, the audio of a cached episode kept beside its
+script so a replay never goes back to RunPod),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

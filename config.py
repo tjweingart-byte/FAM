@@ -807,12 +807,18 @@ class Settings:
     # what a lexical embedding is worth, and it is the number to re-read on
     # the day a real sentence model is installed in ~/.fam/embed.
     #
+    # That day was §131, and the number did not move: with all-MiniLM-L6-v2
+    # the shipped point still finds 23/41, because the overlap guard decides.
+    # Without the guard it finds 37 and serves "how old is the eiffel tower"
+    # for "how tall" at 0.879 - so these defaults stand, and the model's
+    # recall waits on a cross-encoder to check it.
+    #
     # `CACHE_VECTOR=0` restores the old behaviour exactly.
     cache_vector: bool = field(
         default_factory=lambda: os.environ.get("CACHE_VECTOR", "1") not in ("0", "false", "False")
     )
     # Keep each episode's finished audio beside its script, so a cached episode
-    # is replayed from the database and never synthesised again (§131, at the
+    # is replayed from the database and never synthesised again (§132, at the
     # owner's direction). The voice runs on a rented GPU, and replaying cached
     # episodes through it was the largest line on the bill. `0` restores
     # re-synthesis on every play exactly.

@@ -80,7 +80,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
     ones" - and it is a bigger thing than it looks: real listening goes with
     it and the taste model starts from nothing for everybody. It costs
     nothing that cannot be regenerated (a script is about three cents, and
-    the audio kept beside it since §131 goes with it and is voiced again on
+    the audio kept beside it since §132 goes with it and is voiced again on
     the next play) and it does cost history that cannot.
 
     Neither scope touches accounts, credentials or the metering ledger.
@@ -194,6 +194,8 @@ def _forget_what_the_log_taught() -> dict:
         # opens the emptied table rather than inheriting a live object.
         topics.reset_category_tree()
         topics.reset_engagement()
+        # The fitted ranking order is dropped by `EventStore.clear` itself,
+        # in the same statement batch as the log it was fitted to (§131).
         # And the floor goes back under it. Through `category_tree()` again,
         # deliberately: the handle above has just been dropped, so this opens
         # the emptied table rather than writing through the stale object the

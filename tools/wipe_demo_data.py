@@ -43,7 +43,7 @@ completely so we start seeing only new ones" - and it is a bigger thing than
 it looks: real listening goes with it, and the taste model starts from
 nothing for everybody. It costs no data that cannot be regenerated (a script
 is ~$0.03, and its kept audio goes with it and is re-voiced once on the
-next play - §131) and it does cost history that cannot.
+next play - §132) and it does cost history that cannot.
 
 **What it deliberately does not remove**, because none of it is an episode:
 a mix holds topic ids, a saved item and a vibe hold a question - all three

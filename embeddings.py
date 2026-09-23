@@ -26,9 +26,23 @@ Two backends, and the difference between them is the honest part:
   measurable today.
 * **onnx** is a real sentence embedder loaded from `~/.fam/embed`, on the same
   reasoning as the voice models: it ships with the app rather than depending on
-  a service that bills per call. **This has not been run on this machine** - no
-  model is installed here - so treat the code path as written, not proven,
-  exactly like the Piper ONNX path before `verify_voice.py` existed.
+  a service that bills per call. `python tools/install_embed_model.py` puts
+  all-MiniLM-L6-v2 there (384 dims, ~10 ms a sentence on one CPU core) and
+  proves it by encoding a sentence, which is the first time this path was ever
+  run (PROBLEMS.md §131).
+
+**What the real model bought, measured rather than hoped** (§131). For the
+cache, nothing yet: at the shipped threshold and overlap it finds the same 23
+of 41 re-phrasings the lexical vector does, because the overlap guard is what
+decides and the guard is lexical. Loosening the guard is where the model's
+recall is (37 of 41 with no overlap floor) and it is also where its one
+confident mistake is - "how old is the eiffel tower" against "how tall is the
+eiffel tower" scores 0.879, above most real re-phrasings. That is the known
+weakness of a bi-encoder, and separating those two needs a second model that
+reads both questions together; until one is installed the cache keeps its
+guards exactly as they are. Where the model *is* used is the ranker
+(`taste_vectors.py`), where a near miss costs a weaker tile rather than a
+wrong episode.
 
 Which one is in force is reported by `describe()` and printed by the bench, so
 nothing has to guess whether it is looking at semantic or lexical numbers.
@@ -165,10 +179,9 @@ def model_dir() -> Path:
 class _OnnxEmbedder:
     """A sentence-transformers-style ONNX encoder: tokenise, run, mean-pool.
 
-    Untested on this machine - there is no model here to run it against. It is
-    written the way the Piper path was before `verify_voice.py` existed, and it
-    deserves the same suspicion until something has actually produced a vector
-    with it.
+    Run for real against all-MiniLM-L6-v2 in §131, and `install_embed_model`
+    encodes a sentence before it reports success, so a model that installs and
+    cannot produce a vector is a failed install rather than a quiet fallback.
     """
 
     def __init__(self, directory: Path) -> None:
@@ -192,11 +205,27 @@ class _OnnxEmbedder:
         self.dims = int(self.session.get_outputs()[0].shape[-1])
 
     def encode(self, text: str) -> list[float]:
+        return self.encode_many([text])[0]
+
+    def encode_many(self, texts: list[str]) -> list[list[float]]:
+        """One forward pass for a batch, padded to its longest member.
+
+        The ranker embeds a listener's recent searches and a page's tiles
+        together, and one call of twenty is several times cheaper than twenty
+        calls of one - the per-call overhead is most of a short sentence's
+        cost on a CPU.
+        """
         import numpy as np
 
-        encoded = self.tokenizer.encode(text)
-        ids = np.array([encoded.ids], dtype=np.int64)
-        mask = np.array([encoded.attention_mask], dtype=np.int64)
+        if not texts:
+            return []
+        encoded = [self.tokenizer.encode(t) for t in texts]
+        width = max(len(e.ids) for e in encoded) or 1
+        ids = np.zeros((len(encoded), width), dtype=np.int64)
+        mask = np.zeros((len(encoded), width), dtype=np.int64)
+        for row, e in enumerate(encoded):
+            ids[row, :len(e.ids)] = e.ids
+            mask[row, :len(e.attention_mask)] = e.attention_mask
         feed = {"input_ids": ids, "attention_mask": mask}
         if "token_type_ids" in self.inputs:
             feed["token_type_ids"] = np.zeros_like(ids)
@@ -205,9 +234,9 @@ class _OnnxEmbedder:
         )[0]
         weights = mask[..., None].astype(out.dtype)
         pooled = (out * weights).sum(axis=1) / np.clip(weights.sum(axis=1), 1e-9, None)
-        vec = pooled[0]
-        norm = float(np.linalg.norm(vec))
-        return (vec / norm).tolist() if norm else vec.tolist()
+        norms = np.linalg.norm(pooled, axis=1, keepdims=True)
+        pooled = pooled / np.where(norms == 0, 1.0, norms)
+        return pooled.tolist()
 
 
 _onnx: Optional[_OnnxEmbedder] = None
@@ -226,11 +255,37 @@ def _load_onnx() -> Optional[_OnnxEmbedder]:
         # of quiet downgrade this project keeps paying for: the numbers would
         # still look fine while measuring something else.
         log.warning(
-            "FAM_EMBED_BACKEND=onnx asked for, but no model loaded (%s). "
-            "Falling back to the lexical hashing backend - matches will be "
-            "lexical, not semantic.", _onnx_error,
+            "A semantic embedding model was asked for (FAM_EMBED_BACKEND=onnx, "
+            "or a model in %s for the ranker), but none loaded (%s). The cache "
+            "falls back to lexical vectors and the ranker to tags alone - "
+            "matches will be lexical, not semantic.", model_dir(), _onnx_error,
         )
     return _onnx
+
+
+def model_installed() -> bool:
+    """Whether the files a semantic model needs are where it would look.
+
+    A cheap stat, deliberately separate from loading: the ranker asks this on
+    every page, and on a deployment with no model (every one until somebody
+    runs the installer) the answer must cost nothing and log nothing. Trying
+    the load would log a warning written for someone who *asked* for onnx.
+    """
+    directory = model_dir()
+    return (directory / "model.onnx").exists() and (directory / "tokenizer.json").exists()
+
+
+def semantic_encoder() -> Optional[_OnnxEmbedder]:
+    """The real model if one is installed and loads, else None. Never raises.
+
+    Independent of `FAM_EMBED_BACKEND`, which chooses the *cache's* vector
+    space - switching that invalidates every stored vector, so it is a
+    decision about the cache. The ranker wants meaning whenever meaning is
+    available, and has nothing stored that a switch could strand.
+    """
+    if not model_installed():
+        return None
+    return _load_onnx()
 
 
 def backend() -> str:

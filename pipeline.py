@@ -218,7 +218,7 @@ class GenerationStats:
     marks: EpisodeMarks = field(default_factory=EpisodeMarks)
     script: list[str] = field(default_factory=list)
     #: Where each sentence in `script` starts in the audio, in seconds - kept
-    #: with the audio (§131) so a stored replay can caption itself.
+    #: with the audio (§132) so a stored replay can caption itself.
     starts: list[float] = field(default_factory=list)
     #: "stored" when the audio came out of the episode cache and the voice
     #: engine was never called; "kept" when this play's audio was written
@@ -252,7 +252,7 @@ class GenerationStats:
         """Seconds of audio the voice engine actually made for this play.
 
         What metering allocates GPU cost from. A replay out of kept audio made
-        none (§131), and billing it as though it had would put the saving
+        none (§132), and billing it as though it had would put the saving
         this whole mechanism exists for back into the ledger as a cost.
         """
         return 0.0 if self.audio == "stored" else self.audio_seconds
@@ -1003,7 +1003,7 @@ class PodcastPipeline:
         key = await self._cache_key(plan) if is_shareable(plan.query) else ""
         return live_captions.read_starts(key)
 
-    # ---- kept audio (§131) -------------------------------------------------
+    # ---- kept audio (§132) -------------------------------------------------
 
     def _keeps_audio(self) -> bool:
         """Whether this pipeline reads and writes finished audio.
@@ -1182,7 +1182,7 @@ class PodcastPipeline:
                          if stats.prefetched else "")
                 # The audio, if it has been made before in this voice: read
                 # from the database and the voice engine is never called. That
-                # is the whole of §131 - a cached episode used to cost a GPU
+                # is the whole of §132 - a cached episode used to cost a GPU
                 # round trip on every play.
                 if self._keeps_audio():
                     stored = self.cache.get_audio(key, self._audio_voice(),
@@ -1191,7 +1191,7 @@ class PodcastPipeline:
                         async for chunk in self._play_stored(stored, stats):
                             yield chunk
                         return
-                    # Not kept yet - a script from before §131, another voice,
+                    # Not kept yet - a script from before §132, another voice,
                     # or evicted. Synthesised once more, and kept this time.
                     stats.audio_key = key
                 # Replaying the same sentences through the same controller

@@ -1,10 +1,10 @@
-"""Shared episode cache: the script, and since §131 the audio beside it.
+"""Shared episode cache: the script, and since §132 the audio beside it.
 
 The script is what costs a model call, so it is what decides whether an
 episode exists at all: it is keyed, shared, near-matched and expired here, and
 everything else hangs off it.
 
-**The audio is kept too, at the owner's direction (PROBLEMS.md §131).** This
+**The audio is kept too, at the owner's direction (PROBLEMS.md §132).** This
 file used to say the opposite - "synthesis costs essentially nothing, so store
 the script and re-synthesise" - and that was true of a GPU in the same process.
 It stopped being true when the voice moved to RunPod: every replay of a cached
@@ -596,7 +596,7 @@ class MemoryScriptCache:
             return ""
         return self._summaries.get(key, "")
 
-    # -- audio (§131) -------------------------------------------------------
+    # -- audio (§132) -------------------------------------------------------
 
     def _live(self, key: str) -> bool:
         entry = self._data.get(key)
@@ -743,7 +743,7 @@ class SqliteScriptCache:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS scripts_bucket ON scripts(bucket, expires)"
             )
-            # §131: the finished audio, one row per (script, voice). No
+            # §132: the finished audio, one row per (script, voice). No
             # `expires` of its own - it is readable exactly while its script
             # row is, so the two can never disagree about whether an episode
             # still exists.
@@ -846,7 +846,7 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache write failed; continuing")
 
-    # -- audio (§131) -------------------------------------------------------
+    # -- audio (§132) -------------------------------------------------------
 
     def has_audio(self, key: str, voice: str, sample_rate: int) -> bool:
         try:
@@ -1121,7 +1121,7 @@ class SqliteScriptCache:
         The one lever that makes "start seeing only new episode titles" true
         on a deployment nobody can shell into. It costs one regeneration per
         question anybody asks again, and nothing else: the audio beside each
-        script (§131) goes with it, and every entry is reproducible.
+        script (§132) goes with it, and every entry is reproducible.
         """
         try:
             self._conn().execute("DELETE FROM episode_audio")
