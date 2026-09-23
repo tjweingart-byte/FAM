@@ -961,8 +961,9 @@ the rest of this list it needs taste rather than a key.
   script and costs one re-voicing. **§134 widened what is kept, inside those
   rules**: a request that names no voice keys its audio as the default
   voice's own id (a shared link and the app were storing one episode twice);
-  an evergreen script's life slides forward on each play up to
-  `CACHE_MAX_AGE_SECONDS` (volatile ones never slide), so a popular episode
+  a script that makes no claim about a window of time (no recency window,
+  no result-dependent question, no fixture yet to happen) has its life slide
+  forward on each *play* - never on a look - up to `CACHE_MAX_AGE_SECONDS`, so a popular episode
   keeps its audio; a re-write with identical words keeps the audio; and a
   near match with kept audio does not wake the GPU. `AUDIO_CACHE=0` restores re-synthesis on
   every play exactly. Downloads - audio in the listener's own IndexedDB -

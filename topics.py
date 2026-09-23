@@ -3627,24 +3627,30 @@ def rank_world(live: list, country: str = "", held: Iterable = (),
     cannot fill four leaves the row short, and an empty pool leaves it empty
     with a sentence saying why (`_world_empty_reason`).
     """
-    pool = list(live)
-    have = {t.id for t in pool}
-    pool += [t for t in held if t.id not in have]
+    want = stories.normalise_country(country)
 
     def score(tile) -> float:
         share = next((float(v) for name, v in getattr(tile, "countries", ())
                       if name == want), 0.0) if want else 0.0
         return float(tile.freshness) * (1.0 + COUNTRY_WEIGHT * share)
 
-    want = stories.normalise_country(country)
-    # Live before held at equal scores, and pool order after that, which is
-    # the pool's own loudest-first order - so a tie never falls through to an
-    # id sort, which would be an order nobody chose.
-    live_ids = {t.id for t in live}
-    ranked = [t for _s, _l, _i, t in sorted(
-        ((-score(t), t.id not in live_ids, i, t) for i, t in enumerate(pool)),
-        key=lambda row: row[:3])]
-    return diversify(ranked, limit, max_per_facet=WORLD_MAX_PER_FACET)
+    def ranked(tiles: list) -> list:
+        # Pool order breaks ties - the pool's own loudest-first order - so a
+        # tie never falls through to an id sort, an order nobody chose.
+        return [t for _s, _i, t in sorted(
+            ((-score(t), i, t) for i, t in enumerate(tiles)),
+            key=lambda row: row[:2])]
+
+    # **Live first, and held only to fill** - what the docstring promises.
+    # The pool's variety cap is what keeps a story out of `live`, so letting a
+    # held one outrank a live one would undo that cap on the one row that
+    # reads the pool most directly.
+    rows = diversify(ranked(list(live)), limit, max_per_facet=WORLD_MAX_PER_FACET)
+    if len(rows) < limit:
+        have = {t.id for t in rows}
+        rows += [t for t in ranked([t for t in held if t.id not in have])
+                 ][:limit - len(rows)]
+    return rows
 
 
 def _rail_fallback(key: str, profile: dict, live: list, live_held: list,

@@ -5944,7 +5944,9 @@
 
   // Works for both kinds of entry: a bank topic and a typed one both end up
   // as a query on the same pipeline, through the same script cache.
-  function playMixItem(item){
+  // `inQueue` false is a single episode played from a mix (a friend's), which
+  // ends any running playlist rather than joining it (§134).
+  function playMixItem(item, inQueue){
     var key = "mix_" + item.id.replace(/[^a-z0-9]/gi, "") + "_" + Date.now();
     TOPICS[key] = {
       title: item.title,
@@ -5957,7 +5959,12 @@
       // the next one instead of offering What's next. See `populatePlayer`.
       fromMix: true
     };
-    if(mixPlay) mixPlay.key = key;
+    if(inQueue === false){
+      TOPICS[key].fromMix = false;
+      endMixQueue();
+    } else if(mixPlay){
+      mixPlay.key = key;
+    }
     generate(key);
   }
 
@@ -8656,7 +8663,10 @@
     var m = personMixes[i];
     var items = (m && (m.items || m.topics)) || [];
     if(!items.length){ toast("That mix is empty"); return; }
-    playMixItem(items[0]);
+    // Somebody else's mix plays one episode and is not a queue of this
+    // listener's own: it must not take over a playlist they have running.
+    endMixQueue();
+    playMixItem(items[0], false);
   }
 
   function playPersonVibe(i){
@@ -10391,7 +10401,8 @@
     drawReelStats();
     fetch("/api/rate", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ query: ep.query, minutes: ep.minutes, value: next })
+      body: JSON.stringify({ query: ep.query, minutes: ep.minutes, value: next,
+                             key: ep.key || "" })
     }).then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){ takeReelStats(ep, d); })
       .catch(function(){

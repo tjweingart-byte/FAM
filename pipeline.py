@@ -36,7 +36,6 @@ from script_buffer import ASSEMBLER_TICK, ScriptBuffer
 from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_words
 from speech_assembly import (AssembledChunk, AssemblyPolicy,
                              SpeechAssembler, fit_to_budget)
-import tts
 from tts import TTSEngine, build_engine
 
 log = logging.getLogger(__name__)
@@ -1043,8 +1042,13 @@ class PodcastPipeline:
         """
         if self.voice:
             return self.voice
+        # From the engine's own class rather than `tts.default_voice()`, which
+        # asks every engine whether it is reachable: a remote engine that blips
+        # for a second would answer with the placeholder's id, and the episode
+        # would be keyed `remote:default` again - the double storage this
+        # exists to stop.
         try:
-            default = tts.default_voice() or ""
+            default = type(self.engine).default_voice_id() or ""
         except Exception:  # noqa: BLE001 - a key, never a reason to fail a play
             default = ""
         if default.split(":", 1)[0] == self.engine.name:
@@ -1359,6 +1363,16 @@ class PodcastPipeline:
                 # double that stands in for one - is still called exactly as
                 # it always was.
                 extra = {"summary": stats.summary} if stats.summary else {}
+                # Whether a play may keep this alive past its first lifetime
+                # (§134): only an episode that makes no claim about a window of
+                # time - no recency window, not a question about a result, not
+                # a fixture that has yet to happen. "This week" must not be
+                # replayed for a month. Passed only when true, so a cache
+                # written before the keyword existed is called as it was.
+                if (not notes.recency_days and not notes.outcome_dependent
+                        and (notes.live_status or "") not in ("in_progress",
+                                                              "scheduled")):
+                    extra["slide"] = True
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                                plan.minutes, bucket, sources, self.author,
                                stats.title, **extra)

@@ -74,6 +74,18 @@ class TTSEngine(ABC):
         """Voices this engine can offer right now. Empty if unavailable."""
         return []
 
+    @classmethod
+    def default_voice_id(cls) -> str:
+        """The id this engine's default voice is known by, or "".
+
+        For keying kept audio (§134), so it must not depend on whether the
+        engine happens to be reachable this second: a blip would otherwise key
+        one episode two ways. Engines whose `voices()` checks availability
+        override this to name the voice without asking.
+        """
+        found = list(cls.voices())
+        return found[0].id if found else ""
+
     @staticmethod
     def _voice_arg(voice: str | None, engine_name: str) -> str | None:
         """Strip the "engine:" prefix from a voice id, if present."""
@@ -460,6 +472,10 @@ class ChatterboxEngine(TTSEngine):
         reference = cls.reference_path()
         return [Voice(id=f"chatterbox:{reference.stem}", label="FAM",
                       engine=cls.name, detail="Chatterbox")]
+
+    @classmethod
+    def default_voice_id(cls) -> str:
+        return f"chatterbox:{cls.reference_path().stem}"
 
     # -- synthesis ---------------------------------------------------------
 

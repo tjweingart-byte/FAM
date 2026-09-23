@@ -277,18 +277,18 @@ def test_an_evergreen_episode_that_keeps_being_played_keeps_its_life(tmp_path, m
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_ttl_seconds=1000, cache_max_age_seconds=5000))
     cache = SqliteScriptCache(str(tmp_path / "s.db"))
-    cache.put("k", ["One."], 1000, "why the sky is blue", minutes=2)
+    cache.put("k", ["One."], 1000, "why the sky is blue", minutes=2, slide=True)
     db = sqlite3.connect(cache.path)
     db.execute("UPDATE scripts SET expires = ?", (time.time() + 10,))
     db.commit()
-    assert cache.get("k")
+    cache.record_play("k")
     expires = db.execute("SELECT expires FROM scripts").fetchone()[0]
     assert expires > time.time() + 900, "a play did not keep an evergreen entry"
     # ...but never past the ceiling from when it was written.
     db.execute("UPDATE scripts SET created = ?, expires = ?",
                (time.time() - 4990, time.time() + 5))
     db.commit()
-    cache.get("k")
+    cache.record_play("k")
     expires = db.execute("SELECT expires, created FROM scripts").fetchone()
     assert expires[0] <= expires[1] + 5000 + 1
 
@@ -297,24 +297,78 @@ def test_a_volatile_episode_never_slides(tmp_path, monkeypatch):
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_ttl_seconds=1000))
     cache = SqliteScriptCache(str(tmp_path / "s.db"))
-    cache.put("k", ["One."], 900 - 800, "latest score tonight", minutes=2)
+    cache.put("k", ["One."], 900 - 800, "latest score tonight", minutes=2, slide=True)
     before = sqlite3.connect(cache.path).execute(
         "SELECT expires FROM scripts").fetchone()[0]
-    cache.get("k")
+    cache.record_play("k")
     after = sqlite3.connect(cache.path).execute(
         "SELECT expires FROM scripts").fetchone()[0]
     assert after == before
+
+
+def test_a_look_is_not_a_play_and_keeps_nothing_alive(tmp_path, monkeypatch):
+    """The pacing probe, a prefetch check and the GPU-wake hint all read the
+    cache; none of them is anybody listening, so none may slide an entry."""
+    monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
+        settings, cache_ttl_seconds=1000, cache_max_age_seconds=5000))
+    cache = SqliteScriptCache(str(tmp_path / "s.db"))
+    cache.put("k", ["One."], 1000, "why the sky is blue", minutes=2, slide=True)
+    db = sqlite3.connect(cache.path)
+    db.execute("UPDATE scripts SET expires = ?", (time.time() + 10,))
+    db.commit()
+    for _ in range(3):
+        assert cache.get("k")
+    assert db.execute("SELECT expires FROM scripts").fetchone()[0] < time.time() + 11
+
+
+def test_an_entry_not_marked_free_to_slide_never_slides(tmp_path, monkeypatch):
+    """Prefetch, tools and anything written about a window of time pass no
+    `slide`, and a play must not keep "this week" alive for a month."""
+    monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
+        settings, cache_ttl_seconds=1000, cache_max_age_seconds=5000))
+    cache = SqliteScriptCache(str(tmp_path / "s.db"))
+    cache.put("k", ["One."], 1000, "what changed this week", minutes=2)
+    db = sqlite3.connect(cache.path)
+    db.execute("UPDATE scripts SET expires = ?", (time.time() + 10,))
+    db.commit()
+    cache.record_play("k")
+    assert db.execute("SELECT expires FROM scripts").fetchone()[0] < time.time() + 11
+
+
+@pytest.mark.parametrize("recency, outcome, status, slides", [
+    (0, False, "", True), (3, False, "", False), (0, True, "", False),
+    (0, False, "scheduled", False), (0, False, "final", True)])
+def test_the_pipeline_marks_only_timeless_episodes_free_to_slide(
+        recency, outcome, status, slides):
+    seen = {}
+
+    class Spy(MemoryScriptCache):
+        def put(self, *a, **kw):
+            seen.update(kw)
+            return super().put(*a, **kw)
+
+    class Gen(FakeGenerator):
+        async def stream_sentences(self, plan, notes=None):
+            if notes is not None:
+                notes.recency_days, notes.outcome_dependent = recency, outcome
+                notes.live_status = status
+            async for s in super().stream_sentences(plan, notes):
+                yield s
+
+    play(PodcastPipeline(generator=Gen(), engine=CountingVoice(), cache=Spy()),
+         plan_episode("why the sky is blue", 1))
+    assert bool(seen.get("slide")) is slides
 
 
 def test_sliding_off_is_the_old_fixed_lifetime(tmp_path, monkeypatch):
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_max_age_seconds=0))
     cache = SqliteScriptCache(str(tmp_path / "s.db"))
-    cache.put("k", ["One."], settings.cache_ttl_seconds, "why", minutes=2)
+    cache.put("k", ["One."], settings.cache_ttl_seconds, "why", minutes=2, slide=True)
     db = sqlite3.connect(cache.path)
     db.execute("UPDATE scripts SET expires = ?", (time.time() + 10,))
     db.commit()
-    cache.get("k")
+    cache.record_play("k")
     assert db.execute("SELECT expires FROM scripts").fetchone()[0] < time.time() + 11
 
 
@@ -337,7 +391,8 @@ def test_the_default_voice_is_one_audio_key_however_it_is_asked_for(monkeypatch)
     engine, same weights, same recording - it must be one row, or one episode
     is voiced on RunPod twice."""
     engine = CountingVoice()
-    monkeypatch.setattr("tts.default_voice", lambda: "countingvoice:reference_3")
+    monkeypatch.setattr(CountingVoice, "default_voice_id",
+                        classmethod(lambda cls: "countingvoice:reference_3"))
     named = PodcastPipeline(generator=FakeGenerator(), engine=engine,
                             cache=MemoryScriptCache(),
                             voice="countingvoice:reference_3")
@@ -345,13 +400,15 @@ def test_the_default_voice_is_one_audio_key_however_it_is_asked_for(monkeypatch)
                               cache=MemoryScriptCache())
     assert unnamed._audio_voice() == named._audio_voice()
     # A default that belongs to another engine is not what this one speaks.
-    monkeypatch.setattr("tts.default_voice", lambda: "other:reference_3")
+    monkeypatch.setattr(CountingVoice, "default_voice_id",
+                        classmethod(lambda cls: "other:reference_3"))
     assert unnamed._audio_voice() == "countingvoice:default"
 
 
 def test_a_replay_through_a_link_plays_the_audio_the_app_kept(monkeypatch):
     engine = CountingVoice()
-    monkeypatch.setattr("tts.default_voice", lambda: "countingvoice:reference_3")
+    monkeypatch.setattr(CountingVoice, "default_voice_id",
+                        classmethod(lambda cls: "countingvoice:reference_3"))
     cache = MemoryScriptCache()
     plan = plan_episode("why the sky is blue", 1)
     play(PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=cache,
@@ -513,3 +570,78 @@ def test_explore_still_plays_cached_only():
 def test_the_deployment_turns_the_trending_source_on():
     render = open(os.path.join(ROOT, "render.yaml"), encoding="utf-8").read()
     assert re.search(r"- key: GDELT\n\s+value: \"1\"", render)
+
+
+# --------------------------------------------------------------------------
+# Found in review (§134)
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("header, region", [
+    ("en-US,en;q=0.9", "US"), ("zh-Hant-TW", "TW"), ("en-US-u-ca-gregory", "US"),
+    ("es-419", ""), ("en_GB", "GB"), ("en", ""), ("*", ""), ("", ""),
+    ("de-CH;q=0.8", "CH")])
+def test_the_browser_region_is_read_as_bcp47_says(header, region):
+    assert appmod._region_of(header) == region
+
+
+def test_every_two_letter_region_resolves_to_a_country_name():
+    for code in ("SE", "CH", "TW", "PT", "BE", "GB", "US", "NG", "BR", "KR"):
+        name = stories.normalise_country(code)
+        assert len(name) > 2, f"{code} resolved to {name!r}"
+    assert stories.normalise_country("Myanmar") == stories.normalise_country("MM")
+
+
+def test_a_held_story_never_outranks_a_live_one_on_trending():
+    live = T.topics_from_stories([story(f"live {n}", (facet,), 0.3)
+                                  for n, facet in enumerate(
+                                      ("world", "money", "culture", "science"))])
+    held = T.topics_from_stories([story("held loud", ("sports",), 1.0,
+                                        (("united kingdom", 1.0),))])
+    row = T.rank_world(live, "UK", held)
+    assert {t.id for t in row} == {t.id for t in live}
+    assert [t.id for t in T.rank_world(live[:2], "UK", held)][-1] == held[0].id
+
+
+def test_a_page_of_counts_matches_one_episode_at_a_time(tmp_path):
+    s = social_mod.SocialStore(str(tmp_path / "social.db"))
+    for who, q, m in (("a", "why tides turn", 2), ("b", "why tides turn", 2),
+                      ("a", "why volcanoes erupt", 3)):
+        s.echo(who, q, q.title(), m)
+    s.rate("a", "why tides turn", 2, 1)
+    s.rate("c", "why tides turn", 2, -1)
+    s.rate("a", "why tides turn", 3, 1)          # another length, another episode
+    pairs = [("why tides turn", 2), ("why volcanoes erupt", 3), ("nobody", 2)]
+    many = s.episode_counts_many(pairs, "a")
+    for q, m in pairs:
+        assert many[(q, m)] == s.episode_counts(q, m, "a"), (q, m)
+
+
+def test_a_thumb_does_not_zero_the_play_count(client):
+    appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
+                            "", 3)
+    appmod.SCRIPT_CACHE.record_play("k1")
+    body = client.post("/api/rate", json={"query": "why volcanoes erupt",
+                                          "minutes": 3, "value": 1,
+                                          "key": "k1"}).json()
+    assert body["plays"] == 1
+    assert re.search(r"value: next,\s*key: ep\.key", INDEX)
+
+
+def test_a_friends_mix_does_not_take_over_a_running_playlist():
+    body = re.search(r"function playPersonMix\(i\)\{(.*?)\n  \}", INDEX, re.S).group(1)
+    assert "endMixQueue()" in body and "playMixItem(items[0], false)" in body
+    body = re.search(r"function playMixItem\(item, inQueue\)\{(.*?)\n  \}",
+                     INDEX, re.S).group(1)
+    assert "inQueue === false" in body
+
+
+def test_finishing_a_playlist_clears_a_loading_screen():
+    body = re.search(r"function finishMix\(\)\{(.*?)\n  \}", INDEX, re.S).group(1)
+    assert "clearGenOverlay()" in body
+
+
+def test_vibes_are_counted_through_an_index_on_the_episode(tmp_path):
+    s = social_mod.SocialStore(str(tmp_path / "social.db"))
+    plan = " ".join(r[3] for r in sqlite3.connect(s.path).execute(
+        "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?",
+        ("q", 2)))
+    assert "echoes_episode" in plan, plan

@@ -171,6 +171,11 @@ class SocialStore:
             # statement made twice, not two statements.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS echoes_once"
                          " ON echoes(user_id, query, minutes)")
+            # Counting an episode's vibes (§134) asks by episode, and the index
+            # above leads with the listener, so without this every Explore
+            # card was a scan of the whole table.
+            conn.execute("CREATE INDEX IF NOT EXISTS echoes_episode"
+                         " ON echoes(query, minutes)")
             # The follow graph, which the app has been describing for a while
             # without having (CLAUDE.md open problem #6: "What your followers
             # are listening to" ranked co-listener overlap, and the heading
@@ -385,6 +390,49 @@ class SocialStore:
             " value = excluded.value, at = excluded.at",
             (user_id, query, int(minutes), value, time.time()))
         return value
+
+    def episode_counts_many(self, pairs, user_id: str = "") -> dict:
+        """`episode_counts` for a whole Explore page in four queries.
+
+        `(query, minutes) -> counts`, every pair present. The feed asks this
+        for up to sixty cards at once, and one call per card was four queries
+        a card inside an async handler.
+        """
+        wanted = {(" ".join(str(q).split())[:300], int(m)): (q, m)
+                  for q, m in pairs}
+        out = {orig: {"vibes": 0, "likes": 0, "dislikes": 0, "rating": 0,
+                      "vibed": False} for orig in wanted.values()}
+        if not wanted:
+            return out
+        queries = sorted({q for q, _m in wanted})
+        marks = ",".join("?" for _ in queries)
+        try:
+            conn = self._conn()
+            for q, m, n in conn.execute(
+                    f"SELECT query, minutes, COUNT(*) FROM echoes WHERE query IN ({marks})"
+                    " GROUP BY query, minutes", queries):
+                if (q, m) in wanted:
+                    out[wanted[(q, m)]]["vibes"] = int(n)
+            for q, m, value, n in conn.execute(
+                    f"SELECT query, minutes, value, COUNT(*) FROM ratings"
+                    f" WHERE query IN ({marks}) GROUP BY query, minutes, value",
+                    queries):
+                if (q, m) in wanted:
+                    out[wanted[(q, m)]]["likes" if value > 0 else "dislikes"] = int(n)
+            if user_id:
+                for q, m, value in conn.execute(
+                        f"SELECT query, minutes, value FROM ratings WHERE user_id = ?"
+                        f" AND query IN ({marks})", (user_id, *queries)):
+                    if (q, m) in wanted:
+                        out[wanted[(q, m)]]["rating"] = int(value)
+                for q, m in conn.execute(
+                        f"SELECT query, minutes FROM echoes WHERE user_id = ?"
+                        f" AND query IN ({marks})", (user_id, *queries)):
+                    if (q, m) in wanted:
+                        out[wanted[(q, m)]]["vibed"] = True
+        except Exception:
+            log.exception("could not count vibes and ratings for a page")
+        return out
 
     def episode_counts(self, query: str, minutes: int,
                        user_id: str = "") -> dict:

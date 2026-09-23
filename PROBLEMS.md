@@ -10848,3 +10848,32 @@ Explore.
 
 Written as §133 on its branch and renumbered on merging `Main`, which had
 taken §133 (YourFAM) in the meantime.
+
+**What review of the branch found.** None of these showed up in any test,
+and all are fixed:
+- **A friend's mix could take over the listener's own playlist.**
+  `playPersonMix` wrote its key into `mixPlay`, so the next item of the
+  listener's playlist followed the friend's episode. It now ends the queue
+  instead of joining it.
+- **A like or dislike zeroed the card's play count.** `/api/rate` answered
+  without the key. It now carries it.
+- **`/api/explore` ran four queries per card, and vibes had no index to
+  count by.** There is now an index on the episode, and the counts for the
+  whole page come from `episode_counts_many`.
+- **The country boost reached about twenty-five countries.** `zh-Hant`
+  parsed to "Han", and a region code like `SE` matched nothing. The fixes
+  are a BCP 47 parse (`app._region_of`) and a full ISO two-letter table.
+- **Sliding was too wide.** It ran on every cache *read*, including probes,
+  and on anything written at the full lifetime, including "this week". It now
+  runs only on a play, and only for an episode the pipeline marks timeless:
+  no recency window, not about a result, not a fixture.
+- **Trending could put a held story above a live one.** Held stories now only
+  fill a row that live ones cannot.
+- **The audio's voice key asked every engine whether it was up.** So a blip
+  keyed an episode `remote:default` again. It now reads the engine's own
+  `default_voice_id`.
+- **A playlist finished while its last episode was loading** left the
+  loading screen up.
+
+Still true: audio already stored under `remote:default` before this change is
+not found under the new key and costs one re-voicing per episode.

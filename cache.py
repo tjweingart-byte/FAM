@@ -460,7 +460,7 @@ class ScriptCache(Protocol):
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
         minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
-        title: str = "", summary: str = ""
+        title: str = "", summary: str = "", slide: bool = False
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -544,7 +544,7 @@ class MemoryScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = ""
+        author: str = "", title: str = "", summary: str = "", slide: bool = False
     ) -> None:
         before = self._data.get(key)
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
@@ -808,14 +808,12 @@ class SqliteScriptCache:
         try:
             conn = self._conn()
             row = conn.execute(
-                "SELECT sentences, expires, ttl, created FROM scripts WHERE key = ?",
-                (key,)
+                "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
             ).fetchone()
             now = time.time()
             if not row or row[1] < now:
                 return None
             conn.execute("UPDATE scripts SET hits = hits + 1 WHERE key = ?", (key,))
-            self._slide(conn, key, row[1], row[2], row[3], now)
             return json.loads(row[0])
         except Exception:
             # A cache is an optimisation. If it breaks, the episode is still
@@ -825,9 +823,13 @@ class SqliteScriptCache:
 
     @staticmethod
     def _slide(conn, key: str, expires: float, ttl, created, now: float) -> None:
-        """Keep an evergreen entry alive while people keep asking for it (§134).
+        """Keep an evergreen entry alive while people keep playing it (§134).
 
-        Only an entry written at the ordinary ceiling slides - `ttl_for` gave
+        Called from `record_play` and nowhere else: a pacing probe, a prefetch
+        existence check or a GPU-wake hint reads the cache too, and none of
+        those is anybody listening. `ttl` is 0 for an entry the pipeline did
+        not mark as free to slide (see its `slide` flag), and only an entry
+        written at the ordinary ceiling slides - `ttl_for` gave
         anything time-sensitive a shorter one, and a claim about now must not
         outlive the window it was true in. It moves the expiry to a full
         lifetime from *this* read and never past `CACHE_MAX_AGE_SECONDS` from
@@ -848,12 +850,20 @@ class SqliteScriptCache:
                          (target, key))
 
     def record_play(self, key: str) -> None:
-        """One listener started this episode. The Explore card's number."""
+        """One listener started this episode. The Explore card's number, and
+        the one event that keeps an evergreen entry alive (`_slide`)."""
         if not key:
             return
         try:
-            self._conn().execute(
+            conn = self._conn()
+            conn.execute(
                 "UPDATE scripts SET plays = plays + 1 WHERE key = ?", (key,))
+            row = conn.execute(
+                "SELECT expires, ttl, created FROM scripts WHERE key = ?",
+                (key,)).fetchone()
+            now = time.time()
+            if row and row[0] >= now:
+                self._slide(conn, key, row[0], row[1], row[2], now)
         except Exception:
             log.exception("could not count a play; continuing")
 
@@ -870,9 +880,13 @@ class SqliteScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = ""
+        author: str = "", title: str = "", summary: str = "", slide: bool = False
     ) -> None:
         """Store the script, and the vector for the question that produced it.
+
+        `slide` says a play may keep it alive past `ttl` (§134, `_slide`). Off
+        unless the caller knows the episode makes no claim about a window of
+        time - prefetch, tools and tests never say so.
 
         The embedding happens **here**, on the write, and that is the whole
         design. Doing it on the read would put work in front of the first word
@@ -920,7 +934,7 @@ class SqliteScriptCache:
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
-                 int(ttl)),
+                 int(ttl) if slide else 0),
             )
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
