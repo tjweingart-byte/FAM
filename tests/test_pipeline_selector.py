@@ -457,7 +457,7 @@ def test_the_body_is_the_only_generation_stream_in_stream_pcm():
     else. A fourth would be a second opinion about what the episode is."""
     import inspect
 
-    source = inspect.getsource(PodcastPipeline.stream_pcm)
+    source = inspect.getsource(PodcastPipeline._stream_pcm)
     assert source.count("self._pump_for(") == 3
     assert not hasattr(PodcastPipeline, "_answer_first")
 

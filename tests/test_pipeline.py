@@ -413,7 +413,7 @@ def test_both_write_sites_use_the_one_function_with_the_live_state():
 
     import prefetch as prefetch_mod
 
-    serving = inspect.getsource(PodcastPipeline.stream_pcm)
+    serving = inspect.getsource(PodcastPipeline._stream_pcm)
     warming = inspect.getsource(prefetch_mod.Prefetcher._warm)
     for name, source in (("the serving path", serving), ("prefetch", warming)):
         assert "ttl_for(" in source, f"{name} does not compute a TTL"

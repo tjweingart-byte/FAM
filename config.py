@@ -817,6 +817,20 @@ class Settings:
     cache_vector: bool = field(
         default_factory=lambda: os.environ.get("CACHE_VECTOR", "1") not in ("0", "false", "False")
     )
+    # Keep each episode's finished audio beside its script, so a cached episode
+    # is replayed from the database and never synthesised again (§132, at the
+    # owner's direction). The voice runs on a rented GPU, and replaying cached
+    # episodes through it was the largest line on the bill. `0` restores
+    # re-synthesis on every play exactly.
+    audio_cache: bool = field(
+        default_factory=lambda: os.environ.get("AUDIO_CACHE", "1") not in ("0", "false", "False")
+    )
+    # The byte ceiling for kept audio, least recently played out first. Sized
+    # for render.yaml's 1 GB disk, which every other database shares: at about
+    # 2 MB a compressed minute this is roughly 250 minutes of episodes. An
+    # evicted episode keeps its script and costs one re-synthesis. 0 = none.
+    audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", 512)
+
     # Cosine a near match must clear, and the share of words it must literally
     # share. Both measured, not chosen: tools/bench_vector_cache.py sweeps them
     # against 41 re-phrasings that should collapse and 20 pairs that must not.

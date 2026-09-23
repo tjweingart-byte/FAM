@@ -478,13 +478,13 @@ def test_both_architectures_are_reached_only_through_the_selector():
     # it went with the handover (§108).
     for name in ("_speak_chunk", "_speak_one"):
         assert len(re.findall(rf"self\.{name}\s*\(", source)) == 1, name
-    body = inspect.getsource(PodcastPipeline.stream_pcm)
+    body = inspect.getsource(PodcastPipeline._stream_pcm)
     assert "phase6" not in body, "stream_pcm names an architecture directly"
     assert "_pump_for(" in body
 
 
 def test_stream_pcm_routes_every_pump_through_the_selector():
-    source = inspect.getsource(PodcastPipeline.stream_pcm)
+    source = inspect.getsource(PodcastPipeline._stream_pcm)
     assert "self._start(" not in source
     assert source.count("self._pump_for(") == 3      # replay, body, top-up
     assert source.count("self._speak_pump(") == 3

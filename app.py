@@ -605,6 +605,19 @@ def _cache_report() -> dict:
     # trust a hit. Reporting one without the other would be the §52 mistake in
     # a new place.
     report["near_match"] = settings.cache_vector
+    # §132: whether cached episodes replay from kept audio or go back to the
+    # voice engine, and how much of the ceiling that audio is using - the
+    # disk it lives on is shared with every other database.
+    report["audio"] = settings.audio_cache
+    if settings.audio_cache:
+        try:
+            held = SCRIPT_CACHE.stats()
+        except Exception:
+            held = {}
+        report["audio_entries"] = held.get("audio_entries")
+        report["audio_mb"] = (round(held["audio_bytes"] / 1048576, 1)
+                              if isinstance(held.get("audio_bytes"), int) else None)
+        report["audio_ceiling_mb"] = settings.audio_cache_max_mb
     if settings.cache_vector:
         report["embedding"] = embeddings.describe()
         report["threshold"] = settings.cache_vector_threshold
@@ -4144,7 +4157,12 @@ async def audio(
     # rather than by filling the gap, applied to the one wait this split adds.
     # It is a hint: `wake()` never raises and never blocks, and a miss costs
     # only the cold start it was trying to hide.
-    _wake_remote_voice()
+    #
+    # Not for an episode whose audio is already kept (§132): it will be read
+    # out of the database, and a GPU booted for it is a bill for nothing.
+    stored = getattr(pipeline, "has_stored_audio", None)
+    if stored is None or not await stored(plan):
+        _wake_remote_voice()
 
     stats = GenerationStats()
     started = time.monotonic()
@@ -4205,7 +4223,7 @@ async def audio(
         # invoice.
         _record_usage(user, stats.usage,
                       surface=_surface(cached_only, topic_id, context),
-                      minutes=plan.minutes, audio_seconds=stats.audio_seconds,
+                      minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
@@ -4285,7 +4303,7 @@ async def audio(
             _record_usage(
                 user, stats.usage,
                 surface=_surface(cached_only, topic_id, context),
-                minutes=plan.minutes, audio_seconds=stats.audio_seconds,
+                minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
                 cache_hit=stats.cache == "hit",
             )
 

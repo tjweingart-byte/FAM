@@ -54,6 +54,11 @@ class Voice:
 
 class TTSEngine(ABC):
     name = "base"
+    #: Whether audio made by this engine may be kept in the episode cache and
+    #: replayed in place of it (§132). Only the production voice: a tone or a
+    #: development voice written there would be served to listeners long after
+    #: the machine that produced it was fixed.
+    keeps_audio = False
     #: Rate the engine speaks at with default settings, used to derive scales.
     nominal_wpm = 165.0
 
@@ -356,6 +361,7 @@ class ChatterboxEngine(TTSEngine):
     """
 
     name = "chatterbox"
+    keeps_audio = True
     #: The rate the model emits at. Read back from the model once loaded, but
     #: needed before that for the stream header on the very first chunk.
     SAMPLE_RATE = 24000

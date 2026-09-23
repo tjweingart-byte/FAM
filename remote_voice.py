@@ -299,6 +299,7 @@ class RemoteChatterboxEngine(TTSEngine):
     """
 
     name = "remote"
+    keeps_audio = True
 
     #: Shared across requests: `build_engine()` constructs a new instance per
     #: call, so anything that must be reused - the connection pool, the
