@@ -3,6 +3,11 @@
 # static file and the server is one Python process.
 FROM python:3.12-slim
 
+# The image runs as root and has no second Python to protect, so pip's
+# "Running pip as the 'root' user" warning is noise - and Render highlights it
+# on every build, where it hides a warning that matters.
+ENV PIP_ROOT_USER_ACTION=ignore
+
 # espeak-ng is a development engine only, reachable through TTS_ENGINE and
 # never selected by production - nothing falls back to it. It is installed so
 # that a container can be used for local work; an image that is meant to speak
@@ -40,17 +45,14 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
 # runtime stops it loading without a rebuild.
 #
 # Nothing here fails the build - an image with no model is a working FAM -
-# and nothing here is silent either: the warning is in the build log, and
+# and nothing here is silent either: the warning is in the build log (only
+# when the install failed - see tools/install_embed.sh for why), and
 # /api/health reports `ranking.semantic.enabled: false` with the reason.
 ENV FAM_EMBED_MODEL=/opt/fam/embed
 ARG FAM_EMBED=1
 COPY embeddings.py ./
-COPY tools/install_embed_model.py ./tools/
-RUN if [ "$FAM_EMBED" = "1" ]; then \
-      (pip install --no-cache-dir -r requirements-embed.txt \
-       && python tools/install_embed_model.py) \
-      || echo "WARNING: embedding model not installed; ranking on tags alone"; \
-    fi
+COPY tools/install_embed_model.py tools/install_embed.sh ./tools/
+RUN sh tools/install_embed.sh
 
 COPY . .
 
