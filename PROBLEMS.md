@@ -11300,3 +11300,25 @@ offered one-off stories.
 Left as it is, knowingly: covers ride inline on every `/api/mixes` list, up
 to about 50 KB each. That is fine at thirty mixes; it is the thing to move to
 `assets` or object storage if mixes ever become shared or many.
+
+### And a pacing test that measured the runner
+
+CI failed on this branch once, in `test_a_pacing_refusal_carries_no_quota`,
+code this branch never touched, on a run that took 19m50s where ten minutes
+is usual. The limiter refills one start per `RATE_LIMIT_SECONDS` (3s), and
+the test's first request streams a whole placeholder episode before the
+second is sent. On a runner slow enough, the bucket refilled in between and
+the second request was admitted: `assert 200 == 429`. Reproduced exactly by
+making the refill shorter than the first request, which is all a slow runner
+is. The same test passes in 0.73s here.
+
+The test and the three with the same shape (`test_demo_and_limits.py` x2,
+`test_rate_limit_production.py` x2, every one that expects a pace refusal)
+now pin `rate_limit_seconds=3600` beside `rate_limit_burst`, so what they
+assert is the rule rather than the machine's speed. The one sibling that
+asserts *no* refusal is left alone; a refill can only help it.
+
+One trap on the way: `RATE_LIMIT_SECONDS=0.001` in the environment does not
+reach the test - the suite's own setup puts the setting back to 3.0 - so a
+reproduction that sets the environment variable passes and proves nothing.
+Set it on `settings` inside the test.

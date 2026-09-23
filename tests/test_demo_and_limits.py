@@ -282,8 +282,12 @@ def test_one_listener_is_still_paced_inside_the_window(monkeypatch, instant):
     """
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", None)
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    # `rate_limit_seconds` pinned long: the bucket refills one start per
+    # RATE_LIMIT_SECONDS (3s), and a slow CI runner once took longer than
+    # that to stream the first episode, so the second was let through (§138).
     monkeypatch.setattr(appmod, "settings",
-                        dataclasses.replace(appmod.settings, rate_limit_burst=1))
+                        dataclasses.replace(appmod.settings, rate_limit_burst=1,
+                                            rate_limit_seconds=3600))
 
     alice = TestClient(appmod.app)
     alice.get("/api/auth/me")     # take the cookie: the first request has none
@@ -308,8 +312,12 @@ def test_with_no_session_the_limiter_falls_back_to_the_address(monkeypatch, inst
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
     # No listener resolves, however the request arrived.
     monkeypatch.setattr(appmod, "_listener", lambda request: "")
+    # `rate_limit_seconds` pinned long: the bucket refills one start per
+    # RATE_LIMIT_SECONDS (3s), and a slow CI runner once took longer than
+    # that to stream the first episode, so the second was let through (§138).
     monkeypatch.setattr(appmod, "settings",
-                        dataclasses.replace(appmod.settings, rate_limit_burst=1))
+                        dataclasses.replace(appmod.settings, rate_limit_burst=1,
+                                            rate_limit_seconds=3600))
 
     alice = TestClient(appmod.app)
     bob = TestClient(appmod.app)
