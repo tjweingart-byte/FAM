@@ -545,7 +545,10 @@ class MemoryScriptCache:
         entry = self._data.get(key)
         if not entry or entry[0] < time.time():
             return None
-        return self._created.get(key)
+        # A live entry with no recorded write time was written at some
+        # unknown point, which must read as "long ago" and never as "no
+        # script" - None is what tells myFAM a tap would write a new one.
+        return self._created.get(key, 0.0)
 
     def get(self, key: str) -> Optional[list[str]]:
         entry = self._data.get(key)

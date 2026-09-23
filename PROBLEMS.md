@@ -11082,9 +11082,9 @@ startup prior on a cold start). Steps 2 and 3 were each half there:
   with questions normalised (case, punctuation, spacing).
 - `is_repeat` is the rule, and `repeats` applies it to everything the page
   could offer; `build_feed` and `build_section` both exclude the result from
-  every rail. A heard tile is a repeat unless **its answer moves** (a live
-  story or a startup question - the bank is evergreen, so a second script is
-  the first one reworded) **and** it was heard at least `REMAKE_AFTER` (a day)
+  every rail. A heard tile is a repeat unless **its answer moves** (a startup
+  question; the bank is evergreen, so a second script is the first one
+  reworded, and a live story is handled by follow-ups, below) **and** it was heard at least `REMAKE_AFTER` (a day)
   ago **and** either no script is live (the tap researches and writes a new
   one) or the live script was written after they heard it
   (`REMAKE_MARGIN`, an hour, because their own tap writes the script just
@@ -11119,8 +11119,15 @@ one of two things:
    story, so the next one needs coverage after *that*.
 2. **Otherwise the next trending story** moves into its place.
 
-`trending_for` does this to the inventory *before* `rank_world` sees it, so the
-row's order is still popularity and country alone. §134's rule about ranking
+`trending_for` does this to the pool *before any rail sees it*, so the row's
+order is still popularity and country alone, and so the personal rails follow
+the same rule: a heard story is never offered as itself on Made for you or
+What you missed either. That is why `answer_moves` covers only the startup
+questions. Their titles are about "this week", so the same tile with a new
+script really is new. A story's title names one event, so the same tile
+offered again reads as a repeat whatever the script says. A follow-up is
+exempt from `repeats`, which cannot tell a new follow-up from a heard one
+because they share an id. `trending_for` already made that call. §134's rule about ranking
 stands; only repeats are removed. A follow-up's original story is reserved as
 well, so no personal rail shows it beside the follow-up. "View more" on
 Trending runs the same pass.

@@ -389,13 +389,14 @@ the rest of this list it needs taste rather than a key.
    whose script is already written first (`ready_first`, `READY_REACH` deep,
    never a filter), then **no repeats** against everything the listener has
    ever heard on any surface (`topics.is_repeat`). A heard evergreen tile is
-   replaced by the next-best topic; a heard live or startup tile may come
-   back only as a different episode - a day later, and remade or unwritten.
-   **Trending is not exempt**, at the owner's direction: a heard story
-   becomes a "what's new since you listened" follow-up if it is still being
-   reported six hours on (`topics.trending_for`), and otherwise the next
-   trending story takes its place. The order is still popularity and country
-   alone.
+   replaced by the next-best topic; a heard startup question may come back
+   only as a different episode - a day later, and remade or unwritten. **A
+   heard live story is never offered as itself on any rail, Trending
+   included** (the owner's direction): it becomes a "what's new since you
+   listened" follow-up if it is still being reported six hours on
+   (`topics.trending_for`, applied to the pool before any rail sees it), and
+   otherwise the next story takes its place. Trending's order is still
+   popularity and country alone.
    **Made for you draws on both inventories** and Trending draws only on the
    live one, because answering "what is trending" with what FAM's listeners
    have already played would make it a laggier copy of the row below it. The

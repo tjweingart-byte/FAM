@@ -2525,15 +2525,21 @@ def heard_from(rows: Iterable[tuple[str, str, float]]) -> Heard:
 
 
 def answer_moves(topic: "Topic") -> bool:
-    """Whether writing this tile again would say something new.
+    """Whether writing this *same tile* again would say something new.
 
-    A live story and a startup question are about *now* - both are researched
-    on the tap against a recency window - so a fresh script is fresh
-    information. A bank topic is evergreen by design: its second script says
-    what its first one did in different words, which is a repeat.
+    A startup question is about now by construction - "what changed in the
+    NFL this week" - and is researched on the tap against a recency window,
+    so a fresh script of it is fresh information under the same title. A bank
+    topic is evergreen: its second script says what its first one did in
+    different words, which is a repeat.
+
+    **A live story is not on this list, and that is deliberate.** Its title
+    names one thing that happened, so the same tile offered again reads as a
+    repeat whatever the script says. A heard story is handled by
+    `trending_for` instead: a follow-up with a question and a card of its
+    own, or nothing.
     """
-    return (topic.freshness > 0 or topic.id in STARTUP_BY_ID
-            or topic.id == LOCAL_STARTUP.id)
+    return topic.id in STARTUP_BY_ID or topic.id == LOCAL_STARTUP.id
 
 
 def is_repeat(topic: "Topic", heard: Heard, now: float,
@@ -2580,6 +2586,13 @@ def repeats(topics: Iterable["Topic"], heard: Heard, now: float,
     """
     blocked = set(heard.by_id)
     for topic in topics:
+        if topic.follows:
+            # A follow-up was already judged by `trending_for`, which is the
+            # only thing that knows a heard one may come back once the story
+            # has moved on again. Its id is the same each time, so the rule
+            # below would call every second follow-up a repeat.
+            blocked.discard(topic.id)
+            continue
         if is_repeat(topic, heard, now, written_at):
             blocked.add(topic.id)
         else:
@@ -3396,6 +3409,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # plus that cache - which is what keeps it callable in a test with no
     # network, and what makes the page instant. See `stories.py`.
     live = live_topics(now)
+    # **No repeats, part one: a heard live story is never offered as itself**
+    # (§136). Anywhere on the page it becomes a "what's new since you
+    # listened" follow-up if it has kept being reported, or it is gone and
+    # the next story takes its place - `trending_for`. Done here, before any
+    # rail sees the pool, so Trending and the personal rails cannot disagree.
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    live = trending_for(live, heard, now)
     # What every rail below is allowed to *offer*, decided once for the page.
     # One list rather than four `live + list(TOPIC_BANK)` expressions, because
     # a rule spelled out at each call site is a rule one of them will spell
@@ -3405,16 +3425,16 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # to resolve a tile that was offered a few days ago and has since been
     # pushed under the variety cap - to that listener it was on the page, and
     # a rail that quietly dropped it would be answering a different question.
-    live_held = topics_from_stories(stories.pool().held(now), now=now)
-    # **No repeats.** Everything this listener has ever heard, from every
-    # surface, checked against every tile this page could offer. What comes
-    # back is excluded from every rail below; a tile whose answer moves and
-    # that has been remade since they heard it is not in it. Named `mine`
-    # because it replaced the played-ids set every rail already excluded.
+    live_held = trending_for(
+        topics_from_stories(stories.pool().held(now), now=now), heard, now)
+    # **No repeats, part two.** Everything this listener has ever heard, from
+    # every surface, checked against every tile this page could offer. What
+    # comes back is excluded from every rail below; a startup question that
+    # has been remade since they heard it is not in it. Named `mine` because
+    # it replaced the played-ids set every rail already excluded.
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
-    heard = heard_from(store.heard(user_id)) if user_id else None
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # Which tiles were put in front of them this week. Read once, like the
     # fatigue table, and for a different purpose - see `rank_missed` on why
@@ -3476,8 +3496,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # **And never a story this listener has heard** (§136, at the owner's
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
-    world_first = rank_world(trending_for(live, heard, now), country,
-                             trending_for(live_held, heard, now))
+    world_first = rank_world(live, country, live_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
     reserved = ({t.id for t in world_first}
@@ -3512,7 +3531,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             picks = rank_missed(profile, shown, mine, seen,
                                 candidates=browse_inventory(live_held,
                                                             has_account),
-                                limit=reach, now=now,
+                                limit=(reach if written is not None
+                                       else MISSED_SECTION_SIZE), now=now,
                                 popular=played_elsewhere, familiar=familiar,
                                 include_trending=False)
         elif key == "from_history":
@@ -3721,15 +3741,19 @@ def build_section(store: EventStore, user_id: str, key: str,
     engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
     live = live_topics(now)
+    # The same no-repeats pass as the rail, in the same place, or "View more"
+    # would offer back the story the rail had just replaced (§136).
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    live = trending_for(live, heard, now)
     # The rail's inventory, on the rail's rule. See the docstring.
     inventory = browse_inventory(live, has_account)
     # The same no-repeats check as the rail, or "View more" would offer back
     # the episode the rail had just dropped for being heard.
-    live_held = topics_from_stories(stories.pool().held(now), now=now)
+    live_held = trending_for(
+        topics_from_stories(stories.pool().held(now), now=now), heard, now)
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
-    heard = heard_from(store.heard(user_id)) if user_id else None
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
@@ -3783,8 +3807,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         groups = trending_groups(
-            trending_for(live, heard, now), country,
-            trending_for(live_held, heard, now))
+            live, country, live_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)

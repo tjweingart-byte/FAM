@@ -283,3 +283,34 @@ def test_view_more_on_missed_is_not_the_crowd_row(store, monkeypatch):
                         lambda *a, **k: pytest.fail("crowd row ranked"))
     T.build_section(store, "m1", "missed", interests=INTERESTS)
     assert calls
+
+
+def test_a_second_follow_up_is_offered_once_the_story_moves_again(store, pool):
+    now = time.time()
+    store.record(T.Event("t5", "play", "st-0", pool[0].query, (), now - 3 * DAY))
+    store.record(T.Event("t5", "play", "st-0-new", "what's new", (),
+                         now - 2 * DAY))
+    # Still reported now, two days after the first follow-up was heard.
+    assert trending(T.build_feed(store, "t5"))[0] == "st-0-new"
+    # And a personal rail may offer it too - the repeat check must not
+    # block it for sharing an id with the follow-up they already heard.
+    section = T.build_section(store, "t5", "from_history", interests=INTERESTS)
+    assert "st-0-new" in {t["id"] for t in section["topics"]}
+
+
+def test_made_for_you_never_offers_a_heard_story_as_itself(store, pool):
+    """Trending is not the only rail that draws on the pool: a story heard
+    yesterday must not come back on Made for you under its own title."""
+    store.record(T.Event("t6", "play", "st-2", pool[2].query, pool[2].tags,
+                         time.time() - 2 * DAY))
+    for key in ("from_history", "missed"):
+        section = T.build_section(store, "t6", key, interests=INTERESTS)
+        assert "st-2" not in {t["id"] for t in section["topics"]}
+    assert "st-2" not in on_page(T.build_feed(store, "t6", interests=INTERESTS))
+
+
+def test_a_live_story_is_never_remade_under_its_own_title():
+    now = time.time()
+    tile = story(0, now)
+    h = T.heard_from([(tile.id, tile.query, now - 5 * DAY)])
+    assert T.is_repeat(tile, h, now, written_at=lambda q: None)
