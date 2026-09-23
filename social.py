@@ -171,6 +171,11 @@ class SocialStore:
             # statement made twice, not two statements.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS echoes_once"
                          " ON echoes(user_id, query, minutes)")
+            # Counting an episode's vibes (§134) asks by episode, and the index
+            # above leads with the listener, so without this every Explore
+            # card was a scan of the whole table.
+            conn.execute("CREATE INDEX IF NOT EXISTS echoes_episode"
+                         " ON echoes(query, minutes)")
             # The follow graph, which the app has been describing for a while
             # without having (CLAUDE.md open problem #6: "What your followers
             # are listening to" ranked co-listener overlap, and the heading
@@ -193,6 +198,23 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS follows_followee"
                          " ON follows(followee, at)")
+            # Likes and dislikes on an episode (§134, Explore's thumbs). One
+            # row per person per episode, keyed like a vibe - `(query,
+            # minutes)` - so the three counts on a card are about the same
+            # thing. `value` is +1 or -1; taking a thumb back deletes the row
+            # rather than writing a zero, so a count is always `COUNT(*)`.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS ratings (
+                       user_id TEXT NOT NULL,
+                       query   TEXT NOT NULL,
+                       minutes INTEGER NOT NULL DEFAULT 0,
+                       value   INTEGER NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, query, minutes)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS ratings_episode"
+                         " ON ratings(query, minutes)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -341,6 +363,105 @@ class SocialStore:
             (user_id, " ".join(str(query).split())[:300], int(minutes)),
         )
         return bool(cur.rowcount)
+
+    # -- likes, dislikes and the counts on an Explore card (§134) ----------
+
+    def rate(self, user_id: str, query: str, minutes: int, value: int) -> int:
+        """Set this listener's thumb on an episode: 1, -1, or 0 to take it back.
+
+        Returns the value now stored. A second like is the same statement, not
+        two, and a dislike replaces a like rather than sitting beside it.
+        """
+        if not user_id:
+            raise SocialError("No listener id.")
+        query = " ".join(str(query).split())[:300]
+        if not query:
+            raise SocialError("Nothing to rate.")
+        value = 1 if value > 0 else (-1 if value < 0 else 0)
+        conn = self._conn()
+        if not value:
+            conn.execute("DELETE FROM ratings WHERE user_id = ? AND query = ?"
+                         " AND minutes = ?", (user_id, query, int(minutes)))
+            return 0
+        conn.execute(
+            "INSERT INTO ratings (user_id, query, minutes, value, at)"
+            " VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
+            " value = excluded.value, at = excluded.at",
+            (user_id, query, int(minutes), value, time.time()))
+        return value
+
+    def episode_counts_many(self, pairs, user_id: str = "") -> dict:
+        """`episode_counts` for a whole Explore page in four queries.
+
+        `(query, minutes) -> counts`, every pair present. The feed asks this
+        for up to sixty cards at once, and one call per card was four queries
+        a card inside an async handler.
+        """
+        wanted = {(" ".join(str(q).split())[:300], int(m)): (q, m)
+                  for q, m in pairs}
+        out = {orig: {"vibes": 0, "likes": 0, "dislikes": 0, "rating": 0,
+                      "vibed": False} for orig in wanted.values()}
+        if not wanted:
+            return out
+        queries = sorted({q for q, _m in wanted})
+        marks = ",".join("?" for _ in queries)
+        try:
+            conn = self._conn()
+            for q, m, n in conn.execute(
+                    f"SELECT query, minutes, COUNT(*) FROM echoes WHERE query IN ({marks})"
+                    " GROUP BY query, minutes", queries):
+                if (q, m) in wanted:
+                    out[wanted[(q, m)]]["vibes"] = int(n)
+            for q, m, value, n in conn.execute(
+                    f"SELECT query, minutes, value, COUNT(*) FROM ratings"
+                    f" WHERE query IN ({marks}) GROUP BY query, minutes, value",
+                    queries):
+                if (q, m) in wanted:
+                    out[wanted[(q, m)]]["likes" if value > 0 else "dislikes"] = int(n)
+            if user_id:
+                for q, m, value in conn.execute(
+                        f"SELECT query, minutes, value FROM ratings WHERE user_id = ?"
+                        f" AND query IN ({marks})", (user_id, *queries)):
+                    if (q, m) in wanted:
+                        out[wanted[(q, m)]]["rating"] = int(value)
+                for q, m in conn.execute(
+                        f"SELECT query, minutes FROM echoes WHERE user_id = ?"
+                        f" AND query IN ({marks})", (user_id, *queries)):
+                    if (q, m) in wanted:
+                        out[wanted[(q, m)]]["vibed"] = True
+        except Exception:
+            log.exception("could not count vibes and ratings for a page")
+        return out
+
+    def episode_counts(self, query: str, minutes: int,
+                       user_id: str = "") -> dict:
+        """Vibes, likes and dislikes on one episode, and this listener's own.
+
+        Counts over *everybody*, which is the point of a number on a card, and
+        never who: the rows carry listener ids and none of them leave here.
+        """
+        query = " ".join(str(query).split())[:300]
+        out = {"vibes": 0, "likes": 0, "dislikes": 0, "rating": 0,
+               "vibed": False}
+        try:
+            conn = self._conn()
+            out["vibes"] = int(conn.execute(
+                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?",
+                (query, int(minutes))).fetchone()[0])
+            for value, n in conn.execute(
+                    "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
+                    " AND minutes = ? GROUP BY value", (query, int(minutes))):
+                out["likes" if value > 0 else "dislikes"] = int(n)
+            if user_id:
+                row = conn.execute(
+                    "SELECT value FROM ratings WHERE user_id = ? AND query = ?"
+                    " AND minutes = ?", (user_id, query, int(minutes))).fetchone()
+                out["rating"] = int(row[0]) if row else 0
+                out["vibed"] = self.has_echoed(user_id, query, minutes)
+        except Exception:
+            log.exception("could not count an episode's vibes and ratings")
+        return out
 
     def echoes_by(self, user_id: str, limit: int = 40) -> list[Echo]:
         try:
@@ -689,7 +810,7 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase follows for %r", user_id)
-        for table in ('echoes', 'people'):
+        for table in ('echoes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

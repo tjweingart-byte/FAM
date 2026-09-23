@@ -460,7 +460,7 @@ class ScriptCache(Protocol):
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
         minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
-        title: str = "", summary: str = ""
+        title: str = "", summary: str = "", slide: bool = False
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -517,8 +517,21 @@ class MemoryScriptCache:
         #: (key, voice) -> [compressed pcm, sample rate, sentences, starts,
         #: last played]. The memory half of `episode_audio`.
         self._audio: dict[tuple[str, str], list] = {}
+        #: key -> how many times it was played. The memory half of the
+        #: `plays` column (§134).
+        self._plays: dict[str, int] = {}
         self.hits = 0
         self.misses = 0
+
+    def record_play(self, key: str) -> None:
+        if key:
+            self._plays[key] = self._plays.get(key, 0) + 1
+
+    def plays(self, key: str) -> int:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return 0
+        return self._plays.get(key, 0)
 
     def get(self, key: str) -> Optional[list[str]]:
         entry = self._data.get(key)
@@ -531,11 +544,15 @@ class MemoryScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = ""
+        author: str = "", title: str = "", summary: str = "", slide: bool = False
     ) -> None:
+        before = self._data.get(key)
         self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
-        # New words, so any audio kept for the old ones no longer matches.
-        self._drop_audio(key)
+        # New words, so any audio kept for the old ones no longer matches -
+        # and only new words (§134): a re-write that said the same thing keeps
+        # the audio it already paid for.
+        if before is None or list(before[1]) != list(sentences):
+            self._drop_audio(key)
         if sources:
             self._sources[key] = sources
         if title:
@@ -563,7 +580,8 @@ class MemoryScriptCache:
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
             {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
-             "plays": 0, "thread": v[2], "title": self._titles.get(k, ""),
+             "plays": self._plays.get(k, 0), "thread": v[2],
+             "title": self._titles.get(k, ""),
              "author": self._authors.get(k, "")}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
@@ -733,6 +751,17 @@ class SqliteScriptCache:
                 # `title`, and the same fallback: a row without one draws no
                 # line rather than an invented one.
                 ("summary", "ALTER TABLE scripts ADD COLUMN summary TEXT NOT NULL DEFAULT ''"),
+                # The lifetime the entry was written with (§134), so a play
+                # can tell an evergreen entry - which may slide - from a
+                # volatile one, which must not. Rows written before this have
+                # 0 and never slide, which is what they did before.
+                ("ttl", "ALTER TABLE scripts ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0"),
+                # How many times the episode was actually *played* (§134) -
+                # the number on an Explore card. `hits` is not that: it counts
+                # every `get`, and a normal play reads the cache two or three
+                # times (the pacing probe, the pipeline's own lookup, a near
+                # match), as does a prefetch checking whether to bother.
+                ("plays", "ALTER TABLE scripts ADD COLUMN plays INTEGER NOT NULL DEFAULT 0"),
             ):
                 try:
                     conn.execute(ddl)
@@ -781,7 +810,8 @@ class SqliteScriptCache:
             row = conn.execute(
                 "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
             ).fetchone()
-            if not row or row[1] < time.time():
+            now = time.time()
+            if not row or row[1] < now:
                 return None
             conn.execute("UPDATE scripts SET hits = hits + 1 WHERE key = ?", (key,))
             return json.loads(row[0])
@@ -791,12 +821,72 @@ class SqliteScriptCache:
             log.exception("script cache read failed; regenerating")
             return None
 
+    @staticmethod
+    def _slide(conn, key: str, expires: float, ttl, created, now: float) -> None:
+        """Keep an evergreen entry alive while people keep playing it (§134).
+
+        Called from `record_play` and nowhere else: a pacing probe, a prefetch
+        existence check or a GPU-wake hint reads the cache too, and none of
+        those is anybody listening. `ttl` is 0 for an entry the pipeline did
+        not mark as free to slide (see its `slide` flag), and only an entry
+        written at the ordinary ceiling slides - `ttl_for` gave
+        anything time-sensitive a shorter one, and a claim about now must not
+        outlive the window it was true in. It moves the expiry to a full
+        lifetime from *this* read and never past `CACHE_MAX_AGE_SECONDS` from
+        the write, so an explainer nobody re-reads for a month still goes.
+
+        The point is the audio: it is readable only while its script is, so a
+        fixed day from the first write threw away the stored audio of exactly
+        the episodes being played most, and the next play re-voiced them on
+        RunPod.
+        """
+        limit = int(settings.cache_max_age_seconds or 0)
+        base = int(settings.cache_ttl_seconds or 0)
+        if limit <= 0 or not ttl or int(ttl) < base or base <= 0:
+            return
+        target = min(now + int(ttl), float(created or now) + limit)
+        if target > expires + 60:     # not a write per read for nothing
+            conn.execute("UPDATE scripts SET expires = ? WHERE key = ?",
+                         (target, key))
+
+    def record_play(self, key: str) -> None:
+        """One listener started this episode. The Explore card's number, and
+        the one event that keeps an evergreen entry alive (`_slide`)."""
+        if not key:
+            return
+        try:
+            conn = self._conn()
+            conn.execute(
+                "UPDATE scripts SET plays = plays + 1 WHERE key = ?", (key,))
+            row = conn.execute(
+                "SELECT expires, ttl, created FROM scripts WHERE key = ?",
+                (key,)).fetchone()
+            now = time.time()
+            if row and row[0] >= now:
+                self._slide(conn, key, row[0], row[1], row[2], now)
+        except Exception:
+            log.exception("could not count a play; continuing")
+
+    def plays(self, key: str) -> int:
+        try:
+            row = self._conn().execute(
+                "SELECT plays FROM scripts WHERE key = ? AND expires >= ?",
+                (key, time.time())).fetchone()
+        except Exception:
+            log.exception("could not read a play count")
+            return 0
+        return int(row[0]) if row else 0
+
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = ""
+        author: str = "", title: str = "", summary: str = "", slide: bool = False
     ) -> None:
         """Store the script, and the vector for the question that produced it.
+
+        `slide` says a play may keep it alive past `ttl` (§134, `_slide`). Off
+        unless the caller knows the episode makes no claim about a window of
+        time - prefetch, tools and tests never say so.
 
         The embedding happens **here**, on the write, and that is the whole
         design. Doing it on the read would put work in front of the first word
@@ -812,6 +902,10 @@ class SqliteScriptCache:
             vector = None
             if bucket and query:
                 vector = embeddings.pack(embeddings.embed(normalize_query(query)))
+            # What the key held before, so kept audio survives a re-write
+            # that said the same thing (below).
+            before = self._conn().execute(
+                "SELECT sentences FROM scripts WHERE key = ?", (key,)).fetchone()
             # `COALESCE` on the existing author rather than the new one:
             # a re-write of a live entry (a longer TTL, fresher sources) must
             # not hand authorship to whoever happened to trigger it. Only a
@@ -819,10 +913,11 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector, sources, author, title, summary)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bucket, vector, sources, author, title, summary, ttl)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
+                "  ttl = excluded.ttl,"
                 "  query = excluded.query, sentences = excluded.sentences,"
                 "  thread = excluded.thread, minutes = excluded.minutes,"
                 "  bucket = excluded.bucket, vector = excluded.vector,"
@@ -838,11 +933,19 @@ class SqliteScriptCache:
                 "                 ELSE scripts.summary END",
                 (key, now + ttl, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
-                 (author or "")[:64], (title or "")[:120], (summary or "")[:240]),
+                 (author or "")[:64], (title or "")[:120], (summary or "")[:240],
+                 int(ttl) if slide else 0),
             )
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
-            self._conn().execute("DELETE FROM episode_audio WHERE key = ?", (key,))
+            #
+            # **Only if the words are actually new** (§134). Two listeners
+            # generating one key at once both write it, with a script that
+            # may well be word for word the same, and a re-write that changed
+            # nothing was throwing away a whole voiced episode - one more
+            # RunPod call for a thing already paid for.
+            if before is None or before[0] != json.dumps(sentences):
+                self._conn().execute("DELETE FROM episode_audio WHERE key = ?", (key,))
         except Exception:
             log.exception("script cache write failed; continuing")
 
@@ -1049,7 +1152,7 @@ class SqliteScriptCache:
         """
         try:
             rows = self._conn().execute(
-                "SELECT key, query, minutes, created, hits, thread, title,"
+                "SELECT key, query, minutes, created, plays, thread, title,"
                 " author FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"

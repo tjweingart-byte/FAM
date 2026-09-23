@@ -134,7 +134,8 @@ def test_the_boost_never_becomes_a_filter():
             for i in range(5)]
     ranked = T.rank_from_history({"money": 1.0}, set(), candidates=away,
                                  local=frozenset({"cincinnati"}))
-    assert len(ranked) == 5
+    # A full rail is `SECTION_SIZE` (four since §134), from five candidates.
+    assert len(ranked) == T.SECTION_SIZE
 
 
 def test_a_location_cannot_rescue_a_tile_from_the_floor():

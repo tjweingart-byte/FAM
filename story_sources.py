@@ -116,8 +116,16 @@ class GdeltSignals(stories.StorySource):
 
     #: How many themes get a headline read after the volume sweep. Each one is
     #: a second request, so this is the knob between "specific" and "cheap".
-    HEADLINE_THEMES = 6
+    #:
+    #: Eight rather than six, at the owner's direction ("there should be more
+    #: variety"): it is the whole of `stories.MAX_PER_SOURCE`, so GDELT can fill
+    #: its share of a sweep rather than stopping two short of it.
+    HEADLINE_THEMES = 8
     HEADLINES_PER_THEME = 4
+    #: How many articles are *read* per theme, which is more than are quoted.
+    #: The extra rows cost nothing - it is the same request - and they are the
+    #: sample `stories.country_shares` measures where coverage is coming from.
+    ARTICLES_PER_THEME = 20
 
     def diagnose(self) -> tuple[bool, str]:
         import gdelt
@@ -157,17 +165,19 @@ class GdeltSignals(stories.StorySource):
         async def headlines(subject: str):
             try:
                 results = await gdelt.retrieve(
-                    f'"{subject}"', limit=self.HEADLINES_PER_THEME, recency_days=1)
+                    f'"{subject}"', limit=self.ARTICLES_PER_THEME, recency_days=1)
             except Exception as exc:  # noqa: BLE001
                 log.debug("stories/gdelt: headlines for %r failed: %s", subject, exc)
-                return []
-            return [r.title for r in results if getattr(r, "title", "")]
+                return [], ()
+            titles = [r.title for r in results if getattr(r, "title", "")]
+            return titles, stories.country_shares(
+                getattr(r, "country", "") for r in results)
 
         heads = await asyncio.gather(*(headlines(subject) for subject, _t, _v in top))
 
         now = datetime.now(timezone.utc)
         out = []
-        for (subject, _theme, volume), titles in zip(top, heads):
+        for (subject, _theme, volume), (titles, countries) in zip(top, heads):
             said = (f"coverage of {subject} is running at about "
                     f"{volume / peak:.0%} of today's busiest subject")
             if titles:
@@ -181,6 +191,7 @@ class GdeltSignals(stories.StorySource):
                 tags=_tags(f"{subject} {' '.join(titles[:3])}"),
                 strength=min(1.0, volume / peak),
                 as_of=now,
+                countries=countries,
             ))
         return out
 

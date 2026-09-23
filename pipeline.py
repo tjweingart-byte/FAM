@@ -1003,6 +1003,15 @@ class PodcastPipeline:
         key = await self._cache_key(plan) if is_shareable(plan.query) else ""
         return live_captions.read_starts(key)
 
+    def _count_play(self, key: str) -> None:
+        """One real play of `key`, for Explore's count. Never raises."""
+        counter = getattr(self.cache, "record_play", None)
+        if key and counter is not None:
+            try:
+                counter(key)
+            except Exception:  # noqa: BLE001 - a counter never costs a play
+                log.debug("could not count a play of %s", key, exc_info=True)
+
     # ---- kept audio (§132) -------------------------------------------------
 
     def _keeps_audio(self) -> bool:
@@ -1019,23 +1028,64 @@ class PodcastPipeline:
     def _audio_voice(self) -> str:
         """The voice half of an audio row's key. The engine is named even when
         no voice was chosen, so a default that moves to a different engine is
-        a different voice rather than somebody else's audio."""
-        return self.voice or f"{self.engine.name}:default"
+        a different voice rather than somebody else's audio.
+
+        **No voice chosen means the default voice, by its own id** (§134).
+        The app sends `remote:reference_3` - the first voice `/api/voices`
+        lists - while a shared link, a tap made before that list loaded and
+        every other caller that names no voice sent nothing, and nothing was
+        keyed `remote:default`. Same engine, same weights, same reference
+        recording: one episode stored twice and voiced on RunPod twice, by
+        the one knob whose whole job is to stop that. The default is resolved
+        to the id the app would have sent, but only when it belongs to *this*
+        engine - a default on some other engine is not what this one speaks.
+        """
+        if self.voice:
+            return self.voice
+        # From the engine's own class rather than `tts.default_voice()`, which
+        # asks every engine whether it is reachable: a remote engine that blips
+        # for a second would answer with the placeholder's id, and the episode
+        # would be keyed `remote:default` again - the double storage this
+        # exists to stop.
+        try:
+            default = type(self.engine).default_voice_id() or ""
+        except Exception:  # noqa: BLE001 - a key, never a reason to fail a play
+            default = ""
+        if default.split(":", 1)[0] == self.engine.name:
+            return default
+        return f"{self.engine.name}:default"
 
     async def has_stored_audio(self, plan: EpisodePlan) -> bool:
         """True when this exact episode can be played without the voice engine.
 
         For `/api/audio` to decide whether to wake a serverless GPU: waking one
         for an episode that will be read out of SQLite is paying for a boot
-        nobody uses. A hint only - a near match still wakes it, and it answers
-        False rather than spend a model call when the key needs one.
+        nobody uses. A hint only, and it answers False rather than spend a
+        model call when the key needs one. Since §134 a near match counts: see
+        below.
         """
         if (not self._keeps_audio() or settings.cache_semantic_key
                 or not is_shareable(plan.query) or plan.attachments):
             return False
         key = await self._cache_key(plan)
-        return bool(key) and self.cache.has_audio(
-            key, self._audio_voice(), self.engine.sample_rate)
+        if not key:
+            return False
+        voice, rate = self._audio_voice(), self.engine.sample_rate
+        if self.cache.has_audio(key, voice, rate):
+            return True
+        # **A near match plays the neighbour's audio, so it must not wake the
+        # GPU either** (§134). The serving path already swaps to the
+        # neighbour's key and reads its stored audio; this hint answered for
+        # the exact key only, so every re-phrased replay of a kept episode
+        # booted a serverless worker to read nothing. The same local scan the
+        # serving path makes (milliseconds, no model call), and only when the
+        # exact key has no live script - otherwise the serving path would
+        # never look at a neighbour and nor may this.
+        if plan.cached_only or self.cache.get(key):
+            return False
+        bucket = self._bucket(plan)
+        near = self.cache.nearest(bucket, plan.query) if bucket else None
+        return bool(near) and self.cache.has_audio(near[0], voice, rate)
 
     async def _play_stored(self, stored, stats: GenerationStats) -> AsyncIterator[bytes]:
         """Stream kept audio exactly as it was first streamed. No engine call.
@@ -1162,6 +1212,11 @@ class PodcastPipeline:
                         log.info("near cache hit %.3f for %r", near[1], plan.query)
             if cached:
                 stats.cache = "hit"
+                # Counted here, where an episode is about to be *played*, and
+                # nowhere that merely looks: `get` also runs for the pacing
+                # probe and for prefetch, which is why `hits` could never be
+                # the number on an Explore card (§134).
+                self._count_play(key)
                 stats.thread = self.cache.thread(key)
                 # A replay knows its name before its first word, so the player
                 # can show it from the first frame (§127).
@@ -1308,9 +1363,21 @@ class PodcastPipeline:
                 # double that stands in for one - is still called exactly as
                 # it always was.
                 extra = {"summary": stats.summary} if stats.summary else {}
+                # Whether a play may keep this alive past its first lifetime
+                # (§134): only an episode that makes no claim about a window of
+                # time - no recency window, not a question about a result, not
+                # a fixture that has yet to happen. "This week" must not be
+                # replayed for a month. Passed only when true, so a cache
+                # written before the keyword existed is called as it was.
+                if (not notes.recency_days and not notes.outcome_dependent
+                        and (notes.live_status or "") not in ("in_progress",
+                                                              "scheduled")):
+                    extra["slide"] = True
                 self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                                plan.minutes, bucket, sources, self.author,
                                stats.title, **extra)
+                # The listen that wrote it is its first play (§134).
+                self._count_play(key)
                 # The audio goes beside it once the tail pad is out, and only
                 # when the script itself was kept - audio with no script row
                 # would be an episode nothing can find or expire.

@@ -9,6 +9,7 @@ three Explore bugs were found this way by hand; this runs it every push.
 from __future__ import annotations
 
 import os
+import re
 import pathlib
 import sys
 
@@ -1797,6 +1798,52 @@ def main() -> int:
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             assert page.eval_on_selector_all(".mix-card", "e => e.length") >= 1
 
+        def a_playlist_plays_through_and_then_stops():
+            """§134. "Play all" used to play the first episode and stop, and
+            the What's next popup then counted down into a recommendation. A
+            playlist now plays every episode once, in order, with a skip on
+            the player - and at the end nothing else starts: the screen says
+            which playlist is done for today.
+
+            Driven by the skip button rather than by waiting out each episode,
+            because both paths go through the same `advanceMix` and a fixture
+            episode's length is not what is being checked.
+            """
+            ensure_account()
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.evaluate("() => openMix(mixes[0].id)")
+            page.wait_for_timeout(400)
+            name, count = page.evaluate(
+                "() => [mixById(currentMixId).name, mixById(currentMixId).items.length]")
+            assert count >= 2, f"the fixture mix has {count} episode(s); need two"
+            page.evaluate("playMix()")
+            page.wait_for_timeout(2500)
+            assert page.evaluate("() => mixPlay && mixPlay.order.length") == count, \
+                "Play all did not queue the whole playlist"
+            assert page.eval_on_selector("#mixSkipBtn", "e => !e.hidden"), \
+                "no skip-to-next on the DailyFAM player"
+            for step in range(1, count):
+                page.evaluate("skipMixItem()")
+                page.wait_for_timeout(1200)
+                assert page.evaluate("() => mixPlay && mixPlay.pos") == step, \
+                    f"skip did not move to episode {step + 1}"
+            page.evaluate("skipMixItem()")
+            page.wait_for_timeout(600)
+            assert page.evaluate(
+                "() => document.getElementById('mixDoneOverlay')"
+                ".classList.contains('active')"), "the end of the playlist was not shown"
+            said = page.text_content("#mixDoneH") or ""
+            assert name in said and "for today" in said, f"the end screen said {said!r}"
+            assert not page.evaluate(
+                "() => document.getElementById('nextUpOverlay')"
+                ".classList.contains('active')"), "What's next ran after a playlist"
+            assert page.evaluate("() => mixPlay === null"), "the queue kept going"
+            assert page.eval_on_selector("#mixSkipBtn", "e => e.hidden"), \
+                "the skip button outlived its playlist"
+            page.evaluate("closeMixDone(true)")
+            page.wait_for_timeout(300)
+
         def the_new_mix_button_waits_for_an_account():
             """A mix is one of the things an account is *for*, so the "+" is
             not offered to somebody who cannot keep one.
@@ -2624,6 +2671,13 @@ def main() -> int:
             assert first and "Loading" not in first, f"reel never loaded ({first!r})"
             page.wait_for_timeout(2000)
             assert page.evaluate("FamAudio.position()") > 0, "audio never started"
+            # §134: the corner is the episode's play count, never how many
+            # cards this session has swiped - and the thumbs are on the card.
+            corner = page.text_content("#reelCount") or ""
+            assert re.fullmatch(r"[\d,]+ plays?", corner), \
+                f"the corner reads {corner!r}, not a play count"
+            assert page.eval_on_selector_all(
+                "#reelLike, #reelDislike, #reelVibeN", "e => e.length") == 3
             page.evaluate("nextReel()")
             page.wait_for_timeout(1500)
             assert page.text_content("#reelTitle") != first, "swipe did not advance"
@@ -2687,6 +2741,7 @@ def main() -> int:
         check("Edit profile chooses up to five interests",
               edit_profile_chooses_up_to_five_interests)
         check("DailyFAM lists mixes", dailyfam)
+        check("A playlist plays through, then stops", a_playlist_plays_through_and_then_stops)
         check("The new-mix + waits for an account",
               the_new_mix_button_waits_for_an_account)
         check("A locked mix list keeps the topic bank",

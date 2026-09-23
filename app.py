@@ -3220,6 +3220,41 @@ def _place_for(request: Request) -> "prefs_mod.Location":
     return prefs_mod.Location()
 
 
+def _country_for(request: Request, place: "prefs_mod.Location") -> str:
+    """The country Trending ranks for (§134) - the one listener input it takes.
+
+    The country somebody stored, when they have. Otherwise the region of the
+    browser's own language setting - `en-US`, `en-GB` - which every browser
+    sends and which is the only honest hint there is about a guest. It is not
+    the location `_place_for` refuses to take from a caller: it moves a story
+    up the world row by the share of its coverage that comes from there and
+    touches nothing else, so the worst a wrong one can do is reorder four
+    stories that were all trending anyway.
+    """
+    if place.country:
+        return place.country
+    return _region_of(request.headers.get("accept-language", ""))
+
+
+def _region_of(header: str) -> str:
+    """The region in the first language tag of an Accept-Language header.
+
+    BCP 47: language, then an optional four-letter script, then a region of
+    two letters or three digits, then variants and extensions. Only a
+    two-letter region names a country (`es-419` is Latin America, which is
+    not one), so that is the only thing taken: `zh-Hant-TW` is "TW",
+    `en-US-u-ca-gregory` is "US", `en_US` is "US", and `en` or `*` is "".
+    """
+    first = (header or "").split(",", 1)[0].split(";", 1)[0].strip()
+    parts = first.replace("_", "-").split("-")[1:]
+    for part in parts:
+        if len(part) == 1:          # an extension singleton: the region is past
+            break
+        if len(part) == 2 and part.isalpha():
+            return part.upper()
+    return ""
+
+
 def _has_account(request: Request) -> bool:
     """Whether credentials are attached to this listener.
 
@@ -3411,7 +3446,8 @@ async def myfam_section(request: Request,
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=SOCIAL.circle_of(user), written=written,
             place=place.words, place_name=place.label,
-            has_account=_has_account(request))
+            has_account=_has_account(request),
+            country=_country_for(request, place))
     except KeyError as exc:
         raise HTTPException(status_code=404,
                             detail="No such section.") from exc
@@ -3551,7 +3587,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         EVENTS, user, interests=_interests_for(request, interests),
         circle=SOCIAL.circle_of(user), written=written,
         place=place.words, place_name=place.label,
-        has_account=_has_account(request))
+        has_account=_has_account(request),
+        country=_country_for(request, place))
     # Every tile says whether it would replay or generate, the same way the
     # "view more" screen already did. A listener browsing is choosing between
     # things to hear, and "this one starts instantly" is a real difference
@@ -3946,6 +3983,62 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
     return {"threads": threads, "resume": resume, "similar": similar}
 
 
+class RateRequest(BaseModel):
+    query: str = Field(..., max_length=300)
+    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    #: 1 like, -1 dislike, 0 take it back.
+    value: int = Field(..., ge=-1, le=1)
+    #: The card's cache key, so the counts that come back include its play
+    #: count rather than a 0 the card would draw over the real one.
+    key: str = Field("", max_length=128)
+
+
+def _episode_stats(listener: str, query: str, minutes: int, key: str = "") -> dict:
+    """Everything Explore's card counts, for one episode (§134)."""
+    counts = SOCIAL.episode_counts(query, minutes, listener)
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    plays = 0
+    if store is not None and key and hasattr(store, "plays"):
+        plays = store.plays(key)
+    return {"plays": plays, "vibes": counts["vibes"], "likes": counts["likes"],
+            "dislikes": counts["dislikes"], "rating": counts["rating"],
+            "my_vibe": counts["vibed"]}
+
+
+@app.post("/api/rate")
+async def rate_episode(req: RateRequest, request: Request):
+    """Like or dislike an episode, or take the thumb back (§134).
+
+    Explore's thumbs. Costs nothing and generates nothing - a row beside the
+    vibe it sits next to on the card, keyed the same way. Returns the card's
+    fresh counts so the buttons redraw from the server's numbers rather than
+    from a guess about everybody else's.
+    """
+    _read_limit(request)
+    user = _listener(request)
+    try:
+        SOCIAL.rate(user, req.query, req.minutes, req.value)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _episode_stats(user, req.query, req.minutes, req.key)
+
+
+@app.get("/api/episode/stats")
+async def episode_stats(request: Request,
+                        q: str = Query(..., max_length=300),
+                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+                        key: str = Query("", max_length=128)):
+    """Plays, vibes, likes and dislikes for one episode, right now (§134).
+
+    What an Explore card re-reads once its episode has started, so the play
+    count in its corner includes the play that is happening instead of being
+    a number from whenever the feed was fetched. `key` is the card's own cache
+    key; without one the play count is 0 rather than a guess.
+    """
+    _read_limit(request)
+    return _episode_stats(_listener(request), q, minutes, key)
+
+
 @app.get("/api/explore")
 async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     """Episodes other listeners have already generated, newest first.
@@ -3990,7 +4083,10 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     anyone = SOCIAL.recent_echoes(exclude_user=listener)
 
     episodes = []
-    for entry in store.recent(limit, exclude_author=listener):
+    entries = store.recent(limit, exclude_author=listener)
+    all_counts = SOCIAL.episode_counts_many(
+        [(e["query"], e["minutes"]) for e in entries], listener)
+    for entry in entries:
         pair = (entry["query"], entry["minutes"])
         by = vibes.get(pair)
         friend = friends.get(entry.get("author") or "")
@@ -4003,11 +4099,24 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "title": entry.get("title")
                      or (entry["query"][:1].upper() + entry["query"][1:]),
             "minutes": entry["minutes"],
+            # How many times it has actually been played - `scripts.plays`,
+            # counted where an episode starts and nowhere that only looks
+            # (§134). The top-right number on the card.
             "plays": entry["plays"],
+            # The cache key, so the card can ask for its own fresh numbers
+            # after a play (`/api/episode/stats`). A hash of the question and
+            # the length - it names an episode and nobody.
+            "key": entry["key"],
             "thread": entry["thread"],
             "age_seconds": max(0.0, now - entry["created"]),
             "vibed": bool(pair in anyone or by),
         }
+        # The counts on the card's buttons: vibes, likes, dislikes, and this
+        # listener's own thumb and vibe so the buttons open in the right state.
+        counts = all_counts[(entry["query"], entry["minutes"])]
+        card.update({"vibes": counts["vibes"], "likes": counts["likes"],
+                     "dislikes": counts["dislikes"], "rating": counts["rating"],
+                     "my_vibe": counts["vibed"]})
         # Note what is *not* on the card: `author`. It is read here for one
         # display decision and resolved to a name and a picture; a listener id
         # in this response would be an id the client could send back, which is

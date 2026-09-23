@@ -400,6 +400,11 @@ class RemoteChatterboxEngine(TTSEngine):
         return [Voice(id=f"remote:{label}", label="FAM", engine=cls.name,
                       detail=f"Chatterbox via {config.transport}")]
 
+    @classmethod
+    def default_voice_id(cls) -> str:
+        """`voices()`'s id without its availability check - see the base."""
+        return f"remote:{cls.config().voice or 'reference_3'}"
+
     @property
     def sample_rate(self) -> int:
         """Configured, not discovered - the header is written before the first

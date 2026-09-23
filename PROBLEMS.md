@@ -10777,3 +10777,103 @@ five are fixed.
   beyond the Playwright screenshots taken while building it.
 * Topic's Latest on a deployment with an empty cache and no live pool is the
   bank alone - honest, and evergreen rather than fresh.
+
+## 134. The 22/09 packet: four tiles, a Trending row that is the world's, playlists that play, and fewer RunPod calls
+
+Seven asks from one packet, each answered where it lived.
+
+**Trending was the listener's, not the world's.** It was filled *after* the
+personal rails, from whatever they left, and it dropped anything the listener
+had played - so their taste and history decided the row that claims to be about
+everybody. And its floor fell through to the startup set and then the bank.
+Now `topics.rank_world` chooses **first and alone**, from the live pool, on
+`Story.push()` (popularity) and a boost for the share of a story's coverage
+from the listener's country (`COUNTRY_WEIGHT`), one tile per facet for variety.
+Nothing else of theirs reaches it. The personal rails avoid its tiles. It never
+shows the bank or the startup set: an empty pool is an empty row with a reason.
+Country comes from GDELT's `sourcecountry` on the headlines the sweep already
+reads (`stories.country_shares`), and from the stored location or the browser's
+language region (`app._country_for`). GDELT now reads eight themes rather than
+six, and `render.yaml` sets `GDELT=1`, because without a live source the row
+has nothing to show. **Nothing has made a real GDELT request from this
+container**; `python tools/stories_report.py` against Render is the check.
+
+**Exactly four on every rail.** `SECTION_SIZE` is 4, and the page slices to it.
+Only Made for you and What you missed are topped up (`RAIL_MINIMUM`). §127's
+fill under "What FAM can't stop listening to" is removed, because it made up
+plays; the row shows four once four have been played. Explore New keeps six
+(`EXPLORE_NEW_SIZE`), because it is a screen and not a rail. "Different picks"
+is deleted.
+
+**RunPod.** Four leaks, all inside §132's rules:
+- A request that named no voice (a shared link, a tap made before
+  `/api/voices` loaded) keyed its audio `remote:default`, while the app keyed
+  the same voice `remote:reference_3`. That stored one episode twice and voiced
+  it twice. `_audio_voice` now resolves the default to its own id.
+- Scripts died a day after they were written, however often they were played,
+  and their audio died with them. An evergreen entry now slides forward on each
+  play, up to `CACHE_MAX_AGE_SECONDS` (30 days). Volatile ones never slide.
+- A re-write with identical words dropped the audio. It no longer does.
+- `has_stored_audio` answered for the exact key only, so a near-match replay
+  woke the GPU to read nothing. It now checks the neighbour too.
+
+Left open deliberately:
+- An abandoned first play still caches nothing.
+- The keyword TTL still caps briefed episodes.
+- Minutes are still ten buckets.
+
+Each is a trade to decide, not a leak.
+
+**DailyFAM.** Play all played item one and stopped, and tapping an episode
+played that one. Then What's next counted down into a recommendation. A mix is
+now a queue (`mixPlay`): it plays every item once in order, starting from the
+tapped one and wrapping. It ends on "You have finished listening to your
+<name> playlist for today" with nothing else starting. A skip-to-next button
+appears on the player only while a playlist is playing. Anything else that
+starts playing ends the queue.
+
+**Explore.** Confirmed: cards come from the cache, playing sends
+`cached_only`, and a listener's own episodes are excluded (an unattributed
+prefetch or seed row is shown to everybody, as before). The top-right number
+was `reelHistory.length + " played"`, which counts cards swiped this session,
+not the episode's plays. It is now `scripts.plays`, a new column counted where
+an episode actually starts playing. `hits` counts every probe and was never
+that number. The card re-reads it through `/api/episode/stats` once its audio
+starts. Like and dislike (`social.ratings`, `/api/rate`) and a vibe count sit
+on the card, and `SocialStore.forget` erases ratings.
+
+`tests/test_implementations_133.py` pins each behaviour, and the smoke test
+gained "A playlist plays through, then stops" plus a play-count assertion on
+Explore.
+
+Written as §133 on its branch and renumbered on merging `Main`, which had
+taken §133 (YourFAM) in the meantime.
+
+**What review of the branch found.** None of these showed up in any test,
+and all are fixed:
+- **A friend's mix could take over the listener's own playlist.**
+  `playPersonMix` wrote its key into `mixPlay`, so the next item of the
+  listener's playlist followed the friend's episode. It now ends the queue
+  instead of joining it.
+- **A like or dislike zeroed the card's play count.** `/api/rate` answered
+  without the key. It now carries it.
+- **`/api/explore` ran four queries per card, and vibes had no index to
+  count by.** There is now an index on the episode, and the counts for the
+  whole page come from `episode_counts_many`.
+- **The country boost reached about twenty-five countries.** `zh-Hant`
+  parsed to "Han", and a region code like `SE` matched nothing. The fixes
+  are a BCP 47 parse (`app._region_of`) and a full ISO two-letter table.
+- **Sliding was too wide.** It ran on every cache *read*, including probes,
+  and on anything written at the full lifetime, including "this week". It now
+  runs only on a play, and only for an episode the pipeline marks timeless:
+  no recency window, not about a result, not a fixture.
+- **Trending could put a held story above a live one.** Held stories now only
+  fill a row that live ones cannot.
+- **The audio's voice key asked every engine whether it was up.** So a blip
+  keyed an episode `remote:default` again. It now reads the engine's own
+  `default_voice_id`.
+- **A playlist finished while its last episode was loading** left the
+  loading screen up.
+
+Still true: audio already stored under `remote:default` before this change is
+not found under the new key and costs one re-voicing per episode.
