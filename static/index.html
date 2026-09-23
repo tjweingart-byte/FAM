@@ -11041,14 +11041,10 @@
               // A cancelled share sheet is not a failure and must not be
               // reported as one - it is somebody changing their mind.
               if(err && err.name === "AbortError") return;
-              downloadBlob(blob, "fam-episode.png");
-              copyQuietly(t.text);
-              toast("Card saved \u2014 the words are on your clipboard");
+              return saveCardInstead(blob, t);
             });
         }
-        downloadBlob(blob, "fam-episode.png");
-        copyQuietly(t.text);
-        toast("Card saved \u2014 the words are on your clipboard");
+        return saveCardInstead(blob, t);
       })
       .catch(function(err){
         // Visible, like every other failure here. A share that appears to do
@@ -11082,7 +11078,46 @@
     });
   }
 
+  // The fallback when there is no share sheet to hand the card to. "Card
+  // saved" is said only once something was actually saved: the words go on
+  // the clipboard either way, and a save the listener declined is their
+  // decision, not a failure.
+  function saveCardInstead(blob, t){
+    copyQuietly(t.text);
+    return downloadBlob(blob, "fam-episode.png").then(function(saved){
+      toast(saved ? "Card saved \u2014 the words are on your clipboard"
+                  : "Not saved \u2014 the words are on your clipboard");
+    });
+  }
+
+  // Inside a claude.ai artifact the page runs in a frame that may not start
+  // a download itself, so a plain `<a download>` does nothing there - and a
+  // toast saying "Card saved" over nothing is the failure this project keeps
+  // paying for. The viewer offers the `downloads` capability instead, which
+  // asks the viewer to confirm. Asked for at load so the answer is ready by
+  // the time somebody shares; everywhere else (the real server, a phone)
+  // there is no `window.claude` and this is null.
+  var famDownloads = (window.claude && typeof window.claude.use === "function")
+    ? Promise.resolve(window.claude.use("downloads")).catch(function(){ return null; })
+    : Promise.resolve(null);
+
+  // Resolves true once the file was handed over, false if the viewer
+  // declined; rejects with a sentence when it could not be saved at all.
   function downloadBlob(blob, filename){
+    return famDownloads.then(function(downloads){
+      if(downloads){
+        return downloads.save({ filename: filename, data: blob }).then(
+          function(){ return true; },
+          function(err){
+            if(err && err.code === "declined") return false;
+            throw new Error("The card could not be saved here");
+          });
+      }
+      anchorDownload(blob, filename);
+      return true;
+    });
+  }
+  function anchorDownload(blob, filename){
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url; a.download = filename;

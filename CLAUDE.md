@@ -2253,9 +2253,11 @@ being asked:
    **What lives at that URL is now `preview/fam-live-artifact.html`**, built by
    `python preview/build_live_preview.py` - the same interface, but running on
    a real database rather than fixtures, with the store shown beside it.
-   Publish it with `capabilities: {"db": {}}`; without that declaration
-   `claude.use("db")` resolves null in the viewer, the page falls back to
-   memory, and the whole point of it is quietly gone. The fixture build
+   Publish it with `capabilities: {"db": {}, "downloads": true}`; without
+   `db`, `claude.use("db")` resolves null in the viewer, the page falls back
+   to memory, and the whole point of it is quietly gone. `downloads` is what
+   lets the story card save inside the viewer (§137) - a declaration is the
+   full set, so passing `db` alone revokes it. The fixture build
    (`preview/fam-artifact.html`) is still what `./dev.sh check` produces and
    smoke-tests; it is just no longer what the bookmarked link serves.
 3. Reply with a short summary of what changed and the preview URL. Not a zip,

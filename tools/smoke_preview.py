@@ -2649,14 +2649,58 @@ def main() -> int:
                 """() => document.getElementById("famLoading").classList.contains("active")"""
             ), "the loading screen was showing before anything was asked for"
 
+            # Watched rather than sampled. The screen is up from the tap until
+            # audio arrives, held for at least GEN_MIN_VISIBLE_MS - and the
+            # preview's audio arrives almost at once, so it is on screen for
+            # about that long and no longer. This used to look once, 400ms
+            # after the tap: a 50ms margin that a loaded machine overshot, and
+            # the check then reported a missing screen that had been shown and
+            # correctly taken down. An observer installed before the tap sees
+            # it come and go whatever the timing.
+            page.evaluate("""() => {
+                var el = document.getElementById("famLoading");
+                var seen = window.__loadingSeen = { shown: 0, hidden: 0, held: 0, status: "" };
+                if (window.__loadingWatch) window.__loadingWatch.disconnect();
+                window.__loadingWatch = new MutationObserver(function () {
+                    var on = el.classList.contains("active");
+                    if (on && !seen.shown) {
+                        seen.shown = performance.now();
+                        seen.status = document.getElementById("famLoadingStatus").textContent;
+                    } else if (!on && seen.shown && !seen.hidden) {
+                        seen.hidden = performance.now();
+                        // Against the page's own clock, not this callback's:
+                        // an observer runs only once the tap's synchronous
+                        // work is done, tens of ms after the screen went up,
+                        // so its own stamps under-read how long it was held.
+                        seen.held = Date.now() - genShownAt;
+                    }
+                });
+                window.__loadingWatch.observe(el, { attributes: true, attributeFilter: ["class"] });
+            }""")
             page.fill("#searchInput", "what happened with the fed today")
             page.evaluate("runSearch()")
-            page.wait_for_timeout(400)
-            assert page.evaluate(
-                """() => document.getElementById("famLoading").classList.contains("active")"""
-            ), "pressing search showed no loading screen"
+            try:
+                page.wait_for_function("() => window.__loadingSeen.shown > 0", timeout=5000)
+            except Exception:
+                raise AssertionError("pressing search showed no loading screen")
+            # The preview's audio is immediate, so the screen comes down on
+            # its floor; give it that long and check the floor held. A server
+            # that is still writing just leaves it up, which is not a failure.
+            try:
+                page.wait_for_function("() => window.__loadingSeen.hidden > 0", timeout=3000)
+            except Exception:
+                pass
+            seen = page.evaluate("() => window.__loadingSeen")
+            if seen["hidden"]:
+                # The floor that stops a cache hit reading as a flicker.
+                held = seen["held"]
+                floor = page.evaluate("GEN_MIN_VISIBLE_MS")
+                assert held >= floor, (
+                    f"the loading screen was up for {held:.0f}ms, under its "
+                    f"{floor}ms floor - that is a flicker, not a wait")
+            page.evaluate("window.__loadingWatch.disconnect()")
 
-            status = page.text_content("#famLoadingStatus") or ""
+            status = (seen["status"] or page.text_content("#famLoadingStatus") or "")
             assert status.strip(), "the loading screen said nothing about what it was doing"
             # PROBLEMS.md 55: the wait names itself. A brand animation that
             # replaced that line would be the filler problem in a nicer font.

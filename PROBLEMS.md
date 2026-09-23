@@ -11129,3 +11129,46 @@ once, and would again until they lived in source.
   handoff's decision and is kept.
 - Covers are inline on the mix row. If they ever move to object storage,
   `mixes.clean_cover` is where the URL comes back instead.
+
+## 137. A smoke check that sampled a 450ms window, and a card that said "saved" over nothing
+
+Both left open at the end of §136, both fixed.
+
+### "Searching shows the loading screen" failed one run in four
+
+The loading screen is up from the tap until audio arrives and is held for at
+least `GEN_MIN_VISIBLE_MS` (450). The preview's audio is immediate, so the
+screen is up for about 450ms. The check looked once, 400ms after the tap: a
+50ms margin, which a loaded machine (the full `./dev.sh check`) overshot, so
+it reported a missing screen that had been shown and correctly taken down.
+
+It watches now. A `MutationObserver` installed before the tap records that
+the screen came up, what it said, and, once it comes down, how long it was
+held. Proved against the case that broke it: a forced 1.5s stall after the
+tap, where the old single look sees nothing and the observer sees the whole
+of it. And it now asserts the floor itself, which the old check could not
+see.
+
+One trap found on the way, worth knowing before writing the next observer
+check: **an observer's own timestamps under-read.** Its callback runs only
+after the tap's synchronous work finishes, 35-40ms after the class went on,
+so the first measurement said the screen was held 409ms and looked like the
+floor was broken. Logging `clearGenOverlay` and `finishGenOverlay` against
+the page's clock showed audio at 36ms, the hide deferred, and the screen
+down at 451ms: the floor holds. The hold is measured against `genShownAt`,
+the page's own stamp.
+
+### The story card's fallback saved nothing inside the artifact viewer
+
+Where the share sheet cannot take a file, `shareStoryCard` saves the PNG
+with an `<a download>`. The claude.ai viewer never lets a page start a
+download, so in the published preview nothing was saved and the toast still
+said "Card saved". §51's failure, small.
+
+`downloadBlob` now asks for the viewer's `downloads` capability when
+`window.claude` exists (the viewer asks the listener to confirm) and uses the
+anchor everywhere else, which is the real server and a phone. It resolves
+true or false, so the toast says "Card saved" only when something was saved,
+and "Not saved" when the listener declined. The words go to the clipboard
+either way. The artifact is published with `downloads` declared beside `db`
+(CLAUDE.md's publish step says so).
