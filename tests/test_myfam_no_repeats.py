@@ -189,3 +189,97 @@ def test_the_app_hands_the_ranker_a_working_probe():
     assert probe is not None
     made = probe(T.TOPIC_BANK[0].query)
     assert made is None or isinstance(made, float)
+
+
+# --- Trending: never a heard story (§136) -----------------------------------
+
+def story(i, last_seen, tags=("world",)):
+    return T.Topic(id=f"st-{i}", title=f"Story number {i}", subtitle="",
+                   query=f"what is going on with story {i}", tags=tags,
+                   icon="", freshness=1.0 - i / 100, coverage=50 - i,
+                   last_seen=last_seen)
+
+
+FACETS = ("sports", "business", "tech", "politics", "world", "culture",
+          "science", "health")
+
+
+@pytest.fixture
+def pool(monkeypatch):
+    now = time.time()
+    tiles = [story(i, now, tags=(FACETS[i % len(FACETS)],)) for i in range(8)]
+
+    class Empty:
+        def held(self, _now=None):
+            return []
+
+        def live(self, _now=None):
+            return []
+
+        def empty_reason(self, *_a, **_k):
+            return ""
+
+    monkeypatch.setattr(T, "live_topics", lambda now=None: list(tiles))
+    monkeypatch.setattr(T.stories, "pool", lambda: Empty())
+    return tiles
+
+
+def trending(feed):
+    return [t["id"] for t in rail(feed, "world_trending")]
+
+
+def test_a_heard_trending_story_is_replaced_by_the_next_one(store, pool):
+    first = trending(T.build_feed(store, "t1"))
+    assert first[0] == "st-0"
+    # Heard an hour ago: nothing new yet, so the next story takes the slot.
+    store.record(T.Event("t1", "play", "st-0", pool[0].query, (),
+                         time.time() - 3600))
+    after = trending(T.build_feed(store, "t1"))
+    assert "st-0" not in after and "st-0-new" not in after
+    assert len(after) == T.SECTION_SIZE
+
+
+def test_a_story_still_running_comes_back_as_whats_new(store, pool):
+    heard_at = time.time() - 2 * DAY
+    store.record(T.Event("t2", "play", "st-0", pool[0].query, (), heard_at))
+    feed = T.build_feed(store, "t2")
+    tile = rail(feed, "world_trending")[0]
+    assert tile["id"] == "st-0-new"
+    assert tile["query"] != pool[0].query and "since" in tile["query"]
+    # And the original is nowhere on the page beside it.
+    assert "st-0" not in on_page(feed)
+
+
+def test_a_heard_follow_up_needs_newer_coverage_again(store, pool):
+    now = time.time()
+    store.record(T.Event("t3", "play", "st-0", pool[0].query, (), now - 2 * DAY))
+    store.record(T.Event("t3", "play", "st-0-new", "what's new", (), now - 600))
+    after = trending(T.build_feed(store, "t3"))
+    assert "st-0" not in after and "st-0-new" not in after
+
+
+def test_view_more_on_trending_applies_it_too(store, pool):
+    store.record(T.Event("t4", "play", "st-1", pool[1].query, (),
+                         time.time() - 60))
+    section = T.build_section(store, "t4", "world_trending")
+    assert "st-1" not in {t["id"] for t in section["topics"]}
+    assert "st-1" not in {t["id"] for g in section["groups"] for t in g["topics"]}
+
+
+def test_trending_order_is_still_popularity_not_taste(pool):
+    h = T.heard_from([])
+    assert [t.id for t in T.trending_for(pool, h, time.time())] == \
+        [t.id for t in pool]
+
+
+# --- View more on What you missed is its own ranking ------------------------
+
+def test_view_more_on_missed_is_not_the_crowd_row(store, monkeypatch):
+    calls = []
+    real = T.rank_missed
+    monkeypatch.setattr(T, "rank_missed",
+                        lambda *a, **k: calls.append(1) or real(*a, **k))
+    monkeypatch.setattr(T, "rank_most_played",
+                        lambda *a, **k: pytest.fail("crowd row ranked"))
+    T.build_section(store, "m1", "missed", interests=INTERESTS)
+    assert calls

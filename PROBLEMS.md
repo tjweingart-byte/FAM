@@ -11104,15 +11104,31 @@ startup prior on a cold start). Steps 2 and 3 were each half there:
   *eligible*, the cache decides the *order* among the eligible.
 - `ALGO_VERSION` is `2026-09-23.2`.
 
-**Left alone, deliberately.** Trending does not exclude what a listener has
-heard: §134 made it "never based on the user's algorithm ... past listens
-should not affect the content", and that is the owner's rule until the owner
-changes it. Worth asking, since "no repeats" and that rule now disagree about
-one row.
+**Trending, decided by the owner the same day.** The first pass left Trending
+out on §134's rule ("past listens should not affect the content"). The owner's
+answer: a repeat is not acceptable there either. A heard story is replaced by
+one of two things:
 
-**Found and not fixed.** `build_section("missed")` falls through to
-`rank_most_played`, so "View more" on What you missed shows the crowd row's
-ranking rather than its own. Pre-existing; out of scope here.
+1. **A follow-up with new information** (`followup_for`): the same story, asked
+   as "What's new with <story> since <the day they heard it>?". A different
+   question, so a new researched episode under its own cache key, shared by
+   everybody who heard the story the same day. Offered only when the pool has
+   kept seeing the story for `FOLLOWUP_AFTER` (six hours) after they heard it
+   (`Topic.last_seen`, from `Story.last_seen`). That is evidence there is
+   something new to say, not a guess. A heard follow-up counts as hearing the
+   story, so the next one needs coverage after *that*.
+2. **Otherwise the next trending story** moves into its place.
+
+`trending_for` does this to the inventory *before* `rank_world` sees it, so the
+row's order is still popularity and country alone. §134's rule about ranking
+stands; only repeats are removed. A follow-up's original story is reserved as
+well, so no personal rail shows it beside the follow-up. "View more" on
+Trending runs the same pass.
+
+**"View more" on What you missed, fixed.** `build_section("missed")` fell
+through to `rank_most_played`, so the screen showed the crowd row's ranking.
+It now runs `rank_missed` with the rail's own membership (offered, played by
+others, or in the pool). `ALGO_VERSION` is `2026-09-23.3`.
 
 **Unmeasured.** How many tiles on a real page are cached is a fact about a
 deployment's traffic. The `cached` flag on every tile already says it per

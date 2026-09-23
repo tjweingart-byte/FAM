@@ -67,7 +67,7 @@ import re
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable, Optional
 
 import startup
@@ -387,6 +387,14 @@ class Topic:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: The last sweep that saw this story still being reported
+    #: (`Story.last_seen`). Read by `trending_for` only: coverage continuing
+    #: after somebody heard a story is the evidence there is something new
+    #: to say about it. Not serialised.
+    last_seen: float = 0.0
+    #: On a follow-up tile, the id of the story it follows (§136). Empty on
+    #: everything else. Not serialised.
+    follows: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -1430,7 +1438,7 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-23.2"
+ALGO_VERSION = "2026-09-23.3"
 
 #: **Fatigue**: how a tile that keeps being shown and never played stops being
 #: offered quite so hard. This is the one thing impressions are allowed to do
@@ -3406,8 +3414,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
-    mine = (repeats(universe, heard_from(store.heard(user_id)), now, written_at)
-            if user_id else set())
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    mine = repeats(universe, heard, now, written_at) if heard else set()
     # Which tiles were put in front of them this week. Read once, like the
     # fatigue table, and for a different purpose - see `rank_missed` on why
     # membership may come from an impression and order may not.
@@ -3464,8 +3472,16 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     #
     # And never the startup set or the bank - see `rank_world`. A deployment
     # with no live source has an empty Trending row that says why.
-    world_first = rank_world(live, country, live_held)
-    reserved = {t.id for t in world_first}
+    #
+    # **And never a story this listener has heard** (§136, at the owner's
+    # direction): it comes back as a follow-up if the story has moved on, or
+    # the next trending story takes its place. See `trending_for`.
+    world_first = rank_world(trending_for(live, heard, now), country,
+                             trending_for(live_held, heard, now))
+    # A follow-up's story is reserved as well, so no personal rail offers the
+    # original beside the "what's new" episode about it.
+    reserved = ({t.id for t in world_first}
+                | {t.follows for t in world_first if t.follows})
 
     # Filled most-constrained first, displayed in the order the product asks
     # for. Filling in display order starves the two personal sections: the
@@ -3713,8 +3729,8 @@ def build_section(store: EventStore, user_id: str, key: str,
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
-    mine = (repeats(universe, heard_from(store.heard(user_id)), now, written_at)
-            if user_id else set())
+    heard = heard_from(store.heard(user_id)) if user_id else None
+    mine = repeats(universe, heard, now, written_at) if heard else set()
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -3743,6 +3759,21 @@ def build_section(store: EventStore, user_id: str, key: str,
                 learned=learned_rank.active(store, now))
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
+    elif key == "missed":
+        # Its own ranking. It used to fall through to `rank_most_played`, so
+        # "View more" on What you missed opened the crowd row (§136). The
+        # same membership the rail uses - offered, played by others, or in
+        # the pool - with trending included from the start, because on this
+        # screen there is no Made for you for it to leave new stories to.
+        shown = (store.impressions_since(user_id, now - MISSED_WINDOW)
+                 if user_id else {})
+        popular = ({u_topic for u, u_topic
+                    in store.plays_since(now - MISSED_WINDOW) if u != user_id}
+                   if user_id else set())
+        picks = rank_missed(profile, shown, mine, set(),
+                            candidates=browse_inventory(live_held, has_account),
+                            limit=limit, now=now, popular=popular,
+                            familiar=familiar)
     elif key == "followers":
         picks = rank_friends(store, circle, mine, damp, limit=limit, now=now,
                              written=written)
@@ -3752,8 +3783,8 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         groups = trending_groups(
-            live, country,
-            topics_from_stories(stories.pool().held(now), now=now))
+            trending_for(live, heard, now), country,
+            trending_for(live_held, heard, now))
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)
@@ -3830,6 +3861,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             live_line=getattr(story, "live_line", "") or "",
             live_status=getattr(story, "live_status", "") or "",
             live_as_of=float(getattr(story, "live_as_of", 0.0) or 0.0),
+            last_seen=float(getattr(story, "last_seen", 0.0) or 0.0),
         ))
     return tiles[:limit] if limit else tiles
 
@@ -3879,6 +3911,67 @@ def _ranked_trending(tiles: list, country: str, peak: int) -> list:
     return [t for _s, _i, t in sorted(
         ((-trending_score(t, country, peak), i, t) for i, t in enumerate(tiles)),
         key=lambda row: row[:2])]
+
+
+#: How long a story has to have kept being reported after a listener heard
+#: it before a follow-up is offered. Six hours: less and "what's new" is the
+#: same wire copy re-filed; a story still running half a day later has moved.
+FOLLOWUP_AFTER = 6 * 3600.0
+
+
+def followup_for(tile: Topic, since: float) -> Topic:
+    """The same story, asked again for what has happened since `since`.
+
+    A different question, so a different episode and a different cache key -
+    and researched on the tap like every live tile, so the new information is
+    retrieved rather than assumed. The date is in the question because it is
+    what the writer needs to know to skip what the listener already heard; it
+    also means everybody who heard the story on the same day shares one
+    follow-up script. Every other field is the story's, so it ranks and is
+    placed exactly where the story would have been.
+    """
+    when = time.strftime("%B %d", time.gmtime(since)).replace(" 0", " ")
+    subject = tile.title.rstrip(" ?.!")
+    return replace(
+        tile,
+        id=f"{tile.id}-new"[:64],
+        query=f"What's new with {subject} since {when}?",
+        angle="What has changed since you last listened",
+        subtitle="What has changed since you last listened",
+        follows=tile.id,
+    )
+
+
+def trending_for(tiles: Iterable[Topic], heard: Optional[Heard],
+                 now: float) -> list:
+    """The trending inventory with this listener's heard stories dealt with.
+
+    Every tile comes back as one of three things, in its own position:
+
+    * **itself**, if they have not heard it;
+    * **a follow-up** (`followup_for`) if they have, and the story has kept
+      being reported for `FOLLOWUP_AFTER` since - directly related, with new
+      information;
+    * **nothing**, otherwise - so the next trending story moves up into its
+      place in `rank_world`.
+
+    A heard follow-up counts as hearing the story, so the next follow-up is
+    dated from it and needs fresh coverage after *that*. This is the one
+    input Trending takes from a listener's history, and it decides only
+    whether an episode would be a repeat: the order is still popularity and
+    country alone (§134).
+    """
+    tiles = list(tiles)
+    if heard is None:
+        return tiles
+    out = []
+    for tile in tiles:
+        last = max(heard.last(tile), heard.by_id.get(f"{tile.id}-new"[:64], 0.0))
+        if not last:
+            out.append(tile)
+        elif (tile.freshness > 0 and tile.last_seen - last >= FOLLOWUP_AFTER):
+            out.append(followup_for(tile, last))
+    return out
 
 
 def rank_world(live: list, country: str = "", held: Iterable = (),
