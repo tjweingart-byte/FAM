@@ -1340,6 +1340,14 @@ async def health(request: Request) -> dict:
                                else "ENABLE_WEB_SEARCH env var"
                                if os.environ.get("ENABLE_WEB_SEARCH", "").strip()
                                else "config.py default"),
+        # How much hidden thinking the writing call does before its first
+        # word, and where that came from - same reason as the line above: an
+        # EFFORT left in a dashboard beats the code default on every push,
+        # and it is expected to be the largest wait on search (PROBLEMS.md §129).
+        "writer_effort": settings.effort,
+        "writer_effort_source": ("EFFORT env var"
+                                 if os.environ.get("EFFORT", "").strip()
+                                 else "config.py default"),
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
         # Built, and switched on or not. A tier system that is not enforcing
@@ -4198,6 +4206,12 @@ async def audio(
             "log, and that ANTHROPIC_API_KEY is set and a speech engine is installed.",
         )
 
+    # Where the wait in front of the first word went, one step at a time, at
+    # the moment it is known - this line is written when the first audio
+    # exists, not when the episode ends minutes later, so a slow episode can
+    # be read off the deploy's log while it is still playing.
+    if stats.cache != "hit":
+        log.info("%s", stats.marks.stage_report(plan.query))
     primed_bytes = max(0, sum(len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
 
@@ -4218,6 +4232,16 @@ async def audio(
             # only be logged. The player detects the short stream and says so.
             log.exception("audio stream failed mid-flight")
         finally:
+            # The two times that only exist once the episode is over, in the
+            # same plain form as the per-step list written at first audio.
+            if stats.cache != "hit":
+                wrote = stats.marks.span("claude_start", "claude_complete")
+                log.info(
+                    "episode finished q=%r\n  writer finished writing      %s\n"
+                    "  whole request, start to end  %.2fs",
+                    plan.query,
+                    "did not finish" if wrote is None else f"{wrote:.2f}s",
+                    time.monotonic() - started)
             log.info(
                 "episode q=%r %s wall=%.1fs preroll=%.2fs chunks_primed=%d "
                 "audio_primed=%.2fs first_pcm=%s preroll_satisfied=%s "
@@ -4284,6 +4308,13 @@ async def audio(
             "X-Audio-Primed-Seconds": f"{primed_seconds:.3f}",
             "X-First-PCM-Seconds": f"{first_pcm_at:.4f}" if first_pcm_at is not None else "",
             "X-Preroll-Satisfied-Seconds": f"{preroll_at:.4f}" if preroll_at is not None else "",
+            # The same breakdown the `stages` log line prints, for a client
+            # that can read headers - `tools/pod_episode.py` does. Complete by
+            # now: every stage ends at or before the first synthesis, which is
+            # what the preroll above waited for.
+            "X-Stage-Seconds": json.dumps(
+                {k: round(v, 3) for k, v in stats.marks.stages().items()},
+                separators=(",", ":")),
             # The episode's own marks, so a client-side probe can read the
             # server's view of the same request rather than inferring it.
             "X-Episode-Marks": json.dumps(stats.marks.summary(), default=str),

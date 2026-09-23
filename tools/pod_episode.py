@@ -234,6 +234,20 @@ def report(run: dict, marks: dict | None, notes: list | None = None,
     print(f"  chunks primed        {headers.get('X-Chunks-Primed', '-')}")
     print(f"  audio primed         {headers.get('X-Audio-Primed-Seconds', '-')}s")
 
+    stages = {}
+    try:
+        stages = json.loads(headers.get("X-Stage-Seconds") or "{}")
+    except ValueError:
+        stages = {}
+    if stages:
+        total = stages.pop("first audio", None)
+        print("\nstages     where the wait in front of the first word went")
+        for name, seconds in stages.items():
+            share = (f"  {100 * seconds / total:4.0f}%" if total else "")
+            print(f"  {name:<22}{_seconds(seconds)}{share}")
+        if total is not None:
+            print(f"  {'= first audio':<22}{_seconds(total)}")
+
     if marks is None:
         print("\nepisode    NOT READ. The server's log line did not arrive, so "
               "the decoupling\n           claim is unverified for this run. "

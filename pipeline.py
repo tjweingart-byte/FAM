@@ -1091,6 +1091,9 @@ class PodcastPipeline:
         # them, rather than leaving the panel waiting for the cache write at
         # the end of the episode. Same key as the captions beside them.
         notes.caption_key = key
+        # The same clock for the steps in front of the writing call - brief,
+        # live lookup, retrieval - which `claude_ttft` used to swallow whole.
+        notes.marks = stats.marks
         # Pointed at the live accumulator *now*, not when generation finishes.
         # `Usage` is mutable and shared, so this makes `stats.usage` track the
         # episode as it goes - which is the difference between an episode that

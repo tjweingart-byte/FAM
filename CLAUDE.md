@@ -107,10 +107,12 @@ seconds is.
 > **Amended again, on the same terms and at the same direction**
 > *(PROBLEMS.md §108).* Every guardrail that traded the opening's quality for
 > time to first audio is gone: nothing is written before the retrieval
-> finishes, on either backend, and the writing call reasons at `EFFORT=high`
-> before its first token rather than starting to talk and deciding as it
-> goes. **So search now waits for the whole picture, and says so while it
-> waits.** The thing that was bought with those seconds was an opening written
+> finishes, on either backend, and the writing call reasons before its
+> first token rather than starting to talk and deciding as it goes. **So
+> search now waits for the whole picture, and says so while it waits.**
+> *(The thinking budget for that went back from `EFFORT=high` to `low` at the
+> owner's direction in §129 - the hidden thinking is expected to be the largest
+> wait on search, not yet measured. The order is unchanged: brief and evidence first, no tools.)* The thing that was bought with those seconds was an opening written
 > by a model that had been told nothing, in front of an episode that was fine
 > - and a listener judges the product on the first ten seconds. Again: the
 > writing is the product.
@@ -299,8 +301,9 @@ rest of the episode is almost perfect. That shape is two texts written under
 two conditions, and FAM was producing exactly that - a from-knowledge cover
 half with no brief and no evidence, speaking while the researched half read.
 **Everything that traded the opening for time to first audio is now gone**:
-the cover, the search tool on the writing call, the EI skip on unresearched
-episodes, and `EFFORT=low`. Nothing is written until the writer holds the
+the cover, the search tool on the writing call, and the EI skip on
+unresearched episodes (`EFFORT=low` went too, and came back in §129 at the
+owner's direction). Nothing is written until the writer holds the
 brief and the evidence, and the prompt asks it to decide the whole piece
 before it opens. Unheard - there is no key here - and it is the first thing
 to listen for.
@@ -959,7 +962,11 @@ the rest of this list it needs taste rather than a key.
   the brief and the evidence before its first token, and has the budget to
   decide what the whole episode is before it writes the first sentence of
   it.** Retrieval before writing on both backends, no tools on the call that
-  speaks, episode intelligence on every episode, `EFFORT=high`. A change that
+  speaks, episode intelligence on every episode. *(The writer's thinking
+  budget is `EFFORT=low` since §129, at the owner's direction: §108 set it to
+  `high` in the same commit that deleted the cover, so what effort bought was
+  never separated from what the deletion bought, and `high` is expected to be the
+  largest wait on search (unmeasured). It is a budget, not an order - the rule below stands.)* A change that
   reintroduces a text produced before its material is a regression however
   much time it saves, because the first ten seconds are the only part a
   listener uses to decide whether there will be an eleventh.
@@ -1121,8 +1128,8 @@ the rest of this list it needs taste rather than a key.
   and one of them did, on air.
   §94 told it that it was not a lone answerer. **§108 stopped putting it in
   that position**: the cover is deleted, the model's own search is a retrieval
-  that finishes first, and the writing call reasons at `EFFORT=high` before
-  its first token - so it decides what the whole episode is, from the brief
+  that finishes first, and the writing call reasons before its first token
+  (at `EFFORT=low` since §129) - so it decides what the whole episode is, from the brief
   and the evidence, and *then* opens. The prompt says exactly that, and adds
   the test the opening has to pass: read the first two sentences back against
   what the listener typed, and if they would also open an episode about
@@ -2235,7 +2242,10 @@ before the first word, captions measured against the audio, and audio that
 plays with the ringer off; and **§126**, the vocabulary that started from nothing - `MIN_LISTENERS` is
 three, so a deployment with no traffic had no grown vocabulary at all, and
 the tree could already see "college football" in a tile's question while
-the ranker scored that tile on `sports` alone),
+the ranker scored that tile on `sports` alone; and **§128**, where the wait
+in front of the first word goes, logged one step per line as `episode
+timing`; and **§129**, the writer's hidden thinking back to `EFFORT=low` at
+the owner's direction),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
