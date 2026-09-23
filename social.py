@@ -406,7 +406,7 @@ class SocialStore:
         try:
             rows = self._conn().execute(
                 "SELECT e.query, e.minutes, p.name, p.handle, p.avatar, e.at,"
-                " e.user_id FROM echoes e"
+                " e.user_id, e.title FROM echoes e"
                 " LEFT JOIN people p ON p.user_id = e.user_id"
                 f" WHERE e.user_id IN ({marks})"
                 " ORDER BY e.at DESC LIMIT ?",
@@ -416,13 +416,16 @@ class SocialStore:
             log.exception("could not read echoes for a circle")
             return {}
         out: dict = {}
-        for query, minutes, name, handle, avatar, at, user_id in rows:
+        for query, minutes, name, handle, avatar, at, user_id, title in rows:
             key = (query, minutes)
             if key in out:
                 continue
+            # The title rides along for the Topic screen's "Friends vibed",
+            # which draws the episode rather than just tagging a card that
+            # already has one.
             out[key] = {"user_id": user_id, "name": name or "",
                         "handle": handle or "", "avatar": avatar or "",
-                        "at": at}
+                        "at": at, "title": title or ""}
         return out
 
     # --- the follow graph -------------------------------------------------

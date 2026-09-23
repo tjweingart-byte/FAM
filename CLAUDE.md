@@ -824,6 +824,15 @@ the rest of this list it needs taste rather than a key.
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 9. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
+   **And it is called YourFAM** *(§133, the owner's handoff).* The last tab is
+   one social hub - identity, story-style friend avatars, Messages as one
+   card, the public shelf - with a Topic screen behind every interest chip.
+   The "This month" card, the inline conversation list and the "From your
+   FAM" feed are off it on purpose. Everything on it is read from the API:
+   the handoff asked for a mock social module because its prototype had no
+   backend, and this one has the real graph. The paragraphs below describe
+   the page it replaced where they talk about tiles and the profile's own
+   interests sheet.
    `/api/profile` returns only what the event log and the follow graph
    actually hold - started, finished, open threads, subjects, vibes, and a
    friend count that is real because the graph is built. The page is a hub
@@ -864,8 +873,8 @@ the rest of this list it needs taste rather than a key.
    where saving returns to. Everything a settings row opens closes back to
    Settings, by an X drawn the same way on all of them
    (`.sheet-close` on a screen, `.modal-x` on a modal).
-   **The interests row is four, ranked by listening, and edited where it is**
-   *(§114).* It was twelve pills - chosen facets, then chosen subjects, then
+   **The interests row is five, ranked by listening** *(§114; five and
+   edited in Edit profile since §133).* It was twelve pills - chosen facets, then chosen subjects, then
    whatever the log had inferred - in that fixed order, so six words picked
    in thirty seconds on the first run outranked a month of listening for
    good, and the row grew with every episode until it listed everything
@@ -873,21 +882,24 @@ the rest of this list it needs taste rather than a key.
    `taste` profile every myFAM rail uses, so it moves as they listen, and a
    declared interest is not lost by that - `taste` folds it in at
    `INTEREST_WEIGHT` before normalising, which is exactly a starting position
-   behaviour outvotes. `topics.profile_interests` cuts it to four and says
+   behaviour outvotes. `topics.profile_interests` cuts it to five and says
    **which** decided it, because a pinned row and an automatic one look
    identical on screen and the copy under them is only true of one.
    The editor moved with it: "Shared on your profile" was inside Edit profile,
    three taps from the row it changed and phrased as hiding rather than
-   choosing. It is on the profile now, beside the pills, and it is a choice
-   about **showing** and never about liking - nothing there writes
-   `interests` and nothing there touches the ranker.
+   choosing. §114 moved it onto the profile beside the pills; §133 moved it
+   back into Edit profile as **Your interests - N of 5**, because the hub has
+   no inline Edit. Toggling a suggestion is still about **showing** and never
+   about liking - it writes `profile_interests` and not `interests` - and a
+   topic somebody types there is also kept in `topics`, because it is a new
+   statement of what they want to hear.
    The boundary that needed deciding: **their own page may be ranked off
    their listening and `/api/person` may not.** §104's rule is that what
    somebody has listened to is theirs, and an inferred pill row on a
    stranger's view of them publishes exactly that, in a form that reads as a
    statement they made. A pin is a statement; a declared interest is a
    statement; a history is not. So the public view is the pinned set, or
-   declared-minus-hidden, capped at the same four - and pinning is how
+   declared-minus-hidden, capped at the same five - and pinning is how
    somebody's own page becomes their public one. `hidden_interests` is still
    honoured when nothing is pinned: somebody who turned an interest off
    before the editor moved did not ask for it back.

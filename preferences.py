@@ -194,7 +194,9 @@ def clean_topics(values: Iterable[str]) -> tuple[str, ...]:
 
 #: How many interests a profile page may display at once.
 #:
-#: Four, at the owner's direction, and the number is here rather than in the
+#: Five, at the owner's direction (the YourFAM handoff - it was four until
+#: then: "five gives enough range without making the profile feel
+#: cluttered"). The number is here rather than in the
 #: interface because both halves have to agree about it: the server refuses a
 #: fifth and the editor stops offering one, and a cap enforced in one place
 #: only is a cap somebody's next client does not have.
@@ -203,11 +205,11 @@ def clean_topics(values: Iterable[str]) -> tuple[str, ...]:
 #: finishes, and a profile whose interests wrap onto four lines has stopped
 #: saying what this listener is into and started listing what they have
 #: touched. Three or four is the claim; the rest is the ranker's business.
-PROFILE_INTERESTS_MAX = 4
+PROFILE_INTERESTS_MAX = 5
 
 
 def clean_profile_interests(values: Iterable[str]) -> tuple[str, ...]:
-    """The interests this listener pinned to their profile, at most four.
+    """The interests this listener pinned to their profile, at most five.
 
     Accepts the same two kinds of thing the pill row draws - a facet id from
     `topics.TAG_LABELS`, or a named subject from `topics.py`'s catalogue or

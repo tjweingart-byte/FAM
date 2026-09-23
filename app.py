@@ -1939,7 +1939,10 @@ async def person_profile(request: Request,
         "avatar": person["avatar"],
         "joined": person["joined"],
         "mixes": [m.as_dict() for m in MIXES.public_for_user(target)],
-        "vibes": [e.as_dict(person["name"], person["handle"])
+        # Each vibe carries its subject, read off its own words - the same
+        # label a shared episode's chat preview uses.
+        "vibes": [dict(e.as_dict(person["name"], person["handle"]),
+                       topic=_topic_label(e.query, e.title))
                   for e in SOCIAL.echoes_by(target, limit=12)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
         "interests": interests,
@@ -2027,7 +2030,23 @@ async def messages_inbox(request: Request) -> dict:
         # everybody, which made a conversation with a face look like one
         # with a stranger (§127). "" means initials, as before.
         row["avatar"] = person.get("avatar") or ""
+        # "Shared an episode · Money & markets" - the subject, so a preview
+        # says what was shared without printing a whole title into one line.
+        last = row.get("last") or {}
+        if last.get("kind") == "episode":
+            last["topic"] = _topic_label(last.get("query") or "", last.get("title") or "")
     return {"threads": inbox, "unread": MESSAGES.unread_total(user)}
+
+
+def _topic_label(query: str, title: str = "") -> str:
+    """The one facet an episode is about, as a listener reads it, or "".
+
+    Keyword tagging over the words already in hand - the same
+    `tags_for_text` history is ranked on - so it costs no model call and says
+    nothing when the words match nothing, rather than guessing a subject.
+    """
+    tags = topics_mod.facets_only(topics_mod.tags_for_text(f"{query} {title}"))
+    return topics_mod.TAG_LABELS.get(tags[0], "") if tags else ""
 
 
 @app.get("/api/messages/thread")
@@ -2062,6 +2081,17 @@ async def messages_thread(request: Request,
     MESSAGES.mark_read(user, with_)
     person = SOCIAL.person(with_)
     head = max([m.id for m in thread] + [since])
+    rows = [m.as_dict(user) for m in thread]
+    # What the chat's episode card and its receipt draw. `finished` is read
+    # off this listener's own completions, so "You finished it" is a fact the
+    # event log holds rather than a guess from the conversation.
+    if any(r["kind"] == "episode" for r in rows):
+        done = {e.text for e in EVENTS.for_user(user, limit=1000)
+                if e.kind == "complete" and e.text}
+        for r in rows:
+            if r["kind"] == "episode":
+                r["topic"] = _topic_label(r["query"] or "", r["title"] or "")
+                r["finished"] = (not r["mine"]) and (r["query"] in done)
     return {"with": {"user_id": with_, "name": person.get("name") or "Someone",
                      "handle": person.get("handle") or "",
                      "avatar": person.get("avatar") or ""},
@@ -2069,7 +2099,7 @@ async def messages_thread(request: Request,
             # on the same two-second poll that tops the conversation up, so
             # the dots cost no request of their own.
             "typing": typing_mod.is_typing(with_, user),
-            "messages": [m.as_dict(user) for m in thread],
+            "messages": rows,
             # True for the ordinary open, False for a poll that is topping one
             # up. The client replaces the conversation on one and appends on
             # the other, and guessing from `since` in two places is how those
@@ -3744,7 +3774,63 @@ async def profile(request: Request):
     body["interests_pinned"] = list(prefs.profile_interests)
     body["interests_source"] = source
     body["interests_max"] = topics_mod.PROFILE_INTEREST_SLOTS
+    body["circle"] = _circle_row(user)
     return body
+
+
+#: How recent a friend's vibe has to be for their avatar to carry the VIBE
+#: badge on YourFAM. A week, the same window "What you missed last week" uses:
+#: a badge that stayed up for a vibe from March would stop meaning anything.
+CIRCLE_VIBE_WINDOW = 7 * 24 * 3600
+#: And the gold ring - "something new from this person" - is narrower: a vibe
+#: in the last two days, or a message you have not read yet.
+CIRCLE_FRESH_WINDOW = 2 * 24 * 3600
+CIRCLE_MAX = 12
+
+
+def _circle_row(user: str) -> list[dict]:
+    """The story-style avatar row on YourFAM: friends first, then follows.
+
+    Every flag is read off something stored - the echoes table and the
+    unread counts - so a ring or a badge on somebody's face is a claim the
+    app can back. Nothing here is a play or a completion: what a friend has
+    listened to is theirs, and only what they chose to show (a vibe) or sent
+    (a message) may light up their picture.
+    """
+    if not user:
+        return []
+    people: list[dict] = []
+    seen: set[str] = set()
+    for person in SOCIAL.friends(user) + SOCIAL.following(user):
+        uid = person.get("user_id") or ""
+        if uid and uid not in seen:
+            seen.add(uid)
+            people.append(person)
+    people = people[:CIRCLE_MAX]
+    if not people:
+        return []
+    now = time.time()
+    latest: dict[str, float] = {}
+    for row in SOCIAL.echoes_among([p["user_id"] for p in people]).values():
+        uid = row.get("user_id") or ""
+        latest[uid] = max(latest.get(uid, 0.0), float(row.get("at") or 0.0))
+    unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
+    friends = {p["user_id"] for p in SOCIAL.friends(user)}
+    out = []
+    for person in people:
+        uid = person["user_id"]
+        vibed_at = latest.get(uid, 0.0)
+        out.append({
+            "user_id": uid,
+            "name": person.get("name") or "",
+            "handle": person.get("handle") or "",
+            "avatar": person.get("avatar") or "",
+            "friend": uid in friends,
+            "vibed": bool(vibed_at) and now - vibed_at <= CIRCLE_VIBE_WINDOW,
+            "fresh": (uid in unread
+                      or (bool(vibed_at) and now - vibed_at <= CIRCLE_FRESH_WINDOW)),
+        })
+    return out
 
 
 class ProgressRequest(BaseModel):
@@ -3940,6 +4026,122 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     episodes.sort(key=lambda e: (not e.get("vibed_by"), not e["vibed"],
                                  e["age_seconds"]))
     return {"episodes": episodes}
+
+
+#: How many cards the Topic screen asks for at a time. Six fills the
+#: two-column grid above its "View more"; the rest come in pages.
+INTEREST_PAGE = 6
+
+
+def _interest_scope(interest_id: str, label: str) -> tuple[str, set, list]:
+    """(label, tags, words) that decide whether an episode is "on" an interest.
+
+    Three kinds of interest reach this screen, and they resolve differently:
+    a facet (`money`), a catalogue subject (`formula1`), or whatever somebody
+    typed into Edit profile ("Surfing"). The most **specific** tags win - a
+    catalogue subject carries its facet too, and matching on that would make
+    "Formula 1" a page about every sport. A typed topic the vocabulary cannot
+    see at all is matched on its own words, which is a worse answer and much
+    better than an empty page for something the listener said they like.
+    """
+    iid = (interest_id or "").strip()
+    if iid in topics_mod.TAG_LABELS:
+        return topics_mod.TAG_LABELS[iid], {iid}, []
+    item = topics_mod.CATALOGUE_BY_ID.get(iid)
+    if item is not None:
+        name, tags = item.label, set(item.tags)
+    else:
+        name = (label or iid).strip()
+        tags = set(topics_mod.tags_for_text(name))
+    specific = {t for t in tags if t not in topics_mod.TAG_LABELS}
+    words = [w for w in name.lower().replace("&", " ").split() if len(w) >= 3]
+    return name, (specific or tags), words
+
+
+def _on_interest(text: str, tags: set, words: list) -> bool:
+    if tags and tags & set(topics_mod.tags_for_text(text)):
+        return True
+    low = text.lower()
+    return bool(words) and all(w in low for w in words)
+
+
+@app.get("/api/interest")
+async def interest_episodes(request: Request,
+                            id: str = Query("", max_length=120),
+                            label: str = Query("", max_length=120),
+                            filter: str = Query("latest", pattern="^(latest|friends)$"),
+                            offset: int = Query(0, ge=0, le=200),
+                            limit: int = Query(INTEREST_PAGE, ge=1, le=24)) -> dict:
+    """Episodes on one interest, freshest first. **Generates nothing.**
+
+    The Topic screen behind every interest chip on YourFAM, a friend's
+    profile and a chat header. Three inventories, in freshness order: the
+    live story pool, then finished episodes in the shared cache (anybody's -
+    this is a place a listener went looking, like Explore New), then the
+    evergreen bank as the tail, because a standing explainer is on-topic but
+    is never the freshest thing. `filter=friends` is what their circle
+    vibed, and nothing else - the one row that can be empty for a reason
+    about people rather than about content, and it says so.
+
+    Every card is a question and its original length. The screen plays it at
+    the length its own pill is set to, which is the spec's point: the pill
+    sets how long a generated episode is, it does not filter by duration.
+    """
+    _read_limit(request)
+    listener = _listener(request)
+    name, tags, words = _interest_scope(id, label)
+    if not tags and not words:
+        return {"label": name, "episodes": [], "more": False,
+                "reason": "FAM cannot tell what that interest covers yet."}
+    now = time.time()
+    cards: list[dict] = []
+    seen: set[str] = set()
+
+    def add(query: str, title: str, minutes: int, source: str, at: float,
+            **extra) -> None:
+        q = (query or "").strip()
+        if not q or q.lower() in seen:
+            return
+        seen.add(q.lower())
+        card = {"query": q, "title": title or (q[:1].upper() + q[1:]),
+                "minutes": int(minutes or 0), "source": source,
+                "age_seconds": max(0.0, now - at) if at else None}
+        card.update(extra)
+        cards.append(card)
+
+    if filter == "friends":
+        circle = SOCIAL.circle_of(listener) if listener else []
+        vibes = SOCIAL.echoes_among(circle) if circle else {}
+        for (query, minutes), who in sorted(vibes.items(),
+                                            key=lambda kv: -(kv[1].get("at") or 0)):
+            if _on_interest(f"{query} {who.get('title', '')}", tags, words):
+                add(query, who.get("title", ""), minutes, "vibe",
+                    who.get("at") or 0.0,
+                    vibed_by={"name": who.get("name") or "",
+                              "handle": who.get("handle") or "",
+                              "avatar": who.get("avatar") or ""})
+        reason = ("" if cards else
+                  ("Nobody you follow has vibed anything on this yet."
+                   if circle else
+                   "Follow some people and what they vibe on this shows up here."))
+    else:
+        for tile in topics_mod.live_topics(now):
+            if (tags & set(tile.tags)) or _on_interest(tile.query, set(), words):
+                add(tile.query, tile.title, 0, "story", 0.0, angle=tile.subtitle)
+        store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+        if store is not None:
+            for entry in store.recent(120):
+                text = f"{entry['query']} {entry.get('title') or ''}"
+                if _on_interest(text, tags, words):
+                    add(entry["query"], entry.get("title") or "",
+                        entry["minutes"], "cache", entry["created"])
+        for tile in topics_mod.TOPIC_BANK:
+            if tags & set(topics_mod.topic_tags(tile)):
+                add(tile.query, tile.title, 0, "bank", 0.0, angle=tile.subtitle)
+        reason = "" if cards else "Nothing on this yet. Search it, and yours is the first."
+    page = cards[offset:offset + limit]
+    return {"label": name, "episodes": page,
+            "more": len(cards) > offset + limit, "reason": reason}
 
 
 @app.get("/api/sources")
