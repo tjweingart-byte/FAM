@@ -34,6 +34,7 @@ import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
 import topics as T  # noqa: E402
 import voice_registry as VR  # noqa: E402
+import trending_bank as TB  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -54,6 +55,7 @@ STORES = [
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
     ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),
+    ("TRENDING_BANK_DB", "trending_bank.db", TB.BankStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.

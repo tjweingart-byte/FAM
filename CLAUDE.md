@@ -397,6 +397,13 @@ the rest of this list it needs taste rather than a key.
    (`topics.trending_for`, applied to the pool before any rail sees it), and
    otherwise the next story takes its place. Trending's order is still
    popularity and country alone.
+   **Trending is an edition now** *(§137, at the owner's direction)*: built
+   at 05:00 and 17:00 Eastern from **GNews** (`trending_bank.py`,
+   `gnews.py`), ten stories with their ten episodes written into the shared
+   cache before anybody taps, GDELT only as the crutch, and the live pool
+   only when there is no edition. A bank episode keeps until the next
+   edition, which is the one place `cache.ttl_for` is overridden - see
+   TRENDING.md, "The trending bank".
    **Made for you draws on both inventories** and Trending draws only on the
    live one, because answering "what is trending" with what FAM's listeners
    have already played would make it a laggier copy of the row below it. The
@@ -2353,7 +2360,9 @@ rather than the mock module the handoff asked for; and **§134**, the
 22/09 packet - four tiles a rail, a Trending row ranked on popularity and
 country alone with no dummy tiles, DailyFAM playlists that play through
 and stop, real play counts and thumbs on Explore, and four RunPod leaks;
-and **§135**, where an episode's information comes from - the model's own
+and **§137**, Trending rebuilt as a twice-daily GNews edition with its
+ten episodes written ahead, because the GDELT sweep behind it timed out on
+every run from Render; and **§135**, where an episode's information comes from - the model's own
 web search deleted, API-Sports swept on its whole daily allowance with the
 score on the card, and a Trending row of real stories ranked by how many
 outlets run them, worldwide and region by region),

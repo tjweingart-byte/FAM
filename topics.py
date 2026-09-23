@@ -3496,7 +3496,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # **And never a story this listener has heard** (§136, at the owner's
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
-    world_first = rank_world(live, country, live_held)
+    world_live, world_held = world_inventory(live, live_held, heard, now)
+    world_first = rank_world(world_live, country, world_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
     reserved = ({t.id for t in world_first}
@@ -3806,8 +3807,8 @@ def build_section(store: EventStore, user_id: str, key: str,
         # nothing of the listener but their country - not even what they have
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
-        groups = trending_groups(
-            live, country, live_held)
+        world_live, world_held = world_inventory(live, live_held, heard, now)
+        groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)
@@ -3887,6 +3888,29 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             last_seen=float(getattr(story, "last_seen", 0.0) or 0.0),
         ))
     return tiles[:limit] if limit else tiles
+
+
+def world_inventory(live: list, live_held: list, heard: Optional["Heard"],
+                    now: float) -> tuple:
+    """What Trending ranks: the trending bank's edition, else the story pool.
+
+    §137, at the owner's direction: Trending is an edition built twice a day
+    from GNews (`trending_bank`), and when there is one it is the whole of
+    the row - rail and "View more" alike, through this one function so the
+    two cannot disagree. With no edition (no key and no crutch, the first
+    build still running, or `TRENDING_BANK=0`) the row reads the live pool
+    exactly as it did before, so a deployment without the bank loses nothing.
+
+    `live` and `live_held` are the pool's, already through `trending_for`;
+    the bank's tiles go through it here, so a heard story is a follow-up or
+    gone on this row as on every other.
+    """
+    import trending_bank
+
+    bank = trending_bank.stories_now(now)
+    if not bank:
+        return live, live_held
+    return trending_for(topics_from_stories(bank, now=now), heard, now), []
 
 
 def live_topics(now: Optional[float] = None) -> list:
@@ -4447,6 +4471,16 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
     # changes, and a wrong one is §89.
     if pool_had_stories:
         return "Everything the world is on today is already in Made for you."
+    return _trending_empty_reason()
+
+
+def _trending_empty_reason() -> str:
+    """The bank's sentence when it is on, else the pool's (§137)."""
+    import trending_bank
+    from config import settings
+
+    if settings.trending_bank:
+        return trending_bank.empty_reason()
     return stories.pool().empty_reason
 
 
@@ -4464,7 +4498,7 @@ def _empty_reason(key: str) -> str:
         # surface's version of PROBLEMS.md §89. The live text comes from
         # `stories.Pool.empty_reason`, which knows *which* way it came up
         # empty; this is the fallback when nothing has been asked yet.
-        "world_trending": stories.pool().empty_reason,
+        "world_trending": _trending_empty_reason(),
         # Names the thing to do about it. The rail is empty for exactly one
         # reason - they follow nobody - and a row that said "nobody has
         # listened yet" would be blaming the app for a state the listener can

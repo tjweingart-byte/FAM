@@ -3,6 +3,12 @@
 The myFAM row backed by an outside feed, and why it is a separate subsystem
 from live facts.
 
+> **Since PROBLEMS.md §137 the row is an *edition*.** Built at 05:00 and
+> 17:00 Eastern from GNews (`gnews.py`, `trending_bank.py`), ten stories,
+> with their ten episodes written into the shared cache before anybody taps.
+> GDELT is the crutch; the live pool is what the row reads only when there is
+> no edition at all. See **The trending bank** at the end of this file.
+
 > **Since PROBLEMS.md §102 this registry is one source among several rather
 > than the row's whole supply.** myFAM's two outward-facing rails are now fed
 > by the story pool (`stories.py`, `MYFAM.md`), which sweeps four live sources
@@ -238,3 +244,48 @@ decision and nothing in this build can test writing quality.
 payloads. Run `python tools/gdelt_probe.py` somewhere with network first — it
 checks both modes FAM uses and warns on the two things most likely to be
 silently wrong (dates not parsing, URLs not arriving).
+
+
+## The trending bank (§137)
+
+**Why.** From Render, the GDELT story sweep timed out on every run: about
+thirty-two requests to a free service that asks for one every five seconds,
+fired six at a time inside a forty-five second ceiling. The pool stayed
+empty and the row said "The live sources didn't answer in time" to everybody.
+
+**What it is.** An edition, built on a clock rather than on a page load:
+
+| | |
+|---|---|
+| When | 05:00 and 17:00, `America/New_York` (`TRENDING_BANK_HOURS`, `TRENDING_BANK_TIMEZONE`). A named zone, so 5am survives daylight saving. |
+| From | GNews `top-headlines`: one call per category worldwide, one per country (`GNEWS_CATEGORIES`, `GNEWS_COUNTRIES`), then one `search` per leading candidate to count how widely it runs (`GNEWS_CORROBORATE`). About 26 requests an edition. |
+| Ranked on | how many articles run it (`totalArticles`, log-scaled), how many top-story feeds lead with it, and how high. At most three from one section. |
+| Holds | `TRENDING_BANK_SIZE` stories (10), composed into tiles by `stories.compose` exactly as the pool's are. |
+| Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept until the next edition plus an hour. |
+| Shown | by the Trending rail and its "View more", through `topics.world_inventory`. Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
+| Stored | `TRENDING_BANK_DB` on the mounted disk, with the GNews request ledger (`GNEWS_DAILY_REQUESTS`). |
+
+**The crutch.** GDELT is asked only when GNews is not configured, fails on
+every feed, or returns nothing - four regional reads, one at a time, 5.5
+seconds apart. Every edition records `source`, `fell_back_from` and `detail`,
+and `/api/health` shows them. An edition built from the crutch is rebuilt
+from GNews on the next scheduler tick once `GNEWS_KEY` is set.
+
+**The one rule it bends, at the owner's direction.** `cache.ttl_for` gives a
+news episode fifteen minutes (`CACHE_TTL_VOLATILE`), which would expire a
+5am edition before anybody woke. A bank episode keeps until the next edition.
+It still never keeps a score in progress, and never writes ahead a question
+whose answer is a result (`outcome_dependent`) - that tile is offered and
+the tap writes it.
+
+**What still does not use it.** Made for you and What you missed read the
+live pool, not the bank. The pool's own GDELT sweep still runs every fifteen
+minutes and still times out from Render; with `GNEWS_KEY` set it is worth
+turning that off (`STORIES_SOURCES=trending,finnhub,polymarket,api-sports`) so it stops spending
+GDELT's patience that the crutch may need.
+
+**Operating it.** `python tools/trending_bank.py` prints the schedule and the
+edition; `--verify` makes one real GNews request; `--dry` collects and ranks
+without writing; `--build` rebuilds the current slot now; `--url` reads a
+running server. Nothing here has made a real GNews request - gnews.io is
+blocked from the build container, so every shape is from the v4 docs.

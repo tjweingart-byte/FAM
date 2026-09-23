@@ -171,13 +171,18 @@ class Cluster:
                       key=lambda kv: (-kv[1], kv[0] != "world", kv[0]))[0][0]
 
 
-def cluster(articles: Iterable, scope_of=None) -> list:
+def cluster(articles: Iterable, scope_of=None,
+            min_outlets: int = MIN_OUTLETS) -> list:
     """Group articles into stories. Largest first, singletons dropped.
 
     `articles` are anything with `title`, `url`, and optionally `country` and
     `published_date` - the Exa-shaped results `gdelt.parse_articles` returns.
     `scope_of(article)` says which sweep found it, when the caller knows.
     Duplicate URLs are read once.
+
+    `min_outlets` is how many distinct outlets a story needs to count. Two for
+    an index sample, where one outlet is noise; one for a top-headlines feed
+    (`trending_bank`), where the press putting it at the top is the signal.
     """
     groups: list = []
     seen: set = set()
@@ -227,7 +232,7 @@ def cluster(articles: Iterable, scope_of=None) -> list:
         best.named.update(called)
         best.size += 1
 
-    stories = [g for g in groups if g.outlets >= MIN_OUTLETS]
+    stories = [g for g in groups if g.outlets >= min_outlets]
     stories.sort(key=lambda g: (-g.outlets, -g.size, g.headline()))
     return stories
 

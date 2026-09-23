@@ -11140,3 +11140,64 @@ others, or in the pool). `ALGO_VERSION` is `2026-09-23.3`.
 **Unmeasured.** How many tiles on a real page are cached is a fact about a
 deployment's traffic. The `cached` flag on every tile already says it per
 page; nothing aggregates it yet.
+
+## 137. Trending as an edition: GNews twice a day, ten episodes written ahead
+
+**What was reported.** On every open of the demo, Trending said "The live
+sources didn't answer in time."
+
+**Cause.** That sentence is `stories.Pool.empty_reason` for a pool that is
+empty and has a source that timed out. The source was the GDELT story sweep
+(§135): about fifteen volume requests at once, then seventeen article lists
+six at a time, inside a forty-five second ceiling (`GdeltSignals.timeout_seconds`).
+GDELT asks for one request every five seconds per address, and Render's
+outbound addresses are shared, so the sweep could not finish in time on any
+run. Nothing else feeds Trending since §134 ruled the bank and startup set
+off the row, so the row was empty everywhere. The design (one background
+sweep for everybody) was right; the source could not carry it.
+
+**What changed, at the owner's direction.** Trending is now an edition
+(`trending_bank.py`, `gnews.py`, TRENDING.md "The trending bank"):
+
+* Built at **05:00 and 17:00 America/New_York**, a named zone so the hour
+  survives DST, from **GNews**: `top-headlines` per category and per country,
+  then one `search` per leading candidate for `totalArticles`. About 26
+  requests an edition, counted against `GNEWS_DAILY_REQUESTS` in the bank's
+  own database before each is made.
+* **Ten stories** (`TRENDING_BANK_SIZE`), composed into tiles by the pool's
+  composer, and **ten episodes** written into the shared script cache under
+  `pipeline.key_for`, the key a tap computes, at `TRENDING_BANK_MINUTES` (2,
+  the myFAM length default). A tap is a cache hit; §132 keeps the audio after
+  the first play.
+* **GDELT is the crutch**: asked only when GNews is unset, fails or returns
+  nothing, with four regional reads one at a time 5.5s apart. Every edition
+  records `source`, `fell_back_from` and `detail`, on `/api/health` as
+  `trending_bank`.
+* **One builder per slot** across workers and restarts (a claim row in
+  SQLite; a claim quiet for twenty minutes is a crash and is taken over). On
+  boot a slot with no edition is built immediately, and a slot built from the
+  crutch is rebuilt once `GNEWS_KEY` is set - so adding the key on Render and
+  redeploying is the whole procedure.
+* The Trending rail and its View more read the edition through
+  `topics.world_inventory`, and fall back to the live pool only when there is
+  no edition. §134 and §136 are untouched: popularity and country order the
+  row, and a heard story is a follow-up or gone.
+
+**The rule it bends, stated.** `cache.ttl_for` gives a news episode fifteen
+minutes, which would expire a 5am edition before anybody woke. A bank
+episode keeps until the next edition plus an hour. Still never kept: a score
+in progress. Still never written ahead: a question whose answer is a result
+(`outcome_dependent`). Both are offered and the tap writes them, as prefetch
+does.
+
+**Found while testing it.** A Title Case headline capitalises every word, so
+"names first" picked arbitrary words for the coverage search and dropped the
+subject. And the GDELT crutch named a class that does not exist
+(`GdeltStorySource`), which a test that mocked the crutch whole could not
+see. It now has a test that runs the real function against a faked GDELT.
+
+**Not verified.** gnews.io is blocked from the build container, so every
+response shape is from the v4 docs, and nobody has heard a bank episode. The
+first run with a key is `python tools/trending_bank.py --verify`, then
+`--dry`. The pool's own GDELT sweep is unchanged and still times out from
+Render; it no longer feeds Trending, but it still feeds Made for you.
