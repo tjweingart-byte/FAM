@@ -87,19 +87,21 @@ def test_trending_keeps_four_tiles_when_the_pool_can_fill_it(store):
         f"Trending showed {len(world)} tiles from a pool of six")
 
 
-def test_a_pool_too_small_to_fill_trending_is_not_taken_from_the_listener(store):
-    """The floor is reserved only when reserving buys it.
-
-    A pool holding one story cannot fill this row however it is shared out,
-    so holding that story back would take it off the personal rail and still
-    leave Trending short - a cost with nothing bought.
-    """
+def test_a_pool_too_small_to_fill_trending_leaves_it_short_and_never_fakes_it(store):
+    """§133 replaces the old rule here. Trending used to give a thin pool's one
+    story to the personal rail and top itself up from the startup set and the
+    evergreen bank; the owner has since ruled both off the row ("the trending
+    section of myFAM should never show the dummy data episodes"). So one story
+    in the world is one tile on Trending - the loudest, whoever is looking -
+    and nothing FAM wrote itself stands in for the other three."""
     finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"))
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
-    feed = T.build_feed(store, "me", floors={})
-    assert rail(feed, "from_history")["topics"], "the one story went to nobody"
-    assert rail(feed, "from_history")["topics"][0]["id"].startswith("st-")
+    feed = T.build_feed(store, "me")        # the real floors, not {}
+    world = [t["id"] for t in rail(feed, "world_trending")["topics"]]
+    assert world == [stories.story_id("the chip export rules")]
+    generic = {t.id for t in T.TOPIC_BANK} | {t.id for t in T.STARTUP_TOPICS}
+    assert not generic & set(world), "Trending showed a dummy tile"
 
 
 def test_an_empty_trending_rail_still_never_blames_the_world(store):
@@ -198,7 +200,11 @@ def test_trending_is_the_last_source_for_what_you_missed(store):
     one Made for you exists to offer them. So the rail's first pass excludes
     trending and it is topped up from the leftovers afterwards."""
     finished(store, "me", "chip-supply", "nvidia chip supply", ("tech", "chips"))
-    stories.seed([story("the chip export rules", ("tech", "chips"))])
+    # Four louder stories for Trending, which since §133 takes the loudest
+    # four before any personal rail chooses, and one left over for this.
+    stories.seed([story(f"world story {n}", (facet,))
+                  for n, facet in enumerate(("world", "money", "culture", "science"))]
+                 + [story("the chip export rules", ("tech", "chips"), strength=0.5)])
 
     feed = T.build_feed(store, "me", floors={})
     made = {t["id"] for t in rail(feed, "from_history")["topics"]}

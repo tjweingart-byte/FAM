@@ -767,6 +767,17 @@ class Settings:
     cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 86400)
     # Lifetime for queries that read as time-sensitive ("latest", "today").
     cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 900)
+    # How long an evergreen episode may be kept alive by being played (§133).
+    # A play of an entry written at the ordinary ceiling pushes its expiry a
+    # full `cache_ttl_seconds` forward, up to this age from when it was
+    # written. The voice is a rented GPU, so an episode that keeps being
+    # played is exactly the one whose stored audio is worth keeping - and a
+    # fixed day from the first write threw it away on the busiest ones.
+    # Anything shorter-lived (volatile words, a result-dependent question, a
+    # one-day evidence window, a scheduled fixture) never slides, so nothing
+    # here can make a claim about *now* outlive the window it was true in.
+    # 0 turns sliding off and restores the fixed lifetime exactly.
+    cache_max_age_seconds: int = _env_int("CACHE_MAX_AGE_SECONDS", 30 * 86400)
     # Use a small model to canonicalise queries before looking them up. Raises
     # the hit rate across differently-worded requests, at the cost of one fast
     # call (~400ms) in front of every request. See cache.canonical_key.

@@ -145,8 +145,7 @@
   .seed-thumb{ width:100%; aspect-ratio:4/3; background:#EDE6D6; position:relative; overflow:hidden; }
   .seed-thumb svg{ position:absolute; inset:0; width:100%; height:100%; }
   .seed-card-body{ padding:10px 11px 12px; }
-  .seed-card-title{ font-family:'Fraunces', serif; font-weight:600; font-size:12.5px; line-height:1.28; color:var(--text); margin-bottom:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }.seeds-refresh{ display:flex; align-items:center; justify-content:center; gap:7px; padding:16px 0 6px; color:var(--copper); font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:700; cursor:pointer; }
-  .seeds-refresh:active{ opacity:0.7; }
+  .seed-card-title{ font-family:'Fraunces', serif; font-weight:600; font-size:12.5px; line-height:1.28; color:var(--text); margin-bottom:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   /* myFAM sections. Each runs on a different signal, so each says which. */
   .feed-section{ margin:18px 0 4px; }
   .feed-section + .feed-section{ margin-top:22px; }.feed-empty{ padding:14px 13px; border:1px dashed var(--border-strong); border-radius:12px;
@@ -436,9 +435,13 @@
      text on a dark field with the question set left, so a cluster in the
      corner read as leftovers rather than as a group. Centred, the two rows
      share an axis with the progress bar between them. */
+  /* Five controls since §133 (like and dislike joined vibe, share and
+     save), so the gap came down from 34px: five 40px buttons at 16px apart
+     is 264px, inside the narrowest phone this is drawn for with room to
+     spare - the overflow the note on the markup warns about. */
   .reel-actions{ flex:none; display:flex; align-items:flex-end;
-    justify-content:center; gap:34px; padding:0 2px 16px; }
-  .reel-act{ width:40px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:16px; padding:0 2px 16px; }
+  .reel-act{ width:40px; flex:none; display:flex; flex-direction:column; align-items:center;
     gap:5px; color:var(--text); cursor:pointer; }
   .reel-act:active{ transform:scale(0.94); }
   .reel-act svg{ width:34px; height:34px; padding:8px; border-radius:50%;
@@ -448,6 +451,14 @@
   .reel-act.echoed svg{ background:var(--copper); border-color:var(--copper);
     color:var(--ink); }
   .reel-act.echoed span{ color:var(--copper); }
+  /* Explore's counts (§133): a number over each word - vibes, likes,
+     dislikes - so a card says how an episode has landed with everybody else
+     before anybody decides whether to stay on it. */
+  .reel-act .reel-num{ font-size:9.5px; font-weight:700; letter-spacing:0.02em;
+    color:var(--text); margin-bottom:-3px; }
+  .reel-act.rated svg{ background:var(--copper); border-color:var(--copper);
+    color:var(--ink); }
+  .reel-act.rated span{ color:var(--copper); }
   .reel-stage.turning .reel-body{ opacity:0; transform:translateY(18px); }
   .reel-body{ transition:opacity 220ms ease, transform 220ms ease; }
   .reel-progress{ flex:none; position:relative; height:3px; border-radius:2px;
@@ -703,7 +714,15 @@
   .mini-title{ font-family:'Fraunces', serif; font-weight:500; font-size:22px; color:var(--text); margin-bottom:8px; }
   .mini-src{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--copper); letter-spacing:0.08em; text-transform:uppercase; }
   .player-controls-2row{ flex:none; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px 18px 20px; }
-  .pc-row1{ display:flex; align-items:center; gap:16px; }
+  .pc-row1{ position:relative; display:flex; align-items:center; gap:16px; }
+  /* DailyFAM's "skip to next" (§133). Beside the transport rather than in
+     it, so the play button stays dead centre on every surface and the row
+     is the same three controls wherever this button is not drawn - which is
+     everywhere but a mix. */
+  .mix-skip{ position:absolute; left:calc(100% + 16px); top:50%;
+    transform:translateY(-50%); }
+  .mix-skip:active{ transform:translateY(-50%) scale(0.94); }
+  .mix-skip[hidden], .mini-ctrl-btn[hidden]{ display:none; }
   /* The extra bottom padding is the icon captions' room. */
   .pc-row2{ display:flex; align-items:center; gap:10px; padding-bottom:11px; }
   .mini-ctrl-btn{ width:38px; height:38px; border-radius:50%; background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
@@ -1592,6 +1611,12 @@
     font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.07em;
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
+  /* The end of a DailyFAM playlist (§133): the same card as What's next, and
+     deliberately nothing in it that plays anything. */
+  .mixdone-card{ text-align:center; padding:24px 20px 14px; }
+  .mixdone-h{ font-family:'Fraunces', serif; font-weight:600; font-size:19px;
+    line-height:1.3; color:var(--text); margin:0 0 8px; }
+  .mixdone-sub{ font-size:12px; line-height:1.55; color:var(--text-muted); }
 
 
   /* ============ EXPLORE NEW ============ */
@@ -2261,10 +2286,11 @@
           </div>
           <div id="goDeeperBlock"></div>
           <div id="myfamFeed"></div>
-          <div class="seeds-refresh" onclick="refreshSeedsFeed()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12a10 10 0 0116-7.7M22 12a10 10 0 01-16 7.7M2 4v6h6M22 20v-6h-6"/></svg>
-            <span>Different picks</span>
-          </div>
+          <!-- "Different picks" used to sit here and reload the page for a
+               fresh draw. Removed at the owner's direction: every rail now
+               shows exactly four and its "View more" holds the rest of the
+               same ranking, so a second way to see more picks was a control
+               doing the same job as another one, less well. -->
         </div>
 
         <div class="nowbar" id="nowBar" onclick="openNowPlaying()" hidden>
@@ -2408,6 +2434,10 @@
             <div class="mini-ctrl-btn seek" onclick="skipAudio(-15)" title="Back 15 seconds" aria-label="Back 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M5.95 6.92A7.9 7.9 0 1 1 5.95 17.08" stroke-width="1.9"/><path d="M1.9 12 6.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
             <div class="mini-play-btn" onclick="togglePlay()"><div id="playIcon2"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div></div>
             <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M18.05 6.92A7.9 7.9 0 1 0 18.05 17.08" stroke-width="1.9"/><path d="M22.1 12 17.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
+            <!-- Only while a DailyFAM playlist is playing (§133): the next
+                 episode in the playlist. Hidden everywhere else, because
+                 everywhere else there is no "next" anybody chose. -->
+            <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l10 8-10 8V4z" fill="currentColor"/><path d="M19 5v14"/></svg></div>
           </div>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 2 min</div>
@@ -2491,8 +2521,22 @@
                every feed puts them and where a sixth control can be added
                without the row overflowing again. -->
           <div class="reel-actions">
+            <!-- Like and dislike, each with its count, and the vibe count on
+                 the vibe button (§133). The numbers are everybody's; the lit
+                 state is this listener's own. -->
+            <div class="reel-act" id="reelLike" onclick="rateReel(1)" title="Like this episode" aria-label="Like this episode" aria-pressed="false">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4V10h3z"/><path d="M7 10l4-7a2 2 0 0 1 3 2l-1 4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"/></svg>
+              <span class="reel-num" id="reelLikeN">0</span>
+              <span>like</span>
+            </div>
+            <div class="reel-act" id="reelDislike" onclick="rateReel(-1)" title="Dislike this episode" aria-label="Dislike this episode" aria-pressed="false">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V4h3v10h-3z"/><path d="M17 14l-4 7a2 2 0 0 1-3-2l1-4H5.5a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 6.7 4H17"/></svg>
+              <span class="reel-num" id="reelDislikeN">0</span>
+              <span>dislike</span>
+            </div>
             <div class="reel-act" id="reelEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends" aria-label="VIBE! this to your friends">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg>
+              <span class="reel-num" id="reelVibeN" title="How many people have vibed this">0</span>
               <span class="vibe-cap">vibe</span>
             </div>
             <div class="reel-act" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode">
@@ -2630,6 +2674,16 @@
            shown on Explore or Explore New: both are already continuous
            exploration, and a popup between cards there interrupts rather
            than helps. -->
+      <!-- The end of a DailyFAM playlist (§133). Everything in it has been
+           played, so nothing else starts: no countdown, no recommendation. -->
+      <div class="modal-overlay" id="mixDoneOverlay">
+        <div class="nextup-card mixdone-card" role="dialog" aria-labelledby="mixDoneH">
+          <div class="mixdone-h" id="mixDoneH">You have finished listening to your playlist for today</div>
+          <div class="mixdone-sub">Tomorrow it will have new episodes on the same subjects.</div>
+          <button class="nextup-back" onclick="closeMixDone(true)">Back to DailyFAM</button>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="nextUpOverlay">
         <div class="nextup-card">
           <div class="nextup-h">What&rsquo;s next</div>
@@ -4313,13 +4367,23 @@
     });
   }
 
+  // Explore's vibe count moves with the listener's own vibe (§133). Only when
+  // the episode vibed is the card on screen - a vibe sent from the search
+  // player must not redraw a reel card about something else.
+  function refreshVibeCount(ep){
+    if(typeof reelCurrent !== "undefined" && reelCurrent && ep
+       && reelCurrent.query === ep.query && reelCurrent.minutes === ep.minutes)
+      refreshReelStats();
+  }
+
   function toggleEcho(){
     var ep = currentEpisode();
     if(!ep){ toast("Play something first"); return; }
     if(echoedNow){
       fetch("/api/vibe?q=" + encodeURIComponent(ep.query) + "&minutes=" + ep.minutes,
             { method: "DELETE" })
-        .then(function(){ setEchoed(false); toast("Vibe taken back"); })
+        .then(function(){ setEchoed(false); toast("Vibe taken back");
+                          refreshVibeCount(ep); })
         .catch(function(){ toast("Could not take that back"); });
       return;
     }
@@ -4336,6 +4400,7 @@
     }).then(function(){
       setEchoed(true);
       toast("VIBE! \u2014 your friends will see this");
+      refreshVibeCount(ep);
     }).catch(function(err){ toast(err.message || "Could not vibe that"); });
   }
 
@@ -4493,12 +4558,24 @@
     var context = t.parentTopic || "";
     var playOpts = { cachedOnly: !!t.cachedOnly, minutes: t.exploreMinutes || 0,
                      attach: t.attach || "" };
+    // A DailyFAM playlist entry ends by playing the next one (§133), and
+    // anything else that starts playing means the playlist is over - the
+    // listener went and chose something, and a queue that resumed behind
+    // their back would be the tap-to-advance mistake again.
+    var mixOnEnd = null;
+    if(t.fromMix && mixPlay && mixPlay.key === key){
+      playOpts.nextUp = false;
+      mixOnEnd = function(){ advanceMix(key); };
+    } else if(!t.fromMix){
+      mixPlay = null;
+    }
+    drawMixSkip(!!mixOnEnd);
     // Both paths end the same way now: the "what's next" popup. It used to
     // jump straight into a random myFAM topic when the episode had not come
     // from search, which is a recommendation nobody made and nobody could
     // decline. Album continuity is not lost - the popup's countdown tile is
     // the next episode in the album whenever there is one.
-    speakText(query, t.caption, null, context, t.bankTopicId, playOpts);
+    speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
@@ -5609,10 +5686,98 @@
     navigate("mixdetail");
   }
 
+  // ---------------- A DailyFAM playlist, played through ----------------
+  // (§133.) "Play all" used to play the first episode and stop, and tapping
+  // one episode played that one - and then the generic What's next popup
+  // counted down into a recommendation, so a playlist somebody built fell
+  // through to whatever the ranking liked after one episode.
+  //
+  // Now a mix is a queue. Play all starts at the top; tapping an episode
+  // starts there, and either way every episode in the mix is played once, in
+  // the mix's own order (wrapping round to the ones above a tapped start),
+  // then playback stops and says the playlist is done for today. Nothing is
+  // recommended at the end, because the end is the point.
+  //
+  // Its own state rather than `currentMixId`, which is only the mix whose
+  // screen was last opened - opening another mix while this one plays must
+  // not change what plays next.
+  var mixPlay = null;   // { name, order: [items], pos, key }
+
   function playMix(){
     var m = mixById(currentMixId);
     if(!m || !m.items.length){ toast("Add a topic first"); return; }
-    playMixItem(m.items[0]);
+    startMixQueue(m, 0);
+  }
+
+  function playMixFrom(itemId){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    for(var i = 0; i < m.items.length; i++){
+      if(m.items[i].id === itemId){ startMixQueue(m, i); return; }
+    }
+  }
+
+  function startMixQueue(m, start){
+    var items = m.items.slice();
+    mixPlay = { name: m.name || "DailyFAM",
+                order: items.slice(start).concat(items.slice(0, start)),
+                pos: 0, key: "" };
+    playMixItem(mixPlay.order[0]);
+  }
+
+  // The next one in the playlist, or the end of it. `fromKey` is the episode
+  // that just finished or was skipped: an end arriving for anything other
+  // than the episode the queue is on is a stale callback and moves nothing.
+  function advanceMix(fromKey){
+    if(!mixPlay || (fromKey && fromKey !== mixPlay.key)) return;
+    mixPlay.pos += 1;
+    if(mixPlay.pos < mixPlay.order.length){
+      playMixItem(mixPlay.order[mixPlay.pos]);
+      return;
+    }
+    finishMix();
+  }
+
+  function skipMixItem(){
+    if(!mixPlay) return;
+    var from = mixPlay.key;
+    // The same bookkeeping as leaving any episode early - a skip is evidence
+    // - and then the next in line, never the What's next popup.
+    stopSpeech();
+    setPlayState(false);
+    advanceMix(from);
+  }
+
+  function finishMix(){
+    var name = mixPlay ? mixPlay.name : "";
+    mixPlay = null;
+    drawMixSkip(false);
+    stopSpeech();
+    setPlayState(false);
+    hideNowBar();
+    var h = document.getElementById("mixDoneH");
+    if(h) h.textContent = "You have finished listening to your "
+      + (name || "DailyFAM") + " playlist for today";
+    var overlay = document.getElementById("mixDoneOverlay");
+    if(overlay) overlay.classList.add("active");
+  }
+
+  function closeMixDone(toDaily){
+    var overlay = document.getElementById("mixDoneOverlay");
+    if(overlay) overlay.classList.remove("active");
+    if(toDaily) openPlayFAM();
+  }
+
+  // Something other than the playlist started. Its queue is over, and the
+  // button that would have continued it goes with it.
+  function endMixQueue(){
+    mixPlay = null;
+    drawMixSkip(false);
+  }
+
+  function drawMixSkip(on){
+    var btn = document.getElementById("mixSkipBtn");
+    if(btn) btn.hidden = !on;
   }
 
   // Works for both kinds of entry: a bank topic and a typed one both end up
@@ -5625,17 +5790,13 @@
       caption: "Live captions will appear here as this plays\u2014",
       prompt: item.query,
       bankTopicId: item.custom ? "" : item.id,
-      titleOverridden: true
+      titleOverridden: true,
+      // What makes the player treat this as a playlist entry: its end plays
+      // the next one instead of offering What's next. See `populatePlayer`.
+      fromMix: true
     };
+    if(mixPlay) mixPlay.key = key;
     generate(key);
-  }
-
-  function playMixFrom(itemId){
-    var m = mixById(currentMixId);
-    if(!m) return;
-    for(var i = 0; i < m.items.length; i++){
-      if(m.items[i].id === itemId){ playMixItem(m.items[i]); return; }
-    }
   }
 
   function openMixMenu(){
@@ -6646,10 +6807,6 @@
           + 'Search still works, and this will fill in when the server is back.</div>';
       });
   }
-  function refreshSeedsFeed(){
-    loadMyFamFeed();
-    toast("Fresh picks \u2713");
-  }
 
   function startBankTopic(topicId){
     var t = myFamTopics[topicId];
@@ -6694,6 +6851,8 @@
     var t = TOPICS[key];
     document.getElementById("pa-title").textContent = t.title;
     document.getElementById("pa-src").textContent = "from " + t.source;
+    // An Explore album taking over ends any DailyFAM playlist (§133).
+    endMixQueue();
     speakText(t.prompt || t.title, t.caption, function(){
       // Mid-album, a finished segment simply runs on. The popup is for the
       // end of the run, which is the point at which "what now" is a real
@@ -9422,9 +9581,90 @@
     document.getElementById("reelSub").textContent =
       relativeAge(ep.age_seconds) + " · " + ep.minutes + " min"
       + (ep.thread ? " · leads to " + ep.thread : "");
-    document.getElementById("reelCount").textContent =
-      (reelHistory.length) + " played";
+    drawReelStats();
     document.getElementById("reelHint").style.visibility = "visible";
+  }
+
+  // **The numbers on an Explore card are the episode's, not this session's**
+  // (§133). The top-right corner used to read `reelHistory.length + " played"`
+  // - how many cards *this listener* had swiped past - under a card whose
+  // every other line was about the episode, so it read as that episode's play
+  // count and was nothing of the kind. It is `scripts.plays` now: counted by
+  // the server where an episode actually starts, for everybody, and re-read
+  // once this card's own play has begun so the number includes it.
+  function drawReelStats(){
+    var ep = reelCurrent;
+    if(!ep) return;
+    var plays = Math.max(0, ep.plays || 0);
+    document.getElementById("reelCount").textContent =
+      plays.toLocaleString() + (plays === 1 ? " play" : " plays");
+    var put = function(id, n){
+      var el = document.getElementById(id);
+      if(el) el.textContent = Math.max(0, n || 0).toLocaleString();
+    };
+    put("reelVibeN", ep.vibes);
+    put("reelLikeN", ep.likes);
+    put("reelDislikeN", ep.dislikes);
+    [["reelLike", 1], ["reelDislike", -1]].forEach(function(pair){
+      var el = document.getElementById(pair[0]);
+      if(!el) return;
+      var on = (ep.rating || 0) === pair[1];
+      el.classList.toggle("rated", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function takeReelStats(ep, d){
+    if(!ep || !d) return;
+    ["plays", "vibes", "likes", "dislikes", "rating"].forEach(function(k){
+      if(typeof d[k] === "number") ep[k] = d[k];
+    });
+    if(typeof d.my_vibe === "boolean") ep.my_vibe = d.my_vibe;
+    if(ep === reelCurrent){
+      drawReelStats();
+      if(typeof d.my_vibe === "boolean") setEchoed(d.my_vibe);
+    }
+  }
+
+  // Fresh numbers for the card on screen. Never throws and never blanks
+  // anything: a failure leaves the numbers the feed arrived with.
+  function refreshReelStats(){
+    var ep = reelCurrent;
+    if(!ep) return;
+    fetch("/api/episode/stats?q=" + encodeURIComponent(ep.query)
+          + "&minutes=" + ep.minutes
+          + "&key=" + encodeURIComponent(ep.key || ""))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ takeReelStats(ep, d); })
+      .catch(function(){});
+  }
+
+  // Like or dislike the card on screen; the same thumb again takes it back.
+  // Drawn at once and then corrected from the server's own counts, so the
+  // button answers the tap and the numbers are never a guess for long.
+  function rateReel(value){
+    var ep = reelCurrent;
+    if(!ep){ toast("Nothing is playing"); return; }
+    var before = { rating: ep.rating || 0, likes: ep.likes || 0,
+                   dislikes: ep.dislikes || 0 };
+    var next = before.rating === value ? 0 : value;
+    if(before.rating === 1) ep.likes = Math.max(0, before.likes - 1);
+    if(before.rating === -1) ep.dislikes = Math.max(0, before.dislikes - 1);
+    if(next === 1) ep.likes = (ep.likes || 0) + 1;
+    if(next === -1) ep.dislikes = (ep.dislikes || 0) + 1;
+    ep.rating = next;
+    drawReelStats();
+    fetch("/api/rate", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: ep.query, minutes: ep.minutes, value: next })
+    }).then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ takeReelStats(ep, d); })
+      .catch(function(){
+        ep.rating = before.rating; ep.likes = before.likes;
+        ep.dislikes = before.dislikes;
+        drawReelStats();
+        toast("Could not save that");
+      });
   }
 
   function relativeAge(seconds){
@@ -9475,7 +9715,12 @@
   function playReel(){
     var ep = reelCurrent;
     if(!ep) return;
-    setEchoed(false);
+    // So does a reel card - it is somebody choosing something else (§133).
+    endMixQueue();
+    // This listener's own vibe on this card, as the feed reported it - it
+    // used to open every card unvibed, so a vibe somebody had already sent
+    // looked untaken and a second tap took it back.
+    setEchoed(!!ep.my_vibe);
     setSaved(false);
     setTimeout(refreshSavedState, 0);
     markPlaying();
@@ -9483,6 +9728,9 @@
       onFirstAudio: function(){
         reelFailures = 0;          // a card that plays clears the streak
         startReelProgress(ep.minutes * 60);
+        // The server counted this play before the first sample left it, so
+        // the number re-read now includes it.
+        refreshReelStats();
       },
       onEnd: function(){
         stopReelProgress();

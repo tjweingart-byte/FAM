@@ -118,9 +118,21 @@ def test_a_tile_carries_a_question_worth_an_episode_and_not_a_headline():
 # --------------------------------------------------------------------------
 # Made for you: both inventories, heavily personal
 # --------------------------------------------------------------------------
+def _world_takes_four_louder_ones():
+    """Four loud stories on four subjects, for Trending to take first.
+
+    Since §133 Trending chooses before any personal rail and takes the four
+    loudest stories whoever is looking, so a test about what Made for you does
+    with a live story has to leave one over for it.
+    """
+    return [story(f"world story {n}", (facet,), strength=1.0)
+            for n, facet in enumerate(("world", "money", "culture", "science"))]
+
+
 def test_made_for_you_mixes_live_stories_with_the_evergreen_bank(store):
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
-    stories.seed([story("the chip export rules", ("tech", "chips"))])
+    stories.seed(_world_takes_four_louder_ones()
+                 + [story("the chip export rules", ("tech", "chips"), strength=0.5)])
 
     feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
@@ -135,10 +147,11 @@ def test_a_fresh_story_outranks_a_standing_explainer_on_the_same_taste(store):
     whose tags came off a keyword sweep, so without a thumb on the scale the
     bank wins every time and the page never changes."""
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
-    stories.seed([story("the chip export rules", ("tech", "chips"))])
+    stories.seed(_world_takes_four_louder_ones()
+                 + [story("the chip export rules", ("tech", "chips"), strength=0.5)])
     feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
-    assert made["topics"][0]["id"].startswith("st-")
+    assert made["topics"][0]["id"] == stories.story_id("the chip export rules")
 
 
 def test_a_story_nobody_in_this_listener_cares_about_stays_off_their_rail(store):
@@ -250,9 +263,12 @@ def test_no_rail_becomes_one_subject(store):
         # the next test), so the assertion that survives both behaviours is
         # the one a listener would actually make: this row is about more than
         # one thing.
-        assert len(set(facets)) >= 3, (
+        #
+        # Four tiles since §133, so "about more than one thing" is at most two
+        # of any one subject - `MAX_PER_FACET` - and therefore at least two.
+        assert len(set(facets)) >= 2, (
             f"{section['key']} is really one subject: {facets}")
-        assert max(facets.count(f) for f in set(facets)) <= T.SECTION_SIZE - 2, (
+        assert max(facets.count(f) for f in set(facets)) <= T.MAX_PER_FACET, (
             f"{section['key']} is dominated by one subject: {facets}")
 
 
@@ -393,26 +409,21 @@ def test_an_impression_on_a_live_story_is_recorded_with_its_tags(store):
     assert shown and shown[0].tags == ("tech", "chips")
 
 
-def test_an_empty_trending_rail_never_blames_the_sources_for_our_own_ordering(store):
-    """Made for you chooses first, so it can empty this rail on a day the pool
-    served perfectly well. Saying "the live sources had nothing" there would be
-    our own page's arrangement reported as a fact about the world - §89's
-    mistake with a new way in."""
+def test_trending_takes_the_story_even_when_it_is_exactly_this_listeners_taste(store):
+    """It used to be the other way round: Made for you chose first, so a story
+    this listener's history claimed was taken off the world row. §133 reverses
+    that at the owner's direction - "a user's interests or past listens should
+    not affect the content of the trending section" - so the loudest story in
+    the world is on Trending whoever is looking, and the personal rail avoids
+    it rather than the other way round."""
     play(store, "me", "chip-supply", kind="complete", tags=("tech", "chips"))
-    # One story, and it is one this listener's history claims.
     stories.seed([story("the chip export rules", ("tech", "chips"))])
 
     feed = T.build_feed(store, "me", floors={})
     by_key = {s["key"]: s for s in feed["sections"]}
-    assert by_key["from_history"]["topics"], "the rail above did not claim it"
-    row = by_key["world_trending"]
-    assert row["topics"] == []
-    said = row["empty_reason"].lower()
-    assert "made for you" in said, f"the rail does not say where it went: {said}"
-    for blame in ("didn't answer", "had nothing", "isn't connected",
-                  "couldn't reach"):
-        assert blame not in said, (
-            f"an empty rail blamed the sources for our own ordering: {said}")
+    sid = stories.story_id("the chip export rules")
+    assert [t["id"] for t in by_key["world_trending"]["topics"]] == [sid]
+    assert sid not in [t["id"] for t in by_key["from_history"]["topics"]]
 
 
 def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
@@ -563,6 +574,5 @@ def test_the_rail_offers_no_more_than_the_packet_asks_for(store):
     now = time.time()
     _shown(store, list(T.TOPIC_BANK)[:20], now - 86400)
     rail = _missed(store, now=now)
-    assert 6 <= len(rail["topics"]) <= 8, \
-        f"the rail showed {len(rail['topics'])} tiles"
-    assert len(rail["topics"]) == T.MISSED_SECTION_SIZE
+    # Exactly four since §133, like every rail; the rest is behind View more.
+    assert len(rail["topics"]) == T.MISSED_SECTION_SIZE == T.SECTION_SIZE

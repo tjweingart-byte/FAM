@@ -87,7 +87,15 @@ HALF_LIFE = 14 * 86400
 TRENDING_WINDOW = 3 * 86400
 #: Never show the same tile in two sections; the feed should look wider than
 #: the bank actually is.
-SECTION_SIZE = 6
+#:
+#: **Exactly four on the page, and "View more" holds the rest** (§133, at the
+#: owner's direction: "make sure there are exactly 4 tiles in each rail at all
+#: times"). It was six, with per-rail floors under it, and a rail that could
+#: show anything from one to eight tiles read as broken. The two rails that
+#: report rather than choose - what FAM plays and what friends play - may show
+#: fewer, because filling them would be inventing plays; the moment they have
+#: four they show exactly four like everything else. See `RAIL_MINIMUM`.
+SECTION_SIZE = 4
 
 #: How far back a friend's listening still counts. Longer than `TRENDING_WINDOW`
 #: on purpose: the crowd row is asking "what is being played *now*", which is a
@@ -119,7 +127,9 @@ MAX_PER_FACET = 2
 #: is enough and is honestly short when there is not. Padding it out to eight
 #: from things the listener was never offered would make the heading a lie.
 MISSED_WINDOW = 7 * 86400
-MISSED_SECTION_SIZE = 8
+#: Four, like every rail since §133. It was eight; the rest of what went past
+#: somebody is one tap away behind "View more".
+MISSED_SECTION_SIZE = SECTION_SIZE
 
 #: The fewest tiles the Trending rail may show while the pool can fill it.
 #:
@@ -138,7 +148,11 @@ MISSED_SECTION_SIZE = 8
 #: evergreen bank is twenty-eight topics - while Trending draws on the live
 #: pool alone and has nowhere else to go. An empty rail is a worse answer
 #: than a rail that had to give up its first pick.
-WORLD_FLOOR = 4
+#:
+#: **Superseded by §133**: Trending now chooses first and alone
+#: (`rank_world`), so it is never starved by the personal rails and there is
+#: nothing left to reserve. Kept as the number the row aims for.
+WORLD_FLOOR = SECTION_SIZE
 
 #: The fewest tiles each drawn rail shows, whatever its own ranking found
 #: (§127, at the owner's direction). "Every rail should always display at
@@ -153,8 +167,37 @@ WORLD_FLOOR = 4
 #: after** each rail has chosen, never by weakening the ranking: a rail's own
 #: picks still lead, in its own order, and only the gap under the minimum is
 #: filled. See `_rail_fallback` for what each rail is filled from and why.
-RAIL_MINIMUM = {"from_history": 6, "world_trending": 6,
-                "missed": 4, "most_played": 4}
+#:
+#: **Narrowed by §133, at the owner's direction.** Every rail shows exactly
+#: `SECTION_SIZE`, and only the rails that *choose* are topped up to it:
+#:
+#: * **What FAM can't stop listening to** is out of this table. Topping it up
+#:   from tiles nobody has played is making up plays under a heading that
+#:   claims them ("it should not make up episodes"); it holds what was played
+#:   and shows four the moment four have been.
+#: * **Trending** is out of it too, for a stronger reason: its fallback was
+#:   the startup set and then the bank - the "dummy data" the owner has now
+#:   ruled off that row entirely. It holds live stories and nothing else.
+#: * **What your friends are listening to** was never in it.
+RAIL_MINIMUM = {"from_history": SECTION_SIZE, "missed": SECTION_SIZE}
+
+#: How much a story running in the listener's own country is lifted on the
+#: Trending rail, per unit of that country's share of the coverage (§133).
+#:
+#: The owner's rule for that row: popularity, and "the only factor that should
+#: have input in it other than popularity is the country the user is in (and
+#: how stories are trending in that country)". So a story whose coverage is
+#: entirely from their country counts double, one that is half from it counts
+#: one-and-a-half times, and one that nobody there is writing about keeps its
+#: global weight exactly - a boost, never a filter, because a genuinely
+#: global story is trending *for* them whether or not their press has it.
+COUNTRY_WEIGHT = 1.0
+
+#: How many tiles one facet may take on the Trending rail. One, which on a
+#: four-tile row is the most variety the row can have ("there should be more
+#: variety in the recommended episodes"). A cap, never a quota: a pool that is
+#: all one subject still fills the row, from the tiles the cap passed over.
+WORLD_MAX_PER_FACET = 1
 
 #: What a live story is worth next to an evergreen one of the same affinity.
 #:
@@ -311,6 +354,10 @@ class Topic:
     #: pushed right now, between 0 and 1. Zero for the bank, which is not
     #: pushed at all - it is simply always there.
     freshness: float = 0.0
+    #: Where a live story's coverage is coming from - `Story.countries`. Read
+    #: by `rank_world` only, and deliberately not serialised: it is an input
+    #: to one rail's order, not something a card says.
+    countries: tuple = ()
 
     def as_dict(self) -> dict:
         return {
@@ -1221,8 +1268,9 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
 #: So `build_feed` calls this rail with `include_trending=False` here and
 #: tops it up from what is left over afterwards, which makes trending the
 #: last source for this row rather than the first.
-#: `world_trending` is filled outside this loop - see `build_feed`, which
-#: reserves `WORLD_FLOOR` tiles for it before any of these choose.
+#: `world_trending` is filled outside this loop and before it - see
+#: `rank_world`, which since §133 takes its tiles before any of these choose
+#: and takes nothing of the listener's into account but their country.
 FILL_ORDER = ("missed", "from_history", "followers", "might_like", "most_played")
 #: `might_like` stays in the fill order even though it is no longer displayed.
 #: That is deliberate: it claims its picks before the generic sections do, so
@@ -2918,9 +2966,15 @@ def rank_friends(
     return [known[i] for i in ordered[:limit]]
 
 
+#: How many Explore New shows. Six, and deliberately not `SECTION_SIZE`: that
+#: became four in §133 as a rule about *rails on myFAM*, and Explore New is a
+#: screen somebody opened on purpose rather than a rail.
+EXPLORE_NEW_SIZE = 6
+
+
 def rank_might_like(profile: dict[str, float], exclude: set[str],
                     damp: Optional[dict[str, float]] = None,
-                    limit: int = SECTION_SIZE) -> list[Topic]:
+                    limit: int = EXPLORE_NEW_SIZE) -> list[Topic]:
     """Adjacent, not identical. Exploration.
 
     Serves two surfaces from one ranking: the Explore New rail on myFAM and
@@ -3045,7 +3099,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                interests: Iterable[str] = (), circle: Iterable[str] = (),
                written=None, place: Iterable[str] = (),
                place_name: str = "", has_account: bool = False,
-               floors: Optional[dict] = None) -> dict:
+               floors: Optional[dict] = None, country: str = "") -> dict:
     """The whole myFAM page for one listener.
 
     Sections are filled in order and never repeat a topic, so the page looks
@@ -3087,6 +3141,9 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     `floors` is the fewest tiles each rail shows - `RAIL_MINIMUM` unless a
     caller says otherwise (§127). `{}` turns the top-up off, which is how a
     test asks what a rail *chose* rather than what it was filled to.
+
+    `country` is the one input Trending takes from the listener (§133) - see
+    `rank_world`. Nothing else on the page reads it.
 
     `has_account` is whether credentials are attached to this listener, and it
     decides one thing only: whether the evergreen bank is offered. See
@@ -3179,20 +3236,24 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                         if user != user_id} if user_id else set()
     wide = SECTION_SIZE * CANDIDATE_FACTOR
 
-    # What the world row keeps whatever the personal rails want.
+    # **Trending chooses first, and chooses alone** (§133, at the owner's
+    # direction). "The trending section should be trending news from around
+    # the world, not based on the user's algorithm ... a user's interests or
+    # past listens should not affect the content of the trending section."
     #
-    # Reserved before the fill loop rather than taken after it, because
-    # "after" is what produced a Trending rail with one tile on it: the row
-    # was filled last, from what four personal rails had left, and Made for
-    # you draws on the same pool. See `WORLD_FLOOR` for the trade this makes.
-    # **Only when reserving actually buys the floor.** A pool holding fewer
-    # than four stories cannot fill this row however it is shared out, so
-    # holding its one story back would take it off the personal rail and
-    # still leave Trending short - a cost with nothing bought. With enough in
-    # the pool, the personal rails still have the rest plus the whole bank.
-    world_available = [t for t in live if t.id not in mine]
-    world_first = (world_available[:WORLD_FLOOR]
-                   if len(world_available) >= WORLD_FLOOR else [])
+    # It used to be filled *after* the personal rails, from whatever they had
+    # left - so what Made for you took, and what this listener had played,
+    # decided what the world row showed. Both were this listener's history
+    # reaching a row that claims to be about everybody. Now it is ranked from
+    # the live pool alone, before anything else is chosen, with nothing of
+    # the listener in it but their country; the personal rails then avoid its
+    # tiles, so the page still never shows one tile twice. The trade, stated:
+    # on a thin pool Made for you loses live tiles to this row. It has the
+    # rest of the inventory to fall back on and Trending has nothing else.
+    #
+    # And never the startup set or the bank - see `rank_world`. A deployment
+    # with no live source has an empty Trending row that says why.
+    world_first = rank_world(live, country, live_held)
     reserved = {t.id for t in world_first}
 
     # Filled most-constrained first, displayed in the order the product asks
@@ -3288,45 +3349,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         else:
             used |= {t.id for t in picks}
 
-    # The world row. Filled last and from what is left, which is a change
-    # worth explaining: it used to take no part in the mutual exclusion above,
-    # because its inventory was not FAM's and the two could not collide. They
-    # can now - Made for you draws on the same live pool - and a page showing
-    # one listener the same tile twice reads as a bug whatever the ranking
-    # meant by it.
-    #
-    # So the personal rail chooses first and this takes the next hottest.
-    # Two listeners therefore see slightly different Trending rows, and that
-    # is ordering rather than inventory: the pool is fetched and composed once
-    # for everybody, and any warmed script is still taken by whoever taps it.
-    # The alternative - Trending claiming the hottest story before the rail
-    # the page exists for - would have put the one story this listener
-    # actually wants in the row about everybody else.
-    #
-    # It also never reads the play log. The packet is explicit that Trending
-    # "does not use cached episodes": what is trending is a question about
-    # today, and answering it with what FAM's listeners have already played
-    # would make it a second, laggier copy of the row below it.
-    # Its reserved four first, then whatever the personal rails did not take,
-    # then - only if it is still short - the stories the pool's own variety
-    # cap is holding back. That last rung is free inventory: `held` is already
-    # fetched and already composed, and it is offered here rather than
-    # anywhere else because this is the row that has nowhere else to go.
-    world = world_first + [t for t in live
-                           if t.id not in used and t.id not in mine
-                           and t.id not in reserved]
-    if len(world) < WORLD_FLOOR:
-        # `used` as well as `mine`: a story a personal rail already claimed is
-        # not spare inventory, and offering it here too would put one tile on
-        # two rails - which reads as a bug whatever the ranking meant by it.
-        have = {t.id for t in world} | mine | used
-        world += [t for t in live_held if t.id not in have]
-    # `diversify` caps a facet at two, and on a thin pool that cap is what
-    # would take the rail back under four - so it is applied and then topped
-    # up from what it dropped, which is the same "a cap on what is available,
-    # never a quota on what is not" rule the pool itself keeps.
-    picked["world_trending"] = _at_least(
-        diversify(world, SECTION_SIZE), world, WORLD_FLOOR)
+    # The world row, as `rank_world` chose it before anything else did.
+    picked["world_trending"] = world_first
 
     # Trending is the *last* source for "What you missed", not the first.
     #
@@ -3353,7 +3377,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # nothing here can take a tile a ranking wanted. Most-constrained first:
     # the two rails the owner named first, then the rest.
     floors = RAIL_MINIMUM if floors is None else floors
-    for key in ("world_trending", "from_history", "missed", "most_played"):
+    for key in ("from_history", "missed"):
         if not floors.get(key):
             continue
         on_page = {t.id for rail, tiles in picked.items()
@@ -3364,6 +3388,12 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             on_page | mine)
         picked[key] = picked[key] + extra
         used |= {t.id for t in extra}
+    # **Exactly `SECTION_SIZE` on the page, never more** (§133). Every ranker
+    # is asked for this many already; this is the line that makes it a fact
+    # about the page rather than a habit of each ranker, so a rail added
+    # later cannot show five. "View more" is where the rest lives.
+    for key in picked:
+        picked[key] = picked[key][:SECTION_SIZE]
     world_reason = ("" if picked["world_trending"]
                     else _world_empty_reason(bool(live)))
 
@@ -3405,7 +3435,7 @@ def build_section(store: EventStore, user_id: str, key: str,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),
                   written=None, place: Iterable[str] = (),
                   place_name: str = "", has_account: bool = False,
-                  floors: Optional[dict] = None) -> dict:
+                  floors: Optional[dict] = None, country: str = "") -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -3487,15 +3517,22 @@ def build_section(store: EventStore, user_id: str, key: str,
         picks = rank_friends(store, circle, mine, damp, limit=limit, now=now,
                              written=written)
     elif key == "world_trending":
-        picks = [t for t in live if t.id not in mine][:limit]
+        # The rail's own ranker at full length, and like the rail it takes
+        # nothing of the listener but their country - not even what they have
+        # played (§133). See `rank_world`.
+        picks = rank_world(
+            live, country,
+            topics_from_stories(stories.pool().held(now), now=now),
+            limit=limit)
     else:
         picks = rank_most_played(store, now, mine, limit=limit, written=written)
     # The same variety rule the rail uses, at the same ratio. A screen showing
     # forty tiles can carry more of one subject than a row showing six, and a
     # cap that did not scale would make "view more" a different ranking from
     # the rail it opened - which is the one thing this screen must not be.
-    picks = diversify(picks, limit,
-                      max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
+    if key != "world_trending":
+        picks = diversify(picks, limit,
+                          max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
     # "View more" never shows fewer than the rail it opened (§127).
     floors = RAIL_MINIMUM if floors is None else floors
     if floors.get(key):
@@ -3545,6 +3582,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             angle=story.angle,
             source=story.source,
             freshness=story.push(now),
+            countries=tuple(getattr(story, "countries", ()) or ()),
         ))
     return tiles[:limit] if limit else tiles
 
@@ -3561,6 +3599,54 @@ def live_topics(now: Optional[float] = None) -> list:
     return topics_from_stories(stories.pool().live(now), now=now)
 
 
+def rank_world(live: list, country: str = "", held: Iterable = (),
+               limit: int = SECTION_SIZE) -> list:
+    """The Trending rail: the world's loudest stories, and nothing about you.
+
+    §133, at the owner's direction, and the rule is narrow on purpose:
+    **popularity, and the listener's country, and nothing else.** Not their
+    taste, not their interests, not what they have played, not fatigue, not
+    engagement, not the learned order - every one of those is "the user's
+    algorithm", and this row is the one on the page that is not theirs.
+
+    * **Popularity** is `Topic.freshness` - `Story.push()`, the story's own
+      measured strength weighted by domain and decayed by age, which is what
+      "the absolute most trending stories of that day" is in this codebase.
+    * **Country** lifts a story by the share of its coverage that comes from
+      the listener's own country (`COUNTRY_WEIGHT`). Only GDELT measures that
+      today; a story with no country data keeps its global weight exactly.
+    * **Variety** is one tile per facet (`WORLD_MAX_PER_FACET`), topped back
+      up from what the cap passed over when the pool is all one subject.
+
+    `held` is what the pool's own variety cap is hiding - live, composed and
+    free - and is used only when `live` cannot fill the row.
+
+    **Never the startup set or the evergreen bank.** "The trending section
+    of myFAM should never show the dummy data episodes" - both are
+    inventories FAM wrote, not stories the world is reading, so a pool that
+    cannot fill four leaves the row short, and an empty pool leaves it empty
+    with a sentence saying why (`_world_empty_reason`).
+    """
+    pool = list(live)
+    have = {t.id for t in pool}
+    pool += [t for t in held if t.id not in have]
+
+    def score(tile) -> float:
+        share = next((float(v) for name, v in getattr(tile, "countries", ())
+                      if name == want), 0.0) if want else 0.0
+        return float(tile.freshness) * (1.0 + COUNTRY_WEIGHT * share)
+
+    want = stories.normalise_country(country)
+    # Live before held at equal scores, and pool order after that, which is
+    # the pool's own loudest-first order - so a tie never falls through to an
+    # id sort, which would be an order nobody chose.
+    live_ids = {t.id for t in live}
+    ranked = [t for _s, _l, _i, t in sorted(
+        ((-score(t), t.id not in live_ids, i, t) for i, t in enumerate(pool)),
+        key=lambda row: row[:3])]
+    return diversify(ranked, limit, max_per_facet=WORLD_MAX_PER_FACET)
+
+
 def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
                    inventory: list) -> list:
     """What a rail is topped up from when its own ranking came up short.
@@ -3569,15 +3655,13 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
     real episode - never a placeholder.
 
     * **Trending**: the live pool, then what the pool's variety cap is
-      holding, then the startup set - one *time-anchored* question per facet,
-      researched on the tap, which is the nearest thing to "what is happening"
-      FAM can offer with no live provider configured (and no deployment has
-      one yet). The bank only after all of that.
+      holding, and nothing else. It used to fall through to the startup set
+      and the bank; the owner has ruled both off that row (§133).
     * **Made for you** and **What you missed**: this listener's own
       inventory in affinity order, then the rest of the tiles FAM has.
-    * **What FAM can't stop listening to**: the same, in affinity order - a
-      listener with no plays to report is shown what they would most likely
-      play, rather than an alphabetical bank.
+    * **What FAM can't stop listening to** is no longer topped up at all
+      (§133) - a tile nobody played under a heading that says it was played
+      is making one up.
 
     The bank is always last, and for an account it is the one place it can
     now appear on a rail that chooses (`browse_inventory`): the owner's
@@ -3591,8 +3675,11 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
         return [t for _s, _i, t in scored]
 
     if key == "world_trending":
-        return list(live) + list(live_held) + by_affinity(
-            list(STARTUP_TOPICS)) + by_affinity(list(TOPIC_BANK))
+        # Live stories only, and never the startup set or the bank (§133):
+        # "the trending section of myFAM should never show the dummy data
+        # episodes". Nothing calls this for Trending today - it is not in
+        # `RAIL_MINIMUM` - and this answer is what makes that safe to change.
+        return list(live) + list(live_held)
     return (by_affinity(list(inventory))
             + by_affinity(list(STARTUP_TOPICS) + list(TOPIC_BANK)))
 
@@ -3618,28 +3705,6 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
         if len(out) >= need:
             break
     return out
-
-
-def _at_least(picked: list, pool: list, floor: int) -> list:
-    """Top a capped list back up to `floor` from what the cap dropped.
-
-    The variety cap is a cap on what is available and never a quota on what
-    is not - the rule `stories.py` already keeps about its own pool. Applied
-    to a thin Trending row the cap alone can take four tiles down to two,
-    which turns "make sure there is variety" into "show less", and the row
-    the owner asked to never be under four is exactly the row with no second
-    inventory to fall back on.
-    """
-    if len(picked) >= floor:
-        return picked
-    have = {t.id for t in picked}
-    for topic in pool:
-        if len(picked) >= floor:
-            break
-        if topic.id not in have:
-            picked.append(topic)
-            have.add(topic.id)
-    return picked
 
 
 def diversify(topics: list, limit: int = SECTION_SIZE,
@@ -3918,6 +3983,10 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
     is about this page: the rail above got there first, and saying the feed
     had nothing would be describing our own ordering as the world's silence.
     """
+    # Since §133 the first clause cannot happen - Trending chooses before any
+    # personal rail, so a pool with stories in it always puts them here. It
+    # stays because the sentence is still the right one if that order ever
+    # changes, and a wrong one is §89.
     if pool_had_stories:
         return "Everything the world is on today is already in Made for you."
     return stories.pool().empty_reason

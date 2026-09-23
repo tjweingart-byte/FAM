@@ -93,15 +93,20 @@ class _Result:
     each of those would be four places to forget.
     """
 
-    __slots__ = ("title", "url", "published_date", "highlights", "text")
+    __slots__ = ("title", "url", "published_date", "highlights", "text",
+                 "country")
 
     def __init__(self, title: str, url: str, published_date: str,
-                 highlights: list) -> None:
+                 highlights: list, country: str = "") -> None:
         self.title = title
         self.url = url
         self.published_date = published_date
         self.highlights = highlights
         self.text = ""
+        #: Where the *publisher* is, as GDELT names it ("United States"). It
+        #: is what lets Trending say how a story is running in one listener's
+        #: country without a second request - see `stories.country_shares`.
+        self.country = country
 
 
 def _iso(stamp: str) -> str:
@@ -136,6 +141,7 @@ def parse_articles(payload: dict) -> list:
             # highlight rather than being padded out into something that looks
             # like more than it is.
             highlights=[title] if title else [],
+            country=str(row.get("sourcecountry") or "").strip(),
         ))
     return out
 

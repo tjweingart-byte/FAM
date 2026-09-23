@@ -193,6 +193,23 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS follows_followee"
                          " ON follows(followee, at)")
+            # Likes and dislikes on an episode (§133, Explore's thumbs). One
+            # row per person per episode, keyed like a vibe - `(query,
+            # minutes)` - so the three counts on a card are about the same
+            # thing. `value` is +1 or -1; taking a thumb back deletes the row
+            # rather than writing a zero, so a count is always `COUNT(*)`.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS ratings (
+                       user_id TEXT NOT NULL,
+                       query   TEXT NOT NULL,
+                       minutes INTEGER NOT NULL DEFAULT 0,
+                       value   INTEGER NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, query, minutes)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS ratings_episode"
+                         " ON ratings(query, minutes)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -341,6 +358,62 @@ class SocialStore:
             (user_id, " ".join(str(query).split())[:300], int(minutes)),
         )
         return bool(cur.rowcount)
+
+    # -- likes, dislikes and the counts on an Explore card (§133) ----------
+
+    def rate(self, user_id: str, query: str, minutes: int, value: int) -> int:
+        """Set this listener's thumb on an episode: 1, -1, or 0 to take it back.
+
+        Returns the value now stored. A second like is the same statement, not
+        two, and a dislike replaces a like rather than sitting beside it.
+        """
+        if not user_id:
+            raise SocialError("No listener id.")
+        query = " ".join(str(query).split())[:300]
+        if not query:
+            raise SocialError("Nothing to rate.")
+        value = 1 if value > 0 else (-1 if value < 0 else 0)
+        conn = self._conn()
+        if not value:
+            conn.execute("DELETE FROM ratings WHERE user_id = ? AND query = ?"
+                         " AND minutes = ?", (user_id, query, int(minutes)))
+            return 0
+        conn.execute(
+            "INSERT INTO ratings (user_id, query, minutes, value, at)"
+            " VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
+            " value = excluded.value, at = excluded.at",
+            (user_id, query, int(minutes), value, time.time()))
+        return value
+
+    def episode_counts(self, query: str, minutes: int,
+                       user_id: str = "") -> dict:
+        """Vibes, likes and dislikes on one episode, and this listener's own.
+
+        Counts over *everybody*, which is the point of a number on a card, and
+        never who: the rows carry listener ids and none of them leave here.
+        """
+        query = " ".join(str(query).split())[:300]
+        out = {"vibes": 0, "likes": 0, "dislikes": 0, "rating": 0,
+               "vibed": False}
+        try:
+            conn = self._conn()
+            out["vibes"] = int(conn.execute(
+                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?",
+                (query, int(minutes))).fetchone()[0])
+            for value, n in conn.execute(
+                    "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
+                    " AND minutes = ? GROUP BY value", (query, int(minutes))):
+                out["likes" if value > 0 else "dislikes"] = int(n)
+            if user_id:
+                row = conn.execute(
+                    "SELECT value FROM ratings WHERE user_id = ? AND query = ?"
+                    " AND minutes = ?", (user_id, query, int(minutes))).fetchone()
+                out["rating"] = int(row[0]) if row else 0
+                out["vibed"] = self.has_echoed(user_id, query, minutes)
+        except Exception:
+            log.exception("could not count an episode's vibes and ratings")
+        return out
 
     def echoes_by(self, user_id: str, limit: int = 40) -> list[Echo]:
         try:
@@ -664,7 +737,7 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase follows for %r", user_id)
-        for table in ('echoes', 'people'):
+        for table in ('echoes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

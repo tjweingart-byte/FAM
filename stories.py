@@ -238,10 +238,65 @@ class Signal:
     #: deployment's row worse than it was.
     suggested_query: str = ""
     suggested_angle: str = ""
+    #: Where the coverage behind this signal is coming from, as
+    #: `(country, share)` pairs summing to at most 1 - see `country_shares`.
+    #: Empty when a provider cannot say, which every provider but GDELT is
+    #: today, and which ranks exactly as it did before this existed.
+    countries: tuple = ()
 
     @property
     def id(self) -> str:
         return story_id(self.subject)
+
+
+#: Common ways of writing a country, folded onto the name GDELT's
+#: `sourcecountry` uses. A listener's country is free text
+#: (`preferences.Location`), and "US", "USA" and "United States" must all be
+#: the same place or the Trending boost would quietly miss most of them.
+COUNTRY_ALIASES = {
+    "us": "united states", "usa": "united states", "u.s.": "united states",
+    "u.s.a.": "united states", "america": "united states",
+    "united states of america": "united states",
+    "uk": "united kingdom", "u.k.": "united kingdom", "gb": "united kingdom",
+    "great britain": "united kingdom", "britain": "united kingdom",
+    "england": "united kingdom", "scotland": "united kingdom",
+    "wales": "united kingdom", "northern ireland": "united kingdom",
+    "ca": "canada", "au": "australia", "nz": "new zealand",
+    "ie": "ireland", "in": "india", "de": "germany", "fr": "france",
+    "es": "spain", "it": "italy", "mx": "mexico", "br": "brazil",
+    "jp": "japan", "cn": "china", "za": "south africa", "ng": "nigeria",
+    "uae": "united arab emirates", "ae": "united arab emirates",
+    "sg": "singapore", "nl": "netherlands", "kr": "south korea",
+    "korea": "south korea", "ph": "philippines", "pk": "pakistan",
+}
+
+
+def normalise_country(name: str) -> str:
+    """One spelling per country, lower-case. "" for nothing usable."""
+    text = " ".join((name or "").lower().replace("the ", " ").split())
+    return COUNTRY_ALIASES.get(text, text)
+
+
+def country_shares(countries: Iterable[str], top: int = 6) -> tuple:
+    """How a sample of articles splits by publisher country.
+
+    `(country, share)` pairs, largest first, at most `top` of them. A sample
+    with no countries in it returns `()`, never an even split - "we could not
+    tell" and "it is running everywhere equally" are different answers, and
+    only the second is a measurement.
+    """
+    counts: dict = {}
+    total = 0
+    for raw in countries:
+        name = normalise_country(raw)
+        if not name:
+            continue
+        counts[name] = counts.get(name, 0) + 1
+        total += 1
+    if not total:
+        return ()
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:top]
+    return tuple((name, round(n / total, 3)) for name, n in ranked)
 
 
 def story_id(subject: str) -> str:
@@ -291,10 +346,21 @@ class Story:
     #: reason this field exists.
     degraded: bool = False
     url: str = ""
+    #: `Signal.countries`, carried through - where the coverage is coming
+    #: from. Read by Trending and nothing else.
+    countries: tuple = ()
 
     @property
     def id(self) -> str:
         return story_id(self.subject)
+
+    def share_in(self, country: str) -> float:
+        """What fraction of this story's coverage comes from `country`."""
+        want = normalise_country(country)
+        if not want:
+            return 0.0
+        return next((float(share) for name, share in self.countries
+                     if name == want), 0.0)
 
     def age(self, now: Optional[float] = None) -> float:
         return max(0.0, (time.time() if now is None else now) - self.first_seen)
@@ -750,6 +816,7 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         outcome_pending=bool(signal.outcome_pending),
         degraded=degraded,
         url=signal.url,
+        countries=tuple(signal.countries or ()),
     )
 
 
@@ -1009,8 +1076,13 @@ async def refresh(now: Optional[float] = None) -> Pool:
             seen_ids.add(key)
             previous = existing.get(key)
             if previous is not None and not previous.expired(now):
+                # Where it is being covered moves with every sweep, like its
+                # strength does; a provider that could not say this time keeps
+                # the last answer rather than erasing it.
                 kept.append(replace(previous, strength=float(signal.strength),
-                                    last_seen=now))
+                                    last_seen=now,
+                                    countries=(tuple(signal.countries)
+                                               or previous.countries)))
                 continue
             # Not held - but possibly *known*. A subject dropped for room, or
             # one whose story expired while nothing was looking, has a clock

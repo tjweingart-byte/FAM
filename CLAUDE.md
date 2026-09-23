@@ -946,7 +946,13 @@ the rest of this list it needs taste rather than a key.
   whole episode is kept, never an abandoned stream; and it has a ceiling
   (`AUDIO_CACHE_MAX_MB`, 512 by default against a 1 GB disk), least recently
   played out first, evicting only audio - an evicted episode keeps its
-  script and costs one re-voicing. `AUDIO_CACHE=0` restores re-synthesis on
+  script and costs one re-voicing. **§133 widened what is kept, inside those
+  rules**: a request that names no voice keys its audio as the default
+  voice's own id (a shared link and the app were storing one episode twice);
+  an evergreen script's life slides forward on each play up to
+  `CACHE_MAX_AGE_SECONDS` (volatile ones never slide), so a popular episode
+  keeps its audio; a re-write with identical words keeps the audio; and a
+  near match with kept audio does not wake the GPU. `AUDIO_CACHE=0` restores re-synthesis on
   every play exactly. Downloads - audio in the listener's own IndexedDB -
   are still **removed**, and `saved.py` still holds pointers and only
   pointers.
@@ -1268,6 +1274,16 @@ the rest of this list it needs taste rather than a key.
   claims only what it can back.** *(§125, `topics.browse_inventory`,
   `MYFAM.md`.)* Two rules from one instruction, both reversing something this
   file had recorded as deliberate.
+  **Amended again by §133, at the owner's direction: every rail shows
+  exactly four, and only the two that *choose* are topped up** - Made for
+  you and What you missed. "What FAM can't stop listening to" and the friends
+  rail never invent a tile (fewer than four is honest; four once they can),
+  and **Trending holds live stories only** - ranked by popularity and the
+  listener's country and nothing else of theirs (`topics.rank_world`),
+  chosen before any personal rail, and never the bank or the startup set,
+  which the owner calls dummy data. A deployment with no live source has an
+  empty Trending row that says why; `render.yaml` turns GDELT on for that
+  reason. "Different picks" is gone - View more holds the rest.
   **Amended by §127, at the owner's direction: every drawn rail except the
   friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
   and Trending, four for the other two), topped up *after* each rail has
@@ -2309,12 +2325,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-four** named smoke
+**twice** - once per preview build - and **sixty-five** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 64 as of §127,
+prose does not fail when somebody adds a behaviour. (It is 65 as of §133,
+which added a DailyFAM playlist playing through and then stopping. It was
+64 as of §127,
 which replaced "Go Deeper fills for a new listener" and added the fixed myFAM
 header, the loading screen's cancel, and faces and typing in messages. It was
 61 as of §123,
