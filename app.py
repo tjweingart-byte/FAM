@@ -34,6 +34,8 @@ from anthropic_client import build_async_client, describe_http_version, http2_en
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
                    is_shareable, research_words)
 import embeddings
+import learned_rank
+import taste_vectors
 from demo_script import DemoGenerator
 import credentials
 import entitlements
@@ -427,6 +429,15 @@ async def lifespan(_: FastAPI):
     # after the first adds nothing.
     _seed_categories()
     asyncio.create_task(_grow_categories())
+    # The ranker's tile vectors, embedded in a background thread before the
+    # first listener arrives (§131). A no-op with no model installed, and
+    # never awaited: ~10 ms a tile is a second on a cold process, which is a
+    # second no browse page may spend.
+    semantic = taste_vectors.describe()
+    log.info("ranking: semantic taste %s",
+             "on (" + str(semantic.get("model")) + ")" if semantic.get("enabled")
+             else "off - " + str(semantic.get("reason")))
+    taste_vectors.warm(list(topics_mod.TOPIC_BANK) + list(topics_mod.STARTUP_TOPICS))
     prefetch_sources.install(event_store=EVENTS, mix_store=MIXES,
                              social_store=SOCIAL)
     prefetch.prefetcher(
@@ -1350,6 +1361,15 @@ async def health(request: Request) -> dict:
                                  else "config.py default"),
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
+        # What orders Made for you beyond the tags (§131): whether a semantic
+        # model is reading meaning, and whether a fitted order is in force -
+        # each with the reason when it is not, because "installed but not
+        # loading" and "never installed" have different fixes.
+        "ranking": {
+            "algo": EVENTS.algo_stamp(),
+            "semantic": taste_vectors.describe(),
+            "learned": learned_rank.describe(EVENTS),
+        },
         # Built, and switched on or not. A tier system that is not enforcing
         # looks exactly like one that is until somebody reaches a limit, and
         # "are limits live on this deploy?" is the question a beta asks most.
@@ -3316,7 +3336,7 @@ async def next_up(
     # picks nobody could account for afterwards.
     if user and _remembers(request):
         EVENTS.record_impressions(user, [("next_up", t.id) for t in picks])
-    return {"topics": [t.as_dict() for t in picks], "algo": topics_mod.ALGO_VERSION}
+    return {"topics": [t.as_dict() for t in picks], "algo": EVENTS.algo_stamp()}
 
 
 @app.get("/api/myfam/section")
@@ -3363,7 +3383,7 @@ async def myfam_section(request: Request,
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
-    body["algo"] = topics_mod.ALGO_VERSION
+    body["algo"] = EVENTS.algo_stamp()
     return body
 
 
@@ -3419,7 +3439,7 @@ async def explore_new(request: Request, interests: str = Query("", max_length=20
     )
     if user and _remembers(request):
         EVENTS.record_impressions(user, [("explore_new", t["id"]) for t in body["topics"]])
-    body["algo"] = topics_mod.ALGO_VERSION
+    body["algo"] = EVENTS.algo_stamp()
     return body
 
 
@@ -3507,7 +3527,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
             [(section["key"], topic["id"])
              for section in feed["sections"] for topic in section["topics"]],
         )
-    feed["algo"] = topics_mod.ALGO_VERSION
+    feed["algo"] = EVENTS.algo_stamp()
 
     # Guess what this listener might tap, and pay for the *understanding* of it
     # now rather than when they are waiting (PROBLEMS.md §105).

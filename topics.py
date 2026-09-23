@@ -72,6 +72,8 @@ from typing import Iterable, Optional
 
 import startup
 import categories
+import learned_rank
+import taste_vectors
 import stories
 import trending
 from paths import data_path
@@ -1344,7 +1346,7 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-21.2"
+ALGO_VERSION = "2026-09-23.1"
 
 #: **Fatigue**: how a tile that keeps being shown and never played stops being
 #: offered quite so hard. This is the one thing impressions are allowed to do
@@ -1526,7 +1528,60 @@ class EventStore:
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass  # already there
+            # The fitted ranking order (`learned_rank`, §131). One row, in
+            # this database rather than a file of its own, because it is
+            # *derived from* this log: it lives where the log lives, is on
+            # the same disk, and goes when the log is cleared.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS learned_rank (
+                       id    INTEGER PRIMARY KEY CHECK (id = 1),
+                       model TEXT NOT NULL,
+                       at    REAL NOT NULL
+                   )"""
+            )
         self._pruned_at = 0.0
+
+    def learned_model(self) -> str:
+        """The stored ranking model as JSON, or "". See `learned_rank`."""
+        try:
+            row = self._conn().execute(
+                "SELECT model FROM learned_rank WHERE id = 1").fetchone()
+        except Exception:
+            log.exception("could not read the ranking model")
+            return ""
+        return row[0] if row else ""
+
+    def save_learned_model(self, model_json: str, at: Optional[float] = None) -> None:
+        """Replace the stored ranking model. Only `tools/learn_rank.py` calls
+        this; nothing on a request path writes a model."""
+        self._conn().execute(
+            "INSERT INTO learned_rank (id, model, at) VALUES (1, ?, ?)"
+            " ON CONFLICT(id) DO UPDATE SET model = excluded.model, at = excluded.at",
+            (model_json, time.time() if at is None else at))
+        learned_rank.reset()
+
+    def clear_learned_model(self) -> None:
+        """Remove the stored ranking model; the hand-tuned order resumes."""
+        self._conn().execute("DELETE FROM learned_rank")
+        learned_rank.reset()
+
+    def algo_stamp(self) -> str:
+        """`ALGO_VERSION`, plus which of the conditional §131 terms were in
+        force: `+sem` when a semantic model is ranking, `+lr<trained_at>`
+        when a fitted order is. Both switch on with no code change - an
+        install, a training run - so the version constant alone could not
+        tell the regimes apart in the impression log, which is what it is
+        for."""
+        stamp = ALGO_VERSION
+        try:
+            if taste_vectors.enabled():
+                stamp += "+sem"
+            model = learned_rank.active(self)
+            if model is not None:
+                stamp += "+" + model.stamp()
+        except Exception:  # noqa: BLE001 - a stamp is never worth a page
+            log.exception("could not compute the algorithm stamp")
+        return stamp
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -1557,7 +1612,7 @@ class EventStore:
         self,
         user_id: str,
         shown: Iterable[tuple[str, str]],
-        algo: str = ALGO_VERSION,
+        algo: Optional[str] = None,
         at: Optional[float] = None,
     ) -> int:
         """Log the tiles one feed actually put in front of one listener.
@@ -1572,6 +1627,7 @@ class EventStore:
         if not user_id:
             return 0
         now = time.time() if at is None else at
+        algo = self.algo_stamp() if algo is None else algo
         rows = [
             (user_id[:64], IMPRESSION, topic_id[:64], "",
              ",".join(tags_for_id(topic_id)),
@@ -1976,10 +2032,17 @@ class EventStore:
         """
         try:
             cur = self._conn().execute("DELETE FROM events")
-            return cur.rowcount or 0
+            removed = cur.rowcount or 0
         except Exception:
             log.exception("could not clear the event log")
             return 0
+        # The fitted order goes with the log it was fitted to (§124's rule:
+        # a wipe takes what is derived from what it empties).
+        try:
+            self.clear_learned_model()
+        except Exception:
+            log.exception("could not clear the ranking model")
+        return removed
 
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.
@@ -2416,7 +2479,9 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
                       familiar: frozenset = frozenset(),
                       local: frozenset = frozenset(),
                       engage: Optional[dict[str, float]] = None,
-                      floor: float = RELEVANCE_FLOOR) -> list[Topic]:
+                      floor: float = RELEVANCE_FLOOR,
+                      semantic: Optional[dict[str, float]] = None,
+                      learned=None) -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
@@ -2461,21 +2526,39 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     well should be able to clear it. See `ENGAGEMENT_WEIGHT` for the four
     things that stop it turning this rail into a second copy of what
     everybody plays.
+
+    `semantic` is the meaning of what they have asked for against each tile
+    (`taste_vectors.for_listener`), and it is **added** to `_affinity` rather
+    than multiplied into it, because its job is to find what the tags missed
+    and a multiplier on a zero is a zero. A tile with a real semantic match is
+    also exempt from `BROAD_MATCH_PENALTY`: that penalty exists for a subject
+    this listener has never been near, and a close match to something they
+    asked for is exactly having been near it. `{}` - no model installed - is
+    the ranking that shipped before it existed.
+
+    `learned` is a `learned_rank.Model` or None. It **re-orders what cleared
+    the floor and never decides what clears it** - see `learned_rank` for why
+    that split is the whole safety argument. The two thumbs the log cannot
+    record, freshness and a listener's own place, stay hand-applied on top of
+    the model's probability.
     """
     damp = damp or {}
+    semantic = semantic or {}
     pool = list(candidates) if candidates is not None else list(TOPIC_BANK)
     scored = []
     for topic in pool:
         if topic.id in exclude:
             continue
-        score = (_affinity(topic, profile) * damp.get(topic.id, 1.0)
+        score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0))
+                 * damp.get(topic.id, 1.0)
                  * (1.0 + FRESHNESS_BOOST * topic.freshness))
         # A live story is one specific thing that happened; `freshness` is
         # exactly what distinguishes one from a bank topic here, and it is
         # set by `topics_from_stories` and by nothing else.
         if (score > 0 and topic.freshness > 0
                 and _is_broad_match(topic, profile)
-                and not _subject_is_familiar(topic, familiar)):
+                and not _subject_is_familiar(topic, familiar)
+                and not semantic.get(topic.id)):
             score *= BROAD_MATCH_PENALTY
         # After the penalty rather than before it, so the two multiply in a
         # stated order rather than one silently cancelling the other. In
@@ -2488,7 +2571,16 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
         score *= (engage or {}).get(topic.id, 1.0)
         if score > floor:
             scored.append((score, topic))
-    scored.sort(key=lambda pair: (-pair[0], pair[1].id))
+    if learned is not None and scored:
+        rows = {t.id: learned_rank.features(t, profile, semantic, damp,
+                                            engage or {}, familiar)
+                for _s, t in scored}
+        thumbs = {t.id: (1.0 + FRESHNESS_BOOST * t.freshness)
+                  * (LOCAL_BOOST if _is_local(t, local) else 1.0)
+                  for _s, t in scored}
+        scored = learned_rank.rerank(scored, learned, rows, thumbs)
+    else:
+        scored.sort(key=lambda pair: (-pair[0], pair[1].id))
     return [t for _s, t in scored[:limit]]
 
 
@@ -3071,6 +3163,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # listener on this deployment. See `ENGAGEMENT_WEIGHT` for which rails
     # are allowed to use it.
     engage = engagement_for(store, now)
+    # Meaning and a fitted order, for Made for you only (§131). Both are `{}`
+    # / None on a deployment with no model and no trained ranking, which is
+    # the page that shipped before either existed. Never on a cold start:
+    # there is no history to mean anything, and the prior is not a taste.
+    semantic = ({} if cold
+                else taste_vectors.for_listener(events, inventory, now))
+    learned = learned_rank.active(store, now)
     # What the rest of FAM played this week, for "What you missed". One read,
     # like everything else on this page, and it is a fact about the crowd
     # rather than about this listener - it decides membership and never
@@ -3154,7 +3253,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 picks = rank_from_history(profile, seen, damp, limit=wide,
                                           candidates=inventory,
                                           familiar=familiar, local=place,
-                                          engage=engage)
+                                          engage=engage, semantic=semantic,
+                                          learned=learned)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
                                  written=written)
@@ -3374,10 +3474,13 @@ def build_section(store: EventStore, user_id: str, key: str,
                                  local_topic=local_startup_topic(place_name),
                                  engage=engage)
         else:
-            picks = rank_from_history(profile, mine, damp, limit=limit,
-                                      candidates=inventory,
-                                      familiar=familiar, local=place,
-                                      engage=engage)
+            # The same two §131 terms the rail reads, or this screen would
+            # be a different ranking from the rail that opened it.
+            picks = rank_from_history(
+                profile, mine, damp, limit=limit, candidates=inventory,
+                familiar=familiar, local=place, engage=engage,
+                semantic=taste_vectors.for_listener(events, inventory, now),
+                learned=learned_rank.active(store, now))
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "followers":
@@ -3949,7 +4052,14 @@ def rank_next_up(
                 taken.add(topic.id)
 
     inventory = browse_inventory(live_topics(now), has_account)
-    add(rank_from_history(profile, taken, damp, candidates=inventory))
+    # The episode that just ended leads the semantic history, the way it is
+    # seeded into the tag profile above at `JUST_HEARD_WEIGHT`.
+    heard = ([Event(user_id, "complete", after_id, after_text, at=now)]
+             if (after_id or after_text) else [])
+    add(rank_from_history(
+        profile, taken, damp, candidates=inventory,
+        semantic=taste_vectors.for_listener(heard + events, inventory, now),
+        learned=learned_rank.active(store, now)))
     if len(picks) < size:
         add(rank_followers(store, user_id, mine, taken, damp))
     if len(picks) < size:

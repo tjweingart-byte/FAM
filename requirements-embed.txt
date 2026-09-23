@@ -1,0 +1,11 @@
+# Optional: the local sentence embedder (PROBLEMS.md §131).
+#
+# Without these FAM runs exactly as it always has - the cache's near-match uses
+# lexical hashing vectors and the ranker scores on tags alone - and says so on
+# /api/health. With them, and a model in ~/.fam/embed
+# (`python tools/install_embed_model.py`), the myFAM ranker adds a semantic
+# similarity term between what a listener has asked for and each tile.
+#
+# CPU-only on purpose: ~10 ms a sentence, no torch, no GPU, ~20 MB installed.
+onnxruntime>=1.17
+tokenizers>=0.15

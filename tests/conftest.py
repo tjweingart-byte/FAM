@@ -162,7 +162,19 @@ LIMIT_ENVIRONMENT = _limit_environment()
 
 #: The embedding backend, which decides whether near matching is lexical or
 #: semantic - and therefore what half the cache tests are actually measuring.
-EMBED_ENVIRONMENT = ("FAM_EMBED_BACKEND", "FAM_EMBED_MODEL")
+EMBED_ENVIRONMENT = ("FAM_EMBED_BACKEND", "FAM_EMBED_MODEL",
+                     # The ranker's two §131 switches. Cleared so a developer
+                     # who turned either off runs the suite CI runs.
+                     "SEMANTIC_TASTE", "LEARNED_RANK")
+
+#: **A model installed on this machine must not rank the suite's feeds.**
+#: `embeddings.model_dir()` defaults to `~/.fam/embed`, and with a model
+#: there every Made for you in the suite would gain a semantic term CI does
+#: not have - the same "this machine is different" this file exists against,
+#: arriving through a file rather than a variable. So the suite points the
+#: model directory somewhere that cannot exist. A test that wants semantics
+#: installs a deterministic encoder (`taste_vectors.set_encoder`) instead.
+NO_EMBED_MODEL = str(pathlib.Path(__file__).resolve().parent / "no-embed-model-here")
 
 #: Per-machine state that reaches a module other than config.py, so it is not
 #: in the list above and the staleness guard does not expect it there.
@@ -183,6 +195,7 @@ os.environ["FAM_IGNORE_DOTENV"] = "1"
 
 for name in LEAKY_ENVIRONMENT:
     os.environ.pop(name, None)
+os.environ["FAM_EMBED_MODEL"] = NO_EMBED_MODEL
 
 
 @pytest.fixture(autouse=True)
@@ -204,6 +217,7 @@ def hermetic_environment():
     saved = {name: os.environ[name] for name in names if name in os.environ}
     for name in names:
         os.environ.pop(name, None)
+    os.environ["FAM_EMBED_MODEL"] = NO_EMBED_MODEL
     try:
         yield
     finally:

@@ -193,6 +193,8 @@ def _forget_what_the_log_taught() -> dict:
         # opens the emptied table rather than inheriting a live object.
         topics.reset_category_tree()
         topics.reset_engagement()
+        # The fitted ranking order is dropped by `EventStore.clear` itself,
+        # in the same statement batch as the log it was fitted to (§131).
         # And the floor goes back under it. Through `category_tree()` again,
         # deliberately: the handle above has just been dropped, so this opens
         # the emptied table rather than writing through the stale object the
