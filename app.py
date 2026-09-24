@@ -62,6 +62,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
 import attachments as attachments_mod
+import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import accounts as accounts_mod
@@ -1910,7 +1911,27 @@ async def friends_read(request: Request) -> dict:
         # at the same moment it asks the others, and a badge is not worth a
         # second round trip.
         "new_followers": SOCIAL.new_followers(user),
+        # The subset the popup may still raise: never shown to this listener
+        # before (§142). A follower announced once is not announced again on
+        # the next open of the app.
+        "announce": SOCIAL.new_followers(user, unannounced=True),
     }
+
+
+class AnnouncedRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+
+
+@app.post("/api/friends/announced")
+async def friends_announced(req: AnnouncedRequest, request: Request) -> dict:
+    """The "started following you" popup or banner for this person was shown.
+
+    Once, and never again (§142): it used to be remembered in page memory, so
+    reopening the app raised the latest follower's popup every time.
+    """
+    _read_limit(request)
+    SOCIAL.mark_announced(_require_account(request), req.user_id)
+    return {"ok": True}
 
 
 @app.post("/api/friends/seen")
@@ -2179,6 +2200,52 @@ async def messages_thread(request: Request,
             "head": head}
 
 
+class SpellRequest(BaseModel):
+    #: The words just finished, in order. A handful at most: the box asks as
+    #: each word ends, and a paste is corrected a word at a time the same way.
+    words: list[str] = Field(..., max_length=40)
+    #: Which of those words start a sentence, where a capital is the
+    #: keyboard's rather than a name's.
+    first: list[bool] = Field(default_factory=list, max_length=40)
+
+
+@app.post("/api/spell")
+async def spell(req: SpellRequest, request: Request) -> dict:
+    """Autocorrect for a message or a search, a word at a time (§142).
+
+    The second pass behind the phone's own keyboard, which the owner found
+    misses things. Deliberately cautious - see `autocorrect.py` for why a
+    general spell checker rewrites the subjects of half of FAM's searches -
+    so the answer is `null` for every word it is not sure about. No account
+    needed: search is the one box everybody types into.
+    """
+    _read_limit(request)
+    out = []
+    for i, word in enumerate(req.words):
+        first = bool(req.first[i]) if i < len(req.first) else False
+        out.append(autocorrect_mod.correct_word(str(word or "")[:40], first=first))
+    return {"corrections": out, "available": autocorrect_mod.available()}
+
+
+@app.delete("/api/messages/thread")
+async def messages_delete_thread(request: Request,
+                                 with_: str = Query(..., alias="with", max_length=64)) -> dict:
+    """Delete a chat - for this listener only (§142).
+
+    The owner's rule: it leaves *their* list, a new message to that person
+    starts a fresh thread without the old history, and the other person is
+    unaffected and keeps everything. So nothing is deleted from the table;
+    `MessageStore.clear` moves where this listener's view begins.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        MESSAGES.clear(user, with_)
+    except messages_mod.MessageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "unread": MESSAGES.unread_total(user)}
+
+
 @app.get("/api/notifications")
 async def notifications(request: Request,
                         since: int = Query(0, ge=0),
@@ -2238,7 +2305,9 @@ async def notifications(request: Request,
         # about who is new. Tapping one goes to Friends, which is also what
         # marks them seen - a badge cleared by something merely being drawn is
         # a count nobody got to read.
-        "follows": SOCIAL.new_followers(user),
+        # Only people never announced before (§142), so a banner raised on
+        # one open of the app is not raised again on the next.
+        "follows": SOCIAL.new_followers(user, unannounced=True),
         "head": max([head] + [m.id for m in arrived]),
         "unread": MESSAGES.unread_total(user),
     }
@@ -4259,6 +4328,50 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
                                req.seconds, title=req.title, context=req.context)
     return {"ok": True, "remembered": True, "resumable": kept}
+
+
+class HistoryRequest(BaseModel):
+    query: str = Field(..., max_length=saved_mod.MAX_QUERY)
+    minutes: int = Field(..., ge=1, le=10)
+    surface: str = Field(..., max_length=16)
+    title: str = Field("", max_length=saved_mod.MAX_TITLE)
+    context: str = Field("", max_length=300)
+    #: True when this only carries the writer's title for an episode already
+    #: in the history, so it must not move the row to the top.
+    retitle: bool = False
+
+
+@app.post("/api/history")
+async def history_write(req: HistoryRequest, request: Request) -> dict:
+    """An episode started playing; put it in Recent listening history (§142).
+
+    Sent by the client at first audio, because only the client knows which
+    surface the tap came from - `/api/audio` sees myFAM and DailyFAM as the
+    same request. Explore is refused by the store, not trusted to the client.
+    A guest's is accepted and dropped, like `/api/progress`: history is kept
+    on an account, and a playback timer must never surface an error.
+    """
+    _read_limit(request)
+    if not _remembers(request):
+        return {"ok": True, "remembered": False}
+    user = _listener(request)
+    if req.retitle:
+        SAVED.retitle(user, req.query, req.minutes, req.title)
+        return {"ok": True, "remembered": True}
+    kept = SAVED.note_listen(user, req.query, req.minutes, req.surface,
+                             title=req.title, context=req.context)
+    return {"ok": True, "remembered": kept}
+
+
+@app.get("/api/history")
+async def history_read(request: Request,
+                       surface: str = Query("", max_length=16)) -> dict:
+    """Two weeks of listening, newest first, optionally one surface only."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"items": SAVED.history(user, surface=surface),
+            "surfaces": list(saved_mod.HISTORY_SURFACES),
+            "days": saved_mod.HISTORY_SECONDS // 86400}
 
 
 async def _episode_blurb(pipeline, query: str, minutes: int,

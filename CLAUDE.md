@@ -637,36 +637,18 @@ the rest of this list it needs taste rather than a key.
    dropping a column is a migration with no benefit. What went is the screen.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
-   **The first run is a wheel** *(§99).* Six discs orbiting "View more",
-   turning slowly counter-clockwise, selectable while they move. The ring
-   rotates and each disc counter-rotates by exactly as much, so positions
-   orbit while labels stay upright - both CSS animations on `transform`, which
-   is what keeps them in lockstep with no code running per frame.
-   `prefers-reduced-motion` stops the turning and keeps the wheel.
-   **The two only cancel while they are at the same point in their cycle**
-   *(§100, and this corrects §99's comment).* A *new element's* animation
-   starts at zero, so a disc rebuilt mid-revolution counter-rotates from the
-   wrong place and its label sits at an angle - which is what tapping one used
-   to do to all six. Selecting therefore toggles a class in place and never
-   rebuilds, and any rebuild that does happen ends in `syncWheelPhase`, which
-   puts every disc's `Animation.currentTime` on the ring's. **Anything that
-   redraws the wheel has to go through that**, and the smoke behaviour reads
-   each label's net angle after a tap rather than trusting the claim.
-   **There are two wheels, and they answer two questions** *(§100, revised by
-   §107).* The first run draws `popular_facets` - somebody with no history, so
-   the honest signal is what everybody plays. **Settings now draws what this
-   listener *chose*** - their facets, plus the subjects they added from the
-   catalogue or typed into its search - and nothing else. It used to draw
-   `my_facets`: what they play, then what they chose, then the declared order
-   as filler, so the wheel always had six discs. Three of those four sources
-   are the app's answer rather than the listener's, and a screen called *Your
-   interests* that shows a recommendation is answering a question nobody
-   asked. The filler is gone and an empty wheel is possible; what fills it is
-   the hub in the middle, which says **"Edit/add topics"** and is the only
-   route to the catalogue now - the second door in Settings came off with it.
-   `my_facets` is still computed and still served as `interests_yours`,
-   because it is an honest signal and the answer to a real question; nothing
-   draws it today.
+   **There is no wheel any more** *(§142, at the owner's direction).* §99
+   drew the first run as six facet discs orbiting a "View more" hub, §100
+   fixed their labels tilting, and §107 made the Settings copy a reflection of
+   what the listener chose. All of it is deleted - the orbit, `syncWheelPhase`,
+   the separate catalogue screen behind the hub. **The interests page is the
+   long list itself**, on the first run and from Settings: search it, tick
+   what you like, add anything typed. Facets chosen on the old wheel are still
+   stored and are shown as removable pills above the list rather than kept or
+   dropped in silence. From Settings it is an editor: Save keeps, the X puts
+   back what was there (`introSnapshot`). `popular_facets` still orders the
+   facets `/api/preferences` serves, and `my_facets` is still served as
+   `interests_yours`; nothing draws either today.
    **And what somebody chose is stored now, which it was not.** Adding a
    catalogue topic wrote a `pick` event into the append-only log and kept no
    list, so the choice taught the ranker something and left nothing to show,
@@ -1031,6 +1013,13 @@ the rest of this list it needs taste rather than a key.
   the case that proved it: its button returned early whenever `isActive()` was
   false, which is exactly the state that bar is in most often - still on
   screen after the episode finished, with a play button that did nothing.
+  **And leaving the player never stops it** *(§142).* The player's X
+  minimises (`minimizePlayer`), and neither `goBack` nor `setTab` stops an
+  episode that is already playing - both used to, a leftover from the
+  prototype's speech player. The mini bar is still one element, moved by
+  `placeNowBar` above the tab bar of whichever tab is showing (never
+  Explore's), so the episode follows the listener and tapping it brings the
+  full player back mid-sentence.
 - **Nothing speaks before the thing it is about has arrived, and no setting
   buys that back.** *(PROBLEMS.md §108, at the owner's explicit direction.)*
   Twice now this product has tried to spend the opening on latency: the cold
@@ -1897,8 +1886,9 @@ the rest of this list it needs taste rather than a key.
 - **The intro screen is not on the navigation stack, and `goBack()` cannot
   reach it.** *(§96, §97, §98 - the same trap three times.)* It is drawn with
   `showScreen("intro")` by `afterAccount`, `restartFirstRun` and both settings
-  entry points, and never pushed. So anything opened *on top* of it - the
-  catalogue, a shelf - pops to whatever was underneath, which is SearchFAM,
+  entry points, and never pushed. So anything opened *on top* of it - a
+  shelf, and the catalogue before §142 made the list the page - pops to
+  whatever was underneath, which is SearchFAM,
   and the first run silently loses its remaining steps. Every one of those
   returns by *name* now, recorded when the screen was opened. If a fourth
   screen is ever shown that way, this is the line to read before wiring its
@@ -2401,7 +2391,12 @@ fallback source, after the row said "The live sources didn't answer in
 time" to everybody who opened myFAM; and **§140**, DailyFAM as a place to
 find other people's mixes - search, (+) to add a copy, share a whole mix - and
 a narrowing chip that no longer opens the keyboard; and **§141**, the three
-crowd rails made cached-only and ranked by listens),
+crowd rails made cached-only and ranked by listens; and **§142**, the 9.23
+second packet - chats that appear when you send, return as a new line,
+autocorrect that leaves names alone, Delete chat for one side, two weeks of
+listening history, titles that name their subject, a share that asks first, a
+follower announced once, the interests wheel replaced by its list, and a
+player X that minimises instead of stopping),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2424,12 +2419,15 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-nine** named smoke
+**twice** - once per preview build - and **seventy-two** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 69 as of §140,
+prose does not fail when somebody adds a behaviour. (It is 72 as of §142,
+which replaced the two wheel checks with the player minimising, the Settings
+interests list, sharing asking first, listening history's tabs, and deleting
+a chat. It was 69 as of §140,
 which added DailyFAM's search with its (+) and sharing a mix from its menu.
 It was 67 as of §137,
 which added a new mix following narrowed subjects and a square mix cover. It

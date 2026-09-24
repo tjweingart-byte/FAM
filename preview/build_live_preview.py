@@ -106,6 +106,9 @@ __MIX_ITEMS__
   var THREADS = {}, NEXT_MSG_ID = 1;
   //: Part-heard episodes for this page's account, newest first (§127).
   var PROGRESS = [];
+  //: Listening history (§142), in this page's memory like PROGRESS.
+  var PREVIEW_HISTORY = [];
+  var PREVIEW_AUTHED = function () { return !!EMAIL; };
   var NOTIFY = { head: 0, pending: [], follows: [] };
 
   window.famPreviewNotify = function (item) {
@@ -1304,9 +1307,63 @@ __MIX_ITEMS__
     // It is also why an Explore card here never carries `vibed_by`: that tag
     // needs a *friend* who both generated the episode and vibed it, and there
     // is nobody here to be one. The fixture build shows it instead.
+
+    // ---- §142: listening history, autocorrect, delete chat, one-time follows
+    //
+    // History is kept in this page's memory, the shape `/api/history` answers
+    // with and the same rules: two weeks, newest first, one row per episode
+    // per surface, and Explore refused.
+    if (path === "/api/history" && method === "POST") {
+      var hb = body;
+      var surfaces = ["myfam", "dailyfam", "search", "other"];
+      if (!PREVIEW_AUTHED()) return json({ ok: true, remembered: false });
+      if (surfaces.indexOf(hb.surface) === -1) return json({ ok: true, remembered: false });
+      var twin = PREVIEW_HISTORY.filter(function (h) {
+        return h.query === hb.query && h.minutes === hb.minutes && h.surface === hb.surface; })[0];
+      if (hb.retitle) {
+        PREVIEW_HISTORY.forEach(function (h) {
+          if (h.query === hb.query && h.minutes === hb.minutes && hb.title) h.title = hb.title; });
+        return json({ ok: true, remembered: true });
+      }
+      if (twin) PREVIEW_HISTORY.splice(PREVIEW_HISTORY.indexOf(twin), 1);
+      PREVIEW_HISTORY.unshift({ query: hb.query, minutes: hb.minutes, surface: hb.surface,
+                                title: hb.title || (twin ? twin.title : ""),
+                                context: hb.context || "", at: Date.now() / 1000 });
+      return json({ ok: true, remembered: true });
+    }
+    if (path === "/api/history") {
+      if (!PREVIEW_AUTHED()) return json({ error: "You need an account for this." }, 401);
+      var hs = qs.get("surface") || "";
+      var cutoff = Date.now() / 1000 - 14 * 86400;
+      return json({ items: PREVIEW_HISTORY.filter(function (h) {
+                      return h.at >= cutoff && (!hs || h.surface === hs); }),
+                    surfaces: ["myfam", "dailyfam", "search", "other"], days: 14 });
+    }
+    // A handful of the corrections `autocorrect.py` makes, so the behaviour
+    // can be felt on a phone. The real list is the server's; this has no
+    // dictionary and says nothing about any word it does not know.
+    if (path === "/api/spell") {
+      var sb = body;
+      var FIX = { teh: "the", recieve: "receive", definately: "definitely",
+                  tomorow: "tomorrow", becuase: "because", wiht: "with",
+                  taht: "that", im: "I'm", dont: "don't", thats: "that's",
+                  goverment: "government", leage: "league" };
+      return json({ available: true, corrections: (sb.words || []).map(function (w, i) {
+        var low = String(w || "").toLowerCase();
+        if (w !== low && !((sb.first || [])[i] && w.slice(1) === low.slice(1))) return null;
+        var fix = FIX[low] || null;
+        if (fix && w !== low) fix = fix.charAt(0).toUpperCase() + fix.slice(1);
+        return fix;
+      }) });
+    }
+    if (path === "/api/friends/announced") return json({ ok: true });
+    if (path === "/api/messages/thread" && method === "DELETE") {
+      delete THREADS[qs.get("with") || ""];
+      return json({ ok: true, unread: 0 });
+    }
     if (path === "/api/friends") {
       return json({ following: [], followers: [], friends: [],
-                    new_followers: [],
+                    new_followers: [], announce: [],
                     counts: { following: 0, followers: 0, friends: 0 } });
     }
     if (path === "/api/friends/seen") return json({ ok: true });

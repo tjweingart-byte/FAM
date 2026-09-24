@@ -64,7 +64,7 @@ SURFACES = [
      "    at:'2026-09-12', title:'Consumer Price Index summary',"
      "    url:'https://bls.gov/c'}"
      " ], retrievers:['Exa'], known:true}); openSources(); }, 900)"),
-    ("catalog", "renderIntro(); showScreen('intro'); openTopicCatalog()"),
+    ("catalog", "renderIntro(); showScreen('intro')"),
     ("nextup", "showScreen('player'); "
                "maybeOfferNextUp('what the fed did to interest rates', '')"),
     ("recap", "openRecapFromTile()"),

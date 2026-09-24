@@ -59,6 +59,11 @@ DELIBERATELY_OPTIONAL = {
     "jwt": "requirements-oauth.txt",
     # diagnose_api.py reports which HTTP libraries are present. Both imports
     # are inside try/except and their absence IS the diagnostic output.
+    # Declared - as `pyspellchecker`, which is not the name it imports under,
+    # so the comparison above cannot see it. And safe to be missing anyway:
+    # autocorrect.py logs that it is unavailable, passes every word through
+    # unchanged, and /api/spell answers `available: false` (§142).
+    "spellchecker": "declared as pyspellchecker; autocorrect.py says so when absent",
     "h2": "diagnose_api.py reports its absence rather than needing it",
     "httpx2": "diagnose_api.py reports its absence rather than needing it",
 }

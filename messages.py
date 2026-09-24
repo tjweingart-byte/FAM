@@ -67,6 +67,35 @@ MAX_QUERY = 500
 KINDS = ("episode", "text", "system")
 
 
+#: Blank lines kept in a row, at most. A message may have paragraphs (§142 -
+#: the keyboard's return key makes a new line now), but forty empty lines is
+#: a wall, not a paragraph break.
+MAX_BLANK_LINES = 2
+
+
+def clean_text(text: str) -> str:
+    """Tidy a typed message without flattening it.
+
+    Spaces inside a line are collapsed as before; line breaks are kept,
+    because a return key that made a new line in the box and then vanished on
+    send would be the same dead key the owner reported, one step later.
+    """
+    lines = [" ".join(line.split()) for line in str(text or "").splitlines()]
+    out: list[str] = []
+    blanks = 0
+    for line in lines:
+        if line:
+            blanks = 0
+            out.append(line)
+        elif out:
+            blanks += 1
+            if blanks <= MAX_BLANK_LINES:
+                out.append("")
+    while out and not out[-1]:
+        out.pop()
+    return "\n".join(out)[:MAX_TEXT]
+
+
 class MessageError(ValueError):
     """Something the sender can fix, phrased so it can be shown to them."""
 
@@ -149,6 +178,20 @@ class MessageStore:
                        PRIMARY KEY (thread, user_id)
                    )"""
             )
+            # "Delete chat" (§142): where one person's view of a thread now
+            # starts. Stored as the highest message id they deleted, per
+            # person per thread, so it hides the history for them and for
+            # nobody else - the other side's conversation is theirs and is
+            # untouched. A later message is above the mark, so writing to
+            # them again opens what looks like a new thread.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS clears (
+                       thread   TEXT NOT NULL,
+                       user_id  TEXT NOT NULL,
+                       after_id INTEGER NOT NULL,
+                       PRIMARY KEY (thread, user_id)
+                   )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -174,7 +217,7 @@ class MessageStore:
         if kind not in KINDS:
             raise MessageError(f"Unknown message kind {kind!r}.")
         thread = thread_id(sender, recipient)
-        text = " ".join(str(text or "").split())[:MAX_TEXT]
+        text = clean_text(text)
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         title = " ".join(str(title or "").split())[:MAX_TITLE]
         if kind == "episode" and not query:
@@ -212,9 +255,10 @@ class MessageStore:
         sql = ("SELECT id, thread, sender, recipient, kind, text, query,"
                " minutes, title, at FROM messages WHERE thread = ?")
         args: list = [tid]
-        if after_id:
+        floor = max(int(after_id or 0), self.cleared_at(user_id, tid))
+        if floor:
             sql += " AND id > ?"
-            args.append(int(after_id))
+            args.append(floor)
         # Newest-first with a LIMIT, then reversed: the limit has to cut the
         # *oldest* messages off a long conversation, not the newest.
         sql += " ORDER BY at DESC, id DESC LIMIT ?"
@@ -286,12 +330,15 @@ class MessageStore:
                 "SELECT m.thread, m.id, m.sender, m.recipient, m.kind, m.text,"
                 "       m.query, m.minutes, m.title, m.at"
                 "  FROM messages m"
-                "  JOIN (SELECT thread, MAX(at) AS top FROM messages"
-                "         WHERE sender = ? OR recipient = ?"
-                "         GROUP BY thread) t"
+                "  JOIN (SELECT x.thread, MAX(x.at) AS top FROM messages x"
+                "          LEFT JOIN clears c"
+                "            ON c.thread = x.thread AND c.user_id = ?"
+                "         WHERE (x.sender = ? OR x.recipient = ?)"
+                "           AND x.id > COALESCE(c.after_id, 0)"
+                "         GROUP BY x.thread) t"
                 "    ON t.thread = m.thread AND t.top = m.at"
                 " ORDER BY m.at DESC LIMIT ?",
-                (user_id, user_id, int(limit)),
+                (user_id, user_id, user_id, int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read the inbox")
@@ -321,8 +368,9 @@ class MessageStore:
             since = row[0] if row else 0.0
             return int(self._conn().execute(
                 "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                " AND recipient = ? AND at > ?",
-                (thread, user_id, since)).fetchone()[0])
+                " AND recipient = ? AND at > ? AND id > ?",
+                (thread, user_id, since,
+                 self.cleared_at(user_id, thread))).fetchone()[0])
         except Exception:
             log.exception("could not count unread messages")
             return 0
@@ -333,8 +381,10 @@ class MessageStore:
             rows = self._conn().execute(
                 "SELECT m.thread, COUNT(*) FROM messages m"
                 " LEFT JOIN reads r ON r.thread = m.thread AND r.user_id = ?"
+                " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
                 " WHERE m.recipient = ? AND m.at > COALESCE(r.read_at, 0)"
-                " GROUP BY m.thread", (user_id, user_id)).fetchall()
+                "   AND m.id > COALESCE(c.after_id, 0)"
+                " GROUP BY m.thread", (user_id, user_id, user_id)).fetchall()
         except Exception:
             log.exception("could not count unread messages")
             return 0
@@ -350,6 +400,45 @@ class MessageStore:
                 " WHERE read_at < ?", (tid, user_id, now, now, now))
         except Exception:
             log.exception("could not mark a thread read")
+
+    # --- deleting a chat, for one side (§142) -------------------------------
+
+    def cleared_at(self, user_id: str, thread: str) -> int:
+        """The id this listener's view of `thread` starts after, or 0."""
+        try:
+            row = self._conn().execute(
+                "SELECT after_id FROM clears WHERE thread = ? AND user_id = ?",
+                (thread, user_id)).fetchone()
+        except Exception:
+            log.exception("could not read a chat's clear mark")
+            return 0
+        return int(row[0]) if row else 0
+
+    def clear(self, user_id: str, other_id: str) -> int:
+        """Delete this conversation from `user_id`'s list, and only theirs.
+
+        Nothing is removed from the table: the other person still has the
+        whole conversation, and their messages are theirs. What moves is
+        where this listener's view begins - after the newest message that
+        exists now - so the thread leaves their inbox, stops counting as
+        unread, and a message either of them sends later starts a fresh one.
+        Returns the mark it set.
+        """
+        tid = thread_id(user_id, other_id)
+        try:
+            row = self._conn().execute(
+                "SELECT MAX(id) FROM messages WHERE thread = ?",
+                (tid,)).fetchone()
+            top = int(row[0] or 0)
+            self._conn().execute(
+                "INSERT INTO clears (thread, user_id, after_id) VALUES (?, ?, ?)"
+                " ON CONFLICT (thread, user_id) DO UPDATE SET"
+                " after_id = MAX(after_id, excluded.after_id)",
+                (tid, user_id, top))
+            return top
+        except Exception:
+            log.exception("could not delete a chat for %r", user_id)
+            raise MessageError("Could not delete that chat. Try again.")
 
     # --- housekeeping -----------------------------------------------------
 
@@ -368,6 +457,9 @@ class MessageStore:
             removed += cur.rowcount or 0
             cur = self._conn().execute(
                 "DELETE FROM reads WHERE user_id = ?", (user_id,))
+            removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM clears WHERE user_id = ?", (user_id,))
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase messages for %r", user_id)

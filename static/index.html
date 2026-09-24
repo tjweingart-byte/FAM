@@ -733,6 +733,14 @@
   .share-contacts{ display:flex; gap:12px; overflow-x:auto; padding-bottom:2px; }
   .share-contact{ flex:none; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; width:56px; }
   .share-contact:active{ transform:scale(0.95); }
+  /* The one they are about to send to (§142). A ring rather than a tint, so a
+     photo stays recognisable while it is selected. */
+  .share-contact.selected .av{ box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--copper); }
+  .share-contact.selected .nm{ color:var(--copper); font-weight:700; }
+  .share-confirm{ display:flex; gap:8px; margin-top:12px; }
+  .share-confirm[hidden]{ display:none; }
+  .share-confirm .modal-btn{ flex:1; }
+  .share-confirm .modal-btn.primary{ flex:2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .share-contact .av{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--ink); font-weight:700; font-size:12px; }
   /* Fallback colour for a person with no picture. Individual rows set their
      own from the handle - same person, same colour, on every surface - and
@@ -760,7 +768,8 @@
 
   .msg-row{ display:flex; margin-bottom:10px; }
   .msg-row.out{ justify-content:flex-end; }
-  .msg-bubble{ max-width:75%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.4; }
+  .msg-bubble{ max-width:75%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.4;
+    white-space:pre-wrap; overflow-wrap:anywhere; }
   .msg-row.in .msg-bubble{ background:var(--surface); color:var(--text); border-bottom-left-radius:4px; }
   .msg-row.out .msg-bubble{ background:var(--copper); color:var(--ink); font-weight:600; border-bottom-right-radius:4px; }
   /* Typed and drawn, not yet acknowledged by the server. Faded rather than
@@ -1541,11 +1550,8 @@
     margin:14px 0 26px; }
   .entry-h{ font-family:'Fraunces', serif; font-weight:600; font-size:20px;
     color:var(--text); line-height:1.2; }
-  /* Over a centred wheel rather than a left-aligned list. */
-  #introPageInterests .entry-h{ text-align:center; }
-  /* Only ever drawn from Settings, where the wheel is this listener's own
-     listening rather than the first run's six. */
-  .intro-sub{ text-align:center; font-size:11.5px; line-height:1.5;
+  /* Only ever drawn from Settings, where the list is an editor. */
+  .intro-sub{ font-size:11.5px; line-height:1.5;
     color:var(--text-muted); margin:8px 0 0; }
   .intro-sub[hidden]{ display:none; }
   .entry-acts{ display:flex; flex-direction:column; gap:11px; margin-top:auto; }
@@ -1620,47 +1626,6 @@
   .intro-top{ flex:none; display:flex; justify-content:flex-end;
     padding:14px 16px 0; }
   .intro-top[hidden]{ display:none; }
-  /* ---- the interests wheel ----------------------------------------------
-     Six discs orbiting "View more". Sized from one radius and one disc
-     diameter so the whole thing scales with the phone rather than being laid
-     out twice; `--orbit-time` is the one number that decides how fast, and
-     slow is the point - a selection control that moves quickly is a selection
-     control that is hard to hit. */
-  /* Sized from its own container, never from `vw`. That was the first
-     version and it overflowed the moment the app was not the whole window -
-     which is exactly what the phone preview is, and what a tablet or a
-     desktop browser is. `cqw` is a percentage of `.orbit-wrap`, so the wheel
-     is correct at every width the app is ever drawn at. */
-  .orbit-wrap{ container-type:inline-size; width:100%; max-width:308px;
-    margin:20px auto 0; }
-  .orbit{ --orbit-r: 35cqw; --orbit-chip: 26cqw; --orbit-time: 60s;
-    position:relative; width:100%; aspect-ratio:1 / 1; }
-  /* The ring carries the orbit and nothing else. `pointer-events:none` so the
-     empty middle of it does not sit on top of "View more" and swallow the tap;
-     the chips put theirs back. */
-  .orbit-ring{ position:absolute; inset:0; pointer-events:none;
-    animation:fam-orbit var(--orbit-time) linear infinite; }
-  .orbit-slot{ position:absolute; left:50%; top:50%;
-    width:var(--orbit-chip); height:var(--orbit-chip); }
-  .intro-chip{ pointer-events:auto; width:100%; height:100%;
-    display:flex; align-items:center; justify-content:center; text-align:center;
-    border-radius:50%; background:var(--surface); line-height:1.2;
-    border:1px solid var(--border-strong); color:var(--text); font-size:12px;
-    font-weight:600; font-family:inherit; padding:6px; cursor:pointer;
-    animation:fam-orbit-back var(--orbit-time) linear infinite; }
-  .intro-chip.on{ background:var(--copper); border-color:var(--copper);
-    color:var(--ink); }
-  /* Counter-clockwise, following the arrows in the design. The chip's
-     animation is the exact inverse of the ring's, which is what keeps every
-     label upright while its disc goes round. */
-  @keyframes fam-orbit{ from{ transform:rotate(0deg); } to{ transform:rotate(-360deg); } }
-  @keyframes fam-orbit-back{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
-  /* Somebody who has asked their phone to stop moving things has asked for
-     this too. The wheel stays a wheel - the slots keep their positions - it
-     simply stops turning. */
-  @media (prefers-reduced-motion: reduce){
-    .orbit-ring, .intro-chip{ animation:none; }
-  }
 
   /* The way on, docked below the scrolling area rather than at the end of it.
      See the markup note: on a phone the language list is taller than the
@@ -1669,18 +1634,17 @@
     background:linear-gradient(to top, var(--bg) 62%, rgba(42,39,51,0)); }
   .entry-dock[hidden]{ display:none; }
 
-  /* "View more": the catalogue of named interests, in the middle of the
-     wheel. Still, while everything around it turns, which is what makes it
-     read as the hub rather than a seventh option. */
-  .orbit-more{ position:absolute; left:50%; top:50%;
-    transform:translate(-50%, -50%); white-space:nowrap;
-    padding:8px 6px; background:none; border:none; color:var(--copper);
-    font-family:'Fraunces', serif; font-size:15px; font-weight:500;
-    text-decoration:underline; text-underline-offset:5px; cursor:pointer; }
-  .orbit-more:active{ opacity:0.6; }
+  /* Interests chosen as a whole facet ("Sport") before the list replaced the
+     wheel (§142). Shown so they can still be taken off; nothing adds one. */
+  .intro-facets{ display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+  .intro-facets[hidden]{ display:none; }
+  .intro-facet{ display:inline-flex; align-items:center; gap:6px; height:30px;
+    padding:0 11px 0 13px; border-radius:15px; background:var(--copper);
+    border:1px solid var(--copper); color:var(--ink); font-size:12px;
+    font-weight:600; font-family:inherit; cursor:pointer; }
   .intro-picked{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
-    letter-spacing:0.05em; color:var(--copper); margin-top:10px;
-    text-align:center; }
+    letter-spacing:0.05em; color:var(--copper); margin:6px 0 2px;
+    min-height:12px; }
 
   /* The catalogue itself: icon, name, add. A list rather than a chip cloud,
      because it is long and a name has to be readable at a glance. */
@@ -1820,6 +1784,17 @@
   .sv-x{ color:var(--text-faint); padding:6px; }
   .sv-empty{ padding:30px 18px; text-align:center; color:var(--text-faint);
     font-family:'Space Grotesk', sans-serif; font-size:11px; line-height:1.6; }
+  /* Listening history (§142): the shelf's rows, under four filter tabs. */
+  .hist-tabs{ flex:none; display:flex; gap:7px; padding:4px 18px 10px;
+    overflow-x:auto; }
+  .hist-tab{ flex:none; height:30px; padding:0 13px; border-radius:15px;
+    background:var(--surface); border:1px solid var(--border-strong);
+    color:var(--text-muted); font-family:inherit; font-size:12px;
+    font-weight:600; cursor:pointer; }
+  .hist-tab.on{ background:var(--copper); border-color:var(--copper);
+    color:var(--ink); }
+  .hist-day{ padding:14px 18px 4px; font-family:'JetBrains Mono', monospace;
+    font-size:8.5px; letter-spacing:0.08em; color:var(--text-faint); }
   /* -------- Share sheet: inside FAM, and outside it --------
      One sheet with two halves rather than two sheets, because "share this"
      is one intent and the listener should not have to know which kind of
@@ -2032,12 +2007,17 @@
     background:#312E3F; border:1px dashed rgba(244,239,228,0.22);
     font-size:10px; color:#CFC8DA; }
   .yf-receipt svg{ color:var(--sage); flex:none; }
-  .yf-composer{ flex:none; display:flex; align-items:center; gap:7px;
+  .yf-composer{ flex:none; display:flex; align-items:flex-end; gap:7px;
     padding:10px 12px 14px; border-top:1px solid var(--border); background:var(--bg); }
-  .yf-composer input{ flex:1; min-width:0; height:36px; border-radius:18px;
-    border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
-    padding:0 13px; font-family:inherit; font-size:12.5px; outline:none; }
-  .yf-composer input::placeholder{ color:var(--text-muted); }
+  /* A textarea, so return makes a new line (§142); it grows with what is
+     typed up to about five lines, then scrolls. The buttons sit on its last
+     line, the way every messaging app keeps send under the thumb. */
+  .yf-composer textarea{ flex:1; min-width:0; min-height:36px; max-height:112px;
+    border-radius:18px; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--text); padding:9px 13px;
+    font-family:inherit; font-size:12.5px; line-height:1.35; outline:none;
+    resize:none; overflow-y:auto; display:block; }
+  .yf-composer textarea::placeholder{ color:var(--text-muted); }
 
   /* A friend's profile. */
   .yf-person{ padding:0 0 24px; }
@@ -2290,7 +2270,7 @@
              and the sources panel, because an X that is drawn differently on
              each screen is an X the thumb has to find again each time. -->
         <div class="intro-top" id="introTop" hidden>
-          <button class="sheet-close" onclick="closeIntroToSettings()"
+          <button class="sheet-close" onclick="cancelIntroFromSettings()"
                   aria-label="Back to Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
         <div class="scroll">
@@ -2298,42 +2278,21 @@
             <div id="introPageInterests">
               <div class="entry-h">Your interests</div>
               <p class="intro-sub" id="introSub" hidden></p>
-              <!-- No paragraph under the heading. Six buttons and a way to see
-                   the rest is a question that answers itself; the three lines
-                   explaining the cap and when interests stop mattering were
-                   read before anything had been chosen, which is the one
-                   moment none of it is useful yet. -->
-              <!-- The wheel. Six of the eight facets, most played across FAM
-                   first, turning slowly counter-clockwise around "View more".
-                   No count and no cap: pick none, pick all six, pick three -
-                   there is no number here anybody is told about.
-
-                   How the turning works, because it is the part that breaks
-                   if it is touched carelessly. The ring rotates; each chip
-                   counter-rotates by exactly the same amount over exactly the
-                   same duration, so the labels stay upright while their
-                   positions orbit. Both are CSS animations on `transform`, so
-                   they run on the compositor, stay in lockstep without any
-                   JavaScript, and cost nothing per frame. A rAF loop doing
-                   the same thing would drift, would burn the phone's battery
-                   for the whole of the first run, and would stop dead the
-                   moment the main thread was busy fetching. -->
-              <div class="orbit-wrap">
-                <div class="orbit" id="introOrbit">
-                  <div class="orbit-ring" id="orbitRing"></div>
-                  <!-- The hub's words are the mode's, because the two
-                       screens are asking different things of it. On the first
-                       run this is "View more" - there is a list behind the six
-                       discs and that is all it needs to say. From Settings the
-                       wheel is a reflection of what this listener chose, so
-                       the hub is the way to change it: "Edit/add topics". It
-                       is also now the *only* way to that list, which is why
-                       the second door beside it in Settings came off. -->
-                  <button class="orbit-more" id="orbitMore"
-                          onclick="openTopicCatalog()">View more</button>
-                </div>
-              </div>
+              <!-- The long list, straight away (§142). There used to be a
+                   wheel here - six facets turning round a "View more" hub
+                   that opened this list on a screen of its own - and the
+                   owner asked for it to go: the list is the page now, on the
+                   first run and from Settings alike. Anything typed that is
+                   not on it can be added as it is. -->
+              <div class="intro-facets" id="introFacets" hidden></div>
+              <input class="modal-input" id="catalogSearch" type="search"
+                     autocomplete="off" autocorrect="on" autocapitalize="off" spellcheck="true"
+                     placeholder="Search topics, or type your own"
+                     oninput="renderTopicCatalog()"
+                     onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addTypedInterest(); }"
+                     style="margin:14px 0 4px;">
               <div class="intro-picked" id="introPicked"></div>
+              <div id="catalogBody"></div>
               <p class="entry-note" id="introSaveNote"></p>
             </div>
           </div>
@@ -2475,35 +2434,6 @@
         </div>
       </section>
 
-      <!-- The topic catalogue, behind "View more" on the interests page.
-           Every row is a real subject from the shared bank, so adding one is
-           a statement with a whole topic behind it - and the topic carries
-           tags far finer than the eight the buttons above can offer. It
-           writes one row in the event log and generates nothing. -->
-      <section class="screen sheet" id="screen-catalog">
-        <div class="cat-top">
-          <h2>Topics</h2>
-          <button class="sheet-close" onclick="closeTopicCatalog()" aria-label="Close the catalogue">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </div>
-        <div style="padding:0 18px 12px;">
-          <input class="modal-input" id="catalogSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                 placeholder="Search topics" oninput="renderTopicCatalog()"
-                 onkeydown="if(event.key === 'Enter') addTypedInterest();"
-                 style="margin-bottom:0;">
-        </div>
-        <div class="scroll" id="catalogBody" style="padding-top:2px;"></div>
-        <!-- Docked, and only there once something has changed.
-             Adding a topic used to take effect the instant it was tapped and
-             there was nothing to press afterwards, so the screen gave a
-             listener no way to tell a choice they had made from one they were
-             still considering - and no way to back out of either. The X is
-             still here and still leaves without saving. -->
-        <div class="cat-dock" id="catalogDock" hidden>
-          <button class="entry-btn primary" onclick="saveTopicCatalog()">Save</button>
-        </div>
-      </section>
 
       <!-- ============ EXPLORE NEW ============
            Reached from Your FAM. This is `rank_might_like`, the one ranking
@@ -2645,6 +2575,25 @@
         <div class="scroll" id="svBody"></div>
       </section>
 
+      <!-- ============ LISTENING HISTORY ============ (§142)
+           Every episode started in the last two weeks, newest first, filtered
+           by where it was heard. Explore is not here, at the owner's
+           direction: it replays other people's episodes, and a feed you swipe
+           through is not a list of things you chose. Reached from Settings. -->
+      <section class="screen" id="screen-history">
+        <div class="back-row">
+          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2>Recent listening history</h2>
+        </div>
+        <div class="hist-tabs" id="histTabs" role="tablist">
+          <button class="hist-tab on" data-hist="" onclick="setHistoryTab('')">All</button>
+          <button class="hist-tab" data-hist="myfam" onclick="setHistoryTab('myfam')">myFAM</button>
+          <button class="hist-tab" data-hist="dailyfam" onclick="setHistoryTab('dailyfam')">dailyFAM</button>
+          <button class="hist-tab" data-hist="search" onclick="setHistoryTab('search')">searchFAM</button>
+        </div>
+        <div class="scroll" id="histBody"></div>
+      </section>
+
       <!-- ============ HOME ============ -->
       <section class="screen" id="screen-home">
         <div class="scroll" style="display:flex; flex-direction:column;">
@@ -2654,7 +2603,7 @@
           </div>
           <div class="home-hero">
           <div class="fam-input-box">
-            <textarea id="searchInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
+            <textarea id="searchInput" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
           </div>
           <div class="attach-row" id="attachRow"></div>
           <div class="fam-controls">
@@ -2884,7 +2833,10 @@
       <section class="screen" id="screen-player">
         <div class="player-top">
           <span class="kicker">Now playing <span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span></span>
-          <span class="x" onclick="goBack()">✕</span>
+          <!-- Minimises, never stops (§142): the episode carries on in the
+               mini player, whose button still pauses it and whose tap brings
+               this screen back exactly where it is. -->
+          <span class="x" onclick="minimizePlayer()" aria-label="Minimise the player">✕</span>
         </div>
         <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
         <div class="mini-stage" id="playerStage">
@@ -3151,8 +3103,13 @@
         <div class="scroll" id="thread-body"></div>
         <div class="yf-composer">
           <button class="yf-round" onclick="shareIntoThread()" aria-label="Share an episode"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-          <input type="text" id="threadInput" placeholder="Message…" aria-label="Message" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                 onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendThreadMessage(); }">
+          <!-- Return makes a new line and the arrow sends (§142): the return
+               key used to send, and with an empty box did nothing at all.
+               The keyboard's own autocorrect is on, and FAM's is behind it
+               (`autocorrect.py`). -->
+          <textarea id="threadInput" rows="1" placeholder="Message…" aria-label="Message"
+                    autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true"
+                    data-autocorrect enterkeyhint="enter"></textarea>
           <button class="yf-round gold" onclick="sendThreadMessage()" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
       </section>
@@ -3266,6 +3223,14 @@
                most time to, so it is gone rather than disabled. -->
           <div class="gc-label" style="margin-bottom:8px;">People you follow</div>
           <div class="share-contacts" id="shareContacts"></div>
+          <!-- Tapping a person selects them and nothing else (§142). It used
+               to send on the tap and close the sheet, so nobody could tell
+               whether it had gone - or to whom. Now the face lights up, and
+               sending is this button, with Cancel to take the choice back. -->
+          <div class="share-confirm" id="shareConfirm" hidden>
+            <button class="modal-btn ghost" onclick="cancelShareContact()">Cancel</button>
+            <button class="modal-btn primary" id="shareConfirmBtn" onclick="confirmShareContact()">Share</button>
+          </div>
           <!-- Outside FAM. Nothing is posted from here: the phone's share
                sheet and each platform's own app do the posting, with the
                person looking at it - so FAM holds no token for any of them.
@@ -3551,6 +3516,26 @@
     }
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
+    placeNowBar(next);
+  }
+
+  // The mini player goes wherever the listener goes (§142). It was one strip
+  // inside myFAM, so an episode minimised from search had nowhere to be. It
+  // is still one element - one set of controls, one idea of what is playing -
+  // moved to sit above the tab bar of whichever tab is showing. Not on
+  // Explore, whose reels are a player of their own, and not on screens with
+  // no tab bar (the player itself, sheets), where it would sit on top of
+  // their own bottom controls.
+  function placeNowBar(screen){
+    var bar = document.getElementById("nowBar");
+    if(!bar || !screen) return;
+    var tabbar = null;
+    for(var c = screen.firstElementChild; c; c = c.nextElementSibling){
+      if(c.classList.contains("tabbar")){ tabbar = c; break; }
+    }
+    var here = !!(nowBarState && tabbar && screen.id !== "screen-explore");
+    if(here && bar.nextElementSibling !== tabbar) screen.insertBefore(bar, tabbar);
+    bar.hidden = !here;
   }
   function updateTabs(root){
     document.querySelectorAll(".tab").forEach(function(t){
@@ -3558,7 +3543,13 @@
     });
   }
   function setTab(root){
-    stopSpeech();
+    // An episode that is playing keeps playing across tabs, in the mini
+    // player (§142). One still loading is abandoned, as it always was - and
+    // so is an Explore reel: the feed is a player of its own, and leaving it
+    // ends it rather than carrying a swiped-past card into the mini bar.
+    var leavingExplore = stack[0] === "explore" && root !== "explore";
+    if(!nowBarState || leavingExplore) stopSpeech();
+    if(leavingExplore) hideNowBar();
     stack = [root];
     showScreen(root);
     updateTabs(root);
@@ -3568,11 +3559,16 @@
     showScreen(id);
   }
   function goBack(){
-    stopSpeech();
+    if(!nowBarState) stopSpeech();   // see setTab
     stack.pop();
     var prev = stack[stack.length-1] || "home";
     showScreen(prev);
     if(prev === "home" || prev === "myfam"){ updateTabs(prev); }
+    // Back from a conversation to the list, which is re-read so a chat you
+    // just started - or just deleted - is shown as it now is (§142). It used
+    // to be drawn once when Messages opened, so a thread you had only *sent*
+    // to did not appear until you left Messages and came back.
+    if(prev === "messages") renderThreadList();
   }
 
   function toast(msg){
@@ -3769,6 +3765,9 @@
         // question. `prompt` is what actually gets asked.
         prompt: val,
         source: attach ? "From what you attached" : "Your search",
+        // Listening history files this under searchFAM whichever tab the
+        // search box was opened from (§142).
+        surface: "search",
         caption: "Generating your live transcript as this plays—",
         attach: attach,
         titleOverridden: !!attach
@@ -4480,6 +4479,9 @@
     // one, is not up for replacement. `titleOverridden` is what marks both.
     if(topic && !topic.titleOverridden){
       topic.title = title;
+      if(historyNow && historyNow.query === episodeStamp.split("|")[0]){
+        retitleListen(historyNow, title);
+      }
       var shown = document.getElementById("p-title");
       if(shown && document.getElementById("screen-player")
                     .classList.contains("active")){
@@ -4770,7 +4772,7 @@
     nowBarState = { title: title, query: query, minutes: minutes, source: source || "" };
     var bar = document.getElementById("nowBar");
     if(!bar) return;
-    bar.hidden = false;
+    placeNowBar(document.querySelector(".screen.active"));
     document.getElementById("nowThumb").innerHTML =
       '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 12a8 8 0 0116 0v5a2 2 0 01-2 2h-2v-6h4"/><path d="M4 12v5a2 2 0 002 2h2v-6H4"/></svg>';
     document.getElementById("nowTitle").textContent = title;
@@ -4906,6 +4908,19 @@
     }).catch(function(err){ toast(err.message || "Could not vibe that"); });
   }
 
+  // The X on the full player. Leaves the screen and nothing else: the audio,
+  // the progress ticker and the episode's state all carry on, and the mini
+  // player on the screen underneath is the same episode.
+  function minimizePlayer(){
+    if(stack[stack.length - 1] === "player") stack.pop();
+    var prev = stack[stack.length - 1] || "home";
+    if(prev === "player"){ stack.pop(); prev = stack[stack.length - 1] || "home"; }
+    if(!stack.length) stack = [prev];
+    showScreen(prev);
+    if(prev === "home" || prev === "myfam"){ updateTabs(prev); }
+    if(prev === "messages") renderThreadList();
+  }
+
   function toggleNowBar(){ togglePlay(); }
   function openNowPlaying(){
     if(nowBarState) navigate("player");
@@ -4913,6 +4928,8 @@
 
   function speakText(title, captionHtml, onEnd, context, bankTopicId, opts){
     opts = opts || {};
+    // Explore's reels come here directly and are never listening history.
+    if(opts.cachedOnly) historyPending = null;
     // Explore replays a script that was written for a specific length. Asking
     // for a different one is a different cache key, so it would miss - and on
     // a replay-only request a miss is a refusal, not a regeneration.
@@ -4941,6 +4958,14 @@
     FamAudio.play(title, minutes, {
       onFirstAudio: function(){
         awaitingFirstAudio = "";
+        // Heard, so it goes in the listening history (§142) - only now, so a
+        // tap that failed before a word was spoken is not listed as heard.
+        if(historyPending && historyPending.query === title){
+          historyNow = historyPending;
+          noteListen(historyNow, TOPICS[currentPlayingTopicKey]
+                                 ? TOPICS[currentPlayingTopicKey].title : "");
+        }
+        historyPending = null;
         startProgress(totalSeconds);
         applyPlaybackSpeed();   // honour the speed already chosen in the pill
         onGenerationStarted();
@@ -5077,6 +5102,11 @@
     // from search, which is a recommendation nobody made and nobody could
     // decline. Album continuity is not lost - the popup's countdown tile is
     // the next episode in the album whenever there is one.
+    // Listening history (§142): what to record once the first word plays.
+    var historyWhere = historySurface(t);
+    historyPending = historyWhere ? {
+      query: query, context: context, surface: historyWhere,
+      minutes: playOpts.minutes || selectedLengthMinutes } : null;
     speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
@@ -9273,14 +9303,14 @@
       + settingsRow("Where you are", escapeHtml(locationSummary()),
           "openLocationFromSettings()");
 
-    // No "More topics" row. The way to that list is now the hub in the middle
-    // of the Your interests wheel, which says "Edit/add topics" - so this was
-    // a second door to the same screen, sitting beside the first one and
-    // describing it differently.
+    // "Your interests" opens the whole list of topics directly (§142) - there
+    // is no wheel in front of it any more, and no second door beside it.
     html += '<div class="set-group">Listening</div>'
       + settingsRow("Your interests",
           chosenSummary(chosen, labels),
           "openInterestsFromSettings()")
+      // Everything heard in the last two weeks, by where it was heard (§142).
+      + settingsRow("Listening history", "Last 2 weeks", "openHistory()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
@@ -9325,10 +9355,9 @@
   }
 
   // What the Interests row says it holds. Their chosen facets and their chosen
-  // subjects are two different vocabularies (see `wheelItems`), and the row
-  // above the wheel has to describe the same set the wheel draws - a row
-  // saying "Tech, Sport" over a wheel showing Formula 1 and Fed policy reads
-  // as one of the two being wrong.
+  // subjects are two different vocabularies, and the row has to describe the
+  // same set the interests screen shows - a row saying "Tech, Sport" over a
+  // list ticking Formula 1 and Fed policy reads as one of the two being wrong.
   function chosenSummary(facets, labels){
     var names = (facets || []).map(function(t){ return labels[t] || t; })
       .concat(chosenTopicLabels());
@@ -9419,6 +9448,7 @@
 
   function openInterestsFromSettings(){
     introMode = "settings";
+    introSnapshot = null;
     var here = document.querySelector(".screen.active");
     var from = here ? here.id.replace(/^screen-/, "") : "";
     introReturn = (from && from !== "intro") ? from : "settings";
@@ -9426,6 +9456,9 @@
     // editor, and saving what the screen last happened to hold would quietly
     // overwrite a change made on another device.
     loadPrefChoices().then(function(){
+      // What the X puts back: this screen saves on Save and nowhere else.
+      introSnapshot = { interests: introSelection.slice(),
+                        topics: chosenTopics.slice() };
       renderIntro();
       showScreen("intro");
     });
@@ -9495,7 +9528,7 @@
     var v = myVibes[i];
     if(!v) return;
     var key = "vibe_" + i + "_" + Date.now();
-    TOPICS[key] = { title: v.title || v.query, source: "From your vibes",
+    TOPICS[key] = { title: v.title || v.query, source: "From your vibes", surface: "other",
                     caption: "Live captions will appear here as this plays—",
                     prompt: v.query, exploreMinutes: v.minutes,
                     titleOverridden: true };
@@ -9572,7 +9605,10 @@
         if(!d) return;
         friendsData = d;
         newFollowers = d.new_followers || [];
-        var next = newFollowers.filter(function(p){
+        // `announce`, not `new_followers`: only people this listener has never
+        // been shown (§142). The popup used to remember that in page memory,
+        // so every fresh open of the app raised the latest follower again.
+        var next = (d.announce || []).filter(function(p){
           return !followerPopupShown[p.user_id];
         })[0];
         if(next) showFollowerPopup(next);
@@ -9588,6 +9624,9 @@
     closeNextUp();
     followerNow = person;
     followerPopupShown[person.user_id] = true;
+    // Once, ever: the server is told as the popup goes up, so neither this
+    // popup nor the banner raises this person again on any open or device.
+    markFollowerAnnounced(person);
     var av = document.getElementById("nfAvatar");
     av.style.background = personHue(person.handle || person.name);
     av.innerHTML = avatarHTML(person, 64);
@@ -9603,6 +9642,15 @@
     back.hidden = !!person.follows_back;
     document.getElementById("nfAlready").hidden = !person.follows_back;
     document.getElementById("followerOverlay").classList.add("active");
+  }
+
+  function markFollowerAnnounced(person){
+    if(!person || !person.user_id) return;
+    notifAnnouncedFollows[person.user_id] = true;
+    fetch("/api/friends/announced", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ user_id: person.user_id })
+    }).catch(function(){});
   }
 
   function closeFollowerPopup(){
@@ -9988,7 +10036,7 @@
     var v = personVibes[i];
     if(!v) return;
     var key = "pvibe_" + i + "_" + Date.now();
-    TOPICS[key] = { title: v.title || v.query,
+    TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: "vibed by " + (viewingProfile && viewingProfile.name
                                            ? viewingProfile.name : "a friend"),
                     caption: "", prompt: v.query,
@@ -10119,7 +10167,7 @@
     var c = topicState.cards[i];
     if(!c) return;
     var key = "topic_" + i + "_" + Date.now();
-    TOPICS[key] = { title: c.title || c.query,
+    TOPICS[key] = { title: c.title || c.query, surface: "other",
                     source: c.vibed_by && c.vibed_by.name
                       ? "Vibed by " + c.vibed_by.name : topicState.label,
                     caption: "Live captions will appear here as this plays—",
@@ -10468,7 +10516,9 @@
     var el = document.getElementById("threadList");
     if(!el) return;
     if(!AUTH.authenticated){ el.innerHTML = messageGate(); return; }
-    el.innerHTML = '<div class="pf-empty">Loading…</div>';
+    // "Loading" only when there is nothing to show yet: a refresh of a list
+    // already on screen should not blank it for a round trip.
+    if(!inboxThreads.length) el.innerHTML = '<div class="pf-empty">Loading…</div>';
     fetch("/api/messages")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
@@ -10613,12 +10663,53 @@
     openPersonProfile(currentThread.handle, currentThread);
   }
 
+  // "View profile" and "Delete chat" (§142). "Share an episode" came off
+  // this menu at the owner's direction: the (+) beside the message box does
+  // exactly that, one tap nearer.
   function openThreadMenu(){
     if(!currentThread) return;
     showActionSheet([
       { label: "View profile", action: openThreadProfile },
-      { label: "Share an episode", action: shareIntoThread }
+      { label: "Delete chat", danger: true, action: confirmDeleteChat }
     ]);
+  }
+
+  // Deletes the conversation for this listener only. The other person keeps
+  // all of it, and a message to them afterwards opens what reads as a new
+  // thread - see `MessageStore.clear`.
+  function confirmDeleteChat(){
+    if(!currentThread) return;
+    var who = currentThread;
+    showActionSheet([
+      { group: "Delete this chat? It goes from your messages only \u2014 "
+               + escapeHtml(firstName(who)) + " still has it." },
+      { label: "Delete chat", danger: true, action: function(){ deleteChat(who); } }
+    ]);
+  }
+
+  function deleteChat(who){
+    fetch("/api/messages/thread?with=" + encodeURIComponent(who.user_id),
+          { method: "DELETE" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.detail || d.error || "Could not delete that chat");
+          return d;
+        });
+      })
+      .then(function(d){
+        inboxThreads = inboxThreads.filter(function(t){ return t["with"] !== who.user_id; });
+        setUnreadDot(d.unread);
+        stopThreadPolling();
+        if(threadScreenOpen() && currentThread && currentThread.user_id === who.user_id){
+          currentThread = null;
+          threadMessages = [];
+          goBack();   // which re-reads the list
+        } else {
+          renderThreadRows();
+        }
+        toast("Chat deleted");
+      })
+      .catch(function(err){ toast(err.message); });
   }
 
   // The composer's (+): send them an episode. The episodes on offer are ones
@@ -10770,6 +10861,11 @@
     return added;
   }
 
+  function messagesListOpen(){
+    var screen = document.getElementById("screen-messages");
+    return !!(screen && screen.classList.contains("active"));
+  }
+
   function threadScreenOpen(){
     var screen = document.getElementById("screen-thread");
     return !!(screen && screen.classList.contains("active"));
@@ -10814,6 +10910,101 @@
   (function(){
     var input = document.getElementById("threadInput");
     if(input) input.addEventListener("input", noteTyping);
+  })();
+
+  // ---------------- autocorrect (§142) ----------------
+  //
+  // The phone keyboard's correction is on in both boxes now - it was switched
+  // off - and this is the second pass behind it, because the owner found the
+  // keyboard lets things through. Each word is asked about as it is finished
+  // (a space, punctuation or a new line after it), and `autocorrect.py` is
+  // deliberately cautious: it answers null for anything that could be a name,
+  // which is half of what people ask FAM about.
+  //
+  // One backspace straight after a correction puts the typed word back, and
+  // that word is never corrected again this session - the same undo a phone
+  // gives, because an autocorrect with no way back is worse than none.
+  var AC_CACHE = {};
+  var AC_REVERTED = {};
+  var acLast = null;
+  var AC_BOUNDARY = /[\s.,!?;:)]/;
+
+  function acInstall(el){
+    if(!el || el._acInstalled) return;
+    el._acInstalled = true;
+    el.addEventListener("beforeinput", function(e){
+      if(e.inputType !== "deleteContentBackward" || !acLast || acLast.el !== el) return;
+      var end = acLast.start + acLast.to.length;
+      if(el.selectionStart !== el.selectionEnd || el.selectionStart !== end + 1) return;
+      if(el.value.slice(acLast.start, end) !== acLast.to) return;
+      e.preventDefault();
+      el.value = el.value.slice(0, acLast.start) + acLast.from + el.value.slice(end);
+      var caret = acLast.start + acLast.from.length + 1;
+      el.setSelectionRange(caret, caret);
+      AC_REVERTED[acLast.from.toLowerCase()] = true;
+      acLast = null;
+      el.dispatchEvent(new Event("input"));
+    });
+    el.addEventListener("input", function(e){
+      if(e.isTrusted === false && !e.inputType) return;   // our own redispatch
+      acLast = null;
+      var typed = e.data || (e.inputType === "insertLineBreak" ? "\n" : "");
+      if(!typed || !AC_BOUNDARY.test(typed.slice(-1))) return;
+      var pos = el.selectionStart;
+      if(pos !== el.selectionEnd || pos < 2) return;
+      var before = el.value.slice(0, pos - 1);
+      var m = before.match(/([A-Za-z]+(?:'[A-Za-z]+)?)$/);
+      if(!m) return;
+      var word = m[1], start = pos - 1 - word.length;
+      if(AC_REVERTED[word.toLowerCase()]) return;
+      // The start of a sentence, where a capital is the keyboard's own.
+      var head = el.value.slice(0, start);
+      var first = /^\s*$/.test(head) || /[.!?\n]\s*$/.test(head);
+      acAsk(word, first).then(function(fix){
+        if(!fix || fix === word) return;
+        // Only if the word is still there, untouched, where it was.
+        if(el.value.slice(start, start + word.length) !== word) return;
+        if(!AC_BOUNDARY.test(el.value.charAt(start + word.length))) return;
+        var caret = el.selectionStart, caretEnd = el.selectionEnd;
+        el.value = el.value.slice(0, start) + fix + el.value.slice(start + word.length);
+        var shift = fix.length - word.length;
+        if(caret > start){ caret += shift; caretEnd += shift; }
+        if(document.activeElement === el) el.setSelectionRange(caret, caretEnd);
+        acLast = { el: el, start: start, from: word, to: fix };
+      });
+    });
+  }
+
+  function acAsk(word, first){
+    var key = (first ? "^" : "") + word;
+    if(Object.prototype.hasOwnProperty.call(AC_CACHE, key)){
+      return Promise.resolve(AC_CACHE[key]);
+    }
+    return fetch("/api/spell", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ words: [word], first: [first] })
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var fix = d && d.corrections ? d.corrections[0] : null;
+        AC_CACHE[key] = fix || null;
+        return fix;
+      })
+      // Offline, or a server without the speller: the keyboard's own pass is
+      // still there, and this one quietly steps aside.
+      .catch(function(){ return null; });
+  }
+
+  // The message box grows with what is typed, up to its CSS ceiling.
+  function sizeComposer(el){
+    if(!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight + 2, 112) + "px";
+  }
+
+  (function(){
+    document.querySelectorAll("[data-autocorrect]").forEach(acInstall);
+    var input = document.getElementById("threadInput");
+    if(input) input.addEventListener("input", function(){ sizeComposer(input); });
   })();
 
   function renderThreadBody(){
@@ -10918,7 +11109,7 @@
     var m = threadMessages[i];
     if(!m || !m.query) return;
     var key = "msgdeep_" + i + "_" + Date.now();
-    TOPICS[key] = { title: m.title || m.query,
+    TOPICS[key] = { title: m.title || m.query, surface: "other",
                     source: "Sent to you by " + firstName(currentThread),
                     caption: "Live captions will appear here as this plays—",
                     prompt: m.query, exploreMinutes: m.minutes, titleOverridden: true };
@@ -10938,7 +11129,7 @@
     var m = threadMessages[i];
     if(!m || !m.query) return;
     var key = "msg_" + i + "_" + Date.now();
-    TOPICS[key] = { title: m.title || m.query,
+    TOPICS[key] = { title: m.title || m.query, surface: "other",
                     source: "Sent to you by " + ((currentThread && currentThread.name) || "a friend"),
                     caption: "Live captions will appear here as this plays—",
                     prompt: m.query, exploreMinutes: m.minutes,
@@ -10948,9 +11139,11 @@
 
   function sendThreadMessage(){
     var input = document.getElementById("threadInput");
-    var val = input.value.trim();
+    var val = input.value.replace(/^\s+|\s+$/g, "");
     if(!val || !currentThread) return;
     input.value = "";
+    sizeComposer(input);
+    acLast = null;
 
     // On screen now, before the round trip.
     //
@@ -10991,6 +11184,7 @@
       if(at !== -1) threadMessages.splice(at, 1);
       renderThreadBody();
       input.value = val;
+      sizeComposer(input);
       toast(err.message);
     });
   }
@@ -11190,13 +11384,161 @@
     if(!item) return;
     TOPICS["_saved"] = {
       title: item.title || item.query, prompt: item.query,
-      source: "Saved for later",
+      source: "Saved for later", surface: "other",
       caption: "Generating your live transcript as this plays\u2014"
     };
     selectedLengthMinutes = item.minutes || selectedLengthMinutes;
     generate("_saved");
     fetch("/api/saved/" + encodeURIComponent(item.id) + "/played",
           { method: "POST" }).catch(function(){});
+  }
+
+  // ---- recent listening history (§142) ----
+  //
+  // Two weeks of what this account started, newest first, kept on the server
+  // (`saved.history`) and written from `noteListen` when an episode's first
+  // audio plays. Filtered by surface on the server, so a tab is one request
+  // and "All" is the same list unfiltered - the two cannot disagree.
+  var historyTab = "";
+  var historyItems = [];
+
+  function openHistory(){
+    navigate("history");
+    setHistoryTab("");
+  }
+
+  function setHistoryTab(surface){
+    historyTab = surface || "";
+    document.querySelectorAll("#histTabs .hist-tab").forEach(function(b){
+      var on = (b.getAttribute("data-hist") || "") === historyTab;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    loadHistory();
+  }
+
+  function loadHistory(){
+    var el = document.getElementById("histBody");
+    if(!el) return;
+    if(!AUTH.authenticated){
+      el.innerHTML = '<div class="sv-empty">Listening history is kept on an '
+        + 'account, so it follows you to any device.' + gateActions() + '</div>';
+      return;
+    }
+    el.innerHTML = '<div class="sv-empty">Loading\u2026</div>';
+    var asked = historyTab;
+    fetch("/api/history" + (asked ? "?surface=" + encodeURIComponent(asked) : ""))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(asked !== historyTab) return;   // they switched tabs mid-flight
+        historyItems = d.items || [];
+        renderHistory();
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="sv-empty">Could not load your history.</div>';
+      });
+  }
+
+  var HISTORY_LABELS = { myfam: "myFAM", dailyfam: "dailyFAM",
+                         search: "searchFAM", other: "Shared & more" };
+
+  function renderHistory(){
+    var el = document.getElementById("histBody");
+    if(!el) return;
+    if(!historyItems.length){
+      el.innerHTML = '<div class="sv-empty">' + (historyTab
+        ? "Nothing heard on " + HISTORY_LABELS[historyTab] + " in the last two weeks."
+        : "Nothing heard in the last two weeks.<br>Episodes you play land here, "
+          + "and stay for two weeks.") + '</div>';
+      return;
+    }
+    var lastDay = "";
+    el.innerHTML = historyItems.map(function(item, i){
+      var d = new Date(item.at * 1000);
+      var key = d.toDateString();
+      var head = "";
+      if(key !== lastDay){
+        lastDay = key;
+        var today = key === new Date().toDateString();
+        var yest = key === new Date(Date.now() - 86400000).toDateString();
+        head = '<div class="hist-day">' + (today ? "TODAY" : yest ? "YESTERDAY"
+          : escapeHtml(d.toLocaleDateString(undefined,
+              { weekday: "short", month: "short", day: "numeric" }).toUpperCase()))
+          + '</div>';
+      }
+      var meta = item.minutes + " MIN \u00b7 " + escapeHtml(yfWhen(item.at))
+        + (historyTab ? "" : " \u00b7 " + escapeHtml(HISTORY_LABELS[item.surface] || ""));
+      return head + '<div class="sv-row" onclick="playHistory(' + i + ')">'
+        + '<div class="sv-art">'
+        + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
+        + '<div class="sv-main"><div class="sv-title">'
+        + escapeHtml(item.title || item.query) + '</div>'
+        + '<div class="sv-meta">' + meta + '</div></div></div>';
+    }).join("");
+  }
+
+  // Played again from the same question and length, so while the script is
+  // still in the shared cache this is a cache hit and costs nothing.
+  function playHistory(i){
+    var item = historyItems[i];
+    if(!item) return;
+    var key = "hist_" + i + "_" + Date.now();
+    TOPICS[key] = { title: item.title || item.query,
+                    source: "Your listening history",
+                    caption: "Live captions will appear here as this plays\u2014",
+                    prompt: item.query, parentTopic: item.context || "",
+                    exploreMinutes: item.minutes, titleOverridden: !!item.title,
+                    // Heard again, it stays under the tab it was first heard on.
+                    surface: item.surface };
+    generate(key);
+  }
+
+  // Where the episode about to play was tapped, as the history's tabs name
+  // it. An explicit `surface` on the topic wins; otherwise the tab the
+  // listener is on. Explore - and anything replay-only - is never recorded.
+  function historySurface(t){
+    if(!t || t.cachedOnly) return "";
+    if(t.surface) return t.surface;
+    if(t.fromMix || t.source === "DailyFAM") return "dailyfam";
+    var root = stack[0] || "";
+    if(root === "explore") return "";
+    if(root === "home") return "search";
+    if(root === "myfam") return "myfam";
+    if(root === "playfam") return "dailyfam";
+    return "other";
+  }
+
+  //: The episode `populatePlayer` has just started, waiting for its first
+  //: audio before it counts as listened to - a tap that fails before a word
+  //: is spoken is not something anybody heard.
+  var historyPending = null;
+  //: The one that did start, so its row can take the writer's title later.
+  var historyNow = null;
+
+  function noteListen(entry, title){
+    if(!entry || !entry.surface || !AUTH.authenticated) return;
+    try {
+      fetch("/api/history", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ query: entry.query, minutes: entry.minutes,
+                               surface: entry.surface, title: title || "",
+                               context: entry.context || "" })
+      }).catch(function(){});
+    } catch(e){}
+  }
+
+  // The writer names an episode after its first word is already playing, so
+  // the row written at first audio is corrected when the real title lands.
+  function retitleListen(entry, title){
+    if(!entry || !entry.surface || !title || !AUTH.authenticated) return;
+    try {
+      fetch("/api/history", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ query: entry.query, minutes: entry.minutes,
+                               surface: entry.surface, title: title,
+                               retitle: true })
+      }).catch(function(){});
+    } catch(e){}
   }
 
   // ---- the save toggle ----
@@ -11286,6 +11628,10 @@
   function loadShareContacts(){
     var el = document.getElementById("shareContacts");
     shareContacts = [];
+    // A sheet opens with nobody chosen, whoever was chosen last time.
+    shareChosen = -1;
+    var bar = document.getElementById("shareConfirm");
+    if(bar) bar.hidden = true;
     if(!AUTH.authenticated){
       el.innerHTML = '<div class="sh-name" style="padding:4px 0;">'
         + 'Sending inside FAM needs an account</div>';
@@ -11307,7 +11653,7 @@
           return;
         }
         el.innerHTML = shareContacts.map(function(person, i){
-          return '<div class="share-contact" onclick="sendToContact(' + i + ')">'
+          return '<div class="share-contact" data-contact="' + i + '" onclick="sendToContact(' + i + ')">'
             + personAvHTML(person) + '<div class="nm">'
             + escapeHtml((person.name || person.handle || "").split(" ")[0])
             + '</div></div>';
@@ -11580,13 +11926,62 @@
      episode to ten people costs ten rows and not ten episodes - their taps
      are what synthesise the audio, from one cached script, against their own
      allowances. See messages.py. */
+  // Selecting, not sending (§142): the tap lights the face up and offers
+  // "Share with @handle" and Cancel. Tapping the same face again, or Cancel,
+  // takes the choice back; tapping another face moves it.
+  var shareChosen = -1;
+
   function sendToContact(i){
     var person = shareContacts[i];
-    if(person && shareSubject.kind === "mix"){ sendMixToContact(person); return; }
-    var ep = currentEpisode();
     if(!person) return;
-    if(!ep){ toast("Play something first"); return; }
-    closeShareModal();
+    shareChosen = shareChosen === i ? -1 : i;
+    drawShareChoice();
+  }
+
+  function drawShareChoice(){
+    document.querySelectorAll("#shareContacts .share-contact").forEach(function(el){
+      el.classList.toggle("selected", +el.getAttribute("data-contact") === shareChosen);
+    });
+    var bar = document.getElementById("shareConfirm");
+    var person = shareContacts[shareChosen];
+    if(!bar) return;
+    bar.hidden = !person;
+    if(person){
+      var btn = document.getElementById("shareConfirmBtn");
+      btn.disabled = false;
+      btn.textContent = "Share with " + (person.handle ? "@" + person.handle
+                                         : (person.name || "them"));
+    }
+  }
+
+  function cancelShareContact(){
+    shareChosen = -1;
+    drawShareChoice();
+  }
+
+  function confirmShareContact(){
+    var person = shareContacts[shareChosen];
+    if(!person) return;
+    var btn = document.getElementById("shareConfirmBtn");
+    if(btn && btn.disabled) return;   // one tap, one message
+    if(btn){ btn.disabled = true; btn.textContent = "Sending\u2026"; }
+    var done = function(ok, message){
+      if(ok){
+        shareChosen = -1;
+        closeShareModal();
+        toast(message);
+      } else {
+        drawShareChoice();
+        toast(message);
+      }
+    };
+    if(shareSubject.kind === "mix"){ sendMixToContact(person, done); return; }
+    sendEpisodeToContact(person, done);
+  }
+
+  function sendEpisodeToContact(person, done){
+    var ep = currentEpisode();
+    if(!ep){ done(false, "Play something first"); return; }
     var first = (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -11594,30 +11989,29 @@
                              minutes: ep.minutes, title: ep.title })
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "Could not send that");
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
         return d;
       });
-    }).then(function(){ toast("Sent to " + first + " \u2713"); })
-      .catch(function(err){ toast(err.message); });
+    }).then(function(){ done(true, "Sent to " + first + " \u2713"); })
+      .catch(function(err){ done(false, err.message); });
   }
 
   // A mix sent inside FAM is a message carrying its link, in the same words
   // the iMessage tile would use.
-  function sendMixToContact(person){
+  function sendMixToContact(person, done){
     var t = shareTargets && shareTargets.targets && (shareTargets.targets.sms || shareTargets.targets.copy);
-    if(!t){ toast("Still making the link \u2014 try again in a moment"); return; }
-    closeShareModal();
+    if(!t){ done(false, "Still making the link \u2014 try again in a moment"); return; }
     var first = (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: person.user_id, text: t.text })
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "Could not send that");
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
         return d;
       });
-    }).then(function(){ toast("Sent to " + first + " \u2713"); })
-      .catch(function(err){ toast(err.message); });
+    }).then(function(){ done(true, "Sent to " + first + " \u2713"); })
+      .catch(function(err){ done(false, err.message); });
   }
 
   // ---------------- Connect your accounts (auto-built folders) ----------------
@@ -12389,172 +12783,71 @@
       fromSettings ? "Save" : "Start listening";
     document.getElementById("introPageInterests").hidden = false;
     document.getElementById("introDockInterests").hidden = false;
-    // One line, and only from Settings. The wheel there is not the wheel from
-    // the first run - it is what this listener actually listens to, and it
-    // changes on its own - so a disc appearing that nobody put there needs a
-    // sentence, or it reads as the app losing their answer.
     var sub = document.getElementById("introSub");
     sub.hidden = !fromSettings;
-    // The line under the heading had to change with what the wheel draws. It
-    // used to say "what you listen to most, kept up to date as you listen",
-    // which was true of a measurement and is a lie about a list of choices -
-    // and a wheel that said it was keeping itself up to date while showing
-    // exactly what somebody picked would read as the app having lost their
-    // answer the first time it did not change.
     sub.textContent = fromSettings
-      ? (wheelItems().length
-          ? "What you chose. Tap one to remove it, or add more in the middle."
-          : "Nothing chosen yet \u2014 tap the middle to pick some topics.")
+      ? "Tap a topic to add or remove it, or type your own."
       : "";
-    var hub = document.getElementById("orbitMore");
-    if(hub) hub.textContent = fromSettings ? "Edit/add topics" : "View more";
+    // The list's ticks are drawn from `catalogPicked`, so it is rebuilt from
+    // what is chosen every time the screen is drawn - an X that discarded a
+    // change must not leave its tick behind.
+    catalogPicked = {};
+    chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
+    var box = document.getElementById("catalogSearch");
+    if(box) box.value = "";
+    renderIntroFacets();
     renderPickedSummary();
-    renderInterestWheel();
+    loadIntroCatalog();
     var note = document.getElementById("introSaveNote");
     note.textContent = AUTH.authenticated
       ? "Saved to your account, so they follow you to any device."
       : "Kept on this device only. Create an account and they follow you.";
   }
 
-  // Which six the wheel draws, and it is two different questions.
-  //
-  // The first run asks somebody with no history what they like, so the honest
-  // answer is what everybody plays (`popular_facets`). Settings is opened by
-  // somebody who has been using the app, where their own listening is the
-  // better answer and keeps changing - which is what makes that wheel worth
-  // opening twice (`my_facets`).
-  // Which discs the wheel draws, and it is two different questions.
-  //
-  // **The first run** asks somebody with no history what they like, so the
-  // honest answer is what everybody plays - `interests_available`, the six
-  // most-played facets across FAM.
-  //
-  // **Settings** asks a listener what *they* chose, and now answers with
-  // exactly that: the facets they picked, plus the subjects they added from
-  // the catalogue or typed into its search. Nothing else.
-  //
-  // That is a deliberate reversal and it costs something worth naming. It
-  // used to draw `interests_yours` - their most-played facets, topped up from
-  // their choices and then from a declared order, so that the wheel always
-  // had six discs ("a wheel is six discs or it is a broken wheel"). But three
-  // of those sources are the app's answer rather than the listener's, and a
-  // screen called Your interests that shows a recommendation is answering a
-  // question nobody asked. So the filler is gone, an empty wheel is possible,
-  // and what fills it is the hub in the middle of it - which is one tap and
-  // now says so.
-  function wheelItems(){
-    if(introMode !== "settings") return PREF_CHOICES.interests_available || [];
-    var labels = {};
-    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
-      .forEach(function(i){ labels[i.id] = i; });
-    var out = [];
-    // Their facets first, in the order they chose them, with the short form
-    // the discs are sized for.
-    (introSelection || []).forEach(function(tag){
-      var known = labels[tag];
-      out.push({ id: tag, label: (known && known.label) || tag,
-                 short: (known && known.short) || (known && known.label) || tag });
-    });
-    // Then their subjects. `topic:` prefixed so a disc can say which of the
-    // two vocabularies it belongs to when it is tapped - a facet toggles a
-    // ranking tag, a subject is removed from a stored list, and the two are
-    // not the same act however alike they look.
-    chosenTopics.forEach(function(t){
-      out.push({ id: "topic:" + t.id, label: t.label, short: t.label,
-                 topic: true });
-    });
-    return out;
-  }
-
-  // The wheel. Each disc is placed by its own static transform - out to the
-  // radius at its share of the circle, then turned back upright - and the
-  // *orbit* comes from the ring above it rotating. So this draws positions
-  // once and never again; nothing here runs per frame.
-  //
-  // **A rebuild has to be re-phased, and that was wrong for one round.** The
-  // ring's animation keeps running when the discs inside it are replaced, but
-  // a *new element's* animation starts at zero - so a disc drawn mid-
-  // revolution counter-rotated from the wrong place and its label sat at an
-  // angle for the rest of the turn. Tapping one was the way to see it.
-  //
-  // Two answers, and both are here because they fix different halves.
-  // `toggleInterest` no longer rebuilds at all - selecting is a class on a
-  // button, not a reason to redraw six of them. And any rebuild that does
-  // happen ends with `syncWheelPhase`, which puts every disc's animation on
-  // the ring's own clock, so the wheel can be redrawn at any moment of any
-  // revolution and the labels stay level.
-  function renderInterestWheel(){
-    var ring = document.getElementById("orbitRing");
-    if(!ring) return;
-    var items = wheelItems();
-    var n = items.length || 1;
-    ring.innerHTML = items.map(function(item, i){
-      var a = (360 / n) * i;
-      var on = introSelection.indexOf(item.id) !== -1;
-      // Centre the slot on the hub, swing it out to the radius, then undo the
-      // swing so the disc itself is upright before the ring starts turning.
-      var place = "translate(-50%, -50%) rotate(" + a + "deg)"
-                + " translateY(calc(-1 * var(--orbit-r))) rotate(" + (-a) + "deg)";
-      return '<div class="orbit-slot" style="transform:' + place + '">'
-        + '<button class="intro-chip' + (on ? " on" : "") + '"'
-        + ' data-interest="' + escapeHtml(item.id) + '"'
-        + ' aria-pressed="' + (on ? "true" : "false") + '"'
-        + ' onclick="toggleInterest(\'' + item.id + '\')">'
-        + escapeHtml(item.short || item.label) + '</button></div>';
-    }).join("");
-    syncWheelPhase(ring);
-  }
-
-  // Put every disc on the ring's clock.
-  //
-  // The two animations are exact inverses of each other, so they only cancel
-  // while they are at the same point in their cycle. A disc created part-way
-  // through a revolution starts its own at zero, which is what tilted the
-  // labels. The Web Animations API can read and set that point directly;
-  // where it is missing, the wheel simply turns without the discs being
-  // re-phased, which is the same behaviour as before this existed rather than
-  // a broken one.
-  function syncWheelPhase(ring){
-    if(!ring || !ring.getAnimations) return;
-    var spin = ring.getAnimations()[0];
-    if(!spin) return;
-    ring.querySelectorAll(".intro-chip").forEach(function(chip){
-      if(!chip.getAnimations) return;
-      chip.getAnimations().forEach(function(a){
-        try { a.currentTime = spin.currentTime; } catch(e){}
-      });
-    });
-  }
-
-  // No cap. As many or as few as they like, and nothing counts them.
-  //
-  // In place, deliberately: a rebuild would restart every disc's counter-
-  // rotation and tilt six labels to fix one class attribute.
-  function toggleInterest(id){
-    // A subject disc is not a facet disc. It cannot be toggled *on* from
-    // here - the wheel only ever shows subjects that were chosen - so tapping
-    // one removes it, and the wheel is redrawn because a disc has gone rather
-    // than changed colour.
-    if(id.indexOf("topic:") === 0){
-      var topicId = id.slice(6);
-      chosenTopics = chosenTopics.filter(function(t){ return t.id !== topicId; });
-      delete catalogPicked[topicId];
-      renderIntro();   // which redraws the wheel and the line above it
+  // The list comes with `/api/preferences`, which the first run has already
+  // fetched; asked for again only when it has not arrived yet.
+  function loadIntroCatalog(){
+    var body = document.getElementById("catalogBody");
+    if((PREF_CHOICES.catalogue || []).length){
+      catalogTopics = PREF_CHOICES.catalogue;
+      renderTopicCatalog();
       return;
     }
-    var at = introSelection.indexOf(id);
-    if(at !== -1){ introSelection.splice(at, 1); }
-    else { introSelection.push(id); }
-    var on = at === -1;
-    var chip = document.querySelector('.intro-chip[data-interest="' + id + '"]');
-    if(chip){
-      chip.classList.toggle("on", on);
-      chip.setAttribute("aria-pressed", on ? "true" : "false");
-    } else {
-      renderInterestWheel();
-    }
+    if(body) body.innerHTML = '<div class="cat-empty">Loading topics…</div>';
+    loadPrefChoices().then(function(){
+      catalogTopics = PREF_CHOICES.catalogue || [];
+      if(!catalogTopics.length){
+        if(body) body.innerHTML = '<div class="cat-empty">Could not load the topic '
+          + 'list. You can still type a topic of your own above.</div>';
+        return;
+      }
+      renderTopicCatalog();
+    });
   }
 
+  // Whole facets - "Sport", "Technology" - chosen on the wheel before the list
+  // replaced it (§142). Nothing on the list adds one any more, but a listener
+  // who picked one still has it, so it is shown where it can be taken off.
+  function renderIntroFacets(){
+    var el = document.getElementById("introFacets");
+    if(!el) return;
+    var labels = {};
+    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
+      .forEach(function(i){ labels[i.id] = i.label; });
+    el.hidden = !introSelection.length;
+    el.innerHTML = introSelection.map(function(tag){
+      return '<button class="intro-facet" onclick="removeIntroFacet(\'' + tag + '\')"'
+        + ' aria-label="Remove ' + escapeHtml(labels[tag] || tag) + '">'
+        + escapeHtml(labels[tag] || tag)
+        + ' <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    }).join("");
+  }
+
+  function removeIntroFacet(tag){
+    introSelection = introSelection.filter(function(t){ return t !== tag; });
+    renderIntroFacets();
+    renderPickedSummary();
+  }
 
   // The one docked button: "Start listening" on the first run, "Save" from
   // Settings. There is no second page any more.
@@ -12567,9 +12860,9 @@
   // writes `intro: "done"` and calls `finishEntry`, which is the first run
   // ending. Editing a setting is not the first run ending.
   function saveIntroFromSettings(){
-    // Both vocabularies, because the wheel now draws both and a disc removed
-    // from it has to stay removed. Saving only the facets would silently put
-    // every subject back the next time this screen was opened.
+    // Both vocabularies, because the screen shows both and one taken off it
+    // has to stay off. Saving only the facets would silently put every
+    // subject back the next time this screen was opened.
     var topicIds = chosenTopics.map(function(t){ return t.id; });
     saveLocalPrefs({ interests: introSelection.slice(),
                      topics: chosenTopics.slice() });
@@ -12580,10 +12873,23 @@
     closeIntroToSettings();
   }
 
+  //: What the interests were when Settings opened this screen, so the X can
+  //: leave without saving (§142 - the list's taps change this screen only).
+  var introSnapshot = null;
+
+  function cancelIntroFromSettings(){
+    if(introSnapshot){
+      introSelection = introSnapshot.interests.slice();
+      chosenTopics = introSnapshot.topics.slice();
+    }
+    introSnapshot = null;
+    closeIntroToSettings();
+  }
+
   // The X, and where every save lands. By name rather than `goBack()`: the
   // intro is drawn with `showScreen` and never joins the stack, so popping
-  // would land on whatever is underneath Settings. Same reasoning as
-  // `closeTopicCatalog`, and the same trap.
+  // would land on whatever is underneath Settings - the trap CLAUDE.md names
+  // for every screen shown this way.
   function closeIntroToSettings(){
     introMode = "first-run";
     showScreen(introReturn || "settings");
@@ -12603,10 +12909,9 @@
 
   // ---- the topic catalogue ------------------------------------------------
   //
-  // Behind the wheel's hub - "View more" on the first run, "Edit/add topics"
-  // from Settings, and the only route to this list either way. The eight
-  // facets are the whole *pickable tag* vocabulary and stay that way; this is
-  // a list of real subjects, and a subject is not a tag. Adding one carries
+  // The interests screen itself, on the first run and from Settings (§142 -
+  // it was behind a wheel's hub until the owner asked for the wheel to go).
+  // This is a list of real subjects, and a subject is not a tag. Adding one carries
   // that topic's own tags - far finer than eight - so a listener can say
   // something the buttons cannot express without ever being shown a tag name.
   //
@@ -12619,9 +12924,6 @@
   // It still generates nothing, which is the part that keeps it free.
   var catalogTopics = [];
   var catalogPicked = {};
-  //: What was chosen when this screen opened, so "changed" is a comparison
-  //: rather than a flag somebody has to remember to clear.
-  var catalogSavedIds = "";
 
   // The catalogue's icons. Line glyphs on a dark tile, at one weight, the way
   // the designs draw them - and several interests share one on purpose: every
@@ -12683,67 +12985,6 @@
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" '
       + 'aria-hidden="true">' + (CAT_ICONS[name] || CAT_ICONS.news) + '</svg>';
-  }
-
-  // Where "View more" was opened from. `goBack()` could answer neither of
-  // the two routes in: the intro is drawn with `showScreen` and never joins
-  // the stack, so popping from the catalogue landed on whatever was
-  // underneath it - SearchFAM - and the first run lost its language step on
-  // the way past.
-  var catalogReturn = "";
-
-  function openTopicCatalog(){
-    var body = document.getElementById("catalogBody");
-    var from = document.querySelector(".screen.active");
-    catalogReturn = from ? from.id.replace(/^screen-/, "") : "";
-    document.getElementById("catalogSearch").value = "";
-    // The baseline "changed" is measured against, taken as the screen opens.
-    catalogSavedIds = chosenTopics.map(function(t){ return t.id; }).join("\u0000");
-    renderCatalogDock();
-    // The catalogue arrives with `/api/preferences`, which the intro has
-    // already fetched. Fetched again only if this was opened some other way -
-    // from Settings, say - where that call may not have happened yet.
-    if((PREF_CHOICES.catalogue || []).length){
-      catalogTopics = PREF_CHOICES.catalogue;
-      renderTopicCatalog();
-    } else {
-      body.innerHTML = '<div class="cat-empty">Loading topics…</div>';
-      loadPrefChoices().then(function(){
-        catalogTopics = PREF_CHOICES.catalogue || [];
-        if(!catalogTopics.length){
-          body.innerHTML = '<div class="cat-empty">Could not load the topic '
-            + 'list. The eight above still work, and so does everything else.</div>';
-          return;
-        }
-        renderTopicCatalog();
-      });
-    }
-    navigate("catalog");
-  }
-
-  function closeTopicCatalog(){
-    // By name rather than by popping, for the reason above. Not `goBack`,
-    // which also stops the audio - closing a list of topics is not a reason
-    // to end an episode somebody is listening to.
-    if(stack[stack.length - 1] === "catalog") stack.pop();
-    // The X leaves without saving, so anything chosen and not saved is put
-    // back. Keeping it would be the screen having saved after all, which is
-    // the thing the Save button exists to make explicit.
-    if(catalogDirty()){
-      var keep = {};
-      catalogSavedIds.split("\u0000").forEach(function(id){ if(id) keep[id] = true; });
-      chosenTopics = chosenTopics.filter(function(t){ return keep[t.id]; });
-      catalogPicked = {};
-      chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
-    }
-    var back = catalogReturn || stack[stack.length - 1] || "home";
-    showScreen(back);
-    // The wheel behind it is drawn from these, so it has to be redrawn - and
-    // through `renderIntro`, which also fixes the line above it. Only when
-    // that is the screen being returned to: `renderIntro` on the way back to
-    // Settings would draw the intro over it.
-    if(back === "intro") renderIntro();
-    else renderPickedSummary();
   }
 
   function renderTopicCatalog(){
@@ -12819,7 +13060,7 @@
                           typed: !known });
     }
     renderTopicCatalog();
-    renderCatalogDock();
+    renderPickedSummary();
   }
 
   // Whatever is in the search field, added as a topic of its own.
@@ -12846,52 +13087,14 @@
     }
     if(box) box.value = "";
     renderTopicCatalog();
-    renderCatalogDock();
-  }
-
-  // The Save button appears once something has changed, and only then. A
-  // button that is always there invites a tap that does nothing; one that
-  // arrives when there is something to keep says what it is for.
-  function renderCatalogDock(){
-    var dock = document.getElementById("catalogDock");
-    if(!dock) return;
-    dock.hidden = !catalogDirty();
-  }
-
-  function catalogDirty(){
-    var now = chosenTopics.map(function(t){ return t.id; }).join("\u0000");
-    return now !== catalogSavedIds;
-  }
-
-  //: What was chosen when this screen opened, so "changed" is a comparison
-  //: rather than a flag somebody has to remember to clear.
-  // Save, and leave. Both, because the packet asks for both and because they
-  // are one decision: the listener has finished choosing.
-  function saveTopicCatalog(){
-    var ids = chosenTopics.map(function(t){ return t.id; });
-    catalogSavedIds = ids.join("\u0000");
-    renderCatalogDock();
-    saveLocalPrefs({ topics: chosenTopics.slice() });
-    if(AUTH.authenticated){
-      savePreferences({ topics: ids }).then(function(saved){
-        // Read back rather than assumed: the server folds a typed name onto
-        // a listed entry and drops anything empty, so what it stored is not
-        // always what was sent - and the wheel behind this screen is drawn
-        // from what is stored.
-        if(saved) loadPrefChoices().then(function(){ renderIntro(); });
-      });
-      toast("Saved to your account");
-    } else {
-      toast("Saved on this device");
-    }
-    closeTopicCatalog();
+    renderPickedSummary();
   }
 
   function renderPickedSummary(){
     var el = document.getElementById("introPicked");
     if(!el) return;
-    var n = chosenTopics.length;
-    el.textContent = n ? n + (n === 1 ? " topic added" : " topics added") : "";
+    var n = chosenTopics.length + introSelection.length;
+    el.textContent = n ? n + (n === 1 ? " topic chosen" : " topics chosen") : "";
   }
 
   function savePreferences(patch){
@@ -13266,6 +13469,9 @@
         if(!d) return;
         notifCursor = d.head || notifCursor;
         setUnreadDot(d.unread);
+        // A message arriving while the list is open puts its conversation
+        // on the list now, rather than on the next visit (§142).
+        if((d.messages || []).length && messagesListOpen()) renderThreadList();
         (d.messages || []).forEach(function(m){
           // Not while you are already looking at that conversation. A banner
           // announcing a message that is on screen underneath it is the app
@@ -13282,8 +13488,9 @@
           });
         });
         (d.follows || []).forEach(function(person){
-          if(notifAnnouncedFollows[person.user_id]) return;
-          notifAnnouncedFollows[person.user_id] = true;
+          if(notifAnnouncedFollows[person.user_id]
+             || followerPopupShown[person.user_id]) return;
+          markFollowerAnnounced(person);
           queueNotification({
             kind: "follow",
             who: person,

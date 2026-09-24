@@ -11543,3 +11543,114 @@ vouched for it, since the cache is also what says the question was shareable.
 Not measured on a real deployment: this container has no traffic. The first
 thing to look at is how often the missed rail is empty, since three rules
 must hold at once and it has no top-up by design.
+
+## 142. The 9.23 second packet: messages, history, titles, sharing, follows, interests, the player
+
+Eleven changes from the owner's second packet of the day. Each one was a
+behaviour met on a phone rather than a failure anything reported.
+
+**A chat you had only sent to was not on your list.** The inbox was drawn
+once, when Messages opened, and backing out of a conversation (`goBack`)
+redrew nothing - so the list was the list from before you started talking.
+It is re-read on the way back from a thread now, and whenever a message
+arrives while the list is open. Not a server bug: `/api/messages` already
+listed a thread with only outgoing messages.
+
+**The return key did nothing.** The composer was an `<input>` whose Enter
+handler sent the message - so with the box empty, it did nothing at all. It
+is a `<textarea>` now: return makes a new line, the arrow sends, the box grows
+to about five lines. The server kept collapsing every run of whitespace,
+newlines included, so a line break would have vanished on send - the same
+dead key one step later. `messages.clean_text` keeps line breaks (at most two
+blank lines in a row) and tidies spaces within a line; the bubble draws them
+with `white-space: pre-wrap`.
+
+**Autocorrect.** Both boxes had it switched off in their markup
+(`autocorrect="off" spellcheck="false"`), so the keyboard's own correction
+was not even running. It is on now, and `autocorrect.py` is a second pass
+behind it, because the owner found the keyboard lets typos through. Each word
+is asked about as it is finished (`/api/spell`), and one backspace straight
+after a correction puts the typed word back, as on a phone.
+The part worth knowing: **a general spell checker is dangerous on this app's
+text.** `pyspellchecker`'s best guess, measured, turned "bitcoin" into
+"bitching", "nvidia" into "vida", "mahomes" into "mahomet" and "messi" into
+"mess" - and half of what people ask FAM about is a proper noun. A missed
+typo reaches episode intelligence, which reads intent; a wrong "correction"
+arrives as a confident, different question. So it corrects only lowercase
+words, one edit away, into a common word, never by dropping a final letter
+or changing a name-like final vowel, never a four-letter word except by
+swapping two letters, and only when the fix is clearly ahead of the runner-up
+- with a missing letter tried first, because that is the commonest typo
+("leage" is league, not leave). Anything less certain comes back null.
+`pyspellchecker` is declared and optional, like pypdf: without it every word
+passes through unchanged and `/api/spell` says `available: false`.
+
+**Delete chat.** The ⋯ menu offered "Share an episode", which the (+) beside
+the box already does; it offers **Delete chat** now. It deletes for one side
+only: `MessageStore.clear` writes the highest message id into a `clears` row
+for that listener, and every read of their view (thread, inbox, unread counts)
+starts after it. Nothing is deleted from the table, the other person keeps
+everything, and a later message is above the mark, so writing again opens
+what reads as a fresh thread.
+
+**Recent listening history.** Settings → Listening history: tabs for All,
+myFAM, dailyFAM and searchFAM, newest first, two weeks, and no Explore.
+Stored in `saved.db` (`history`, beside `progress`) because it is the same
+kind of thing - pointers, one row per episode per surface, a replay moving a
+row to the top rather than listing it twice, pruned on write. Recorded by the
+client at **first audio**, because only the client knows which surface a tap
+came from (`/api/audio` sees myFAM and DailyFAM as the same request), and a
+tap that failed before a word was spoken was not listened to. The surface is
+the topic's own where one says so (search, a mix, `other` for shared episodes,
+vibes, the saved shelf) and otherwise the tab the listener is on; replay-only
+Explore is never recorded, and the store refuses any surface outside the
+four. Retitled in place when the writer's title arrives. Account-gated like
+every other kept thing (§127).
+
+**Titles were too vague.** The rule said "concrete and readable at a glance",
+and the model heard "evocative". It now says **clear first, curious second**:
+the actual person, team, company or event by name, then the angle - "Why the
+Fed Held Rates Again", not "A Pause With Consequences" - in the writer's system
+prompt, its per-episode prompt and the brief's title rule. The brief's example
+names no result, because the brief has read nothing. The system prompt sits
+at its size budget (`test_the_prompt_stays_lean`), so it carries the short
+form and the per-episode prompt the full rule. **Unheard** - there is no key
+here, so whether the titles actually changed is the thing to look at.
+
+**Sharing sent on the first tap.** Tapping a face in the share sheet posted
+the message and closed the sheet, so nobody could tell whether it had gone,
+or to whom. The tap selects now: the face gets a ring and a bar offers
+**Share with @handle** and **Cancel**. Share sends, says "Sending…", and
+closes only on success; a failure leaves the choice in place with the reason.
+
+**The follower popup came back every time the app opened.** "Already shown"
+was a map in page memory. It is a table now (`social.announced`, one row per
+listener and follower), written as the popup or banner goes up, so a follower
+is announced once, ever, on any device. `/api/friends` carries `announce`
+(never shown) beside `new_followers` (the Friends badge, which is still
+cleared by opening Friends and nothing else - the two were one list, and
+shouldn't have been).
+
+**The interests wheel is gone.** The owner asked for the long list to be the
+page, on the first run and in Settings. The intro screen *is* the catalogue
+now - search, add anything typed, tick what you like - and the separate
+catalogue screen, its dock, the orbit CSS, `syncWheelPhase` and the rest of
+§99-§100's machinery are deleted, not hidden. Whole facets chosen on the old
+wheel are still stored; they are shown as removable pills above the list
+rather than silently kept or silently dropped. From Settings the X puts back
+whatever was there when the screen opened (`introSnapshot`).
+
+**The player's X stopped the episode.** It was `goBack()`, and `goBack()` -
+like `setTab()` - called `stopSpeech()` on the way out, a leftover from the
+prototype's `speechSynthesis` player. The X is `minimizePlayer()` now, and
+neither back nor a tab switch stops an episode that is already playing (one
+still loading is abandoned, as before). The mini bar was one strip inside
+myFAM, so an episode minimised from search had nowhere to be; it is still one
+element, moved by `placeNowBar` to sit above the tab bar of whichever tab is
+showing (not Explore, which is a player of its own). Tapping it opens the
+full player on the same episode, still going.
+
+Checked in both preview builds: five new smoke behaviours replace the two
+that drove the wheel, 72 in all. Not checked on a phone: how the
+autocorrect feels against a real keyboard's own, and whether the
+textarea's growth fights the iOS keyboard.

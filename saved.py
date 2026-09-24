@@ -57,6 +57,15 @@ MAX_QUERY = 500
 #: against a script making a million of them, and nobody has forty folders.
 MAX_FOLDERS = 40
 
+#: Where a listened episode can have come from, as the history screen's tabs
+#: name them (§142). "other" is everything else that is not Explore - a shared
+#: episode, a vibe, a Go Deeper chip - and shows under All only. Explore is
+#: deliberately absent: the owner asked that nothing heard there is kept.
+HISTORY_SURFACES = ("myfam", "dailyfam", "search", "other")
+
+#: Two weeks, at the owner's direction.
+HISTORY_SECONDS = 14 * 86400
+
 
 class SavedError(ValueError):
     """Something the listener can fix, phrased so it can be shown to them."""
@@ -160,6 +169,27 @@ class SavedStore:
                              " TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # Recent listening history (§142): every episode this account
+            # started, on which surface, for two weeks. A pointer like
+            # everything else here - the question, the length, the title -
+            # so replaying one is an ordinary episode and, while the script
+            # is still cached, a cache hit. One row per episode per surface:
+            # hearing the same thing twice moves it to the top rather than
+            # listing it twice.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS history (
+                       user_id TEXT NOT NULL,
+                       query   TEXT NOT NULL,
+                       minutes INTEGER NOT NULL,
+                       surface TEXT NOT NULL,
+                       title   TEXT NOT NULL DEFAULT '',
+                       context TEXT NOT NULL DEFAULT '',
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, query, minutes, surface)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS history_user"
+                         " ON history(user_id, at)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -408,11 +438,91 @@ class SavedStore:
                  "title": r[3] or "", "at": r[4], "context": r[5] or ""}
                 for r in rows]
 
+    # --- what somebody has listened to (§142) ------------------------------
+
+    def note_listen(self, user_id: str, query: str, minutes: int,
+                    surface: str, title: str = "", context: str = "",
+                    at: float = 0.0) -> bool:
+        """Put an episode at the top of this listener's history.
+
+        `surface` must be one of `HISTORY_SURFACES`; anything else - Explore
+        above all, which the owner asked to be left out - is refused here
+        rather than trusted to every caller. A title arriving later (the
+        writer names an episode after its first word is playing) replaces an
+        empty or provisional one without moving the row.
+        """
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        minutes = int(minutes or 0)
+        if (not user_id or not query or minutes <= 0
+                or surface not in HISTORY_SURFACES):
+            return False
+        now = at or time.time()
+        title = " ".join(str(title or "").split())[:MAX_TITLE]
+        try:
+            self._conn().execute(
+                "INSERT INTO history (user_id, query, minutes, surface, title,"
+                " context, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(user_id, query, minutes, surface) DO UPDATE SET"
+                "  at = excluded.at, context = excluded.context,"
+                "  title = CASE WHEN excluded.title != '' THEN excluded.title"
+                "               ELSE history.title END",
+                (user_id, query, minutes, surface, title,
+                 str(context or "")[:300], now))
+            # Kept for two weeks and no longer, pruned on write so the table
+            # never needs a job of its own to stay that size.
+            self._conn().execute(
+                "DELETE FROM history WHERE user_id = ? AND at < ?",
+                (user_id, now - HISTORY_SECONDS))
+            return True
+        except Exception:
+            log.exception("could not record history for %r", user_id)
+            return False
+
+    def retitle(self, user_id: str, query: str, minutes: int,
+                title: str) -> None:
+        """The writer's own title arrived; use it on every row for this
+        episode without moving any of them."""
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        title = " ".join(str(title or "").split())[:MAX_TITLE]
+        if not user_id or not query or not title:
+            return
+        try:
+            self._conn().execute(
+                "UPDATE history SET title = ? WHERE user_id = ? AND query = ?"
+                " AND minutes = ?", (title, user_id, query, int(minutes or 0)))
+        except Exception:
+            log.exception("could not retitle history for %r", user_id)
+
+    def history(self, user_id: str, surface: str = "", limit: int = 200,
+                now: float = 0.0) -> list[dict]:
+        """The last two weeks, most recent first; one surface or all."""
+        if not user_id:
+            return []
+        since = (now or time.time()) - HISTORY_SECONDS
+        sql = ("SELECT query, minutes, surface, title, context, at FROM history"
+               " WHERE user_id = ? AND at >= ?")
+        args: list = [user_id, since]
+        if surface:
+            if surface not in HISTORY_SURFACES:
+                return []
+            sql += " AND surface = ?"
+            args.append(surface)
+        sql += " ORDER BY at DESC LIMIT ?"
+        args.append(int(limit))
+        try:
+            rows = self._conn().execute(sql, tuple(args)).fetchall()
+        except Exception:
+            log.exception("could not read history for %r", user_id)
+            return []
+        return [{"query": r[0], "minutes": int(r[1]), "surface": r[2],
+                 "title": r[3] or "", "context": r[4] or "", "at": r[5]}
+                for r in rows]
+
     # --- housekeeping -----------------------------------------------------
 
     def forget(self, user_id: str) -> int:
         removed = 0
-        for table in ("items", "folders", "progress"):
+        for table in ("items", "folders", "progress", "history"):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

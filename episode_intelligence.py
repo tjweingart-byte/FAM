@@ -682,10 +682,15 @@ Work out:
   outcome-dependent whether it finished an hour ago or is still going. False
   for how something works, what someone is like, or what is at stake.
 - **title** - what this episode is called in a list: three to seven words
-  naming the resolved subject and the angle, in title case. **Never their own
-  wording handed back** - "what happened with the fed yesterday" is not a
-  title, "The Fed's Rate Decision" is. No question mark, no colon, and never a
-  result, a score or a winner: you have not looked anything up."""
+  naming the resolved subject and the angle, in title case. **Clear first,
+  curious second**: the actual person, team, company or event by name, so a
+  reader knows at once what it is about, with an angle that makes them want
+  to hear what the episode says - never a metaphor or allusion that only
+  makes sense afterwards. **Never their own wording handed back** - "what
+  happened with the fed yesterday" is not a title, "The Fed's Rate Call and
+  Who It Hurts" is, and "A Pause With Consequences" is too vague to tap. No question
+  mark, no colon, and never a result, a score or a winner: you have not
+  looked anything up."""
 
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
