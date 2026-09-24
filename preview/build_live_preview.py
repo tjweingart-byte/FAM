@@ -1009,7 +1009,50 @@ __MIX_ITEMS__
              topics: items.filter(function (i) { return !i.custom; }),
              topic_ids: items.filter(function (i) { return !i.custom; }).map(function (i) { return i.id; }),
              custom_count: items.filter(function (i) { return i.custom; }).length,
-             public: !!m.public, created_at: m.created_at || 0, updated_at: m.updated_at || 0 };
+             public: !!m.public, created_at: m.created_at || 0, updated_at: m.updated_at || 0,
+             source_id: m.source_id || "",
+             from: m.source_user ? (function (o) { return { name: o.name, handle: o.handle }; })(
+               ownerOf(m.source_user)) : undefined };
+  }
+  function ownerOf(uid) {
+    var p = rows("people").filter(function (r) { return r.id === uid; })[0] || {};
+    return { name: p.name || "", handle: p.handle || "", avatar: "" };
+  }
+  // A mix as somebody other than its owner sees it (`app._public_mix`).
+  function publicShape(m) {
+    var body = shapeMix(m), owner = ownerOf(m.user_id);
+    body.items.forEach(function (i) {
+      if (i.custom) i.subtitle = "Typed in by " + (owner.handle ? "@" + owner.handle : owner.name || "another listener");
+    });
+    delete body.topics; delete body.from;
+    body.owner = owner;
+    body.mine = m.user_id === UID;
+    body.added = rows("mixes").some(function (r) { return r.user_id === UID && r.source_id === m.id; });
+    return body;
+  }
+  function publicMixMatches(m, q) {
+    var hay = [m.name, m.owner.name, m.owner.handle, "@" + m.owner.handle]
+      .concat(m.items.map(function (i) {
+        return [i.title, i.query, (i.focus || []).join(" "), i.topic_label || ""].join(" ");
+      })).join(" ").toLowerCase();
+    return q.toLowerCase().split(/\s+/).map(function (w) { return w.replace(/^@/, ""); })
+      .filter(Boolean).every(function (w) { return hay.indexOf(w) !== -1; });
+  }
+  function mixShareBody(m) {
+    var titles = m.items.map(function (i) { return i.title; });
+    var topics = titles.length > 4
+      ? titles.slice(0, 4).join(", ") + " and " + (titles.length - 4) + " more"
+      : titles.join(", ");
+    var link = "/m/" + m.id, made = {};
+    SHARE_TEMPLATES.forEach(function (t) {
+      made[t.key] = {
+        target: t.key, label: t.label, kind: t.kind,
+        needs_image: t.needs_image, url: link, subject: "", destination: "",
+        text: t.mix_text.replace("{name}", m.name).replace("{topics}", topics)
+                        .replace("{url}", link)
+      };
+    });
+    return { url: link, public: false, card: "/api/mixes/" + m.id + "/card", targets: made };
   }
 
   // ---------------------------------------------------------------- session
@@ -1485,6 +1528,28 @@ __MIX_ITEMS__
       return json(exploreNewBody(hintedInterests(qs)));
     }
 
+    // Other listeners' public mixes - DailyFAM's search. This build's
+    // database is shared by everybody looking at the link, so a mix another
+    // viewer made public really is somebody else's, and shows up here.
+    // Searching is open to all, like the server; adding needs an account.
+    if (path === "/api/mixes/public" && method === "GET") {
+      var pq = (qs.get("q") || "").trim();
+      return json({ query: pq, mixes: rows("mixes").filter(function (m) {
+        return m.public && m.user_id !== UID && m.items;
+      }).sort(function (a, b) { return (b.updated_at || 0) - (a.updated_at || 0); })
+        .map(publicShape).filter(function (m) { return publicMixMatches(m, pq); })
+        .slice(0, 40) });
+    }
+    if (path.indexOf("/api/mixes/public/") === 0) {
+      var pid = path.split("/").pop();
+      var prow = rows("mixes").filter(function (m) {
+        return m.id === pid && (m.public || m.user_id === UID); })[0];
+      return prow ? json(publicShape(prow))
+                  : json({ error: "That mix is private or no longer exists." }, 404);
+    }
+    if (/^\/api\/mixes\/[^/]+\/card$/.test(path)) {
+      return json({ error: "Not available in this build." }, 404);
+    }
     // Mixes are kept for you, so they need an account - see ACCOUNT_REQUIRED
     // in app.py. Mirrored here rather than left open, because a preview that
     // is more permissive than the server hides exactly this decision.
@@ -1511,6 +1576,35 @@ __MIX_ITEMS__
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === mid; })[0]));
       });
     }
+    var mixVerb = path.match(/^\/api\/mixes\/([^/]+)\/(add|share)$/);
+    if (mixVerb && method === "POST") {
+      if (mixVerb[2] === "share") {
+        var mine = rows("mixes").filter(function (m) {
+          return m.id === mixVerb[1] && m.user_id === UID; })[0];
+        if (!mine) return json({ error: "That mix no longer exists." }, 404);
+        if (!mine.public) return json({ error: "Only a public mix can be shared. Make it public first." }, 409);
+        return json(mixShareBody(shapeMix(mine)));
+      }
+      var src = rows("mixes").filter(function (m) {
+        return m.id === mixVerb[1] && m.public; })[0];
+      if (!src) return json({ error: "That mix is private or no longer exists." }, 404);
+      if (src.user_id === UID) return json({ error: "That mix is already yours." }, 400);
+      var own = rows("mixes").filter(function (m) { return m.user_id === UID; });
+      if (own.some(function (m) { return m.source_id === src.id; }))
+        return json({ error: "That mix is already in your DailyFAM." }, 400);
+      var owner = ownerOf(src.user_id);
+      var newName = src.name;
+      if (own.some(function (m) { return m.name.toLowerCase() === newName.toLowerCase(); }))
+        newName = src.name + " \u00b7 " + (owner.handle ? "@" + owner.handle : owner.name || "copy");
+      var cid = rid();
+      return put("mixes", cid, {
+        user_id: UID, name: newName, items: src.items, created_at: now(), updated_at: now(),
+        public: 0, cover: src.cover || "", source_id: src.id, source_user: src.user_id
+      }).then(function () {
+        paint();
+        return json(shapeMix(rows("mixes").filter(function (m) { return m.id === cid; })[0]));
+      });
+    }
     if (path.indexOf("/api/mixes/") === 0) {
       var mixId = path.split("/").pop();
       var cur = rows("mixes").filter(function (m) { return m.id === mixId && m.user_id === UID; })[0];
@@ -1526,7 +1620,8 @@ __MIX_ITEMS__
           : cur.items,
         created_at: cur.created_at, updated_at: now(),
         public: body.public !== undefined ? (body.public ? 1 : 0) : cur.public,
-        cover: body.cover !== undefined ? String(body.cover || "") : (cur.cover || "")
+        cover: body.cover !== undefined ? String(body.cover || "") : (cur.cover || ""),
+        source_id: cur.source_id || "", source_user: cur.source_user || ""
       }).then(function () {
         paint();
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === mixId; })[0]));
@@ -2238,7 +2333,8 @@ def build() -> pathlib.Path:
             .replace("__MIX_ITEMS__", bp.mix_items_js())
             .replace("__SHARE_TEMPLATES__", json.dumps([
                 {"key": t.key, "label": t.label, "kind": t.kind,
-                 "needs_image": t.needs_image, "text": t.template}
+                 "needs_image": t.needs_image, "text": t.template,
+                 "mix_text": sharing.MIX_TEMPLATES[t.key][0]}
                 for t in sharing.TARGETS]))
             .replace("__TAG_WORDS__", json.dumps(
                 {k: list(v) for k, v in topics.TAG_WORDS.items()}))

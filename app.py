@@ -26,7 +26,7 @@ from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response
 from fastapi.responses import (
-    HTMLResponse, JSONResponse, StreamingResponse)
+    HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -1994,6 +1994,7 @@ async def person_profile(request: Request,
                  for tag in topics_mod.facets_only(prefs.public_interests)
                  ][:topics_mod.PROFILE_INTEREST_SLOTS]
     interests = [row["id"] for row in shown]
+    added_mixes = MIXES.added_from(me) if me and _has_account(request) else set()
     return {
         # Deliberately no `user_id`: this response is drawn, not acted on, and
         # the follow buttons on that screen already have the id they need from
@@ -2003,7 +2004,10 @@ async def person_profile(request: Request,
         "handle": person["handle"],
         "avatar": person["avatar"],
         "joined": person["joined"],
-        "mixes": [m.as_dict() for m in MIXES.public_for_user(target)],
+        # With the (+) state each needs: whether this listener has already
+        # added it to their own DailyFAM, and whether it is theirs.
+        "mixes": [_public_mix(m, me, added_mixes)
+                  for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
@@ -3164,8 +3168,11 @@ async def list_mixes(request: Request):
     """
     _read_limit(request)
     user = _require_account(request)
+    people: dict = {}
     return {
-        "mixes": [m.as_dict() for m in MIXES.list_for_user(user)],
+        # A mix added from somebody else's says whose it was.
+        "mixes": [dict(m.as_dict(), **_source_label(m, people))
+                  for m in MIXES.list_for_user(user)],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -3203,6 +3210,179 @@ async def delete_mix(mix_id: str, request: Request):
     if not MIXES.delete(_require_account(request), mix_id):
         raise HTTPException(status_code=404, detail="That mix no longer exists.")
     return {"ok": True}
+
+
+# ---------------- Other listeners' public mixes (DailyFAM search) ----------------
+#
+# DailyFAM is also where somebody finds other people's daily playlists. A mix
+# made public is findable by its name, by any topic in it, or by whose it is,
+# and anybody can add a public mix to their own DailyFAM - which makes a copy
+# that is theirs from then on (`MixStore.add_copy` says why a copy and not a
+# link). Only what the owner chose to publish is ever returned, and like
+# `/api/person` the response carries no listener id.
+
+
+def _public_mix(mix: "mixes_mod.Mix", viewer: str, added: set,
+                people: dict | None = None) -> dict:
+    """A mix as somebody other than its owner sees it."""
+    people = people if people is not None else {}
+    if mix.user_id not in people:
+        people[mix.user_id] = SOCIAL.person(mix.user_id)
+    owner = people[mix.user_id] or {}
+    body = mix.as_dict()
+    who = mixes_mod.owner_label(owner.get("name") or "", owner.get("handle") or "")
+    for item in body["items"]:
+        # "Added by you" is the owner's own view of a typed topic.
+        if item.get("custom"):
+            item["subtitle"] = f"Typed in by {who}"
+    body.pop("topics", None)
+    body.update(
+        owner={"name": owner.get("name") or "", "handle": owner.get("handle") or "",
+               "avatar": owner.get("avatar") or ""},
+        mine=bool(viewer) and mix.user_id == viewer,
+        added=mix.id in added,
+    )
+    return body
+
+
+def _source_label(mix: "mixes_mod.Mix", people: dict) -> dict:
+    """Whose mix a copy came from, for the owner's own list."""
+    if not mix.source_user:
+        return {}
+    if mix.source_user not in people:
+        people[mix.source_user] = SOCIAL.person(mix.source_user)
+    owner = people[mix.source_user] or {}
+    return {"from": {"name": owner.get("name") or "", "handle": owner.get("handle") or ""}}
+
+
+@app.get("/api/mixes/public")
+async def public_mixes(request: Request, q: str = Query("", max_length=80)) -> dict:
+    """Other listeners' public mixes, for the search bar at the top of DailyFAM.
+
+    Empty `q` is every public mix, most recently changed first - what the bar
+    shows the moment it is tapped. Otherwise each word must be found in the
+    mix's name, a topic in it, or its owner's name or handle
+    (`mixes.match_score`), so "gym", "AI updates" and "@sam" all work.
+
+    Not account-gated: finding and hearing a mix needs no account, the same
+    as every other listening surface. Adding one does.
+    """
+    _read_limit(request)
+    viewer = _listener(request)
+    added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
+    people: dict = {}
+    scored = []
+    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer)):
+        if not mix.items:
+            continue
+        if q.strip():
+            if mix.user_id not in people:
+                people[mix.user_id] = SOCIAL.person(mix.user_id)
+            owner = people[mix.user_id] or {}
+            score = mixes_mod.match_score(mix, q, owner.get("name") or "",
+                                          owner.get("handle") or "")
+            if not score:
+                continue
+        else:
+            score = 1
+        scored.append((-score, position, mix))
+    scored.sort(key=lambda row: (row[0], row[1]))
+    return {
+        "query": q.strip(),
+        "mixes": [_public_mix(m, viewer, added, people)
+                  for _, _, m in scored[:mixes_mod.MAX_PUBLIC_RESULTS]],
+    }
+
+
+@app.get("/api/mixes/public/{mix_id}")
+async def public_mix(mix_id: str, request: Request) -> dict:
+    """One public mix, for a search result opened or a shared link followed.
+    A private mix answers exactly like one that does not exist."""
+    _read_limit(request)
+    viewer = _listener(request)
+    mix = MIXES.get_public(mix_id, viewer=viewer)
+    if not mix:
+        raise HTTPException(status_code=404,
+                            detail="That mix is private or no longer exists.")
+    added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
+    return _public_mix(mix, viewer, added)
+
+
+@app.post("/api/mixes/{mix_id}/add")
+async def add_public_mix(mix_id: str, request: Request) -> dict:
+    """The (+) on somebody else's mix: put it in this listener's DailyFAM."""
+    _read_limit(request)
+    user = _require_account(request)
+    source = MIXES.get_public(mix_id)
+    if not source:
+        raise HTTPException(status_code=404,
+                            detail="That mix is private or no longer exists.")
+    owner = SOCIAL.person(source.user_id) or {}
+    try:
+        mix = MIXES.add_copy(user, source, mixes_mod.owner_label(
+            owner.get("name") or "", owner.get("handle") or ""))
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return dict(mix.as_dict(), **_source_label(mix, {}))
+
+
+def _mix_url(mix_id: str, request: Request) -> tuple[str, bool]:
+    base = _public_base(request)
+    return (f"{base}/m/{mix_id}" if base else f"/m/{mix_id}"), bool(base)
+
+
+@app.post("/api/mixes/{mix_id}/share")
+async def share_mix(mix_id: str, request: Request) -> dict:
+    """Share a whole mix: the link and the words, per destination.
+
+    The same destinations and the same hand-off rules as sharing an episode
+    (`sharing.render_mix`), and the same promise - FAM posts nothing and holds
+    no token. **Only a public mix can be shared**, because the link opens it
+    for whoever follows it; the interface asks before making a private one
+    public rather than doing it quietly.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    mix = MIXES.get(user, mix_id)
+    if not mix:
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    if not mix.public:
+        raise HTTPException(status_code=409,
+                            detail="Only a public mix can be shared. Make it public first.")
+    url, public = _mix_url(mix.id, request)
+    titles = [i.title for i in mix.items]
+    base = _public_base(request)
+    card = f"/api/mixes/{quote(mix.id)}/card"
+    return {
+        "url": url,
+        "public": public,
+        "card": (base + card) if base else card,
+        "targets": {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
+                    for t in sharing.TARGETS},
+    }
+
+
+@app.get("/api/mixes/{mix_id}/card")
+async def mix_card(mix_id: str, request: Request) -> Response:
+    """The story image for a shared mix, as SVG - see `share_card`."""
+    _read_limit(request)
+    mix = MIXES.get_public(mix_id)
+    if not mix:
+        raise HTTPException(status_code=404, detail="That mix is private or no longer exists.")
+    owner = SOCIAL.person(mix.user_id) or {}
+    svg = sharing.story_card(mix.name, sharing.mix_topics_line([i.title for i in mix.items], 3),
+                             0, owner.get("handle") or "", pill="Daily mix")
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/m/{mix_id}")
+async def open_shared_mix(mix_id: str):
+    """Where a shared mix link lands: the app, opened on that mix, with the
+    (+) that adds it. Unlike an episode link (`/s/`) there is no stand-alone
+    page, because what a mix link offers - adding it to your own DailyFAM -
+    only exists inside the app."""
+    return RedirectResponse(url=f"/?mix={quote(mix_id[:64], safe='')}", status_code=302)
 
 
 class PreferenceRequest(BaseModel):
