@@ -86,7 +86,7 @@ FAM_ENVIRONMENT = (
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
     "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
     "FINNHUB_WATCHLIST",
-    # The trending bank and GNews (§137). A developer with GNEWS_KEY set must
+    # The trending bank and GNews (§139). A developer with GNEWS_KEY set must
     # not run a suite that reaches gnews.io and spends their plan.
     "TRENDING_BANK", "TRENDING_BANK_SIZE", "TRENDING_BANK_TIMEZONE",
     "TRENDING_BANK_HOURS", "TRENDING_BANK_MINUTES", "TRENDING_BANK_WRITE",
@@ -294,7 +294,7 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     monkeypatch.setenv("TRENDING_BANK_DB",
                        str(tmp_path / "stores" / "trending_bank.db"))
     # **Off for the suite, on in production.** With the bank on, Trending is
-    # the GNews edition and nothing else (§137) - so every test written about
+    # the GNews edition and nothing else (§139) - so every test written about
     # the row's *ranking* over the live pool (§134-§136) describes the
     # `TRENDING_BANK=0` row, and runs against it here. The production default
     # - bank on, pool never on Trending - is pinned by

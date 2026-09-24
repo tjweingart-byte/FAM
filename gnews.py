@@ -8,7 +8,7 @@ GDELT exactly as before, and a tile's headline is never read to the writer as
 fact. GNews decides *which* stories are trending; research decides what is
 true about them.
 
-Why GNews rather than GDELT for this (§137)
+Why GNews rather than GDELT for this (§139)
 -------------------------------------------
 GDELT is keyless and asks for one request every five seconds per address. The
 story sweep made about thirty-two at a time from Render's shared addresses,
@@ -31,9 +31,9 @@ Rules
   httpx logs every request URL at INFO. `_Redact` is installed on the httpx
   logger at import and blanks `apikey=` wherever it appears; errors raised
   from here carry the endpoint name, never the URL.
-* **Raises on failure, returns `[]` on silence.** The bank has to tell "GNews
-  answered with nothing" from "GNews did not answer", because only the second
-  is a reason to lean on the crutch.
+* **Raises on failure, returns `[]` on silence.** "GNews answered with
+  nothing" and "GNews did not answer" are different sentences on
+  `/api/health`, and only the second is a reason to look at the plan.
 * **Counted.** Every request is charged to the bank's per-day ledger before it
   is made (`trending_bank.BankStore.spend`), so a rebuild loop cannot spend a
   plan's allowance, and a refused spend is a `QuotaSpent`, not a request.

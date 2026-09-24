@@ -155,11 +155,12 @@ services:
         sync: false
       - key: FINNHUB_KEY
         sync: false
-      # Trending's source (§137). Trending is an edition now, built at 05:00
+      # Trending's source (§139). Trending is an edition now, built at 05:00
       # and 17:00 Eastern for every listener with its ten episodes written
-      # ahead of the tap, and GNews is what it is built from. Unset, it is
-      # built from GDELT, which is a crutch and not a plan. Set the ceiling
-      # to the plan: 90 fits the free tier's 100/day, 900 fits Essential.
+      # ahead of the tap, and GNews is the only thing it is built from - no
+      # fallback source, and never the live pool. Unset, Trending is empty and
+      # says so. Set the ceiling to the plan: 90 fits the free tier's
+      # 100/day, 900 fits Essential.
       - key: GNEWS_KEY
         sync: false
       - key: GNEWS_DAILY_REQUESTS

@@ -38,8 +38,7 @@ def _print_edition(edition) -> None:
         print("edition: none")
         return
     e = edition if isinstance(edition, dict) else edition.as_dict()
-    print(f"edition {e['slot']} from {e['source']}"
-          + (f" (fell back from {e['fell_back_from']})" if e.get("fell_back_from") else ""))
+    print(f"edition {e['slot']} from {e['source']}")
     print(f"  {e['stories']} stories, {e['episodes_written']} episodes written, "
           f"${e['dollars']:.4f}, {e['requests']} GNews request(s)")
     if e.get("detail"):
@@ -58,17 +57,14 @@ def _report(report: dict) -> None:
     g = report["gnews"]
     print(f"  GNews: {'ready' if g['ready'] else 'not ready'} - {g['detail']}; "
           f"{g['requests_today']}/{g['daily_ceiling']} requests today")
-    print(f"  GDELT crutch: {'on' if report['gdelt_crutch'] else 'off (GDELT=0)'}")
     if report.get("last_failure"):
         print(f"  last failure: {report['last_failure']}")
     _print_edition(report.get("edition"))
 
 
 async def _dry() -> None:
-    signals, source, fell_back_from, detail, requests = await TB.collect(
+    signals, detail, requests = await TB.collect(
         time.time(), settings.trending_bank_size)
-    print(f"source: {source or 'none'}"
-          + (f" (fell back from {fell_back_from})" if fell_back_from else ""))
     print(f"{detail}; {requests} GNews request(s)")
     for i, s in enumerate(signals, 1):
         print(f"{i:2d}. [{s.coverage:>5}] {s.subject}")

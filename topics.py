@@ -3894,7 +3894,7 @@ def world_inventory(live: list, live_held: list, heard: Optional["Heard"],
                     now: float) -> tuple:
     """What Trending ranks: the trending bank's edition, and nothing else.
 
-    §137, at the owner's direction: **Trending is fuelled by GNews and the
+    §139, at the owner's direction: **Trending is fuelled by GNews and the
     live pool is Made for you's.** The two inventories do not cross. With the
     bank on, the row - rail and "View more" alike, through this one function
     so the two cannot disagree - is the current edition, and with no edition
@@ -4482,7 +4482,7 @@ def _world_empty_reason(pool_had_stories: bool) -> str:
 
 
 def _trending_empty_reason() -> str:
-    """The bank's sentence when it is on, else the pool's (§137)."""
+    """The bank's sentence when it is on, else the pool's (§139)."""
     import trending_bank
     from config import settings
 

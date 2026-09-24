@@ -1,14 +1,14 @@
-"""The trending bank (§137): Trending as an edition, built twice a day.
+"""The trending bank (§139): Trending as an edition, built twice a day.
 
 What is pinned here, in the order it would hurt to lose:
 
 * the ten episodes land in the shared cache **under the key a tap computes**,
   and live until the next edition rather than for fifteen minutes;
-* GNews builds it, GDELT is asked only when GNews cannot, and the edition
-  says which;
+* GNews builds it and nothing else does - no fallback source, and never
+  the live pool, which is Made for you's;
 * the schedule is 05:00 and 17:00 *Eastern* through daylight saving;
 * one builder per slot, and a failed rebuild never takes down an edition;
-* the rail reads the bank when there is one and the pool when there is not;
+* the rail reads the bank, and is empty with a reason when there is none;
 * the key never reaches a log line.
 """
 from __future__ import annotations
@@ -130,11 +130,12 @@ def test_a_failed_slot_waits_before_it_is_tried_again(bank):
 
 def test_a_failed_rebuild_keeps_the_edition_it_was_replacing(bank):
     bank.claim("s", 1000.0)
-    bank.finish(TB.Edition(slot="s", built_at=1000.0, source=TB.GDELT))
+    bank.finish(TB.Edition(slot="s", built_at=1000.0, source=TB.GNEWS,
+                           detail="the first build"))
     assert bank.claim("s", 2000.0, force=True)
-    bank.fail("s", "GNews failed and so did GDELT")
+    bank.fail("s", "GNews failed: GNews is rate-limiting this key")
     assert bank.status("s")["status"] == TB.READY
-    assert bank.latest().source == TB.GDELT
+    assert bank.latest().detail == "the first build"
 
 
 def test_the_daily_ceiling_holds(bank):
@@ -312,7 +313,7 @@ def test_an_edition_writes_its_episodes_under_the_key_a_tap_computes(bank, monke
     cache, generator = MemoryScriptCache(), FakeGenerator()
     now = time.time()
     edition = _build(bank, monkeypatch, generator, cache, now=now)
-    assert edition.source == TB.GNEWS and not edition.fell_back_from
+    assert edition.source == TB.GNEWS
     assert 1 <= len(edition.stories) <= settings.trending_bank_size
     assert edition.written() == len(edition.stories)
     for story in edition.stories:
@@ -349,44 +350,59 @@ def test_an_edition_is_built_once_per_slot(bank, monkeypatch):
     assert _build(bank, monkeypatch, now=et(2026, 9, 23, 17, 0, 5)) is not None
 
 
-def test_gdelt_is_the_crutch_and_the_edition_says_so(bank, monkeypatch):
-    async def gdelt(now, size):
-        return [stories.Signal(subject="Crutch story about the Senate budget",
-                               observation="12 outlets", source=TB.GDELT,
-                               coverage=12)]
-    monkeypatch.setattr(TB, "gdelt_signals", gdelt)
-    edition = _build(bank, monkeypatch, fail=True)
-    assert edition.source == TB.GDELT
-    assert edition.fell_back_from == TB.GNEWS
-    assert "GNews failed" in edition.detail
+def test_gnews_is_the_only_source_and_there_is_no_fallback(bank, monkeypatch):
+    """GNews failing leaves no edition - not a GDELT one - even with GDELT on."""
+    import gdelt
+
+    configure(monkeypatch, gdelt=True)
+    asked = []
+
+    async def artlist(*a, **k):
+        asked.append(a)
+        raise AssertionError("the trending bank asked GDELT")
+
+    monkeypatch.setattr(gdelt, "artlist", artlist)
+    assert _build(bank, monkeypatch, fail=True) is None
+    assert asked == []
+    row = bank.status(TB.slot_id(TB.last_slot(et(2026, 9, 23, 5, 0, 5))))
+    assert row["status"] == TB.FAILED and "GNews failed" in row["detail"]
+    assert not hasattr(TB, "gdelt_signals")
 
 
-def test_with_no_source_there_is_no_edition_and_the_rail_says_why(bank, monkeypatch):
+def test_a_failed_build_leaves_the_last_edition_up(bank, monkeypatch):
+    morning = _build(bank, monkeypatch, now=et(2026, 9, 23, 5, 0, 5))
+    assert _build(bank, monkeypatch, now=et(2026, 9, 23, 17, 0, 5), fail=True) is None
+    TB.reset(bank)
+    evening = et(2026, 9, 23, 17, 30)
+    assert [s.id for s in TB.stories_now(evening)] == [s.id for s in morning.stories]
+    # And not forever: past TRENDING_BANK_MAX_AGE_HOURS the row empties.
+    TB.reset(bank)
+    late = et(2026, 9, 23, 5, 0, 5) + (settings.trending_bank_max_age_hours + 1) * 3600
+    assert TB.stories_now(late) == []
+
+
+def test_with_no_key_nothing_is_attempted_and_the_rail_says_why(bank, monkeypatch):
     configure(monkeypatch, gnews_key="")
+    assert not TB.due()
     assert asyncio.run(TB.build(now=time.time())) is None
     assert TB.empty_reason() == "FAM isn't connected to a live news source yet."
 
 
-def test_a_crutch_edition_is_rebuilt_the_moment_a_key_is_added(bank, monkeypatch):
+def test_a_slot_that_failed_for_want_of_a_key_is_built_once_there_is_one(bank,
+                                                                        monkeypatch):
     now = time.time()
-    sid = TB.slot_id(TB.last_slot(now))
-    bank.claim(sid, now - 60)
-    bank.finish(TB.Edition(slot=sid, built_at=now, source=TB.GDELT,
-                           detail="GNEWS_KEY is not set; GDELT: 8 stories"))
     configure(monkeypatch, gnews_key="")
-    assert not TB.due(now)
+    asyncio.run(TB.build(now=now))       # the operator's --build, keyless
     configure(monkeypatch, gnews_key="k")
-    assert TB.due(now)
+    assert TB.due(now + 60)
+    row = bank.status(TB.slot_id(TB.last_slot(now)))
+    assert TB._failed_for_want_of_a_key(row)
 
 
 def test_a_gnews_that_failed_is_not_retried_in_a_loop(bank, monkeypatch):
-    now = time.time()
-    sid = TB.slot_id(TB.last_slot(now))
-    bank.claim(sid, now - 60)
-    bank.finish(TB.Edition(slot=sid, built_at=now, source=TB.GDELT,
-                           detail="GNews failed: GNEWS_KEY was refused"))
-    configure(monkeypatch, gnews_key="k")
-    assert not TB.due(now)
+    now = et(2026, 9, 23, 5, 0, 5)
+    _build(bank, monkeypatch, now=now, fail=True)
+    assert not TB.due(now + 60)
     assert TB.due(now + settings.trending_bank_retry_seconds)
 
 
@@ -503,27 +519,3 @@ def test_the_report_says_where_the_edition_came_from(bank, monkeypatch):
     assert report["schedule"]["hours"] == [5, 17]
     assert report["gnews"]["requests_today"] > 0
     json.dumps(report)
-
-
-def test_the_gdelt_crutch_really_runs_and_is_gentle(bank, monkeypatch):
-    """The crutch itself, not a stand-in: regional reads, one at a time."""
-    import gdelt
-
-    configure(monkeypatch, gdelt=True)
-    monkeypatch.setattr(TB, "GDELT_GAP_SECONDS", 0.0)
-    asked, in_flight, most = [], [0], [0]
-
-    async def artlist(query, limit, hours, timeout):
-        in_flight[0] += 1
-        most[0] = max(most[0], in_flight[0])
-        await asyncio.sleep(0)
-        in_flight[0] -= 1
-        asked.append(query)
-        return [SimpleNamespace(title=t, url=f"https://o{i}.example/{len(asked)}",
-                                country="United States", published_date="")
-                for i, t in enumerate(STORIES["big"])]
-
-    monkeypatch.setattr(gdelt, "artlist", artlist)
-    signals = asyncio.run(TB.gdelt_signals(time.time(), 10))
-    assert signals and signals[0].source == "GDELT"
-    assert len(asked) == len(TB.GDELT_REGIONS) and most[0] == 1

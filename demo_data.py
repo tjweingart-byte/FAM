@@ -144,7 +144,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the story pool")
             report["stories_dropped"] = 0
-        # Trending's edition too (§137): its episodes were just deleted with
+        # Trending's edition too (§139): its episodes were just deleted with
         # the script cache, so an edition left standing would offer ten tiles
         # whose ready-written episodes no longer exist. The scheduler builds
         # a fresh one for the current slot on its next tick.

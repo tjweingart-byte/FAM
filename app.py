@@ -485,7 +485,7 @@ async def lifespan(_: FastAPI):
     )
     # Trending's edition: built at 05:00 and 17:00 Eastern from GNews, with
     # GDELT as the crutch, its ten episodes written into the shared cache
-    # before anybody taps (§137). On boot it catches up - a slot with no
+    # before anybody taps (§139). On boot it catches up - a slot with no
     # edition is built at once - so a new deployment does not wait for 5pm.
     # Never awaited; the rail reads the pool until the first edition lands.
     if settings.trending_bank:
@@ -737,7 +737,7 @@ def _database_report() -> list[dict]:
         ("categories", "CATEGORIES_DB",
          getattr(topics_mod.category_tree(), "path", "")),
     ]
-    # Trending's editions (§137). Holds the GNews request ledger as well as
+    # Trending's editions (§139). Holds the GNews request ledger as well as
     # the editions, so an image-local copy would reset the daily ceiling on
     # every push as well as the rail.
     if settings.trending_bank:

@@ -3,11 +3,12 @@
 The myFAM row backed by an outside feed, and why it is a separate subsystem
 from live facts.
 
-> **Since PROBLEMS.md §137 the row is an *edition*.** Built at 05:00 and
+> **Since PROBLEMS.md §139 the row is an *edition*.** Built at 05:00 and
 > 17:00 Eastern from GNews (`gnews.py`, `trending_bank.py`), ten stories,
 > with their ten episodes written into the shared cache before anybody taps.
-> GDELT is the crutch. **The live pool never reaches this row**: it is Made
-> for you's, and with no edition Trending is empty and says why. See **The trending bank** at the end of this file.
+> GNews is the only source - there is no fallback. **The live pool never
+> reaches this row**: it is Made for you's, and with no edition Trending is
+> empty and says why. See **The trending bank** at the end of this file.
 
 > **Since PROBLEMS.md §102 this registry is one source among several rather
 > than the row's whole supply.** myFAM's two outward-facing rails are now fed
@@ -246,7 +247,7 @@ checks both modes FAM uses and warns on the two things most likely to be
 silently wrong (dates not parsing, URLs not arriving).
 
 
-## The trending bank (§137)
+## The trending bank (§139)
 
 **Why.** From Render, the GDELT story sweep timed out on every run: about
 thirty-two requests to a free service that asks for one every five seconds,
@@ -267,11 +268,13 @@ empty and the row said "The live sources didn't answer in time" to everybody.
 | Order | Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
 | Stored | `TRENDING_BANK_DB` on the mounted disk, with the GNews request ledger (`GNEWS_DAILY_REQUESTS`). |
 
-**The crutch.** GDELT is asked only when GNews is not configured, fails on
-every feed, or returns nothing - four regional reads, one at a time, 5.5
-seconds apart. Every edition records `source`, `fell_back_from` and `detail`,
-and `/api/health` shows them. An edition built from the crutch is rebuilt
-from GNews on the next scheduler tick once `GNEWS_KEY` is set.
+**No fallback, at the owner's direction.** GNews is the only source; if it
+cannot answer, the fix is the plan, not a second source. A failed build
+keeps the last edition on the row for up to `TRENDING_BANK_MAX_AGE_HOURS`
+(36), is retried after `TRENDING_BANK_RETRY_SECONDS` (30 minutes), and is on
+`/api/health` as `current_slot_status`. With no key nothing is attempted and
+the row says "FAM isn't connected to a live news source yet"; a slot that
+failed only for want of a key is built the moment one is set.
 
 **The one rule it bends, at the owner's direction.** `cache.ttl_for` gives a
 news episode fifteen minutes (`CACHE_TTL_VOLATILE`), which would expire a
@@ -280,11 +283,10 @@ It still never keeps a score in progress, and never writes ahead a question
 whose answer is a result (`outcome_dependent`) - that tile is offered and
 the tap writes it.
 
-**What still does not use it.** Made for you and What you missed read the
-live pool, not the bank. The pool's own GDELT sweep still runs every fifteen
-minutes and still times out from Render; with `GNEWS_KEY` set it is worth
-turning that off (`STORIES_SOURCES=trending,finnhub,polymarket,api-sports`) so it stops spending
-GDELT's patience that the crutch may need.
+**The two inventories do not cross.** Made for you and What you missed read
+the live pool (GDELT, API-Sports, Finnhub, Polymarket, every fifteen
+minutes) and never the bank; Trending reads the bank and never the pool; and
+GNews is spent by the bank alone.
 
 **Operating it.** `python tools/trending_bank.py` prints the schedule and the
 edition; `--verify` makes one real GNews request; `--dry` collects and ranks

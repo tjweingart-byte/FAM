@@ -638,11 +638,11 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
-    # --- the trending bank (§137, `trending_bank.py`, TRENDING.md) --------
+    # --- the trending bank (§139, `trending_bank.py`, TRENDING.md) --------
     # Trending is an *edition*: built twice a day for every listener, its
     # episodes written ahead of the tap, and read by the rail between builds.
-    # GNews is what it is built from; GDELT is the crutch when GNews cannot
-    # answer, and never the plan.
+    # GNews is the only source: no fallback, and never the live pool. If
+    # GNews cannot answer, the last edition stays up and the build retries.
     trending_bank: bool = field(
         default_factory=lambda: os.environ.get("TRENDING_BANK", "1")
         not in ("0", "false", "False", ""))
@@ -675,7 +675,7 @@ class Settings:
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
     # --- GNews (gnews.io), the bank's source -------------------------------
-    # The key is the statement of intent: unset, the bank builds from GDELT.
+    # The key is the statement of intent: unset, Trending is empty and says so.
     gnews_key: str = field(
         default_factory=lambda: os.environ.get("GNEWS_KEY", "").strip())
     gnews_lang: str = field(

@@ -1,6 +1,6 @@
 """The trending bank: Trending as an edition, built twice a day for everybody.
 
-What it is (§137, at the owner's direction)
+What it is (§139, at the owner's direction)
 -------------------------------------------
 Trending used to be read straight off the live story pool, which a GDELT
 sweep refilled every fifteen minutes. From Render that sweep timed out on
@@ -13,11 +13,13 @@ So Trending is an **edition** now:
 * **Built on a clock, not on a page load.** At 05:00 and 17:00 on the East
   Coast (`TRENDING_BANK_TIMEZONE`, `TRENDING_BANK_HOURS`), a named zone so the
   hour survives daylight saving.
-* **From GNews**, a keyed feed built for exactly this question
-  (`gnews.py`). **GDELT is the crutch**: asked only when GNews is not
-  configured, fails, or finds nothing, with four gently paced requests rather
-  than thirty-two at once - and every edition records which one built it and
-  what it fell back from (§109: never fall back silently).
+* **From GNews and nothing else** (`gnews.py`), a keyed feed built for
+  exactly this question. **There is no fallback source**, at the owner's
+  direction: if GNews cannot answer, the plan is changed, not the source.
+  A build that fails leaves the last edition on the row (for up to
+  `TRENDING_BANK_MAX_AGE_HOURS`), is retried after
+  `TRENDING_BANK_RETRY_SECONDS`, and says so on `/api/health`. And the live
+  story pool never reaches this row - that inventory is Made for you's.
 * **Ten stories** (`TRENDING_BANK_SIZE`), chosen by how widely the press is
   running them, and **ten episodes written ahead of the tap**, into the shared
   script cache under the exact key a myFAM tap computes (`pipeline.key_for`).
@@ -49,8 +51,9 @@ The rest is the house style
   in the database before anything is spent, and a claim that went quiet for
   twenty minutes is a crashed builder and may be taken over.
 * **A new deployment does not wait for 5pm.** On boot, a slot with no edition
-  is built at once; so is one that was built from the crutch when GNews has
-  since been configured, which is what adding the key on Render does.
+  is built at once, and a slot that failed for want of a key is retried as
+  soon as there is one - which is what adding `GNEWS_KEY` on Render and
+  redeploying amounts to.
 * **An empty rail says which of its nothings it is** (`empty_reason`) - no
   key, a failed build, the first edition still being written - and never that
   nothing is happening in the world.
@@ -76,7 +79,6 @@ from paths import data_path
 log = logging.getLogger(__name__)
 
 GNEWS = "GNews"
-GDELT = "GDELT"
 
 #: Build states in the database.
 BUILDING = "building"
@@ -95,11 +97,6 @@ RELOAD_SECONDS = 60.0
 #: busy day in one section cannot be the whole row. A cap on what is
 #: available, never a quota: an edition short of variety is topped back up.
 MAX_PER_SECTION = 3
-#: The GDELT crutch: a handful of regional reads, one at a time, spaced as
-#: GDELT asks. Never the thirty-two-at-once sweep that put us here.
-GDELT_REGIONS = ("north-america", "europe", "south-asia", "east-asia")
-GDELT_GAP_SECONDS = 5.5
-GDELT_TIMEOUT_SECONDS = 20.0
 
 
 # --------------------------------------------------------------------------
@@ -171,7 +168,6 @@ class Edition:
     stories: list = field(default_factory=list)
     #: story id -> {"status", "key", "dollars", "detail"}
     episodes: dict = field(default_factory=dict)
-    fell_back_from: str = ""
     detail: str = ""
     requests: int = 0
     minutes: int = 0
@@ -192,8 +188,7 @@ class Edition:
         return json.dumps({
             "slot": self.slot, "built_at": self.built_at, "source": self.source,
             "stories": [asdict(s) for s in self.stories],
-            "episodes": self.episodes, "fell_back_from": self.fell_back_from,
-            "detail": self.detail, "requests": self.requests,
+            "episodes": self.episodes, "detail": self.detail, "requests": self.requests,
             "minutes": self.minutes,
         })
 
@@ -207,7 +202,6 @@ class Edition:
             source=data.get("source", ""),
             stories=[_story(row, stories.Story) for row in data.get("stories", [])],
             episodes=data.get("episodes", {}) or {},
-            fell_back_from=data.get("fell_back_from", ""),
             detail=data.get("detail", ""),
             requests=int(data.get("requests", 0) or 0),
             minutes=int(data.get("minutes", 0) or 0),
@@ -216,7 +210,7 @@ class Edition:
     def as_dict(self) -> dict:
         return {
             "slot": self.slot, "built_at": self.built_at, "source": self.source,
-            "fell_back_from": self.fell_back_from, "detail": self.detail,
+            "detail": self.detail,
             "stories": len(self.stories), "episodes_written": self.written(),
             "episodes": self.episodes, "dollars": self.dollars(),
             "requests": self.requests, "minutes": self.minutes,
@@ -304,8 +298,8 @@ class BankStore:
 
     def fail(self, slot: str, detail: str) -> None:
         """Record a failed build. A slot that already has an edition keeps it:
-        a rebuild that failed (the crutch edition retried on GNews) must not
-        take down what the rail was showing."""
+        a forced rebuild that failed (`tools/trending_bank.py --build`) must
+        not take down what the rail was showing."""
         with self._lock, self._connect() as db:
             db.execute("UPDATE editions SET status = CASE WHEN payload IS NULL "
                        "THEN ? ELSE ? END, detail = ? WHERE slot = ?",
@@ -449,14 +443,14 @@ def stories_now(now: Optional[float] = None) -> list:
 
 
 def empty_reason() -> str:
-    """What Trending says when neither the bank nor the pool has anything."""
+    """What Trending says when there is no edition to show."""
     import gnews
 
     ok, _why = gnews.available()
     attempt = _LAST_ATTEMPT.get("detail", "")
     if _BUILDING:
         return "Today's trending stories are being put together now."
-    if not ok and not getattr(settings, "gdelt", False):
+    if not ok:
         return "FAM isn't connected to a live news source yet."
     if attempt:
         return "Couldn't reach the news sources for this edition. Trying again shortly."
@@ -653,80 +647,28 @@ def _tags(text: str) -> tuple:
         return ()
 
 
-# --------------------------------------------------------------------------
-# The crutch: GDELT, gently
-# --------------------------------------------------------------------------
-async def gdelt_signals(now: float, size: int) -> list:
-    """A few regional reads of GDELT, one at a time. Raises if all fail."""
-    import gdelt
-    import news_clusters
-    import story_sources
-
-    ok, why = gdelt.available()
-    if not ok:
-        raise RuntimeError(f"GDELT is off ({why})")
-    articles, found_in = [], {}
-    asked = failed = 0
-    for i, region in enumerate(GDELT_REGIONS):
-        query = gdelt.region_query(region)
-        if not query:
-            continue
-        if i:
-            await asyncio.sleep(GDELT_GAP_SECONDS)
-        asked += 1
-        try:
-            rows = await asyncio.wait_for(
-                gdelt.artlist(query, 75, 12, GDELT_TIMEOUT_SECONDS),
-                timeout=GDELT_TIMEOUT_SECONDS + 1)
-        except Exception as exc:  # noqa: BLE001 - one region is not the crutch
-            failed += 1
-            log.info("trending bank: GDELT %s failed: %s", region, exc)
-            continue
-        for row in rows:
-            found_in.setdefault(row.url, region)
-        articles += rows
-    if asked and failed == asked:
-        raise RuntimeError(f"all {asked} GDELT requests failed")
-    groups = news_clusters.cluster(articles, scope_of=lambda a: found_in.get(a.url, ""))
-    source = story_sources.GdeltSignals()
-    at = datetime.fromtimestamp(now, timezone.utc)
-    signals = [source._signal(g, at) for g in groups[:size]]
-    peak = math.log1p(max((s.coverage for s in signals), default=1) or 1)
-    return [replace(s, strength=round(min(1.0, math.log1p(s.coverage) / peak), 3))
-            for s in signals]
-
-
 async def collect(now: float, size: int, client=None) -> tuple:
-    """Signals for an edition: `(signals, source, fell_back_from, detail, requests)`.
+    """Signals for an edition: `(signals, detail, requests)`. Never raises.
 
-    GNews when it can; GDELT when it cannot, and the reason is kept.
+    GNews and nothing else. `signals` is empty when GNews is not configured,
+    failed, or found nothing, and `detail` says which.
     """
     import gnews
 
-    fell_back_from, detail, requests = "", "", 0
     ok, why = gnews.available()
-    if ok:
-        client = client or gnews.Client(
-            spend=lambda _endpoint: store().spend(
-                GNEWS, settings.gnews_daily_requests, now))
-        try:
-            signals = await gnews_signals(client, now, size)
-            requests = client.requests
-            if signals:
-                return signals, GNEWS, "", f"GNews: {len(signals)} stories", requests
-            fell_back_from, detail = GNEWS, "GNews answered with no stories"
-        except Exception as exc:  # noqa: BLE001 - the crutch exists for this
-            requests = getattr(client, "requests", 0)
-            fell_back_from, detail = GNEWS, f"GNews failed: {exc}"
-            log.warning("trending bank: %s; leaning on GDELT", detail)
-    else:
-        fell_back_from, detail = GNEWS, why
+    if not ok:
+        return [], why, 0
+    client = client or gnews.Client(
+        spend=lambda _endpoint: store().spend(
+            GNEWS, settings.gnews_daily_requests, now))
     try:
-        signals = await gdelt_signals(now, size)
-    except Exception as exc:  # noqa: BLE001
-        return [], "", fell_back_from, f"{detail}; GDELT: {exc}", requests
-    return (signals, GDELT, fell_back_from,
-            f"{detail}; GDELT: {len(signals)} stories", requests)
+        signals = await gnews_signals(client, now, size)
+    except Exception as exc:  # noqa: BLE001 - a failed build is reported, not raised
+        log.warning("trending bank: GNews failed: %s", exc)
+        return [], f"GNews failed: {exc}", getattr(client, "requests", 0)
+    if not signals:
+        return [], "GNews answered with no stories", client.requests
+    return signals, f"GNews: {len(signals)} stories", client.requests
 
 
 # --------------------------------------------------------------------------
@@ -806,8 +748,7 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
     _BUILDING = True
     try:
         size = max(1, settings.trending_bank_size)
-        signals, source, fell_back_from, detail, requests = await collect(
-            now, size, client=client)
+        signals, detail, requests = await collect(now, size, client=client)
         if not signals:
             store().fail(sid, detail or "no stories")
             _LAST_ATTEMPT.update(slot=sid, detail=detail, at=now)
@@ -819,9 +760,8 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
         edition_stories = [_placed(replace(s, first_seen=now, last_seen=now,
                                            shelf_life=shelf))
                            for s in composed]
-        edition = Edition(slot=sid, built_at=now, source=source,
-                          stories=edition_stories,
-                          fell_back_from=fell_back_from, detail=detail,
+        edition = Edition(slot=sid, built_at=now, source=GNEWS,
+                          stories=edition_stories, detail=detail,
                           requests=requests,
                           minutes=settings.trending_bank_minutes)
 
@@ -840,11 +780,9 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
         store().finish(edition)
         _CURRENT, _LOADED_AT = edition, now
         _LAST_ATTEMPT.clear()
-        log.info("trending bank: edition %s from %s%s - %d stories, %d episodes "
+        log.info("trending bank: edition %s - %d stories, %d episodes "
                  "written, $%.4f, %d GNews request(s)",
-                 sid, source,
-                 f" (fell back from {fell_back_from})" if fell_back_from else "",
-                 len(edition_stories), edition.written(), edition.dollars(),
+                 sid, len(edition_stories), edition.written(), edition.dollars(),
                  requests)
         return edition
     except Exception as exc:  # noqa: BLE001 - a build never takes the server down
@@ -870,39 +808,34 @@ def _placed(story):
 def due(now: Optional[float] = None) -> bool:
     """Whether the current slot still wants building.
 
-    True when it has no edition, or its edition was built from the crutch and
-    GNews is configured now - which is what adding `GNEWS_KEY` on Render and
-    redeploying amounts to. A failed slot is due again after the retry wait;
-    `claim` enforces that.
+    Never without a key: there is no other source to build from, and a build
+    that can only fail would log a failure every half hour for nothing - the
+    row already says "not connected". With a key, a slot is due when it has
+    no edition, when a failed build has waited `TRENDING_BANK_RETRY_SECONDS`,
+    when a claim has gone quiet (a crashed builder), or at once when the only
+    thing that failed it was the missing key - which is what adding
+    `GNEWS_KEY` on Render and redeploying has to mean.
     """
     import gnews
 
-    if not settings.trending_bank:
+    if not settings.trending_bank or not gnews.available()[0]:
         return False
     now = time.time() if now is None else now
     row = store().status(slot_id(last_slot(now)))
     if row is None:
         return True
     if row["status"] == READY:
-        return row.get("source") != GNEWS and gnews.available()[0] and \
-            not _crutch_retry_waiting(row, now)
+        return False
     if row["status"] == FAILED:
-        return now - float(row["claimed_at"] or 0) >= settings.trending_bank_retry_seconds
+        return (_failed_for_want_of_a_key(row)
+                or now - float(row["claimed_at"] or 0)
+                >= settings.trending_bank_retry_seconds)
     return now - float(row["claimed_at"] or 0) >= STALE_CLAIM_SECONDS
 
 
-def _crutch_retry_waiting(row: dict, now: float) -> bool:
-    """An edition from the crutch is retried on GNews, but not in a loop.
-
-    The wait is for a GNews that was configured and *failed* - retrying that
-    every minute would spend the day's ceiling on a broken key. An edition
-    built from the crutch because there was no key at all is rebuilt the
-    moment there is one, which is what adding it on Render and redeploying
-    has to mean.
-    """
-    if "GNEWS_KEY is not set" in str(row.get("detail") or ""):
-        return False
-    return now - float(row.get("claimed_at") or 0) < settings.trending_bank_retry_seconds
+def _failed_for_want_of_a_key(row: Optional[dict]) -> bool:
+    return bool(row and row.get("status") == FAILED
+                and "GNEWS_KEY is not set" in str(row.get("detail") or ""))
 
 
 async def run_forever(generator=None, cache=None) -> None:
@@ -920,16 +853,12 @@ async def run_forever(generator=None, cache=None) -> None:
     while True:
         try:
             if due():
-                force = _is_crutch_upgrade()
-                await build(generator=generator, cache=cache, force=force)
+                row = store().status(slot_id(last_slot()))
+                await build(generator=generator, cache=cache,
+                            force=_failed_for_want_of_a_key(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))
-
-
-def _is_crutch_upgrade(now: Optional[float] = None) -> bool:
-    row = store().status(slot_id(last_slot(now)))
-    return bool(row and row["status"] == READY and row.get("source") != GNEWS)
 
 
 def report(now: Optional[float] = None) -> dict:
@@ -950,7 +879,6 @@ def report(now: Optional[float] = None) -> dict:
         "gnews": {"ready": ok, "detail": why,
                   "daily_ceiling": settings.gnews_daily_requests,
                   "requests_today": store().spent(GNEWS, now) if _exists() else 0},
-        "gdelt_crutch": bool(getattr(settings, "gdelt", False)),
         "building": _BUILDING,
         "edition": edition.as_dict() if edition else None,
         "last_failure": dict(_LAST_ATTEMPT) or None,

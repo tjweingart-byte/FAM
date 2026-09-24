@@ -11141,7 +11141,7 @@ others, or in the pool). `ALGO_VERSION` is `2026-09-23.3`.
 deployment's traffic. The `cached` flag on every tile already says it per
 page; nothing aggregates it yet.
 
-## 137. Trending as an edition: GNews twice a day, ten episodes written ahead
+## 139. Trending as an edition: GNews twice a day, ten episodes written ahead
 
 **What was reported.** On every open of the demo, Trending said "The live
 sources didn't answer in time."
@@ -11169,15 +11169,16 @@ sweep for everybody) was right; the source could not carry it.
   `pipeline.key_for`, the key a tap computes, at `TRENDING_BANK_MINUTES` (2,
   the myFAM length default). A tap is a cache hit; §132 keeps the audio after
   the first play.
-* **GDELT is the crutch**: asked only when GNews is unset, fails or returns
-  nothing, with four regional reads one at a time 5.5s apart. Every edition
-  records `source`, `fell_back_from` and `detail`, on `/api/health` as
-  `trending_bank`.
+* **GNews is the only source, with no fallback** (the owner's direction: if
+  GNews cannot answer, the subscription changes, not the source). A failed
+  build keeps the last edition up for up to 36 hours and retries after 30
+  minutes; with no key nothing is attempted and the row says so. The first
+  cut had GDELT as a fallback and it is deleted, not switched off.
 * **One builder per slot** across workers and restarts (a claim row in
   SQLite; a claim quiet for twenty minutes is a crash and is taken over). On
-  boot a slot with no edition is built immediately, and a slot built from the
-  crutch is rebuilt once `GNEWS_KEY` is set - so adding the key on Render and
-  redeploying is the whole procedure.
+  boot a slot with no edition is built immediately, and a slot that failed
+  only for want of a key is built the moment `GNEWS_KEY` is set - so adding
+  the key on Render and redeploying is the whole procedure.
 * The Trending rail and its View more read the edition through
   `topics.world_inventory`, and **never the live pool**: the pool (GDELT,
   API-Sports, Finnhub, Polymarket) is Made for you's, and with no edition
@@ -11199,12 +11200,11 @@ does.
 
 **Found while testing it.** A Title Case headline capitalises every word, so
 "names first" picked arbitrary words for the coverage search and dropped the
-subject. And the GDELT crutch named a class that does not exist
-(`GdeltStorySource`), which a test that mocked the crutch whole could not
-see. It now has a test that runs the real function against a faked GDELT.
+subject. And the GDELT fallback, before it was removed, named a class that
+does not exist (`GdeltStorySource`) - a test that mocked the fallback whole
+could not see it, which is a reason to test a path by running it.
 
 **Not verified.** gnews.io is blocked from the build container, so every
 response shape is from the v4 docs, and nobody has heard a bank episode. The
 first run with a key is `python tools/trending_bank.py --verify`, then
-`--dry`. The pool's own GDELT sweep is unchanged and still times out from
-Render; it no longer feeds Trending, but it still feeds Made for you.
+`--dry`. The live pool is unchanged and is Made for you's alone.
