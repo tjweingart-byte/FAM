@@ -903,7 +903,8 @@ def _retry_at_once(row: Optional[dict]) -> bool:
                      or detail.startswith(INTERRUPTED)))
 
 
-async def run_forever(generator=None, cache=None) -> None:
+async def run_forever(generator=None, cache=None,
+                      initial_delay: float = 0.0) -> None:
     """Build on the clock, catching up on boot. Runs for the server's life.
 
     Wakes at least once a minute, so a slot is never missed by more than that
@@ -915,6 +916,10 @@ async def run_forever(generator=None, cache=None) -> None:
     log.info("trending bank: editions at %s %s; next at %s",
              ", ".join(f"{h:02d}:00" for h in hours()),
              settings.trending_bank_timezone, slot_id(next_slot()))
+    if initial_delay > 0:
+        log.info("trending bank: boot catch-up held %.0fs so it does not start "
+                 "in the same second as the story sweep", initial_delay)
+        await asyncio.sleep(initial_delay)
     while True:
         try:
             if due():

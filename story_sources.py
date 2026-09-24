@@ -57,8 +57,6 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
-
 import live_facts
 import stories
 from config import settings
@@ -67,10 +65,11 @@ log = logging.getLogger(__name__)
 
 
 async def _json(url: str, headers: dict, params: dict, timeout: float):
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
+    # The live providers' helper, so an HTTP error here carries no URL and
+    # therefore no key either (§144) - Finnhub's token is a query parameter.
+    import live_sources
+
+    return await live_sources._json(url, headers, params, timeout)
 
 
 def _tags(text: str, *extra: str) -> tuple:
@@ -134,13 +133,18 @@ class GdeltSignals(stories.StorySource):
     name = "GDELT"
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
-    #: Keyless and generous, so this may run on the pool's own clock.
-    min_interval_seconds = 0.0
+    #: Keyless, but not unlimited (§144): one request every five seconds per
+    #: address. A sweep is ~32 paced requests, so it is asked at most every
+    #: ten minutes however often a page asks the pool to refresh.
+    min_interval_seconds = 600.0
     #: Room for the world and every region, rather than one provider's eight.
     max_signals = 32
-    #: Twenty-odd requests, six at a time. Nobody waits on a sweep, and one
-    #: cut short by the shared ceiling is a sweep that found nothing.
-    timeout_seconds = 45.0
+    #: Fifteen theme volumes, eight hot themes and nine regions, one every
+    #: `GDELT_REQUEST_GAP_SECONDS` (§144): about three minutes cold, half that
+    #: with the volumes cached. Nobody waits on a sweep, and one cut short by
+    #: the ceiling is a sweep that found nothing - which is what 45s became
+    #: the moment the requests were paced.
+    timeout_seconds = 240.0
 
     #: How many of the hottest themes the worldwide sample is drawn from.
     HOT_THEMES = 8
@@ -276,6 +280,9 @@ class TrendingRegistrySignals(stories.StorySource):
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
     min_interval_seconds = 0.0
+    #: Room for a paced GDELT trending source (§144), whose fifteen theme
+    #: requests share the pacer with the story sweep beside it.
+    timeout_seconds = 200.0
 
     def diagnose(self) -> tuple[bool, str]:
         import trending

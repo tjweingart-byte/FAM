@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
@@ -265,12 +266,67 @@ def report() -> dict:
 # §52 gap `verify()` exists to close, and it is still open here.
 import httpx  # noqa: E402
 
+import log_redaction  # noqa: E402
+
+
+class ProviderHTTPError(RuntimeError):
+    """A provider answered with an HTTP error. Carries no URL (§144).
+
+    `httpx.HTTPStatusError`'s message is the whole request URL, and Finnhub's
+    key is a query parameter, so every 422 printed the key into Render's logs
+    - once in the message and again in the traceback. This carries the status
+    and the endpoint's path, which is everything a reader of the log needs.
+    """
+
+    def __init__(self, status: int, where: str, body: str = ""):
+        self.status = status
+        self.where = where
+        detail = f" - {body}" if body else ""
+        super().__init__(f"HTTP {status} from {where}{detail}")
+
 
 async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        if not response.is_success:
+            where = f"{response.url.host}{response.url.path}"
+            body = log_redaction.redact(response.text[:160].strip())
+            # `from None`: a chained HTTPStatusError would print the URL in
+            # the traceback, which is the leak this exists to close.
+            raise ProviderHTTPError(response.status_code, where, body) from None
         return response.json()
+
+
+#: Words that make a subject a topic rather than a company or index name.
+#: Finnhub's `/search` is a ticker lookup: it answers "Apple" or "NVDA", and a
+#: DailyFAM subject like "Business and finance news of the last 24 hours" is
+#: refused with a 422 (§144).
+_TOPIC_WORDS = frozenset("""
+    news industry industries sector sectors market markets economy economic
+    economics latest today yesterday week weekly update updates trends
+    startup startups
+    """.split())
+#: More words than this is a sentence, not a name. "Taiwan Semiconductor
+#: Manufacturing Company" is four.
+_MAX_LISTING_WORDS = 5
+
+
+def looks_like_a_listing(subject: str) -> bool:
+    """Could `subject` be a company, fund or index Finnhub can look up?
+
+    Deliberately generous in one direction only: a false "yes" costs one
+    request that returns nothing, a false "no" costs a price for an episode
+    about a company - so it refuses only what is plainly a topic.
+    """
+    text = (subject or "").strip()
+    if not text or any(ch in text for ch in "()?:;"):
+        return False
+    words = re.findall(r"[A-Za-z0-9&.'-]+", text)
+    if not words or len(words) > _MAX_LISTING_WORDS:
+        return False
+    if re.search(r"\b(19|20)\d\d\b", text):
+        return False
+    return not any(w.lower() in _TOPIC_WORDS for w in words)
 
 
 @dataclass(frozen=True)
@@ -935,9 +991,25 @@ class FinnhubSource(LiveSource):
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
         if not subject:
             return None
-        data = await _json(f"{self.BASE}/search", {},
-                           {"q": subject, "token": settings.finnhub_key},
-                           settings.live_timeout_seconds)
+        if not looks_like_a_listing(subject):
+            # "Startup and venture capital industry news" is a topic, not a
+            # company. Finnhub refuses it with a 422 - and if it did not, the
+            # first row it matched would be somebody else's price (§144).
+            log.info("finnhub: %r is a topic, not a listing; not looked up",
+                     subject)
+            return None
+        try:
+            data = await _json(f"{self.BASE}/search", {},
+                               {"q": subject, "token": settings.finnhub_key},
+                               settings.live_timeout_seconds)
+        except ProviderHTTPError as exc:
+            # A 4xx on a *lookup* is Finnhub saying it cannot search on this
+            # text, which is "nothing matching", not a broken provider. A bad
+            # key, a spent plan or a rate limit is still a failure.
+            if 400 <= exc.status < 500 and exc.status not in (401, 403, 429):
+                log.info("finnhub: no listing for %r (%s)", subject, exc)
+                return None
+            raise
         rows = (data or {}).get("result", []) or []
         best = None
         for row in rows:

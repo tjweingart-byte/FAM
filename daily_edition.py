@@ -575,8 +575,14 @@ def due(now: Optional[float] = None) -> bool:
     return now - float(row["claimed_at"] or 0) >= STALE_CLAIM_SECONDS
 
 
-async def run_forever(mix_store, generator=None, cache=None) -> None:
-    """Build on the clock, catching up on boot. Runs for the server's life."""
+async def run_forever(mix_store, generator=None, cache=None,
+                      initial_delay: float = 0.0) -> None:
+    """Build on the clock, catching up on boot. Runs for the server's life.
+
+    `initial_delay` holds the boot catch-up back (§144), so the edition's
+    model calls and searches do not land in the same second as the story
+    sweep and the trending bank - which is what timed EI out on 24/09.
+    """
     if not _settings().daily_edition:
         log.info("daily edition: off (DAILY_EDITION=0)")
         return
@@ -591,6 +597,10 @@ async def run_forever(mix_store, generator=None, cache=None) -> None:
              ", ".join(f"{h:02d}:00" for h in hours()),
              _settings().daily_edition_timezone, minutes(),
              slot_id(next_slot()))
+    if initial_delay > 0:
+        log.info("daily edition: boot catch-up held %.0fs so it does not start "
+                 "in the same second as the story sweep", initial_delay)
+        await asyncio.sleep(initial_delay)
     while True:
         try:
             if due():

@@ -11795,7 +11795,73 @@ volatile episode now occupies `scripts.db` for a week rather than fifteen
 minutes - the audio beside it has a ceiling (`AUDIO_CACHE_MAX_MB`), the
 scripts do not.
 
-## 144. A mix added from DailyFAM search could not be taken back out
+## 144. The Render failures of 24/09: GNews, Finnhub, GDELT, and a leaked key
+
+Every warning in the first minute after the 09:25 deploy, read back to code.
+None was a crash - every episode was still written - but four separate
+problems were landing at once.
+
+**GNews answered 403: the account was never activated.** Its own body said
+so ("You must activate your account to unlock API access"). Not a quota and
+not code: the email behind `GNEWS_KEY` was never verified, so every Trending
+edition failed and, by §139's design, nothing replaced it. Fixed in the GNews
+dashboard, not here.
+
+**Finnhub answered 422: a topic was sent to a ticker lookup.** DailyFAM
+subjects like *Startups* and *Business & Finance* brief as markets questions,
+and `FinnhubSource.resolve` sent the brief's whole subject - "Startup and
+venture capital industry news", "Business and finance news of the last 24
+hours (September 23-24, 2026)" - to `/search`, which looks up names. The 422
+was the lucky outcome; a match would have put somebody's price in an episode
+about an industry. `looks_like_a_listing` refuses what is plainly a topic
+(topic words, a year, brackets, more than five words) before any request, a
+4xx other than 401/403/429 on the lookup is "nothing matching" rather than a
+provider failure, and a provider's HTTP status is logged without a traceback.
+
+**And the Finnhub key was in the logs, twice per failure.** httpx logs every
+request URL, and `HTTPStatusError`'s message is the URL again. GNews had a
+filter; it lived in `gnews.py` and knew `apikey=` only. `log_redaction.py` is
+the one filter now (`apikey`, `token`, `api_key`, `access_token`, `key`), and
+`live_sources._json` raises `ProviderHTTPError` - status and path, no URL,
+not chained - which `story_sources` uses too. **The key that was logged must
+be rotated**; redaction does not un-print it.
+
+**GDELT timed out: dozens of requests from one shared address at once.**
+Every GDELT warning ended at the colon, which is what a timeout's empty
+message looks like. GDELT asks for one request every five seconds per
+address, and on boot the story sweep fired fifteen theme requests unbounded
+then nine regional ones, the old trending source fired its own fifteen, and
+the DailyFAM edition's episodes each ran a cross-check - all from Render's
+outbound address, which other tenants share. Four changes:
+
+* `gdelt.PACER`: every request in the process takes its turn,
+  `GDELT_REQUEST_GAP_SECONDS` (5.5) apart. **Episodes go first**: background
+  work takes a slot only once it is free, so a sweep never books thirty slots
+  ahead; an episode books the next one and waits at most about one gap, or
+  does without GDELT past `GDELT_EPISODE_WAIT_SECONDS` rather than queue.
+* Theme volumes are cached twenty minutes and shared, in-flight included, so
+  the story pool and the trending source spend one set of fifteen.
+* The ceilings grew to fit: 45s would cut short every paced sweep. The GDELT
+  story source is asked at most every ten minutes.
+* `retrieve` strips a free-text query to ten searchable words - a degraded
+  brief sent a whole DailyFAM prompt, brackets and all - and every GDELT
+  failure log names the exception type.
+
+The cross-check itself (`GDELT_CROSS_CHECK`) is off in code and was on in
+Render's environment; it runs after Exa and waited up to 6.5s per episode
+for nothing. Turning it off is a setting, not a change.
+
+**EI timed out under the same burst.** Boot started the story sweep, the
+trending bank and the DailyFAM edition in the same second. They start
+`BOOT_STAGGER_SECONDS` (60) apart now.
+
+Not verified against the real services - the build container reaches none of
+them. What will say whether pacing was enough is the next deploy's log: if
+GDELT still times out one request at a time, the address itself is being
+refused, and the story pool needs a different discovery source (GDELT's raw
+15-minute export files have no request limit).
+
+## 145. A mix added from DailyFAM search could not be taken back out
 
 The (+) on somebody else's public mix (§140) turned into a tick once the copy
 was added, and tapping the tick again only toasted "Already in your
@@ -11815,7 +11881,7 @@ like the add, because that is the only id the (+) knows
 there is no copy, and the original is untouched. Both preview builds mock it,
 and a smoke check drives add, tap again, confirm, and the list without it.
 
-## 145. A "Pick up where you left off" tile could not be put away
+## 146. A "Pick up where you left off" tile could not be put away
 
 The section offers part-heard episodes, open threads and similar episodes,
 and the only way to stop seeing one was to play it. A tile somebody had

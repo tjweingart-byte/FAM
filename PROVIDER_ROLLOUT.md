@@ -40,19 +40,27 @@ The probe checks both modes FAM uses — `artlist` for retrieval and
 to be silently wrong: dates not parsing, and URLs not arriving in the field
 `research.host_of` reads.
 
-**Step 2.** Turn on the second index for evidence:
+**Step 2.** Turn it on:
 
     GDELT=1
-    GDELT_CROSS_CHECK=1
 
-Every researched episode now asks GDELT as well as Exa. Additive only: it never
-replaces the Exa packet, and `gdelt.retrieve` returns `[]` on any failure by
-contract. Watch `/api/sources` on a few episodes — `retrievers` should show
-both, and the panel should show more outlets than before.
+That is all a deployment needs: the story pool reads it, and it is the last
+rung of the research ladder when Exa comes back empty.
 
-**Step 3.** Turn on the Trending row:
+**Leave `GDELT_CROSS_CHECK` off on Render** (§144). It asks GDELT on every
+researched episode *after* Exa has answered, and GDELT asks for one request
+every five seconds per address - Render's outbound address is shared with
+other tenants. On 24/09 it was on, and every episode waited out a GDELT
+timeout for nothing. Every request now goes through one pacer
+(`GDELT_REQUEST_GAP_SECONDS`), so turning the cross-check on costs an episode
+at most `GDELT_EPISODE_WAIT_SECONDS` rather than a timeout, but it also spends
+slots the story sweep needs. Turn it on only on a host with its own address,
+and watch `/api/sources` for `retrievers` showing both.
 
-    TRENDING_SOURCE=gdelt
+**Step 3.** ~~`TRENDING_SOURCE=gdelt`~~ - **do not set this** (§139, §144).
+The Trending row is built from GNews now (`trending_bank.py`). Set, it adds
+the old GDELT theme sweep - fifteen more requests per refresh - as a second
+input to the story pool, which already reads GDELT directly.
 
 **Step 4, and this is a judgement call rather than a config change.** Look at
 the row. The tile questions are currently templated:
