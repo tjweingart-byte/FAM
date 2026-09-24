@@ -194,6 +194,18 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS history_user"
                          " ON history(user_id, at)")
+            # Go Deeper tiles the listener closed with their X. Keyed on the
+            # question alone, not the length: "not shown again" is about the
+            # subject, and the same question offered back at another length
+            # would read as the X not having worked.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS dismissed (
+                       user_id TEXT NOT NULL,
+                       query   TEXT NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, query)
+                   )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -442,6 +454,36 @@ class SavedStore:
                  "title": r[3] or "", "at": r[4], "context": r[5] or ""}
                 for r in rows]
 
+    # --- Go Deeper tiles closed with their X ---------------------------------
+
+    @staticmethod
+    def _dismiss_key(query: str) -> str:
+        return " ".join((query or "").lower().split())
+
+    def dismiss(self, user_id: str, query: str, at: float = 0.0) -> bool:
+        """Never offer this question under "Pick up where you left off" again."""
+        key = self._dismiss_key(query)
+        if not user_id or not key:
+            return False
+        self._conn().execute(
+            "INSERT OR REPLACE INTO dismissed (user_id, query, at) VALUES (?, ?, ?)",
+            (user_id, key, at or time.time()))
+        return True
+
+    def dismissed(self, user_id: str) -> set[str]:
+        if not user_id:
+            return set()
+        try:
+            rows = self._conn().execute(
+                "SELECT query FROM dismissed WHERE user_id = ?", (user_id,)).fetchall()
+        except Exception:
+            log.exception("could not read dismissed tiles for %r", user_id)
+            return set()
+        return {r[0] for r in rows}
+
+    def is_dismissed(self, hidden: set[str], query: str) -> bool:
+        return self._dismiss_key(query) in hidden
+
     # --- what somebody has listened to (§142) ------------------------------
 
     def note_listen(self, user_id: str, query: str, minutes: int,
@@ -527,7 +569,7 @@ class SavedStore:
 
     def forget(self, user_id: str) -> int:
         removed = 0
-        for table in ("items", "folders", "progress", "history"):
+        for table in ("items", "folders", "progress", "history", "dismissed"):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

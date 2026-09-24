@@ -2429,7 +2429,9 @@ every cached episode kept a week with the time it was sourced; and
 **§144**, the Render failures of 24/09 - an unactivated GNews account, topics
 sent to Finnhub's ticker lookup with the key printed in the logs, and GDELT
 refusing a boot that asked it dozens of questions in one minute, now paced
-one request at a time with episodes first),
+one request at a time with episodes first; and **§145**, an added DailyFAM
+mix taken back out by tapping its button again; and **§146**, an X on every
+"Pick up where you left off" tile that dismisses it for good),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2452,12 +2454,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-two** named smoke
+**twice** - once per preview build - and **seventy-four** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 72 as of §142,
+prose does not fail when somebody adds a behaviour. (It is 74 as of §146,
+which added the X on a Go Deeper tile. It was 73 as of §145, which added
+removing an added mix by tapping its button again. It was 72 as of §142,
 which replaced the two wheel checks with the player minimising, the Settings
 interests list, sharing asking first, listening history's tabs, and deleting
 a chat. It was 69 as of §140,

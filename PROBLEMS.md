@@ -11860,3 +11860,40 @@ them. What will say whether pacing was enough is the next deploy's log: if
 GDELT still times out one request at a time, the address itself is being
 refused, and the story pool needs a different discovery source (GDELT's raw
 15-minute export files have no request limit).
+
+## 145. A mix added from DailyFAM search could not be taken back out
+
+The (+) on somebody else's public mix (§140) turned into a tick once the copy
+was added, and tapping the tick again only toasted "Already in your
+DailyFAM". The copy could be deleted from its own ⋯ menu, but nothing on the
+button that added it said so, so from where the listener was standing there
+was no way to un-add it.
+
+**The same button now does both.** Tapped while it reads added, it asks
+"Remove <mix> from your DailyFAM?" in the action sheet, and yes deletes the
+copy. It asks rather than acting at once because the copy is the listener's
+from the moment it is added - it may have been renamed or re-covered since -
+and a tick is an easy thing to tap by accident.
+
+`DELETE /api/mixes/{id}/add` is the endpoint, keyed on the **original's** id
+like the add, because that is the only id the (+) knows
+(`MixStore.remove_copy` deletes by `source_id`). Account-gated, 404 when
+there is no copy, and the original is untouched. Both preview builds mock it,
+and a smoke check drives add, tap again, confirm, and the list without it.
+
+## 146. A "Pick up where you left off" tile could not be put away
+
+The section offers part-heard episodes, open threads and similar episodes,
+and the only way to stop seeing one was to play it. A tile somebody had
+decided against stayed at the top of myFAM indefinitely.
+
+**Every tile has an X now, top right, and it is permanent.** The tile goes at
+once, the next part-heard episode, thread or similar one moves into the gap,
+and the question is never offered in that section again - on any device,
+because the list is kept on the account (`saved.py`'s `dismissed` table,
+`POST /api/godeeper/dismiss`) rather than in the phone. Keyed on the question
+alone, not its length, so the same subject cannot come back at another length
+and make the X look like it did not work. Listening to it again does not
+un-dismiss it; the X is the statement. `/api/godeeper` reads a few more of
+each kind so a dismissed one is replaced rather than leaving the section a
+tile short. Account deletion erases the list with the rest of `saved.py`.

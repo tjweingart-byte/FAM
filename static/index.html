@@ -1165,6 +1165,12 @@
      arithmetic below was done for (§127). */
   .gd-card:has(.gd-card-sum){ height:104px; }
   .gd-card:active{ transform:scale(0.99); }
+  /* The X that dismisses a tile for good. The title keeps clear of it. */
+  .gd-x{ position:absolute; top:4px; right:4px; width:20px; height:20px; padding:0;
+    border:none; border-radius:50%; background:transparent; color:var(--text-muted);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:1; }
+  .gd-x:active{ background:rgba(244,239,228,0.08); }
+  .gd-card-title{ padding-right:14px; }
   /* flex:none matters. Without it the column shrinks the title below the
      lines the clamp allows, so text was cut with room still in the card -
      which is what the clamp was supposed to prevent.
@@ -6741,7 +6747,7 @@
   function mixAddButtonHTML(m, where, i){
     if(m.mine) return '';
     return '<button class="mix-add' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
-      + ' aria-label="' + (m.added ? "In your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
+      + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
       + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
       + addIconSVG(m.added) + '</button>';
   }
@@ -6877,7 +6883,7 @@
   function addMixFrom(where, i){
     var m = mixFromList(where, i);
     if(!m || m.mine) return;
-    if(m.added){ toast("Already in your DailyFAM"); return; }
+    if(m.added){ confirmRemoveMix(m); return; }
     if(!AUTH.authenticated){
       showActionSheet([
         { group: "Adding a mix to your DailyFAM needs an account. Listening never does." },
@@ -6905,11 +6911,41 @@
       });
   }
 
+  // The same button, tapped again once it reads Added: asks first, because
+  // the copy may have been renamed or re-covered since, and takes it back out.
+  function confirmRemoveMix(m){
+    showActionSheet([
+      { group: "Remove " + escapeHtml(m.name) + " from your DailyFAM?" },
+      { label: "Yes, remove it", danger: true, action: function(){ removeMixCopy(m); } }
+    ]);
+  }
+
+  function removeMixCopy(m){
+    document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = true; });
+    fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "DELETE" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "Could not remove that mix");
+          return d;
+        });
+      })
+      .then(function(){
+        if(Array.isArray(mixes)) mixes = mixes.filter(function(x){ return x.source_id !== m.id; });
+        markMixAdded(m.id, false);
+        toast("Removed from your DailyFAM");
+      })
+      .catch(function(e){
+        document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
+        toast(e.message);
+      });
+  }
+
   // Every copy of that mix on screen - a search result, a profile row and the
   // mix's own screen can all be showing it at once.
-  function markMixAdded(id){
+  function markMixAdded(id, on){
+    on = on !== false;
     [publicResults, personMixes, publicMix ? [publicMix] : []].forEach(function(list){
-      (list || []).forEach(function(m){ if(m && m.id === id) m.added = true; });
+      (list || []).forEach(function(m){ if(m && m.id === id) m.added = on; });
     });
     if(!document.getElementById("dailyResults").hidden)
       renderDailyResults(document.getElementById("dailySearch").value.trim());
@@ -8293,6 +8329,10 @@
         : "Similar \u00b7 " + c.minutes + " min";
       return '<div class="gd-card' + (c.kind === "resume" ? " resume" : "")
         + '" onclick="playGoDeeper(' + i + ')">'
+        + '<button class="gd-x" aria-label="Dismiss ' + escapeHtml(c.title) + '"'
+        + ' onclick="event.stopPropagation(); dismissGoDeeper(' + i + ')">'
+        + '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+        + ' stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
         + '<div class="gd-card-title">' + escapeHtml(c.title) + '</div>'
         // One sentence on what it is, like every other myFAM tile carries.
         + (c.summary ? '<div class="gd-card-sum">' + escapeHtml(c.summary) + '</div>' : '')
@@ -8306,6 +8346,26 @@
   }
 
   var goDeeperCardCache = [];
+
+  // The X on a tile: gone at once and never offered again (the server keeps
+  // the list, so it holds on every device). What was behind it - the next
+  // part-heard episode, thread or similar one - moves up into the gap.
+  function dismissGoDeeper(i){
+    var c = goDeeperCardCache[i];
+    if(!c) return;
+    var q = (c.query || "").toLowerCase();
+    var d = goDeeperData || {};
+    renderGoDeeper({
+      resume: (d.resume || []).filter(function(r){ return (r.query || "").toLowerCase() !== q; }),
+      threads: (d.threads || []).filter(function(t){ return (t.thread || "").toLowerCase() !== q; }),
+      similar: (d.similar || []).filter(function(t){ return (t.query || "").toLowerCase() !== q; })
+    });
+    fetch("/api/godeeper/dismiss", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: c.query })
+    }).then(function(r){ if(r.ok) loadGoDeeper(); })
+      .catch(function(){});
+  }
 
   function playGoDeeper(i){
     var c = goDeeperCardCache[i];

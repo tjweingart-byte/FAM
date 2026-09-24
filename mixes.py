@@ -699,6 +699,20 @@ class MixStore:
         )
         return mix
 
+    def remove_copy(self, user_id: str, source_id: str) -> bool:
+        """Take somebody else's mix back out of this listener's DailyFAM.
+
+        Keyed on where the copy came from rather than the copy's own id,
+        because the (+) that added it only knows the original - and it is
+        the same button that takes it away again.
+        """
+        if not user_id or not source_id:
+            return False
+        cur = self._conn().execute(
+            "DELETE FROM mixes WHERE user_id = ? AND source_id = ?", (user_id, source_id)
+        )
+        return bool(cur.rowcount)
+
     def delete(self, user_id: str, mix_id: str) -> bool:
         cur = self._conn().execute(
             "DELETE FROM mixes WHERE id = ? AND user_id = ?", (mix_id, user_id)

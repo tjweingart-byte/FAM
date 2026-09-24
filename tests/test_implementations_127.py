@@ -126,6 +126,41 @@ def test_progress_does_not_follow_a_log_out(client):
     assert client.get("/api/godeeper").json()["resume"] == []
 
 
+def test_a_go_deeper_tile_closed_with_its_x_is_never_offered_again(client):
+    signed_in(client, "dismiss@b.com")
+    for q in ("why bonds move", "how tariffs work"):
+        client.post("/api/progress", json={"query": q, "minutes": 3, "seconds": 90})
+    r = client.post("/api/godeeper/dismiss", json={"query": "Why Bonds Move"})
+    assert r.status_code == 200, r.text
+    body = client.get("/api/godeeper").json()
+    assert [row["query"] for row in body["resume"]] == ["how tariffs work"]
+    assert all(t.get("query", "").lower() != "why bonds move" for t in body["similar"])
+    # Listening again does not bring it back.
+    client.post("/api/progress", json={"query": "why bonds move", "minutes": 3, "seconds": 120})
+    assert [row["query"] for row in client.get("/api/godeeper").json()["resume"]] == [
+        "how tariffs work"]
+
+
+def test_dismissing_a_go_deeper_tile_needs_an_account(client):
+    assert client.post("/api/godeeper/dismiss", json={"query": "x"}).status_code == 401
+
+
+def test_every_go_deeper_tile_has_an_x():
+    with open(os.path.join(os.path.dirname(__file__), "..", "static", "index.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    render = html.split("function renderGoDeeper(", 1)[1].split("\n  }\n", 1)[0]
+    assert 'class="gd-x"' in render and "dismissGoDeeper(" in render
+
+
+def test_account_deletion_forgets_dismissed_tiles(tmp_path):
+    store = saved_mod.SavedStore(str(tmp_path / "saved.db"))
+    store.dismiss("u", "why bonds move")
+    assert store.dismissed("u") == {"why bonds move"}
+    store.forget("u")
+    assert store.dismissed("u") == set()
+
+
 def test_the_summary_marker_is_parsed_and_never_spoken():
     text = ("The Fed held rates. <<TITLE: The Fed Holds>>\n"
             "<<SUMMARY: Why the Fed held rates and what it is waiting for>>\n"

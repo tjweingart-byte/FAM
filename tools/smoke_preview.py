@@ -412,6 +412,28 @@ def main() -> int:
                 f"/{measured['lineHeight']} (webfonts: {measured['fonts']})"
             )
 
+        def a_go_deeper_tile_is_dismissed_by_its_x():
+            """Every tile under "Pick up where you left off" has an X, and
+            the X takes that tile away for good - it is not back after the
+            section reloads."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(800)
+            if not page.query_selector("#goDeeperBlock .gd-card"):
+                return
+            cards = page.query_selector_all("#goDeeperBlock .gd-card")
+            xs = page.query_selector_all("#goDeeperBlock .gd-card .gd-x")
+            assert len(xs) == len(cards), f"{len(cards)} tiles, {len(xs)} Xs"
+            first = page.evaluate("goDeeperCardCache[0].title")
+            xs[0].click()
+            page.wait_for_timeout(300)
+            assert page.query_selector("#screen-myfam.active"), \
+                "the X opened the episode instead of dismissing it"
+            titles = lambda: page.evaluate("goDeeperCardCache.map(c => c.title)")
+            assert first not in titles(), f"{first!r} is still offered after its X"
+            page.evaluate("loadGoDeeper()")
+            page.wait_for_timeout(800)
+            assert first not in titles(), f"{first!r} came back after a reload"
+
         def go_deeper_waits_for_a_new_listener():
             """Nothing to pick up until the listener has done something (§127).
 
@@ -2171,6 +2193,34 @@ def main() -> int:
             page.evaluate("openPlayFAM()")
             page.wait_for_timeout(300)
 
+        def an_added_mix_is_removed_by_the_same_button():
+            """The (+) that reads Added, tapped again, asks "Remove ... from
+            your DailyFAM?" and on yes takes the copy back out. Runs after
+            the add above; with nobody else's mix to find there is nothing
+            to remove."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#screen-playfam.active", timeout=5000)
+            page.click("#dailySearch")
+            page.wait_for_timeout(600)
+            if not page.evaluate("publicResults.length"):
+                page.click("#dailySearchX")
+                return
+            page.fill("#dailySearch", "@mike")
+            page.wait_for_timeout(500)
+            page.click("#dailyResults .mix-add.on")
+            page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+            sheet = page.inner_text("#sheetCard")
+            # The group heading is drawn in capitals, which inner_text reports.
+            assert "remove morning brief from your dailyfam?" in sheet.lower(), sheet[:200]
+            page.click("#sheetCard .sheet-item.danger")
+            page.wait_for_timeout(500)
+            assert not page.query_selector("#dailyResults .mix-add.on"), \
+                "the button still reads added after removing"
+            page.click("#dailySearchX")
+            page.wait_for_timeout(300)
+            assert "morning brief" not in page.inner_text("#mixList").lower(), \
+                "the removed mix is still in the list"
+
         def a_mix_is_shared_from_its_menu():
             """Share mix, in the mix's own menu, opens the same sheet an
             episode does - people and every destination - worded for a mix.
@@ -2990,6 +3040,7 @@ def main() -> int:
         check("a cold start's rail does not claim to be personal",
               a_cold_start_rail_does_not_claim_to_be_personal)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
+        check("A Go Deeper tile is dismissed by its X", a_go_deeper_tile_is_dismissed_by_its_x)
         check("Go Deeper waits for a new listener", go_deeper_waits_for_a_new_listener)
         check("myFAM's header stays put while the rails scroll", myfam_header_stays_put)
         check("The loading screen can be cancelled", the_loading_screen_can_be_cancelled)
@@ -3052,6 +3103,7 @@ def main() -> int:
               a_cover_is_square_and_the_avatar_is_not)
         check("DailyFAM searches other people's mixes, and (+) adds one",
               dailyfam_searches_other_peoples_mixes)
+        check("Tapping Added again removes the mix", an_added_mix_is_removed_by_the_same_button)
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
