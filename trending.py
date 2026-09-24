@@ -273,7 +273,8 @@ async def refresh(limit: int = 0) -> TrendingFeed:
             try:
                 items = await asyncio.wait_for(
                     source.fetch(limit),
-                    timeout=float(settings.trending_timeout_seconds))
+                    timeout=float(getattr(source, "timeout_seconds", 0.0)
+                                  or settings.trending_timeout_seconds))
             except asyncio.TimeoutError:
                 log.warning("trending: %s timed out", source.name)
                 _FEED = TrendingFeed(TIMEOUT, [], f"{source.name} timed out",

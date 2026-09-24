@@ -521,7 +521,8 @@ async def lifespan(_: FastAPI):
     if settings.trending_bank:
         _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
             generator=None if DEMO_MODE else ScriptGenerator(),
-            cache=SCRIPT_CACHE)))
+            cache=SCRIPT_CACHE,
+            initial_delay=settings.boot_stagger_seconds)))
     # DailyFAM's edition (§143): every mix's episodes written before anybody
     # taps, at 05:00 Eastern, one per distinct subject, EI on every one. On
     # boot it catches up, so a new deployment writes today's at once. Never
@@ -530,7 +531,8 @@ async def lifespan(_: FastAPI):
     _EDITION_WRITER = None if DEMO_MODE else ScriptGenerator()
     if settings.daily_edition:
         _BACKGROUND.add(asyncio.create_task(daily_edition.run_forever(
-            MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE)))
+            MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
+            initial_delay=2 * settings.boot_stagger_seconds)))
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.

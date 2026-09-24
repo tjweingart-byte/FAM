@@ -25,8 +25,19 @@ DOC 2.0, a single keyless endpoint over a rolling three-month window:
     https://api.gdeltproject.org/api/v2/doc/doc
 
 `mode=artlist` returns articles; `mode=timelinevolraw` returns coverage volume
-over time. No credential, no account, generous limits - which is why this can
-be a second opinion on every episode without a second bill.
+over time. No credential and no account - but **not** unlimited: GDELT asks
+for one request every five seconds per address, and Render's outbound address
+is shared with other tenants.
+
+**Every request goes through one pacer** (§144). The boot of 24/09 fired the
+story sweep's fifteen theme requests at once, the regional sweep six at a
+time, the old trending source's own fifteen and a cross-check per episode, all
+from one address in the same minute - and every one of them timed out. So
+`_get` waits its turn: background work queues one at a time, and an episode
+takes the next slot or, if that is further off than
+`GDELT_EPISODE_WAIT_SECONDS`, does without GDELT rather than wait on a sweep.
+Theme volumes are cached (`VOLUME_TTL_SECONDS`) because the story pool and the
+trending source measure the same fifteen themes.
 
 **The limitation, and how the story pool gets round it** (§135). DOC is
 query-driven: it tells you how much coverage *a query you name* is getting;
@@ -50,6 +61,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -160,11 +173,113 @@ def parse_volume(payload: dict) -> float:
     return 0.0
 
 
-async def _get(params: dict, timeout: float) -> dict:
+class GdeltBusy(RuntimeError):
+    """The next free slot is further off than this caller may wait."""
+
+
+class _Pacer:
+    """One request every `GDELT_REQUEST_GAP_SECONDS`, across the process.
+
+    A reservation clock rather than a lock around the request: a slot is taken
+    the moment it is asked for, so a slow response never holds anybody else
+    up, and the gap is between request *starts*, which is what GDELT counts.
+
+    **Episodes go first.** Background work queues on a lock and takes a slot
+    only once it is free *now*, so a sweep of thirty requests never books
+    thirty slots up front - which would put every episode's request two and a
+    half minutes into the future. An episode books the next slot directly, so
+    it waits at most one gap behind whatever started last, and a background
+    request that was about to go simply waits one more.
+    """
+
+    def __init__(self) -> None:
+        self._next = 0.0
+        self._background: Optional[asyncio.Lock] = None
+        self._loop = None
+
+    def _lock(self) -> asyncio.Lock:
+        # One lock per event loop: tests run each case in a fresh loop, and a
+        # lock bound to a closed loop raises on first use.
+        loop = asyncio.get_running_loop()
+        if self._background is None or self._loop is not loop:
+            self._background = asyncio.Lock()
+            self._loop = loop
+        return self._background
+
+    async def slot(self, max_wait: Optional[float] = None) -> None:
+        gap = float(settings.gdelt_request_gap_seconds)
+        if gap <= 0:
+            return
+        if max_wait is None:
+            async with self._lock():
+                while True:
+                    now = time.monotonic()
+                    if self._next <= now:
+                        self._next = now + gap
+                        return
+                    await asyncio.sleep(self._next - now)
+        else:
+            await self._take(gap, max_wait)
+
+    async def _take(self, gap: float, max_wait: float) -> None:
+        now = time.monotonic()
+        at = max(now, self._next)
+        wait = at - now
+        if wait > max_wait:
+            raise GdeltBusy(
+                f"GDELT's next free slot is {wait:.1f}s away, past the "
+                f"{max_wait:.1f}s an episode may wait")
+        self._next = at + gap
+        if wait > 0:
+            await asyncio.sleep(wait)
+
+    def reset(self) -> None:
+        self._next = 0.0
+
+
+PACER = _Pacer()
+
+
+async def _get(params: dict, timeout: float,
+               max_wait: Optional[float] = None) -> dict:
+    """One DOC request, in its turn. `max_wait=None` is background work."""
+    await PACER.slot(max_wait)
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(DOC_API, params=params)
         response.raise_for_status()
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            # DOC answers a query it cannot parse with a 200 and a sentence of
+            # plain text. Say what it said, rather than "Expecting value".
+            raise ValueError(
+                f"GDELT answered with text, not JSON: {response.text[:160]!r}"
+            ) from exc
+
+
+def _describe(exc: BaseException) -> str:
+    """A failure in words. A timeout's own message is empty, which is how the
+    24/09 logs came to read `gdelt retrieval failed for '...': ` and stop."""
+    text = str(exc).strip()
+    name = type(exc).__name__
+    return f"{name}: {text}" if text else name
+
+
+#: Most words a free-text query keeps. DOC is a keyword index, and a whole
+#: DailyFAM prompt ("The latest on Anthropic (Startups) as of Thursday...")
+#: sent when EI degrades is a query it either rejects or matches badly.
+MAX_QUERY_WORDS = 10
+
+
+def clean_query(query: str) -> str:
+    """Free text reduced to what DOC can search on.
+
+    Only for `retrieve`, whose query is somebody's words: `artlist` carries
+    DOC operators (`theme:`, `sourcecountry:`, parentheses) and is left alone.
+    Punctuation goes, because DOC treats brackets and quotes as syntax.
+    """
+    words = re.sub(r"[^\w\s'-]", " ", query or "").split()
+    return " ".join(words[:MAX_QUERY_WORDS])
 
 
 def available() -> tuple[bool, str]:
@@ -182,7 +297,7 @@ async def retrieve(query: str, limit: int = 0,
     cross-check that could break an episode would be worse than no
     cross-check - the first retriever's packet is still real evidence.
     """
-    query = (query or "").strip()
+    query = clean_query(query)
     if not query:
         return []
     ok, _why = available()
@@ -201,12 +316,19 @@ async def retrieve(query: str, limit: int = 0,
         # DOC expresses windows in hours, capped at its three-month window.
         params["timespan"] = f"{min(2160, max(1, recency_days * 24))}h"
 
+    timeout = float(settings.gdelt_timeout_seconds)
+    wait = float(settings.gdelt_episode_wait_seconds)
     try:
         payload = await asyncio.wait_for(
-            _get(params, float(settings.gdelt_timeout_seconds)),
-            timeout=float(settings.gdelt_timeout_seconds) + 0.5)
+            _get(params, timeout, max_wait=wait),
+            timeout=timeout + wait + 0.5)
+    except GdeltBusy as exc:
+        # Not a failure of GDELT: a sweep has the next few slots. Info, not a
+        # warning - it is the pacer doing its job.
+        log.info("gdelt: skipped for %r - %s", query, exc)
+        return []
     except Exception as exc:  # noqa: BLE001 - see docstring
-        log.warning("gdelt retrieval failed for %r: %s", query, exc)
+        log.warning("gdelt retrieval failed for %r: %s", query, _describe(exc))
         return []
 
     results = parse_articles(payload)
@@ -290,7 +412,7 @@ async def discover(hot_themes: list, timeout: float, hours: int = 12,
             *(run(scope, query) for scope, query in jobs)):
         if error is not None:
             failures += 1
-            log.debug("gdelt: %s sweep failed: %s", scope, error)
+            log.info("gdelt: %s sweep failed: %s", scope, _describe(error))
             continue
         for row in rows:
             # First finder wins, and a worldwide finding beats a regional
@@ -302,11 +424,38 @@ async def discover(hot_themes: list, timeout: float, hours: int = 12,
         (failures, len(jobs))
 
 
-async def volume_for(theme: str, timeout: float) -> float:
-    """How much coverage a GKG theme is getting right now."""
+#: How long a theme's measured volume is reused. The window it measures is 24
+#: hours, so twenty minutes of staleness moves nothing, and it lets the story
+#: pool and the trending source share one set of fifteen requests per sweep.
+VOLUME_TTL_SECONDS = 1200.0
+_VOLUMES: dict = {}
+
+
+async def _measure_volume(theme: str, timeout: float) -> float:
     payload = await _get({"query": f"theme:{theme}", "mode": "timelinevolraw",
                           "format": "json", "timespan": "24h"}, timeout)
     return parse_volume(payload)
+
+
+async def volume_for(theme: str, timeout: float) -> float:
+    """How much coverage a GKG theme is getting right now. Cached, shared.
+
+    Two callers asking at once share one request: the cache holds the task
+    itself, shielded, so a caller that gives up does not cancel the request
+    for the other.
+    """
+    now = time.monotonic()
+    held = _VOLUMES.get(theme)
+    if held is not None:
+        expires, task = held
+        loop_ok = task.get_loop() is asyncio.get_running_loop()
+        if loop_ok and (not task.done() or (
+                expires > now and not task.cancelled()
+                and task.exception() is None)):
+            return await asyncio.shield(task)
+    task = asyncio.ensure_future(_measure_volume(theme, timeout))
+    _VOLUMES[theme] = (now + VOLUME_TTL_SECONDS, task)
+    return await asyncio.shield(task)
 
 
 class GdeltTrendingSource(trending.TrendingSource):
@@ -327,6 +476,9 @@ class GdeltTrendingSource(trending.TrendingSource):
 
     name = "GDELT"
     cost_per_refresh = 0.0
+    #: Fifteen paced requests are over a minute; `TRENDING_TIMEOUT_SECONDS`
+    #: (8s) is sized for one request, and nobody waits on this sweep.
+    timeout_seconds = 150.0
 
     def diagnose(self) -> tuple[bool, str]:
         ok, why = available()

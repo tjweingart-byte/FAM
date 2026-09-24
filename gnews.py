@@ -42,12 +42,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 import httpx
+
+import log_redaction
 
 from config import settings
 
@@ -88,26 +89,10 @@ class QuotaSpent(GNewsError):
         return True
 
 
-class _Redact(logging.Filter):
-    """Blank the key out of any log line that carries a URL with it."""
-
-    PATTERN = re.compile(r"(apikey=)[^&\s'\"]+", re.IGNORECASE)
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            message = record.getMessage()
-        except Exception:  # noqa: BLE001 - never lose a log line to a filter
-            return True
-        if "apikey=" in message.lower():
-            record.msg = self.PATTERN.sub(r"\1[redacted]", message)
-            record.args = ()
-        return True
-
-
-for _name in ("httpx", "httpcore"):
-    _logger = logging.getLogger(_name)
-    if not any(isinstance(f, _Redact) for f in _logger.filters):
-        _logger.addFilter(_Redact())
+#: The filter now lives in `log_redaction`, and covers Finnhub's `token=` as
+#: well as `apikey=` (§144). Kept under this name for anything that imported it.
+_Redact = log_redaction.Redact
+log_redaction.install()
 
 
 @dataclass(frozen=True)
