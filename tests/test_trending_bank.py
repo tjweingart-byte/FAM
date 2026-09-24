@@ -630,3 +630,29 @@ def test_health_reports_the_bank_database_once_it_exists(bank, monkeypatch):
     body = TestClient(appmod.app).get("/api/health").json()
     entry = next(e for e in body["databases"] if e["env_var"] == "TRENDING_BANK_DB")
     assert entry["readable"] and entry["writable"]
+
+
+def test_a_heard_edition_story_leaves_only_that_listeners_row(bank, monkeypatch,
+                                                              tmp_path):
+    """No repeats reaches the GNews edition too (§136 on §139's row): a story
+    a listener has heard is gone from their Trending, rail and View more, and
+    still on everybody else's."""
+    now = time.time()
+    _build(bank, monkeypatch, now=now)
+    store = T.EventStore(str(tmp_path / "events.db"))
+
+    def row(user):
+        feed = T.build_feed(store, user, now=now + 60)
+        return [t["id"] for s in feed["sections"] if s["key"] == "world_trending"
+                for t in s["topics"]]
+
+    before = row("heard")
+    assert before, "the edition did not reach the Trending row"
+    story = T.known_topics(now)[before[0]]
+    store.record(T.Event("heard", "play", story.id, story.query, story.tags,
+                         now))
+    after = row("heard")
+    assert story.id not in after and f"{story.id}-new" not in after
+    section = T.build_section(store, "heard", "world_trending", now=now + 60)
+    assert story.id not in {t["id"] for t in section["topics"]}
+    assert story.id in row("other")
