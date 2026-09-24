@@ -286,10 +286,22 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     one test would be the Trending row of every test after it - the story
     pool's §106 lesson, one module over.
     """
+    import dataclasses
+
+    import config
     import trending_bank
 
     monkeypatch.setenv("TRENDING_BANK_DB",
                        str(tmp_path / "stores" / "trending_bank.db"))
+    # **Off for the suite, on in production.** With the bank on, Trending is
+    # the GNews edition and nothing else (§137) - so every test written about
+    # the row's *ranking* over the live pool (§134-§136) describes the
+    # `TRENDING_BANK=0` row, and runs against it here. The production default
+    # - bank on, pool never on Trending - is pinned by
+    # `tests/test_trending_bank.py`, which turns it on explicitly.
+    off = dataclasses.replace(config.settings, trending_bank=False)
+    monkeypatch.setattr(config, "settings", off)
+    monkeypatch.setattr(trending_bank, "settings", off)
     trending_bank.reset()
     yield
     trending_bank.reset()

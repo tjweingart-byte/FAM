@@ -11179,8 +11179,15 @@ sweep for everybody) was right; the source could not carry it.
   crutch is rebuilt once `GNEWS_KEY` is set - so adding the key on Render and
   redeploying is the whole procedure.
 * The Trending rail and its View more read the edition through
-  `topics.world_inventory`, and fall back to the live pool only when there is
-  no edition. §134 and §136 are untouched: popularity and country order the
+  `topics.world_inventory`, and **never the live pool**: the pool (GDELT,
+  API-Sports, Finnhub, Polymarket) is Made for you's, and with no edition
+  Trending is empty and says why. The first cut of this change fell back to
+  the pool; the owner ruled it out, because a row quietly filled from the
+  pool looks exactly like one built from GNews. Only `TRENDING_BANK=0` puts
+  the pool back on the row. And the other direction: only `trending_bank`
+  imports `gnews`, so the fifteen-minute sweep can never spend a GNews
+  request - a test refreshes the pool with a key set and a client that
+  fails on any call, and scans the modules for importers. §134 and §136 are untouched: popularity and country order the
   row, and a heard story is a follow-up or gone.
 
 **The rule it bends, stated.** `cache.ttl_for` gives a news episode fifteen

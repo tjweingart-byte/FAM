@@ -3653,7 +3653,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     for key in picked:
         picked[key] = picked[key][:SECTION_SIZE]
     world_reason = ("" if picked["world_trending"]
-                    else _world_empty_reason(bool(live)))
+                    else _world_empty_reason(bool(world_live)))
 
     # An empty section is honest, not broken: a new listener genuinely has no
     # history and no friends, and a deployment with no live source genuinely
@@ -3892,24 +3892,31 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
 
 def world_inventory(live: list, live_held: list, heard: Optional["Heard"],
                     now: float) -> tuple:
-    """What Trending ranks: the trending bank's edition, else the story pool.
+    """What Trending ranks: the trending bank's edition, and nothing else.
 
-    §137, at the owner's direction: Trending is an edition built twice a day
-    from GNews (`trending_bank`), and when there is one it is the whole of
-    the row - rail and "View more" alike, through this one function so the
-    two cannot disagree. With no edition (no key and no crutch, the first
-    build still running, or `TRENDING_BANK=0`) the row reads the live pool
-    exactly as it did before, so a deployment without the bank loses nothing.
+    §137, at the owner's direction: **Trending is fuelled by GNews and the
+    live pool is Made for you's.** The two inventories do not cross. With the
+    bank on, the row - rail and "View more" alike, through this one function
+    so the two cannot disagree - is the current edition, and with no edition
+    (no key, the first build still running, a failed build) it is **empty and
+    says why** (`trending_bank.empty_reason`). It never falls back to the
+    pool: a Trending row quietly filled from GDELT, API-Sports, Finnhub and
+    Polymarket would look exactly like one built from GNews, which is the
+    silent fallback this project keeps paying for.
+
+    Only `TRENDING_BANK=0` puts the pool back on this row, as it was before
+    the bank existed.
 
     `live` and `live_held` are the pool's, already through `trending_for`;
     the bank's tiles go through it here, so a heard story is a follow-up or
     gone on this row as on every other.
     """
     import trending_bank
+    from config import settings
 
-    bank = trending_bank.stories_now(now)
-    if not bank:
+    if not settings.trending_bank:
         return live, live_held
+    bank = trending_bank.stories_now(now)
     return trending_for(topics_from_stories(bank, now=now), heard, now), []
 
 

@@ -422,8 +422,7 @@ def test_trending_reads_the_bank_when_there_is_an_edition(bank, monkeypatch, tmp
     store = T.EventStore(str(tmp_path / "myfam.db"))
 
     before = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
-    assert [t["title"] for t in before["world_trending"]["topics"]] == \
-        ["A pool story about something else entirely"]
+    assert before["world_trending"]["topics"] == []
 
     edition = _build(bank, monkeypatch, now=time.time())
     after = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
@@ -433,6 +432,55 @@ def test_trending_reads_the_bank_when_there_is_an_edition(bank, monkeypatch, tmp
     section = T.build_section(store, "u", "world_trending")
     assert {t["id"] for t in section["topics"]} <= {s.id for s in edition.stories}
     assert len(section["topics"]) == len(edition.stories)
+    stories.reset()
+
+
+def test_trending_never_reads_the_live_pool_while_the_bank_is_on(bank, monkeypatch,
+                                                              tmp_path):
+    """The owner's rule: Trending is GNews, and the pool is Made for you's.
+    With no edition the row is empty and says why - never the pool."""
+    configure(monkeypatch, gnews_key="")
+    stories.reset()
+    stories.seed([_pool_story("A pool story from GDELT or API-Sports")])
+    store = T.EventStore(str(tmp_path / "myfam.db"))
+    sections = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
+    trending = sections["world_trending"]
+    assert trending["topics"] == []
+    assert trending["empty_reason"] == TB.empty_reason()
+    assert "Made for you" not in trending["empty_reason"]
+    view_more = T.build_section(store, "u", "world_trending")
+    assert view_more["topics"] == []
+    # And the pool story is still on the page - where it belongs.
+    offered = [t["id"] for s in sections.values() for t in s["topics"]]
+    assert stories.story_id("A pool story from GDELT or API-Sports") in offered
+    stories.reset()
+
+
+def test_the_live_pool_never_spends_gnews(bank, monkeypatch):
+    """GNews requests are the bank's alone. A pool sweep with every source
+    installed makes none, and nothing but the bank imports the client."""
+    import pathlib
+
+    configure(monkeypatch, gnews_key="k", stories=True)
+    calls = []
+
+    async def refused(self, endpoint, params):
+        calls.append(endpoint)
+        raise AssertionError("the live pool asked GNews")
+
+    monkeypatch.setattr(gnews.Client, "_get", refused)
+    stories.reset()
+    stories.install()
+    asyncio.run(stories.refresh())
+    assert calls == [] and bank.spent(TB.GNEWS) == 0
+    assert not any("gnews" in s.name.lower() for s in stories.sources())
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    importers = sorted(p.name for p in root.glob("*.py")
+                       if p.name != "gnews.py"
+                       and ("import gnews" in p.read_text()
+                            or "from gnews" in p.read_text()))
+    assert importers == ["trending_bank.py"], importers
     stories.reset()
 
 

@@ -6,8 +6,8 @@ from live facts.
 > **Since PROBLEMS.md §137 the row is an *edition*.** Built at 05:00 and
 > 17:00 Eastern from GNews (`gnews.py`, `trending_bank.py`), ten stories,
 > with their ten episodes written into the shared cache before anybody taps.
-> GDELT is the crutch; the live pool is what the row reads only when there is
-> no edition at all. See **The trending bank** at the end of this file.
+> GDELT is the crutch. **The live pool never reaches this row**: it is Made
+> for you's, and with no edition Trending is empty and says why. See **The trending bank** at the end of this file.
 
 > **Since PROBLEMS.md §102 this registry is one source among several rather
 > than the row's whole supply.** myFAM's two outward-facing rails are now fed
@@ -262,7 +262,9 @@ empty and the row said "The live sources didn't answer in time" to everybody.
 | Ranked on | how many articles run it (`totalArticles`, log-scaled), how many top-story feeds lead with it, and how high. At most three from one section. |
 | Holds | `TRENDING_BANK_SIZE` stories (10), composed into tiles by `stories.compose` exactly as the pool's are. |
 | Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept until the next edition plus an hour. |
-| Shown | by the Trending rail and its "View more", through `topics.world_inventory`. Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
+| Shown | by the Trending rail and its "View more", through `topics.world_inventory` - and nothing else: with no edition the row is empty and says why, never filled from the live pool. |
+| Kept apart | GNews is called only by `trending_bank`; the live pool (GDELT, API-Sports, Finnhub, Polymarket, every 15 minutes) never spends a GNews request, and a test scans the modules to keep it so. |
+| Order | Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
 | Stored | `TRENDING_BANK_DB` on the mounted disk, with the GNews request ledger (`GNEWS_DAILY_REQUESTS`). |
 
 **The crutch.** GDELT is asked only when GNews is not configured, fails on

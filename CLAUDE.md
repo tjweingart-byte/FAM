@@ -400,8 +400,8 @@ the rest of this list it needs taste rather than a key.
    **Trending is an edition now** *(§137, at the owner's direction)*: built
    at 05:00 and 17:00 Eastern from **GNews** (`trending_bank.py`,
    `gnews.py`), ten stories with their ten episodes written into the shared
-   cache before anybody taps, GDELT only as the crutch, and the live pool
-   only when there is no edition. A bank episode keeps until the next
+   cache before anybody taps, GDELT only as the crutch, and **never the
+   live pool** - that is Made for you's, and GNews is never spent on it. A bank episode keeps until the next
    edition, which is the one place `cache.ttl_for` is overridden - see
    TRENDING.md, "The trending bank".
    **Made for you draws on both inventories** and Trending draws only on the
