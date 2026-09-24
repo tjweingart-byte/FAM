@@ -467,8 +467,10 @@ def test_trending_never_reads_the_live_pool_while_the_bank_is_on(bank, monkeypat
     assert "Made for you" not in trending["empty_reason"]
     view_more = T.build_section(store, "u", "world_trending")
     assert view_more["topics"] == []
-    # And the pool story is still on the page - where it belongs.
-    offered = [t["id"] for s in sections.values() for t in s["topics"]]
+    # And the pool story is still offered - by Made for you, where it
+    # belongs. (It used to reach the page through What you missed's top-up,
+    # which no longer reads the pool at all.)
+    offered = [t.id for t in T.browse_inventory(T.live_topics(), False)]
     assert stories.story_id("A pool story from GDELT or API-Sports") in offered
     stories.reset()
 

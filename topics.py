@@ -61,6 +61,7 @@ anybody's friends.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import re
@@ -130,6 +131,29 @@ MISSED_WINDOW = 7 * 86400
 #: Four, like every rail since §134. It was eight; the rest of what went past
 #: somebody is one tap away behind "View more".
 MISSED_SECTION_SIZE = SECTION_SIZE
+#: The quiet period in front of "What you missed last week" (the owner's
+#: rule: missed "in the last week (more than 3 days ago)"). A story other
+#: listeners played in the last three days is still happening around this
+#: listener - it is Trending's and Made for you's to offer - so the rail reads
+#: listens between `MISSED_WINDOW` and this long ago.
+MISSED_QUIET = 3 * 86400
+
+#: How far back "What FAM can't stop listening to" counts an episode's
+#: listens. The owner's rule is "ranked by total listens for the episode",
+#: and the rail only shows cached episodes, so the honest total is every
+#: listen inside the longest life a cached script can have
+#: (`CACHE_MAX_AGE_SECONDS`, thirty days) - older listens were to a script
+#: that no longer exists. It was `TRENDING_WINDOW`, three days.
+MOST_PLAYED_WINDOW = 30 * 86400
+
+#: The live feeds whose answer is only true the moment it was read. An episode
+#: whose provenance names one of these is never offered on "What you missed
+#: last week": a price, a score or a market line from four days ago replayed
+#: as though it were news is the stale-fact failure LIVE_FACTS.md is built
+#: against. Every `kind == "live"` attribution counts, not only these three
+#: names - SportsDataIO and Alpha Vantage are the same kind of feed, and a
+#: name list is the thing that misses the next one.
+LIVE_FEEDS = ("Polymarket", "Finnhub", "API-Sports")
 
 #: The fewest tiles the Trending rail may show while the pool can fill it.
 #:
@@ -179,7 +203,17 @@ WORLD_FLOOR = SECTION_SIZE
 #:   the startup set and then the bank - the "dummy data" the owner has now
 #:   ruled off that row entirely. It holds live stories and nothing else.
 #: * **What your friends are listening to** was never in it.
-RAIL_MINIMUM = {"from_history": SECTION_SIZE, "missed": SECTION_SIZE}
+#:
+#: **And "What you missed last week" is out of it** (the owner's rule: cached
+#: episodes only, and nothing from the background browse path). Every top-up
+#: source is an inventory - the live pool, the startup set, the bank - whose
+#: tiles are mostly unwritten, so topping it up would break both halves.
+RAIL_MINIMUM = {"from_history": SECTION_SIZE}
+
+#: The rails whose order *is* the listen count, so the variety cap is not
+#: applied to them: `diversify` promotes a less-listened tile over a more
+#: listened one, and "ranked by total listens" is the whole of the rule.
+RANKED_BY_LISTENS = ("most_played", "missed")
 
 #: How much a story running in the listener's own country is lifted on the
 #: Trending rail, per unit of that country's share of the coverage (§134).
@@ -1374,19 +1408,10 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
 #: true of a rail whose heading claims relevance.
 #:
 #: `missed` is first because it is still the narrowest inventory on the page:
-#: what this listener was shown in the last week and did not take, plus what
-#: the rest of FAM played. It cannot starve anything, and letting
-#: `from_history` choose ahead of it would take the *best* of the missed
-#: tiles and leave the rail whose heading is about relevance holding the
-#: leftovers.
-#:
-#: **Trending is deliberately not part of that first pass.** `rank_missed`'s
-#: membership widened to the live pool as well (see its docstring), and a
-#: story that has never been put in front of anybody is not one this listener
-#: missed in any useful sense - it is one Made for you exists to offer them.
-#: So `build_feed` calls this rail with `include_trending=False` here and
-#: tops it up from what is left over afterwards, which makes trending the
-#: last source for this row rather than the first.
+#: cached episodes other listeners played three to seven days ago that this
+#: one never heard (`rank_missed`). It cannot starve anything, and letting
+#: `from_history` choose ahead of it would take the best of those tiles.
+#: It reads nothing from the live pool and is never topped up.
 #: `world_trending` is filled outside this loop and before it - see
 #: `rank_world`, which since §134 takes its tiles before any of these choose
 #: and takes nothing of the listener's into account but their country.
@@ -1990,6 +2015,32 @@ class EventStore:
             log.exception("could not read listening history")
             return []
         return [(r[0] or "", r[1] or "", float(r[2])) for r in rows]
+
+    def listens_between(self, since: float, until: Optional[float] = None
+                        ) -> list[tuple[str, str, str, float, str]]:
+        """(user_id, topic_id, question, at, kind) for every play and
+        completion in a window.
+
+        The kind is returned because they are not two listens: the server
+        writes `play` when it serves an episode's audio and the client writes
+        `complete` when the same listen reaches the end, so `plays_since`
+        scores every finished episode twice. `_tally_listens` counts the
+        larger of the two per listener and episode. The question is returned
+        because a search or an Explore replay has no tile id, and it is still
+        a listen to that episode.
+        """
+        until = float("inf") if until is None else until
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, topic_id, text, at, kind FROM events"
+                " WHERE at >= ? AND at < ? AND kind IN ('play', 'complete')",
+                (since, until),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read listens")
+            return []
+        return [(r[0], r[1] or "", r[2] or "", float(r[3]), r[4])
+                for r in rows]
 
     def plays_since(self, since: float) -> list[tuple[str, str]]:
         """(user_id, topic_id) for every bank topic played in the window."""
@@ -2706,66 +2757,57 @@ def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
 
 def rank_most_played(
     store: EventStore, now: Optional[float] = None, exclude: Optional[set[str]] = None,
-    limit: int = SECTION_SIZE, written=None,
+    limit: int = SECTION_SIZE, written=None, episode_info=None,
+    heard: Optional[Heard] = None,
 ) -> list[Topic]:
-    """Total listens across FAM, most first. Deliberately identical for
-    everyone, which is what makes it the cheapest section to serve: one
-    script, every listener.
+    """What FAM can't stop listening to: **cached episodes only, ranked by
+    total listens** (the owner's rule).
 
-    Renamed from `rank_trending`: this was always FAM's own popularity, and
-    "trending" now means the world - a separate row on a separate source. The
-    two answer different questions and a listener reads them differently, so
-    they are two rows rather than one blended ranking.
+    Deliberately identical for everyone, which is what makes it the cheapest
+    section to serve: one script, every listener - and since every tile on it
+    is already written, a tap here never generates anything.
 
-    **Live stories count here too.** A story somebody tapped this morning is
-    exactly as much "what FAM can't stop listening to" as a bank topic, and
-    excluding it would have made this row a ranking of the evergreen bank
-    wearing a heading about the whole app.
+    **An episode is a question, not a tile.** Listens are grouped by the
+    normalised question (`_tally_listens`), so a search, an Explore replay, a
+    shared link and a tile tap of the same episode are one count - and an
+    episode somebody typed, which no inventory holds, is on this row as
+    itself (`episode_tile`) once the cache vouches for it. It used to count
+    tile ids only, so the most-played episode in the app could be missing
+    from the row that claims to list them because it was reached by search.
 
-    `written` is an optional `query -> bool`: whether that episode's script is
-    already in the shared cache. The packet asks for this row to be the cached
-    one, and a written tile is one a listener hears instantly and FAM pays
-    nothing for - so written tiles sort first *within* the ranking. Not a
-    filter: a deployment whose cache has just expired would show an empty row,
-    which is a fact about the cache being told as a fact about what people are
-    playing.
+    **A finished listen counts once** (`_tally_listens`): it writes a `play`
+    and a `complete`, and counting both scored every finished listen twice. The window is `MOST_PLAYED_WINDOW` - the longest a cached
+    script can live - so "total" means every listen to the episode that is
+    still here to be played.
 
-    **It fills from plays and from nothing else, and an unplayed row is
-    empty.** It used to top itself up from the evergreen bank on the argument
-    that "a stable slice beats an empty section, and beats a random one" -
-    true about the *content*, and beside the point, because the heading is a
-    claim. "What FAM can't stop listening to" over twenty-eight tiles nobody
-    has ever played says something about this deployment that is not so, and
-    a row that over-claims is worse than a row that is short: §89's rule
-    about empty rows is that the app may report a fact about itself and never
-    invent one about the world, and what its own listeners are playing is the
-    most checkable fact on the page. Reversed at the owner's direction, which
-    is what CLAUDE.md §124 said it would take - it recorded the filler as a
-    documented decision precisely so undoing it had to be one too.
+    **Cached is a filter now, not a sort** - reversing §125's "not a filter"
+    at the owner's direction. `episode_info` is `query -> CachedEpisode|None`
+    at the length the page is showing. A deployment whose cache has just
+    expired shows this row empty, and the empty sentence says it is about
+    *cached* episodes. `episode_info=None` means the caller has no cache to
+    ask (`rank_next_up`, prefetch, tests): tiles an inventory holds are
+    ranked unfiltered and nothing is built from a bare question.
 
-    The cost, stated rather than discovered: a fresh deployment shows this
-    row empty until somebody plays something, and `tools/seed_demo.py` is
-    what fills it for a demo. That is the same bargain Explore already makes
-    and for the same reason - it replays what listeners did, so on a database
-    where nobody has listened there is honestly nothing to replay.
+    `written` is accepted and unused, for callers written before this rule.
+
+    It fills from listens and from nothing else, and an unlistened row is
+    empty (§125): the heading is a claim about this deployment's listeners.
     """
     now = time.time() if now is None else now
     exclude = exclude or set()
     known = known_topics(now)
-    counts: dict[str, int] = {}
-    for _user, topic_id in store.plays_since(now - TRENDING_WINDOW):
-        if topic_id in known:
-            counts[topic_id] = counts.get(topic_id, 0) + 1
-    # Only the tiles that could appear here are asked about. Probing the whole
-    # inventory would be a cache read per topic on every feed load to answer a
-    # question about topics nobody has played - cheap each, and the sort of
-    # cheap that a browse surface does thirty times a page.
-    candidates = [t for t in known.values()
-                  if t.id in counts and t.id not in exclude]
-    ready = _ready_set(candidates, written)
-    ranked = sorted(
-        candidates, key=lambda t: (t.id not in ready, -counts[t.id], t.id))
-    return ranked[:limit]
+    tallies = _tally_listens(
+        store.listens_between(now - MOST_PLAYED_WINDOW, now + 1), known)
+    rows = _crowd_tiles(tallies, known, exclude, episode_info, heard)
+    rows.sort(key=lambda r: (-r[1].listens, -len(r[1].users), -r[1].last,
+                             r[0].id))
+    out: list[Topic] = []
+    seen: set[str] = set()
+    for topic, _entry in rows:
+        if topic.id not in seen:
+            seen.add(topic.id)
+            out.append(topic)
+    return out[:limit]
 
 
 def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
@@ -2810,6 +2852,141 @@ def ready_first(topics: list, written=None) -> list:
         return list(topics)
     return ([t for t in topics if t.id in ready]
             + [t for t in topics if t.id not in ready])
+
+
+@dataclass(frozen=True)
+class CachedEpisode:
+    """What a crowd rail needs to know about one cached episode.
+
+    `episode_info(query)` returns one of these when that question's script is
+    in the shared cache at the length the page is showing, and None when a
+    tap would have to write it. `live_feeds` are the live providers its
+    provenance names (`provenance.LIVE` attributions) - empty for an episode
+    written from articles alone.
+    """
+    title: str = ""
+    live_feeds: tuple = ()
+
+
+def _question_title(query: str) -> str:
+    text = " ".join((query or "").split())
+    return text[:1].upper() + text[1:] if text else ""
+
+
+def episode_tile(query: str, topic_id: str = "", title: str = "") -> Topic:
+    """A tile for an episode that is in the cache and on no inventory.
+
+    The crowd rails report what listeners played, and most of what people
+    play is a question somebody typed - an episode with no bank or pool tile
+    behind it. Its id is the one listeners used when there is one, otherwise
+    hashed from the normalised question, so the same episode is one tile
+    however it was reached. Tapping it plays `query`, which is a cache hit by
+    construction: every rail that builds one of these has checked that first.
+    """
+    tags = tags_for_text(query)
+    tid = topic_id or "ep-" + hashlib.sha1(
+        _norm_question(query).encode("utf-8")).hexdigest()[:12]
+    return Topic(id=tid, title=title or _question_title(query), subtitle="",
+                 query=query, tags=tags, icon=_icon_for_tags(tags))
+
+
+@dataclass
+class _Tally:
+    query: str
+    listens: int = 0
+    users: set = field(default_factory=set)
+    last: float = 0.0
+    ids: dict = field(default_factory=dict)
+
+
+def _tally_listens(rows, known: dict) -> dict[str, _Tally]:
+    """Listens grouped by episode, which is the normalised question.
+
+    By question rather than by tile id because an episode is a question: the
+    bank's question typed into search, replayed on Explore and tapped on a
+    tile is one episode heard three times, and only one of those three
+    carries an id. A row with no question takes its tile's.
+    """
+    out: dict[str, _Tally] = {}
+    # (user, episode) -> [plays, completions]. A listen writes a `play` and,
+    # if it reaches the end, a `complete` too - one listen, so each listener
+    # contributes the larger of the two counts rather than their sum.
+    per_user: dict[tuple[str, str], list[int]] = {}
+    for user, topic_id, text, at, *rest in rows:
+        kind = rest[0] if rest else "play"
+        query = text or (known[topic_id].query if topic_id in known else "")
+        norm = _norm_question(query)
+        if not norm:
+            continue
+        entry = out.get(norm)
+        if entry is None:
+            entry = out[norm] = _Tally(query=query)
+        counts = per_user.setdefault((user, norm), [0, 0])
+        counts[1 if kind == "complete" else 0] += 1
+        entry.users.add(user)
+        entry.last = max(entry.last, at)
+        if topic_id:
+            entry.ids[topic_id] = entry.ids.get(topic_id, 0) + 1
+    for (_user, norm), (plays, completes) in per_user.items():
+        out[norm].listens += max(plays, completes)
+    return out
+
+
+def _tile_for(entry: _Tally, known: dict, by_question: dict) -> Topic:
+    """The tile that plays this episode: the inventory's own when it has one
+    (hand-written title and hook), otherwise one built from the cache."""
+    ids = sorted(entry.ids, key=lambda i: (-entry.ids[i], i))
+    for topic_id in ids:
+        if topic_id in known:
+            return known[topic_id]
+    norm = _norm_question(entry.query)
+    if norm in by_question:
+        return by_question[norm]
+    return episode_tile(entry.query, ids[0] if ids else "")
+
+
+def _cached_info(episode_info, query: str) -> Optional[CachedEpisode]:
+    try:
+        return episode_info(query)
+    except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+        log.exception("could not read the cache for %r; treating as unwritten",
+                      query)
+        return None
+
+
+def _crowd_tiles(tallies: dict, known: dict, exclude: set,
+                 episode_info=None, heard: Optional[Heard] = None,
+                 allow_live: bool = True) -> list[tuple[Topic, _Tally]]:
+    """Every tallied episode as a tile, **cached only** when a cache is given.
+
+    With `episode_info=None` the caller has no cache to ask - a test, the
+    preview, `rank_next_up` - and only tiles an inventory already holds are
+    offered, as before this rule existed: an episode built from a bare
+    question is only ever offered once the cache has vouched for it, because
+    the cache is also what says the question was shareable.
+    """
+    by_question = {_norm_question(t.query): t for t in known.values()}
+    out = []
+    for entry in tallies.values():
+        topic = _tile_for(entry, known, by_question)
+        if episode_info is None:
+            if topic.id not in known:
+                continue
+        else:
+            # Asked about the question the *tile* plays, which is not always
+            # the one a listener typed: a tile it resolved to is what the tap
+            # sends, and "cached" means that tap replays.
+            info = _cached_info(episode_info, topic.query)
+            if info is None:
+                continue
+            if info.live_feeds and not allow_live:
+                continue
+            if topic.id not in known and info.title:
+                topic = replace(topic, title=info.title)
+        if topic.id in exclude or (heard is not None and heard.last(topic)):
+            continue
+        out.append((topic, entry))
+    return out
 
 
 def rank_from_history(profile: dict[str, float], exclude: set[str],
@@ -3102,144 +3279,97 @@ def rank_bank(profile: dict[str, float]) -> list[Topic]:
     return [topic for _score, topic in scored]
 
 
-def rank_missed(profile: dict[str, float], shown: dict[str, float],
-                played: set[str], exclude: set[str],
-                candidates: Iterable[Topic],
+def rank_missed(store: EventStore, user_id: str, exclude: set[str],
                 limit: int = MISSED_SECTION_SIZE,
-                now: Optional[float] = None,
-                popular: Optional[set[str]] = None,
-                familiar: frozenset = frozenset(),
-                include_trending: bool = True,
-                floor: float = RELEVANCE_FLOOR) -> list[Topic]:
-    """The week's best episodes this listener did not take.
+                now: Optional[float] = None, episode_info=None,
+                heard: Optional[Heard] = None,
+                profile: Optional[dict[str, float]] = None) -> list[Topic]:
+    """What you missed last week: **the week's most-listened cached episodes
+    this listener never heard** - the owner's rule, and a rewrite.
 
-    The replacement for the weekly recap, and a different kind of thing from
-    it: the recap was an *episode about their week*, written from their own
-    log, which meant a listener who had a thin week got a thin episode about
-    having a thin week. This is a shelf of episodes they can still have.
+    Membership, all four required:
 
-    **What counts as "missed" widened, at the owner's direction.** It used to
-    be the impression log and nothing else - only tiles this app had put on a
-    screen in front of this person. That was a defensible reading of the
-    heading and it made the rail a report on our own delivery: a listener who
-    did not open myFAM last week missed nothing, by construction, however
-    much happened. The direction is that it should hold "the ABSOLUTELY MOST
-    RELEVANT stories they didn't click on or listen to in the last week...
-    it could be stories that were popular throughout the app or trending that
-    the user never listened to".
+    * **listened to by other listeners between `MISSED_WINDOW` and
+      `MISSED_QUIET` ago** - three to seven days back. What people are
+      playing today is still going on around this listener; what they
+      played last week and this listener did not is what they missed;
+    * **cached** at the page's length (`episode_info`), so a tap replays and
+      nothing is written;
+    * **not written from a live feed** - an episode whose provenance names
+      Polymarket, Finnhub, API-Sports or any other `LIVE_FEEDS`-kind source
+      is a price or a score from days ago, and replaying it as though it
+      were news is the stale-fact failure LIVE_FACTS.md exists to prevent;
+    * **never heard by this listener**, on any surface (`heard`).
 
-    So membership is now three things, any of which qualifies:
+    Ordered by listens in that window, then by how many listeners, then -
+    only to break a tie - by this listener's affinity for it.
 
-    * **offered to them** - the impression log, as before;
-    * **popular across FAM** - played by other listeners inside the window;
-    * **trending** - anything in the live story pool, which is what the world
-      has been on this week by definition.
+    **Nothing here reaches the background browse path**: no live story pool,
+    no Trending edition, no impressions, no top-up from any inventory. A
+    tile resolves to the evergreen bank or the startup set when one is the
+    same episode (both are compiled into this module) and is otherwise built
+    from the cache (`episode_tile`). It used to be membership by impression,
+    by the live pool or by the crowd, ranked on affinity and topped up to
+    four from the whole inventory - so it could offer an episode nobody had
+    written, or a live story straight off the sweep.
 
-    What keeps the heading honest is that all three are things that genuinely
-    went past this listener in the last seven days, and none of them is
-    invented. There is still no top-up from the standing bank: an evergreen
-    explainer nobody was offered and nobody played did not happen last week,
-    and putting one here to make the row look full is the padding this rail
-    was built to avoid.
-
-    Two rules survive the widening unchanged, and one is added.
-
-    **An impression still never becomes taste.** Being shown something says
-    nothing about whether you wanted it, and CLAUDE.md is emphatic that
-    letting it into the taste model is how a feed teaches itself its own
-    preferences. It decides *membership* - a fact about the feed - and
-    `_affinity` decides the order. Widening membership does not change that;
-    it adds two more facts about the feed and the crowd.
-
-    **It can only offer what it can still resolve.** A live story that expired
-    and fell out of the pool has no title, no angle and no question, and a
-    tile invented to stand in for one would be exactly the failure this whole
-    subsystem is built against. So `candidates` is the bank plus what the pool
-    still holds, and a story that has aged out is simply not in the rail.
-
-    **And now: relevance is a floor, not just a sort.** "Most relevant" is
-    the whole of the instruction, so a tile this listener has no affinity for
-    is not offered at all - the rail is honestly short rather than padded
-    with the least bad thing that went past. That is also what stops the
-    widened membership turning this into a second copy of Trending for
-    somebody who was shown nothing.
+    `episode_info=None` means there is no cache to ask, and then nothing can
+    be shown to be cached: the rail is empty rather than guessing.
     """
+    if not user_id or episode_info is None:
+        return []
     now = time.time() if now is None else now
-    popular = popular or set()
-    by_id = {t.id: t for t in candidates}
-
-    # **No profile, no relevance, and so no widening and no floor.**
-    #
-    # `taste` is empty for a listener who has chosen nothing and played
-    # nothing - impressions deliberately never reach it - so every affinity
-    # is 0.0, every tile fails the floor, and a rail that should have been
-    # "here is what you did not get to" would be empty for exactly the
-    # listener it is most use to. Widening membership would be worse still:
-    # eight trending tiles under a heading saying *you* missed them, chosen
-    # by nothing, for somebody the app knows nothing about.
-    #
-    # So with nothing to rank on, this is what it always was: what was put in
-    # front of them, newest first. The claim shrinks back to the one the
-    # evidence supports.
-    if not profile:
-        offered = [(at, by_id[tid]) for tid, at in shown.items()
-                   if tid in by_id and tid not in played and tid not in exclude
-                   and now - at <= MISSED_WINDOW]
-        offered.sort(key=lambda row: (-row[0], row[1].id))
-        return [topic for _at, topic in offered[:limit]]
-
-    rows = []
-    for topic_id, topic in by_id.items():
-        if topic_id in played or topic_id in exclude:
-            continue
-        offered_at = shown.get(topic_id, 0.0)
-        was_offered = bool(offered_at) and now - offered_at <= MISSED_WINDOW
-        # A live tile is in the pool, so it is current by construction - the
-        # pool's own shelf life is what decides that, not a second clock here.
-        # `include_trending` is how `build_feed` keeps this rail from
-        # claiming a brand-new story ahead of Made for you - see FILL_ORDER.
-        is_trending = topic.freshness > 0 and include_trending
-        if not (was_offered or is_trending or topic_id in popular):
-            continue
-        score = _affinity(topic, profile)
-        if (score > 0 and is_trending and _is_broad_match(topic, profile)
-                and not _subject_is_familiar(topic, familiar)):
-            # The same rule Made for you keeps, for the same reason: a story
-            # nobody has shown any interest in is not a thing they *missed*.
-            score *= BROAD_MATCH_PENALTY
-        if score <= floor:
-            continue
-        rows.append((score, 1 if was_offered else 0, offered_at, topic))
-    # Relevance first, then whether it was actually put in front of them -
-    # which is the strongest reading of "missed" and so wins a tie - then
-    # most recently offered.
-    rows.sort(key=lambda row: (-row[0], -row[1], -row[2], row[3].id))
-    return [row[3] for row in rows[:limit]]
+    static = {**BANK_BY_ID, **STARTUP_BY_ID}
+    rows = [r for r in store.listens_between(now - MISSED_WINDOW,
+                                             now - MISSED_QUIET)
+            if r[0] != user_id]
+    tallies = _tally_listens(rows, static)
+    picked = _crowd_tiles(tallies, static, exclude, episode_info, heard,
+                          allow_live=False)
+    profile = profile or {}
+    picked.sort(key=lambda r: (-r[1].listens, -len(r[1].users),
+                               -_affinity(r[0], profile) if profile else 0.0,
+                               -r[1].last, r[0].id))
+    out: list[Topic] = []
+    seen: set[str] = set()
+    for topic, _entry in picked:
+        if topic.id not in seen:
+            seen.add(topic.id)
+            out.append(topic)
+    return out[:limit]
 
 
 def rank_friends(
     store: EventStore, circle: Iterable[str], exclude: set[str],
     damp: Optional[dict[str, float]] = None, limit: int = SECTION_SIZE,
-    now: Optional[float] = None, written=None,
+    now: Optional[float] = None, written=None, episode_info=None,
+    authored: Iterable[dict] = (), heard: Optional[Heard] = None,
 ) -> list[Topic]:
-    """What the people this listener actually follows have been listening to.
+    """**Cached episodes your friends listened to or created** - the owner's
+    rule for "What your friends are listening to".
 
-    **This used to be co-listener overlap** - "people who played what you
-    played also played this" - under a heading that said "people you follow",
-    on a card that said "People you follow played this". That was a real
-    signal wearing somebody else's name, and it was honest only in a comment
-    in this file. The follow graph has existed since SHARING.md; the rail now
-    reads it.
+    `circle` is who counts - friends (mutual follows) first and then anyone
+    they follow, `social.circle_of` - passed in so this module stays a pure
+    function of the event log and knows nothing about `social.py`. An empty
+    circle returns nothing, deliberately: a friends row that quietly showed
+    strangers would be §102's bug again.
 
-    `circle` is passed in rather than looked up, so this module keeps knowing
-    nothing about `social.py` and stays a pure function of the event log. The
-    caller decides who counts as the circle - today that is friends (mutual
-    follows) first and then anyone they follow, which is `social.circle_of`.
+    Two ways onto the row, inside `FRIENDS_WINDOW`:
 
-    An empty circle returns nothing, deliberately. A rail called "what your
-    friends are listening to" that quietly showed strangers would be the
-    original problem again with better wording, and the empty state names the
-    thing to do about it.
+    * **listened** - a friend's `play` of the episode, from any surface. By
+      question, like the crowd row, so a friend's search counts;
+    * **created** - `authored`, the live cache rows whose first writer
+      (`scripts.author`, `ScriptCache.authored_by`) is in the circle. Making
+      an episode is choosing to hear it, and it keeps counting after the
+      play has aged out of the log.
+
+    **Cached only**, checked through `episode_info` at the page's length, like
+    the crowd row - a tile here never generates. `None` (no cache to ask)
+    keeps inventory tiles only and builds nothing from a bare question.
+
+    Ordered by how many friends are on it, then by their (fatigue-damped)
+    listens, then most recent - "three of your friends played this" is the
+    stronger statement than "one friend played it three times".
     """
     circle = {u for u in circle if u}
     if not circle:
@@ -3247,15 +3377,39 @@ def rank_friends(
     now = time.time() if now is None else now
     known = known_topics(now)
     damp = damp or {}
-    counts: dict[str, float] = {}
-    for user_id, topic_id in store.plays_since(now - FRIENDS_WINDOW):
-        if user_id in circle and topic_id in known and topic_id not in exclude:
-            counts[topic_id] = counts.get(topic_id, 0.0) + damp.get(topic_id, 1.0)
-    if not counts:
+    rows = [r for r in store.listens_between(now - FRIENDS_WINDOW, now + 1)
+            if r[0] in circle]
+    listened = {(r[0], _norm_question(r[2])) for r in rows}
+    for row in authored or ():
+        author = row.get("author", "")
+        query = row.get("query", "")
+        if author not in circle or not query:
+            continue
+        # A creation counts as that friend having it on their list - one row,
+        # at the moment it was written - and never as a second listen on top
+        # of a play of it they also made.
+        if (author, _norm_question(query)) in listened:
+            continue
+        listened.add((author, _norm_question(query)))
+        rows.append((author, "", query, float(row.get("created") or now),
+                     "play"))
+    tallies = _tally_listens(rows, known)
+    picked = _crowd_tiles(tallies, known, exclude, episode_info, heard)
+    if not picked:
         return []
-    ready = _ready_set((known[i] for i in counts), written)
-    ordered = sorted(counts, key=lambda i: (i not in ready, -counts[i], i))
-    return [known[i] for i in ordered[:limit]]
+    scored = []
+    for topic, entry in picked:
+        weight = damp.get(topic.id, 1.0)
+        scored.append((len(entry.users), entry.listens * weight, entry.last,
+                       topic))
+    scored.sort(key=lambda r: (-r[0], -r[1], -r[2], r[3].id))
+    out: list[Topic] = []
+    seen: set[str] = set()
+    for *_rest, topic in scored:
+        if topic.id not in seen:
+            seen.add(topic.id)
+            out.append(topic)
+    return out[:limit]
 
 
 #: How many Explore New shows. Six, and deliberately not `SECTION_SIZE`: that
@@ -3392,7 +3546,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                written=None, place: Iterable[str] = (),
                place_name: str = "", has_account: bool = False,
                floors: Optional[dict] = None, country: str = "",
-               written_at=None) -> dict:
+               written_at=None, episode_info=None,
+               authored: Iterable[dict] = ()) -> dict:
     """The whole myFAM page for one listener.
 
     **The order of operations** (the owner's, stated as a path): decide what
@@ -3448,6 +3603,13 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     `country` is the one input Trending takes from the listener (§134) - see
     `rank_world`. Nothing else on the page reads it.
 
+    `episode_info` is `query -> CachedEpisode|None` at the page's length, and
+    `authored` is the live cache rows the listener's circle first wrote
+    (`ScriptCache.authored_by`). They are what the three crowd rails read:
+    "What FAM can't stop listening to", "What your friends are listening to"
+    and "What you missed last week" show cached episodes only - see
+    `rank_most_played`, `rank_friends` and `rank_missed`.
+
     `has_account` is whether credentials are attached to this listener, and it
     decides one thing only: whether the evergreen bank is offered. See
     `browse_inventory` for the rule and the reasoning. It arrives as a bare
@@ -3465,6 +3627,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     design decision rather than a bug.
     """
     now = time.time() if now is None else now
+    circle = [u for u in circle if u]
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
     # **The cold start, decided by measurement rather than by a flag.**
@@ -3520,10 +3683,6 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
-    # Which tiles were put in front of them this week. Read once, like the
-    # fatigue table, and for a different purpose - see `rank_missed` on why
-    # membership may come from an impression and order may not.
-    shown = store.impressions_since(user_id, now - MISSED_WINDOW) if user_id else {}
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
@@ -3547,13 +3706,6 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     semantic = ({} if cold
                 else taste_vectors.for_listener(events, inventory, now))
     learned = learned_rank.active(store, now)
-    # What the rest of FAM played this week, for "What you missed". One read,
-    # like everything else on this page, and it is a fact about the crowd
-    # rather than about this listener - it decides membership and never
-    # taste, which is the rule `rank_missed` is built on.
-    played_elsewhere = {topic_id for user, topic_id
-                        in store.plays_since(now - MISSED_WINDOW)
-                        if user != user_id} if user_id else set()
     wide = SECTION_SIZE * CANDIDATE_FACTOR
     # How deep the personal rails look for a written tile. Only deeper when
     # there is a cache to ask, so a caller with none ranks exactly as before.
@@ -3603,23 +3755,15 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         # they just stop offering back the one they finished this morning.
         seen = used | mine | reserved | unshelved_held
         if key == "missed":
-            # The bank plus whatever the pool still holds - `held` rather than
-            # `live`, so a story the variety cap is hiding is still resolvable.
-            # What it cannot resolve, it does not offer: see `rank_missed`.
-            # `seen` rather than `used`, which were the same thing until
-            # `reserved` existed. They are not any more, and the difference is
-            # a tile on two rails of one page: this rail fills first, so
-            # `used` is empty, and a live story that *was* put in front of
-            # this listener last week qualifies here on its impression - the
-            # one route into this rail that `include_trending=False` does not
-            # close. Trending has already been promised that tile.
-            picks = rank_missed(profile, shown, mine, seen,
-                                candidates=browse_inventory(live_held,
-                                                            has_account),
-                                limit=(reach if written is not None
-                                       else MISSED_SECTION_SIZE), now=now,
-                                popular=played_elsewhere, familiar=familiar,
-                                include_trending=False)
+            # Cached, listened to by others three to seven days ago, never
+            # heard here, never from a live feed - and nothing from the story
+            # pool or any other background inventory. `seen` so a tile
+            # another rail (Trending first of all) already holds is not
+            # offered twice. See `rank_missed`.
+            picks = rank_missed(store, user_id, seen,
+                                limit=MISSED_SECTION_SIZE, now=now,
+                                episode_info=episode_info, heard=heard,
+                                profile=profile)
         elif key == "from_history":
             # The one rail that draws on both inventories - today's stories
             # and the standing bank - which is what "a mix of new and cached"
@@ -3650,7 +3794,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                                           learned=learned)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
-                                 written=written)
+                                 written=written, episode_info=episode_info,
+                                 authored=authored, heard=heard)
         elif key == "might_like":
             picks = rank_might_like(profile, seen, damp, limit=wide)
         else:
@@ -3672,14 +3817,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # bank, so being starved here was invisible. Removing the filler
             # is what made an old coupling show.
             picks = rank_most_played(store, now, used | mine | reserved,
-                                     limit=wide, written=written)
-        if key in ("missed", "from_history"):
-            # Cached first, inside what the ranking chose. The two rails that
-            # choose for this listener; the two crowd rows already lead with
-            # written tiles in their own rankers.
+                                     limit=wide, written=written,
+                                     episode_info=episode_info, heard=heard)
+        if key == "from_history":
+            # Cached first, inside what the ranking chose. The crowd rails
+            # hold nothing but cached episodes.
             picks = ready_first(picks, written)
-        picks = diversify(picks, MISSED_SECTION_SIZE if key == "missed"
-                          else SECTION_SIZE)
+        if key not in RANKED_BY_LISTENS:
+            picks = diversify(picks, SECTION_SIZE)
         picked[key] = picks
         if key in UNSHELVED:
             unshelved_held |= {t.id for t in picks}
@@ -3689,22 +3834,6 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # The world row, as `rank_world` chose it before anything else did.
     picked["world_trending"] = world_first
 
-    # Trending is the *last* source for "What you missed", not the first.
-    #
-    # A story nobody has been shown is not one this listener missed - it is
-    # one Made for you exists to offer them, which is why the rail's first
-    # pass runs with `include_trending=False`. What is left over after every
-    # other rail has chosen is a different thing: it went past them this week,
-    # it is still current, and nothing else on the page is going to show it.
-    # Relevance decides, with the same floor, so a short rail stays short.
-    if user_id and len(picked["missed"]) < MISSED_SECTION_SIZE and profile:
-        taken = used | mine | {t.id for t in picked["world_trending"]}
-        spare = rank_missed(
-            profile, {}, mine, taken, candidates=live,
-            limit=MISSED_SECTION_SIZE - len(picked["missed"]), now=now,
-            familiar=familiar)
-        picked["missed"] = picked["missed"] + spare
-        used |= {t.id for t in spare}
     # Why it is empty, when it is. The pool's own sentence is right only when
     # the pool is empty; a pool that served perfectly well and was claimed by
     # the rail above would otherwise make this row say the live sources had
@@ -3714,7 +3843,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # nothing here can take a tile a ranking wanted. Most-constrained first:
     # the two rails the owner named first, then the rest.
     floors = RAIL_MINIMUM if floors is None else floors
-    for key in ("from_history", "missed"):
+    for key in ("from_history",):
         if not floors.get(key):
             continue
         on_page = {t.id for rail, tiles in picked.items()
@@ -3749,7 +3878,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             "title": title,
             "topics": [t.as_dict() for t in picked[key]],
             "empty_reason": (world_reason if key == "world_trending"
-                             else _empty_reason(key) if not picked[key] else ""),
+                             else _empty_reason(key, bool(circle))
+                             if not picked[key] else ""),
         }
         for key, title in SECTIONS
     ]
@@ -3778,7 +3908,8 @@ def build_section(store: EventStore, user_id: str, key: str,
                   written=None, place: Iterable[str] = (),
                   place_name: str = "", has_account: bool = False,
                   floors: Optional[dict] = None, country: str = "",
-                  written_at=None) -> dict:
+                  written_at=None, episode_info=None,
+                  authored: Iterable[dict] = ()) -> dict:
     """One myFAM section, at full length, in the same order the rail used.
 
     The rail shows six and the screen behind it shows the rest **of the same
@@ -3805,6 +3936,7 @@ def build_section(store: EventStore, user_id: str, key: str,
     if key not in dict(SECTIONS):
         raise KeyError(key)
     now = time.time() if now is None else now
+    circle = [u for u in circle if u]
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
     # **The cold start, decided by measurement rather than by a flag.**
@@ -3869,23 +4001,14 @@ def build_section(store: EventStore, user_id: str, key: str,
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "missed":
-        # Its own ranking. It used to fall through to `rank_most_played`, so
-        # "View more" on What you missed opened the crowd row (§136). The
-        # same membership the rail uses - offered, played by others, or in
-        # the pool - with trending included from the start, because on this
-        # screen there is no Made for you for it to leave new stories to.
-        shown = (store.impressions_since(user_id, now - MISSED_WINDOW)
-                 if user_id else {})
-        popular = ({u_topic for u, u_topic
-                    in store.plays_since(now - MISSED_WINDOW) if u != user_id}
-                   if user_id else set())
-        picks = rank_missed(profile, shown, mine, set(),
-                            candidates=browse_inventory(live_held, has_account),
-                            limit=limit, now=now, popular=popular,
-                            familiar=familiar)
+        # Its own ranking, at full length - see `rank_missed`.
+        picks = rank_missed(store, user_id, mine, limit=limit, now=now,
+                            episode_info=episode_info, heard=heard,
+                            profile=profile)
     elif key == "followers":
         picks = rank_friends(store, circle, mine, damp, limit=limit, now=now,
-                             written=written)
+                             written=written, episode_info=episode_info,
+                             authored=authored, heard=heard)
     elif key == "world_trending":
         # The rail's own ranker at full length, and like the rail it takes
         # nothing of the listener but their country - not even what they have
@@ -3895,12 +4018,13 @@ def build_section(store: EventStore, user_id: str, key: str,
         groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
-        picks = rank_most_played(store, now, mine, limit=limit, written=written)
+        picks = rank_most_played(store, now, mine, limit=limit, written=written,
+                                 episode_info=episode_info, heard=heard)
     # The same variety rule the rail uses, at the same ratio. A screen showing
     # forty tiles can carry more of one subject than a row showing six, and a
     # cap that did not scale would make "view more" a different ranking from
     # the rail it opened - which is the one thing this screen must not be.
-    if key != "world_trending":
+    if key != "world_trending" and key not in RANKED_BY_LISTENS:
         picks = diversify(picks, limit,
                           max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
     # "View more" never shows fewer than the rail it opened (§127).
@@ -3913,7 +4037,7 @@ def build_section(store: EventStore, user_id: str, key: str,
         "key": key,
         "title": dict(SECTIONS)[key],
         "topics": [t.as_dict() for t in picks],
-        "empty_reason": _empty_reason(key) if not picks else "",
+        "empty_reason": _empty_reason(key, bool(circle)) if not picks else "",
         "personalised": bool(profile),
         "taste_source": "startup" if cold else "taste",
     }
@@ -4581,15 +4705,22 @@ def _trending_empty_reason() -> str:
     return stories.pool().empty_reason
 
 
-def _empty_reason(key: str) -> str:
+def _empty_reason(key: str, has_circle: bool = False) -> str:
+    if key == "followers" and has_circle:
+        # They follow people; nothing those people played or made is cached
+        # at this length. Telling them to follow somebody would be wrong.
+        return "Nothing your friends have played is ready to replay yet."
     return {
         # Reachable now that this row has no filler behind it, and worded for
         # the only state it means: nobody has played anything in FAM's
         # trending window. Not "today" - the window is three days - and not
         # "nothing is popular", which would be a claim about listeners this
         # deployment has not got.
-        "most_played": "Nothing has been played here yet. This fills up as "
-                       "people listen.",
+        # Cached episodes only since the owner's rule, so an empty row is
+        # either nobody listening or nothing they listened to still being
+        # ready to replay - and the sentence is true of both.
+        "most_played": "Nothing ready to replay has been played here yet. "
+                       "This fills up as people listen.",
         # Deliberately not "nothing is trending". An empty row here is a fact
         # about this deployment, never a claim about the world - the browse
         # surface's version of PROBLEMS.md §89. The live text comes from
@@ -4602,12 +4733,10 @@ def _empty_reason(key: str) -> str:
         # fix in two taps.
         "followers": "Follow some people and this fills up with what they play.",
         "from_history": "Your first episode starts this one off.",
-        # Three different nothings now that membership is wider, and the
-        # rail can tell none of them apart from here: nothing went past this
-        # listener, or everything that did was played, or nothing that did
-        # was relevant enough to offer. The sentence has to be true of all
-        # three, so it claims none of them.
-        "missed": "Nothing went past you this week.",
+        # Several nothings - nobody listened last week, this listener heard
+        # all of it, or none of it is still cached - and the rail cannot tell
+        # them apart from here, so the sentence claims none of them.
+        "missed": "Nothing went past you last week.",
         # Never actually empty in practice - with no profile at all this falls
         # back to the whole bank - but a reason has to exist for the day the
         # bank is smaller than the sections that draw from it.

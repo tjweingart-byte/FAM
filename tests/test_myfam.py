@@ -604,13 +604,24 @@ def test_impressions_still_say_nothing_about_taste(store):
 # whole answer to "fill a screen without making episodes nobody asked for".
 
 
-def test_a_section_opens_at_full_length_in_the_rails_own_order(client):
+def test_a_section_opens_at_full_length_in_the_rails_own_order(client, monkeypatch):
+    import cache as cache_mod
+
+    # A cache of its own: the module-level one is shared by every test here.
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", cache_mod.MemoryScriptCache())
     # The crowd row is made of plays and nothing else now, so the crowd has
     # to have played more than a rail can show for "view more" to have more.
-    crowd_plays(appmod.EVENTS, [t.id for t in T.TOPIC_BANK[:T.SECTION_SIZE + 4]])
-    rail = [t["id"] for s in client.get("/api/myfam").json()["sections"]
+    # And it holds cached episodes only (the owner's rule), so each one is
+    # written into the cache at the length both requests ask for.
+    played = T.TOPIC_BANK[:T.SECTION_SIZE + 4]
+    for topic in played:
+        plan = appmod._validated_plan(topic.query, 3)
+        appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."],
+                                600, topic.query, "", 3, "", "", "someone")
+    crowd_plays(appmod.EVENTS, [t.id for t in played])
+    rail = [t["id"] for s in client.get("/api/myfam?minutes=3").json()["sections"]
             if s["key"] == "most_played" for t in s["topics"]]
-    full = client.get("/api/myfam/section?key=most_played").json()
+    full = client.get("/api/myfam/section?key=most_played&minutes=3").json()
     assert len(full["topics"]) > len(rail), "view more showed no more"
     # Everything the rail offered is still on the screen behind it. Order is
     # not asserted: the screen leads with what is already written.

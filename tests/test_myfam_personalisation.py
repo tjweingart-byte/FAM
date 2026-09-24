@@ -4,9 +4,9 @@ Five rails, in one order, each on a different signal:
 
     Made for you                     what you listen to, live and evergreen
     Trending                         what the world is on, live only
-    What you missed last week        what you were offered and did not take
-    What FAM can't stop listening to what everyone here is playing, cached
-    What your friends are listening  what your graph is playing, cached
+    What you missed last week        cached, listened to 3-7 days ago, unheard
+    What FAM can't stop listening to cached, ranked by total listens
+    What your friends are listening  cached, played or created by friends
 
 And five general rules, each of which this file pins because each is the sort
 of thing that decays quietly:
@@ -328,30 +328,59 @@ def test_a_live_story_can_be_what_fam_cant_stop_listening_to(store):
     assert T.rank_most_played(store)[0].id == hot.id
 
 
-def test_the_cached_rows_lead_with_what_is_already_written(store):
-    """"Stories FAM users are listening to (cached)". A written tile starts
-    instantly and costs nothing to serve, which is a real difference between
-    two tiles a listener is choosing between."""
+def cached(*queries, live=()):
+    """An `episode_info` probe: these questions are cached, and the ones in
+    `live` were written from a live feed."""
+    have = set(queries) | set(live)
+
+    def probe(query):
+        if query not in have:
+            return None
+        return T.CachedEpisode(title="", live_feeds=("Polymarket",)
+                               if query in live else ())
+    return probe
+
+
+def test_only_cached_episodes_are_on_the_crowd_row(store):
+    """The owner's rule: "only cached episodes". It used to be a sort - cached
+    first - and a more-played unwritten tile still made the row."""
     for listener in ("u1", "u2", "u3"):
         play(store, listener, "golf-evolution", tags=("sports",))
     for listener in ("u1", "u2"):
         play(store, listener, "space-race", tags=("science",))
 
-    written = {T.BANK_BY_ID["space-race"].query}
-    picks = T.rank_most_played(store, written=lambda q: q in written)
-    assert picks[0].id == "space-race", "the cached one should lead"
-
-    # And without a cache to ask, the play counts decide on their own.
+    info = cached(T.BANK_BY_ID["space-race"].query)
+    assert [t.id for t in T.rank_most_played(store, episode_info=info)] == [
+        "space-race"]
+    # An empty cache is an empty row, not the uncached plays.
+    assert T.rank_most_played(store, episode_info=cached()) == []
+    # With no cache to ask (next-up, prefetch) the listens decide alone.
     assert T.rank_most_played(store)[0].id == "golf-evolution"
 
 
-def test_an_empty_cache_does_not_empty_the_row(store):
-    """Preferring cached is a sort and never a filter: a deployment whose
-    cache has just expired would otherwise show an empty row, which is a fact
-    about the cache told as a fact about what people are playing."""
-    for listener in ("u1", "u2"):
-        play(store, listener, "golf-evolution", tags=("sports",))
-    assert T.rank_most_played(store, written=lambda q: False)
+def test_a_finished_listen_counts_once(store):
+    """A listen writes `play` and, if it ends, `complete`. Counting both let
+    one listener who finished outrank two who each heard it."""
+    play(store, "u1", "golf-evolution")
+    play(store, "u1", "golf-evolution", kind="complete")
+    for listener in ("u2", "u3"):
+        play(store, listener, "space-race")
+    info = cached(T.BANK_BY_ID["golf-evolution"].query,
+                  T.BANK_BY_ID["space-race"].query)
+    assert T.rank_most_played(store, episode_info=info)[0].id == "space-race"
+
+
+def test_a_searched_episode_is_counted_and_shown_as_itself(store):
+    """An episode is a question: somebody's search is a listen to it, and a
+    cached episode no inventory holds still makes the row."""
+    q = "why did the port strike end so fast"
+    for listener in ("u1", "u2", "u3"):
+        store.record(T.Event(listener, "play", "", q, (), at=time.time()))
+    picks = T.rank_most_played(store, episode_info=cached(q))
+    assert [t.query for t in picks] == [q]
+    assert picks[0].id.startswith("ep-")
+    # Never built from a bare question without a cache vouching for it.
+    assert T.rank_most_played(store) == []
 
 
 # --------------------------------------------------------------------------
@@ -377,6 +406,46 @@ def test_the_friends_rail_is_empty_rather_than_filled_with_strangers(store):
     row = [s for s in feed["sections"] if s["key"] == "followers"][0]
     assert row["topics"] == []
     assert "Follow some people" in row["empty_reason"]
+
+
+def test_the_friends_rail_holds_cached_episodes_only(store):
+    play(store, "friend", "space-race", tags=("science",))
+    play(store, "friend", "golf-evolution", tags=("sports",))
+    info = cached(T.BANK_BY_ID["space-race"].query)
+    ids = [t.id for t in T.rank_friends(store, ["friend"], set(),
+                                        episode_info=info)]
+    assert ids == ["space-race"]
+
+
+def test_an_episode_a_friend_created_is_on_their_rail(store):
+    """Listened to *or created*: the cache's first writer is a friend. The
+    same friend playing it too is still one friend on it."""
+    q = "how does a port strike end"
+    made = [{"query": q, "author": "friend", "created": time.time(),
+             "title": "The Port Strike"},
+            {"query": "a strangers question", "author": "stranger",
+             "created": time.time()}]
+    def info(query):
+        if query == q:
+            return T.CachedEpisode(title="The Port Strike")
+        return cached("a strangers question")(query)
+    picks = T.rank_friends(store, ["friend"], set(), episode_info=info,
+                           authored=made)
+    assert [(t.query, t.title) for t in picks] == [(q, "The Port Strike")]
+
+    store.record(T.Event("friend", "play", "", q, (), at=time.time()))
+    store.record(T.Event("pal", "play", "", "a lone question", (),
+                         at=time.time()))
+    picks = T.rank_friends(store, ["friend", "pal"], set(),
+                           episode_info=cached(q, "a lone question"),
+                           authored=made)
+    # The creator's own play of it does not count them twice: one friend,
+    # one listen each, so the more recent wins the tie.
+    assert [t.query for t in picks] == ["a lone question", q]
+
+
+def test_a_friend_with_nothing_cached_is_not_told_to_follow_people():
+    assert "follow some" not in T._empty_reason("followers", True).lower()
 
 
 def test_the_empty_friends_rail_names_what_to_do_about_it():
@@ -438,141 +507,110 @@ def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
 
 # --- what you missed last week --------------------------------------------
 #
-# The weekly recap's replacement, and a different kind of thing: the recap was
-# one episode *about* somebody's week, so a thin week produced an episode about
-# having had a thin week. This is episodes they can still have.
+# The owner's rule: cached episodes only, none written from Polymarket,
+# Finnhub or API-Sports, nothing from the background browse path, and the
+# most-listened stories this listener missed in the last week - more than
+# three days ago.
 
 
-def _shown(store, topics, at, user="u"):
-    for topic in topics:
-        store.record(T.Event(user, T.IMPRESSION, topic.id, "", topic.tags, at,
-                             section="from_history", algo=T.ALGO_VERSION))
+DAY = 86400
 
 
-def _missed(store, user="u", now=None):
-    feed = T.build_feed(store, user, now=now, floors={})
+def _missed(store, user="u", now=None, info=None):
+    feed = T.build_feed(store, user, now=now, floors={}, episode_info=info)
     return [sec for sec in feed["sections"] if sec["key"] == "missed"][0]
 
 
-def test_an_episode_they_played_is_never_one_they_missed(store):
+def _crowd(store, topic, listeners, at):
+    for other in listeners:
+        play(store, other, topic.id, tags=topic.tags, at=at)
+
+
+def bank(n):
+    return list(T.TOPIC_BANK)[n]
+
+
+def test_the_rail_is_last_weeks_most_listened_cached_episodes(store):
     now = time.time()
-    offered = list(T.TOPIC_BANK)[:5]
-    _shown(store, offered, now - 3 * 86400)
-    store.record(T.Event("u", "complete", offered[0].id, offered[0].query,
-                         offered[0].tags, now - 3 * 86400))
+    loud, quiet = bank(0), bank(1)
+    _crowd(store, loud, ("a", "b", "c"), now - 5 * DAY)
+    _crowd(store, quiet, ("a",), now - 4 * DAY)
+    ids = [t["id"] for t in _missed(
+        store, now=now, info=cached(loud.query, quiet.query))["topics"]]
+    assert ids == [loud.id, quiet.id]
 
-    ids = [t["id"] for t in _missed(store, now=now)["topics"]]
-    assert offered[0].id not in ids, "an episode they played is not one they missed"
 
-
-def test_the_rail_is_the_most_relevant_and_not_simply_the_rest(store):
-    """The owner's direction: "only have it display the ABSOLUTE MOST
-    RELEVANT stories they didn't click on".
-
-    It used to be every tile they were shown and did not take, in the order
-    they were shown - so a listener whose week included one thing they cared
-    about and seven they did not got all eight, and the row about relevance
-    was mostly the leftovers of the rows above it.
-    """
+def test_the_last_three_days_and_before_the_week_are_not_missed(store):
     now = time.time()
-    close = [t for t in T.TOPIC_BANK if "sports" in t.tags][:2]
-    far = [t for t in T.TOPIC_BANK if "sports" not in t.tags][:4]
-    _shown(store, close + far, now - 2 * 86400)
-    play(store, "u", "seed-sport", kind="complete", tags=("sports", "sports-drama"),
-         at=now - 86400)
-
-    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert ids, "the rail dropped everything"
-    assert not (ids & {t.id for t in far}), \
-        "a tile with no affinity was offered as something they missed"
+    fresh, week, stale = bank(0), bank(1), bank(2)
+    _crowd(store, fresh, ("a", "b"), now - 1 * DAY)
+    _crowd(store, week, ("a", "b"), now - 4 * DAY)
+    _crowd(store, stale, ("a", "b"), now - 9 * DAY)
+    ids = {t["id"] for t in _missed(
+        store, now=now,
+        info=cached(fresh.query, week.query, stale.query))["topics"]}
+    assert ids == {week.id}
 
 
-def test_a_tile_nobody_was_ever_shown_is_not_a_tile_they_missed(store):
-    """The bank is still not a top-up.
-
-    Membership widened to what was popular across FAM and what is trending -
-    both of which genuinely went past this listener last week - and pointedly
-    not to the standing bank. An evergreen explainer nobody was offered and
-    nobody played did not happen last week, and putting one here to make the
-    row look full is the padding this rail was built to avoid.
-    """
+def test_an_uncached_episode_is_never_on_the_rail(store):
     now = time.time()
-    offered = list(T.TOPIC_BANK)[:2]
-    _shown(store, offered, now - 86400)
-    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert ids <= {t.id for t in offered}
-    assert len(ids) < T.MISSED_SECTION_SIZE, "the rail padded itself out"
+    _crowd(store, bank(0), ("a", "b", "c"), now - 5 * DAY)
+    assert _missed(store, now=now, info=cached())["topics"] == []
+    # No cache to ask means nothing can be shown to be cached.
+    assert _missed(store, now=now, info=None)["topics"] == []
 
 
-def test_something_the_rest_of_fam_played_can_be_something_you_missed(store):
-    """"It could be stories that were popular throughout the app or trending
-    that the user never listened to." Membership is now three things, and
-    this is the second of them."""
+def test_an_episode_written_from_a_live_feed_is_never_on_the_rail(store):
     now = time.time()
-    theirs = [t for t in T.TOPIC_BANK if "sports" in t.tags][0]
-    play(store, "u", "seed-sport", kind="complete", tags=("sports", "sports-drama"),
-         at=now - 86400)
-    # Never put in front of this listener. Played by other people, this week.
-    for other in ("a", "b", "c"):
-        play(store, other, theirs.id, kind="complete", tags=theirs.tags,
-             at=now - 2 * 86400)
-
-    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert theirs.id in ids or theirs.id in {
-        t["id"] for sec in T.build_feed(store, "u", now=now, floors={})["sections"]
-        for t in sec["topics"]}, "a popular episode they never saw went nowhere"
+    market, plain = bank(0), bank(1)
+    _crowd(store, market, ("a", "b", "c"), now - 5 * DAY)
+    _crowd(store, plain, ("a",), now - 5 * DAY)
+    ids = {t["id"] for t in _missed(
+        store, now=now, info=cached(plain.query, live=(market.query,)))["topics"]}
+    assert ids == {plain.id}
 
 
-def test_with_no_history_the_rail_is_still_what_was_put_in_front_of_them(store):
-    """A relevance floor over an empty taste profile rejects everything.
-
-    Impressions deliberately never reach `taste`, so a listener who has
-    chosen nothing and played nothing scores 0.0 against every tile - and the
-    rail that is most use to exactly that listener would be empty. With
-    nothing to rank on, the claim shrinks back to the one the evidence
-    supports: what was offered, newest first.
-    """
+def test_an_episode_they_heard_is_never_one_they_missed(store):
     now = time.time()
-    offered = list(T.TOPIC_BANK)[:3]
-    _shown(store, offered, now - 86400)
-    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert ids == {t.id for t in offered}
+    heard = bank(0)
+    _crowd(store, heard, ("a", "b", "c"), now - 5 * DAY)
+    # Heard today, on another surface - by question, with no tile id.
+    store.record(T.Event("u", "play", "", heard.query, (), at=now - 3600))
+    assert _missed(store, now=now, info=cached(heard.query))["topics"] == []
 
 
-def test_the_window_is_a_week_because_that_is_what_the_rail_says(store):
+def test_the_rail_never_reads_the_live_pool_or_impressions(store):
+    """Nothing from the background browse path: a story in the pool and a
+    tile put in front of them are not, by themselves, anything they missed."""
     now = time.time()
-    recent, stale = list(T.TOPIC_BANK)[0], list(T.TOPIC_BANK)[1]
-    _shown(store, [recent], now - 2 * 86400)
-    _shown(store, [stale], now - 9 * 86400)
-    ids = {t["id"] for t in _missed(store, now=now)["topics"]}
-    assert ids == {recent.id}
+    hot = story("the port strike", ("world",))
+    stories.seed([hot])
+    store.record(T.Event("u", T.IMPRESSION, bank(3).id, "", bank(3).tags,
+                         now - 4 * DAY, section="from_history",
+                         algo=T.ALGO_VERSION))
+    rail = _missed(store, now=now, info=cached(hot.query, bank(3).query))
+    assert rail["topics"] == []
+
+
+def test_the_rail_is_never_topped_up(store):
+    assert "missed" not in T.RAIL_MINIMUM
+    feed = T.build_feed(store, "u", episode_info=cached())
+    assert [s for s in feed["sections"] if s["key"] == "missed"][0]["topics"] == []
+
+
+def test_the_rail_offers_no_more_than_four(store):
+    now = time.time()
+    tiles = list(T.TOPIC_BANK)[:8]
+    for tile in tiles:
+        _crowd(store, tile, ("a", "b"), now - 5 * DAY)
+    rail = _missed(store, now=now, info=cached(*[t.query for t in tiles]))
+    assert len(rail["topics"]) == T.MISSED_SECTION_SIZE == T.SECTION_SIZE
 
 
 def test_an_empty_rail_claims_neither_of_the_two_nothings(store):
-    """A listener who was not here last week was offered nothing; one who
-    played everything missed nothing. The rail cannot tell them apart, so its
-    sentence must be true of both."""
     rail = _missed(store, user="nobody")
     assert rail["topics"] == []
     said = rail["empty_reason"].lower()
     assert said
     for wrong in ("you played", "you have not", "nothing is happening"):
         assert wrong not in said, f"the rail claimed one of the two: {said!r}"
-
-
-def test_being_shown_something_still_never_becomes_taste(store):
-    """An impression decides membership here - a fact about the feed - and
-    never the profile. Letting it into `taste` is how a feed teaches itself
-    its own preferences, which CLAUDE.md is emphatic about."""
-    now = time.time()
-    _shown(store, list(T.TOPIC_BANK)[:6], now - 86400)
-    assert T.taste(store.for_user("u"), now) == {}, \
-        "impressions reached the taste profile"
-
-
-def test_the_rail_offers_no_more_than_the_packet_asks_for(store):
-    now = time.time()
-    _shown(store, list(T.TOPIC_BANK)[:20], now - 86400)
-    rail = _missed(store, now=now)
-    # Exactly four since §134, like every rail; the rest is behind View more.
-    assert len(rail["topics"]) == T.MISSED_SECTION_SIZE == T.SECTION_SIZE

@@ -416,6 +416,14 @@ the rest of this list it needs taste rather than a key.
    two crowd rows lead with tiles whose script is already written - a sort and
    never a filter, since an expired cache would otherwise empty a row and call
    it a fact about what people are playing.
+   **The three crowd rails hold cached episodes only** *(§140, at the owner's
+   direction)*: "What FAM can't stop listening to" ranks by total listens
+   (thirty days, a finished listen counted once, by question so a search
+   counts); the friends rail is what friends listened to *or created*
+   (`scripts.author`); and "What you missed last week" is what other
+   listeners played three to seven days ago that this one never heard, with
+   no live-feed episode (Polymarket, Finnhub, API-Sports), nothing from the
+   story pool or Trending, and no top-up.
    **"What your friends are listening to" now reads the follow graph.** It
    was co-listener overlap under a heading that said "your circle", on a card
    that said "people you follow" about strangers; `social.circle_of` is
@@ -2383,7 +2391,8 @@ smoke check that sampled a 450ms window, and a story card that said "saved"
 inside a viewer that had saved nothing; and **§139**, Trending rebuilt as
 a twice-daily GNews edition with its ten episodes written ahead and no
 fallback source, after the row said "The live sources didn't answer in
-time" to everybody who opened myFAM),
+time" to everybody who opened myFAM; and **§140**, the three crowd rails
+made cached-only and ranked by listens),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

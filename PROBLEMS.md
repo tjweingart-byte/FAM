@@ -11417,3 +11417,57 @@ first run with a key is `python tools/trending_bank.py --verify`, then
   its claim alive.
 * `/api/health` created `trending_bank.db` on every machine, which is where
   a stray copy in the project root came from.
+
+## 140. The three crowd rails: cached episodes only, by listens
+
+At the owner's direction, a verification of where "What FAM can't stop
+listening to", "What your friends are listening to" and "What you missed last
+week" get their episodes - against three stated rules - and the fixes for
+every place they did not match.
+
+**What FAM can't stop listening to** - *only cached episodes, ranked by total
+listens.* It was neither: "cached" was a sort (§125's "never a filter"), so a
+more-played unwritten tile still made the row; plays were counted over three
+days; a finished listen counted twice (`play` + `complete`); and only tile ids
+counted, so an episode reached by search - most of what people play - could
+never be on the row that claims to list the most-played. Now: listens grouped
+by normalised question (`_tally_listens`, each listener contributing the larger
+of their plays and completions), over `MOST_PLAYED_WINDOW` (thirty days, the
+longest a cached script lives), filtered to episodes cached at the page's
+length (`episode_info`), and a cached episode no inventory holds is a tile of
+its own (`episode_tile`, id `ep-<hash>`). No variety cap on it
+(`RANKED_BY_LISTENS`): `diversify` would promote a less-listened tile.
+
+**What your friends are listening to** - *only cached episodes your friends
+listened to or created.* It counted friends' tile plays, uncached tiles
+included, and had no "created" half. Now: friends' listens by question plus
+the cache rows a friend first wrote (`ScriptCache.authored_by`, the
+`scripts.author` column Explore already reads), a creator's own play not
+counted twice, cached only, ordered by how many friends are on it. Its empty
+sentence no longer tells somebody who already follows people to follow some.
+
+**What you missed last week** - *only cached episodes, none requiring
+Polymarket, Finnhub or API-Sports, no active call and no background browse
+path, highly listened stories missed more than three days ago.* It was
+membership by impression, by the live story pool or by other listeners'
+plays, ranked on affinity, then topped up from the pool and then to four
+from the whole inventory - so it read the background sweep twice and could
+offer episodes nobody had written. Now: other listeners' listens between
+`MISSED_WINDOW` and `MISSED_QUIET` ago (seven to three days), cached, never
+heard by this listener on any surface, and no episode whose provenance names
+a live feed (`kind == "live"`: the three named plus SportsDataIO and Alpha
+Vantage, the same kind of source). Most-listened first. It resolves tiles
+against the compiled bank and startup set only - never the pool or the
+Trending edition - and is out of `RAIL_MINIMUM`, so it is never topped up
+and is empty when nothing qualifies. A cache-less caller gets an empty rail.
+
+The probe is `app._episode_info_probe`: two local SQLite reads per episode
+(sentences, then title and provenance on a hit), memoised per request, never
+a model call. `episode_info=None` keeps the old unfiltered behaviour for the
+callers that have no cache (`rank_next_up`, prefetch) - but only for tiles an
+inventory holds; nothing is built from a bare question unless the cache has
+vouched for it, since the cache is also what says the question was shareable.
+
+Not measured on a real deployment: this container has no traffic. The first
+thing to look at is how often the missed rail is empty, since three rules
+must hold at once and it has no top-up by design.
