@@ -202,14 +202,16 @@ def test_every_rail_shows_at_most_four_and_the_choosing_ones_exactly_four(store)
         feed = T.build_feed(store, "me", has_account=has_account)
         for section in feed["sections"]:
             assert len(section["topics"]) <= 4, section["key"]
-        for key in ("from_history", "world_trending", "missed"):
+        for key in ("from_history", "world_trending"):
             assert len(rail(feed, key)["topics"]) == 4, key
 
 
 def test_a_brand_new_listener_still_gets_four_on_the_rails_that_choose(store):
     feed = T.build_feed(store, "")
     assert len(rail(feed, "from_history")["topics"]) == 4
-    assert len(rail(feed, "missed")["topics"]) == 4
+    # "What you missed last week" holds cached episodes only and is never
+    # topped up (the owner's rule), so a new listener's is honestly empty.
+    assert rail(feed, "missed")["topics"] == []
 
 
 def test_the_crowd_rows_never_invent_a_play_and_show_four_once_they_can(store):
@@ -240,7 +242,7 @@ def test_view_more_holds_what_the_rail_does_not_show(store):
 
 
 def test_the_minimum_table_is_only_the_rails_that_choose():
-    assert set(T.RAIL_MINIMUM) == {"from_history", "missed"}
+    assert set(T.RAIL_MINIMUM) == {"from_history"}
     assert all(v == T.SECTION_SIZE == 4 for v in T.RAIL_MINIMUM.values())
 
 

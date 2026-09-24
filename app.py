@@ -3709,10 +3709,13 @@ async def myfam_section(request: Request,
     written = _written_probe(minutes)
     try:
         place = _place_for(request)
+        circle = SOCIAL.circle_of(user)
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
-            circle=SOCIAL.circle_of(user), written=written,
+            circle=circle, written=written,
             written_at=_written_at_probe(minutes),
+            episode_info=_episode_info_probe(minutes),
+            authored=_authored_by_circle(circle),
             place=place.words, place_name=place.label,
             has_account=_has_account(request),
             country=_country_for(request, place))
@@ -3790,6 +3793,60 @@ def _written_at_probe(minutes: int):
         return answers[query]
 
     return probe
+
+
+def _episode_info_probe(minutes: int):
+    """A memoised `query -> topics.CachedEpisode | None` for one request.
+
+    What the three crowd rails read - they show cached episodes only, and
+    "What you missed last week" also refuses one written from a live feed.
+    None when the script is not in the cache at this length, which is also
+    the answer for anything unaskable. Two local reads per episode (the
+    sentences, then the title and provenance of a hit), never a model call.
+    """
+    answers: dict[str, Optional[topics_mod.CachedEpisode]] = {}
+
+    def probe(query: str) -> Optional[topics_mod.CachedEpisode]:
+        if query not in answers:
+            answers[query] = _cached_episode(query, minutes)
+        return answers[query]
+
+    return probe
+
+
+def _cached_episode(query: str, minutes: int):
+    if not query or SCRIPT_CACHE is None:
+        return None
+    try:
+        key = _episode_key(_validated_plan(query, minutes))
+    except HTTPException:
+        return None
+    if not key:
+        return None
+    try:
+        if SCRIPT_CACHE.get(key) is None:
+            return None
+        title = SCRIPT_CACHE.title(key) or ""
+        found = provenance_mod.Provenance.from_json(SCRIPT_CACHE.sources(key))
+    except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+        log.exception("cache probe failed; treating %r as unwritten", query)
+        return None
+    feeds = tuple(item.label for item in found.items
+                  if getattr(item, "kind", "") == provenance_mod.LIVE)
+    return topics_mod.CachedEpisode(title=title, live_feeds=feeds)
+
+
+def _authored_by_circle(circle) -> list:
+    """The live cache rows the listener's circle first wrote, for the
+    "created" half of "What your friends are listening to"."""
+    reader = getattr(SCRIPT_CACHE, "authored_by", None)
+    if reader is None or not circle:
+        return []
+    try:
+        return reader(circle, since=time.time() - topics_mod.FRIENDS_WINDOW)
+    except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+        log.exception("could not read the circle's episodes")
+        return []
 
 
 def _topic_is_written(query: str, minutes: int) -> bool:
@@ -3886,10 +3943,13 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
 
     written = _written_probe(minutes)
     place = _place_for(request)
+    circle = SOCIAL.circle_of(user)
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
-        circle=SOCIAL.circle_of(user), written=written,
+        circle=circle, written=written,
         written_at=_written_at_probe(minutes),
+        episode_info=_episode_info_probe(minutes),
+        authored=_authored_by_circle(circle),
         place=place.words, place_name=place.label,
         has_account=_has_account(request),
         country=_country_for(request, place))
