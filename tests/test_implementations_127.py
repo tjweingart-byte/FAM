@@ -330,6 +330,8 @@ def test_episode_meta_computes_the_key_once(monkeypatch):
     pipe.cache = store
     pipe.generator = None
     meta = asyncio.run(pipe.episode_meta(sg.plan_episode("why bonds move", 3)))
+    sourced = meta.pop("sourced_at")
+    assert sourced > 0, "a cached episode says when it was sourced (§143)"
     assert meta == {"thread": "next", "title": "Bonds", "title_final": True,
                     "summary": "What moves them."}
     assert len(calls) == 1

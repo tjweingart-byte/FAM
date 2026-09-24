@@ -24,7 +24,13 @@ Three surfaces, all backed by generated audio:
    recommended subjects under it. Since §140 it is also where **other
    listeners' public mixes** are found - a search bar by mix name, topic or
    owner - and a (+) on anybody else's mix adds a copy to your own; a mix
-   is shared whole from its ⋯ menu.*
+   is shared whole from its ⋯ menu.* **Since §143 every DailyFAM episode is
+   written in the background before it is tapped**: a daily edition
+   (`daily_edition.py`, 05:00 Eastern) writes one episode per distinct
+   subject across every mix, with EI on each, and a mix saved between
+   editions is written at once. The server owns the date and the length a
+   tap sends (`/api/mixes` serves `prompt` and `minutes`), so a tap is a
+   cache hit.
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
    have already generated*. It never writes a script: cards come from the
    shared cache and playing one sends `cached_only`, which the pipeline
@@ -1594,8 +1600,19 @@ the rest of this list it needs taste rather than a key.
   world** — the browse-surface form of §89, with a different sentence for each
   of the four ways it can come up empty, and a test that none of them says
   "nothing is trending". Nothing real is connected yet.
-- **How long a script keeps comes from what it was built on, never from the
-  words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
+- **Every episode is kept a week and stamped with when it was sourced; how
+  long it stays *current* is what `ttl_for` decides.** *(§143, at the owner's
+  direction.)* `CACHE_LIFE_SECONDS` (a week) is how long a row lives, from
+  `scripts.sourced_at`; `fresh_until` is how long a *new request* may be
+  served it. Replay surfaces (Explore) play anything kept, labelled with its
+  sourced time; every path that would write an episode asks `get(key)`,
+  which is current-only, and writes a new one otherwise. So `0` below now
+  means "never current", not "not written". Evergreen is current for the
+  whole week. A shared link or a tile past its window is written again, as
+  it was when the row simply expired. `CACHE_LIFE_SECONDS=0` with
+  `CACHE_TTL_SECONDS=86400` restores the old cache exactly.
+- **How long a script stays current comes from what it was built on, never
+  from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
   match, and `"Chiefs game"` — the reported case — contained no volatile word,
   so an episode about a game in progress was cached for **twenty-four hours**
   and, because `recent()` is the Explore feed, *published* as a finished one.
@@ -1613,6 +1630,10 @@ the rest of this list it needs taste rather than a key.
   warmed live fact is stale by definition, bought at full price), and it never
   warms a *script* for an outcome-dependent question — the brief is kept,
   because that is a claim about what is being asked and it keeps.
+  **The DailyFAM edition is the stated exception to the second** *(§143)*: a
+  "last 24 hours as of today" prompt at 05:00 asks about things that have
+  happened, and it runs the live lookup as a tap would. A game still in
+  progress at write time is kept and never current, so the tap writes it.
 - **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
   ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
   orientation, understanding, depth, the full arc — described as content and
@@ -2229,10 +2250,10 @@ which is the go/no-go for all of it.
   and read the per-source hit rate off `/api/health` or
   `tools/prefetch_report.py --live`. A source warmed often and taken rarely is
   paying for episodes nobody wanted; one taken nearly every time is worth
-  warming deeper (`PREFETCH_LEVEL=script`). Two further things nothing warms
-  yet, and both are one class each: DailyFAM's mixes are warmed only when
-  their owner opens myFAM, and no cycle is scheduled for a listener who is not
-  looking.
+  warming deeper (`PREFETCH_LEVEL=script`). One thing nothing
+  warms yet: no cycle is scheduled for a listener who is not looking.
+  DailyFAM is no longer a gap - since §143 its episodes are written whole by
+  the daily edition, not guessed at by prefetch.
 - **Is a local embedding model worth installing?** *Half answered (§107): the
   near-match cache is **on** now, and the embedding is still the part earning
   nothing.* The mechanism raises the share of re-phrasings that find an
@@ -2402,7 +2423,9 @@ second packet - chats that appear when you send, return as a new line,
 autocorrect that leaves names alone, Delete chat for one side, two weeks of
 listening history, titles that name their subject, a share that asks first, a
 follower announced once, the interests wheel replaced by its list, and a
-player X that minimises instead of stopping),
+player X that minimises instead of stopping; and **§143**, DailyFAM
+written in the background as a daily edition with EI on every episode, and
+every cached episode kept a week with the time it was sourced),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

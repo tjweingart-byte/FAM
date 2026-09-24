@@ -638,6 +638,34 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
+    # --- the DailyFAM edition (§143, `daily_edition.py`) ------------------
+    # Every DailyFAM episode is written in the background, before anybody
+    # taps it: at these hours on this zone's wall clock, one episode per
+    # distinct subject across every mix, dated for that day's edition. A tap
+    # is an ordinary cache hit. A subject added between editions is written
+    # in the background the moment its mix is saved. EI runs on every one.
+    daily_edition: bool = field(
+        default_factory=lambda: os.environ.get("DAILY_EDITION", "1")
+        not in ("0", "false", "False", ""))
+    daily_edition_timezone: str = field(
+        default_factory=lambda: os.environ.get(
+            "DAILY_EDITION_TIMEZONE", "America/New_York").strip())
+    daily_edition_hours: str = field(
+        default_factory=lambda: os.environ.get(
+            "DAILY_EDITION_HOURS", "5").strip())
+    # The one length DailyFAM episodes are written and played at. Minutes are
+    # in the cache key, so the edition and the tap must agree; the server
+    # serves this to the interface rather than each keeping its own.
+    daily_edition_minutes: int = _env_int("DAILY_EDITION_MINUTES", 3)
+    # Ceilings on one edition. Subjects followed by the most mixes are
+    # written first; anything past a ceiling is written on the tap instead,
+    # and the edition's report says how many.
+    daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 300)
+    daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 15.0)
+    # How long to wait before trying a failed edition again.
+    daily_edition_retry_seconds: float = _env_float(
+        "DAILY_EDITION_RETRY_SECONDS", 1800.0)
+
     # --- the trending bank (§139, `trending_bank.py`, TRENDING.md) --------
     # Trending is an *edition*: built twice a day for every listener, its
     # episodes written ahead of the tap, and read by the rail between builds.
@@ -840,9 +868,22 @@ class Settings:
     cache_path: str = field(
         default_factory=lambda: data_path("CACHE_PATH", "scripts.db")
     )
-    # Default lifetime for a cached script.
-    cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 86400)
-    # Lifetime for queries that read as time-sensitive ("latest", "today").
+    # How long every cached episode is **kept**: one week, whatever it is
+    # about (§143, at the owner's direction). Kept is not the same as
+    # current - see `cache_ttl_seconds` below - and a kept episode carries
+    # the time its information was sourced (`scripts.sourced_at`), which is
+    # what decides whether a new request may be served it. The replay surface
+    # (Explore, `cached_only`) plays anything kept, with that stamp on it;
+    # every other request - a search, a tile, a shared link - is served only
+    # one that is still current, and otherwise writes a new one.
+    cache_life_seconds: int = _env_int("CACHE_LIFE_SECONDS", 7 * 86400)
+    # How long an ordinary (evergreen) episode stays *current* - servable to
+    # a new request as the answer. A week since §143 (it was a day), so an
+    # evergreen episode is current for as long as it is kept.
+    cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 7 * 86400)
+    # How long an episode about something time-sensitive stays current
+    # ("latest", "today", a one-day evidence window, a result). Still kept
+    # for `cache_life_seconds`, stamped with when it was sourced.
     cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 900)
     # How long an evergreen episode may be kept alive by being played (§134).
     # A play of an entry written at the ordinary ceiling pushes its expiry a

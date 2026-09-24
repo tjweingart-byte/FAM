@@ -4433,7 +4433,12 @@
   //: one from before the first word (§127). Asking stops only once it is.
   var episodeTitleFinal = false;
   var episodeStamp = "";
-  function rememberEpisode(query, minutes, context){
+  //: Whether the episode playing is a replay (Explore). A replay may be
+  //: told about whatever the cache keeps; anything else only about what is
+  //: current, or the player would take a superseded episode's title (§143).
+  var episodeReplay = false;
+  function rememberEpisode(query, minutes, context, replay){
+    episodeReplay = !!replay;
     episodeStamp = query + "|" + minutes + "|" + (context || "");
     episodeThread = "";
     episodeTitle = "";
@@ -4446,7 +4451,8 @@
     var stamp = episodeStamp;
     fetch("/api/next?q=" + encodeURIComponent(parts[0]) +
           "&minutes=" + encodeURIComponent(parts[1]) +
-          "&context=" + encodeURIComponent(parts[2] || ""))
+          "&context=" + encodeURIComponent(parts[2] || "") +
+          (episodeReplay ? "&cached_only=true" : ""))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
         // The listener may have moved on while this was in flight.
@@ -4464,8 +4470,32 @@
           applyEpisodeTitle(data.title);
           episodeTitleFinal = !!data.title_final;
         }
+        if(data.sourced_at) applySourcedStamp(data.sourced_at);
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
+  }
+
+  // When the information this episode was written from was sourced (§143),
+  // beside where it came from on the player: "from DailyFAM · sourced 6:02 AM".
+  // In the reader's own clock, and with the day when it was not today,
+  // because an episode is kept a week and its age is what says whether it
+  // is still true.
+  function sourcedLabel(sourcedAt){
+    var d = new Date(sourcedAt * 1000);
+    if(isNaN(d.getTime())) return "";
+    var time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    var sameDay = d.toDateString() === new Date().toDateString();
+    return "sourced " + (sameDay ? time
+      : d.toLocaleDateString("en-US", { weekday: "short", month: "short",
+                                        day: "numeric" }) + ", " + time);
+  }
+  function applySourcedStamp(sourcedAt){
+    var src = document.getElementById("p-src");
+    var key = currentPlayingTopicKey;
+    var topic = key ? TOPICS[key] : null;
+    var label = sourcedLabel(sourcedAt);
+    if(!src || !topic || !label) return;
+    src.textContent = "from " + topic.source + " \u00b7 " + label;
   }
 
   // Swap the provisional title for the real one, everywhere it is showing.
@@ -4939,7 +4969,7 @@
     // a replay-only request a miss is a refusal, not a regeneration.
     var minutes = opts.minutes || selectedLengthMinutes;
     var totalSeconds = minutes * 60;
-    rememberEpisode(title, minutes, context || "");
+    rememberEpisode(title, minutes, context || "", !!opts.cachedOnly);
     var episodeTopicId = bankTopicId || "";
     var reportedOutcome = false;
     reportOutcomeIfHeard = function(heard, whole){
@@ -6555,11 +6585,19 @@
     var today = new Date().toLocaleDateString("en-US",
       { weekday: "long", month: "long", day: "numeric", year: "numeric" });
     var daily = item.daily_prompt ? item.daily_prompt.split("{date}").join(today) : "";
+    // The server's own dated prompt wins (§143): it is what the DailyFAM
+    // edition wrote, dated by the edition's day rather than this phone's, so
+    // a tap is a cache hit. The local fill is only for a server older than it.
+    if(item.prompt && item.daily_prompt) daily = item.prompt;
     TOPICS[key] = {
       title: daily ? item.title + " \u00b7 today" : item.title,
       source: "DailyFAM",
       caption: "Live captions will appear here as this plays\u2014",
       prompt: daily || item.query,
+      // The edition's length, from the server - minutes are in the cache key,
+      // and the search length this used to play at missed every episode the
+      // edition had written.
+      exploreMinutes: item.minutes || 0,
       bankTopicId: (item.custom || item.follow) ? "" : item.id,
       titleOverridden: true,
       // What makes the player treat this as a playlist entry: its end plays
@@ -12166,8 +12204,13 @@
     document.getElementById("reelKicker").textContent =
       ep.vibed_by ? "From a friend" : "Someone asked";
     document.getElementById("reelTitle").textContent = ep.title;
+    // When its information was sourced, not when its row was written
+    // (§143): an episode is kept a week, and that is the age that decides
+    // whether what it says is still true.
     document.getElementById("reelSub").textContent =
-      relativeAge(ep.age_seconds) + " · " + ep.minutes + " min"
+      "Sourced " + relativeAge(ep.sourced_age_seconds != null
+                               ? ep.sourced_age_seconds : ep.age_seconds)
+      + " · " + ep.minutes + " min"
       + (ep.thread ? " · leads to " + ep.thread : "");
     drawReelStats();
     document.getElementById("reelHint").style.visibility = "visible";

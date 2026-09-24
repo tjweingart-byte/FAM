@@ -178,7 +178,10 @@ def test_prefetch_warms_the_words_a_tap_sends(store):
     store.create("u", "Morning", ["f:nfl~Eagles", "fed-next-move"])
     got = prefetch_sources.MixSource(store).candidates("u")
     queries = {c.query for c in got}
-    assert M.prompt_for(M.followed_item("f:nfl~Eagles")) in queries
+    # Dated by the edition's day, which is what `/api/mixes` serves the
+    # interface too (§143) - not the server's UTC date.
+    import daily_edition
+    assert daily_edition.prompt_for(M.followed_item("f:nfl~Eagles")) in queries
     assert T.BANK_BY_ID["fed-next-move"].query in queries
     followed = [c for c in got if c.query.startswith("The latest")][0]
     assert followed.topic_id == "", "a followed subject is not a bank tile"

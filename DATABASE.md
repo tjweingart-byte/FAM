@@ -21,7 +21,7 @@ working directory, and the `Dockerfile` pins all fourteen to the mounted
 
 | File | Module | What it holds |
 |---|---|---|
-| `scripts.db` | `cache.py` | **The shared episode cache** - the script, and since §132 its audio (`episode_audio`, one row per script and voice). The only store not keyed by person. |
+| `scripts.db` | `cache.py` | **The shared episode cache** - the script, and since §132 its audio (`episode_audio`, one row per script and voice). The only store not keyed by person. Since §143 every row is kept a week from when its information was sourced (`sourced_at`) and is *current* - servable to a new request - until `fresh_until`. |
 | `myfam.db` | `topics.py` | **The event log.** Every interaction *of an account* - a guest is never written (§127, `app._remembers`). This is the taste model's entire input. |
 | `preferences.db` | `preferences.py` | One row per listener: chosen interests, chosen topics, language, what is shown on the profile. |
 | `accounts.db` | `accounts.py` | Credentials, sessions, third-party identities. |
@@ -29,7 +29,7 @@ working directory, and the `Dockerfile` pins all fourteen to the mounted
 | `messages.db` | `messages.py` | Direct messages, per-thread read marks, and per-listener Delete chat marks (`clears`, §142). |
 | `saved.db` | `saved.py` | Save-for-later pointers and folders, how far through an episode an account got (`progress`, §127 - it was `localStorage`, so it belonged to the phone), and two weeks of listening history (`history`, §142). |
 | `shares.db` | `sharing.py` | Share links and their open counts. |
-| `mixes.db` | `mixes.py` | DailyFAM mixes — topic ids and typed topics, never audio. |
+| `mixes.db` | `mixes.py` | DailyFAM mixes — topic ids and typed topics, never audio. Also `daily_editions` (§143, `daily_edition.py`): one row per edition slot - the claim that stops two workers building it, and its report. |
 | `quotas.db` | `quotas.py` | Per-window counters and per-episode charges. |
 | `metering.db` | `metering.py` | One row per episode: tokens, searches, GPU seconds, dollars. |
 | `attachments.db` | `attachments.py` | Extracted text from documents a search carried. |

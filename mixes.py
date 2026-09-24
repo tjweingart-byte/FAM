@@ -108,6 +108,15 @@ class MixItem:
         # own today. Served rather than assembled by each client: prefetch
         # has to warm the same words a tap sends, or every warm is wasted.
         out["daily_prompt"] = daily_prompt(self)
+        # What a tap sends *today*, already dated with the edition's day, and
+        # the length it is played at (§143). The edition writes exactly these
+        # words at exactly this length, so a tap is a cache hit; the
+        # interface used to fill the date from the listener's own clock and
+        # play at the search length, and missed on both.
+        import daily_edition
+
+        out["prompt"] = daily_edition.prompt_for(self)
+        out["minutes"] = daily_edition.minutes()
         return out
 
     @classmethod
@@ -507,6 +516,20 @@ class MixStore:
     def public_for_user(self, user_id: str) -> list[Mix]:
         """What this listener has chosen to show on their profile."""
         return [m for m in self.list_for_user(user_id) if m.public]
+
+    def all_mixes(self, limit: int = 20000) -> list[Mix]:
+        """Every mix on the deployment, oldest first - for the DailyFAM
+        edition (§143), which writes one episode per distinct subject across
+        all of them. Bounded, because this reads the whole table."""
+        try:
+            rows = self._conn().execute(
+                "SELECT " + _COLUMNS + " FROM mixes ORDER BY created_at LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read every mix")
+            return []
+        return [self._row_to_mix(r) for r in rows]
 
     def list_for_user(self, user_id: str) -> list[Mix]:
         if not user_id:

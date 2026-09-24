@@ -218,7 +218,18 @@ SCHEDULED_TTL_SECONDS = 1800
 
 def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = False,
             recency_days: int = 0) -> int:
-    """How long a script stays usable, in seconds. **Zero means do not cache.**
+    """How long a script stays *current*, in seconds. **Zero means never.**
+
+    **Current, not kept** (§143, at the owner's direction). Every episode is
+    kept a week (`CACHE_LIFE_SECONDS`) and stamped with when its information
+    was sourced; this is only the window in which a *new request* may be
+    served it as the answer. The replay surface - Explore, which sends
+    `cached_only` - plays anything kept, with the sourced time on it; a
+    search, a tile or a shared link is served a current script or writes a
+    new one, as it always was once a script expired. So 0 no
+    longer means "do not write it": it means a game in progress is written,
+    kept, replayable as what it was at the time it was sourced, and never
+    handed to somebody asking about that game now.
 
     **The question this asks changed, and that is the whole of PROBLEMS.md §89.**
     It used to ask "do the words of this query *look* volatile", answered from
@@ -238,8 +249,8 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
     built from. In precedence order, most authoritative first:
 
     1. **A live fact's status**, which is the only thing here established by
-       evidence rather than inferred. `in_progress` is uncacheable outright -
-       no TTL is short enough for a score, and a ten-second entry still serves
+       evidence rather than inferred. `in_progress` is never current - no
+       window is short enough for a score, and a ten-second one still serves
        one listener the state another listener already saw change.
        `final` does not move, so it keeps the ordinary ceiling.
     2. **The brief's `outcome_dependent`**, which is EI's honest statement that
@@ -456,11 +467,13 @@ def audio_ceiling_bytes() -> int:
 
 
 class ScriptCache(Protocol):
-    def get(self, key: str) -> Optional[list[str]]: ...
+    def get(self, key: str, current: bool = True) -> Optional[list[str]]: ...
+    def sourced_at(self, key: str) -> Optional[float]: ...
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
         minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
-        title: str = "", summary: str = "", slide: bool = False
+        title: str = "", summary: str = "", slide: bool = False,
+        sourced_at: Optional[float] = None
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -499,6 +512,53 @@ class ScriptCache(Protocol):
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
 
 
+#: SQL for "until when a new request may be served this row" (§143). Rows
+#: written before `fresh_until` existed have 0 there, and were current for
+#: exactly as long as they were kept - which is what this reads for them.
+_CURRENT_UNTIL = "(CASE WHEN fresh_until > 0 THEN fresh_until ELSE expires END)"
+#: SQL for "when this row's information was sourced". Pre-§143 rows recorded
+#: only when they were written, which is the closest thing they have.
+_SOURCED = "(CASE WHEN sourced_at > 0 THEN sourced_at ELSE created END)"
+
+
+def _clocks(ttl: int, sourced_at: Optional[float], now: float) -> tuple:
+    """(sourced, current until, kept until) for a write (§143).
+
+    Kept `CACHE_LIFE_SECONDS` from when it was sourced - a week, whatever the
+    episode is about - and current for `ttl` from then, which `ttl_for` may
+    make 0. Never kept for less than it is current: an evergreen ceiling set
+    above the life keeps the row as long as it is servable. A sourced time in
+    the future is a clock error, not a fact, and is read as now.
+    """
+    sourced = min(float(sourced_at or now), now)
+    life = int(settings.cache_life_seconds or 0)
+    if life <= 0:
+        # `CACHE_LIFE_SECONDS=0`: kept only while current, which is exactly
+        # how the cache behaved before §143 (a negative `ttl` is written
+        # already expired, as it always was).
+        until = sourced + int(ttl or 0)
+        return sourced, until, until
+    fresh_until = sourced + max(0, int(ttl or 0))
+    return sourced, fresh_until, max(sourced + life, fresh_until)
+
+
+def describe_sourced(sourced_at: float, now: Optional[float] = None) -> str:
+    """How long ago an episode's information was sourced, in words (§143).
+
+    For logs and tools. The interface formats its own, in the reader's clock.
+    """
+    if not sourced_at:
+        return "unknown"
+    age = max(0.0, (time.time() if now is None else now) - float(sourced_at))
+    if age < 90:
+        return "just now"
+    if age < 5400:
+        return f"{int(round(age / 60))} min ago"
+    if age < 36 * 3600:
+        return f"{int(round(age / 3600))} h ago"
+    return f"{int(round(age / 86400))} days ago"
+
+
 class MemoryScriptCache:
     """Process-local cache. Fine for tests and single-worker development."""
 
@@ -528,6 +588,9 @@ class MemoryScriptCache:
         #: key -> when its current script was written. Beside the tuple for
         #: the same reason as everything above it.
         self._created: dict[str, float] = {}
+        #: key -> (sourced, current until) - §143. The tuple's first field is
+        #: how long the entry is *kept*; this is how long it is *current*.
+        self._clocks: dict[str, tuple[float, float]] = {}
         self.hits = 0
         self.misses = 0
 
@@ -541,18 +604,44 @@ class MemoryScriptCache:
             return 0
         return self._plays.get(key, 0)
 
-    def written_at(self, key: str) -> Optional[float]:
+    def _current(self, key: str, now: Optional[float] = None) -> bool:
+        entry = self._data.get(key)
+        now = time.time() if now is None else now
+        if not entry or entry[0] < now:
+            return False
+        clocks = self._clocks.get(key)
+        return (clocks[1] if clocks else entry[0]) >= now
+
+    def sourced_at(self, key: str) -> Optional[float]:
         entry = self._data.get(key)
         if not entry or entry[0] < time.time():
+            return None
+        clocks = self._clocks.get(key)
+        return clocks[0] if clocks else self._created.get(key, 0.0)
+
+    def extend_current(self, key: str, until: float) -> bool:
+        """See `SqliteScriptCache.extend_current`."""
+        if not self._current(key):
+            return False
+        entry = self._data[key]
+        sourced, fresh = self._clocks.get(key, (self._created.get(key, 0.0), entry[0]))
+        fresh = max(fresh, float(until))
+        self._clocks[key] = (sourced, fresh)
+        self._data[key] = (max(entry[0], fresh),) + tuple(entry[1:])
+        return True
+
+    def written_at(self, key: str) -> Optional[float]:
+        if not self._current(key):
             return None
         # A live entry with no recorded write time was written at some
         # unknown point, which must read as "long ago" and never as "no
         # script" - None is what tells myFAM a tap would write a new one.
         return self._created.get(key, 0.0)
 
-    def get(self, key: str) -> Optional[list[str]]:
+    def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         entry = self._data.get(key)
-        if not entry or entry[0] < time.time():
+        if (not entry or entry[0] < time.time()
+                or (current and not self._current(key))):
             self.misses += 1
             return None
         self.hits += 1
@@ -561,11 +650,15 @@ class MemoryScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = "", slide: bool = False
+        author: str = "", title: str = "", summary: str = "", slide: bool = False,
+        sourced_at: Optional[float] = None
     ) -> None:
         before = self._data.get(key)
-        self._data[key] = (time.time() + ttl, list(sentences), thread, query, int(minutes))
-        self._created[key] = time.time()
+        now = time.time()
+        sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
+        self._data[key] = (expires, list(sentences), thread, query, int(minutes))
+        self._created[key] = now
+        self._clocks[key] = (sourced, fresh_until)
         # New words, so any audio kept for the old ones no longer matches -
         # and only new words (§134): a re-write that said the same thing keeps
         # the audio it already paid for.
@@ -591,16 +684,19 @@ class MemoryScriptCache:
         rows = [
             (key, self._data[key][3], vec)
             for key, (b, vec) in self._vectors.items()
-            if b == bucket and key in self._data and self._data[key][0] >= now
+            if b == bucket and self._current(key, now)
         ]
         return best_match(query, rows)
 
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
-            {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
+            {"key": k, "query": v[3], "minutes": v[4],
+             "created": self._created.get(k, 0.0),
              "plays": self._plays.get(k, 0), "thread": v[2],
              "title": self._titles.get(k, ""),
-             "author": self._authors.get(k, "")}
+             "author": self._authors.get(k, ""),
+             "sourced_at": self.sourced_at(k) or 0.0,
+             "current": self._current(k)}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and not (exclude_author and self._authors.get(k) == exclude_author)
@@ -617,7 +713,8 @@ class MemoryScriptCache:
         rows = [
             {"key": k, "query": v[3], "minutes": v[4],
              "created": self._created.get(k, 0.0),
-             "title": self._titles.get(k, ""), "author": self._authors.get(k, "")}
+             "title": self._titles.get(k, ""), "author": self._authors.get(k, ""),
+             "sourced_at": self.sourced_at(k) or 0.0}
             for k, v in self._data.items()
             if v[0] >= now and v[3] and v[4] > 0
             and self._authors.get(k, "") in wanted
@@ -702,13 +799,14 @@ class MemoryScriptCache:
             self._titles.pop(key, None)
             self._summaries.pop(key, None)
             self._vectors.pop(key, None)
+            self._clocks.pop(key, None)
             self._drop_audio(key)
         return len(keys)
 
     def clear(self) -> int:
         removed = len(self._data)
         for table in (self._data, self._authors, self._sources, self._titles,
-                      self._summaries, self._vectors, self._audio):
+                      self._summaries, self._vectors, self._audio, self._clocks):
             table.clear()
         return removed
 
@@ -798,6 +896,15 @@ class SqliteScriptCache:
                 # times (the pacing probe, the pipeline's own lookup, a near
                 # match), as does a prefetch checking whether to bother.
                 ("plays", "ALTER TABLE scripts ADD COLUMN plays INTEGER NOT NULL DEFAULT 0"),
+                # §143: when the information the episode was written from was
+                # *sourced* - the retrieval, not the write - and how long it
+                # stays *current*. `expires` is now how long the row is kept
+                # (a week for everything); `fresh_until` is how long a new
+                # request may be served it as the answer. Rows written before
+                # this have 0 in both and read exactly as they did: sourced
+                # when created, current until they expire (`_CURRENT_UNTIL`).
+                ("sourced_at", "ALTER TABLE scripts ADD COLUMN sourced_at REAL NOT NULL DEFAULT 0"),
+                ("fresh_until", "ALTER TABLE scripts ADD COLUMN fresh_until REAL NOT NULL DEFAULT 0"),
             ):
                 try:
                     conn.execute(ddl)
@@ -840,14 +947,26 @@ class SqliteScriptCache:
             self._local.conn = conn
         return conn
 
-    def get(self, key: str) -> Optional[list[str]]:
+    def get(self, key: str, current: bool = True) -> Optional[list[str]]:
+        """The script under `key`, or None.
+
+        `current` (the default) answers "may a new request be served this as
+        the answer" - kept *and* inside its current window (§143). Every path
+        that would otherwise write an episode asks that. A replay surface
+        (`cached_only`: Explore) passes False and gets
+        anything still kept, because it is replaying a specific finished
+        episode whose sourced time is on the card.
+        """
         try:
             conn = self._conn()
             row = conn.execute(
-                "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
+                "SELECT sentences, expires, fresh_until FROM scripts WHERE key = ?",
+                (key,)
             ).fetchone()
             now = time.time()
             if not row or row[1] < now:
+                return None
+            if current and (row[2] or row[1]) < now:
                 return None
             conn.execute("UPDATE scripts SET hits = hits + 1 WHERE key = ?", (key,))
             return json.loads(row[0])
@@ -866,8 +985,48 @@ class SqliteScriptCache:
         tap would write a new one" - a failure must not look like freshness.
         """
         row = self._conn().execute(
-            "SELECT created, expires FROM scripts WHERE key = ?", (key,)
+            f"SELECT created, {_CURRENT_UNTIL} FROM scripts WHERE key = ?", (key,)
         ).fetchone()
+        # Current rather than kept (§143): None means "a tap would write a new
+        # one", and a tap is served only a current script.
+        if not row or row[1] < time.time():
+            return None
+        return float(row[0])
+
+    def extend_current(self, key: str, until: float) -> bool:
+        """Keep a *current* entry current until `until`. False if it is not.
+
+        For the DailyFAM edition (§143): a subject a listener tapped before
+        the edition reached it was written by the tap path, sourced after the
+        edition began and just as fresh as the edition's own would be - but
+        current for `ttl_for`'s fifteen minutes rather than until the next
+        edition. Re-writing it would pay for the same episode twice; this
+        gives it the edition's window instead. Never makes a non-current
+        entry current, so a mid-game episode stays out of reach.
+        """
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET fresh_until = MAX(?, " + _CURRENT_UNTIL + "),"
+                " expires = MAX(expires, ?)"
+                " WHERE key = ? AND expires >= ? AND " + _CURRENT_UNTIL + " >= ?",
+                (float(until), float(until), key, time.time(), time.time()))
+            return bool(cur.rowcount)
+        except Exception:
+            log.exception("could not extend a cache entry; continuing")
+            return False
+
+    def sourced_at(self, key: str) -> Optional[float]:
+        """When the information in the kept episode under `key` was sourced,
+        or None if nothing is kept there (§143). Rows from before the column
+        existed answer with when they were written, which is the closest
+        thing they recorded."""
+        try:
+            row = self._conn().execute(
+                f"SELECT {_SOURCED}, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+        except Exception:
+            log.exception("script cache sourced_at read failed")
+            return None
         if not row or row[1] < time.time():
             return None
         return float(row[0])
@@ -897,8 +1056,10 @@ class SqliteScriptCache:
             return
         target = min(now + int(ttl), float(created or now) + limit)
         if target > expires + 60:     # not a write per read for nothing
-            conn.execute("UPDATE scripts SET expires = ? WHERE key = ?",
-                         (target, key))
+            # Both clocks move together: only an evergreen entry slides, and
+            # an evergreen entry is current for as long as it is kept.
+            conn.execute("UPDATE scripts SET expires = ?, fresh_until = ?"
+                         " WHERE key = ?", (target, target, key))
 
     def record_play(self, key: str) -> None:
         """One listener started this episode. The Explore card's number, and
@@ -931,9 +1092,16 @@ class SqliteScriptCache:
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
-        author: str = "", title: str = "", summary: str = "", slide: bool = False
+        author: str = "", title: str = "", summary: str = "", slide: bool = False,
+        sourced_at: Optional[float] = None
     ) -> None:
         """Store the script, and the vector for the question that produced it.
+
+        **`ttl` is how long it stays current, not how long it is kept**
+        (§143). Every row is kept `CACHE_LIFE_SECONDS` (a week) from when its
+        information was sourced, and `ttl` - `ttl_for`'s answer, which may be
+        0 - only decides how long a new request may be served it. `sourced_at`
+        is when the retrieval happened; it defaults to now.
 
         `slide` says a play may keep it alive past `ttl` (§134, `_slide`). Off
         unless the caller knows the episode makes no claim about a window of
@@ -950,6 +1118,7 @@ class SqliteScriptCache:
             return
         try:
             now = time.time()
+            sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
             vector = None
             if bucket and query:
                 vector = embeddings.pack(embeddings.embed(normalize_query(query)))
@@ -964,11 +1133,13 @@ class SqliteScriptCache:
             self._conn().execute(
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
-                "  bucket, vector, sources, author, title, summary, ttl)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bucket, vector, sources, author, title, summary, ttl,"
+                "  sourced_at, fresh_until)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
-                "  ttl = excluded.ttl,"
+                "  ttl = excluded.ttl, sourced_at = excluded.sourced_at,"
+                "  fresh_until = excluded.fresh_until,"
                 "  query = excluded.query, sentences = excluded.sentences,"
                 "  thread = excluded.thread, minutes = excluded.minutes,"
                 "  bucket = excluded.bucket, vector = excluded.vector,"
@@ -982,10 +1153,10 @@ class SqliteScriptCache:
                 "               ELSE scripts.title END,"
                 "  summary = CASE WHEN excluded.summary != '' THEN excluded.summary"
                 "                 ELSE scripts.summary END",
-                (key, now + ttl, now, query[:500], json.dumps(sentences),
+                (key, expires, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
-                 int(ttl) if slide else 0),
+                 int(ttl) if slide else 0, sourced, fresh_until),
             )
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
@@ -1116,8 +1287,10 @@ class SqliteScriptCache:
             return None
         try:
             rows = self._conn().execute(
+                # Current only (§143): a near match stands in for a hit, and
+                # a hit is served only a current script.
                 "SELECT key, query, vector FROM scripts"
-                " WHERE bucket = ? AND expires >= ? AND vector IS NOT NULL"
+                f" WHERE bucket = ? AND {_CURRENT_UNTIL} >= ? AND vector IS NOT NULL"
                 " ORDER BY created DESC LIMIT ?",
                 (bucket, time.time(), int(settings.cache_vector_scan)),
             ).fetchall()
@@ -1201,14 +1374,15 @@ class SqliteScriptCache:
         stays in the shared cache, still serves them an instant replay, and
         still appears on everybody else's feed.
         """
+        now = time.time()
         try:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, plays, thread, title,"
-                " author FROM scripts"
+                f" author, {_SOURCED}, {_CURRENT_UNTIL} FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"
                 " ORDER BY created DESC LIMIT ?",
-                (time.time(), exclude_author or "", exclude_author or "",
+                (now, exclude_author or "", exclude_author or "",
                  int(limit)),
             ).fetchall()
         except Exception:
@@ -1223,7 +1397,11 @@ class SqliteScriptCache:
             # from the key is one refactor away from being in it.
             {"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
              "plays": r[4], "thread": r[5] or "", "title": r[6] or "",
-             "author": r[7] or ""}
+             "author": r[7] or "",
+             # §143: when its information was sourced, and whether a new
+             # request would still be served it. Replay surfaces show the
+             # first; nothing here hides an entry that is kept but not current.
+             "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now}
             for r in rows
         ]
 
@@ -1243,7 +1421,8 @@ class SqliteScriptCache:
         marks = ",".join("?" for _ in wanted)
         try:
             rows = self._conn().execute(
-                "SELECT key, query, minutes, created, title, author FROM scripts"
+                "SELECT key, query, minutes, created, title, author,"
+                f" {_SOURCED} FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND author IN ({marks}) AND created >= ?"
                 " ORDER BY created DESC LIMIT ?",
@@ -1253,7 +1432,8 @@ class SqliteScriptCache:
             log.exception("could not read scripts by author")
             return []
         return [{"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
-                 "title": r[4] or "", "author": r[5] or ""} for r in rows]
+                 "title": r[4] or "", "author": r[5] or "",
+                 "sourced_at": float(r[6] or 0.0)} for r in rows]
 
     def purge_expired(self) -> int:
         try:

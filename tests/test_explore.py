@@ -103,7 +103,7 @@ def test_recent_returns_live_entries_newest_first(tmp_path):
     assert queries == ["a newer question", "an older question"]
 
 
-def test_expired_entries_never_appear(tmp_path):
+def test_expired_entries_never_appear(tmp_path, kept_only_while_current):
     cache = SqliteScriptCache(str(tmp_path / "c.db"))
     cache.put("gone", ["One."], -1, "stale question", "", 2)
     assert cache.recent() == []

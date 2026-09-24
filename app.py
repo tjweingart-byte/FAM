@@ -57,6 +57,7 @@ import provenance as provenance_mod
 import stories as stories_mod
 import trending as trending_mod
 import trending_bank
+import daily_edition
 from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
@@ -408,6 +409,31 @@ async def _supervise_voice() -> None:
                       "still resolve an endpoint on demand")
 
 
+def _daily_edition_report() -> dict:
+    """`daily_edition.report()`, never able to break the health page."""
+    try:
+        return daily_edition.report()
+    except Exception as exc:  # noqa: BLE001
+        return {"enabled": bool(settings.daily_edition), "error": str(exc)}
+
+
+#: The writer the DailyFAM edition and a freshly saved mix use. None in demo
+#: mode, where nothing may be written into the shared cache (§51).
+_EDITION_WRITER = None
+
+
+def _write_mix_ahead(mix, before=None) -> None:
+    """A mix was saved: write the subjects it gained that today's edition
+    has not, in the background (§143). `before` is the mix as it was, so an
+    edit that only removes or reorders spends nothing. Never awaited, never
+    raises."""
+    try:
+        daily_edition.schedule_mix(mix, generator=_EDITION_WRITER,
+                                   cache=SCRIPT_CACHE, before=before)
+    except Exception:  # noqa: BLE001 - a save must not fail on a guess
+        log.exception("daily edition: could not schedule a saved mix")
+
+
 def _trending_bank_report() -> dict:
     """`trending_bank.report()`, never able to break the health page."""
     try:
@@ -496,6 +522,15 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
             generator=None if DEMO_MODE else ScriptGenerator(),
             cache=SCRIPT_CACHE)))
+    # DailyFAM's edition (§143): every mix's episodes written before anybody
+    # taps, at 05:00 Eastern, one per distinct subject, EI on every one. On
+    # boot it catches up, so a new deployment writes today's at once. Never
+    # awaited; until it lands a tap writes its own episode as it always did.
+    global _EDITION_WRITER
+    _EDITION_WRITER = None if DEMO_MODE else ScriptGenerator()
+    if settings.daily_edition:
+        _BACKGROUND.add(asyncio.create_task(daily_edition.run_forever(
+            MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE)))
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.
@@ -1383,6 +1418,7 @@ async def health(request: Request) -> dict:
         # because the composer was unavailable.
         "stories": stories_mod.report(),
         "trending_bank": _trending_bank_report(),
+        "daily_edition": _daily_edition_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one
@@ -3266,6 +3302,7 @@ async def create_mix(req: MixRequest, request: Request):
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _write_mix_ahead(mix)
     return mix.as_dict()
 
 
@@ -3273,11 +3310,14 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
+    before = MIXES.get(account, mix_id) if req.topic_ids is not None else None
     try:
         mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
                            req.cover)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if req.topic_ids is not None:
+        _write_mix_ahead(mix, before=before)
     return mix.as_dict()
 
 
@@ -3408,6 +3448,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
             owner.get("name") or "", owner.get("handle") or ""))
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _write_mix_ahead(mix)
     return dict(mix.as_dict(), **_source_label(mix, {}))
 
 
@@ -4594,6 +4635,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "key": entry["key"],
             "thread": entry["thread"],
             "age_seconds": max(0.0, now - entry["created"]),
+            # When the information in it was sourced (§143), which is what
+            # the card says: an episode is kept a week, and a listener
+            # judging whether it is still true needs its age, not its row's.
+            "sourced_age_seconds": max(
+                0.0, now - (entry.get("sourced_at") or entry["created"])),
+            "current": bool(entry.get("current", True)),
             "vibed": bool(pair in anyone or by),
         }
         # The counts on the card's buttons: vibes, likes, dislikes, and this
@@ -4840,6 +4887,10 @@ async def next_thread(
     # Same reason as /api/audio: this looks up a cache entry, and the entry it
     # looks for has to be keyed the same way the audio request keyed it.
     search: bool | None = Query(None),
+    # A replay (Explore) plays whatever is kept, so it may read a kept row's
+    # details; anything else plays a current one, and past its window the
+    # kept row is the previous episode under this key (§143).
+    cached_only: bool = Query(False),
 ):
     """The follow-up this listener is most likely to want, and the episode's
     own title.
@@ -4873,7 +4924,7 @@ async def next_thread(
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.
-    return await pipeline.episode_meta(plan)
+    return await pipeline.episode_meta(plan, current_only=not cached_only)
 
 
 @app.get("/api/audio")

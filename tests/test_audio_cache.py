@@ -193,7 +193,7 @@ def test_a_rewritten_script_drops_the_audio_it_no_longer_matches(store):
     assert store.stats()["audio_entries"] == 0
 
 
-def test_audio_is_only_readable_while_its_script_is(tmp_path):
+def test_audio_is_only_readable_while_its_script_is(tmp_path, kept_only_while_current):
     store = SqliteScriptCache(str(tmp_path / "s.db"))
     store.put("k", ["One."], ttl=60, query="q")
     assert store.put_audio("k", "v", 24000, b"\x01\x00" * 100, ["One."], [0.0])
@@ -301,3 +301,25 @@ def test_an_episode_larger_than_the_ceiling_is_not_reported_kept(tmp_path, monke
     store.put("k", ["x."], ttl=60, query="k")
     assert not store.put_audio("k", "v", 24000, os.urandom(5000), ["x."], [0.0])
     assert store.stats()["audio_entries"] == 0
+
+
+def test_the_wake_is_not_skipped_for_kept_audio_past_its_window(store):
+    """§143: a row is kept a week but current only for its window. Past it, a
+    request writes the episode again and needs the voice - only a replay
+    plays the kept audio."""
+    import sqlite3
+    import time
+
+    engine = CountingVoice()
+    pipe = PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=store)
+    plan = plan_episode("how glaciers move", 1)
+    play(pipe, plan)
+    past = time.time() - 1
+    if isinstance(store, MemoryScriptCache):
+        store._clocks = {k: (v[0], past) for k, v in store._clocks.items()}
+    else:
+        with sqlite3.connect(store.path) as conn:
+            conn.execute("UPDATE scripts SET fresh_until = ?", (past,))
+    assert asyncio.run(pipe.has_stored_audio(plan)) is False
+    replay = plan_episode("how glaciers move", 1, cached_only=True)
+    assert asyncio.run(pipe.has_stored_audio(replay)) is True

@@ -43,7 +43,7 @@ import pytest
 FAM_ENVIRONMENT = (
     "ALLOW_TOPUPS", "ANTHROPIC_API_KEY",
     "CACHE_BACKEND", "CACHE_ENABLED", "CACHE_SEMANTIC_KEY",
-    "CACHE_TTL_SECONDS", "CACHE_TTL_VOLATILE", "CACHE_MAX_AGE_SECONDS", "CACHE_VECTOR",
+    "CACHE_LIFE_SECONDS", "CACHE_TTL_SECONDS", "CACHE_TTL_VOLATILE", "CACHE_MAX_AGE_SECONDS", "CACHE_VECTOR",
     "CACHE_VECTOR_OVERLAP", "CACHE_VECTOR_SCAN", "CACHE_VECTOR_THRESHOLD",
     "AUDIO_CACHE", "AUDIO_CACHE_MAX_MB",
     "CANONICAL_KEY_MODEL",
@@ -91,6 +91,11 @@ FAM_ENVIRONMENT = (
     "TRENDING_BANK", "TRENDING_BANK_SIZE", "TRENDING_BANK_TIMEZONE",
     "TRENDING_BANK_HOURS", "TRENDING_BANK_MINUTES", "TRENDING_BANK_WRITE",
     "TRENDING_BANK_RETRY_SECONDS", "TRENDING_BANK_MAX_AGE_HOURS",
+    # The DailyFAM edition (§143): a suite must never start writing every
+    # mix's episodes because a developer's shell turned it on.
+    "DAILY_EDITION", "DAILY_EDITION_TIMEZONE", "DAILY_EDITION_HOURS",
+    "DAILY_EDITION_MINUTES", "DAILY_EDITION_MAX_EPISODES",
+    "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
@@ -299,7 +304,11 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     # `TRENDING_BANK=0` row, and runs against it here. The production default
     # - bank on, pool never on Trending - is pinned by
     # `tests/test_trending_bank.py`, which turns it on explicitly.
-    off = dataclasses.replace(config.settings, trending_bank=False)
+    # The DailyFAM edition (§143) likewise: off, so a TestClient's startup
+    # does not begin writing every mix's episodes in the background. Its own
+    # tests turn it on.
+    off = dataclasses.replace(config.settings, trending_bank=False,
+                              daily_edition=False)
     monkeypatch.setattr(config, "settings", off)
     monkeypatch.setattr(trending_bank, "settings", off)
     trending_bank.reset()
@@ -404,3 +413,20 @@ def isolated_quotas(tmp_path, monkeypatch):
     monkeypatch.setattr(
         appmod, "QUOTAS", quotas_mod.QuotaStore(str(tmp_path / "auth" / "quotas.db")))
     monkeypatch.setattr(quotas_mod, "settings_enforcing", lambda: False)
+
+
+@pytest.fixture
+def kept_only_while_current(monkeypatch):
+    """`CACHE_LIFE_SECONDS=0`: the pre-§143 cache, where a row is kept only
+    while it is current - so `ttl=-1` writes an entry that is already gone.
+    For the tests about expiry itself, which predate the week-long keep."""
+    import dataclasses
+
+    import cache as cache_mod
+    import pipeline as pipeline_mod
+
+    # Both modules hold their own reference to the settings object, and both
+    # read the life: the cache to keep, the pipeline to decide whether to write.
+    life_zero = dataclasses.replace(cache_mod.settings, cache_life_seconds=0)
+    monkeypatch.setattr(cache_mod, "settings", life_zero)
+    monkeypatch.setattr(pipeline_mod, "settings", life_zero)
