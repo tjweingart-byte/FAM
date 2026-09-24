@@ -312,3 +312,42 @@ def test_the_title_rule_asks_for_the_subject_by_name():
     source = open(script_generator.__file__, encoding="utf-8").read()
     assert "Clear first, curious second" in source
     assert "Clear first" in episode_intelligence.build_ei_prompt("the fed", 2)
+
+
+# --- found in review ------------------------------------------------------
+
+def test_the_inbox_never_shows_a_message_from_before_a_delete(store):
+    """Two rows can share a timestamp; the inbox joined on it and could show
+    the pre-delete message as the thread's last line."""
+    old = store.send("a", "b", text="old secret", at=100.0)
+    store.clear("a", "b")
+    store.send("b", "a", text="new", at=100.0)
+    assert old.id
+    assert store.inbox("a")[0]["last"]["text"] == "new"
+
+
+def test_a_deleted_chat_raises_no_banner(store):
+    before = store.latest_id("a")
+    store.send("b", "a", text="hi")
+    store.clear("a", "b")
+    assert store.arrived_for("a", after_id=before) == []
+
+
+def test_two_follow_ups_in_the_same_words_stay_two_episodes(shelf):
+    """`context` is in the episode's cache key, so it is in history's."""
+    shelf.note_listen("u", "and the costs", 2, "other", title="A", context="topic one", at=100)
+    shelf.note_listen("u", "and the costs", 2, "other", title="B", context="topic two", at=200)
+    rows = shelf.history("u", now=300)
+    assert [(r["context"], r["title"]) for r in rows] == [("topic two", "B"), ("topic one", "A")]
+    shelf.retitle("u", "and the costs", 2, "Renamed", context="topic one")
+    assert [r["title"] for r in shelf.history("u", now=300)] == ["B", "Renamed"]
+
+
+def test_a_cut_message_does_not_end_on_a_line_break():
+    text = "a" * (messages_mod.MAX_TEXT - 1) + "\nmore"
+    assert not messages_mod.clean_text(text).endswith("\n")
+
+
+def test_spell_runs_off_the_event_loop():
+    import inspect
+    assert "asyncio.to_thread" in inspect.getsource(appmod.spell)

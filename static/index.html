@@ -11520,9 +11520,14 @@
     try {
       fetch("/api/history", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ query: entry.query, minutes: entry.minutes,
-                               surface: entry.surface, title: title || "",
-                               context: entry.context || "" })
+        // Cut to the server's own limits: a search title is derived from the
+        // question and can run past 200 characters, and an over-long field
+        // is a 422 that would silently leave the episode out of the history.
+        body: JSON.stringify({ query: String(entry.query || "").slice(0, 500),
+                               minutes: entry.minutes,
+                               surface: entry.surface,
+                               title: String(title || "").slice(0, 200),
+                               context: String(entry.context || "").slice(0, 300) })
       }).catch(function(){});
     } catch(e){}
   }
@@ -11534,8 +11539,10 @@
     try {
       fetch("/api/history", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ query: entry.query, minutes: entry.minutes,
-                               surface: entry.surface, title: title,
+        body: JSON.stringify({ query: String(entry.query || "").slice(0, 500),
+                               minutes: entry.minutes, surface: entry.surface,
+                               title: String(title).slice(0, 200),
+                               context: String(entry.context || "").slice(0, 300),
                                retitle: true })
       }).catch(function(){});
     } catch(e){}

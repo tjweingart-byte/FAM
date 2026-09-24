@@ -420,6 +420,9 @@ def _trending_bank_report() -> dict:
 async def lifespan(_: FastAPI):
     # Pay the voice model's load cost now rather than on the first listener.
     await warm_up()
+    # The autocorrect word list, likewise (§142) - in a thread and not
+    # awaited, so it costs startup nothing and the first word typed nothing.
+    asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
     _announce_research()
@@ -2220,10 +2223,15 @@ async def spell(req: SpellRequest, request: Request) -> dict:
     needed: search is the one box everybody types into.
     """
     _read_limit(request)
-    out = []
-    for i, word in enumerate(req.words):
-        first = bool(req.first[i]) if i < len(req.first) else False
-        out.append(autocorrect_mod.correct_word(str(word or "")[:40], first=first))
+    words = [str(w or "")[:40] for w in req.words]
+    firsts = [bool(req.first[i]) if i < len(req.first) else False
+              for i in range(len(words))]
+    # In the threadpool, never on the event loop: a checker lookup is pure
+    # CPU, and a batch of unfamiliar words is tens of milliseconds in which
+    # this worker would otherwise serve nobody else.
+    out = await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_word(w, first=f)
+                 for w, f in zip(words, firsts)])
     return {"corrections": out, "available": autocorrect_mod.available()}
 
 
@@ -4356,7 +4364,7 @@ async def history_write(req: HistoryRequest, request: Request) -> dict:
         return {"ok": True, "remembered": False}
     user = _listener(request)
     if req.retitle:
-        SAVED.retitle(user, req.query, req.minutes, req.title)
+        SAVED.retitle(user, req.query, req.minutes, req.title, context=req.context)
         return {"ok": True, "remembered": True}
     kept = SAVED.note_listen(user, req.query, req.minutes, req.surface,
                              title=req.title, context=req.context)

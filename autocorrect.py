@@ -114,6 +114,19 @@ def available() -> bool:
     return _spell() is not None
 
 
+def warm() -> None:
+    """Load the word list and FAM's vocabulary before anybody types.
+
+    Building both costs most of a second, once per worker; paid at startup,
+    off the event loop, rather than on the first word somebody finishes.
+    """
+    try:
+        _spell()
+        _vocabulary()
+    except Exception:
+        log.exception("could not warm autocorrect; it will load on first use")
+
+
 @lru_cache(maxsize=1)
 def _vocabulary() -> frozenset:
     """FAM's own words, which are never corrected: the catalogue's subjects,

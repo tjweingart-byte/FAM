@@ -93,7 +93,7 @@ def clean_text(text: str) -> str:
                 out.append("")
     while out and not out[-1]:
         out.pop()
-    return "\n".join(out)[:MAX_TEXT]
+    return "\n".join(out)[:MAX_TEXT].rstrip()
 
 
 class MessageError(ValueError):
@@ -290,10 +290,15 @@ class MessageStore:
             return []
         try:
             rows = self._conn().execute(
-                "SELECT id, thread, sender, recipient, kind, text, query,"
-                " minutes, title, at FROM messages"
-                " WHERE recipient = ? AND id > ? ORDER BY id ASC LIMIT ?",
-                (user_id, int(after_id), int(limit)),
+                "SELECT m.id, m.thread, m.sender, m.recipient, m.kind, m.text,"
+                " m.query, m.minutes, m.title, m.at FROM messages m"
+                " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
+                " WHERE m.recipient = ? AND m.id > ?"
+                # Not a message from a chat this listener has deleted (§142):
+                # a banner for it would open an empty conversation.
+                "   AND m.id > COALESCE(c.after_id, 0)"
+                " ORDER BY m.id ASC LIMIT ?",
+                (user_id, user_id, int(after_id), int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read new messages")
@@ -330,14 +335,17 @@ class MessageStore:
                 "SELECT m.thread, m.id, m.sender, m.recipient, m.kind, m.text,"
                 "       m.query, m.minutes, m.title, m.at"
                 "  FROM messages m"
-                "  JOIN (SELECT x.thread, MAX(x.at) AS top FROM messages x"
+                # The newest row by *id*, not by timestamp: two rows can
+                # share an `at`, and joining on it could pick one from before
+                # a Delete chat (§142). An id is unique and only grows.
+                "  JOIN (SELECT x.thread, MAX(x.id) AS top FROM messages x"
                 "          LEFT JOIN clears c"
                 "            ON c.thread = x.thread AND c.user_id = ?"
                 "         WHERE (x.sender = ? OR x.recipient = ?)"
                 "           AND x.id > COALESCE(c.after_id, 0)"
                 "         GROUP BY x.thread) t"
-                "    ON t.thread = m.thread AND t.top = m.at"
-                " ORDER BY m.at DESC LIMIT ?",
+                "    ON t.thread = m.thread AND t.top = m.id"
+                " ORDER BY m.at DESC, m.id DESC LIMIT ?",
                 (user_id, user_id, user_id, int(limit)),
             ).fetchall()
         except Exception:
@@ -349,7 +357,7 @@ class MessageStore:
         for r in rows:
             last = Message(r[1], r[0], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9])
             if last.thread in seen:
-                continue  # two messages sharing a timestamp; one is enough
+                continue  # defensive: the join is on a unique id, so one row a thread
             seen.add(last.thread)
             other = last.recipient if last.sender == user_id else last.sender
             out.append({

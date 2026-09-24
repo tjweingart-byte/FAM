@@ -109,6 +109,8 @@ __MIX_ITEMS__
   //: Listening history (§142), in this page's memory like PROGRESS.
   var PREVIEW_HISTORY = [];
   var PREVIEW_AUTHED = function () { return !!EMAIL; };
+  //: Followers already announced to this listener (§142), as `social.announced`.
+  var ANNOUNCED = {};
   var NOTIFY = { head: 0, pending: [], follows: [] };
 
   window.famPreviewNotify = function (item) {
@@ -1318,11 +1320,14 @@ __MIX_ITEMS__
       var surfaces = ["myfam", "dailyfam", "search", "other"];
       if (!PREVIEW_AUTHED()) return json({ ok: true, remembered: false });
       if (surfaces.indexOf(hb.surface) === -1) return json({ ok: true, remembered: false });
+      var hctx = hb.context || "";
       var twin = PREVIEW_HISTORY.filter(function (h) {
-        return h.query === hb.query && h.minutes === hb.minutes && h.surface === hb.surface; })[0];
+        return h.query === hb.query && h.minutes === hb.minutes
+            && h.context === hctx && h.surface === hb.surface; })[0];
       if (hb.retitle) {
         PREVIEW_HISTORY.forEach(function (h) {
-          if (h.query === hb.query && h.minutes === hb.minutes && hb.title) h.title = hb.title; });
+          if (h.query === hb.query && h.minutes === hb.minutes
+              && h.context === hctx && hb.title) h.title = hb.title; });
         return json({ ok: true, remembered: true });
       }
       if (twin) PREVIEW_HISTORY.splice(PREVIEW_HISTORY.indexOf(twin), 1);
@@ -1356,8 +1361,13 @@ __MIX_ITEMS__
         return fix;
       }) });
     }
-    if (path === "/api/friends/announced") return json({ ok: true });
+    if (path === "/api/friends/announced") {
+      if (!EMAIL) return json({ error: "You need an account for this." }, 401);
+      if (body.user_id) ANNOUNCED[body.user_id] = true;
+      return json({ ok: true });
+    }
     if (path === "/api/messages/thread" && method === "DELETE") {
+      if (!EMAIL) return json({ error: "You need an account for this." }, 401);
       delete THREADS[qs.get("with") || ""];
       return json({ ok: true, unread: 0 });
     }
@@ -1439,7 +1449,9 @@ __MIX_ITEMS__
       pending.forEach(function (m) {
         NOTIFY.head = Math.max(NOTIFY.head, m.id || 0); });
       return json({ messages: pending,
-                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length),
+                    // Never somebody already announced (§142).
+                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length)
+                      .filter(function (p) { return !ANNOUNCED[p.user_id]; }),
                     head: NOTIFY.head, unread: 0 });
     }
 

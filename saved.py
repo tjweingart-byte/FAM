@@ -185,7 +185,11 @@ class SavedStore:
                        title   TEXT NOT NULL DEFAULT '',
                        context TEXT NOT NULL DEFAULT '',
                        at      REAL NOT NULL,
-                       PRIMARY KEY (user_id, query, minutes, surface)
+                       -- `context` is in the key because it is in the
+                       -- episode's cache key: two follow-ups asked in the
+                       -- same words from different topics are different
+                       -- episodes, and merging them would replay the wrong one.
+                       PRIMARY KEY (user_id, query, minutes, context, surface)
                    )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS history_user"
@@ -462,8 +466,8 @@ class SavedStore:
             self._conn().execute(
                 "INSERT INTO history (user_id, query, minutes, surface, title,"
                 " context, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-                " ON CONFLICT(user_id, query, minutes, surface) DO UPDATE SET"
-                "  at = excluded.at, context = excluded.context,"
+                " ON CONFLICT(user_id, query, minutes, context, surface) DO UPDATE SET"
+                "  at = excluded.at,"
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
                 "               ELSE history.title END",
                 (user_id, query, minutes, surface, title,
@@ -479,7 +483,7 @@ class SavedStore:
             return False
 
     def retitle(self, user_id: str, query: str, minutes: int,
-                title: str) -> None:
+                title: str, context: str = "") -> None:
         """The writer's own title arrived; use it on every row for this
         episode without moving any of them."""
         query = " ".join(str(query or "").split())[:MAX_QUERY]
@@ -489,7 +493,8 @@ class SavedStore:
         try:
             self._conn().execute(
                 "UPDATE history SET title = ? WHERE user_id = ? AND query = ?"
-                " AND minutes = ?", (title, user_id, query, int(minutes or 0)))
+                " AND minutes = ? AND context = ?",
+                (title, user_id, query, int(minutes or 0), str(context or "")[:300]))
         except Exception:
             log.exception("could not retitle history for %r", user_id)
 

@@ -659,7 +659,7 @@ the rest of this list it needs taste rather than a key.
    strings somebody wrote down is not the set of things a person can be
    interested in, and a search that can only fail is the worst control on the
    one screen whose job is collecting interests. `interests_yours_source` says
-   which of the three decided it, and only the Settings wheel carries a line
+   which of the three decided it, and only the Settings editor carries a line
    of copy - one that changes on its own without a word reads as the app
    having lost somebody's answer. **And there is no cap on how many
    interests somebody has** - it was six, it made a listener with seven pick
@@ -704,8 +704,8 @@ the rest of this list it needs taste rather than a key.
    `KeyError` rather than a finding.
    The intro's chosen interests now seed `taste`, so "Made for you" is no
    longer honestly empty on a listener's first open, and
-   `INTEREST_CATALOGUE` is the long list behind "View more", which is the
-   wheel's hub - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
+   `INTEREST_CATALOGUE` is the long list that is the interests page itself
+   since §142 - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
    the settled constraint above is untouched: an interest is something a
    listener recognises, a tag is what the ranker scores, and the picker is
    still built from `TAG_LABELS`.
@@ -798,6 +798,12 @@ the rest of this list it needs taste rather than a key.
    badge that cleared itself the moment something drew it is a count nobody got
    to read. `follows_back` rides along, because offering the button to somebody
    already followed is a control that cannot do anything.
+   **Once means once** *(§142)*: which followers the popup or banner has
+   already shown is a table of its own (`social.announced`), because the badge
+   and the popup answer different questions - "who is new since you looked"
+   and "who have you been told about" - and the popup had been remembering
+   the second in page memory, so every fresh open showed the latest follower
+   again. `/api/friends` carries `announce` beside `new_followers`.
    **And eighty-five per cent through is finished.** Waiting for the last
    sample counted almost nothing: the ending is the one part a listener skips,
    so an episode heard to the ninety-fifth percentile and closed was recorded
@@ -2484,7 +2490,7 @@ What is true but not obvious from the code:
   the browser smoke test all run without one. Anything about *how the writing
   sounds* is unverified until someone runs it with a key.
 - The checks answer "does it work", not "does it look right". `tools/shots.py`
-  photographs all sixteen surfaces so a refactor can be proved neutral;
+  photographs every surface it lists so a refactor can be proved neutral;
   `tools/stall_probe.py` measures browser stalls without a key, and
   `tools/compare_search.py` measures what research actually buys. Each exists
   because a claim was once made without it and was wrong.

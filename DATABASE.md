@@ -25,9 +25,9 @@ working directory, and the `Dockerfile` pins all fourteen to the mounted
 | `myfam.db` | `topics.py` | **The event log.** Every interaction *of an account* - a guest is never written (§127, `app._remembers`). This is the taste model's entire input. |
 | `preferences.db` | `preferences.py` | One row per listener: chosen interests, chosen topics, language, what is shown on the profile. |
 | `accounts.db` | `accounts.py` | Credentials, sessions, third-party identities. |
-| `social.db` | `social.py` | People, the follow graph, vibes. |
-| `messages.db` | `messages.py` | Direct messages and per-thread read marks. |
-| `saved.db` | `saved.py` | Save-for-later pointers and folders, and how far through an episode an account got (`progress`, §127 - it was `localStorage`, so it belonged to the phone). |
+| `social.db` | `social.py` | People, the follow graph, vibes, and which followers have already been announced (`announced`, §142). |
+| `messages.db` | `messages.py` | Direct messages, per-thread read marks, and per-listener Delete chat marks (`clears`, §142). |
+| `saved.db` | `saved.py` | Save-for-later pointers and folders, how far through an episode an account got (`progress`, §127 - it was `localStorage`, so it belonged to the phone), and two weeks of listening history (`history`, §142). |
 | `shares.db` | `sharing.py` | Share links and their open counts. |
 | `mixes.db` | `mixes.py` | DailyFAM mixes — topic ids and typed topics, never audio. |
 | `quotas.db` | `quotas.py` | Per-window counters and per-episode charges. |

@@ -1317,14 +1317,28 @@ def main() -> int:
                 == "screen-thread", "tapping the banner did not open the chat"
             assert page.evaluate("currentThread && currentThread.user_id") == "u_beth"
 
-            # Somebody already announced - the fixture's follower, whose popup
-            # went up when the app opened - is never announced again (§142).
+            # Somebody already announced is never announced again (§142).
+            # In the fixture build that is its follower, whose popup went up
+            # when the app opened - so the popup must have told the server.
+            # The live build has no followers, so it is told directly. Either
+            # way the page's own memory of it is cleared first, so what keeps
+            # the banner down is the server's `unannounced` filter and not the
+            # client remembering.
             page.evaluate("hideNotification()")
             page.wait_for_timeout(500)
+            if "live" not in target.name:
+                assert page.evaluate("!!followerPopupShown['u_nadia']"), \
+                    "the follower popup did not go up for the fixture's follower"
+            else:
+                page.evaluate("""fetch('/api/friends/announced', { method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: 'u_nadia' }) })""")
+                page.wait_for_timeout(300)
             page.evaluate("""
+                delete notifAnnouncedFollows['u_nadia'];
+                delete followerPopupShown['u_nadia'];
                 window.famPreviewNotify({ follow: {
                   user_id: "u_nadia", name: "Nadia Okoro", handle: "nadia" } });
-                markFollowerAnnounced({ user_id: "u_nadia" });
                 pollNotifications();
             """)
             page.wait_for_timeout(1200)
@@ -2483,13 +2497,16 @@ def main() -> int:
             page.wait_for_timeout(800)
             assert page.eval_on_selector("#shareConfirm", "e => e.hidden"), \
                 "the confirm step is showing before anybody was chosen"
-            if not page.query_selector("#shareContacts .share-contact"):
+            if "live" in target.name:
                 # The live build's database has one listener in it, so there
                 # is nobody to choose - and the sheet says so, which is what
-                # `an_episode_can_be_shared_outside_fam` already checks.
+                # `an_episode_can_be_shared_outside_fam` already checks. Only
+                # there: the fixture always has people, and an empty row in
+                # it is a failure, not a reason to skip.
                 page.evaluate("closeShareModal(); hideNowBar(); openMyFamTab()")
                 page.wait_for_timeout(300)
                 return
+            page.wait_for_selector("#shareContacts .share-contact", timeout=8000)
             page.click("#shareContacts .share-contact")
             page.wait_for_timeout(200)
             assert page.is_visible("#shareOverlay.active"), \
@@ -2516,8 +2533,8 @@ def main() -> int:
             """Settings -> Listening history (§142): All, myFAM, dailyFAM and
             searchFAM, newest first, and an episode heard is on it."""
             page.evaluate("""
-                noteListen({ query: 'why bonds move', minutes: 2, surface: 'myfam' }, 'Why Bonds Move');
-                noteListen({ query: 'what the fed did', minutes: 2, surface: 'search' }, 'The Fed');
+                noteListen({ query: 'smoke history bonds', minutes: 2, surface: 'myfam' }, 'Why Bonds Move');
+                noteListen({ query: 'smoke history fed', minutes: 2, surface: 'search' }, 'The Fed');
             """)
             page.wait_for_timeout(400)
             page.evaluate("openHistory()")
