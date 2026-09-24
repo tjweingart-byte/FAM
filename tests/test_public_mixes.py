@@ -228,6 +228,37 @@ def test_plus_adds_it_to_your_dailyfam_beside_your_own():
     assert again.status_code == 400
 
 
+def test_tapping_the_plus_again_takes_the_mix_back_out():
+    bee = person("bee@fam.test", "Bee", "bee")
+    gym = make_mix(bee, "Gym", ["f:ai"])
+    me = person("me@fam.test")
+    make_mix(me, "Morning", ["f:news"], public=False)
+    me.post(f"/api/mixes/{gym['id']}/add")
+
+    gone = me.delete(f"/api/mixes/{gym['id']}/add")
+    assert gone.status_code == 200, gone.text
+    assert [m["name"] for m in me.get("/api/mixes").json()["mixes"]] == ["Morning"]
+    assert me.get("/api/mixes/public").json()["mixes"][0]["added"] is False
+    # The original is untouched, and it can be added again.
+    assert bee.get("/api/mixes").json()["mixes"][0]["name"] == "Gym"
+    assert me.delete(f"/api/mixes/{gym['id']}/add").status_code == 404
+    assert me.post(f"/api/mixes/{gym['id']}/add").status_code == 200
+
+
+def test_removing_a_mix_needs_an_account():
+    bee = person("bee@fam.test", "Bee", "bee")
+    gym = make_mix(bee, "Gym", ["f:ai"])
+    assert TestClient(appmod.app).delete(f"/api/mixes/{gym['id']}/add").status_code == 401
+
+
+def test_the_added_button_asks_before_removing():
+    with open(os.path.join(ROOT, "static", "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    body = html.split("function addMixFrom(", 1)[1].split("\n  }\n", 1)[0]
+    assert "confirmRemoveMix(m)" in body
+    assert "from your DailyFAM?" in html
+
+
 def test_a_copy_whose_owner_has_no_name_does_not_say_from_nobody():
     anon = person("anon@fam.test")          # an account with no name or handle
     gym = make_mix(anon, "Gym", ["f:ai"])

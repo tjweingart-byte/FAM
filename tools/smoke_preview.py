@@ -2171,6 +2171,33 @@ def main() -> int:
             page.evaluate("openPlayFAM()")
             page.wait_for_timeout(300)
 
+        def an_added_mix_is_removed_by_the_same_button():
+            """The (+) that reads Added, tapped again, asks "Remove ... from
+            your DailyFAM?" and on yes takes the copy back out. Runs after
+            the add above; with nobody else's mix to find there is nothing
+            to remove."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#screen-playfam.active", timeout=5000)
+            page.click("#dailySearch")
+            page.wait_for_timeout(600)
+            if not page.evaluate("publicResults.length"):
+                page.click("#dailySearchX")
+                return
+            page.fill("#dailySearch", "@mike")
+            page.wait_for_timeout(500)
+            page.click("#dailyResults .mix-add.on")
+            page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+            sheet = page.inner_text("#sheetCard")
+            assert "Remove Morning brief from your DailyFAM?" in sheet, sheet[:200]
+            page.click("#sheetCard .sheet-item.danger")
+            page.wait_for_timeout(500)
+            assert not page.query_selector("#dailyResults .mix-add.on"), \
+                "the button still reads added after removing"
+            page.click("#dailySearchX")
+            page.wait_for_timeout(300)
+            assert "morning brief" not in page.inner_text("#mixList").lower(), \
+                "the removed mix is still in the list"
+
         def a_mix_is_shared_from_its_menu():
             """Share mix, in the mix's own menu, opens the same sheet an
             episode does - people and every destination - worded for a mix.
@@ -3052,6 +3079,7 @@ def main() -> int:
               a_cover_is_square_and_the_avatar_is_not)
         check("DailyFAM searches other people's mixes, and (+) adds one",
               dailyfam_searches_other_peoples_mixes)
+        check("Tapping Added again removes the mix", an_added_mix_is_removed_by_the_same_button)
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)

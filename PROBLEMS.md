@@ -11794,3 +11794,23 @@ from two saves at once, since `_IN_FLIGHT` is per process; and every
 volatile episode now occupies `scripts.db` for a week rather than fifteen
 minutes - the audio beside it has a ceiling (`AUDIO_CACHE_MAX_MB`), the
 scripts do not.
+
+## 144. A mix added from DailyFAM search could not be taken back out
+
+The (+) on somebody else's public mix (§140) turned into a tick once the copy
+was added, and tapping the tick again only toasted "Already in your
+DailyFAM". The copy could be deleted from its own ⋯ menu, but nothing on the
+button that added it said so, so from where the listener was standing there
+was no way to un-add it.
+
+**The same button now does both.** Tapped while it reads added, it asks
+"Remove <mix> from your DailyFAM?" in the action sheet, and yes deletes the
+copy. It asks rather than acting at once because the copy is the listener's
+from the moment it is added - it may have been renamed or re-covered since -
+and a tick is an easy thing to tap by accident.
+
+`DELETE /api/mixes/{id}/add` is the endpoint, keyed on the **original's** id
+like the add, because that is the only id the (+) knows
+(`MixStore.remove_copy` deletes by `source_id`). Account-gated, 404 when
+there is no copy, and the original is untouched. Both preview builds mock it,
+and a smoke check drives add, tap again, confirm, and the list without it.

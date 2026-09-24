@@ -6741,7 +6741,7 @@
   function mixAddButtonHTML(m, where, i){
     if(m.mine) return '';
     return '<button class="mix-add' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
-      + ' aria-label="' + (m.added ? "In your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
+      + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
       + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
       + addIconSVG(m.added) + '</button>';
   }
@@ -6877,7 +6877,7 @@
   function addMixFrom(where, i){
     var m = mixFromList(where, i);
     if(!m || m.mine) return;
-    if(m.added){ toast("Already in your DailyFAM"); return; }
+    if(m.added){ confirmRemoveMix(m); return; }
     if(!AUTH.authenticated){
       showActionSheet([
         { group: "Adding a mix to your DailyFAM needs an account. Listening never does." },
@@ -6905,11 +6905,41 @@
       });
   }
 
+  // The same button, tapped again once it reads Added: asks first, because
+  // the copy may have been renamed or re-covered since, and takes it back out.
+  function confirmRemoveMix(m){
+    showActionSheet([
+      { group: "Remove " + escapeHtml(m.name) + " from your DailyFAM?" },
+      { label: "Yes, remove it", danger: true, action: function(){ removeMixCopy(m); } }
+    ]);
+  }
+
+  function removeMixCopy(m){
+    document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = true; });
+    fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "DELETE" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "Could not remove that mix");
+          return d;
+        });
+      })
+      .then(function(){
+        if(Array.isArray(mixes)) mixes = mixes.filter(function(x){ return x.source_id !== m.id; });
+        markMixAdded(m.id, false);
+        toast("Removed from your DailyFAM");
+      })
+      .catch(function(e){
+        document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
+        toast(e.message);
+      });
+  }
+
   // Every copy of that mix on screen - a search result, a profile row and the
   // mix's own screen can all be showing it at once.
-  function markMixAdded(id){
+  function markMixAdded(id, on){
+    on = on !== false;
     [publicResults, personMixes, publicMix ? [publicMix] : []].forEach(function(list){
-      (list || []).forEach(function(m){ if(m && m.id === id) m.added = true; });
+      (list || []).forEach(function(m){ if(m && m.id === id) m.added = on; });
     });
     if(!document.getElementById("dailyResults").hidden)
       renderDailyResults(document.getElementById("dailySearch").value.trim());

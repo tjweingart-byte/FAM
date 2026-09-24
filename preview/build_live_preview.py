@@ -1665,6 +1665,13 @@ __MIX_ITEMS__
       });
     }
     var mixVerb = path.match(/^\/api\/mixes\/([^/]+)\/(add|share)$/);
+    if (mixVerb && mixVerb[2] === "add" && method === "DELETE") {
+      var copies = rows("mixes").filter(function (m) {
+        return m.user_id === UID && m.source_id === mixVerb[1]; });
+      if (!copies.length) return json({ error: "That mix is not in your DailyFAM." }, 404);
+      return Promise.all(copies.map(function (m) { return del("mixes", m.id); }))
+        .then(function () { paint(); return json({ ok: true }); });
+    }
     if (mixVerb && method === "POST") {
       if (mixVerb[2] === "share") {
         var mine = rows("mixes").filter(function (m) {

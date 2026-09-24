@@ -3452,6 +3452,16 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     return dict(mix.as_dict(), **_source_label(mix, {}))
 
 
+@app.delete("/api/mixes/{mix_id}/add")
+async def remove_public_mix(mix_id: str, request: Request) -> dict:
+    """The same (+) tapped again: take that mix back out of this listener's
+    DailyFAM. `mix_id` is the original's, as on the add."""
+    _read_limit(request)
+    if not MIXES.remove_copy(_require_account(request), mix_id):
+        raise HTTPException(status_code=404, detail="That mix is not in your DailyFAM.")
+    return {"ok": True}
+
+
 def _mix_url(mix_id: str, request: Request) -> tuple[str, bool]:
     base = _public_base(request)
     return (f"{base}/m/{mix_id}" if base else f"/m/{mix_id}"), bool(base)

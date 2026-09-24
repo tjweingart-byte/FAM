@@ -1270,6 +1270,13 @@ __MIX_ITEMS__
       return one ? json(one) : json({ error: "That mix is private or no longer exists." }, 404);
     }
     var mixVerb = path.match(/^\/api\/mixes\/([^/]+)\/(add|share)$/);
+    if (mixVerb && mixVerb[2] === "add" && method === "DELETE") {
+      var had = mixes.mixes.length;
+      mixes.mixes = mixes.mixes.filter(function (m) { return m.source_id !== mixVerb[1]; });
+      if (mixes.mixes.length === had) return json({ error: "That mix is not in your DailyFAM." }, 404);
+      PUBLIC_MIXES.forEach(function (m) { if (m.id === mixVerb[1]) m.added = false; });
+      return json({ ok: true });
+    }
     if (mixVerb && method === "POST") {
       if (mixVerb[2] === "add") {
         var src = PUBLIC_MIXES.filter(function (m) { return m.id === mixVerb[1]; })[0];
