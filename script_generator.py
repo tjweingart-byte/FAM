@@ -18,6 +18,7 @@ import asyncio
 import dataclasses
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import AsyncIterator
 
@@ -466,6 +467,11 @@ class ScriptNotes:
     outcome_dependent: bool = False
     #: How fresh the evidence had to be, in days. 0 means evergreen.
     recency_days: int = 0
+    #: When the information this episode is written from was sourced - the
+    #: moment retrieval and the live lookup both answered (§142). Stored
+    #: beside the script, shown on replay surfaces, and the clock its
+    #: current window runs from. 0 until `prepare` has run.
+    sourced_at: float = 0.0
     #: What the live lookup actually did, for the log and `/api/health`. One of
     #: `live_facts.LiveLookup.outcome`, or "" when nothing was asked.
     live_outcome: str = ""
@@ -1232,6 +1238,8 @@ class ScriptGenerator:
         live_plan, research_plan = await asyncio.gather(
             self.live_lookup(plan, notes), self.research(plan, notes))
         _mark(notes, "evidence_ready")
+        if notes is not None:
+            notes.sourced_at = time.time()
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
             thin_on=research_plan.thin_on)

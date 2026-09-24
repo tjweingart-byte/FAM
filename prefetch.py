@@ -126,6 +126,10 @@ class Candidate:
     #: Whose tap this is predicted for. Empty for a candidate that is the same
     #: for everyone, which is the cheapest kind: one script, every listener.
     listener: str = ""
+    #: The length is the surface's own and a cycle must not override it
+    #: (§142: a DailyFAM episode is played at the edition's length, whatever
+    #: myFAM's header says).
+    pinned_length: bool = False
 
     def as_dict(self) -> dict:
         return {"query": self.query, "minutes": self.minutes,
@@ -600,7 +604,8 @@ class Prefetcher:
                 continue
             # Before the dedupe, because length is part of what makes two
             # guesses the same guess.
-            if minutes and candidate.minutes != int(minutes):
+            if (minutes and candidate.minutes != int(minutes)
+                    and not candidate.pinned_length):
                 candidate = dataclasses.replace(candidate, minutes=int(minutes))
             # The same rule a live episode obeys. A question that is nobody
             # else's business must not be written speculatively either - it
@@ -757,9 +762,12 @@ class Prefetcher:
             # it belongs to everybody: stamping the listener it was guessed
             # for would hide it from the one Explore feed most likely to want
             # it. See `cache.recent`.
+            # When its information was sourced (§142), passed only when
+            # known so an older cache double is called as it always was.
+            stamp = {"sourced_at": notes.sourced_at} if notes.sourced_at else {}
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
-                           self._bucket(plan))
+                           self._bucket(plan), **stamp)
             self.ledger.note_warmed(key, candidate, spent)
             log.info("prefetch warmed %d sentences for %r (%s: %s, $%.4f)",
                      len(sentences), candidate.query, candidate.source,

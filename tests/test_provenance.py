@@ -179,7 +179,7 @@ def test_provenance_survives_a_cache_hit(backend, tmp_path):
     assert back.retrievers == ["exa"]
 
 
-def test_an_expired_entry_reports_no_sources(tmp_path):
+def test_an_expired_entry_reports_no_sources(tmp_path, kept_only_while_current):
     store = cache_mod.SqliteScriptCache(str(tmp_path / "c.db"))
     store.put("k", ["One."], -1, "q", "", 3, "", '{"items":[{"label":"x"}]}')
     assert store.sources("k") == ""

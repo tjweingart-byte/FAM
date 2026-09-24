@@ -157,6 +157,17 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the trending bank")
             report["trending_editions_dropped"] = 0
+        # DailyFAM's edition too (§142), for the same reason: its episodes
+        # went with the script cache, and a slot left marked ready would stop
+        # today's being written again until tomorrow's.
+        try:
+            import daily_edition
+
+            report["daily_editions_dropped"] = daily_edition.store().clear()
+            daily_edition.reset()
+        except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
+            log.exception("could not drop the DailyFAM edition")
+            report["daily_editions_dropped"] = 0
         report.update(_forget_what_the_log_taught())
     return report
 

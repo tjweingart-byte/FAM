@@ -194,19 +194,19 @@ class MixSource:
         if not listener:
             return []
         out: list = []
-        import mixes as mixes_mod
+        import daily_edition
         for mix in self.store.list_for_user(listener):
             for item in getattr(mix, "items", []):
                 custom = bool(getattr(item, "custom", False))
                 out.append(Candidate(
                     # The words a tap on it will send - for a followed or
-                    # typed subject that is today's dated prompt, not the bare
-                    # subject, or the warm is under a key nothing asks for.
-                    # Dated on the server's clock, so a listener whose local
-                    # day differs misses it; that is a wasted warm, never a
-                    # stale episode.
-                    query=mixes_mod.prompt_for(item),
-                    minutes=self.minutes,
+                    # typed subject that is the edition's dated prompt, which
+                    # `/api/mixes` serves the interface verbatim (§142), so
+                    # the two cannot disagree about the day. Usually the
+                    # edition has written it already and this finds it cached.
+                    query=daily_edition.prompt_for(item),
+                    minutes=daily_edition.minutes(),
+                    pinned_length=True,
                     source=self.name,
                     reason=f"in their {mix.name!r} mix"
                            + (" (typed, so shared with nobody)" if custom else ""),

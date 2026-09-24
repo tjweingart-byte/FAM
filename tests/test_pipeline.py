@@ -460,7 +460,7 @@ def test_expired_entries_are_not_served(tmp_path):
     assert cache.get("k2") == ["One sentence."]
 
 
-def test_expired_entries_are_actually_deleted(tmp_path):
+def test_expired_entries_are_actually_deleted(tmp_path, kept_only_while_current):
     """Filtering expired rows on read is not enough - the file still grows.
 
     purge_expired existed but nothing called it, so scripts.db kept every
@@ -484,7 +484,7 @@ def test_expired_entries_are_actually_deleted(tmp_path):
     assert cache.get("live") == ["Still good."]
 
 
-def test_startup_purges_the_script_cache(tmp_path, monkeypatch):
+def test_startup_purges_the_script_cache(tmp_path, monkeypatch, kept_only_while_current):
     """The wiring, not just the method: lifespan must actually call it."""
     import app as appmod
 

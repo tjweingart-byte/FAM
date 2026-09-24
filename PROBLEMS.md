@@ -11543,3 +11543,82 @@ vouched for it, since the cache is also what says the question was shareable.
 Not measured on a real deployment: this container has no traffic. The first
 thing to look at is how often the missed rail is empty, since three rules
 must hold at once and it has no top-up by design.
+
+## 142. DailyFAM as a background edition, and a week-long cache with a sourced stamp
+
+At the owner's direction, after a read of how DailyFAM gets its episodes.
+
+**What DailyFAM was doing.** Every play of a mix was an ordinary on-tap
+episode - brief, retrieval, the writer's thinking and the voice, all in front
+of the first word - which is the wait CLAUDE.md says the browse surfaces must
+not pay. The background path touched it by accident: `MixSource` warmed at
+most a *brief*, only when the owner opened **myFAM**, and even that missed:
+
+* **Two lengths.** The warm used myFAM's length control, the tap the search
+  length (`selectedLengthMinutes`). Minutes are in the key.
+* **Two dates.** The warm dated the prompt with the server's `date.today()`
+  (UTC on Render), the tap with the phone's local date, so every warm made
+  after about 8pm Eastern was for tomorrow.
+* **Nothing warmed on opening DailyFAM**, and a mix competed with four other
+  sources for six warms a cycle.
+* **A whole script could not have helped anyway**: a "last 24 hours" prompt
+  gets a one-day recency window, `ttl_for` gave it `CACHE_TTL_VOLATILE`
+  (fifteen minutes), and a result-dependent subject was never warmed at all.
+
+**The edition** (`daily_edition.py`). Modelled on the Trending bank (§139): at
+`DAILY_EDITION_HOURS` (05:00 Eastern) one episode is written for every
+distinct subject across every mix on the deployment, most-followed first,
+under the key a tap computes, `CONCURRENCY` at a time, inside
+`DAILY_EDITION_MAX_EPISODES` / `_MAX_DOLLARS` (reserved before each write, so
+concurrent writers cannot all pass a ceiling of one). A slot is claimed in the
+database before anything is spent. A mix created, edited or copied between
+editions is written at once in the background (`schedule_mix`). Episode
+intelligence runs on every one - `understand` before `stream_sentences`, as on
+a tap - and the report counts `ei_ok` / `ei_degraded` / `ei_off` per edition
+on `/api/health`, because an EI that had quietly stopped would look identical
+from outside.
+
+**One clock and one length, owned by the server.** `edition_day()` is the date
+of the most recent slot, and `/api/mixes` serves each item's `prompt` already
+dated with it and the edition's `minutes`; the interface sends those verbatim.
+`MixSource` warms the same words at the same pinned length
+(`Candidate.pinned_length`, which a myFAM cycle's length does not override).
+
+**Two rules it departs from, deliberately.** A result-dependent subject *is*
+written ahead - at 05:00 the last 24 hours have happened, and the live lookup
+runs as on a tap - but a game **in progress** at write time is kept and never
+current, so the tap writes a fresh one. And an edition episode is current
+until the next edition plus an hour, whatever `ttl_for` says, the same
+bargain the Trending bank makes.
+
+**Cache life: a week, and "kept" is no longer "current".** The owner's rule
+is that every episode lives a week and is stamped with when its information
+was sourced. Taken literally, a week of `"Chiefs game"` served as the answer
+to `"Chiefs game"` is §89 with a longer fuse, so the two are split:
+
+* `expires` is now how long a row is **kept**: `CACHE_LIFE_SECONDS` (one week)
+  from when it was sourced, for every episode. `fresh_until` is how long it
+  is **current** - `ttl_for`'s answer, unchanged in logic, with evergreen
+  raised from a day to a week (`CACHE_TTL_SECONDS`). `sourced_at` is set in
+  `prepare` the moment retrieval and the live lookup have both answered.
+* `get(key)` means current and is what every writing path asks; replay
+  surfaces (`cached_only`: Explore) pass `current=False` and play anything
+  kept. Near matches and `written_at` are current-only, because both stand
+  for "a tap would be served this".
+* `ttl_for == 0` no longer means "do not write": a game in progress is written,
+  kept, and never handed to a new request.
+* Explore's card says "Sourced 3 hours ago" rather than the row's age, and the
+  player's source line gains "sourced 6:02 AM" from `/api/next`.
+* `CACHE_LIFE_SECONDS=0` restores the old cache exactly (kept only while
+  current). Rows written before the columns existed read as sourced when
+  created and current until they expire.
+
+**Still true and worth knowing.** An evergreen episode that keeps being played
+still slides past a week, up to `CACHE_MAX_AGE_SECONDS` (§134), because that
+is what keeps its stored audio off RunPod; `CACHE_MAX_AGE_SECONDS=604800`
+makes a week a hard limit. And a week-kept mid-game episode can now reach
+Explore, labelled with when it was sourced, which it could not before.
+
+Not measured: there is no key in the build container, so no edition has been
+written against a real model. The first things to read on a deployment are
+the edition's `ei_ok` against `written` on `/api/health`, and its dollars.

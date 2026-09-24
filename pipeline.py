@@ -884,7 +884,8 @@ class PodcastPipeline:
         on, computing the key is a model call, and `/api/next` is polled
         every couple of seconds while an episode is being written.
         """
-        empty = {"thread": "", "title": "", "title_final": False, "summary": ""}
+        empty = {"thread": "", "title": "", "title_final": False, "summary": "",
+                 "sourced_at": 0.0}
         if not is_shareable(plan.query):
             return empty
         key = await self._cache_key(plan) if self.cache else ""
@@ -895,6 +896,10 @@ class PodcastPipeline:
             if stored:
                 out["title"], out["title_final"] = stored, True
             out["summary"] = getattr(self.cache, "summary", lambda _k: "")(key) or ""
+            # When the information it was written from was sourced (§142), so
+            # the player can say how old what it is hearing is.
+            out["sourced_at"] = float(
+                getattr(self.cache, "sourced_at", lambda _k: None)(key) or 0.0)
         if not out["title"]:
             out["title"], out["title_final"] = live_captions.read_title(key)
         return out
@@ -1071,7 +1076,12 @@ class PodcastPipeline:
         if not key:
             return False
         voice, rate = self._audio_voice(), self.engine.sample_rate
-        if self.cache.has_audio(key, voice, rate):
+        # Kept audio is played only when the serving path will play its
+        # script: a replay plays anything kept, anything else only a current
+        # one - past its window the episode is written again, and that needs
+        # the voice (§142).
+        if self.cache.has_audio(key, voice, rate) and (
+                plan.cached_only or self.cache.get(key)):
             return True
         # **A near match plays the neighbour's audio, so it must not wake the
         # GPU either** (§134). The serving path already swaps to the
@@ -1190,7 +1200,10 @@ class PodcastPipeline:
         stats.caption_key = key
         live_captions.open_track(key)
         if self.cache and shareable:
-            cached = self.cache.get(key)
+            # A replay surface replays anything still kept, stamped with when
+            # it was sourced; every other request is served only a script
+            # that is still current, and otherwise writes a new one (§142).
+            cached = self.cache.get(key, current=not plan.cached_only)
             if cached:
                 stats.match = "exact"
             elif bucket and not plan.cached_only:
@@ -1342,52 +1355,52 @@ class PodcastPipeline:
         live_captions.publish_title(stats.caption_key, notes.title, final=True)
 
         if self.cache and self.cache_writes and shareable and stats.script:
-            # How long this stays true, from what the episode was actually
-            # built from - carried home on `notes` because the plan this scope
-            # holds is the unprepared one. Zero means the episode describes
-            # something that is still moving and must not be written at all:
-            # `recent()` is the Explore feed, so a cached in-progress episode
-            # is not only re-served, it is published. PROBLEMS.md §89.
+            # How long this stays *current*, from what the episode was
+            # actually built from - carried home on `notes` because the plan
+            # this scope holds is the unprepared one. It is always written
+            # now (§142): every episode is kept a week and stamped with when
+            # it was sourced, and zero means only that no new request is ever
+            # served it - a game in progress is replayable as what it was at
+            # that moment and never handed to somebody asking about it now.
             ttl = ttl_for(plan.query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
                           recency_days=notes.recency_days)
-            if ttl > 0:
-                # The shareable half only: an attachment's title is the
-                # listener's own document, and the script cache is shared and
-                # feeds Explore. `Provenance.shareable` drops anything private.
-                sources = ""
-                if notes.provenance is not None:
-                    sources = notes.provenance.to_json()
-                # The summary rides as a keyword and only when there is one,
-                # so a cache written before it existed - and every test
-                # double that stands in for one - is still called exactly as
-                # it always was.
-                extra = {"summary": stats.summary} if stats.summary else {}
-                # Whether a play may keep this alive past its first lifetime
-                # (§134): only an episode that makes no claim about a window of
-                # time - no recency window, not a question about a result, not
-                # a fixture that has yet to happen. "This week" must not be
-                # replayed for a month. Passed only when true, so a cache
-                # written before the keyword existed is called as it was.
-                if (not notes.recency_days and not notes.outcome_dependent
-                        and (notes.live_status or "") not in ("in_progress",
-                                                              "scheduled")):
-                    extra["slide"] = True
-                self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
-                               plan.minutes, bucket, sources, self.author,
-                               stats.title, **extra)
-                # The listen that wrote it is its first play (§134).
-                self._count_play(key)
-                # The audio goes beside it once the tail pad is out, and only
-                # when the script itself was kept - audio with no script row
-                # would be an episode nothing can find or expire.
-                stats.audio_key = key
-                log.info("cached %d sentences for %r (ttl %ds)",
-                         len(stats.script), plan.query, ttl)
-            else:
-                log.info("not caching %r: the live state is %r, so this episode "
-                         "is stale the moment it is written",
-                         plan.query, notes.live_status or "unestablished")
+            # The shareable half only: an attachment's title is the
+            # listener's own document, and the script cache is shared and
+            # feeds Explore. `Provenance.shareable` drops anything private.
+            sources = ""
+            if notes.provenance is not None:
+                sources = notes.provenance.to_json()
+            # The summary rides as a keyword and only when there is one,
+            # so a cache written before it existed - and every test
+            # double that stands in for one - is still called exactly as
+            # it always was.
+            extra = {"summary": stats.summary} if stats.summary else {}
+            # Whether a play may keep this alive past its first lifetime
+            # (§134): only an episode that makes no claim about a window of
+            # time - no recency window, not a question about a result, not
+            # a fixture that has yet to happen. "This week" must not be
+            # replayed for a month. Passed only when true, so a cache
+            # written before the keyword existed is called as it was.
+            if (not notes.recency_days and not notes.outcome_dependent
+                    and (notes.live_status or "") not in ("in_progress",
+                                                          "scheduled")):
+                extra["slide"] = True
+            # When its information was sourced (§142), on the same terms.
+            if notes.sourced_at:
+                extra["sourced_at"] = notes.sourced_at
+            self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
+                           plan.minutes, bucket, sources, self.author,
+                           stats.title, **extra)
+            # The listen that wrote it is its first play (§134).
+            self._count_play(key)
+            # The audio goes beside it once the tail pad is out, and only
+            # when the script itself was kept - audio with no script row
+            # would be an episode nothing can find or expire.
+            stats.audio_key = key
+            log.info("cached %d sentences for %r (current for %ds, kept %ds)",
+                     len(stats.script), plan.query, ttl,
+                     settings.cache_life_seconds)
 
         async for chunk in self._finish(pace, stats):
             yield chunk
