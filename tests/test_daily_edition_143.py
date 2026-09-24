@@ -1,4 +1,4 @@
-"""§142: every episode is kept a week and stamped with when it was sourced,
+"""§143: every episode is kept a week and stamped with when it was sourced,
 and DailyFAM is an edition written in the background before anybody taps.
 
 Two halves, pinned separately:
@@ -306,6 +306,8 @@ def test_no_writer_is_reported_not_papered_over(edition):
     edition.create("a", "Morning", ["f:nfl~Eagles"])
     report = asyncio.run(daily_edition.build(edition, None, None))
     assert "written on the tap" in report["detail"]
+    # Nothing claimed: once a key arrives, today's edition is still due.
+    assert daily_edition.due()
 
 
 def test_a_mix_saved_between_editions_is_written_in_the_background(edition):
@@ -327,3 +329,82 @@ def test_the_health_page_reports_the_edition(edition):
     report = daily_edition.report()
     assert report["enabled"] and report["minutes"] == 3
     assert report["schedule"]["hours"] == [5]
+
+
+# --------------------------------------------------------------------------
+# The second pass (PROBLEMS.md §143, "checked twice")
+# --------------------------------------------------------------------------
+def test_a_tap_that_beat_the_edition_is_given_its_window_not_rewritten(edition):
+    edition.create("a", "Morning", ["f:nfl~Eagles"])
+    query = daily_edition.prompt_for(M.followed_item("f:nfl~Eagles"))
+    key = asyncio.run(key_for(plan_episode(query, daily_edition.minutes())))
+    store = MemoryScriptCache()
+    # The tap path's own write: fifteen minutes current, sourced just now.
+    store.put(key, ["Tapped."], 900, query, "", daily_edition.minutes())
+    gen = EditionWriter()
+    report = asyncio.run(daily_edition.build(edition, gen, store))
+    assert report["cached"] == 1 and gen.log == [], "paid for twice"
+    _sourced, until = store._clocks[key]
+    assert until >= daily_edition.next_slot().timestamp()
+
+
+def test_extending_never_makes_a_stale_entry_current(tmp_path):
+    for store in (MemoryScriptCache(), SqliteScriptCache(str(tmp_path / "c.db"))):
+        store.put("k", ["Mid-game."], 0, "chiefs game", "", 2)
+        assert store.extend_current("k", time.time() + 3600) is False
+        assert store.get("k") is None
+        store.put("f", ["Fresh."], 900, "fed", "", 2)
+        assert store.extend_current("f", time.time() + 3600) is True
+        store.put("g", ["Gone."], 900, "q", "", 2,
+                  sourced_at=time.time() - 3600)
+        assert store.extend_current("g", time.time() + 3600) is False
+
+
+def test_the_player_is_not_told_a_superseded_episodes_name():
+    store = MemoryScriptCache()
+    pipe = PodcastPipeline(generator=Writer(), engine=DebugEngine(), cache=store)
+    plan = plan_episode("what happened with the fed today", 1)
+    key = asyncio.run(key_for(plan))
+    store.put(key, ["Old."], 900, plan.query, "old thread", 1, title="Old name",
+              sourced_at=time.time() - 3600)
+    live = asyncio.run(pipe.episode_meta(plan, current_only=True))
+    assert live["title"] != "Old name" and live["thread"] == ""
+    assert live["sourced_at"] == 0.0
+    # A replay, and a card naming the episode, still read the kept row.
+    kept = asyncio.run(pipe.episode_meta(plan))
+    assert kept["title"] == "Old name" and kept["title_final"]
+
+
+def test_a_save_writes_only_what_the_mix_gained_and_only_once(edition):
+    before = edition.create("a", "Morning", ["f:nfl~Eagles"])
+    after = edition.update("a", before.id, topic_ids=["f:nfl~Eagles",
+                                                      "f:stocks~Nvidia"])
+    store, gen = MemoryScriptCache(), EditionWriter()
+
+    async def run(mix, prior):
+        started = daily_edition.schedule_mix(mix, gen, store, before=prior)
+        await asyncio.gather(*list(daily_edition._TASKS))
+        return started
+
+    assert asyncio.run(run(after, before))
+    written = {q for kind, q in gen.log if kind == "write"}
+    assert written == {daily_edition.prompt_for(M.followed_item("f:stocks~Nvidia"))}
+    # Reordering, removing, or saving the same again spends nothing.
+    assert not asyncio.run(run(after, after))
+    assert not asyncio.run(run(after, before)), "tried once per edition"
+
+
+def test_a_life_of_zero_writes_nothing_never_current(kept_only_while_current):
+    class Live(Writer):
+        async def stream_sentences(self, plan, notes=None):
+            if notes is not None:
+                notes.live_status = "in_progress"
+            yield "Under way."
+
+    store, gen = MemoryScriptCache(), Live()
+    plan = plan_episode("chiefs game", 1)
+    key = asyncio.run(key_for(plan))
+    _drain(PodcastPipeline(generator=gen, engine=DebugEngine(), cache=store),
+           plan)
+    assert key not in store._data, "the old cache never wrote it"
+    assert store.plays(key) == 0

@@ -24,7 +24,7 @@ Three surfaces, all backed by generated audio:
    recommended subjects under it. Since §140 it is also where **other
    listeners' public mixes** are found - a search bar by mix name, topic or
    owner - and a (+) on anybody else's mix adds a copy to your own; a mix
-   is shared whole from its ⋯ menu.* **Since §142 every DailyFAM episode is
+   is shared whole from its ⋯ menu.* **Since §143 every DailyFAM episode is
    written in the background before it is tapped**: a daily edition
    (`daily_edition.py`, 05:00 Eastern) writes one episode per distinct
    subject across every mix, with EI on each, and a mix saved between
@@ -643,36 +643,18 @@ the rest of this list it needs taste rather than a key.
    dropping a column is a migration with no benefit. What went is the screen.
    A subtag always carries its facet, so nothing that matched before matches
    less. Anything a listener *reads* goes through `facets_only`.
-   **The first run is a wheel** *(§99).* Six discs orbiting "View more",
-   turning slowly counter-clockwise, selectable while they move. The ring
-   rotates and each disc counter-rotates by exactly as much, so positions
-   orbit while labels stay upright - both CSS animations on `transform`, which
-   is what keeps them in lockstep with no code running per frame.
-   `prefers-reduced-motion` stops the turning and keeps the wheel.
-   **The two only cancel while they are at the same point in their cycle**
-   *(§100, and this corrects §99's comment).* A *new element's* animation
-   starts at zero, so a disc rebuilt mid-revolution counter-rotates from the
-   wrong place and its label sits at an angle - which is what tapping one used
-   to do to all six. Selecting therefore toggles a class in place and never
-   rebuilds, and any rebuild that does happen ends in `syncWheelPhase`, which
-   puts every disc's `Animation.currentTime` on the ring's. **Anything that
-   redraws the wheel has to go through that**, and the smoke behaviour reads
-   each label's net angle after a tap rather than trusting the claim.
-   **There are two wheels, and they answer two questions** *(§100, revised by
-   §107).* The first run draws `popular_facets` - somebody with no history, so
-   the honest signal is what everybody plays. **Settings now draws what this
-   listener *chose*** - their facets, plus the subjects they added from the
-   catalogue or typed into its search - and nothing else. It used to draw
-   `my_facets`: what they play, then what they chose, then the declared order
-   as filler, so the wheel always had six discs. Three of those four sources
-   are the app's answer rather than the listener's, and a screen called *Your
-   interests* that shows a recommendation is answering a question nobody
-   asked. The filler is gone and an empty wheel is possible; what fills it is
-   the hub in the middle, which says **"Edit/add topics"** and is the only
-   route to the catalogue now - the second door in Settings came off with it.
-   `my_facets` is still computed and still served as `interests_yours`,
-   because it is an honest signal and the answer to a real question; nothing
-   draws it today.
+   **There is no wheel any more** *(§142, at the owner's direction).* §99
+   drew the first run as six facet discs orbiting a "View more" hub, §100
+   fixed their labels tilting, and §107 made the Settings copy a reflection of
+   what the listener chose. All of it is deleted - the orbit, `syncWheelPhase`,
+   the separate catalogue screen behind the hub. **The interests page is the
+   long list itself**, on the first run and from Settings: search it, tick
+   what you like, add anything typed. Facets chosen on the old wheel are still
+   stored and are shown as removable pills above the list rather than kept or
+   dropped in silence. From Settings it is an editor: Save keeps, the X puts
+   back what was there (`introSnapshot`). `popular_facets` still orders the
+   facets `/api/preferences` serves, and `my_facets` is still served as
+   `interests_yours`; nothing draws either today.
    **And what somebody chose is stored now, which it was not.** Adding a
    catalogue topic wrote a `pick` event into the append-only log and kept no
    list, so the choice taught the ranker something and left nothing to show,
@@ -683,7 +665,7 @@ the rest of this list it needs taste rather than a key.
    strings somebody wrote down is not the set of things a person can be
    interested in, and a search that can only fail is the worst control on the
    one screen whose job is collecting interests. `interests_yours_source` says
-   which of the three decided it, and only the Settings wheel carries a line
+   which of the three decided it, and only the Settings editor carries a line
    of copy - one that changes on its own without a word reads as the app
    having lost somebody's answer. **And there is no cap on how many
    interests somebody has** - it was six, it made a listener with seven pick
@@ -728,8 +710,8 @@ the rest of this list it needs taste rather than a key.
    `KeyError` rather than a finding.
    The intro's chosen interests now seed `taste`, so "Made for you" is no
    longer honestly empty on a listener's first open, and
-   `INTEREST_CATALOGUE` is the long list behind "View more", which is the
-   wheel's hub - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
+   `INTEREST_CATALOGUE` is the long list that is the interests page itself
+   since §142 - **73 named subjects, not 73 new tags.** Each carries facets from the same eight, so
    the settled constraint above is untouched: an interest is something a
    listener recognises, a tag is what the ranker scores, and the picker is
    still built from `TAG_LABELS`.
@@ -822,6 +804,12 @@ the rest of this list it needs taste rather than a key.
    badge that cleared itself the moment something drew it is a count nobody got
    to read. `follows_back` rides along, because offering the button to somebody
    already followed is a control that cannot do anything.
+   **Once means once** *(§142)*: which followers the popup or banner has
+   already shown is a table of its own (`social.announced`), because the badge
+   and the popup answer different questions - "who is new since you looked"
+   and "who have you been told about" - and the popup had been remembering
+   the second in page memory, so every fresh open showed the latest follower
+   again. `/api/friends` carries `announce` beside `new_followers`.
    **And eighty-five per cent through is finished.** Waiting for the last
    sample counted almost nothing: the ending is the one part a listener skips,
    so an episode heard to the ninety-fifth percentile and closed was recorded
@@ -1037,6 +1025,13 @@ the rest of this list it needs taste rather than a key.
   the case that proved it: its button returned early whenever `isActive()` was
   false, which is exactly the state that bar is in most often - still on
   screen after the episode finished, with a play button that did nothing.
+  **And leaving the player never stops it** *(§142).* The player's X
+  minimises (`minimizePlayer`), and neither `goBack` nor `setTab` stops an
+  episode that is already playing - both used to, a leftover from the
+  prototype's speech player. The mini bar is still one element, moved by
+  `placeNowBar` above the tab bar of whichever tab is showing (never
+  Explore's), so the episode follows the listener and tapping it brings the
+  full player back mid-sentence.
 - **Nothing speaks before the thing it is about has arrived, and no setting
   buys that back.** *(PROBLEMS.md §108, at the owner's explicit direction.)*
   Twice now this product has tried to spend the opening on latency: the cold
@@ -1606,14 +1601,16 @@ the rest of this list it needs taste rather than a key.
   of the four ways it can come up empty, and a test that none of them says
   "nothing is trending". Nothing real is connected yet.
 - **Every episode is kept a week and stamped with when it was sourced; how
-  long it stays *current* is what `ttl_for` decides.** *(§142, at the owner's
+  long it stays *current* is what `ttl_for` decides.** *(§143, at the owner's
   direction.)* `CACHE_LIFE_SECONDS` (a week) is how long a row lives, from
   `scripts.sourced_at`; `fresh_until` is how long a *new request* may be
   served it. Replay surfaces (Explore) play anything kept, labelled with its
   sourced time; every path that would write an episode asks `get(key)`,
   which is current-only, and writes a new one otherwise. So `0` below now
   means "never current", not "not written". Evergreen is current for the
-  whole week. `CACHE_LIFE_SECONDS=0` restores the old cache exactly.
+  whole week. A shared link or a tile past its window is written again, as
+  it was when the row simply expired. `CACHE_LIFE_SECONDS=0` with
+  `CACHE_TTL_SECONDS=86400` restores the old cache exactly.
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
   match, and `"Chiefs game"` — the reported case — contained no volatile word,
@@ -1633,7 +1630,7 @@ the rest of this list it needs taste rather than a key.
   warmed live fact is stale by definition, bought at full price), and it never
   warms a *script* for an outcome-dependent question — the brief is kept,
   because that is a claim about what is being asked and it keeps.
-  **The DailyFAM edition is the stated exception to the second** *(§142)*: a
+  **The DailyFAM edition is the stated exception to the second** *(§143)*: a
   "last 24 hours as of today" prompt at 05:00 asks about things that have
   happened, and it runs the live lookup as a tap would. A game still in
   progress at write time is kept and never current, so the tap writes it.
@@ -1916,8 +1913,9 @@ the rest of this list it needs taste rather than a key.
 - **The intro screen is not on the navigation stack, and `goBack()` cannot
   reach it.** *(§96, §97, §98 - the same trap three times.)* It is drawn with
   `showScreen("intro")` by `afterAccount`, `restartFirstRun` and both settings
-  entry points, and never pushed. So anything opened *on top* of it - the
-  catalogue, a shelf - pops to whatever was underneath, which is SearchFAM,
+  entry points, and never pushed. So anything opened *on top* of it - a
+  shelf, and the catalogue before §142 made the list the page - pops to
+  whatever was underneath, which is SearchFAM,
   and the first run silently loses its remaining steps. Every one of those
   returns by *name* now, recorded when the screen was opened. If a fourth
   screen is ever shown that way, this is the line to read before wiring its
@@ -2254,7 +2252,7 @@ which is the go/no-go for all of it.
   paying for episodes nobody wanted; one taken nearly every time is worth
   warming deeper (`PREFETCH_LEVEL=script`). One thing nothing
   warms yet: no cycle is scheduled for a listener who is not looking.
-  DailyFAM is no longer a gap - since §142 its episodes are written whole by
+  DailyFAM is no longer a gap - since §143 its episodes are written whole by
   the daily edition, not guessed at by prefetch.
 - **Is a local embedding model worth installing?** *Half answered (§107): the
   near-match cache is **on** now, and the embedding is still the part earning
@@ -2420,7 +2418,12 @@ fallback source, after the row said "The live sources didn't answer in
 time" to everybody who opened myFAM; and **§140**, DailyFAM as a place to
 find other people's mixes - search, (+) to add a copy, share a whole mix - and
 a narrowing chip that no longer opens the keyboard; and **§141**, the three
-crowd rails made cached-only and ranked by listens; and **§142**, DailyFAM
+crowd rails made cached-only and ranked by listens; and **§142**, the 9.23
+second packet - chats that appear when you send, return as a new line,
+autocorrect that leaves names alone, Delete chat for one side, two weeks of
+listening history, titles that name their subject, a share that asks first, a
+follower announced once, the interests wheel replaced by its list, and a
+player X that minimises instead of stopping; and **§143**, DailyFAM
 written in the background as a daily edition with EI on every episode, and
 every cached episode kept a week with the time it was sourced),
 `MYFAM.md` for the browse page, the
@@ -2445,12 +2448,15 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-nine** named smoke
+**twice** - once per preview build - and **seventy-two** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 69 as of §140,
+prose does not fail when somebody adds a behaviour. (It is 72 as of §142,
+which replaced the two wheel checks with the player minimising, the Settings
+interests list, sharing asking first, listening history's tabs, and deleting
+a chat. It was 69 as of §140,
 which added DailyFAM's search with its (+) and sharing a mix from its menu.
 It was 67 as of §137,
 which added a new mix following narrowed subjects and a square mix cover. It
@@ -2507,7 +2513,7 @@ What is true but not obvious from the code:
   the browser smoke test all run without one. Anything about *how the writing
   sounds* is unverified until someone runs it with a key.
 - The checks answer "does it work", not "does it look right". `tools/shots.py`
-  photographs all sixteen surfaces so a refactor can be proved neutral;
+  photographs every surface it lists so a refactor can be proved neutral;
   `tools/stall_probe.py` measures browser stalls without a key, and
   `tools/compare_search.py` measures what research actually buys. Each exists
   because a claim was once made without it and was wrong.

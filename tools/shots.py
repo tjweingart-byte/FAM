@@ -43,9 +43,10 @@ SURFACES = [
     ("auth", "openAuth('signup'); showAuthForm()"),
     ("intro", "renderIntro(); showScreen('intro')"),
     ("explorenew", "openExploreNew()"),
-    # The screen behind a rail's "View more", and the topic catalogue behind
-    # the intro's. Both are new surfaces, and a surface nobody photographs is
-    # one nobody notices has broken.
+    # The screen behind a rail's "View more". (The topic catalogue that used
+    # to sit behind the intro is the intro itself since §142, so "intro"
+    # covers it; Listening history is photographed further down.) A surface
+    # nobody photographs is one nobody notices has broken.
     ("section", "openSection('most_played')"),
     ("settings", "openProfile(); setTimeout(function(){ openSettings(); }, 400)"),
     ("myvibe", "openProfile(); setTimeout(function(){ openMyVibe(); }, 400)"),
@@ -64,7 +65,7 @@ SURFACES = [
      "    at:'2026-09-12', title:'Consumer Price Index summary',"
      "    url:'https://bls.gov/c'}"
      " ], retrievers:['Exa'], known:true}); openSources(); }, 900)"),
-    ("catalog", "renderIntro(); showScreen('intro'); openTopicCatalog()"),
+    ("history", "openHistory()"),
     ("nextup", "showScreen('player'); "
                "maybeOfferNextUp('what the fed did to interest rates', '')"),
     ("recap", "openRecapFromTile()"),

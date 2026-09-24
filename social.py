@@ -215,6 +215,22 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS ratings_episode"
                          " ON ratings(query, minutes)")
+            # Who has already been announced to whom (§142). The "___ started
+            # following you" popup used to remember this in page memory, so
+            # every fresh open of the app showed the latest follower again.
+            # One row per (listener, follower), with no timestamp condition:
+            # once somebody has been told, that person is never announced
+            # again - not on the next open, not on another device. Separate
+            # from `followers_seen`, which is the Friends badge's and is
+            # cleared by opening Friends and nothing else.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS announced (
+                       user_id  TEXT NOT NULL,
+                       follower TEXT NOT NULL,
+                       at       REAL NOT NULL,
+                       PRIMARY KEY (user_id, follower)
+                   )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -671,16 +687,26 @@ class SocialStore:
                 out.append(uid)
         return out
 
-    def new_followers(self, user_id: str, limit: int = 20) -> list[dict]:
+    def new_followers(self, user_id: str, limit: int = 20,
+                      unannounced: bool = False) -> list[dict]:
         """People who followed this listener since they last looked.
 
         `follows_back` rides along so the popup knows whether to offer the
         button: offering "Follow back" to somebody who is already a friend is
         a control that cannot do anything, and finding that out would cost a
         query per person.
+
+        `unannounced` narrows it to the people the popup and the banner have
+        never shown this listener (§142) - the badge still counts everybody
+        new, because it is cleared by opening Friends and not by a popup.
         """
         if not user_id:
             return []
+        extra = ""
+        if unannounced:
+            extra = ("   AND NOT EXISTS(SELECT 1 FROM announced a"
+                     "                  WHERE a.user_id = f.followee"
+                     "                    AND a.follower = f.follower)")
         try:
             rows = self._conn().execute(
                 "SELECT f.follower, p.name, p.handle, f.at, p.avatar,"
@@ -691,6 +717,7 @@ class SocialStore:
                 " WHERE f.followee = ?"
                 "   AND f.at > COALESCE((SELECT followers_seen FROM people"
                 "                        WHERE user_id = ?), 0)"
+                + extra +
                 " ORDER BY f.at DESC LIMIT ?",
                 (user_id, user_id, user_id, int(limit)),
             ).fetchall()
@@ -702,6 +729,23 @@ class SocialStore:
              "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5])}
             for r in rows
         ]
+
+    def mark_announced(self, user_id: str, follower: str,
+                       at: float = 0.0) -> None:
+        """This listener has been shown that `follower` follows them.
+
+        Written when the popup or the banner is raised, so a follow is
+        announced once and never again (§142). Idempotent.
+        """
+        if not user_id or not follower:
+            return
+        try:
+            self._conn().execute(
+                "INSERT OR IGNORE INTO announced (user_id, follower, at)"
+                " VALUES (?, ?, ?)",
+                (user_id[:64], follower[:64], at or time.time()))
+        except Exception:
+            log.exception("could not note an announced follower; continuing")
 
     def mark_followers_seen(self, user_id: str, at: float = 0.0) -> None:
         """They looked. Everything up to now stops being new.
@@ -806,6 +850,10 @@ class SocialStore:
         try:
             cur = self._conn().execute(
                 "DELETE FROM follows WHERE follower = ? OR followee = ?",
+                (user_id, user_id))
+            removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM announced WHERE user_id = ? OR follower = ?",
                 (user_id, user_id))
             removed += cur.rowcount or 0
         except Exception:

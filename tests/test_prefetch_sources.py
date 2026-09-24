@@ -251,7 +251,7 @@ def test_every_source_gives_a_reason_and_a_length(store, mix_store):
             assert candidate.reason.strip(), f"{source.name} gave no reason"
             assert candidate.source == source.name
             # A mix is played at the DailyFAM edition's length, and warmed
-            # at it (§142); everything else at the default.
+            # at it (§143); everything else at the default.
             import daily_edition
             wanted = (daily_edition.minutes() if source.name == "mixes"
                       else prefetch_sources.DEFAULT_MINUTES)

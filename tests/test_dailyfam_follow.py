@@ -179,7 +179,7 @@ def test_prefetch_warms_the_words_a_tap_sends(store):
     got = prefetch_sources.MixSource(store).candidates("u")
     queries = {c.query for c in got}
     # Dated by the edition's day, which is what `/api/mixes` serves the
-    # interface too (§142) - not the server's UTC date.
+    # interface too (§143) - not the server's UTC date.
     import daily_edition
     assert daily_edition.prompt_for(M.followed_item("f:nfl~Eagles")) in queries
     assert T.BANK_BY_ID["fed-next-move"].query in queries

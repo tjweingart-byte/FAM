@@ -304,7 +304,7 @@ def test_an_episode_larger_than_the_ceiling_is_not_reported_kept(tmp_path, monke
 
 
 def test_the_wake_is_not_skipped_for_kept_audio_past_its_window(store):
-    """§142: a row is kept a week but current only for its window. Past it, a
+    """§143: a row is kept a week but current only for its window. Past it, a
     request writes the episode again and needs the voice - only a replay
     plays the kept audio."""
     import sqlite3

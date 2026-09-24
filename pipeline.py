@@ -877,12 +877,21 @@ class PodcastPipeline:
                 return stored, True
         return live_captions.read_title(key)
 
-    async def episode_meta(self, plan: EpisodePlan) -> dict:
+    async def episode_meta(self, plan: EpisodePlan,
+                           current_only: bool = False) -> dict:
         """Thread, title (and whether it is final) and summary, from one key.
 
         One `_cache_key` rather than one per field: with `CACHE_SEMANTIC_KEY`
         on, computing the key is a model call, and `/api/next` is polled
         every couple of seconds while an episode is being written.
+
+        `current_only` is for the player asking about the episode it is
+        playing (§143). A row is kept a week but served to a new request only
+        while current, so past that window the episode being heard is a new
+        one being written under the same key - and the kept row's title,
+        thread and sourced time belong to the old one. Read them and the
+        player would stop asking, holding the wrong name. A card naming an
+        episode (`_episode_blurb`) wants the kept row and does not pass it.
         """
         empty = {"thread": "", "title": "", "title_final": False, "summary": "",
                  "sourced_at": 0.0}
@@ -890,19 +899,33 @@ class PodcastPipeline:
             return empty
         key = await self._cache_key(plan) if self.cache else ""
         out = dict(empty)
+        if self.cache and current_only and not self._is_current(key):
+            out["title"], out["title_final"] = live_captions.read_title(key)
+            return out
         if self.cache:
             out["thread"] = self.cache.thread(key) or ""
             stored = getattr(self.cache, "title", lambda _k: "")(key)
             if stored:
                 out["title"], out["title_final"] = stored, True
             out["summary"] = getattr(self.cache, "summary", lambda _k: "")(key) or ""
-            # When the information it was written from was sourced (§142), so
+            # When the information it was written from was sourced (§143), so
             # the player can say how old what it is hearing is.
             out["sourced_at"] = float(
                 getattr(self.cache, "sourced_at", lambda _k: None)(key) or 0.0)
         if not out["title"]:
             out["title"], out["title_final"] = live_captions.read_title(key)
         return out
+
+    def _is_current(self, key: str) -> bool:
+        """Would a new request be served the row under `key`? No hit counted.
+        A cache without the §143 reader answers as it always did: yes."""
+        reader = getattr(self.cache, "written_at", None)
+        if reader is None:
+            return True
+        try:
+            return reader(key) is not None
+        except Exception:  # noqa: BLE001 - a broken read is not a current row
+            return False
 
     async def summary_for(self, plan: EpisodePlan) -> str:
         """The episode's one-sentence summary from the cache, or ""."""
@@ -1079,7 +1102,7 @@ class PodcastPipeline:
         # Kept audio is played only when the serving path will play its
         # script: a replay plays anything kept, anything else only a current
         # one - past its window the episode is written again, and that needs
-        # the voice (§142).
+        # the voice (§143).
         if self.cache.has_audio(key, voice, rate) and (
                 plan.cached_only or self.cache.get(key)):
             return True
@@ -1202,7 +1225,7 @@ class PodcastPipeline:
         if self.cache and shareable:
             # A replay surface replays anything still kept, stamped with when
             # it was sourced; every other request is served only a script
-            # that is still current, and otherwise writes a new one (§142).
+            # that is still current, and otherwise writes a new one (§143).
             cached = self.cache.get(key, current=not plan.cached_only)
             if cached:
                 stats.match = "exact"
@@ -1354,17 +1377,26 @@ class PodcastPipeline:
         # (a live game, ttl 0) would otherwise keep the guess for good.
         live_captions.publish_title(stats.caption_key, notes.title, final=True)
 
-        if self.cache and self.cache_writes and shareable and stats.script:
+        writes = bool(self.cache and self.cache_writes and shareable
+                      and stats.script)
+        ttl = 0
+        if writes:
             # How long this stays *current*, from what the episode was
             # actually built from - carried home on `notes` because the plan
             # this scope holds is the unprepared one. It is always written
-            # now (§142): every episode is kept a week and stamped with when
+            # now (§143): every episode is kept a week and stamped with when
             # it was sourced, and zero means only that no new request is ever
             # served it - a game in progress is replayable as what it was at
             # that moment and never handed to somebody asking about it now.
             ttl = ttl_for(plan.query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
                           recency_days=notes.recency_days)
+        if writes and ttl <= 0 and settings.cache_life_seconds <= 0:
+            # `CACHE_LIFE_SECONDS=0` is the pre-§143 cache: a never-current
+            # episode is not written at all, and whatever the key held stays.
+            log.info("not caching %r: never current, and nothing is kept "
+                     "(CACHE_LIFE_SECONDS=0)", plan.query)
+        elif writes:
             # The shareable half only: an attachment's title is the
             # listener's own document, and the script cache is shared and
             # feeds Explore. `Provenance.shareable` drops anything private.
@@ -1386,7 +1418,7 @@ class PodcastPipeline:
                     and (notes.live_status or "") not in ("in_progress",
                                                           "scheduled")):
                 extra["slide"] = True
-            # When its information was sourced (§142), on the same terms.
+            # When its information was sourced (§143), on the same terms.
             if notes.sourced_at:
                 extra["sourced_at"] = notes.sourced_at
             self.cache.put(key, stats.script, ttl, plan.query, stats.thread,

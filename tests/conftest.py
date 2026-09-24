@@ -91,7 +91,7 @@ FAM_ENVIRONMENT = (
     "TRENDING_BANK", "TRENDING_BANK_SIZE", "TRENDING_BANK_TIMEZONE",
     "TRENDING_BANK_HOURS", "TRENDING_BANK_MINUTES", "TRENDING_BANK_WRITE",
     "TRENDING_BANK_RETRY_SECONDS", "TRENDING_BANK_MAX_AGE_HOURS",
-    # The DailyFAM edition (§142): a suite must never start writing every
+    # The DailyFAM edition (§143): a suite must never start writing every
     # mix's episodes because a developer's shell turned it on.
     "DAILY_EDITION", "DAILY_EDITION_TIMEZONE", "DAILY_EDITION_HOURS",
     "DAILY_EDITION_MINUTES", "DAILY_EDITION_MAX_EPISODES",
@@ -304,7 +304,7 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     # `TRENDING_BANK=0` row, and runs against it here. The production default
     # - bank on, pool never on Trending - is pinned by
     # `tests/test_trending_bank.py`, which turns it on explicitly.
-    # The DailyFAM edition (§142) likewise: off, so a TestClient's startup
+    # The DailyFAM edition (§143) likewise: off, so a TestClient's startup
     # does not begin writing every mix's episodes in the background. Its own
     # tests turn it on.
     off = dataclasses.replace(config.settings, trending_bank=False,
@@ -417,12 +417,16 @@ def isolated_quotas(tmp_path, monkeypatch):
 
 @pytest.fixture
 def kept_only_while_current(monkeypatch):
-    """`CACHE_LIFE_SECONDS=0`: the pre-§142 cache, where a row is kept only
+    """`CACHE_LIFE_SECONDS=0`: the pre-§143 cache, where a row is kept only
     while it is current - so `ttl=-1` writes an entry that is already gone.
     For the tests about expiry itself, which predate the week-long keep."""
     import dataclasses
 
     import cache as cache_mod
+    import pipeline as pipeline_mod
 
-    monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
-        cache_mod.settings, cache_life_seconds=0))
+    # Both modules hold their own reference to the settings object, and both
+    # read the life: the cache to keep, the pipeline to decide whether to write.
+    life_zero = dataclasses.replace(cache_mod.settings, cache_life_seconds=0)
+    monkeypatch.setattr(cache_mod, "settings", life_zero)
+    monkeypatch.setattr(pipeline_mod, "settings", life_zero)

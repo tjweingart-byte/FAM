@@ -57,6 +57,11 @@ DELIBERATELY_OPTIONAL = {
     # not a weak credential, it is anybody's credential, so this is the one
     # optional dependency whose absence must never degrade into a fallback.
     "jwt": "requirements-oauth.txt",
+    # Declared - as `pyspellchecker`, which is not the name it imports under,
+    # so the comparison above cannot see it. And safe to be missing anyway:
+    # autocorrect.py logs that it is unavailable, passes every word through
+    # unchanged, and /api/spell answers `available: false` (§142).
+    "spellchecker": "declared as pyspellchecker; autocorrect.py says so when absent",
     # diagnose_api.py reports which HTTP libraries are present. Both imports
     # are inside try/except and their absence IS the diagnostic output.
     "h2": "diagnose_api.py reports its absence rather than needing it",

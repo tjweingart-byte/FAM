@@ -127,7 +127,7 @@ class Candidate:
     #: for everyone, which is the cheapest kind: one script, every listener.
     listener: str = ""
     #: The length is the surface's own and a cycle must not override it
-    #: (§142: a DailyFAM episode is played at the edition's length, whatever
+    #: (§143: a DailyFAM episode is played at the edition's length, whatever
     #: myFAM's header says).
     pinned_length: bool = False
 
@@ -762,7 +762,7 @@ class Prefetcher:
             # it belongs to everybody: stamping the listener it was guessed
             # for would hide it from the one Explore feed most likely to want
             # it. See `cache.recent`.
-            # When its information was sourced (§142), passed only when
+            # When its information was sourced (§143), passed only when
             # known so an older cache double is called as it always was.
             stamp = {"sourced_at": notes.sourced_at} if notes.sourced_at else {}
             self.cache.put(key, sentences, ttl,

@@ -638,7 +638,7 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
-    # --- the DailyFAM edition (§142, `daily_edition.py`) ------------------
+    # --- the DailyFAM edition (§143, `daily_edition.py`) ------------------
     # Every DailyFAM episode is written in the background, before anybody
     # taps it: at these hours on this zone's wall clock, one episode per
     # distinct subject across every mix, dated for that day's edition. A tap
@@ -869,16 +869,16 @@ class Settings:
         default_factory=lambda: data_path("CACHE_PATH", "scripts.db")
     )
     # How long every cached episode is **kept**: one week, whatever it is
-    # about (§142, at the owner's direction). Kept is not the same as
+    # about (§143, at the owner's direction). Kept is not the same as
     # current - see `cache_ttl_seconds` below - and a kept episode carries
     # the time its information was sourced (`scripts.sourced_at`), which is
-    # what decides whether a new request may be served it. Replay surfaces
-    # (Explore, the crowd rails, a shared link) play anything kept, with that
-    # stamp on it; a request that would write an episode is served only one
-    # that is still current.
+    # what decides whether a new request may be served it. The replay surface
+    # (Explore, `cached_only`) plays anything kept, with that stamp on it;
+    # every other request - a search, a tile, a shared link - is served only
+    # one that is still current, and otherwise writes a new one.
     cache_life_seconds: int = _env_int("CACHE_LIFE_SECONDS", 7 * 86400)
     # How long an ordinary (evergreen) episode stays *current* - servable to
-    # a new request as the answer. A week since §142 (it was a day), so an
+    # a new request as the answer. A week since §143 (it was a day), so an
     # evergreen episode is current for as long as it is kept.
     cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 7 * 86400)
     # How long an episode about something time-sensitive stays current

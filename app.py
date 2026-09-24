@@ -63,6 +63,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
 import attachments as attachments_mod
+import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import accounts as accounts_mod
@@ -421,12 +422,14 @@ def _daily_edition_report() -> dict:
 _EDITION_WRITER = None
 
 
-def _write_mix_ahead(mix) -> None:
-    """A mix was saved: write any of its subjects today's edition has not,
-    in the background (§142). Never awaited, never raises."""
+def _write_mix_ahead(mix, before=None) -> None:
+    """A mix was saved: write the subjects it gained that today's edition
+    has not, in the background (§143). `before` is the mix as it was, so an
+    edit that only removes or reorders spends nothing. Never awaited, never
+    raises."""
     try:
         daily_edition.schedule_mix(mix, generator=_EDITION_WRITER,
-                                   cache=SCRIPT_CACHE)
+                                   cache=SCRIPT_CACHE, before=before)
     except Exception:  # noqa: BLE001 - a save must not fail on a guess
         log.exception("daily edition: could not schedule a saved mix")
 
@@ -443,6 +446,9 @@ def _trending_bank_report() -> dict:
 async def lifespan(_: FastAPI):
     # Pay the voice model's load cost now rather than on the first listener.
     await warm_up()
+    # The autocorrect word list, likewise (§142) - in a thread and not
+    # awaited, so it costs startup nothing and the first word typed nothing.
+    asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
     _announce_research()
@@ -516,7 +522,7 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
             generator=None if DEMO_MODE else ScriptGenerator(),
             cache=SCRIPT_CACHE)))
-    # DailyFAM's edition (§142): every mix's episodes written before anybody
+    # DailyFAM's edition (§143): every mix's episodes written before anybody
     # taps, at 05:00 Eastern, one per distinct subject, EI on every one. On
     # boot it catches up, so a new deployment writes today's at once. Never
     # awaited; until it lands a tap writes its own episode as it always did.
@@ -1944,7 +1950,27 @@ async def friends_read(request: Request) -> dict:
         # at the same moment it asks the others, and a badge is not worth a
         # second round trip.
         "new_followers": SOCIAL.new_followers(user),
+        # The subset the popup may still raise: never shown to this listener
+        # before (§142). A follower announced once is not announced again on
+        # the next open of the app.
+        "announce": SOCIAL.new_followers(user, unannounced=True),
     }
+
+
+class AnnouncedRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+
+
+@app.post("/api/friends/announced")
+async def friends_announced(req: AnnouncedRequest, request: Request) -> dict:
+    """The "started following you" popup or banner for this person was shown.
+
+    Once, and never again (§142): it used to be remembered in page memory, so
+    reopening the app raised the latest follower's popup every time.
+    """
+    _read_limit(request)
+    SOCIAL.mark_announced(_require_account(request), req.user_id)
+    return {"ok": True}
 
 
 @app.post("/api/friends/seen")
@@ -2213,6 +2239,57 @@ async def messages_thread(request: Request,
             "head": head}
 
 
+class SpellRequest(BaseModel):
+    #: The words just finished, in order. A handful at most: the box asks as
+    #: each word ends, and a paste is corrected a word at a time the same way.
+    words: list[str] = Field(..., max_length=40)
+    #: Which of those words start a sentence, where a capital is the
+    #: keyboard's rather than a name's.
+    first: list[bool] = Field(default_factory=list, max_length=40)
+
+
+@app.post("/api/spell")
+async def spell(req: SpellRequest, request: Request) -> dict:
+    """Autocorrect for a message or a search, a word at a time (§142).
+
+    The second pass behind the phone's own keyboard, which the owner found
+    misses things. Deliberately cautious - see `autocorrect.py` for why a
+    general spell checker rewrites the subjects of half of FAM's searches -
+    so the answer is `null` for every word it is not sure about. No account
+    needed: search is the one box everybody types into.
+    """
+    _read_limit(request)
+    words = [str(w or "")[:40] for w in req.words]
+    firsts = [bool(req.first[i]) if i < len(req.first) else False
+              for i in range(len(words))]
+    # In the threadpool, never on the event loop: a checker lookup is pure
+    # CPU, and a batch of unfamiliar words is tens of milliseconds in which
+    # this worker would otherwise serve nobody else.
+    out = await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_word(w, first=f)
+                 for w, f in zip(words, firsts)])
+    return {"corrections": out, "available": autocorrect_mod.available()}
+
+
+@app.delete("/api/messages/thread")
+async def messages_delete_thread(request: Request,
+                                 with_: str = Query(..., alias="with", max_length=64)) -> dict:
+    """Delete a chat - for this listener only (§142).
+
+    The owner's rule: it leaves *their* list, a new message to that person
+    starts a fresh thread without the old history, and the other person is
+    unaffected and keeps everything. So nothing is deleted from the table;
+    `MessageStore.clear` moves where this listener's view begins.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        MESSAGES.clear(user, with_)
+    except messages_mod.MessageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "unread": MESSAGES.unread_total(user)}
+
+
 @app.get("/api/notifications")
 async def notifications(request: Request,
                         since: int = Query(0, ge=0),
@@ -2272,7 +2349,9 @@ async def notifications(request: Request,
         # about who is new. Tapping one goes to Friends, which is also what
         # marks them seen - a badge cleared by something merely being drawn is
         # a count nobody got to read.
-        "follows": SOCIAL.new_followers(user),
+        # Only people never announced before (§142), so a banner raised on
+        # one open of the app is not raised again on the next.
+        "follows": SOCIAL.new_followers(user, unannounced=True),
         "head": max([head] + [m.id for m in arrived]),
         "unread": MESSAGES.unread_total(user),
     }
@@ -3231,13 +3310,14 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
+    before = MIXES.get(account, mix_id) if req.topic_ids is not None else None
     try:
         mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
                            req.cover)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if req.topic_ids is not None:
-        _write_mix_ahead(mix)
+        _write_mix_ahead(mix, before=before)
     return mix.as_dict()
 
 
@@ -4299,6 +4379,50 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     return {"ok": True, "remembered": True, "resumable": kept}
 
 
+class HistoryRequest(BaseModel):
+    query: str = Field(..., max_length=saved_mod.MAX_QUERY)
+    minutes: int = Field(..., ge=1, le=10)
+    surface: str = Field(..., max_length=16)
+    title: str = Field("", max_length=saved_mod.MAX_TITLE)
+    context: str = Field("", max_length=300)
+    #: True when this only carries the writer's title for an episode already
+    #: in the history, so it must not move the row to the top.
+    retitle: bool = False
+
+
+@app.post("/api/history")
+async def history_write(req: HistoryRequest, request: Request) -> dict:
+    """An episode started playing; put it in Recent listening history (§142).
+
+    Sent by the client at first audio, because only the client knows which
+    surface the tap came from - `/api/audio` sees myFAM and DailyFAM as the
+    same request. Explore is refused by the store, not trusted to the client.
+    A guest's is accepted and dropped, like `/api/progress`: history is kept
+    on an account, and a playback timer must never surface an error.
+    """
+    _read_limit(request)
+    if not _remembers(request):
+        return {"ok": True, "remembered": False}
+    user = _listener(request)
+    if req.retitle:
+        SAVED.retitle(user, req.query, req.minutes, req.title, context=req.context)
+        return {"ok": True, "remembered": True}
+    kept = SAVED.note_listen(user, req.query, req.minutes, req.surface,
+                             title=req.title, context=req.context)
+    return {"ok": True, "remembered": kept}
+
+
+@app.get("/api/history")
+async def history_read(request: Request,
+                       surface: str = Query("", max_length=16)) -> dict:
+    """Two weeks of listening, newest first, optionally one surface only."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"items": SAVED.history(user, surface=surface),
+            "surfaces": list(saved_mod.HISTORY_SURFACES),
+            "days": saved_mod.HISTORY_SECONDS // 86400}
+
+
 async def _episode_blurb(pipeline, query: str, minutes: int,
                          context: str = "") -> tuple[str, str]:
     """`(title, summary)` for an episode the cache holds, or `("", "")`.
@@ -4511,7 +4635,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "key": entry["key"],
             "thread": entry["thread"],
             "age_seconds": max(0.0, now - entry["created"]),
-            # When the information in it was sourced (§142), which is what
+            # When the information in it was sourced (§143), which is what
             # the card says: an episode is kept a week, and a listener
             # judging whether it is still true needs its age, not its row's.
             "sourced_age_seconds": max(
@@ -4763,6 +4887,10 @@ async def next_thread(
     # Same reason as /api/audio: this looks up a cache entry, and the entry it
     # looks for has to be keyed the same way the audio request keyed it.
     search: bool | None = Query(None),
+    # A replay (Explore) plays whatever is kept, so it may read a kept row's
+    # details; anything else plays a current one, and past its window the
+    # kept row is the previous episode under this key (§143).
+    cached_only: bool = Query(False),
 ):
     """The follow-up this listener is most likely to want, and the episode's
     own title.
@@ -4796,7 +4924,7 @@ async def next_thread(
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.
-    return await pipeline.episode_meta(plan)
+    return await pipeline.episode_meta(plan, current_only=not cached_only)
 
 
 @app.get("/api/audio")

@@ -109,7 +109,7 @@ class MixItem:
         # has to warm the same words a tap sends, or every warm is wasted.
         out["daily_prompt"] = daily_prompt(self)
         # What a tap sends *today*, already dated with the edition's day, and
-        # the length it is played at (§142). The edition writes exactly these
+        # the length it is played at (§143). The edition writes exactly these
         # words at exactly this length, so a tap is a cache hit; the
         # interface used to fill the date from the listener's own clock and
         # play at the search length, and missed on both.
@@ -519,7 +519,7 @@ class MixStore:
 
     def all_mixes(self, limit: int = 20000) -> list[Mix]:
         """Every mix on the deployment, oldest first - for the DailyFAM
-        edition (§142), which writes one episode per distinct subject across
+        edition (§143), which writes one episode per distinct subject across
         all of them. Bounded, because this reads the whole table."""
         try:
             rows = self._conn().execute(

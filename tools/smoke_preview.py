@@ -147,22 +147,22 @@ def main() -> int:
                 "the handle field did not clean what was typed into it"
             page.evaluate("saveIdentity()")
 
-            page.wait_for_selector("#screen-intro.active .intro-chip",
+            page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
-            # Six discs on the wheel, as the designs draw them.
-            chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips == 6, f"the wheel offered {chips} interests, not six"
+            # The long list of topics, straight away - the wheel of six
+            # facets that stood in front of it is gone (§142).
+            assert not page.query_selector("#orbitRing, .intro-chip"), \
+                "the interests wheel is back on the first run"
+            rows = page.eval_on_selector_all(".cat-row", "e => e.length")
+            assert rows > 50, f"the first run offered {rows} topics, not the list"
             # And no paragraph between the heading and them.
             assert not page.query_selector("#introPageInterests .entry-lede"), \
                 "the lede is back under Your interests"
-            # Every one of them selectable, with nothing counting them and
-            # nothing refusing the last one. There is no cap any more, so
-            # there must be no trace of one either.
+            # Any number of them, with nothing counting them against a cap.
             for i in range(6):
-                page.evaluate(f"var c=document.querySelectorAll('.intro-chip')[{i}];"
-                              " if(c) c.click();")
-            chosen = page.eval_on_selector_all(".intro-chip.on", "e => e.length")
-            assert chosen == 6, f"only {chosen} of six discs took a tap"
+                page.evaluate(f"document.querySelectorAll('.cat-row')[{i}].click()")
+            chosen = page.eval_on_selector_all(".cat-add.on", "e => e.length")
+            assert chosen == 6, f"only {chosen} of six topics took a tap"
             assert not page.query_selector("#introCount"), \
                 "the interest counter is back, and there is no number to show"
             body = page.text_content("#introPageInterests") or ""
@@ -1150,37 +1150,24 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def the_interest_catalogue_is_the_whole_list():
-            """The first run's "View more". Seventy-odd named subjects, each
-            with an icon - and the chips above it are still only the eight
-            facets, which is the line CLAUDE.md draws and this keeps."""
+            """The first run's interests page *is* the list now (§142) -
+            seventy-odd named subjects, each with an icon. It used to be a
+            wheel of six facets with this list behind its hub."""
             page.evaluate(
                 "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
             page.wait_for_timeout(600)
             page.evaluate("skipAccount()")
-            page.wait_for_selector("#screen-intro.active .intro-chip",
+            page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
-            chips = page.eval_on_selector_all(".intro-chip", "e => e.length")
-            assert chips == topics_mod.PICKER_SIZE, (
-                f"the wheel drew {chips} discs, not {topics_mod.PICKER_SIZE}")
-            # Six of the eight are *shown*; the eight are still the whole
-            # pickable vocabulary, and every one of them is reachable through
-            # the catalogue in the middle - which is what makes narrowing the
-            # wheel a screen decision rather than a vocabulary one. The discs
-            # carry `TAG_SHORT`, because "Money & markets" does not fit in one.
-            ids = page.eval_on_selector_all(
-                ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            assert set(ids) <= set(topics_mod.TAG_SHORT.values()), (
-                f"the wheel drew something that is not a facet: {ids}")
-            # The way in is the hub of the wheel.
-            assert page.query_selector(".orbit-more"), "no way into the catalogue"
-            page.evaluate("openTopicCatalog()")
-            page.wait_for_selector("#screen-catalog.active .cat-row",
-                                   timeout=10000, state="attached")
+            assert not page.query_selector(".orbit-more, #orbitRing"), \
+                "a wheel is standing in front of the list again"
+            assert not page.query_selector("#screen-catalog"), \
+                "the list has a second screen of its own again"
             rows = page.eval_on_selector_all(".cat-row", "e => e.length")
-            assert rows > 50, f"the catalogue offered {rows} interests"
+            assert rows > 50, f"the list offered {rows} interests"
             names = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
             for wanted in ("Soccer", "Formula 1", "K-pop", "Personal Finance"):
-                assert wanted in names, f"{wanted} is missing from the catalogue"
+                assert wanted in names, f"{wanted} is missing from the list"
             # Every row draws an icon. A row with none is a row that looks
             # broken next to the ones that have them.
             icons = page.eval_on_selector_all(".cat-art svg", "e => e.length")
@@ -1190,60 +1177,50 @@ def main() -> int:
             page.wait_for_timeout(400)
             found = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
             assert found == ["Ice Hockey"], found
-            # Closing it must come back to the step it was opened from. It
-            # used to `goBack()`, and the intro is drawn with `showScreen` and
-            # never joins the stack - so the pop landed on SearchFAM and the
-            # first run fell out of the intro on the way out.
-            page.evaluate("closeTopicCatalog()")
-            page.wait_for_timeout(400)
-            active = page.eval_on_selector(".screen.active", "e => e.id")
-            assert active == "screen-intro", (
-                f"closing the catalogue left the first run at {active}")
-            assert not page.eval_on_selector("#introPageInterests", "e => e.hidden"), (
-                "closing the catalogue skipped past the interests step")
+            page.fill("#catalogSearch", "")
+            page.wait_for_timeout(200)
             page.evaluate("finishIntro()")
             page.wait_for_timeout(700)
 
         def the_catalogue_saves_what_was_chosen():
-            """Adding a topic used to take effect the instant it was tapped
-            and there was nothing to press afterwards, so the screen could not
-            tell a choice somebody had made from one they were considering -
-            and there was no way to back out of either. §107 adds a Save.
-
-            The X still leaves without saving, which is what makes the Save
-            button mean anything.
-            """
-            page.evaluate("openTopicCatalog()")
-            page.wait_for_selector("#screen-catalog.active .cat-row",
+            """From Settings the list is an editor: a tap changes the screen,
+            Save keeps it, and the X leaves without keeping anything - which is
+            what makes Save mean something (§107, and §142 for the screen)."""
+            page.evaluate("openProfile()")
+            page.wait_for_timeout(400)
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=10000)
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(300)
-            assert page.eval_on_selector("#catalogDock", "e => e.hidden"), \
-                "Save is offered before anything has been chosen"
+            before = page.evaluate("chosenTopics.length")
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Save", "Settings opened the first run rather than an editor"
 
-            page.evaluate("document.querySelectorAll('.cat-row')[0].click()")
+            page.evaluate("document.querySelectorAll('.cat-row:not(:has(.cat-add.on))')[0].click()")
             page.wait_for_timeout(300)
-            assert not page.eval_on_selector("#catalogDock", "e => e.hidden"), \
-                "choosing a topic did not offer a way to save it"
+            assert page.evaluate("chosenTopics.length") == before + 1
 
             # Out by the X: nothing kept, because nothing was saved.
-            page.evaluate("closeTopicCatalog()")
+            page.evaluate("cancelIntroFromSettings()")
             page.wait_for_timeout(300)
-            assert page.evaluate("chosenTopics.length") == 0, \
+            assert page.evaluate("chosenTopics.length") == before, \
                 "the X kept a topic that was never saved"
 
             # And again, this time pressing Save.
-            page.evaluate("openTopicCatalog()")
-            page.wait_for_selector("#screen-catalog.active .cat-row",
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(300)
-            page.evaluate("document.querySelectorAll('.cat-row')[0].click()")
+            page.evaluate("document.querySelectorAll('.cat-row:not(:has(.cat-add.on))')[0].click()")
             page.wait_for_timeout(200)
-            page.evaluate("saveTopicCatalog()")
+            page.evaluate("introPrimary()")
             page.wait_for_timeout(500)
-            assert page.evaluate("chosenTopics.length") == 1, \
+            assert page.evaluate("chosenTopics.length") == before + 1, \
                 "Save kept nothing"
             assert page.eval_on_selector(".screen.active", "e => e.id") \
-                != "screen-catalog", "Save did not leave the screen"
+                == "screen-settings", "Save did not go back to Settings"
 
         def the_catalogue_search_can_add_what_it_did_not_find():
             """The search used to filter the list and nothing else, so
@@ -1251,8 +1228,8 @@ def main() -> int:
             sentence telling the listener to go and ask somewhere else - a
             search that can only fail, on the screen whose whole job is
             collecting what somebody is interested in (§107, item 13)."""
-            page.evaluate("openTopicCatalog()")
-            page.wait_for_selector("#screen-catalog.active", timeout=10000)
+            page.evaluate("openInterestsFromSettings()")
+            page.wait_for_selector("#screen-intro.active", timeout=10000)
             page.wait_for_timeout(300)
             page.fill("#catalogSearch", "nineteenth century canals")
             page.wait_for_timeout(400)
@@ -1275,7 +1252,7 @@ def main() -> int:
             page.wait_for_timeout(300)
             assert not page.query_selector(".cat-add-typed"), \
                 "offered to add a topic that is already on the list"
-            page.evaluate("closeTopicCatalog()")
+            page.evaluate("cancelIntroFromSettings()")
             page.wait_for_timeout(300)
 
         def the_app_opens_on_the_front_door_rather_than_flashing_myfam():
@@ -1340,10 +1317,41 @@ def main() -> int:
                 == "screen-thread", "tapping the banner did not open the chat"
             assert page.evaluate("currentThread && currentThread.user_id") == "u_beth"
 
-            # And a follow goes to Friends, where following back lives.
+            # Somebody already announced is never announced again (§142).
+            # In the fixture build that is its follower, announced when the
+            # app opened - so whatever announced it must have told the server.
+            # The live build has no followers, so it is told directly. Either
+            # way the page's own memory of it is cleared first, so what keeps
+            # the banner down is the server's `unannounced` filter and not the
+            # client remembering.
+            page.evaluate("hideNotification()")
+            page.wait_for_timeout(500)
+            if "live" not in target.name:
+                # By the popup or by the banner - they race at boot, and
+                # whichever goes up first tells the server.
+                assert page.evaluate(
+                    "!!(followerPopupShown['u_nadia'] || notifAnnouncedFollows['u_nadia'])"), \
+                    "the app opened without announcing the fixture's follower"
+            else:
+                page.evaluate("""fetch('/api/friends/announced', { method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: 'u_nadia' }) })""")
+                page.wait_for_timeout(300)
             page.evaluate("""
+                delete notifAnnouncedFollows['u_nadia'];
+                delete followerPopupShown['u_nadia'];
                 window.famPreviewNotify({ follow: {
                   user_id: "u_nadia", name: "Nadia Okoro", handle: "nadia" } });
+                pollNotifications();
+            """)
+            page.wait_for_timeout(1200)
+            assert not page.query_selector("#notifBanner.show"), \
+                "a follower who was already announced was announced again"
+
+            # And a new follow goes to Friends, where following back lives.
+            page.evaluate("""
+                window.famPreviewNotify({ follow: {
+                  user_id: "u_sam", name: "Sam Reed", handle: "sam" } });
                 pollNotifications();
             """)
             page.wait_for_selector("#notifBanner.show", timeout=8000)
@@ -2382,124 +2390,69 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-settings", "the X on Edit profile did not return"
 
-        def the_interests_wheel_turns_and_stays_tappable():
-            """The first run's wheel: six discs orbiting "View more".
-
-            Three things have to hold at once, and the third is the one a
-            static screenshot cannot see. The discs have to *move*; their
-            labels have to stay upright while they do (the ring rotates, each
-            disc counter-rotates by exactly as much); and every disc has to
-            stay hit-testable at its own centre the whole way round, because a
-            control that moves and cannot be tapped is worse than one that
-            does not move.
-
-            `elementFromPoint` rather than `page.click`, deliberately:
-            Playwright waits for an element to stop moving before it will
-            click, and this one never does. That is a fact about the harness
-            rather than about the interface, and asking the browser what is
-            under the point answers the real question.
-            """
-            probe = """() => {
-              var chips = Array.from(document.querySelectorAll('.intro-chip'));
-              var ring = document.getElementById('orbitRing');
-              var rm = new DOMMatrix(getComputedStyle(ring).transform);
-              return {
-                ring: Math.round(Math.atan2(rm.b, rm.a) * 180 / Math.PI),
-                chips: chips.map(function(c){
-                  var r = c.getBoundingClientRect();
-                  var x = Math.round(r.left + r.width / 2);
-                  var y = Math.round(r.top + r.height / 2);
-                  var hit = document.elementFromPoint(x, y);
-                  var m = new DOMMatrix(getComputedStyle(c).transform);
-                  return { x: x, y: y,
-                           spin: Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI),
-                           hit: !!hit && (hit === c || c.contains(hit)) };
-                })
-              };
-            }"""
-            page.evaluate(
-                "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
-            page.wait_for_timeout(600)
-            page.evaluate("skipAccount()")
-            page.wait_for_selector("#screen-intro.active .intro-chip",
-                                   timeout=10000, state="attached")
+        def the_players_x_minimises_into_the_mini_bar():
+            """The X on the full player used to be `goBack()`, which stopped
+            the episode. It minimises now (§142): the audio carries on, the
+            mini bar on the screen underneath is the same episode, its button
+            still pauses it, and tapping it brings the player back."""
+            page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
-            before = page.evaluate(probe)
-            assert len(before["chips"]) == 6, "the wheel is not six discs"
-            assert all(c["hit"] for c in before["chips"]), \
-                "a disc was not hit-testable at its own centre"
-            # The hub is reachable too - the ring must not lie on top of it.
-            hub = page.evaluate(
-                """() => { var b = document.querySelector('.orbit-more')
-                             .getBoundingClientRect();
-                           var el = document.elementFromPoint(
-                             Math.round(b.left + b.width/2),
-                             Math.round(b.top + b.height/2));
-                           return !!el && el.classList.contains('orbit-more'); }""")
-            assert hub, "the ring is swallowing taps meant for View more"
+            page.evaluate("""
+                TOPICS['_smoke_min'] = { title: 'Why bonds move', prompt: 'why bonds move',
+                                         source: 'Your search', surface: 'search',
+                                         caption: '' };
+                generate('_smoke_min');
+            """)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.wait_for_timeout(300)
+            page.click("#screen-player .player-top .x")
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-home", \
+                "the X did not go back to where the episode was started"
+            assert page.evaluate("FamAudio.isActive()"), "the X stopped the episode"
+            bar = page.query_selector("#screen-home #nowBar")
+            assert bar and bar.is_visible(), "no mini player under a minimised episode"
+            # The same episode, and its button is the same transport.
+            page.click("#nowPlay")
+            page.wait_for_timeout(300)
+            assert page.evaluate("FamAudio.isPaused()"), "the mini bar did not pause it"
+            page.click("#nowPlay")
+            page.wait_for_timeout(300)
+            assert not page.evaluate("FamAudio.isPaused()"), "the mini bar did not resume it"
+            # It follows the listener to another tab, and stays playing.
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("FamAudio.isActive()"), "changing tab stopped the episode"
+            assert page.query_selector("#screen-myfam #nowBar"), \
+                "the mini player did not follow the listener to myFAM"
+            # Tapping it opens the full player again, still going.
+            page.click("#nowBar .nowbar-body")
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player"
+            assert page.evaluate("FamAudio.isActive()"), "reopening the player restarted nothing - it stopped"
+            # Dismissing the bar hides it and nothing else: the next tab
+            # change must not end the episode it said was still playing.
+            page.evaluate("minimizePlayer(); dismissNowBar(); openMyFamTab()")
+            page.wait_for_timeout(400)
+            assert page.evaluate("FamAudio.isActive()"), \
+                "a dismissed bar let the next tab change stop the episode"
+            # Explore's reels own the audio there: the minimised episode is
+            # ended on the way in, not left playing under a reel card.
+            page.evaluate("openExplore()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("audioOwner !== 'player'"), \
+                "a minimised episode kept playing inside Explore"
+            assert page.evaluate("nowBarState === null"), \
+                "the mini bar still holds an episode Explore ended"
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_timeout(300)
 
-            page.wait_for_timeout(4000)
-            after = page.evaluate(probe)
-            moved = [((after["chips"][i]["x"] - before["chips"][i]["x"]) ** 2
-                      + (after["chips"][i]["y"] - before["chips"][i]["y"]) ** 2) ** 0.5
-                     for i in range(6)]
-            assert min(moved) > 8, f"the wheel is not turning: {moved}"
-            # Counter-clockwise, following the arrows in the design.
-            assert after["ring"] != before["ring"], "the ring did not rotate"
-            # And still tappable, and still upright: each disc's own spin is
-            # the exact inverse of the ring's, so the two cancel.
-            assert all(c["hit"] for c in after["chips"]), \
-                "a disc stopped being hit-testable once it had moved"
-            for c in after["chips"]:
-                assert abs(c["spin"] + after["ring"]) <= 1, (
-                    f"a label is rotating with the ring: disc {c['spin']}deg "
-                    f"against ring {after['ring']}deg")
-
-            # And a tap must not tilt it. This is the bug §100 fixes: the tap
-            # used to rebuild the ring, and a *new* element's animation starts
-            # at zero - so a disc drawn mid-revolution counter-rotated from the
-            # wrong place and sat at an angle for the rest of the turn. Four
-            # seconds in is exactly when it showed.
-            page.evaluate("document.querySelectorAll('.intro-chip')[0].click()")
-            page.wait_for_timeout(250)
-            tapped = page.evaluate(probe)
-            assert len(tapped["chips"]) == 6, "the tap lost a disc"
-            for c in tapped["chips"]:
-                assert abs(c["spin"] + tapped["ring"]) <= 2, (
-                    f"tapping tilted a label: disc {c['spin']}deg against ring "
-                    f"{tapped['ring']}deg")
-            assert page.eval_on_selector_all(".intro-chip.on", "e => e.length") == 1, \
-                "the tap did not select anything"
-
-            # A rebuild has to survive it too, not just a tap.
-            page.evaluate("renderInterestWheel()")
-            page.wait_for_timeout(250)
-            rebuilt = page.evaluate(probe)
-            for c in rebuilt["chips"]:
-                assert abs(c["spin"] + rebuilt["ring"]) <= 2, (
-                    f"a rebuilt disc came back tilted: {c['spin']}deg against "
-                    f"ring {rebuilt['ring']}deg")
-
-        def the_settings_wheel_is_the_listeners_own():
-            """Two wheels, two questions - and Settings now answers with what
-            this listener *chose* (§107, revising §100).
-
-            It used to draw `interests_yours`: their most-played facets,
-            topped up from their choices and then from a declared order so the
-            wheel always had six discs. Three of those four sources are the
-            app's answer rather than the listener's, and a screen called Your
-            interests that shows a recommendation is answering a question
-            nobody asked. So the filler is gone, and what fills an empty wheel
-            is the hub in the middle of it - which now says "Edit/add topics"
-            rather than "View more", and is the only route to that list.
-
-            The first run is unchanged and still draws the crowd's six, which
-            is the honest answer to somebody with no history.
-
-            Both halves are checked through `renderIntro`, which is the thing
-            that decides, rather than by restarting the first run - that flow
-            runs once per session here and the catalogue behaviour needs it.
-            """
+        def interests_from_settings_are_the_listeners_own_list():
+            """Settings opens the same list, as an editor of what this
+            listener chose (§107's rule, §142's screen): what they picked is
+            ticked, a whole facet chosen on the old wheel is shown where it can
+            be taken off, and Listening history is a row beside it."""
             page.evaluate("openProfile()")
             page.wait_for_timeout(600)
             page.evaluate("openSettings()")
@@ -2508,85 +2461,168 @@ def main() -> int:
                 ".set-row", "e => e.map(x => x.textContent)")
             assert not any("Language" in r for r in rows), \
                 f"the Language row is back in Settings: {rows}"
-            # The second door to the catalogue came off with this change: the
-            # hub inside the wheel is the way there now, and two rows opening
-            # one screen under two different names is one of them being wrong.
             assert not any("More topics" in r for r in rows), \
                 f"the More topics row is back in Settings: {rows}"
-            # And the first run is not something a listener replays from here.
             assert not any("first run" in r.lower() for r in rows), \
                 f"Replay the first run is back in Settings: {rows}"
-            # Subscription is, though - it used to be reachable only from the
-            # screen somebody sees after they have already hit a limit.
             assert any("Subscription" in r for r in rows), \
                 f"there is no way to the plans from Settings: {rows}"
+            assert any("Listening history" in r for r in rows), \
+                f"there is no Listening history row in Settings: {rows}"
 
-            # Opened the way a listener opens it, then given a known
-            # selection: `openInterestsFromSettings` re-reads preferences, so
-            # setting the state first would have it overwritten a moment later.
             page.evaluate("openInterestsFromSettings()")
-            page.wait_for_selector("#screen-intro.active", timeout=10000)
-            page.wait_for_timeout(400)
+            page.wait_for_selector("#screen-intro.active .cat-row",
+                                   timeout=10000, state="attached")
+            page.wait_for_timeout(300)
             page.evaluate("""
-                introSelection = ['tech', 'sport'];
-                chosenTopics = [{ id: 'my typed thing', label: 'my typed thing',
-                                  typed: true }];
-                introMode = 'settings';
+                introSelection = ['tech'];
+                chosenTopics = [{ id: 'soccer', label: 'Soccer', typed: false }];
+                introSnapshot = { interests: introSelection.slice(),
+                                  topics: chosenTopics.slice() };
                 renderIntro();
             """)
             page.wait_for_timeout(300)
             assert not page.eval_on_selector("#introSub", "e => e.hidden"), \
-                "the settings wheel does not say what it is showing"
-            shown = page.eval_on_selector_all(
-                ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            assert len(shown) == 3, f"the wheel drew {shown}, not the three chosen"
-            assert "my typed thing" in shown, \
-                f"a subject the listener typed is not on their own wheel: {shown}"
-            crowd = page.evaluate(
-                """() => (PREF_CHOICES.interests_available || [])
-                       .map(function(i){ return i.short || i.label; })""")
-            assert shown != crowd, "settings is still drawing the crowd's six"
-            assert page.eval_on_selector("#orbitMore", "e => e.textContent.trim()") \
-                == "Edit/add topics", "the hub does not offer to edit them"
-
-            # Tapping a subject removes it. It cannot be toggled back on from
-            # here - the wheel only ever shows what was chosen - so the disc
-            # goes rather than changing colour.
-            page.evaluate("toggleInterest('topic:my typed thing')")
-            page.wait_for_timeout(250)
-            after = page.eval_on_selector_all(
-                ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            assert "my typed thing" not in after, \
-                f"tapping a subject did not remove it: {after}"
-
-            # An empty wheel is possible now, and says so rather than filling
-            # itself with an answer nobody gave.
-            page.evaluate("""
-                introSelection = []; chosenTopics = []; renderIntro();
-            """)
-            page.wait_for_timeout(250)
-            assert page.eval_on_selector_all(".intro-chip", "e => e.length") == 0, \
-                "the wheel filled itself when the listener had chosen nothing"
-            assert "Nothing chosen" in page.text_content("#introSub"), \
-                "an empty wheel does not say it is empty"
-
-            # The same screen in the other mode draws the other list, and
-            # stops explaining itself.
-            page.evaluate("introMode = 'first-run'; renderIntro();")
+                "the editor does not say what it is for"
+            ticked = page.eval_on_selector_all(
+                ".cat-row", "e => e.filter(r => r.querySelector('.cat-add.on'))"
+                            ".map(r => r.querySelector('.cat-name').textContent)")
+            assert ticked == ["Soccer"], f"the list ticked {ticked}, not what was chosen"
+            facets = page.eval_on_selector_all(".intro-facet", "e => e.length")
+            assert facets == 1, "a facet chosen on the old wheel cannot be seen or removed"
+            page.click(".intro-facet")
+            page.wait_for_timeout(200)
+            assert page.evaluate("introSelection.length") == 0, \
+                "tapping a facet did not take it off"
+            page.evaluate("cancelIntroFromSettings()")
             page.wait_for_timeout(300)
-            assert page.eval_on_selector("#introSub", "e => e.hidden"), \
-                "the first run is explaining a wheel that needs no explaining"
-            first = page.eval_on_selector_all(
-                ".intro-chip", "e => e.map(x => x.textContent.trim())")
-            crowd = page.evaluate(
-                """() => (PREF_CHOICES.interests_available || [])
-                       .map(function(i){ return i.short || i.label; })""")
-            assert first == crowd, f"the first run drew {first}, not {crowd}"
-            # And its one button finishes the run rather than chaining on to a
-            # second page, because there is no second page.
-            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
-                == "Start listening"
+            assert page.evaluate("introSelection.length") == 1, \
+                "the X kept a change that was never saved"
             page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def sharing_to_a_person_asks_first():
+            """Tapping a face used to send at once and close the sheet, so
+            nobody knew whether it had gone (§142). Now the face lights up,
+            "Share with @handle" and Cancel appear, and only Share sends."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("showScreen('player')")
+            page.evaluate("nowBarState = {query: 'why bonds move',"
+                          " title: 'Bonds', minutes: 3}")
+            page.evaluate("openShareModal()")
+            page.wait_for_timeout(800)
+            assert page.eval_on_selector("#shareConfirm", "e => e.hidden"), \
+                "the confirm step is showing before anybody was chosen"
+            if "live" in target.name:
+                # The live build's database has one listener in it, so there
+                # is nobody to choose - and the sheet says so, which is what
+                # `an_episode_can_be_shared_outside_fam` already checks. Only
+                # there: the fixture always has people, and an empty row in
+                # it is a failure, not a reason to skip.
+                page.evaluate("closeShareModal(); hideNowBar(); openMyFamTab()")
+                page.wait_for_timeout(300)
+                return
+            page.wait_for_selector("#shareContacts .share-contact", timeout=8000)
+            page.click("#shareContacts .share-contact")
+            page.wait_for_timeout(200)
+            assert page.is_visible("#shareOverlay.active"), \
+                "tapping a person closed the sheet - it sent without asking"
+            assert page.eval_on_selector_all(".share-contact.selected", "e => e.length") == 1
+            label = page.eval_on_selector("#shareConfirmBtn", "e => e.textContent")
+            assert label.startswith("Share with @"), label
+            # Cancel takes the choice back and sends nothing.
+            page.click("#shareConfirm .modal-btn.ghost")
+            page.wait_for_timeout(200)
+            assert page.eval_on_selector_all(".share-contact.selected", "e => e.length") == 0
+            assert page.eval_on_selector("#shareConfirm", "e => e.hidden")
+            # And Share sends, then closes.
+            page.click("#shareContacts .share-contact")
+            page.wait_for_timeout(200)
+            page.click("#shareConfirmBtn")
+            page.wait_for_timeout(700)
+            assert not page.query_selector("#shareOverlay.active"), \
+                "the sheet stayed open after sending"
+            page.evaluate("hideNowBar(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def listening_history_has_its_four_tabs():
+            """Settings -> Listening history (§142): All, myFAM, dailyFAM and
+            searchFAM, newest first, and an episode heard is on it."""
+            page.evaluate("""
+                noteListen({ query: 'smoke history bonds', minutes: 2, surface: 'myfam' }, 'Why Bonds Move');
+                noteListen({ query: 'smoke history fed', minutes: 2, surface: 'search' }, 'The Fed');
+            """)
+            page.wait_for_timeout(400)
+            page.evaluate("openHistory()")
+            page.wait_for_selector("#screen-history.active", timeout=8000)
+            tabs = page.eval_on_selector_all(
+                "#histTabs .hist-tab", "e => e.map(x => x.textContent.trim())")
+            assert tabs == ["All", "myFAM", "dailyFAM", "searchFAM"], tabs
+            page.wait_for_selector("#histBody .sv-row", timeout=8000)
+            titles = page.eval_on_selector_all(
+                "#histBody .sv-title", "e => e.map(x => x.textContent)")
+            assert titles[:2] == ["The Fed", "Why Bonds Move"], \
+                f"history is not newest first: {titles}"
+            page.click("#histTabs .hist-tab[data-hist='myfam']")
+            page.wait_for_timeout(500)
+            titles = page.eval_on_selector_all(
+                "#histBody .sv-title", "e => e.map(x => x.textContent)")
+            # Episodes the smoke run itself played on myFAM are here too -
+            # which is the recording working - but nothing from search is.
+            assert titles and titles[0] == "Why Bonds Move", f"the myFAM tab showed {titles}"
+            assert "The Fed" not in titles, f"a search episode is under myFAM: {titles}"
+            page.evaluate("goBack(); openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        def a_chat_can_be_deleted_and_return_makes_a_new_line():
+            """The chat menu offers Delete chat where Share an episode was
+            (§142); the message box is multi-line, so return is a new line and
+            the arrow sends; and a chat you only *sent* to is on the list the
+            moment you come back to it."""
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(600)
+            page.evaluate("openThreadWith({ user_id: 'u_nadia', name: 'Nadia Okoro', handle: 'nadia' })")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.wait_for_timeout(400)
+            tag = page.eval_on_selector("#threadInput", "e => e.tagName")
+            assert tag == "TEXTAREA", f"the message box is an {tag}, so return cannot make a line"
+            page.click("#threadInput")
+            page.keyboard.type("first line")
+            page.keyboard.press("Enter")
+            page.keyboard.type("second line")
+            value = page.input_value("#threadInput")
+            assert value == "first line\nsecond line", \
+                f"return did not make a new line: {value!r}"
+            page.evaluate("sendThreadMessage()")
+            page.wait_for_timeout(500)
+            bubble = page.eval_on_selector_all(
+                "#thread-body .msg-row.out .msg-bubble", "e => e.map(x => x.textContent)")
+            assert bubble and bubble[-1] == "first line\nsecond line", bubble
+            # Back to the list: the chat that was only sent to is on it now.
+            page.click("#screen-thread .yf-back")
+            page.wait_for_timeout(600)
+            listed = page.evaluate(
+                "inboxThreads.map(function(t){ return t['with']; })")
+            assert "u_nadia" in listed, f"a chat you sent to is not on the list: {listed}"
+            rows = page.eval_on_selector_all("#threadList .thread-row", "e => e.length")
+            assert rows == len(listed), "the list was read but not drawn"
+            # The menu: View profile and Delete chat, no Share an episode.
+            page.evaluate("openThreadWith({ user_id: 'u_nadia', name: 'Nadia Okoro', handle: 'nadia' })")
+            page.wait_for_timeout(500)
+            page.evaluate("openThreadMenu()")
+            page.wait_for_timeout(200)
+            items = page.eval_on_selector_all(
+                "#sheetCard .sheet-item", "e => e.map(x => x.textContent)")
+            assert items == ["View profile", "Delete chat"], items
+            page.evaluate("closeSheet(); deleteChat(currentThread)")
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-messages"
+            page.wait_for_timeout(300)
+            listed = page.evaluate(
+                "inboxThreads.map(function(t){ return t['with']; })")
+            assert "u_nadia" not in listed, f"the deleted chat is still on the list: {listed}"
+            page.evaluate("closeMessages(); openMyFamTab()")
             page.wait_for_timeout(400)
 
         def mix_visibility():
@@ -3021,10 +3057,16 @@ def main() -> int:
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)
         check("YourFAM renders identity, friends, messages and shelf", profile)
-        check("The interests wheel turns and stays tappable",
-              the_interests_wheel_turns_and_stays_tappable)
-        check("The settings wheel is the listener's own",
-              the_settings_wheel_is_the_listeners_own)
+        check("The player's X minimises into the mini bar",
+              the_players_x_minimises_into_the_mini_bar)
+        check("Interests from Settings are the listener's own list",
+              interests_from_settings_are_the_listeners_own_list)
+        check("Sharing to a person asks first",
+              sharing_to_a_person_asks_first)
+        check("Listening history has its four tabs",
+              listening_history_has_its_four_tabs)
+        check("A chat can be deleted, and return makes a new line",
+              a_chat_can_be_deleted_and_return_makes_a_new_line)
         check("Mix visibility can be toggled", mix_visibility)
         check("Every settings screen comes back to Settings",
               every_settings_screen_comes_back_to_settings)

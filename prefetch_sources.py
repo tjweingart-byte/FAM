@@ -201,7 +201,7 @@ class MixSource:
                 out.append(Candidate(
                     # The words a tap on it will send - for a followed or
                     # typed subject that is the edition's dated prompt, which
-                    # `/api/mixes` serves the interface verbatim (§142), so
+                    # `/api/mixes` serves the interface verbatim (§143), so
                     # the two cannot disagree about the day. Usually the
                     # edition has written it already and this finds it cached.
                     query=daily_edition.prompt_for(item),

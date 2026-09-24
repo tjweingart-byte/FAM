@@ -744,7 +744,7 @@ async def write_episode(story, generator, cache, minutes: int,
         sources = notes.provenance.to_json() if notes.provenance is not None else ""
         extra = {"summary": notes.summary} if notes.summary else {}
         if notes.sourced_at:
-            extra["sourced_at"] = notes.sourced_at   # §142
+            extra["sourced_at"] = notes.sourced_at   # §143
         # No author: a bank episode was nobody's tap, so it belongs to
         # everybody - the rule prefetch keeps, for the same reason.
         cache.put(key, sentences, ttl, story.query, notes.thread, minutes,

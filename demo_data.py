@@ -157,7 +157,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the trending bank")
             report["trending_editions_dropped"] = 0
-        # DailyFAM's edition too (§142), for the same reason: its episodes
+        # DailyFAM's edition too (§143), for the same reason: its episodes
         # went with the script cache, and a slot left marked ready would stop
         # today's being written again until tomorrow's.
         try:

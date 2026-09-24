@@ -220,11 +220,13 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
             recency_days: int = 0) -> int:
     """How long a script stays *current*, in seconds. **Zero means never.**
 
-    **Current, not kept** (§142, at the owner's direction). Every episode is
+    **Current, not kept** (§143, at the owner's direction). Every episode is
     kept a week (`CACHE_LIFE_SECONDS`) and stamped with when its information
     was sourced; this is only the window in which a *new request* may be
-    served it as the answer. Replay surfaces - Explore, the crowd rails, a
-    shared link - play anything kept, with the sourced time on it. So 0 no
+    served it as the answer. The replay surface - Explore, which sends
+    `cached_only` - plays anything kept, with the sourced time on it; a
+    search, a tile or a shared link is served a current script or writes a
+    new one, as it always was once a script expired. So 0 no
     longer means "do not write it": it means a game in progress is written,
     kept, replayable as what it was at the time it was sourced, and never
     handed to somebody asking about that game now.
@@ -510,17 +512,17 @@ class ScriptCache(Protocol):
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
 
 
-#: SQL for "until when a new request may be served this row" (§142). Rows
+#: SQL for "until when a new request may be served this row" (§143). Rows
 #: written before `fresh_until` existed have 0 there, and were current for
 #: exactly as long as they were kept - which is what this reads for them.
 _CURRENT_UNTIL = "(CASE WHEN fresh_until > 0 THEN fresh_until ELSE expires END)"
-#: SQL for "when this row's information was sourced". Pre-§142 rows recorded
+#: SQL for "when this row's information was sourced". Pre-§143 rows recorded
 #: only when they were written, which is the closest thing they have.
 _SOURCED = "(CASE WHEN sourced_at > 0 THEN sourced_at ELSE created END)"
 
 
 def _clocks(ttl: int, sourced_at: Optional[float], now: float) -> tuple:
-    """(sourced, current until, kept until) for a write (§142).
+    """(sourced, current until, kept until) for a write (§143).
 
     Kept `CACHE_LIFE_SECONDS` from when it was sourced - a week, whatever the
     episode is about - and current for `ttl` from then, which `ttl_for` may
@@ -532,7 +534,7 @@ def _clocks(ttl: int, sourced_at: Optional[float], now: float) -> tuple:
     life = int(settings.cache_life_seconds or 0)
     if life <= 0:
         # `CACHE_LIFE_SECONDS=0`: kept only while current, which is exactly
-        # how the cache behaved before §142 (a negative `ttl` is written
+        # how the cache behaved before §143 (a negative `ttl` is written
         # already expired, as it always was).
         until = sourced + int(ttl or 0)
         return sourced, until, until
@@ -541,7 +543,7 @@ def _clocks(ttl: int, sourced_at: Optional[float], now: float) -> tuple:
 
 
 def describe_sourced(sourced_at: float, now: Optional[float] = None) -> str:
-    """How long ago an episode's information was sourced, in words (§142).
+    """How long ago an episode's information was sourced, in words (§143).
 
     For logs and tools. The interface formats its own, in the reader's clock.
     """
@@ -586,7 +588,7 @@ class MemoryScriptCache:
         #: key -> when its current script was written. Beside the tuple for
         #: the same reason as everything above it.
         self._created: dict[str, float] = {}
-        #: key -> (sourced, current until) - §142. The tuple's first field is
+        #: key -> (sourced, current until) - §143. The tuple's first field is
         #: how long the entry is *kept*; this is how long it is *current*.
         self._clocks: dict[str, tuple[float, float]] = {}
         self.hits = 0
@@ -616,6 +618,17 @@ class MemoryScriptCache:
             return None
         clocks = self._clocks.get(key)
         return clocks[0] if clocks else self._created.get(key, 0.0)
+
+    def extend_current(self, key: str, until: float) -> bool:
+        """See `SqliteScriptCache.extend_current`."""
+        if not self._current(key):
+            return False
+        entry = self._data[key]
+        sourced, fresh = self._clocks.get(key, (self._created.get(key, 0.0), entry[0]))
+        fresh = max(fresh, float(until))
+        self._clocks[key] = (sourced, fresh)
+        self._data[key] = (max(entry[0], fresh),) + tuple(entry[1:])
+        return True
 
     def written_at(self, key: str) -> Optional[float]:
         if not self._current(key):
@@ -677,7 +690,8 @@ class MemoryScriptCache:
 
     def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
         live = [
-            {"key": k, "query": v[3], "minutes": v[4], "created": v[0],
+            {"key": k, "query": v[3], "minutes": v[4],
+             "created": self._created.get(k, 0.0),
              "plays": self._plays.get(k, 0), "thread": v[2],
              "title": self._titles.get(k, ""),
              "author": self._authors.get(k, ""),
@@ -882,7 +896,7 @@ class SqliteScriptCache:
                 # times (the pacing probe, the pipeline's own lookup, a near
                 # match), as does a prefetch checking whether to bother.
                 ("plays", "ALTER TABLE scripts ADD COLUMN plays INTEGER NOT NULL DEFAULT 0"),
-                # §142: when the information the episode was written from was
+                # §143: when the information the episode was written from was
                 # *sourced* - the retrieval, not the write - and how long it
                 # stays *current*. `expires` is now how long the row is kept
                 # (a week for everything); `fresh_until` is how long a new
@@ -937,9 +951,9 @@ class SqliteScriptCache:
         """The script under `key`, or None.
 
         `current` (the default) answers "may a new request be served this as
-        the answer" - kept *and* inside its current window (§142). Every path
+        the answer" - kept *and* inside its current window (§143). Every path
         that would otherwise write an episode asks that. A replay surface
-        (`cached_only`: Explore, the crowd rails) passes False and gets
+        (`cached_only`: Explore) passes False and gets
         anything still kept, because it is replaying a specific finished
         episode whose sourced time is on the card.
         """
@@ -973,15 +987,37 @@ class SqliteScriptCache:
         row = self._conn().execute(
             f"SELECT created, {_CURRENT_UNTIL} FROM scripts WHERE key = ?", (key,)
         ).fetchone()
-        # Current rather than kept (§142): None means "a tap would write a new
+        # Current rather than kept (§143): None means "a tap would write a new
         # one", and a tap is served only a current script.
         if not row or row[1] < time.time():
             return None
         return float(row[0])
 
+    def extend_current(self, key: str, until: float) -> bool:
+        """Keep a *current* entry current until `until`. False if it is not.
+
+        For the DailyFAM edition (§143): a subject a listener tapped before
+        the edition reached it was written by the tap path, sourced after the
+        edition began and just as fresh as the edition's own would be - but
+        current for `ttl_for`'s fifteen minutes rather than until the next
+        edition. Re-writing it would pay for the same episode twice; this
+        gives it the edition's window instead. Never makes a non-current
+        entry current, so a mid-game episode stays out of reach.
+        """
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET fresh_until = MAX(?, " + _CURRENT_UNTIL + "),"
+                " expires = MAX(expires, ?)"
+                " WHERE key = ? AND expires >= ? AND " + _CURRENT_UNTIL + " >= ?",
+                (float(until), float(until), key, time.time(), time.time()))
+            return bool(cur.rowcount)
+        except Exception:
+            log.exception("could not extend a cache entry; continuing")
+            return False
+
     def sourced_at(self, key: str) -> Optional[float]:
         """When the information in the kept episode under `key` was sourced,
-        or None if nothing is kept there (§142). Rows from before the column
+        or None if nothing is kept there (§143). Rows from before the column
         existed answer with when they were written, which is the closest
         thing they recorded."""
         try:
@@ -1062,7 +1098,7 @@ class SqliteScriptCache:
         """Store the script, and the vector for the question that produced it.
 
         **`ttl` is how long it stays current, not how long it is kept**
-        (§142). Every row is kept `CACHE_LIFE_SECONDS` (a week) from when its
+        (§143). Every row is kept `CACHE_LIFE_SECONDS` (a week) from when its
         information was sourced, and `ttl` - `ttl_for`'s answer, which may be
         0 - only decides how long a new request may be served it. `sourced_at`
         is when the retrieval happened; it defaults to now.
@@ -1251,7 +1287,7 @@ class SqliteScriptCache:
             return None
         try:
             rows = self._conn().execute(
-                # Current only (§142): a near match stands in for a hit, and
+                # Current only (§143): a near match stands in for a hit, and
                 # a hit is served only a current script.
                 "SELECT key, query, vector FROM scripts"
                 f" WHERE bucket = ? AND {_CURRENT_UNTIL} >= ? AND vector IS NOT NULL"
@@ -1362,7 +1398,7 @@ class SqliteScriptCache:
             {"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
              "plays": r[4], "thread": r[5] or "", "title": r[6] or "",
              "author": r[7] or "",
-             # §142: when its information was sourced, and whether a new
+             # §143: when its information was sourced, and whether a new
              # request would still be served it. Replay surfaces show the
              # first; nothing here hides an entry that is kept but not current.
              "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now}

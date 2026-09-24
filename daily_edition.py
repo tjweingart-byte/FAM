@@ -1,6 +1,6 @@
 """The DailyFAM edition: every mix's episodes, written before anybody taps.
 
-What it is (§142, at the owner's direction)
+What it is (§143, at the owner's direction)
 -------------------------------------------
 A DailyFAM mix holds subjects, never audio, and every play of one is that
 day's edition of each subject (`mixes.daily_prompt`). Until this existed, a
@@ -49,11 +49,11 @@ Where it departs from a rule, stated rather than buried
   live lookup runs as on any tap, so a finished game is settled by the
   scoreboard rather than by an article. The one state still refused is a
   game **in progress** at write time - that episode is kept (every episode
-  is, §142) but never current, so the tap writes a fresh one.
+  is, §143) but never current, so the tap writes a fresh one.
 * **An edition episode is current until the next edition**, plus an hour,
   however short `ttl_for` would make it - the same bargain the Trending bank
   makes, and for the same reason: `CACHE_TTL_VOLATILE` would expire a 05:00
-  briefing by 05:15. Its sourced time is stored beside it (§142), so what it
+  briefing by 05:15. Its sourced time is stored beside it (§143), so what it
   is and when it was true are both on the record.
 
 The rest is the house style: nothing on a request path builds anything, a
@@ -91,6 +91,9 @@ EPISODE_GRACE_SECONDS = 3600
 CONCURRENCY = 3
 #: What a build cut short by a shutdown writes, so the next boot retries.
 INTERRUPTED = "interrupted: the server stopped during the build"
+#: What an edition says on a server that cannot write (demo mode, no key).
+NO_WRITER = ("no writer on this server (demo mode or no key); every DailyFAM "
+             "episode is written on the tap")
 
 
 def _settings():
@@ -101,6 +104,11 @@ def _settings():
 # --------------------------------------------------------------------------
 # The clock
 # --------------------------------------------------------------------------
+#: Zones that could not be loaded, so the fallback is announced once per
+#: process rather than on every `/api/mixes` item that asks for the day.
+_BAD_ZONES: set = set()
+
+
 def zone():
     """The zone editions are scheduled in. UTC, loudly, if it cannot be read."""
     name = _settings().daily_edition_timezone or "America/New_York"
@@ -109,8 +117,10 @@ def zone():
 
         return ZoneInfo(name)
     except Exception as exc:  # noqa: BLE001 - a clock must never stop a boot
-        log.error("daily edition: time zone %r is unavailable (%s); scheduling "
-                  "in UTC instead. Install tzdata.", name, exc)
+        if name not in _BAD_ZONES:
+            _BAD_ZONES.add(name)
+            log.error("daily edition: time zone %r is unavailable (%s); "
+                      "scheduling in UTC instead. Install tzdata.", name, exc)
         return timezone.utc
 
 
@@ -312,6 +322,10 @@ _TASKS: set = set()
 #: Episodes written outside an edition (`schedule_mix`), per slot, so the
 #: edition's ceiling covers them too.
 _EXTRA: dict = {}
+#: Queries a saved mix has already asked for, per slot. A subject is tried
+#: once per edition from a save - a failed or refused one is the tap's to
+#: retry, not every later edit of the mix.
+_TRIED: dict = {}
 #: What the last attempt in this process said, for the health page.
 _LAST_ATTEMPT: dict = {}
 
@@ -330,6 +344,7 @@ def reset(edition_store: Optional[EditionStore] = None) -> None:
     _BUILDING = False
     _IN_FLIGHT.clear()
     _EXTRA.clear()
+    _TRIED.clear()
     _LAST_ATTEMPT.clear()
 
 
@@ -369,6 +384,13 @@ async def write_episode(query: str, generator, cache, length: int,
         if cache.get(key):
             sourced = getattr(cache, "sourced_at", lambda _k: None)(key) or 0.0
             if sourced >= since:
+                # This edition's already - or a tap got there first, sourced
+                # just as recently but current for only `ttl_for`'s fifteen
+                # minutes. Give it the edition's window rather than pay for
+                # the same episode twice.
+                extend = getattr(cache, "extend_current", None)
+                if extend is not None:
+                    extend(key, current_until)
                 return {"status": "cached", "key": key}
         notes = ScriptNotes()
         # Episode intelligence first, exactly as a tap would run it: the
@@ -383,7 +405,7 @@ async def write_episode(query: str, generator, cache, length: int,
                     "detail": "the writer returned nothing"}
         now = time.time()
         if (notes.live_status or "") == "in_progress":
-            # Kept, like every episode (§142), and never current: a score
+            # Kept, like every episode (§143), and never current: a score
             # taken mid-game is not what a tap later should be handed.
             ttl = 0
         else:
@@ -435,6 +457,14 @@ async def build(mix_store, generator=None, cache=None,
         return None
     slot = last_slot(now)
     sid = slot_id(slot)
+    if generator is None or cache is None:
+        # Nothing is claimed or stored: a slot marked built with nothing
+        # written would stop today's edition being written once a key
+        # arrives and the server restarts.
+        return {"slot": sid, "day": edition_day(now).isoformat(),
+                "minutes": minutes(), "subjects": len(subjects(mix_store, now)),
+                "episodes": {}, "skipped_for_ceiling": 0,
+                "detail": NO_WRITER}
     try:
         if not store().claim(sid, now, force=force):
             return None
@@ -450,15 +480,12 @@ async def build(mix_store, generator=None, cache=None,
     try:
         wanted = subjects(mix_store, now)
         report["subjects"] = len(wanted)
-        if generator is None or cache is None:
-            report["detail"] = ("no writer on this server (demo mode or no key); "
-                                "every DailyFAM episode is written on the tap")
-            store().finish(sid, now, report)
-            log.warning("daily edition %s: %s", sid, report["detail"])
-            return report
 
         ceiling_n = max(0, int(s.daily_edition_max_episodes or 0))
         ceiling_usd = max(0.0, float(s.daily_edition_max_dollars or 0.0))
+        # Episodes are reserved before each write; dollars are only known
+        # after one, so the dollar ceiling can be passed by at most the
+        # episodes already in flight (`CONCURRENCY`).
         spent = {"n": 0, "usd": 0.0}
         until = _current_until(now)
         gate = asyncio.Semaphore(CONCURRENCY)
@@ -553,6 +580,13 @@ async def run_forever(mix_store, generator=None, cache=None) -> None:
     if not _settings().daily_edition:
         log.info("daily edition: off (DAILY_EDITION=0)")
         return
+    if generator is None or cache is None:
+        # Said once, at boot, rather than every minute: nothing here changes
+        # until the server restarts with a key.
+        _LAST_ATTEMPT.update(slot=slot_id(last_slot()), detail=NO_WRITER,
+                             at=time.time())
+        log.warning("daily edition: %s", NO_WRITER)
+        return
     log.info("daily edition: at %s %s, %d min an episode; next at %s",
              ", ".join(f"{h:02d}:00" for h in hours()),
              _settings().daily_edition_timezone, minutes(),
@@ -574,7 +608,7 @@ async def run_forever(mix_store, generator=None, cache=None) -> None:
 # A mix saved between editions
 # --------------------------------------------------------------------------
 def schedule_mix(mix, generator=None, cache=None,
-                 now: Optional[float] = None) -> bool:
+                 now: Optional[float] = None, before=None) -> bool:
     """Write this mix's episodes for the current edition, in the background.
 
     Called when a mix is created, edited or copied. Never awaited and never
@@ -582,17 +616,28 @@ def schedule_mix(mix, generator=None, cache=None,
     they press play the subjects they just added are being written. Anything
     already current (the edition wrote it, or another mix follows the same
     subject) is skipped by `write_episode` for the price of a lookup.
+
+    Only what is **new**: `before` is the mix as it was, and a subject it
+    already held is the edition's, not this save's - so removing or
+    reordering items spends nothing. And each subject is tried from a save
+    at most once per edition (`_TRIED`), so a failed or refused one is not
+    retried on every later edit.
     """
     s = _settings()
     if not s.daily_edition or generator is None or cache is None or mix is None:
         return False
     now = time.time() if now is None else now
-    queries = []
     from cache import is_shareable
 
+    sid = slot_id(last_slot(now))
+    had = {(prompt_for(item, now) or "").strip()
+           for item in (getattr(before, "items", []) or [])}
+    tried = _TRIED.setdefault(sid, set())
+    queries = []
     for item in getattr(mix, "items", []) or []:
         query = (prompt_for(item, now) or "").strip()
-        if query and query not in queries and is_shareable(query):
+        if (query and query not in queries and query not in had
+                and query not in tried and is_shareable(query)):
             queries.append(query)
     if not queries:
         return False
@@ -600,7 +645,10 @@ def schedule_mix(mix, generator=None, cache=None,
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return False
-    sid = slot_id(last_slot(now))
+    tried.update(queries)
+    # Only this slot's: yesterday's set is of no use and would grow forever.
+    for old in [k for k in _TRIED if k != sid]:
+        _TRIED.pop(old, None)
     since = last_slot(now).timestamp()
 
     async def _write() -> None:

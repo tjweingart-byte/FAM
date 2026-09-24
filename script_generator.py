@@ -398,9 +398,9 @@ Three lines after the script, never spoken:
 
 <<TITLE: three to eight words>>
 
-What this episode turned out to be *about*, never the question you were \
-asked. Concrete and readable at a glance in a list; no colon, no question \
-mark, and never their own wording handed back.
+What it turned out to be *about*, never the question you were asked: the \
+subject by name, then the angle - "Why the Fed Held Rates Again", not "A \
+Costly Pause". No colon, no question mark.
 
 <<SUMMARY: one plain sentence on what it covers>>
 
@@ -468,7 +468,7 @@ class ScriptNotes:
     #: How fresh the evidence had to be, in days. 0 means evergreen.
     recency_days: int = 0
     #: When the information this episode is written from was sourced - the
-    #: moment retrieval and the live lookup both answered (§142). Stored
+    #: moment retrieval and the live lookup both answered (§143). Stored
     #: beside the script, shown on replay surfaces, and the clock its
     #: current window runs from. 0 until `prepare` has run.
     sourced_at: float = 0.0
@@ -913,8 +913,12 @@ and stop. Do not tease what you are not covering, do not end on a question, and
 do not summarise what they just heard.
 
 Then three lines after the script. Name the episode by what it turned out to be
-about, never by the question you were asked - three to eight words, concrete,
-readable at a glance in a list, no colon and no question mark:
+about, never by the question you were asked - three to eight words, no colon and
+no question mark. Clear first, curious second: name the actual subject plainly
+(the person, team, company, place or event), so nobody reading it cold wonders
+what it could be about, and let the angle make them want to hear what the
+episode says about it - "Why the Fed Held Rates Again", not "A Pause With
+Consequences":
 
 <<TITLE: three to eight words>>
 
