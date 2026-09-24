@@ -1318,8 +1318,8 @@ def main() -> int:
             assert page.evaluate("currentThread && currentThread.user_id") == "u_beth"
 
             # Somebody already announced is never announced again (§142).
-            # In the fixture build that is its follower, whose popup went up
-            # when the app opened - so the popup must have told the server.
+            # In the fixture build that is its follower, announced when the
+            # app opened - so whatever announced it must have told the server.
             # The live build has no followers, so it is told directly. Either
             # way the page's own memory of it is cleared first, so what keeps
             # the banner down is the server's `unannounced` filter and not the
@@ -1327,8 +1327,11 @@ def main() -> int:
             page.evaluate("hideNotification()")
             page.wait_for_timeout(500)
             if "live" not in target.name:
-                assert page.evaluate("!!followerPopupShown['u_nadia']"), \
-                    "the follower popup did not go up for the fixture's follower"
+                # By the popup or by the banner - they race at boot, and
+                # whichever goes up first tells the server.
+                assert page.evaluate(
+                    "!!(followerPopupShown['u_nadia'] || notifAnnouncedFollows['u_nadia'])"), \
+                    "the app opened without announcing the fixture's follower"
             else:
                 page.evaluate("""fetch('/api/friends/announced', { method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -2428,6 +2431,20 @@ def main() -> int:
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player"
             assert page.evaluate("FamAudio.isActive()"), "reopening the player restarted nothing - it stopped"
+            # Dismissing the bar hides it and nothing else: the next tab
+            # change must not end the episode it said was still playing.
+            page.evaluate("minimizePlayer(); dismissNowBar(); openMyFamTab()")
+            page.wait_for_timeout(400)
+            assert page.evaluate("FamAudio.isActive()"), \
+                "a dismissed bar let the next tab change stop the episode"
+            # Explore's reels own the audio there: the minimised episode is
+            # ended on the way in, not left playing under a reel card.
+            page.evaluate("openExplore()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("audioOwner !== 'player'"), \
+                "a minimised episode kept playing inside Explore"
+            assert page.evaluate("nowBarState === null"), \
+                "the mini bar still holds an episode Explore ended"
             page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
             page.wait_for_timeout(300)
 

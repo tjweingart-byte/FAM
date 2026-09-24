@@ -11654,3 +11654,28 @@ Checked in both preview builds: five new smoke behaviours replace the two
 that drove the wheel, 72 in all. Not checked on a phone: how the
 autocorrect feels against a real keyboard's own, and whether the
 textarea's growth fights the iOS keyboard.
+
+**What reviewing it found** (three reviewers over the diff, each finding
+reproduced before it was fixed). The mini player's rule was the wrong
+question: "keep playing if the bar is showing" broke three ways - the bar can
+be dismissed while its episode plays on, so the next tab change silently
+ended it; play-all draws the bar too, so its back button stopped stopping it
+and the bar opened the wrong player; and entering Explore left a minimised
+episode playing under a reel card whose play button then paused *that*
+episode, until leaving Explore killed it. `audioOwner` now says which player
+started the audio, and only the full player's episode survives navigation;
+Explore ends it on the way in. Beside that: `/api/spell` ran a word list on
+the event loop (now a thread, warmed at startup); the inbox joined on a
+timestamp, so a tie could show a message from before a Delete chat (now the
+newest id), and the banner poll ignored a deleted chat; history merged two
+follow-ups asked in the same words from different topics, which the cache
+key keeps apart (`context` is in its key now); an attached search went into
+history and would have replayed as an episode about "summarise this"; the
+follower popup and banner could both fire for one person at boot; the share
+sheet's double-send guard could be re-armed by un-choosing and re-choosing a
+face; autocorrect rewrote text during IME composition and could correct the
+ASCII tail of "Pokémon" (it now waits out composition, edits in place and
+takes whole words only); and two smoke checks could pass without testing
+what they named. Still true and not fixed: the last word of a search, typed
+just before Enter, is never checked by FAM's own corrector - Enter runs the
+search - though the keyboard's own correction still applies.

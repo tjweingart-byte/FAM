@@ -3543,13 +3543,17 @@
     });
   }
   function setTab(root){
-    // An episode that is playing keeps playing across tabs, in the mini
-    // player (§142). One still loading is abandoned, as it always was - and
-    // so is an Explore reel: the feed is a player of its own, and leaving it
-    // ends it rather than carrying a swiped-past card into the mini bar.
-    var leavingExplore = stack[0] === "explore" && root !== "explore";
-    if(!nowBarState || leavingExplore) stopSpeech();
-    if(leavingExplore) hideNowBar();
+    // The full player's episode keeps playing across tabs, in the mini
+    // player (§142); an album or a reel ends, as it always did. Explore is
+    // the exception the other way: its reels own the audio there, so a
+    // minimised episode is ended on the way in rather than left playing
+    // under a card whose play button would then be pausing it.
+    if(root === "explore" && stack[0] !== "explore" && audioOwner === "player"){
+      stopSpeech();
+      hideNowBar();
+    } else {
+      stopUnlessMinimised();
+    }
     stack = [root];
     showScreen(root);
     updateTabs(root);
@@ -3559,7 +3563,7 @@
     showScreen(id);
   }
   function goBack(){
-    if(!nowBarState) stopSpeech();   // see setTab
+    stopUnlessMinimised();   // see setTab
     stack.pop();
     var prev = stack[stack.length-1] || "home";
     showScreen(prev);
@@ -5052,7 +5056,26 @@
   function stopSpeech(){
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
     awaitingFirstAudio = "";
+    audioOwner = "";
     stopProgress(); FamAudio.stop();
+  }
+
+  //: Which player the audio belongs to: "player" (the full player, which
+  //: minimises into the mini bar), "playall" (an album), "reel" (Explore), or
+  //: "" when nothing has been started. §142 made leaving the full player
+  //: keep its episode going, and only the full player: an album and a reel
+  //: are players of their own with no mini form, so leaving them ends them
+  //: as it always did. Asked of this, never of `nowBarState` - the bar can be
+  //: dismissed while its episode plays on, and play-all draws the bar too.
+  var audioOwner = "";
+
+  // Leaving a screen by navigation: keep the full player's episode going,
+  // end anything else, and take the bar down with what it was showing.
+  function stopUnlessMinimised(){
+    if(audioOwner === "player") return;
+    var had = audioOwner;
+    stopSpeech();
+    if(had) hideNowBar();
   }
   function pauseSpeech(){ FamAudio.pause(); }
   function resumeSpeech(){ FamAudio.resume(); }
@@ -5108,6 +5131,7 @@
       query: query, context: context, surface: historyWhere,
       minutes: playOpts.minutes || selectedLengthMinutes } : null;
     speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
+    audioOwner = "player";
     // reset CC to off each time
     var panel = document.getElementById("ccPanel");
     panel.classList.remove("on"); panel.classList.add("off");
@@ -8345,6 +8369,7 @@
     document.getElementById("pa-src").textContent = "from " + t.source;
     // An Explore album taking over ends any DailyFAM playlist (§134).
     endMixQueue();
+    audioOwner = "playall";
     speakText(t.prompt || t.title, t.caption, function(){
       // Mid-album, a finished segment simply runs on. The popup is for the
       // end of the run, which is the point at which "what now" is a real
@@ -8597,6 +8622,14 @@
         threadMessages = [];
         currentThread = null;
         threadTyping = false;
+        // The chat list draws what it holds while it refreshes (§142), so it
+        // must hold nothing of the last account's; history likewise.
+        inboxThreads = [];
+        var oldList = document.getElementById("threadList");
+        if(oldList) oldList.innerHTML = "";
+        historyNow = null;
+        historyPending = null;
+        historyItems = [];
         // The last account's part-heard episodes must not stay on screen for
         // whoever uses the phone next (§127) - the section is otherwise only
         // redrawn when the next feed load succeeds.
@@ -9609,7 +9642,9 @@
         // been shown (§142). The popup used to remember that in page memory,
         // so every fresh open of the app raised the latest follower again.
         var next = (d.announce || []).filter(function(p){
-          return !followerPopupShown[p.user_id];
+          // Nor somebody the banner has just announced: the two are raised
+          // from different requests at boot and can arrive either way round.
+          return !followerPopupShown[p.user_id] && !notifAnnouncedFollows[p.user_id];
         })[0];
         if(next) showFollowerPopup(next);
       })
@@ -10699,8 +10734,8 @@
       .then(function(d){
         inboxThreads = inboxThreads.filter(function(t){ return t["with"] !== who.user_id; });
         setUnreadDot(d.unread);
-        stopThreadPolling();
         if(threadScreenOpen() && currentThread && currentThread.user_id === who.user_id){
+          stopThreadPolling();
           currentThread = null;
           threadMessages = [];
           goBack();   // which re-reads the list
@@ -10932,13 +10967,21 @@
   function acInstall(el){
     if(!el || el._acInstalled) return;
     el._acInstalled = true;
+    // Nothing is rewritten while a keyboard is composing (an IME, or
+    // Android's predictive keyboards): setting the text mid-composition
+    // cancels it, and some keyboards then duplicate or drop the word.
+    el.addEventListener("compositionstart", function(){ el._acComposing = true; });
+    el.addEventListener("compositionend", function(){ el._acComposing = false; });
     el.addEventListener("beforeinput", function(e){
       if(e.inputType !== "deleteContentBackward" || !acLast || acLast.el !== el) return;
+      // A backspace the browser will not let us cancel is left to do its
+      // own work; undoing on top of it would delete twice.
+      if(!e.cancelable) { acLast = null; return; }
       var end = acLast.start + acLast.to.length;
       if(el.selectionStart !== el.selectionEnd || el.selectionStart !== end + 1) return;
       if(el.value.slice(acLast.start, end) !== acLast.to) return;
       e.preventDefault();
-      el.value = el.value.slice(0, acLast.start) + acLast.from + el.value.slice(end);
+      el.setRangeText(acLast.from, acLast.start, end, "preserve");
       var caret = acLast.start + acLast.from.length + 1;
       el.setSelectionRange(caret, caret);
       AC_REVERTED[acLast.from.toLowerCase()] = true;
@@ -10957,20 +11000,23 @@
       if(!m) return;
       var word = m[1], start = pos - 1 - word.length;
       if(AC_REVERTED[word.toLowerCase()]) return;
+      // Only a whole word: not the ASCII tail of "Pokémon" or "2nite", and
+      // not part of a handle, a hashtag, a path or an address.
+      if(start > 0 && /[\p{L}\p{N}@#\/._-]/u.test(el.value.charAt(start - 1))) return;
       // The start of a sentence, where a capital is the keyboard's own.
       var head = el.value.slice(0, start);
       var first = /^\s*$/.test(head) || /[.!?\n]\s*$/.test(head);
       acAsk(word, first).then(function(fix){
-        if(!fix || fix === word) return;
+        if(!fix || fix === word || el._acComposing) return;
         // Only if the word is still there, untouched, where it was.
         if(el.value.slice(start, start + word.length) !== word) return;
         if(!AC_BOUNDARY.test(el.value.charAt(start + word.length))) return;
-        var caret = el.selectionStart, caretEnd = el.selectionEnd;
-        el.value = el.value.slice(0, start) + fix + el.value.slice(start + word.length);
-        var shift = fix.length - word.length;
-        if(caret > start){ caret += shift; caretEnd += shift; }
-        if(document.activeElement === el) el.setSelectionRange(caret, caretEnd);
+        // In place, so the caret and the rest of the text stay where they are.
+        el.setRangeText(fix, start, start + word.length, "preserve");
         acLast = { el: el, start: start, from: word, to: fix };
+        // Nothing fires `input` for a script's edit; the box's own listeners
+        // (its height, the typing note) are told the text changed.
+        el.dispatchEvent(new Event("input"));
       });
     });
   }
@@ -11497,7 +11543,9 @@
   // it. An explicit `surface` on the topic wins; otherwise the tab the
   // listener is on. Explore - and anything replay-only - is never recorded.
   function historySurface(t){
-    if(!t || t.cachedOnly) return "";
+    // An attached episode is never cached and could not be replayed from its
+    // words alone - it would come back as an episode about "summarise this".
+    if(!t || t.cachedOnly || t.attach) return "";
     if(t.surface) return t.surface;
     if(t.fromMix || t.source === "DailyFAM") return "dailyfam";
     var root = stack[0] || "";
@@ -11518,7 +11566,8 @@
   function noteListen(entry, title){
     if(!entry || !entry.surface || !AUTH.authenticated) return;
     try {
-      fetch("/api/history", {
+      // Kept, so a retitle is sent after the row exists rather than racing it.
+      entry.written = fetch("/api/history", {
         method: "POST", headers: {"Content-Type": "application/json"},
         // Cut to the server's own limits: a search title is derived from the
         // question and can run past 200 characters, and an over-long field
@@ -11536,16 +11585,16 @@
   // the row written at first audio is corrected when the real title lands.
   function retitleListen(entry, title){
     if(!entry || !entry.surface || !title || !AUTH.authenticated) return;
-    try {
-      fetch("/api/history", {
+    (entry.written || Promise.resolve()).then(function(){
+      return fetch("/api/history", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ query: String(entry.query || "").slice(0, 500),
                                minutes: entry.minutes, surface: entry.surface,
                                title: String(title).slice(0, 200),
                                context: String(entry.context || "").slice(0, 300),
                                retitle: true })
-      }).catch(function(){});
-    } catch(e){}
+      });
+    }).catch(function(){});
   }
 
   // ---- the save toggle ----
@@ -11637,6 +11686,7 @@
     shareContacts = [];
     // A sheet opens with nobody chosen, whoever was chosen last time.
     shareChosen = -1;
+    shareSheetSeq++;
     var bar = document.getElementById("shareConfirm");
     if(bar) bar.hidden = true;
     if(!AUTH.authenticated){
@@ -11937,10 +11987,17 @@
   // "Share with @handle" and Cancel. Tapping the same face again, or Cancel,
   // takes the choice back; tapping another face moves it.
   var shareChosen = -1;
+  //: A send in flight. While it is, the choice cannot change and Share cannot
+  //: be pressed again - otherwise un-choosing and re-choosing a face re-armed
+  //: the button and the same episode could go twice.
+  var shareSending = false;
+  //: Bumped whenever the sheet is opened, so a send that finishes after it was
+  //: closed and reopened does not close the new one.
+  var shareSheetSeq = 0;
 
   function sendToContact(i){
     var person = shareContacts[i];
-    if(!person) return;
+    if(!person || shareSending) return;
     shareChosen = shareChosen === i ? -1 : i;
     drawShareChoice();
   }
@@ -11955,13 +12012,14 @@
     bar.hidden = !person;
     if(person){
       var btn = document.getElementById("shareConfirmBtn");
-      btn.disabled = false;
+      btn.disabled = shareSending;
       btn.textContent = "Share with " + (person.handle ? "@" + person.handle
                                          : (person.name || "them"));
     }
   }
 
   function cancelShareContact(){
+    if(shareSending) return;
     shareChosen = -1;
     drawShareChoice();
   }
@@ -11970,16 +12028,21 @@
     var person = shareContacts[shareChosen];
     if(!person) return;
     var btn = document.getElementById("shareConfirmBtn");
-    if(btn && btn.disabled) return;   // one tap, one message
+    if(shareSending) return;   // one tap, one message
+    shareSending = true;
     if(btn){ btn.disabled = true; btn.textContent = "Sending\u2026"; }
+    var seq = shareSheetSeq;
     var done = function(ok, message){
+      shareSending = false;
+      toast(message);
+      // The sheet was closed, or closed and opened again for something
+      // else, while this was sending: leave that sheet alone.
+      if(seq !== shareSheetSeq) return;
       if(ok){
         shareChosen = -1;
         closeShareModal();
-        toast(message);
       } else {
         drawShareChoice();
-        toast(message);
       }
     };
     if(shareSubject.kind === "mix"){ sendMixToContact(person, done); return; }
@@ -12250,6 +12313,7 @@
     setSaved(false);
     setTimeout(refreshSavedState, 0);
     markPlaying();
+    audioOwner = "reel";
     FamAudio.play(ep.query, ep.minutes, {
       onFirstAudio: function(){
         reelFailures = 0;          // a card that plays clears the streak
@@ -12821,7 +12885,16 @@
       return;
     }
     if(body) body.innerHTML = '<div class="cat-empty">Loading topics…</div>';
+    // `loadPrefChoices` rewrites both lists from the server; anything ticked
+    // or typed while this was loading is put back rather than lost.
+    var keepFacets = introSelection.slice(), keepTopics = chosenTopics.slice();
     loadPrefChoices().then(function(){
+      introSelection = keepFacets;
+      chosenTopics = keepTopics;
+      catalogPicked = {};
+      chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
+      renderIntroFacets();
+      renderPickedSummary();
       catalogTopics = PREF_CHOICES.catalogue || [];
       if(!catalogTopics.length){
         if(body) body.innerHTML = '<div class="cat-empty">Could not load the topic '
@@ -12910,7 +12983,10 @@
   // and the interests only decide what it opens on. So this clears the
   // selection and moves on rather than quietly keeping half a choice.
   function skipInterests(){
+    // Everything ticked on the list, not only the old facets: the list is
+    // the page now (§142), so a skip after a tick would otherwise keep it.
     introSelection = [];
+    chosenTopics = [];
     finishIntro();
   }
 

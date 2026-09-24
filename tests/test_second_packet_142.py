@@ -292,10 +292,36 @@ def test_the_players_x_minimises_rather_than_stopping():
     assert "stopSpeech" not in body and "FamAudio.stop" not in body
 
 
-def test_navigating_keeps_a_playing_episode():
-    assert "if(!nowBarState) stopSpeech()" in js_function("goBack")
-    assert "if(!nowBarState || leavingExplore) stopSpeech()" in js_function("setTab")
+def test_navigating_keeps_only_the_full_players_episode():
+    """Only the full player minimises. Asked of who owns the audio, never of
+    whether the bar is showing: the bar can be dismissed mid-episode, and
+    play-all draws it too (both found in review)."""
+    assert "stopUnlessMinimised()" in js_function("goBack")
+    assert "stopUnlessMinimised()" in js_function("setTab")
+    keep = js_function("stopUnlessMinimised")
+    assert 'audioOwner === "player"' in keep and "nowBarState" not in keep
     assert "placeNowBar(next)" in js_function("showScreen")
+    # Each player says it owns the audio when it starts it.
+    assert 'audioOwner = "player"' in js_function("populatePlayer")
+    assert 'audioOwner = "playall"' in js_function("populatePlayAllTopic")
+    assert 'audioOwner = "reel"' in js_function("playReel")
+    assert 'audioOwner = ""' in js_function("stopSpeech")
+
+
+def test_entering_explore_ends_a_minimised_episode():
+    """Reels own the audio there; a minimised episode left playing under a
+    card made the card's play button pause the wrong episode."""
+    tab = js_function("setTab")
+    assert 'root === "explore"' in tab and "hideNowBar()" in tab
+
+
+def test_an_attached_episode_is_never_history():
+    assert "t.attach" in js_function("historySurface")
+
+
+def test_the_share_button_cannot_send_twice():
+    assert "shareSending" in js_function("sendToContact")
+    assert "shareSending" in js_function("confirmShareContact")
 
 
 # --- titles ---------------------------------------------------------------
