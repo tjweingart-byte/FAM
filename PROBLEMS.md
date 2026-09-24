@@ -11897,3 +11897,67 @@ and make the X look like it did not work. Listening to it again does not
 un-dismiss it; the X is the statement. `/api/godeeper` reads a few more of
 each kind so a dismissed one is replaced rather than leaving the section a
 tile short. Account deletion erases the list with the rest of `saved.py`.
+
+## 147. The loading screen shows five steps, checked off by the server
+
+The wait in front of a written episode said one line at a time -
+"Working out what you're asking", then "Reading today's sources", then
+"Writing your episode" - and the boundaries were **guessed from the clock**:
+four seconds in, it said the sources were being read whatever the server was
+doing. The code said so itself: "the honest fix - progress events from the
+generation path - is a server change rather than a wording one."
+
+**That server change is made.** The loading screen now shows five open
+circles, each checked off when that step really finishes:
+
+| Step | Checked when |
+|---|---|
+| Contextualizing your search | the brief is ready (`brief_ready`) |
+| Retrieving your information | Exa, GDELT and the live providers have all answered (`evidence_ready`) |
+| Verifying the relevance | the writer's hidden planning ends - its first token (`claude_first_token`) |
+| Finalizing your script | its first sentence is written and handed to the voice (`first_sentence`) |
+| Generating the audio | the first audio has arrived in the browser |
+
+The marks already existed - §128 put them on one clock for the log. The
+pipeline now attaches that `EpisodeMarks` to the episode's live track
+(`live_captions.attach_marks`), and `GET /api/progress` reads it under the
+same key and on the same terms as `/api/transcript`: it never generates, it
+is in-process, and a poll that reaches another worker gets `known: false`.
+
+**What "finalizing" means, stated because it differs from the request.**
+The owner asked for steps 3 and 4 at "halfway through" and "the end of" script
+generation. The script is streamed: sentences go to the voice as they are
+written, and the episode is playing long before the last one exists. Checking
+step 4 at the end of the whole script would put the entire writing time in
+front of the first word - minutes, on a long episode - which is the one thing
+this product refuses. So the two steps are the two real moments inside the
+wait that belong to the writer: the end of its planning over the brief and
+the evidence (the largest single wait on search since §129), and its opening
+sentence settled.
+
+**Every step is on screen for at least two seconds** (`GEN_STEP_MIN_MS`, the
+owner's floor), so a step that took a tenth of a second is still seen and a
+slow one is seen to be slow - the steps land unevenly because the work is
+uneven. To keep that true the audio is **held** until the fifth check rather
+than playing behind the list: `FamAudio` gained a `startGate`, which lets the
+stream keep filling the buffer while nothing is scheduled. The floor therefore
+adds time on a fast write - ten seconds is the shortest a written episode can
+now start in. That is the trade the floor asks for, stated.
+
+**A replay is never held.** The audio response now says `X-FAM-Cache`, and a
+cache hit - most myFAM and DailyFAM taps, by design - shows all five circles
+done and starts under the old 450ms floor. Walking five two-second steps for
+work nobody did would be the filler §55 deleted.
+
+If the progress poll never answers (another worker, an attachment, which has
+no key), the audio arriving checks the rest: audio existing means every step
+before it happened.
+
+What went: `startHonestWait`, `willResearch` and the interface's copy of the
+research word list, which existed only to choose which guessed line to show.
+The seconds counter stays under the list. The preview writes a first-time
+question on an uneven clock so the steps can be watched on a phone
+(`WRITING_SIM_JS`), and replays after that; under a browser driver every play
+is a replay unless `window.famPreviewWrites` is set, which is how the smoke
+check walks the five steps and asserts the floor and the held audio.
+**Unmeasured against a real server** - there is no key here.

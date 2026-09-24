@@ -2831,6 +2831,8 @@ def main() -> int:
                     if (on && !seen.shown) {
                         seen.shown = performance.now();
                         seen.status = document.getElementById("famLoadingStatus").textContent;
+                        seen.steps = el.classList.contains("stepped")
+                            ? el.querySelectorAll(".fam-steps li").length : 0;
                     } else if (!on && seen.shown && !seen.hidden) {
                         seen.hidden = performance.now();
                         // Against the page's own clock, not this callback's:
@@ -2865,25 +2867,78 @@ def main() -> int:
                     f"{floor}ms floor - that is a flicker, not a wait")
             page.evaluate("window.__loadingWatch.disconnect()")
 
-            status = (seen["status"] or page.text_content("#famLoadingStatus") or "")
-            assert status.strip(), "the loading screen said nothing about what it was doing"
-            # PROBLEMS.md 55: the wait names itself. A brand animation that
-            # replaced that line would be the filler problem in a nicer font.
-            #
-            # 82 added the first of these: episode intelligence deliberately
-            # put seconds back in front of the first word, so the line now
-            # moves through understanding, retrieval and writing in the order
-            # they happen rather than claiming audio has already started.
-            assert ("asking" in status or "Writing" in status
-                    or "sources" in status
-                    or "sample script" in status or "rejected" in status), (
-                f"the loading screen does not say what it is waiting for: {status!r}"
-            )
+            # PROBLEMS.md 55: the wait names itself. Since §147 it does so as
+            # five steps checked off from the server's own marks, rather than
+            # one line guessing a stage from the clock. A brand animation in
+            # their place would be the filler problem in a nicer font.
+            assert seen.get("steps") == 5, (
+                "the loading screen did not show its five steps on a search "
+                f"(saw {seen.get('steps')!r})")
             page.evaluate("clearGenOverlay()")
             page.wait_for_timeout(200)
             assert not page.evaluate(
                 """() => document.getElementById("famLoading").classList.contains("active")"""
             ), "the loading screen did not go away"
+
+        def the_loading_screen_checks_off_five_steps():
+            """Each step is checked when the server says it finished, in order,
+            and each is on screen for at least GEN_STEP_MIN_MS (§147).
+
+            The preview writes a first-time question on a clock with uneven
+            steps, the way a real episode does, and answers /api/progress from
+            it. The audio is held until the fifth check: an episode that
+            started playing behind the list would make the list a decoration.
+            """
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("""() => {
+                window.famPreviewWrites = true;
+                var el = document.getElementById("famLoading");
+                var seen = window.__steps = { shown: 0, done: [], started: 0, hidden: 0 };
+                var items = el.querySelectorAll(".fam-steps li");
+                if (window.__stepWatch) window.__stepWatch.disconnect();
+                window.__stepWatch = new MutationObserver(function () {
+                    if (el.classList.contains("active") && !seen.shown) seen.shown = genShownAt;
+                    if (!el.classList.contains("active") && seen.shown && !seen.hidden)
+                        seen.hidden = Date.now();
+                    items.forEach(function (li, i) {
+                        if (li.classList.contains("done") && !seen.done[i]) seen.done[i] = Date.now();
+                    });
+                });
+                window.__stepWatch.observe(el, { attributes: true, subtree: true,
+                                                 attributeFilter: ["class"] });
+                var real = window.onGenerationStarted;
+                window.onGenerationStarted = function () {
+                    if (!seen.started) seen.started = Date.now();
+                    return real.apply(this, arguments);
+                };
+                window.__realStarted = real;
+            }""")
+            try:
+                page.fill("#searchInput", "a question nobody has asked this page")
+                page.evaluate("runSearch()")
+                page.wait_for_function("() => window.__steps.hidden > 0", timeout=40000)
+                seen = page.evaluate("() => window.__steps")
+            finally:
+                page.evaluate("""() => {
+                    window.famPreviewWrites = false;
+                    window.__stepWatch.disconnect();
+                    window.onGenerationStarted = window.__realStarted;
+                }""")
+            floor = page.evaluate("GEN_STEP_MIN_MS")
+            done = seen["done"]
+            assert len(done) == 5 and all(done), f"not every step was checked: {done}"
+            previous = seen["shown"]
+            for i, at in enumerate(done):
+                # 30ms of slack: these are the observer's stamps, taken a
+                # moment after the page's own, and that moment varies.
+                assert at - previous >= floor - 30, (
+                    f"step {i + 1} was on screen for {at - previous}ms, "
+                    f"under its {floor}ms floor")
+                previous = at
+            assert seen["started"] >= done[4], (
+                "the episode started before the fifth step was checked")
+            page.evaluate("stopSpeech(); clearGenOverlay()")
 
         def one_tap_is_one_request():
             """One episode, one /api/audio - however many times it is tapped.
@@ -3047,6 +3102,8 @@ def main() -> int:
         check("Messages show faces and typing", messages_show_faces_and_typing)
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)
+        check("The loading screen checks off five steps",
+              the_loading_screen_checks_off_five_steps)
         check("One tap sends one request", one_tap_is_one_request)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)

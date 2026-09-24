@@ -210,6 +210,11 @@ window.FamAudio = (function () {
   var streamDone = false;
   var ended = false;
   var active = false;
+  /* True while audio has arrived and the caller has asked to start it later
+     (`handlers.startGate`). The stream keeps filling the buffer; nothing is
+     scheduled, so nothing is heard. The loading screen uses it to finish
+     checking off its steps before the first word (§147). */
+  var held = false;
 
   /* ---- Speed without pitch -------------------------------------------
    *
@@ -270,7 +275,7 @@ window.FamAudio = (function () {
     stopSources();
     if (ctx) { var c = ctx; ctx = null; c.close().catch(function () {}); }
     pcm = null; totalSamples = 0; cursor = 0; playHead = 0;
-    streamDone = false; ended = false; active = false; rate = 1;
+    streamDone = false; ended = false; active = false; rate = 1; held = false;
     resetStretch(0);
   }
 
@@ -388,7 +393,7 @@ window.FamAudio = (function () {
   /* Keep the clock fed. Runs on a timer so it also picks up newly arrived
      audio after the buffer has run dry. */
   function tick() {
-    if (!ctx || !active) return;
+    if (!ctx || !active || held) return;
 
     while (playHead - ctx.currentTime < LOOKAHEAD && cursor < totalSamples) {
       var stretch = stretching();
@@ -565,6 +570,7 @@ window.FamAudio = (function () {
         });
       }
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      var cacheState = res.headers.get("X-FAM-Cache") || "";
 
       var reader = res.body.getReader();
       var leftover = new Uint8Array(0);
@@ -595,9 +601,21 @@ window.FamAudio = (function () {
               bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
             if (first) {
               first = false;
-              playHead = ctx.currentTime;
-              tick();
-              if (handlers.onFirstAudio) handlers.onFirstAudio();
+              var begin = function () {
+                if (myToken !== token || !ctx) return;
+                held = false;
+                playHead = ctx.currentTime;
+                tick();
+                if (handlers.onFirstAudio) handlers.onFirstAudio();
+              };
+              if (handlers.startGate) {
+                // The caller starts it. Told whether this was a replay,
+                // because a replay has no steps to finish first.
+                held = true;
+                handlers.startGate(begin, { cache: cacheState });
+              } else {
+                begin();
+              }
             }
           }
           return pump();

@@ -109,11 +109,41 @@
     100% { opacity:.22; transform:scale(.78); }
   }
 
+  /* The five steps of a written episode (§147). Each circle is checked off
+     when that step really finishes on the server, and each is on screen for
+     at least GEN_STEP_MIN_MS - so a slow step reads as slow and a fast one
+     still reads at all. Only a wait that is writing something shows them;
+     the dots stand in everywhere else. */
+  .fam-steps{ display:none; list-style:none; margin:2px 0 0; padding:0;
+    flex-direction:column; gap:13px; text-align:left; }
+  .fam-loading.stepped .fam-steps{ display:flex; }
+  .fam-loading.stepped .fam-loading-dots{ display:none; }
+  .fam-steps li{ display:flex; align-items:center; gap:12px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
+    color:var(--text-muted); opacity:.55; transition:opacity .35s ease, color .35s ease; }
+  .fam-steps li.active, .fam-steps li.done{ opacity:1; }
+  .fam-steps li.active{ color:var(--text); }
+  .fam-steps li.done{ color:var(--copper); }
+  .fam-step-dot{ position:relative; flex:none; width:20px; height:20px; border-radius:50%;
+    border:1.6px solid currentColor; display:flex; align-items:center; justify-content:center;
+    transition:background .3s ease, border-color .3s ease; }
+  .fam-steps li.active .fam-step-dot{ border-color:var(--copper);
+    animation:famStepPulse 1.6s ease-in-out infinite; }
+  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); }
+  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); opacity:0;
+    transform:scale(.4); transition:opacity .25s ease, transform .3s cubic-bezier(.3,1.6,.5,1); }
+  .fam-steps li.done .fam-step-dot svg{ opacity:1; transform:scale(1); }
+  @keyframes famStepPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(224,181,99,0.45); }
+    50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
+  }
+
   /* Motion is decoration here; the words are the information. Anyone who has
      asked for less of it still gets the full status line. */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ animation:none; opacity:1; }
     .fam-loading-dots i{ animation:none; opacity:.7; }
+    .fam-steps li.active .fam-step-dot{ animation:none; }
   }
 
 
@@ -155,6 +185,17 @@
         <div class="fam-loading-word">FAMiliarizing…</div>
         <div class="fam-loading-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 
+        <!-- What FAM is doing, one step at a time (§147). Checked off from the
+             server's own marks for this episode, never from a timer - see
+             /api/progress. -->
+        <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
+          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Contextualizing your search</span></li>
+          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Retrieving your information</span></li>
+          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Verifying the relevance</span></li>
+          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Finalizing your script</span></li>
+          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Generating the audio</span></li>
+        </ol>
+
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put
              this in its place: what it is waiting for, and how long it has
              been. A brand animation that replaced it would be the same
@@ -164,46 +205,81 @@
   </div></div>
 
   <div class="controls" id="controls">
-      <button onclick="setStatus(0)">Instant answer</button>
-      <button onclick="setStatus(1)">Understanding</button>
-      <button onclick="setStatus(2)">Researching</button>
-      <button onclick="setStatus(3)">Writing</button>
-      <button onclick="setStatus(4)">No API key</button>
-      <button onclick="setStatus(5)">Key rejected</button>
+      <button onclick="setStatus(0)">Contextualizing</button>
+      <button onclick="setStatus(1)">Retrieving</button>
+      <button onclick="setStatus(2)">Verifying</button>
+      <button onclick="setStatus(3)">Finalizing</button>
+      <button onclick="setStatus(4)">Generating audio</button>
+      <button onclick="setStatus(5)">No API key</button>
+      <button onclick="setStatus(6)">Key rejected</button>
+      <button onclick="walk()">Play a real-looking wait</button>
       <button onclick="flash()">Show a cache hit (450ms)</button>
   </div>
 
   <div class="note">
-    The line underneath is the honest wait from <b>PROBLEMS.md §55</b>: it says
-    what is being waited for, never how good it will be. On a cache hit the
-    whole thing lasts 450ms — the floor added because 3ms read as a glitch
-    rather than as speed.
+    Each circle is checked off when the server says that step has finished
+    (<b>PROBLEMS.md §147</b>), and each is on screen for at least two seconds,
+    so a slow step reads as slow and a fast one still reads. The real-looking
+    wait uses uneven step times on purpose. A replay has nothing to write: it
+    shows all five done and lasts 450ms.
   </div>
 
 <script>
   var STATUSES = [
-    'Writing your episode…',
-    "Working out what you're asking… 3s",
-    "Reading today's sources… 5s",
-    'Writing your episode… 8s',
-    'Playing the built-in sample script…',
-    "The server's API key was rejected — no episode can be written."
+    [0, ''],
+    [1, '3s'],
+    [2, '5s'],
+    [3, '13s'],
+    [4, '15s'],
+    [0, 'Playing the built-in sample script…'],
+    [0, "The server's API key was rejected…"]
   ];
   var el = document.getElementById("famLoading");
   var line = document.getElementById("famLoadingStatus");
   var buttons = document.getElementById("controls").querySelectorAll("button");
 
+  var items = el.querySelectorAll(".fam-steps li");
+  var walking = [];
+
+  function paint(shown){
+    items.forEach(function(li, n){
+      li.classList.toggle("done", n < shown);
+      li.classList.toggle("active", n === shown);
+    });
+  }
+
+  function stopWalk(){ walking.forEach(clearTimeout); walking = []; }
+
   function setStatus(i){
-    line.textContent = STATUSES[i];
-    el.classList.add("active");
+    stopWalk();
+    el.classList.add("active", "stepped");
+    paint(STATUSES[i][0]);
+    line.textContent = STATUSES[i][1];
     buttons.forEach(function(b, n){ b.classList.toggle("on", n === i); });
   }
 
-  // What a cache hit actually looks like: shown, then held to the floor and
+  // Uneven on purpose - the brief, a fast retrieval held to its two-second
+  // floor, the writer's long planning, the first sentence, the first audio.
+  function walk(){
+    stopWalk();
+    el.classList.add("active", "stepped");
+    line.textContent = "";
+    buttons.forEach(function(b){ b.classList.remove("on"); });
+    var at = 0;
+    paint(0);
+    [3100, 2000, 7800, 2000, 2000].forEach(function(ms, n){
+      at += ms;
+      walking.push(setTimeout(function(){ paint(n + 1); }, at));
+    });
+  }
+
+  // What a replay actually looks like: all five done, held to the floor, and
   // cleared. Anything shorter is the flash the floor exists to prevent.
   function flash(){
+    stopWalk();
     el.classList.remove("active");
-    setTimeout(function(){ el.classList.add("active"); }, 260);
+    paint(5);
+    setTimeout(function(){ el.classList.add("active", "stepped"); }, 260);
     setTimeout(function(){ el.classList.remove("active"); }, 260 + 450);
   }
 

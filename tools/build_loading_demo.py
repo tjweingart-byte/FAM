@@ -51,24 +51,23 @@ def build() -> str:
     if "famRise" not in css or "GEN_MIN" in css:
         sys.exit("the extracted CSS does not look like the loading screen")
 
-    # The states the status line actually takes, in the words the app uses.
-    # Kept in step with startHonestWait() and the two notices - a researched
-    # episode now moves through three of them in order, because episode
-    # intelligence put real seconds back in front of the first word and the
-    # line has to say which of them is being spent.
+    # The states the screen actually takes. A written episode walks five
+    # steps (§147), each checked off from the server's own marks; `shown` is
+    # how many are checked. A machine that cannot write says so underneath.
     states = [
-        ("Instant answer", "Writing your episode…"),
-        ("Understanding", "Working out what you're asking… 3s"),
-        ("Researching", "Reading today's sources… 5s"),
-        ("Writing", "Writing your episode… 8s"),
-        ("No API key", "Playing the built-in sample script…"),
-        ("Key rejected", "The server's API key was rejected — no episode can be written."),
+        ("Contextualizing", 0, ""),
+        ("Retrieving", 1, "3s"),
+        ("Verifying", 2, "5s"),
+        ("Finalizing", 3, "13s"),
+        ("Generating audio", 4, "15s"),
+        ("No API key", 0, "Playing the built-in sample script…"),
+        ("Key rejected", 0, "The server's API key was rejected…"),
     ]
     buttons = "\n".join(
         f'      <button onclick="setStatus({i})">{label}</button>'
-        for i, (label, _) in enumerate(states)
+        for i, (label, _, _) in enumerate(states)
     )
-    status_js = ",\n".join(f'    {text!r}' for _, text in states)
+    status_js = ",\n".join(f'    [{shown}, {text!r}]' for _, shown, text in states)
 
     return f"""<!doctype html>
 <html lang="en">
@@ -125,14 +124,16 @@ def build() -> str:
 
   <div class="controls" id="controls">
 {buttons}
+      <button onclick="walk()">Play a real-looking wait</button>
       <button onclick="flash()">Show a cache hit (450ms)</button>
   </div>
 
   <div class="note">
-    The line underneath is the honest wait from <b>PROBLEMS.md §55</b>: it says
-    what is being waited for, never how good it will be. On a cache hit the
-    whole thing lasts 450ms — the floor added because 3ms read as a glitch
-    rather than as speed.
+    Each circle is checked off when the server says that step has finished
+    (<b>PROBLEMS.md §147</b>), and each is on screen for at least two seconds,
+    so a slow step reads as slow and a fast one still reads. The real-looking
+    wait uses uneven step times on purpose. A replay has nothing to write: it
+    shows all five done and lasts 450ms.
   </div>
 
 <script>
@@ -143,17 +144,48 @@ def build() -> str:
   var line = document.getElementById("famLoadingStatus");
   var buttons = document.getElementById("controls").querySelectorAll("button");
 
+  var items = el.querySelectorAll(".fam-steps li");
+  var walking = [];
+
+  function paint(shown){{
+    items.forEach(function(li, n){{
+      li.classList.toggle("done", n < shown);
+      li.classList.toggle("active", n === shown);
+    }});
+  }}
+
+  function stopWalk(){{ walking.forEach(clearTimeout); walking = []; }}
+
   function setStatus(i){{
-    line.textContent = STATUSES[i];
-    el.classList.add("active");
+    stopWalk();
+    el.classList.add("active", "stepped");
+    paint(STATUSES[i][0]);
+    line.textContent = STATUSES[i][1];
     buttons.forEach(function(b, n){{ b.classList.toggle("on", n === i); }});
   }}
 
-  // What a cache hit actually looks like: shown, then held to the floor and
+  // Uneven on purpose - the brief, a fast retrieval held to its two-second
+  // floor, the writer's long planning, the first sentence, the first audio.
+  function walk(){{
+    stopWalk();
+    el.classList.add("active", "stepped");
+    line.textContent = "";
+    buttons.forEach(function(b){{ b.classList.remove("on"); }});
+    var at = 0;
+    paint(0);
+    [3100, 2000, 7800, 2000, 2000].forEach(function(ms, n){{
+      at += ms;
+      walking.push(setTimeout(function(){{ paint(n + 1); }}, at));
+    }});
+  }}
+
+  // What a replay actually looks like: all five done, held to the floor, and
   // cleared. Anything shorter is the flash the floor exists to prevent.
   function flash(){{
+    stopWalk();
     el.classList.remove("active");
-    setTimeout(function(){{ el.classList.add("active"); }}, 260);
+    paint(5);
+    setTimeout(function(){{ el.classList.add("active", "stepped"); }}, 260);
     setTimeout(function(){{ el.classList.remove("active"); }}, 260 + 450);
   }}
 

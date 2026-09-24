@@ -1020,6 +1020,15 @@ class PodcastPipeline:
             return list(sentences), True, bool(done)
         return list(await self.script_for(plan)), False, True
 
+    async def progress_for(self, plan: EpisodePlan) -> dict:
+        """Which loading-screen steps this episode has finished (§147).
+
+        Read from the live track only, never the cache: it describes an
+        episode being made right now, and asking it can never start one.
+        """
+        key = await self._cache_key(plan) if is_shareable(plan.query) else ""
+        return live_captions.read_progress(key)
+
     async def caption_starts(self, plan: EpisodePlan) -> list:
         """Where each live sentence starts in the audio, or [] if unmeasured.
 
@@ -1222,6 +1231,9 @@ class PodcastPipeline:
         # where the sentences existed and nothing showed them.
         stats.caption_key = key
         live_captions.open_track(key)
+        # The loading screen checks off each step from this episode's own
+        # marks as they happen - see `live_captions.read_progress`.
+        live_captions.attach_marks(key, stats.marks)
         if self.cache and shareable:
             # A replay surface replays anything still kept, stamped with when
             # it was sourced; every other request is served only a script
@@ -1248,6 +1260,7 @@ class PodcastPipeline:
                         log.info("near cache hit %.3f for %r", near[1], plan.query)
             if cached:
                 stats.cache = "hit"
+                live_captions.mark_cached(stats.caption_key)
                 # Counted here, where an episode is about to be *played*, and
                 # nowhere that merely looks: `get` also runs for the pacing
                 # probe and for prefetch, which is why `hits` could never be

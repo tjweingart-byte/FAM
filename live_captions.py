@@ -82,7 +82,7 @@ KEEP_SECONDS = 900.0
 
 class _Track:
     __slots__ = ("sentences", "starts", "sources", "title", "title_final",
-                 "done", "touched")
+                 "done", "touched", "marks", "cached")
 
     def __init__(self) -> None:
         self.sentences: list[str] = []
@@ -113,6 +113,14 @@ class _Track:
         #: forty seconds after the question it answers ("where is this coming
         #: from?") stopped being interesting.
         self.sources: str = ""
+        #: The episode's `EpisodeMarks`, so the loading screen can check off
+        #: each step as it really finishes (`read_progress`). Held by
+        #: reference and only ever read: the marks are the pipeline's clock,
+        #: and a checklist that kept its own would be a second, guessed one.
+        self.marks = None
+        #: True when this episode was replayed from the cache - nothing is
+        #: being written, so there are no steps to walk through.
+        self.cached = False
         self.done = False
         self.touched = time.time()
 
@@ -327,3 +335,76 @@ def read_sources(key: str) -> str:
         _expire()
         track = _TRACKS.get(key)
         return track.sources if track is not None else ""
+
+
+#: The loading screen's checklist, in the order a listener waits through it,
+#: each named by the `EpisodeMarks` event that finishes it. Four, not five:
+#: the fifth - the audio starting - is only known where it is heard.
+#:
+#: "verified" is the writer's first token, which is the end of its hidden
+#: planning over the brief and the evidence; "written" is its first whole
+#: sentence, handed to the voice. The script goes on being written while the
+#: episode plays - that is the streaming design - so the end of the *whole*
+#: script is never in front of the first word, and waiting for it would put
+#: the entire writing time there. These are the two moments inside the wait
+#: that actually happen, in the order they happen.
+PROGRESS_STEPS = (
+    ("contextualized", "brief_ready"),
+    ("retrieved", "evidence_ready"),
+    ("verified", "claude_first_token"),
+    ("written", "first_sentence"),
+)
+
+
+def attach_marks(key: str, marks) -> None:
+    """Let the loading screen read this episode's clock while it is made."""
+    if not key or marks is None:
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is not None:
+            track.marks = marks
+            track.touched = time.time()
+
+
+def mark_cached(key: str) -> None:
+    """Say this episode is a replay, so the checklist has nothing to walk."""
+    if not key:
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is not None:
+            track.cached = True
+            track.touched = time.time()
+
+
+def read_progress(key: str) -> dict:
+    """Which of the loading screen's steps have finished, for one episode.
+
+    `known` is False when no episode is being made under this key in this
+    worker - an attachment, a poll that reached another worker, or a request
+    that has not opened its track yet. The interface then walks the steps
+    when the audio arrives, which is honest in the other direction: audio
+    existing means every step before it has happened.
+
+    A step is done when its own mark or any later one exists, so the list
+    can only ever fill from the top.
+    """
+    steps = {name: False for name, _ in PROGRESS_STEPS}
+    if not key:
+        return {"known": False, "cached": False, "steps": steps}
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None:
+            return {"known": False, "cached": False, "steps": steps}
+        cached = track.cached
+        has_marks = track.marks is not None
+        events = dict(getattr(track.marks, "events", None) or {})
+    if cached:
+        return {"known": True, "cached": True,
+                "steps": {name: True for name in steps}}
+    reached = False
+    for name, mark in reversed(PROGRESS_STEPS):
+        reached = reached or mark in events
+        steps[name] = reached
+    return {"known": has_marks, "cached": False, "steps": steps}

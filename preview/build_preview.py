@@ -661,6 +661,50 @@ def mix_items_js() -> str:
         "endings": list(mixes_mod.DAILY_ENDINGS)}))
 
 
+#: The loading screen's five steps, walked the way a written episode walks
+#: them (§147). Shared by both preview shims, which answer `/api/audio` and
+#: `/api/progress` from it. A question asked for the first time in the page is
+#: "written" - its audio held back while the marks pass on a clock with uneven
+#: steps, because the variance is what the screen is for - and asked again it
+#: is a replay. Under a browser driver it is off (every play a replay, so the
+#: smoke test is not ten seconds per tap); `window.famPreviewWrites = true`
+#: turns it on there, which is how the smoke test walks it.
+WRITING_SIM_JS = r"""
+  var WRITES = {};
+  // Seconds each step takes: the brief, the retrieval, the writer's planning,
+  // its first sentence, the first audio. Jittered per episode.
+  var WRITE_STEPS = [2.6, 0.7, 6.4, 1.3, 0.9];
+  var PROGRESS_NAMES = ["contextualized", "retrieved", "verified", "written"];
+  function simulatesWriting() {
+    if (typeof window.famPreviewWrites === "boolean") return window.famPreviewWrites;
+    return !navigator.webdriver;
+  }
+  function beginWrite(q) {
+    if (!simulatesWriting() || (WRITES[q] && WRITES[q].done)) return null;
+    var at = 0, marks = WRITE_STEPS.map(function (s) {
+      at += s * (0.7 + Math.random() * 0.6);
+      return at;
+    });
+    return (WRITES[q] = { started: Date.now(), marks: marks, done: false });
+  }
+  function writeProgress(q) {
+    var steps = {};
+    var w = WRITES[q];
+    var t = w ? (Date.now() - w.started) / 1000 : 0;
+    PROGRESS_NAMES.forEach(function (name, i) {
+      steps[name] = !!w && (w.done || t >= w.marks[i]);
+    });
+    return { known: !!w, cached: false, steps: steps };
+  }
+  // `respond(cached)` builds the audio response once the write has finished.
+  function afterWrite(w, respond) {
+    if (!w) return respond(true);
+    return new Promise(function (r) {
+      setTimeout(r, w.marks[w.marks.length - 1] * 1000);
+    }).then(function () { w.done = true; return respond(false); });
+  }
+"""
+
 SHIM = """
 <script>
 /* ---- Preview shim -------------------------------------------------------
@@ -728,7 +772,8 @@ __MIX_ITEMS__
   var SHARE_TEMPLATES = __SHARE_TEMPLATES__;
 
   // Silence, streamed in chunks, so the player's buffering logic runs for real.
-  function silence(seconds) {
+__WRITING_SIM__
+  function silence(seconds, cached) {
     var total = Math.round(seconds * SAMPLE_RATE);
     var sent = 0;
     var stream = new ReadableStream({
@@ -742,7 +787,8 @@ __MIX_ITEMS__
     });
     return Promise.resolve(new Response(stream, {
       status: 200,
-      headers: { "Content-Type": "audio/L16", "X-Sample-Rate": String(SAMPLE_RATE) }
+      headers: { "Content-Type": "audio/L16", "X-Sample-Rate": String(SAMPLE_RATE),
+                 "X-FAM-Cache": cached === false ? "miss" : "hit" }
     }));
   }
 
@@ -918,8 +964,12 @@ __MIX_ITEMS__
     var qs = new URLSearchParams((url.split("?")[1] || ""));
 
     if (path === "/api/audio") {
-      return silence(Math.max(1, Number(qs.get("minutes") || 1)) * 60);
+      var secs = Math.max(1, Number(qs.get("minutes") || 1)) * 60;
+      return afterWrite(beginWrite(qs.get("q") || ""), function (cached) {
+        return silence(secs, cached);
+      });
     }
+    if (path === "/api/progress") return json(writeProgress(qs.get("q") || ""));
     if (path === "/api/attach") {
       if (method === "DELETE") return json({ ok: true });
       // Echo the name back so the chip reads like the real thing. No file is
@@ -1486,7 +1536,8 @@ def build() -> pathlib.Path:
         starts.append(round(at, 2))
         at += len(line) / 15.0 + 0.35
     transcript["starts"] = starts
-    shim = (SHIM.replace("__FIXTURES__", json.dumps(fixtures))
+    shim = (SHIM.replace("__WRITING_SIM__", WRITING_SIM_JS)
+               .replace("__FIXTURES__", json.dumps(fixtures))
                .replace("__MIX_ITEMS__", mix_items_js())
                .replace("__SHARE_TEMPLATES__", json.dumps([
                    {"key": t.key, "label": t.label, "kind": t.kind,

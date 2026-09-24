@@ -159,32 +159,24 @@ def test_the_old_switch_still_forces_search_on(monkeypatch):
 
 # --- the interface can tell the truth about the wait ------------------------
 
-def test_the_interface_is_served_the_same_word_list_the_server_decides_with():
-    """A second copy in JavaScript would drift, and then the listener is told
-    one thing while the server does another."""
-    words = cache_mod.research_words()
-    assert "latest" in words and "today" in words
-    index = (ROOT / "static" / "index.html").read_text()
-    assert "h.research_words" in index, "the interface does not read the list"
-    assert "RESEARCH_WORDS" in index and "willResearch" in index
-
-
 def test_the_wait_says_what_it_is_waiting_for():
-    """And says which part of it is being spent.
+    """And says which part of it is being spent - from the server, not a clock.
 
     The line used to read "Answering now - checking sources underneath", which
     was true while the from-knowledge cover spoke over the research. It is not
     true now: the cover is deleted (§108), and both episode intelligence and
-    the retrieval deliberately sit in front of the first word. A line claiming
-    audio had started would be a new lie in the place PROBLEMS.md 55 removed
-    the old one from, so the three stages are named in the order they happen.
+    the retrieval deliberately sit in front of the first word. Then it named
+    three stages guessed from elapsed time. Since §147 it is five steps, each
+    checked off when the episode's own marks say it finished.
     """
     index = (ROOT / "static" / "index.html").read_text()
-    assert "Working out what you're asking" in index, (
-        "the seconds episode intelligence costs are unexplained")
-    assert "Reading today's sources" in index, "no honest state for retrieval"
-    assert "Writing your episode" in index, "no honest state for writing"
-    assert "startHonestWait" in index
+    for step in ("Contextualizing your search", "Retrieving your information",
+                 "Verifying the relevance", "Finalizing your script",
+                 "Generating the audio"):
+        assert step in index, f"the loading screen lost the step {step!r}"
+    assert "/api/progress" in index, "the steps are no longer read from the server"
+    # The guessed stage line is gone rather than kept beside the real one.
+    assert "startHonestWait" not in index
     # The quoted form, so that the comment explaining why the old line went
     # does not itself trip this.
     assert '"Answering now' not in index, (
