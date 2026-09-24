@@ -756,6 +756,11 @@ __MIX_ITEMS__
   // never reaching the banner, and a test that calls the banner directly
   // would pass with the poll unplugged.
   var NOTIFY = { head: 0, pending: [], follows: [] };
+  //: Listening history (§142), for the life of the page.
+  var PREVIEW_HISTORY = [];
+  var PREVIEW_AUTHED = function () {
+    return !!(FIXTURES["/api/auth/me"] && FIXTURES["/api/auth/me"].authenticated);
+  };
 
   window.famPreviewNotify = function (item) {
     if (item && item.follow) { NOTIFY.follows.push(item.follow); return; }
@@ -835,13 +840,18 @@ __MIX_ITEMS__
             return { user_id: p.user_id, name: p.name, handle: p.handle,
                      avatar: "", at: 0, follows_back: false };
           });
+      var told = this.announced;
       return { following: pick(this.following), followers: pick(this.followers),
                friends: pick(friends), new_followers: fresh,
+               // Only who has never been announced (§142), like the server.
+               announce: fresh.filter(function (p) { return !told[p.user_id]; }),
                counts: { following: this.following.length,
                          followers: this.followers.length,
                          friends: friends.length } };
     },
     seenFollowers: false,
+    //: Followers the popup or banner has already announced (§142).
+    announced: {},
     //: The YourFAM avatar row, the shape `/api/profile`'s `circle` has:
     //: friends first, then follows, each flagged from a vibe or an unread
     //: message the fixture actually holds.
@@ -1039,6 +1049,71 @@ __MIX_ITEMS__
                     episodes: cards.slice(off, off + lim), more: cards.length > off + lim,
                     reason: cards.length ? "" : "Nothing on this yet. Search it, and yours is the first." });
     }
+
+    // ---- §142: listening history, autocorrect, delete chat, one-time follows
+    //
+    // History is kept in this page's memory, the shape `/api/history` answers
+    // with and the same rules: two weeks, newest first, one row per episode
+    // per surface, and Explore refused.
+    if (path === "/api/history" && method === "POST") {
+      var hb = JSON.parse((init && init.body) || "{}");
+      var surfaces = ["myfam", "dailyfam", "search", "other"];
+      if (!PREVIEW_AUTHED()) return json({ ok: true, remembered: false });
+      if (surfaces.indexOf(hb.surface) === -1) return json({ ok: true, remembered: false });
+      var hctx = hb.context || "";
+      var twin = PREVIEW_HISTORY.filter(function (h) {
+        return h.query === hb.query && h.minutes === hb.minutes
+            && h.context === hctx && h.surface === hb.surface; })[0];
+      if (hb.retitle) {
+        PREVIEW_HISTORY.forEach(function (h) {
+          if (h.query === hb.query && h.minutes === hb.minutes
+              && h.context === hctx && hb.title) h.title = hb.title; });
+        return json({ ok: true, remembered: true });
+      }
+      if (twin) PREVIEW_HISTORY.splice(PREVIEW_HISTORY.indexOf(twin), 1);
+      PREVIEW_HISTORY.unshift({ query: hb.query, minutes: hb.minutes, surface: hb.surface,
+                                title: hb.title || (twin ? twin.title : ""),
+                                context: hb.context || "", at: Date.now() / 1000 });
+      return json({ ok: true, remembered: true });
+    }
+    if (path === "/api/history") {
+      if (!PREVIEW_AUTHED()) return json({ error: "You need an account for this." }, 401);
+      var hs = qs.get("surface") || "";
+      var cutoff = Date.now() / 1000 - 14 * 86400;
+      return json({ items: PREVIEW_HISTORY.filter(function (h) {
+                      return h.at >= cutoff && (!hs || h.surface === hs); }),
+                    surfaces: ["myfam", "dailyfam", "search", "other"], days: 14 });
+    }
+    // A handful of the corrections `autocorrect.py` makes, so the behaviour
+    // can be felt on a phone. The real list is the server's; this has no
+    // dictionary and says nothing about any word it does not know.
+    if (path === "/api/spell") {
+      var sb = JSON.parse((init && init.body) || "{}");
+      var FIX = { teh: "the", recieve: "receive", definately: "definitely",
+                  tomorow: "tomorrow", becuase: "because", wiht: "with",
+                  taht: "that", im: "I'm", dont: "don't", thats: "that's",
+                  goverment: "government", leage: "league" };
+      return json({ available: true, corrections: (sb.words || []).map(function (w, i) {
+        var low = String(w || "").toLowerCase();
+        if (w !== low && !((sb.first || [])[i] && w.slice(1) === low.slice(1))) return null;
+        var fix = FIX[low] || null;
+        if (fix && w !== low) fix = fix.charAt(0).toUpperCase() + fix.slice(1);
+        return fix;
+      }) });
+    }
+    if (path === "/api/friends/announced") {
+      if (!PREVIEW_AUTHED()) return json({ error: "You need an account for this." }, 401);
+      var ab = JSON.parse((init && init.body) || "{}");
+      if (ab.user_id) PEOPLE.announced[ab.user_id] = true;
+      return json({ ok: true });
+    }
+    if (path === "/api/messages/thread" && method === "DELETE") {
+      if (!PREVIEW_AUTHED()) return json({ error: "You need an account for this." }, 401);
+      var gone = qs.get("with") || "";
+      delete PEOPLE.threads[gone];
+      PEOPLE.unread[gone] = 0;
+      return json({ ok: true, unread: PEOPLE.inbox().unread });
+    }
     if (path === "/api/friends") return json(PEOPLE.graph());
     if (path === "/api/friends/seen") {
       PEOPLE.seenFollowers = true;
@@ -1102,7 +1177,10 @@ __MIX_ITEMS__
       var pending = NOTIFY.pending.splice(0, NOTIFY.pending.length);
       pending.forEach(function (m) { NOTIFY.head = Math.max(NOTIFY.head, m.id); });
       return json({ messages: pending,
-                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length),
+                    // Never somebody already announced, as the server
+                    // filters `unannounced=True` (§142).
+                    follows: NOTIFY.follows.splice(0, NOTIFY.follows.length)
+                      .filter(function (p) { return !PEOPLE.announced[p.user_id]; }),
                     head: NOTIFY.head, unread: PEOPLE.inbox().unread });
     }
     if (path === "/api/messages" && method === "POST") {

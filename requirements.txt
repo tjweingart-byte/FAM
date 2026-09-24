@@ -51,3 +51,9 @@ pypdf>=4.0
 # the zone data; a slim container image has no /usr/share/zoneinfo, and
 # without this the schedule falls back to UTC - 5am Eastern becoming 1am.
 tzdata>=2024.1
+
+# Autocorrect for messages and search (§142, `autocorrect.py`). Pure Python
+# with its word list inside the wheel - no model, no network. Optional in the
+# same way pypdf is: without it every word passes through unchanged and
+# `/api/spell` says `available: false`.
+pyspellchecker>=0.8

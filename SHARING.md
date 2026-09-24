@@ -48,9 +48,26 @@ Those two fields are exactly the script cache's key, so the recipient's play is
 a cache hit.
 
 What is deliberately not here: **group threads** (a share to a group is closer
-to an echo, and that is a decision to make when somebody wants one), **delivery
-receipts** and **typing indicators** (both are promises about somebody else's
-attention, and this app has a rule against inventing state it does not have).
+to an echo, and that is a decision to make when somebody wants one) and
+**delivery receipts** (a promise about somebody else's attention, and this app
+has a rule against inventing state it does not have). *(Typing indicators were
+on this list and have existed since §127: held in memory for a few seconds,
+never written anywhere - `typing_indicator.py`.)*
+
+**A message keeps its line breaks** *(§142)*. The box is multi-line - return is
+a new line, the arrow sends - and `messages.clean_text` tidies spaces within a
+line, keeps the breaks, and caps a run of blank lines at two.
+
+**Delete chat is for one side** *(§142)*. `DELETE /api/messages/thread?with=`
+writes the highest message id into `clears` for that listener, and every read
+of their view - the thread, the inbox, unread counts, the banner poll - starts
+after it. Nothing is deleted from the table: the other person keeps the whole
+conversation, and a message either of them sends later is above the mark, so it
+reads as a fresh thread.
+
+**Tapping a person in the share sheet selects them** *(§142)*. The face gets a
+ring and a bar offers "Share with @handle" and Cancel; only Share sends, and the
+sheet closes only once the send has succeeded.
 
 ## Sharing outside FAM
 
@@ -225,6 +242,15 @@ that cannot do anything.
 There is no push and will not be until the app exists, so the honest moment to
 say "___ started following you" is the next time this listener's own app asks —
 on open, and when the profile loads.
+
+**Each follower is announced once, ever** *(§142)*. That is a second question
+from the badge's - not "who is new since you looked" but "who have you been
+told about" - so it has its own table, `announced` (listener, follower). The
+popup and the banner read `announce` on `/api/friends` and `follows` on
+`/api/notifications`, both filtered to people never announced, and
+`POST /api/friends/announced` is sent as either goes up. It used to be
+remembered in page memory, so every fresh open of the app raised the latest
+follower's popup again.
 
 ## Where a share actually goes
 
