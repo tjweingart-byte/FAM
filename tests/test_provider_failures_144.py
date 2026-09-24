@@ -113,6 +113,14 @@ def test_an_http_error_carries_no_url_and_no_token(monkeypatch):
     assert caught.value.__suppress_context__
 
 
+def test_a_redirect_is_still_an_error(monkeypatch):
+    """`raise_for_status` refused a 3xx; the helper that replaced it must
+    too, or a redirect falls through to a confusing JSON error."""
+    _mock_client(monkeypatch, 302, body="")
+    with pytest.raises(live_sources.ProviderHTTPError, match="302"):
+        run(live_sources._json("https://finnhub.io/api/v1/quote", {}, {}, 1.0))
+
+
 def test_a_body_that_echoes_the_key_is_redacted(monkeypatch):
     _mock_client(monkeypatch, 400, body="bad request for token=SECRET123")
     with pytest.raises(live_sources.ProviderHTTPError) as caught:

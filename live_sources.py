@@ -288,7 +288,7 @@ class ProviderHTTPError(RuntimeError):
 async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.get(url, headers=headers, params=params)
-        if response.is_error:
+        if not response.is_success:
             where = f"{response.url.host}{response.url.path}"
             body = log_redaction.redact(response.text[:160].strip())
             # `from None`: a chained HTTPStatusError would print the URL in

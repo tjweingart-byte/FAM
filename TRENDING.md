@@ -253,6 +253,9 @@ silently wrong (dates not parsing, URLs not arriving).
 thirty-two requests to a free service that asks for one every five seconds,
 fired six at a time inside a forty-five second ceiling. The pool stayed
 empty and the row said "The live sources didn't answer in time" to everybody.
+*(§144 then paced every GDELT request in the process - one every
+`GDELT_REQUEST_GAP_SECONDS`, episodes first - and gave the story sweep a
+ceiling that fits that pace. Trending stays GNews; this is about the pool.)*
 
 **What it is.** An edition, built on a clock rather than on a page load:
 

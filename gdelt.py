@@ -454,6 +454,10 @@ async def volume_for(theme: str, timeout: float) -> float:
                 and task.exception() is None)):
             return await asyncio.shield(task)
     task = asyncio.ensure_future(_measure_volume(theme, timeout))
+    # Every caller may have given up (a sweep's ceiling) before it fails;
+    # reading the outcome here keeps that from logging "exception was never
+    # retrieved" on top of the failure the sweep already reported.
+    task.add_done_callback(lambda t: t.cancelled() or t.exception())
     _VOLUMES[theme] = (now + VOLUME_TTL_SECONDS, task)
     return await asyncio.shield(task)
 

@@ -648,17 +648,18 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
+    # How far apart the boot's background jobs start (§144): the story sweep
+    # at once, the trending bank one stagger later, the DailyFAM edition two.
+    # On 24/09 all three started in the same second, and EI timed out and
+    # GDELT refused under the load of one minute. 0 starts them together.
+    boot_stagger_seconds: float = _env_float("BOOT_STAGGER_SECONDS", 60.0)
+
     # --- the DailyFAM edition (§143, `daily_edition.py`) ------------------
     # Every DailyFAM episode is written in the background, before anybody
     # taps it: at these hours on this zone's wall clock, one episode per
     # distinct subject across every mix, dated for that day's edition. A tap
     # is an ordinary cache hit. A subject added between editions is written
     # in the background the moment its mix is saved. EI runs on every one.
-    # How far apart the boot's background jobs start (§144): the story sweep
-    # at once, the trending bank one stagger later, the DailyFAM edition two.
-    # On 24/09 all three started in the same second, and EI timed out and
-    # GDELT refused under the load of one minute. 0 starts them together.
-    boot_stagger_seconds: float = _env_float("BOOT_STAGGER_SECONDS", 60.0)
     daily_edition: bool = field(
         default_factory=lambda: os.environ.get("DAILY_EDITION", "1")
         not in ("0", "false", "False", ""))
