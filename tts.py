@@ -467,11 +467,44 @@ class ChatterboxEngine(TTSEngine):
 
     @classmethod
     def voices(cls) -> list:
+        """The default voice, then every voice in the bank (§147)."""
         if not cls.available():
             return []
-        reference = cls.reference_path()
-        return [Voice(id=f"chatterbox:{reference.stem}", label="FAM",
-                      engine=cls.name, detail="Chatterbox")]
+        import voice_bank
+
+        return [Voice(id=f"chatterbox:{v.slug}", label=v.label,
+                      engine=cls.name, detail=v.description or "Chatterbox")
+                for v in voice_bank.catalogue()]
+
+    @classmethod
+    def reference_for(cls, voice: str | None, sha: str = "") -> pathlib.Path:
+        """The recording to clone for `voice`: the default, or a bank voice.
+
+        A bank voice this machine was told about by fingerprint and has no
+        copy of is an error naming `voice_bank.MISSING_MARKER`, never the
+        default voice instead: the remote app reads that marker and sends the
+        recording (§147). A voice id nobody knows any more - no fingerprint,
+        no copy, not in the bank - is a stale choice, and gets the default
+        voice rather than silence, as it always has.
+        """
+        import voice_bank
+
+        if voice_bank.is_default(voice):
+            return cls.reference_path()
+        slug = voice_bank.slug_of(voice)
+        found = (voice_bank.local_reference(slug, sha)
+                 or voice_bank.reference_from_bank(slug))
+        if found is None and not sha:
+            log.warning("voice %r is not in the bank; speaking the default", slug)
+            return cls.reference_path()
+        if found is None:
+            raise TTSUnavailable(
+                f"{voice_bank.MISSING_MARKER}: voice {slug!r} is not on this "
+                "machine; send its recording with the request")
+        cleared, detail = cls.rights_cleared(found)
+        if not cleared:
+            raise TTSUnavailable(f"voice {slug!r}: {detail}")
+        return found
 
     @classmethod
     def default_voice_id(cls) -> str:
@@ -495,21 +528,30 @@ class ChatterboxEngine(TTSEngine):
         return cls._loaded[device]
 
     def _synth_blocking(self, text: str) -> tuple[bytes, int]:
-        """The validated call, unchanged, plus the tensor-to-PCM conversion."""
+        """The validated call, unchanged, plus the tensor-to-PCM conversion.
+
+        Clones `self._reference` - the voice `synth` resolved (§147) - or the
+        default recording when nothing resolved one."""
         import numpy as np
         import torch
 
+        reference = getattr(self, "_reference", None) or self.reference_path()
         model = self._model()
         with torch.inference_mode():
             wav = model.generate(text,
-                                 audio_prompt_path=str(self.reference_path()),
+                                 audio_prompt_path=str(reference),
                                  **CHATTERBOX_GENERATION)
         samples = wav.squeeze(0).detach().cpu().numpy()
         del wav
         return pcm_from_float(samples), int(getattr(model, "sr", self.SAMPLE_RATE))
 
-    async def synth(self, text: str, wpm: float, voice: str | None = None) -> bytes:
-        """`wpm` is accepted and ignored - Chatterbox has no rate control."""
+    async def synth(self, text: str, wpm: float, voice: str | None = None,
+                    voice_sha: str = "") -> bytes:
+        """`wpm` is accepted and ignored - Chatterbox has no rate control.
+
+        `voice` picks the recording to clone (§147): the default, or a voice
+        from the bank. `voice_sha` is the worker's fingerprint for it."""
+        self._reference = self.reference_for(voice, voice_sha)
         if type(self)._gate is None:
             type(self)._gate = asyncio.Semaphore(1)
         async with type(self)._gate:

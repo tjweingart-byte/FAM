@@ -8,7 +8,7 @@ Open **`preview/loading-screen.html`** in any browser, on a laptop or a phone.
 It is one self-contained file; double-clicking it is enough.
 
 The screen is held still so it can be judged, with a button for each step
-a written episode walks through (PROBLEMS.md §147) and the two notices a
+a written episode walks through (PROBLEMS.md §148) and the two notices a
 machine that cannot write shows:
 
 | Button | When the app shows it |

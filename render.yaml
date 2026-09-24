@@ -99,6 +99,10 @@ services:
       # that is up and working.
       - key: VOICE_REGISTRY_DB
         value: /data/voice_registry.db
+      # The bank of voices (§147): the reference recordings and each
+      # listener's chosen search voice. On the disk, so a redeploy keeps them.
+      - key: VOICE_BANK_DB
+        value: /data/voice_bank.db
       # Whether a worker may be reached over plain HTTP.
       #
       # Off here, and it is the line to read first when a pod is healthy in a

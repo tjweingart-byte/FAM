@@ -1,4 +1,4 @@
-"""The loading screen's five steps are read from the episode, not a clock (§147).
+"""The loading screen's five steps are read from the episode, not a clock (§148).
 
 It used to guess its stage from elapsed time - "reading sources" at four
 seconds, whatever the server was doing. The steps are now checked off from the
@@ -138,3 +138,30 @@ def test_the_interface_holds_the_audio_until_the_list_is_done():
     assert "handlers.startGate" in audio
     # Every step on screen for at least two seconds - the owner's floor.
     assert "var GEN_STEP_MIN_MS = 2000;" in index
+
+
+def test_the_endpoint_keys_a_browse_tap_the_way_the_audio_request_does(monkeypatch):
+    """§147 holds a myFAM or DailyFAM tap to BROWSE_MINUTES on the audio
+    request, whatever minutes it sends. The progress poll has to build the
+    same key, or it asks about an episode nobody is making and the list only
+    moves when the audio lands."""
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+    from config import BROWSE_MINUTES
+    from pipeline import key_for
+    from script_generator import plan_episode
+
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    q = "why do bonds move"
+    key = asyncio.run(key_for(plan_episode(q, BROWSE_MINUTES, "", None)))
+    live_captions.open_track(key)
+    live_captions.mark_cached(key)
+    client = TestClient(appmod.app)
+    asked = BROWSE_MINUTES + 3
+    browse = client.get("/api/progress", params={
+        "q": q, "minutes": asked, "surface": "myfam"}).json()
+    search = client.get("/api/progress", params={
+        "q": q, "minutes": asked, "surface": "search"}).json()
+    assert browse["known"] and browse["cached"]
+    assert not search["known"], "a search keeps the length it asked for"

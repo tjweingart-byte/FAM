@@ -38,7 +38,10 @@ Three surfaces, all backed by generated audio:
    records who first generated each entry (`scripts.author`, stamped from
    `_listener(request)`) and `recent(exclude_author=...)` keeps a listener's
    own episodes off their own feed. See the settled constraint below for why
-   that id is nowhere near the cache key.
+   that id is nowhere near the cache key. **And searched episodes only**
+   *(§147)*: `scripts.origin` records which surface wrote each entry, and a
+   myFAM tile, a DailyFAM edition, a Trending episode or a warmed guess is
+   never on Explore.
 
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
@@ -89,7 +92,7 @@ exactly what came back from listening.
 
 So the whole mechanism is deleted. **On search, the wait is now in front of
 the first word and is honest about it**: the brief, the retrieval and the
-writer's own planning all happen before anything is spoken. *(Since §147 the
+writer's own planning all happen before anything is spoken. *(Since §148 the
 loading screen shows that wait as five steps - contextualizing, retrieving,
 verifying, finalizing, generating the audio - each checked off when the
 server's marks say it finished, each on screen for at least two seconds, and
@@ -373,8 +376,12 @@ the rest of this list it needs taste rather than a key.
    GPU, so `RUNPOD_PRODUCTION.md` is the procedure that closes that gap and
    `python verify_voice.py` is the check that says whether a given machine can
    speak at all. **That listening test is the next move.**
-2. ~~**Voice selection**~~ — *done*. `/api/voices` lists what the machine can
-   speak; `voice=` on `/api/audio` selects one; the player has a picker.
+2. ~~**Voice selection**~~ — *done, and a bank now* (§147). `voice_bank.py`
+   keeps several cloned voices, each a recording plus its rights record, in
+   the app's database; a worker without one is sent it once. **Only searchFAM
+   picks a voice** - a chip on the search page and a row under Listening in
+   Settings, kept per listener. Every other surface draws one from the bank
+   per episode and keeps it beside the script, so replays hit kept audio.
    Note: voice is deliberately **not** part of the script cache key, because a
    voice changes the audio and not the words. Switching voice therefore reuses
    the cached script — measured at ~90 ms and zero API cost. The *audio* kept
@@ -616,7 +623,9 @@ the rest of this list it needs taste rather than a key.
    been near, is damped. It damps and never excludes, and only live stories:
    a rule would empty a new listener's rail in the name of relevance, and the
    bank's twenty-eight subjects are broad on purpose.)*
-   *(Two things on the surface changed in §95. The header's right-hand slot is
+   *(**Superseded by §147**: there is no length control on myFAM any more -
+   every episode that is not a search is `BROWSE_MINUTES`, two. What follows
+   is the history.)* *(Two things on the surface changed in §95. The header's right-hand slot is
    now an **episode-length control of its own**, deliberately separate from the
    search player's: the length you want for a question you have just typed and
    the length you want for a tile you are scrolling past are different
@@ -2436,6 +2445,9 @@ refusing a boot that asked it dozens of questions in one minute, now paced
 one request at a time with episodes first; and **§145**, an added DailyFAM
 mix taken back out by tapping its button again; and **§146**, an X on every
 "Pick up where you left off" tile that dismisses it for good; and **§147**,
+Explore made searches only, a bank of voices chosen on search and drawn at
+random everywhere else, and every episode that is not a search fixed at two
+minutes; and **§148**,
 the loading screen's five steps checked off from the server's own marks via
 `/api/progress`, each held at least two seconds, with the audio held until
 the last),
@@ -2461,13 +2473,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-five** named smoke
+**twice** - once per preview build - and **seventy-six** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 75 as of §147,
-which added the loading screen checking off its five steps. It was 74 as of §146,
+prose does not fail when somebody adds a behaviour. (It is 76 as of §148,
+which added the loading screen checking off its five steps. It was 75 as
+of §147, which added the search page's voice chip. It was 74 as of §146,
 which added the X on a Go Deeper tile. It was 73 as of §145, which added
 removing an added mix by tapping its button again. It was 72 as of §142,
 which replaced the two wheel checks with the player minimising, the Settings

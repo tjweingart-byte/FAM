@@ -74,6 +74,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import config
 from config import settings
 from paths import data_path
 
@@ -747,6 +748,11 @@ async def write_episode(story, generator, cache, minutes: int,
             extra["sourced_at"] = notes.sourced_at   # §143
         # No author: a bank episode was nobody's tap, so it belongs to
         # everybody - the rule prefetch keeps, for the same reason.
+        # A voice drawn from the bank (§147), kept so every tap hears it.
+        import voice_bank
+
+        extra["origin"] = "trending"
+        extra["voice"] = voice_bank.random_slug()
         cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
                   bucket_for(plan), sources, "", notes.title, **extra)
         return {"status": "written", "key": key, "dollars": dollars,
@@ -809,7 +815,7 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
         edition = Edition(slot=sid, built_at=now, source=GNEWS,
                           stories=edition_stories, detail=detail,
                           requests=requests,
-                          minutes=settings.trending_bank_minutes)
+                          minutes=config.BROWSE_MINUTES)
 
         if settings.trending_bank_write and generator is not None and cache is not None:
             # For as long as this edition can be on the row: the next edition
@@ -821,7 +827,7 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
             for story in edition_stories:
                 alive()
                 edition.episodes[story.id] = await write_episode(
-                    story, generator, cache, settings.trending_bank_minutes,
+                    story, generator, cache, config.BROWSE_MINUTES,
                     expires_at)
         else:
             reason = ("TRENDING_BANK_WRITE=0" if not settings.trending_bank_write
@@ -944,7 +950,7 @@ def report(now: Optional[float] = None) -> dict:
                      "hours": hours(), "next": slot_id(next_slot(now)),
                      "current_slot": slot_id(last_slot(now))},
         "size": settings.trending_bank_size,
-        "minutes": settings.trending_bank_minutes,
+        "minutes": config.BROWSE_MINUTES,
         "writes_episodes": bool(settings.trending_bank_write),
         "gnews": {"ready": ok, "detail": why,
                   "daily_ceiling": settings.gnews_daily_requests,

@@ -40,7 +40,7 @@ import time
 # engine and its settings are importable rather than duplicated.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tts import ChatterboxEngine  # noqa: E402
+from tts import ChatterboxEngine, TTSUnavailable  # noqa: E402
 
 
 log = logging.getLogger(__name__)
@@ -131,9 +131,28 @@ async def synthesise(payload: dict) -> dict:
     if not ready:
         raise WorkerError(detail)
 
+    # A bank voice (§147). The recording arrives only when this worker said
+    # it had none; it is checked and kept, so the next request needs only the
+    # fingerprint.
+    voice = payload.get("voice")
+    voice_sha = str(payload.get("voice_sha") or "")
+    if payload.get("reference"):
+        import voice_bank
+
+        try:
+            voice_bank.materialize(voice, voice_sha,
+                                   base64.b64decode(payload["reference"]),
+                                   payload.get("rights") or {})
+        except Exception as exc:  # noqa: BLE001 - phrased for the caller
+            raise WorkerError(f"could not keep voice {voice!r}: {exc}") from exc
+
     engine = ChatterboxEngine()
     started = time.monotonic()
-    pcm = await engine.synth(text, wpm=0.0, voice=payload.get("voice"))
+    try:
+        extra = {"voice_sha": voice_sha} if voice_sha else {}
+        pcm = await engine.synth(text, wpm=0.0, voice=voice, **extra)
+    except TTSUnavailable as exc:
+        raise WorkerError(str(exc)) from exc
     elapsed = time.monotonic() - started
     rate = engine.sample_rate
 

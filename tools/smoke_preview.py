@@ -441,8 +441,8 @@ def main() -> int:
             tiles under "Pick up where you left off" - a section about coming
             back to something, with nothing to come back to. Now a listener
             with no part-heard episodes, threads or plays sees no section at
-            all, and the episode-length control lives in the fixed header
-            instead of that section's heading.
+            all - and since §147 there is no episode-length control on myFAM
+            at all.
             """
             page.evaluate(
                 """() => {
@@ -463,28 +463,10 @@ def main() -> int:
             assert cards == [], f"a new listener was offered {len(cards)} Go Deeper tiles"
             assert not page.query_selector("#goDeeperBlock .gd-kicker"), \
                 "an empty Pick up where you left off section still drew its heading"
-            # The length control is in the fixed header now, and still
-            # independent of search's. Changing it here must not move the
-            # search player's.
-            before = page.eval_on_selector("#lengthVal", "e => e.textContent")
-            assert page.query_selector("#screen-myfam .myfam-header .gd-len"), \
-                "myFAM's episode-length control is not in the header"
-            page.evaluate("openMyFamLengthMenu()")
-            page.wait_for_timeout(250)
-            page.evaluate(
-                """() => {
-                    var rows = document.querySelectorAll('.sheet-item');
-                    for (var i = 0; i < rows.length; i++) {
-                        if (rows[i].textContent.indexOf('7 min') === 0) {
-                            rows[i].click(); return;
-                        }
-                    }
-                }""")
-            page.wait_for_timeout(350)
-            assert "7 min" in page.text_content("#screen-myfam .gd-len"), \
-                "myFAM's length control did not take"
-            assert page.eval_on_selector("#lengthVal", "e => e.textContent") == before, \
-                "changing myFAM's length also changed the search player's"
+            # There is no length control on myFAM any more (§147): every
+            # episode that is not a search is two minutes.
+            assert not page.query_selector("#screen-myfam .gd-len"), \
+                "myFAM still offers an episode length; only searchFAM may"
             page.reload()
             page.wait_for_timeout(1200)
 
@@ -1453,8 +1435,8 @@ def main() -> int:
 
         def an_interest_chip_opens_its_topic():
             """YourFAM's chips are doors, not labels: each opens the Topic
-            screen for that interest, with the length pill every browse
-            surface uses. There is no inline Edit - interests are changed in
+            screen for that interest, every episode on it two minutes (§147
+            took the length pill away). There is no inline Edit - interests are changed in
             Edit profile - and the page generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
@@ -1479,13 +1461,14 @@ def main() -> int:
             assert heading.lower() == label.lower(), \
                 f"the topic screen ({heading!r}) is not about the chip that opened it ({label!r})"
             page.wait_for_timeout(900)
-            # The badges follow the pill: it sets how long a tapped episode is
-            # written, it does not filter by duration.
-            pill = page.text_content("#topicLengthVal").strip()
+            # No length control (§147): only searchFAM offers one, and every
+            # card here is the browse length.
+            assert not page.query_selector("#screen-topic .gd-len"), \
+                "the Topic screen still offers an episode length"
             badges = page.eval_on_selector_all(
                 "#screen-topic .yf-card-len", "e => e.map(x => x.textContent.trim())")
-            assert all(b.lower() == pill.lower() for b in badges), \
-                f"card lengths {badges} do not follow the pill ({pill})"
+            assert all(b.lower() == "2 min" for b in badges), \
+                f"card lengths {badges} are not the two-minute browse length"
             page.evaluate("setTopicFilter('friends')")
             page.wait_for_timeout(700)
             assert page.query_selector("#screen-topic .yf-filter.on:nth-child(2)"), \
@@ -1951,6 +1934,41 @@ def main() -> int:
                 page.evaluate("openPlayFAM()")
                 page.wait_for_timeout(1000)
 
+        def the_search_page_picks_its_voice_from_the_bank():
+            """Search is the one surface with a voice (§147): a chip between
+            the length and the attach button opens the bank, and a choice
+            shows on the chip and in Settings."""
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+            chip = page.query_selector("#screen-home .voice-chip #homeVoiceVal")
+            assert chip, "the search page has no voice control"
+            order = page.evaluate(
+                """() => Array.from(document.querySelectorAll(
+                    '#screen-home .fam-controls .length-chip, #screen-home .attach-btn'))
+                    .map(e => e.id || e.className)""")
+            assert order[0] == "length-chip" and "voice-chip" in order[1] \
+                and order[2] == "attachBtn", f"controls are in the order {order}"
+            page.evaluate("openVoiceMenu()")
+            page.wait_for_timeout(250)
+            labels = page.evaluate(
+                "() => Array.from(document.querySelectorAll('.sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert any(l.startswith("Nova") for l in labels), \
+                f"the voice menu does not list the bank: {labels}"
+            page.evaluate(
+                """() => {
+                    var rows = document.querySelectorAll('.sheet-item');
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i].textContent.indexOf('Nova') === 0) {
+                            rows[i].click(); return;
+                        }
+                    }
+                }""")
+            page.wait_for_timeout(350)
+            shown = page.text_content("#homeVoiceName").strip()
+            assert shown == "Nova", f"the voice chip reads {shown!r} after choosing Nova"
+            assert page.evaluate("selectedVoice") == "remote:nova"
+
         def the_search_page_opens_on_the_length_it_will_generate():
             """The number on the search chip and the number its own menu ticks
             are one setting, so they have to be one answer.
@@ -1970,7 +1988,7 @@ def main() -> int:
             chip = page.text_content("#lengthVal").strip()
             assert chip.startswith("%d min" % want), \
                 f"the search chip reads {chip!r}, the setting is {want} min"
-            for element_id in ("gcLengthVal", "lengthModalVal"):
+            for element_id in ("lengthModalVal",):
                 shown = page.text_content("#" + element_id).strip()
                 assert shown == "%d min" % want, \
                     f"#{element_id} reads {shown!r}, the setting is {want} min"
@@ -2867,7 +2885,7 @@ def main() -> int:
                     f"{floor}ms floor - that is a flicker, not a wait")
             page.evaluate("window.__loadingWatch.disconnect()")
 
-            # PROBLEMS.md 55: the wait names itself. Since §147 it does so as
+            # PROBLEMS.md 55: the wait names itself. Since §148 it does so as
             # five steps checked off from the server's own marks, rather than
             # one line guessing a stage from the clock. A brand animation in
             # their place would be the filler problem in a nicer font.
@@ -2882,7 +2900,7 @@ def main() -> int:
 
         def the_loading_screen_checks_off_five_steps():
             """Each step is checked when the server says it finished, in order,
-            and each is on screen for at least GEN_STEP_MIN_MS (§147).
+            and each is on screen for at least GEN_STEP_MIN_MS (§148).
 
             The preview writes a first-time question on a clock with uneven
             steps, the way a real episode does, and answers /api/progress from
@@ -3154,6 +3172,8 @@ def main() -> int:
               a_locked_mix_list_keeps_the_topic_bank)
         check("Search opens on the length it will generate",
               the_search_page_opens_on_the_length_it_will_generate)
+        check("Search picks its voice from the bank",
+              the_search_page_picks_its_voice_from_the_bank)
         check("picker offers a typed topic", picker)
         check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",

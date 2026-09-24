@@ -24,7 +24,7 @@ So DailyFAM is an **edition** now, the way Trending is (`trending_bank.py`):
   dated with it, so the edition and the tap cannot disagree.
 * **One length.** Minutes are in the key too, and a DailyFAM tap used to ask
   at the *search* length while prefetch warmed at myFAM's. The edition writes
-  at `DAILY_EDITION_MINUTES`, and `/api/mixes` says so to the interface.
+  at `config.BROWSE_MINUTES` (two, §147), and `/api/mixes` says so.
 * **Shared.** Two listeners following the Eagles get one episode a day, not
   two: subjects are deduplicated by the words a tap sends, and the most-
   followed are written first, so a ceiling that binds costs the rarest.
@@ -174,8 +174,11 @@ def edition_day(now: Optional[float] = None) -> date:
 
 
 def minutes() -> int:
-    """The one length DailyFAM episodes are written and played at."""
-    return max(1, min(10, int(_settings().daily_edition_minutes or 3)))
+    """The one length DailyFAM episodes are written and played at: two
+    minutes, like every episode searchFAM did not ask for (§147)."""
+    import config
+
+    return config.BROWSE_MINUTES
 
 
 def prompt_for(item, now: Optional[float] = None) -> str:
@@ -419,6 +422,12 @@ async def write_episode(query: str, generator, cache, length: int,
             extra["sourced_at"] = notes.sourced_at
         # No author: an edition episode was nobody's tap, so it belongs to
         # everybody - the rule prefetch and the Trending bank keep.
+        # Written in a voice drawn from the bank (§147): nobody chose one,
+        # and the tap plays the episode in the voice kept here.
+        import voice_bank
+
+        extra["origin"] = "dailyfam"
+        extra["voice"] = voice_bank.random_slug()
         cache.put(key, sentences, ttl, query, notes.thread, length,
                   bucket_for(plan), sources, "", notes.title, **extra)
         return {"status": "written" if ttl else "volatile", "key": key,

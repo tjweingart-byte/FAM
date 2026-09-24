@@ -765,6 +765,12 @@ class Prefetcher:
             # When its information was sourced (§143), passed only when
             # known so an older cache double is called as it always was.
             stamp = {"sourced_at": notes.sourced_at} if notes.sourced_at else {}
+            # Not a search, so never on Explore, and a voice drawn from the
+            # bank like every browse episode (§147).
+            import voice_bank
+
+            stamp["origin"] = "prefetch"
+            stamp["voice"] = voice_bank.random_slug()
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
                            self._bucket(plan), **stamp)

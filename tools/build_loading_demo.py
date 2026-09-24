@@ -52,7 +52,7 @@ def build() -> str:
         sys.exit("the extracted CSS does not look like the loading screen")
 
     # The states the screen actually takes. A written episode walks five
-    # steps (§147), each checked off from the server's own marks; `shown` is
+    # steps (§148), each checked off from the server's own marks; `shown` is
     # how many are checked. A machine that cannot write says so underneath.
     states = [
         ("Contextualizing", 0, ""),
@@ -130,7 +130,7 @@ def build() -> str:
 
   <div class="note">
     Each circle is checked off when the server says that step has finished
-    (<b>PROBLEMS.md §147</b>), and each is on screen for at least two seconds,
+    (<b>PROBLEMS.md §148</b>), and each is on screen for at least two seconds,
     so a slow step reads as slow and a fast one still reads. The real-looking
     wait uses uneven step times on purpose. A replay has nothing to write: it
     shows all five done and lasts 450ms.

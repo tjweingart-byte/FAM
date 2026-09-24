@@ -109,7 +109,7 @@
     100% { opacity:.22; transform:scale(.78); }
   }
 
-  /* The five steps of a written episode (§147). Each circle is checked off
+  /* The five steps of a written episode (§148). Each circle is checked off
      when that step really finishes on the server, and each is on screen for
      at least GEN_STEP_MIN_MS - so a slow step reads as slow and a fast one
      still reads at all. Only a wait that is writing something shows them;
@@ -185,7 +185,7 @@
         <div class="fam-loading-word">FAMiliarizing…</div>
         <div class="fam-loading-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 
-        <!-- What FAM is doing, one step at a time (§147). Checked off from the
+        <!-- What FAM is doing, one step at a time (§148). Checked off from the
              server's own marks for this episode, never from a timer - see
              /api/progress. -->
         <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
@@ -218,7 +218,7 @@
 
   <div class="note">
     Each circle is checked off when the server says that step has finished
-    (<b>PROBLEMS.md §147</b>), and each is on screen for at least two seconds,
+    (<b>PROBLEMS.md §148</b>), and each is on screen for at least two seconds,
     so a slow step reads as slow and a fast one still reads. The real-looking
     wait uses uneven step times on purpose. A replay has nothing to write: it
     shows all five done and lasts 450ms.

@@ -166,7 +166,7 @@ def test_the_wait_says_what_it_is_waiting_for():
     was true while the from-knowledge cover spoke over the research. It is not
     true now: the cover is deleted (§108), and both episode intelligence and
     the retrieval deliberately sit in front of the first word. Then it named
-    three stages guessed from elapsed time. Since §147 it is five steps, each
+    three stages guessed from elapsed time. Since §148 it is five steps, each
     checked off when the episode's own marks say it finished.
     """
     index = (ROOT / "static" / "index.html").read_text()

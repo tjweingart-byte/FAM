@@ -207,6 +207,14 @@ DEFAULT_RESEARCH_BACKEND = "exa"
 #: lands in.
 DEFAULT_MINUTES = 2
 
+#: How long every episode is that searchFAM did not ask for (§147, at the
+#: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
+#: search offers a length; everything else is two minutes, fixed in code and
+#: never in the environment, because minutes are in the cache key and a
+#: background edition written at one length and tapped at another is a whole
+#: edition nobody finds.
+BROWSE_MINUTES = 2
+
 #: How much of an episode prefetch pays for in advance. See `prefetch_level`.
 #: Named here rather than repeated as literals so "the levels" is one fact in
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.
@@ -669,10 +677,9 @@ class Settings:
     daily_edition_hours: str = field(
         default_factory=lambda: os.environ.get(
             "DAILY_EDITION_HOURS", "5").strip())
-    # The one length DailyFAM episodes are written and played at. Minutes are
-    # in the cache key, so the edition and the tap must agree; the server
-    # serves this to the interface rather than each keeping its own.
-    daily_edition_minutes: int = _env_int("DAILY_EDITION_MINUTES", 3)
+    # The length DailyFAM episodes are written and played at is
+    # `BROWSE_MINUTES` (§147) - no longer a setting, because only searchFAM
+    # offers a length.
     # Ceilings on one edition. Subjects followed by the most mixes are
     # written first; anything past a ceiling is written on the tap instead,
     # and the edition's report says how many.
@@ -700,11 +707,8 @@ class Settings:
     trending_bank_hours: str = field(
         default_factory=lambda: os.environ.get(
             "TRENDING_BANK_HOURS", "5,17").strip())
-    # The length the bank writes its episodes at. It has to be the length a
-    # myFAM tap asks for, because minutes are in the cache key - a bank
-    # written at 3 and tapped at 2 is ten episodes nobody finds. 2 is
-    # `myfamLengthMinutes`' default in the interface.
-    trending_bank_minutes: int = _env_int("TRENDING_BANK_MINUTES", 2)
+    # The bank writes at `BROWSE_MINUTES` (§147), the length every myFAM tap
+    # asks for - minutes are in the cache key.
     # Whether an edition writes its episodes, or only its tiles. Off, a tap
     # writes the episode as any live tile does.
     trending_bank_write: bool = field(

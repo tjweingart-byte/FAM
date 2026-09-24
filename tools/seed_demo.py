@@ -171,8 +171,10 @@ async def main() -> int:
         elapsed = time.perf_counter() - started
         words = count_words(" ".join(sentences))
         key = cache_key(topic.query, args.minutes, searched=plan.search)
+        # As a search: Explore holds searched episodes only (§147), and a
+        # seed exists to fill it.
         store.put(key, sentences, ttl_for(topic.query), topic.query,
-                  notes.thread, args.minutes)
+                  notes.thread, args.minutes, origin="search")
         logged = record_history(events, topic, args.minutes, notes.thread, rng)
         written += 1
         print(f"  [{index}/{len(chosen)}] {topic.id:<22} {words:>4} words  "
