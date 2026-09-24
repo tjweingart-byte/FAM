@@ -11418,7 +11418,79 @@ first run with a key is `python tools/trending_bank.py --verify`, then
 * `/api/health` created `trending_bank.db` on every machine, which is where
   a stray copy in the project root came from.
 
-## 140. The three crowd rails: cached episodes only, by listens
+## 140. DailyFAM as a place to find other people's mixes (the 9.23 packet)
+
+One bug and three features, from the owner's packet: DailyFAM should be where
+somebody finds and keeps other listeners' daily playlists, not only their own.
+
+**The bug: a suggested specific opened the keyboard.** Under "Narrow it down",
+tapping a chip ("Eagles") ran `addFocus`, which re-rendered the panel and then
+called `focus()` on the "Type a team" box - so on a phone the keyboard slid up
+over the list somebody was picking from. The focus was meant for the case
+where somebody was already typing and pressed Enter. `addFocus` now takes a
+`typed` flag, only the box's own Enter passes it, and a chip tap highlights the
+chip and does nothing else. The smoke flow that narrows NFL to the Eagles
+asserts the box is not the active element afterwards.
+
+**Share mix**, in the mix's ⋯ menu. The same share sheet an episode uses -
+the people you follow, and every destination outside FAM - with the words
+from `sharing.MIX_TEMPLATES` and a story card that says "Daily mix" where an
+episode's says its length. The link is `/m/<id>`, which redirects into the app
+at `/?mix=<id>` and opens that mix with its (+). There is no stand-alone
+landing page like an episode's `/s/`, deliberately: what a mix link offers -
+adding it to your DailyFAM - only exists inside the app. **Only a public mix
+can be shared** (`409` otherwise), because the link opens it for whoever has
+it; a private one asks "Make public and share" first rather than going public
+quietly. Sending one to somebody you follow is a text message carrying the
+link.
+
+**Search at the top of DailyFAM.** Tapping the bar lists every public mix,
+newest first; typing narrows it. `mixes.match_score` requires every word
+typed to be found in the mix's **name**, a **topic** in it (title, question or
+the specific it is narrowed to) or **whose it is** (name or @handle) - so a
+mix called Gym holding "AI updates" is found by `gym` and by `AI updates`, and
+typing somebody's handle lists all their public mixes. A name hit outranks an
+owner hit outranks a topic hit. Your own mixes are never in it. Searching and
+listening need no account; adding does.
+
+**(+) adds a copy, not a link.** Wherever somebody else's mix is drawn - a
+search result, their profile, the mix's own screen - a (+) adds it to your
+DailyFAM beside the ones you made, and it says "from @handle" there. A copy
+because a mix is a routine: one somebody else could rewrite overnight, or take
+private and so delete from under you, is not one you can rely on. The cost of
+that choice, stated: the owner's later edits do not reach the copy. The copy
+remembers `source_id` (so the same mix cannot be added twice, and every (+)
+for it reads as added) and `source_user` (kept server-side only; nothing
+returns a listener id). A name clash takes the owner's handle ("Gym ·
+@sam") before a number.
+
+`/api/mixes/public`, `/api/mixes/public/{id}`, `POST /api/mixes/{id}/add`,
+`POST /api/mixes/{id}/share`, `/api/mixes/{id}/card` and `/m/{id}` are the
+API; `/api/person`'s mixes now carry `added` and `mine` for the (+).
+`tests/test_public_mixes.py`, and two new smoke behaviours (69 now).
+
+**Not done.** No Open Graph preview for a mix link, since it redirects rather
+than serving a page; a mix link posted to Facebook previews as the app.
+
+**Found by the review before merge**, each fixed and tested in
+`tests/test_public_mixes.py`:
+
+* Matching was raw substring, so "ai" found every mix with "daily" or
+  "Taiwan" in it - and did *not* find one following the catalogue's
+  Artificial Intelligence, whose id `f:ai` was not searchable. Words now match
+  from their start (`mixes._has_word`; "gy" still finds Gym while it is being
+  typed), and a followed subject is findable by its catalogue id. Both
+  previews mirror it.
+* Deleting an account left that listener's id in `source_user` on everybody
+  else's copies of their mixes. `forget` now blanks it; the copy and its
+  `source_id` stay, so it still cannot be added twice.
+* A copy whose owner has no name or handle - never set, or account gone -
+  showed "from another listener". It shows nothing now.
+* Every search result carried the owner's avatar, an inline data URL, once
+  per mix, for a field nothing drew. Dropped.
+* An empty search parsed up to 2,000 rows to show 40. It reads 120.
+
+## 141. The three crowd rails: cached episodes only, by listens
 
 At the owner's direction, a verification of where "What FAM can't stop
 listening to", "What your friends are listening to" and "What you missed last

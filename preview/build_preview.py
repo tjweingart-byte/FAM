@@ -223,6 +223,31 @@ def load_fixtures() -> dict:
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
 
+    # Other listeners' public mixes, for DailyFAM's search and their
+    # profiles - the shape `/api/mixes/public` answers in, owner included.
+    def public_mix(mix_id, name, entries, owner):
+        body = mix(mix_id, name, entries, public=True)
+        body.pop("topics", None)
+        for item in body["items"]:
+            if item.get("custom"):
+                item["subtitle"] = "Typed in by @" + owner[1]
+        return dict(body, owner={"name": owner[0], "handle": owner[1], "avatar": ""},
+                    mine=False, added=False)
+
+    public_mixes = {"mixes": [
+        public_mix("pb1", "Gym", ["f:nfl~Eagles", "f:ai",
+                                  {"query": "AI updates", "title": "AI updates"}],
+                   ("Beth Solomon", "beth")),
+        public_mix("pb2", "Morning brief", ["f:stocks~Nvidia", "f:news"],
+                   ("Mike Solomon", "mike")),
+        public_mix("pb3", "Wind down", ["f:music", "f:space"],
+                   ("Rachel Solomon", "rachel")),
+        public_mix("pb4", "Game day", ["f:nfl", "f:basketball~Lakers"],
+                   ("Nadia Okoro", "nadia")),
+        public_mix("pb5", "Morning", ["f:health", "f:ai"],
+                   ("Beth Solomon", "beth")),
+    ]}
+
     # One card carries a friend's vibe, which is the whole of that tag: a
     # friend both generated the episode and vibed it. The others do not, so
     # the preview shows both states rather than one.
@@ -278,6 +303,7 @@ def load_fixtures() -> dict:
             "groups": trending_view, "ready": 0, "empty_reason": "",
             "personalised": True, "taste_source": "taste"},
         "/api/mixes": mixes,
+        "/api/mixes/public": public_mixes,
         "/api/topics": {"topics": bank},
         # The preview never reads a real file: it stands in for the extraction
         # so the flow and the chips can be exercised on a phone.
@@ -650,6 +676,40 @@ SHIM = """
 __MIX_ITEMS__
   var mixes = JSON.parse(JSON.stringify(FIXTURES["/api/mixes"]));
   var nextMixId = 100;
+  //: Other listeners' public mixes. Mutable: adding one marks it added.
+  var PUBLIC_MIXES = JSON.parse(JSON.stringify(FIXTURES["/api/mixes/public"])).mixes;
+
+  // `mixes.match_score`, in the few lines a preview needs: every word typed
+  // must be in the mix's name, a topic in it, or its owner.
+  function publicMixMatches(m, q) {
+    var hay = [m.name, m.owner.name, m.owner.handle]
+      .concat(m.items.map(function (i) {
+        return [i.title, i.query, (i.focus || []).join(" "), i.topic_label || "",
+                String(i.base || "").replace(/^f:/, "").replace(/-/g, " ")].join(" ");
+      })).join(" ").toLowerCase().match(/[A-Za-z0-9_']+/g) || [];
+    // Word prefixes, as `mixes._has_word` does: "ai" is not in "daily".
+    return q.toLowerCase().split(/\s+/).map(function (w) { return w.replace(/^@/, ""); })
+      .filter(Boolean).every(function (w) {
+        return hay.some(function (t) { return t.indexOf(w) === 0; }); });
+  }
+
+  // A shared mix's wording per destination, from `sharing.MIX_TEMPLATES`.
+  function mixShareBody(m) {
+    var titles = m.items.map(function (i) { return i.title; });
+    var topics = titles.length > 4
+      ? titles.slice(0, 4).join(", ") + " and " + (titles.length - 4) + " more"
+      : titles.join(", ");
+    var link = "/m/" + m.id, made = {};
+    SHARE_TEMPLATES.forEach(function (t) {
+      made[t.key] = {
+        target: t.key, label: t.label, kind: t.kind,
+        needs_image: t.needs_image, url: link, subject: "", destination: "",
+        text: t.mix_text.replace("{name}", m.name).replace("{topics}", topics)
+                        .replace("{url}", link)
+      };
+    });
+    return { url: link, public: false, card: "/api/mixes/" + m.id + "/card", targets: made };
+  }
 
   function json(body, status, extraHeaders) {
     var headers = { "Content-Type": "application/json" };
@@ -809,9 +869,7 @@ __MIX_ITEMS__
       if (!who) return null;
       return {
         name: who.name, handle: who.handle, avatar: "", joined: 0,
-        mixes: [{ id: "pm1", name: "Morning", public: true,
-                  items: [], topics: [], topic_ids: [], custom_count: 0,
-                  created_at: 0, updated_at: 0 }],
+        mixes: PUBLIC_MIXES.filter(function (m) { return m.owner.handle === who.handle; }),
         vibes: [
           { id: 1, query: "how reusable rockets changed the economics of spaceflight",
             title: "Inside the New Space Race", minutes: 5, thread: "", at: 0,
@@ -1123,6 +1181,37 @@ __MIX_ITEMS__
       mixes.mixes.push(made);
       return json(made);
     }
+    // Other listeners' mixes: search, one opened, the (+), and sharing.
+    if (path === "/api/mixes/public" && method === "GET") {
+      var pq = (qs.get("q") || "").trim();
+      return json({ query: pq, mixes: PUBLIC_MIXES.filter(function (m) {
+        return publicMixMatches(m, pq); }) });
+    }
+    if (path.indexOf("/api/mixes/public/") === 0) {
+      var one = PUBLIC_MIXES.filter(function (m) { return m.id === path.split("/").pop(); })[0];
+      return one ? json(one) : json({ error: "That mix is private or no longer exists." }, 404);
+    }
+    var mixVerb = path.match(/^\/api\/mixes\/([^/]+)\/(add|share)$/);
+    if (mixVerb && method === "POST") {
+      if (mixVerb[2] === "add") {
+        var src = PUBLIC_MIXES.filter(function (m) { return m.id === mixVerb[1]; })[0];
+        if (!src) return json({ error: "That mix is private or no longer exists." }, 404);
+        if (src.added) return json({ error: "That mix is already in your DailyFAM." }, 400);
+        var name = src.name;
+        if (mixes.mixes.some(function (m) { return m.name.toLowerCase() === name.toLowerCase(); }))
+          name = src.name + " \u00b7 @" + src.owner.handle;
+        var copy = buildMix("m" + (nextMixId++), name, src.items, false, src.cover || "");
+        copy.source_id = src.id;
+        copy.from = { name: src.owner.name, handle: src.owner.handle };
+        mixes.mixes.push(copy);
+        src.added = true;
+        return json(copy);
+      }
+      var mine = mixes.mixes.filter(function (m) { return m.id === mixVerb[1]; })[0];
+      if (!mine) return json({ error: "That mix no longer exists." }, 404);
+      if (!mine.public) return json({ error: "Only a public mix can be shared. Make it public first." }, 409);
+      return json(mixShareBody(mine));
+    }
     if (path.indexOf("/api/mixes/") === 0) {
       var id = path.split("/").pop();
       var at = mixes.mixes.findIndex(function (m) { return m.id === id; });
@@ -1134,6 +1223,10 @@ __MIX_ITEMS__
         patch.topic_ids !== undefined ? patch.topic_ids : current.items,
         patch.public !== undefined ? patch.public : current.public,
         patch.cover !== undefined ? String(patch.cover || "") : current.cover);
+      if (current.from) {
+        mixes.mixes[at].from = current.from;
+        mixes.mixes[at].source_id = current.source_id;
+      }
       return json(mixes.mixes[at]);
     }
     // Save for later. Kept in memory for the life of the page: the point of
@@ -1297,7 +1390,8 @@ def build() -> pathlib.Path:
                .replace("__MIX_ITEMS__", mix_items_js())
                .replace("__SHARE_TEMPLATES__", json.dumps([
                    {"key": t.key, "label": t.label, "kind": t.kind,
-                    "needs_image": t.needs_image, "text": t.template}
+                    "needs_image": t.needs_image, "text": t.template,
+                    "mix_text": sharing.MIX_TEMPLATES[t.key][0]}
                    for t in sharing.TARGETS])))
     # The shim has to be installed before the first line of app code runs, so
     # it goes immediately before the first inline <script> in the document.

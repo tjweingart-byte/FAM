@@ -21,7 +21,10 @@ Three surfaces, all backed by generated audio:
    optionally narrowed to one specific (`f:nfl~Eagles`), each specific its
    own briefing, and every play asks for that day's edition by date
    (`mixes.daily_prompt`). A mix has a name screen, a square cover and
-   recommended subjects under it.*
+   recommended subjects under it. Since §140 it is also where **other
+   listeners' public mixes** are found - a search bar by mix name, topic or
+   owner - and a (+) on anybody else's mix adds a copy to your own; a mix
+   is shared whole from its ⋯ menu.*
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
    have already generated*. It never writes a script: cards come from the
    shared cache and playing one sends `cached_only`, which the pipeline
@@ -416,7 +419,7 @@ the rest of this list it needs taste rather than a key.
    two crowd rows lead with tiles whose script is already written - a sort and
    never a filter, since an expired cache would otherwise empty a row and call
    it a fact about what people are playing.
-   **The three crowd rails hold cached episodes only** *(§140, at the owner's
+   **The three crowd rails hold cached episodes only** *(§141, at the owner's
    direction)*: "What FAM can't stop listening to" ranks by total listens
    (thirty days, a finished listen counted once, by question so a search
    counts); the friends rail is what friends listened to *or created*
@@ -2391,8 +2394,10 @@ smoke check that sampled a 450ms window, and a story card that said "saved"
 inside a viewer that had saved nothing; and **§139**, Trending rebuilt as
 a twice-daily GNews edition with its ten episodes written ahead and no
 fallback source, after the row said "The live sources didn't answer in
-time" to everybody who opened myFAM; and **§140**, the three crowd rails
-made cached-only and ranked by listens),
+time" to everybody who opened myFAM; and **§140**, DailyFAM as a place to
+find other people's mixes - search, (+) to add a copy, share a whole mix - and
+a narrowing chip that no longer opens the keyboard; and **§141**, the three
+crowd rails made cached-only and ranked by listens),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2415,12 +2420,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **sixty-seven** named smoke
+**twice** - once per preview build - and **sixty-nine** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 67 as of §137,
+prose does not fail when somebody adds a behaviour. (It is 69 as of §140,
+which added DailyFAM's search with its (+) and sharing a mix from its menu.
+It was 67 as of §137,
 which added a new mix following narrowed subjects and a square mix cover. It
 was 65 as of §134,
 which added a DailyFAM playlist playing through and then stopping. It was

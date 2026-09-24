@@ -2061,6 +2061,11 @@ def main() -> int:
             assert "Anything specific in NFL?" in panel, panel[:200]
             page.click("#pickerBody .focus-sugg .focus-chip[data-v='Eagles']")
             page.wait_for_timeout(200)
+            # Tapping a suggestion highlights it and nothing else: the cursor
+            # going back into "Type a team" is the keyboard sliding up on a
+            # phone (the 9.23 packet's bug).
+            assert page.evaluate("document.activeElement && document.activeElement.id") \
+                != "focusInput", "tapping a suggested team focused the type-a-team box"
             assert page.query_selector("#pickerBody .focus-all"), \
                 "no way to keep all of NFL beside the Eagles"
             page.click("#pickerBody .focus-all")
@@ -2114,6 +2119,76 @@ def main() -> int:
             assert str(time.localtime().tm_year) in text and "{date}" not in text, text
             assert title.endswith("today") and bank == "", (title, bank)
             page.evaluate("openPlayFAM()")
+            page.wait_for_timeout(300)
+
+        def dailyfam_searches_other_peoples_mixes():
+            """The bar at the top of DailyFAM: tapped, it lists every public
+            mix; typed into, it narrows by mix name, topic or owner; and the
+            (+) on a result adds that mix beside the listener's own.
+
+            The live build's database has one listener in it, so there is
+            nobody else's mix to find - there the check is that the bar opens
+            and says so rather than showing a blank."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#screen-playfam.active", timeout=5000)
+            page.click("#dailySearch")
+            page.wait_for_timeout(600)
+            assert page.is_visible("#dailyResults") and not page.is_visible("#mixList"), \
+                "tapping the search bar did not swap the mixes for results"
+            if not page.evaluate("publicResults.length"):
+                assert "Nobody has made a mix public yet" in page.inner_text("#dailyResults"), \
+                    page.inner_text("#dailyResults")[:200]
+                page.click("#dailySearchX")
+                return
+            names = lambda: page.eval_on_selector_all(
+                "#dailyResults .mix-card .mix-name", "els => els.map(e => e.textContent)")
+            assert len(names()) >= 3, names()
+            for query, want in (("gym", ["Gym"]), ("AI updates", ["Gym"]),
+                                ("@mike", ["Morning brief"])):
+                page.fill("#dailySearch", query)
+                page.wait_for_timeout(500)
+                assert names() == want, (query, names())
+            page.click("#dailyResults .mix-card .mix-add")
+            page.wait_for_timeout(500)
+            assert page.query_selector("#dailyResults .mix-add.on"), \
+                "the (+) did not turn into added"
+            page.click("#dailySearchX")
+            page.wait_for_timeout(300)
+            listed = page.inner_text("#mixList").lower()
+            assert "morning brief" in listed and "from @mike" in listed, listed[:400]
+            # And on somebody's profile, the same (+).
+            page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
+            page.wait_for_selector("#screen-person.active .yf-mix .mix-add",
+                                   timeout=5000, state="attached")
+            page.evaluate("openPlayFAM()")
+            page.wait_for_timeout(300)
+
+        def a_mix_is_shared_from_its_menu():
+            """Share mix, in the mix's own menu, opens the same sheet an
+            episode does - people and every destination - worded for a mix.
+            A private mix asks before it goes public, since the link opens it
+            for whoever follows it."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#mixList .mix-card", timeout=10000, state="attached")
+            page.evaluate("openMix(mixes[0].id)")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.evaluate("openMixMenu()")
+            page.wait_for_timeout(200)
+            labels = page.eval_on_selector_all(
+                "#sheetCard .sheet-item", "els => els.map(e => e.textContent)")
+            assert "Share mix" in labels, labels
+            page.click("#sheetCard .sheet-item:text-is('Share mix')")
+            page.wait_for_timeout(300)
+            confirm = page.query_selector("#sheetOverlay.active .sheet-item:text-is('Make public and share')")
+            if confirm:
+                confirm.click()
+            page.wait_for_selector("#shareOverlay.active #shareTargets .sh-target",
+                                   timeout=8000)
+            assert page.text_content("#shareTitle").strip() == "Share this mix"
+            assert len(page.query_selector_all("#shareTargets .sh-target")) == 9
+            assert page.evaluate("mixById(currentMixId).public"), \
+                "the shared mix is still private"
+            page.evaluate("closeShareModal(); openPlayFAM()")
             page.wait_for_timeout(300)
 
         def a_cover_is_square_and_the_avatar_is_not():
@@ -2939,6 +3014,9 @@ def main() -> int:
         check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",
               a_cover_is_square_and_the_avatar_is_not)
+        check("DailyFAM searches other people's mixes, and (+) adds one",
+              dailyfam_searches_other_peoples_mixes)
+        check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
         check("Messages opens and closes", messages_sheet)

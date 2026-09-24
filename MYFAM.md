@@ -9,9 +9,9 @@ Five rails, two inventories, and one rule that decides the shape of all of it:
 |---|---|---|---|---|
 | 1 | **Made for you** / **Start here** | what would *you* want today | live stories **and** the generic floor (see below), or the startup set on a cold start | `rank_from_history` / `rank_startup` |
 | 2 | **Trending** | what is the world on | live stories only, `WORLD_FLOOR` reserved | `stories.pool()` |
-| 3 | **What you missed last week** | what went past you | cached episodes others played 3-7 days ago that you never heard; no live-feed episodes, no pool, no top-up (§140) | `rank_missed` |
-| 4 | **What FAM can't stop listening to** | what is everybody here playing | cached episodes only, ranked by total listens (§140) | `rank_most_played` |
-| 5 | **What your friends are listening to** | what is *your graph* playing | cached episodes they listened to or created (§140) | `rank_friends` |
+| 3 | **What you missed last week** | what went past you | cached episodes others played 3-7 days ago that you never heard; no live-feed episodes, no pool, no top-up (§141) | `rank_missed` |
+| 4 | **What FAM can't stop listening to** | what is everybody here playing | cached episodes only, ranked by total listens (§141) | `rank_most_played` |
+| 5 | **What your friends are listening to** | what is *your graph* playing | cached episodes they listened to or created (§141) | `rank_friends` |
 
 **Every rail but rail 5 has a floor** (§127, at the owner's direction):
 `topics.RAIL_MINIMUM` is six tiles for Made for you and Trending and four for
@@ -87,7 +87,7 @@ the friends row is empty until somebody follows anybody.
 
 ## What you missed last week
 
-> **Superseded by §140** (PROBLEMS.md): membership is now cached episodes
+> **Superseded by §141** (PROBLEMS.md): membership is now cached episodes
 > other listeners played three to seven days ago that this listener never
 > heard, excluding anything written from a live feed, ranked by listens, with
 > no impressions, no story pool and no top-up. The history below is kept.
