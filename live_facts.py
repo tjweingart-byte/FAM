@@ -702,8 +702,11 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
         log.warning("live facts: %s timed out for %r", source.name, subject)
         return LiveLookup(domain, TIMEOUT, detail=f"{source.name} timed out")
     except Exception as exc:  # noqa: BLE001 - a provider must not end an episode
+        # A traceback only for the unexpected. A provider answering with an
+        # HTTP status is a sentence, not a crash, and its traceback was what
+        # made a Finnhub 422 read as an outage in Render's logs (§144).
         log.warning("live facts: %s failed for %r: %s", source.name, subject, exc,
-                    exc_info=True)
+                    exc_info=not hasattr(exc, "status"))
         return LiveLookup(domain, PROVIDER_FAILED,
                           detail=f"{source.name} failed: {type(exc).__name__}: {exc}")
 

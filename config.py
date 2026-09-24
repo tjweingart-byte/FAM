@@ -631,12 +631,28 @@ class Settings:
         not in ("0", "false", "False", ""))
     gdelt_timeout_seconds: float = _env_float("GDELT_TIMEOUT_SECONDS", 6.0)
     gdelt_max_records: int = _env_int("GDELT_MAX_RECORDS", 20)
+    # GDELT asks for one request every five seconds per address, and Render's
+    # outbound address is shared (§144). Every request in the process takes
+    # its turn on one clock; a little over five so a slow clock never trips it.
+    gdelt_request_gap_seconds: float = _env_float(
+        "GDELT_REQUEST_GAP_SECONDS", 5.5)
+    # How long an episode may wait for its GDELT slot before doing without.
+    # About one gap: an episode queues behind at most the one background
+    # request already booked, never behind a whole sweep.
+    gdelt_episode_wait_seconds: float = _env_float(
+        "GDELT_EPISODE_WAIT_SECONDS", 6.0)
     # Whether a researched episode asks GDELT as well as Exa. Separate from
     # `gdelt` so the Trending row can run without adding a second call to
     # every episode - they are different clocks and different budgets.
     gdelt_cross_check: bool = field(
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
+
+    # How far apart the boot's background jobs start (§144): the story sweep
+    # at once, the trending bank one stagger later, the DailyFAM edition two.
+    # On 24/09 all three started in the same second, and EI timed out and
+    # GDELT refused under the load of one minute. 0 starts them together.
+    boot_stagger_seconds: float = _env_float("BOOT_STAGGER_SECONDS", 60.0)
 
     # --- the DailyFAM edition (§143, `daily_edition.py`) ------------------
     # Every DailyFAM episode is written in the background, before anybody

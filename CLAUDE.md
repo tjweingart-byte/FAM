@@ -2425,7 +2425,11 @@ listening history, titles that name their subject, a share that asks first, a
 follower announced once, the interests wheel replaced by its list, and a
 player X that minimises instead of stopping; and **§143**, DailyFAM
 written in the background as a daily edition with EI on every episode, and
-every cached episode kept a week with the time it was sourced),
+every cached episode kept a week with the time it was sourced; and
+**§144**, the Render failures of 24/09 - an unactivated GNews account, topics
+sent to Finnhub's ticker lookup with the key printed in the logs, and GDELT
+refusing a boot that asked it dozens of questions in one minute, now paced
+one request at a time with episodes first),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
