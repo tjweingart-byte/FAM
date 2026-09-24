@@ -402,8 +402,16 @@ the rest of this list it needs taste rather than a key.
    (`topics.trending_for`, applied to the pool before any rail sees it), and
    otherwise the next story takes its place. Trending's order is still
    popularity and country alone.
-   **Made for you draws on both inventories** and Trending draws only on the
-   live one, because answering "what is trending" with what FAM's listeners
+   **Trending is an edition now** *(§139, at the owner's direction)*: built
+   at 05:00 and 17:00 Eastern from **GNews** (`trending_bank.py`,
+   `gnews.py`), ten stories with their ten episodes written into the shared
+   cache before anybody taps, **no fallback source**, and **never the
+   live pool** - that is Made for you's, and GNews is never spent on it. A
+   bank episode keeps for as long as its edition can be shown, which is the
+   one place `cache.ttl_for` is overridden - see
+   TRENDING.md, "The trending bank".
+   **Made for you draws on both inventories** and Trending draws on neither
+   of them since §139 - it was the live pool alone before, because answering "what is trending" with what FAM's listeners
    have already played would make it a laggier copy of the row below it. The
    two crowd rows lead with tiles whose script is already written - a sort and
    never a filter, since an expired cache would otherwise empty a row and call
@@ -2372,7 +2380,10 @@ order of operations - taste, then cached first, then no repeats; and
 **§137**, DailyFAM mixes that follow subjects - narrowed to a team or
 company, each its own dated daily briefing - with a cover; and **§138**, a
 smoke check that sampled a 450ms window, and a story card that said "saved"
-inside a viewer that had saved nothing),
+inside a viewer that had saved nothing; and **§139**, Trending rebuilt as
+a twice-daily GNews edition with its ten episodes written ahead and no
+fallback source, after the row said "The live sources didn't answer in
+time" to everybody who opened myFAM),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

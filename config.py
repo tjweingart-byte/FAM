@@ -638,6 +638,74 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
+    # --- the trending bank (§139, `trending_bank.py`, TRENDING.md) --------
+    # Trending is an *edition*: built twice a day for every listener, its
+    # episodes written ahead of the tap, and read by the rail between builds.
+    # GNews is the only source: no fallback, and never the live pool. If
+    # GNews cannot answer, the last edition stays up and the build retries.
+    trending_bank: bool = field(
+        default_factory=lambda: os.environ.get("TRENDING_BANK", "1")
+        not in ("0", "false", "False", ""))
+    # How many stories, and so how many episodes, one edition holds.
+    trending_bank_size: int = _env_int("TRENDING_BANK_SIZE", 10)
+    # When editions are built: hours of the day on this zone's wall clock.
+    # A named zone rather than an offset, so 5am stays 5am across DST.
+    trending_bank_timezone: str = field(
+        default_factory=lambda: os.environ.get(
+            "TRENDING_BANK_TIMEZONE", "America/New_York").strip())
+    trending_bank_hours: str = field(
+        default_factory=lambda: os.environ.get(
+            "TRENDING_BANK_HOURS", "5,17").strip())
+    # The length the bank writes its episodes at. It has to be the length a
+    # myFAM tap asks for, because minutes are in the cache key - a bank
+    # written at 3 and tapped at 2 is ten episodes nobody finds. 2 is
+    # `myfamLengthMinutes`' default in the interface.
+    trending_bank_minutes: int = _env_int("TRENDING_BANK_MINUTES", 2)
+    # Whether an edition writes its episodes, or only its tiles. Off, a tap
+    # writes the episode as any live tile does.
+    trending_bank_write: bool = field(
+        default_factory=lambda: os.environ.get("TRENDING_BANK_WRITE", "1")
+        not in ("0", "false", "False", ""))
+    # How long to wait before trying a failed edition again.
+    trending_bank_retry_seconds: float = _env_float(
+        "TRENDING_BANK_RETRY_SECONDS", 1800.0)
+    # An edition older than this is not shown: yesterday's trending is not
+    # trending. 36 hours is three missed builds.
+    trending_bank_max_age_hours: float = _env_float(
+        "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
+
+    # --- GNews (gnews.io), the bank's source -------------------------------
+    # The key is the statement of intent: unset, Trending is empty and says so.
+    gnews_key: str = field(
+        default_factory=lambda: os.environ.get("GNEWS_KEY", "").strip())
+    gnews_lang: str = field(
+        default_factory=lambda: os.environ.get("GNEWS_LANG", "en").strip())
+    # One top-headlines call per category (worldwide) and one per country
+    # (general news) - fourteen requests with these defaults.
+    gnews_categories: str = field(
+        default_factory=lambda: os.environ.get(
+            "GNEWS_CATEGORIES",
+            "general,world,nation,business,technology,entertainment,sports,"
+            "science,health").strip())
+    gnews_countries: str = field(
+        default_factory=lambda: os.environ.get(
+            "GNEWS_COUNTRIES", "us,gb,ca,au,in").strip())
+    # Articles per request. The free plan returns at most 10; Essential 25.
+    gnews_max_articles: int = _env_int("GNEWS_MAX_ARTICLES", 10)
+    # How many of the leading candidates get one search each, to count how
+    # widely the story is being run (`totalArticles`). The popularity the
+    # edition ranks on. 0 ranks on the headline feeds alone.
+    gnews_corroborate: int = _env_int("GNEWS_CORROBORATE", 12)
+    gnews_timeout_seconds: float = _env_float("GNEWS_TIMEOUT_SECONDS", 10.0)
+    # The free plan allows one request a second; a little over, so a slow
+    # clock never trips it.
+    gnews_request_gap_seconds: float = _env_float(
+        "GNEWS_REQUEST_GAP_SECONDS", 1.2)
+    # The app's own ceiling on requests per UTC day, below the plan's so a
+    # rebuild loop can never spend it. 100 is the free plan; Essential is
+    # 1,000. Counted in the bank's database, so it holds across restarts.
+    gnews_daily_requests: int = _env_int("GNEWS_DAILY_REQUESTS", 90)
+
     # --- live provider credentials ---------------------------------------
     # One per vendor. Empty means that vendor is not configured, which
     # `/api/health` reports as its own state - never as "there is no live

@@ -11322,3 +11322,98 @@ One trap on the way: `RATE_LIMIT_SECONDS=0.001` in the environment does not
 reach the test - the suite's own setup puts the setting back to 3.0 - so a
 reproduction that sets the environment variable passes and proves nothing.
 Set it on `settings` inside the test.
+
+## 139. Trending as an edition: GNews twice a day, ten episodes written ahead
+
+**What was reported.** On every open of the demo, Trending said "The live
+sources didn't answer in time."
+
+**Cause.** That sentence is `stories.Pool.empty_reason` for a pool that is
+empty and has a source that timed out. The source was the GDELT story sweep
+(§135): about fifteen volume requests at once, then seventeen article lists
+six at a time, inside a forty-five second ceiling (`GdeltSignals.timeout_seconds`).
+GDELT asks for one request every five seconds per address, and Render's
+outbound addresses are shared, so the sweep could not finish in time on any
+run. Nothing else feeds Trending since §134 ruled the bank and startup set
+off the row, so the row was empty everywhere. The design (one background
+sweep for everybody) was right; the source could not carry it.
+
+**What changed, at the owner's direction.** Trending is now an edition
+(`trending_bank.py`, `gnews.py`, TRENDING.md "The trending bank"):
+
+* Built at **05:00 and 17:00 America/New_York**, a named zone so the hour
+  survives DST, from **GNews**: `top-headlines` per category and per country,
+  then one `search` per leading candidate for `totalArticles`. About 26
+  requests an edition, counted against `GNEWS_DAILY_REQUESTS` in the bank's
+  own database before each is made.
+* **Ten stories** (`TRENDING_BANK_SIZE`), composed into tiles by the pool's
+  composer, and **ten episodes** written into the shared script cache under
+  `pipeline.key_for`, the key a tap computes, at `TRENDING_BANK_MINUTES` (2,
+  the myFAM length default). A tap is a cache hit; §132 keeps the audio after
+  the first play.
+* **GNews is the only source, with no fallback** (the owner's direction: if
+  GNews cannot answer, the subscription changes, not the source). A failed
+  build keeps the last edition up for up to 36 hours and retries after 30
+  minutes; with no key nothing is attempted and the row says so. The first
+  cut had GDELT as a fallback and it is deleted, not switched off.
+* **One builder per slot** across workers and restarts (a claim row in
+  SQLite; a claim quiet for twenty minutes is a crash and is taken over). On
+  boot a slot with no edition is built immediately, and a slot that failed
+  only for want of a key is built the moment `GNEWS_KEY` is set - so adding
+  the key on Render and redeploying is the whole procedure.
+* The Trending rail and its View more read the edition through
+  `topics.world_inventory`, and **never the live pool**: the pool (GDELT,
+  API-Sports, Finnhub, Polymarket) is Made for you's, and with no edition
+  Trending is empty and says why. The first cut of this change fell back to
+  the pool; the owner ruled it out, because a row quietly filled from the
+  pool looks exactly like one built from GNews. Only `TRENDING_BANK=0` puts
+  the pool back on the row. And the other direction: only `trending_bank`
+  imports `gnews`, so the fifteen-minute sweep can never spend a GNews
+  request - a test refreshes the pool with a key set and a client that
+  fails on any call, and scans the modules for importers. §134 and §136 are untouched: popularity and country order the
+  row, and a heard story is a follow-up or gone.
+
+**The rule it bends, stated.** `cache.ttl_for` gives a news episode fifteen
+minutes, which would expire a 5am edition before anybody woke. A bank
+episode keeps for as long as its edition can be on the row (36 hours, plus
+an hour), since a failed build leaves the old edition up. Still never kept: a score
+in progress. Still never written ahead: a question whose answer is a result
+(`outcome_dependent`). Both are offered and the tap writes them, as prefetch
+does.
+
+**Found while testing it.** A Title Case headline capitalises every word, so
+"names first" picked arbitrary words for the coverage search and dropped the
+subject. And the GDELT fallback, before it was removed, named a class that
+does not exist (`GdeltStorySource`) - a test that mocked the fallback whole
+could not see it, which is a reason to test a path by running it.
+
+**Not verified.** gnews.io is blocked from the build container, so every
+response shape is from the v4 docs, and nobody has heard a bank episode. The
+first run with a key is `python tools/trending_bank.py --verify`, then
+`--dry`. The live pool is unchanged and is Made for you's alone.
+
+**Found by the review before merge**, each now fixed and tested
+(`tests/test_trending_bank.py`, last section):
+
+* `tools/trending_bank.py --build` set the slot to BUILDING before collecting,
+  and the rail read only READY rows - so for the length of a rebuild the row
+  dropped to the previous edition or to nothing, and a `--build` run beside
+  the server's own build ran twice. The rail now reads any row with a
+  finished edition in it, and `force` never overrides a live builder.
+* Episodes expired an hour into the next edition, so a failed build left an
+  edition up (for up to 36 hours) whose episodes were gone. They now keep as
+  long as the edition can be shown.
+* Plays of Trending tiles counted nowhere: `known_topics` and `tags_for_id`
+  knew the pool and not the edition, so the most-offered row taught "What FAM
+  can't stop listening to", the friends rail and the no-repeats check nothing.
+* The empty sentence came from process memory, so after a restart a failed
+  build read as "being put together", and a listener who had heard all ten
+  was told the edition did not exist yet.
+* A refused key spent all fourteen feed requests every retry. A 401, 403 or
+  429 now stops the build at the first one.
+* A redeploy during the 05:00 build left a BUILDING row nobody held, and the
+  next boot waited twenty minutes to take it over. A cancelled build now
+  writes that it was interrupted and is retried at once; a long build keeps
+  its claim alive.
+* `/api/health` created `trending_bank.db` on every machine, which is where
+  a stray copy in the project root came from.

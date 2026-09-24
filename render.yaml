@@ -155,13 +155,21 @@ services:
         sync: false
       - key: FINNHUB_KEY
         sync: false
-      # The Trending rail's source (§134). Trending now holds live stories and
-      # nothing else - the owner ruled the startup set and the bank off it -
-      # so a deployment without a live source has an empty Trending row. GDELT
-      # is keyless and measures what worldwide news is covering, including
-      # which countries the coverage comes from, which is the one listener
-      # input that row takes. `python tools/stories_report.py` against the
-      # running service is what says it is actually answering.
+      # Trending's source (§139). Trending is an edition now, built at 05:00
+      # and 17:00 Eastern for every listener with its ten episodes written
+      # ahead of the tap, and GNews is the only thing it is built from - no
+      # fallback source, and never the live pool. Unset, Trending is empty and
+      # says so. Set the ceiling to the plan: 90 fits the free tier's
+      # 100/day, 900 fits Essential.
+      - key: GNEWS_KEY
+        sync: false
+      - key: GNEWS_DAILY_REQUESTS
+        value: "90"
+      # The live story pool's news source - what Made for you and What you
+      # missed draw on (Trending is GNews since §139, above). GDELT is keyless
+      # and measures what worldwide news is covering, including which
+      # countries the coverage comes from. `python tools/stories_report.py`
+      # against the running service is what says it is actually answering.
       - key: GDELT
         value: "1"
       #

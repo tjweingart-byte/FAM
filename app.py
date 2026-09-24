@@ -56,6 +56,7 @@ from gdelt import report as gdelt_report
 import provenance as provenance_mod
 import stories as stories_mod
 import trending as trending_mod
+import trending_bank
 from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
 from pipeline import GenerationStats, NotCached, PodcastPipeline
@@ -406,6 +407,14 @@ async def _supervise_voice() -> None:
                       "still resolve an endpoint on demand")
 
 
+def _trending_bank_report() -> dict:
+    """`trending_bank.report()`, never able to break the health page."""
+    try:
+        return trending_bank.report()
+    except Exception as exc:  # noqa: BLE001 - health must always answer
+        return {"enabled": bool(settings.trending_bank), "error": str(exc)}
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Pay the voice model's load cost now rather than on the first listener.
@@ -474,6 +483,15 @@ async def lifespan(_: FastAPI):
         generator=None if DEMO_MODE else ScriptGenerator(),
         cache=SCRIPT_CACHE,
     )
+    # Trending's edition: built at 05:00 and 17:00 Eastern from GNews and
+    # nothing else, its ten episodes written into the shared cache before
+    # anybody taps (§139). On boot it catches up - a slot with no edition is
+    # built at once - so a new deployment does not wait for 5pm. Never
+    # awaited; until the first edition lands the row is empty and says so.
+    if settings.trending_bank:
+        _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
+            generator=None if DEMO_MODE else ScriptGenerator(),
+            cache=SCRIPT_CACHE)))
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.
@@ -719,6 +737,17 @@ def _database_report() -> list[dict]:
         ("categories", "CATEGORIES_DB",
          getattr(topics_mod.category_tree(), "path", "")),
     ]
+    # Trending's editions (§139). Holds the GNews request ledger as well as
+    # the editions, so an image-local copy would reset the daily ceiling on
+    # every push as well as the rail. Reported once it exists, like the voice
+    # registry below: the first build creates it, and a health page must not
+    # be what creates a database on a machine that never built an edition.
+    if settings.trending_bank and trending_bank._exists():
+        try:
+            stores.append(("trending bank", "TRENDING_BANK_DB",
+                           trending_bank.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
     # Opened lazily and only where workers register themselves, so it is
     # reported only when it exists: a store listed as missing on every machine
     # that never switched the feature on is a health page teaching people to
@@ -1349,6 +1378,7 @@ async def health(request: Request) -> dict:
         # difference visible, down to how many tiles were templated
         # because the composer was unavailable.
         "stories": stories_mod.report(),
+        "trending_bank": _trending_bank_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one

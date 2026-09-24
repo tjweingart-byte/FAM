@@ -86,6 +86,14 @@ FAM_ENVIRONMENT = (
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
     "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
     "FINNHUB_WATCHLIST",
+    # The trending bank and GNews (§139). A developer with GNEWS_KEY set must
+    # not run a suite that reaches gnews.io and spends their plan.
+    "TRENDING_BANK", "TRENDING_BANK_SIZE", "TRENDING_BANK_TIMEZONE",
+    "TRENDING_BANK_HOURS", "TRENDING_BANK_MINUTES", "TRENDING_BANK_WRITE",
+    "TRENDING_BANK_RETRY_SECONDS", "TRENDING_BANK_MAX_AGE_HOURS",
+    "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
+    "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
+    "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -145,7 +153,7 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
-    "VOICE_REGISTRY_DB",
+    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -268,6 +276,35 @@ def isolated_accounts(tmp_path, monkeypatch):
         "PREFS",
         prefs_mod.PreferenceStore(str(tmp_path / "auth" / "preferences.db")),
     )
+
+
+@pytest.fixture(autouse=True)
+def isolated_trending_bank(tmp_path, monkeypatch):
+    """Trending's editions, per test, and nothing held in memory between them.
+
+    The rail reads the bank on every myFAM draw, so an edition left behind by
+    one test would be the Trending row of every test after it - the story
+    pool's §106 lesson, one module over.
+    """
+    import dataclasses
+
+    import config
+    import trending_bank
+
+    monkeypatch.setenv("TRENDING_BANK_DB",
+                       str(tmp_path / "stores" / "trending_bank.db"))
+    # **Off for the suite, on in production.** With the bank on, Trending is
+    # the GNews edition and nothing else (§139) - so every test written about
+    # the row's *ranking* over the live pool (§134-§136) describes the
+    # `TRENDING_BANK=0` row, and runs against it here. The production default
+    # - bank on, pool never on Trending - is pinned by
+    # `tests/test_trending_bank.py`, which turns it on explicitly.
+    off = dataclasses.replace(config.settings, trending_bank=False)
+    monkeypatch.setattr(config, "settings", off)
+    monkeypatch.setattr(trending_bank, "settings", off)
+    trending_bank.reset()
+    yield
+    trending_bank.reset()
 
 
 @pytest.fixture(autouse=True)

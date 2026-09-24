@@ -34,6 +34,7 @@ import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
 import topics as T  # noqa: E402
 import voice_registry as VR  # noqa: E402
+import trending_bank as TB  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -54,6 +55,7 @@ STORES = [
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
     ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),
+    ("TRENDING_BANK_DB", "trending_bank.db", TB.BankStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -91,7 +93,11 @@ ALL_VARS = sorted(DECLARED)
 #:
 #: Anything added here needs that kind of reason written beside it. The default
 #: is that a store the app opens is a store the health page names.
-LAZY_STORES = {"VOICE_REGISTRY_DB"}
+#: `TRENDING_BANK_DB` is the same case (§139): the first edition build
+#: creates it, and a health page that opened it would create a database on
+#: every machine that never built one - which is how a stray copy once
+#: appeared in the project root. Reported once it exists.
+LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB"}
 
 
 @pytest.fixture(autouse=True)

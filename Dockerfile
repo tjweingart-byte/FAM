@@ -87,6 +87,7 @@ ENV CACHE_PATH=/data/scripts.db \
     QUOTAS_DB=/data/quotas.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \
     CATEGORIES_DB=/data/categories.db \
+    TRENDING_BANK_DB=/data/trending_bank.db \
     PORT=8000
 RUN mkdir -p /data
 

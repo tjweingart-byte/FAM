@@ -3,6 +3,13 @@
 The myFAM row backed by an outside feed, and why it is a separate subsystem
 from live facts.
 
+> **Since PROBLEMS.md §139 the row is an *edition*.** Built at 05:00 and
+> 17:00 Eastern from GNews (`gnews.py`, `trending_bank.py`), ten stories,
+> with their ten episodes written into the shared cache before anybody taps.
+> GNews is the only source - there is no fallback. **The live pool never
+> reaches this row**: it is Made for you's, and with no edition Trending is
+> empty and says why. See **The trending bank** at the end of this file.
+
 > **Since PROBLEMS.md §102 this registry is one source among several rather
 > than the row's whole supply.** myFAM's two outward-facing rails are now fed
 > by the story pool (`stories.py`, `MYFAM.md`), which sweeps four live sources
@@ -238,3 +245,53 @@ decision and nothing in this build can test writing quality.
 payloads. Run `python tools/gdelt_probe.py` somewhere with network first — it
 checks both modes FAM uses and warns on the two things most likely to be
 silently wrong (dates not parsing, URLs not arriving).
+
+
+## The trending bank (§139)
+
+**Why.** From Render, the GDELT story sweep timed out on every run: about
+thirty-two requests to a free service that asks for one every five seconds,
+fired six at a time inside a forty-five second ceiling. The pool stayed
+empty and the row said "The live sources didn't answer in time" to everybody.
+
+**What it is.** An edition, built on a clock rather than on a page load:
+
+| | |
+|---|---|
+| When | 05:00 and 17:00, `America/New_York` (`TRENDING_BANK_HOURS`, `TRENDING_BANK_TIMEZONE`). A named zone, so 5am survives daylight saving. |
+| From | GNews `top-headlines`: one call per category worldwide, one per country (`GNEWS_CATEGORIES`, `GNEWS_COUNTRIES`), then one `search` per leading candidate to count how widely it runs (`GNEWS_CORROBORATE`). About 26 requests an edition. |
+| Ranked on | how many articles run it (`totalArticles`, log-scaled), how many top-story feeds lead with it, and how high. At most three from one section. |
+| Holds | `TRENDING_BANK_SIZE` stories (10), composed into tiles by `stories.compose` exactly as the pool's are. |
+| Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept for as long as the edition can be on the row (`TRENDING_BANK_MAX_AGE_HOURS`, 36) plus an hour. |
+| Shown | by the Trending rail and its "View more", through `topics.world_inventory` - and nothing else: with no edition the row is empty and says why, never filled from the live pool. |
+| Kept apart | GNews is called only by `trending_bank`; the live pool (GDELT, API-Sports, Finnhub, Polymarket, every 15 minutes) never spends a GNews request, and a test scans the modules to keep it so. |
+| Order | Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
+| Stored | `TRENDING_BANK_DB` on the mounted disk, with the GNews request ledger (`GNEWS_DAILY_REQUESTS`). |
+
+**No fallback, at the owner's direction.** GNews is the only source; if it
+cannot answer, the fix is the plan, not a second source. A failed build
+keeps the last edition on the row for up to `TRENDING_BANK_MAX_AGE_HOURS`
+(36), is retried after `TRENDING_BANK_RETRY_SECONDS` (30 minutes), and is on
+`/api/health` as `current_slot_status`. With no key nothing is attempted and
+the row says "FAM isn't connected to a live news source yet"; a slot that
+failed only for want of a key is built the moment one is set.
+
+**The one rule it bends, at the owner's direction.** `cache.ttl_for` gives a
+news episode fifteen minutes (`CACHE_TTL_VOLATILE`), which would expire a
+5am edition before anybody woke. A bank episode keeps for as long as its
+edition can be shown - normally until the next edition replaces it, and up
+to 36 hours if a build fails and the old edition stays up.
+It still never keeps a score in progress, and never writes ahead a question
+whose answer is a result (`outcome_dependent`) - that tile is offered and
+the tap writes it.
+
+**The two inventories do not cross.** Made for you and What you missed read
+the live pool (GDELT, API-Sports, Finnhub, Polymarket, every fifteen
+minutes) and never the bank; Trending reads the bank and never the pool; and
+GNews is spent by the bank alone.
+
+**Operating it.** `python tools/trending_bank.py` prints the schedule and the
+edition; `--verify` makes one real GNews request; `--dry` collects and ranks
+without writing; `--build` rebuilds the current slot now; `--url` reads a
+running server. Nothing here has made a real GNews request - gnews.io is
+blocked from the build container, so every shape is from the v4 docs.
