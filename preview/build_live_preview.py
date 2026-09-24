@@ -371,6 +371,32 @@ __MIX_ITEMS__
     });
     return s;
   }
+  // `topics._tally_listens`, over this page's own log: listens per tile by
+  // everybody but `skip`, inside [since, until). One listener's play and
+  // completion of the same tile are one listen.
+  function listens(since, until, skip) {
+    var per = {};
+    rows("events").forEach(function (e) {
+      if (e.user_id === skip || !e.topic_id || e.at < since || e.at >= until) return;
+      if (e.kind !== "play" && e.kind !== "complete") return;
+      var k = e.user_id + "\u0000" + e.topic_id;
+      var c = per[k] || (per[k] = { id: e.topic_id, p: 0, c: 0 });
+      if (e.kind === "play") c.p++; else c.c++;
+    });
+    var out = {};
+    Object.keys(per).forEach(function (k) {
+      var c = per[k];
+      out[c.id] = (out[c.id] || 0) + Math.max(c.p, c.c);
+    });
+    return out;
+  }
+  // Whether a tile's script is in this database's own cache. Any length: the
+  // preview's feed does not carry the page's length the way the server does.
+  function isCached(query) {
+    return rows("scripts").some(function (r) {
+      return r.query === query && r.expires > now();
+    });
+  }
   function playedIds(uid) {
     var s = {};
     behavioural(uid).forEach(function (e) {
@@ -430,14 +456,13 @@ __MIX_ITEMS__
       return { t: t, s: affinity(t, profile) };
     }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; });
 
-    var counts = {};
-    rows("events").forEach(function (e) {
-      if (e.user_id !== UID && e.topic_id && (e.kind === "play" || e.kind === "complete")) {
-        counts[e.topic_id] = (counts[e.topic_id] || 0) + 1;
-      }
-    });
+    // `topics.rank_most_played`: cached episodes only, ranked by total
+    // listens by everybody, a finished listen counted once
+    // (`_tally_listens`); `take` then drops what this listener has heard.
+    var counts = listens(now() - 30 * 86400, Infinity, null);
     var byCount = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })
-      .map(function (id) { return BY_ID[id]; }).filter(Boolean);
+      .map(function (id) { return BY_ID[id]; })
+      .filter(function (t) { return t && isCached(t.query); });
 
     // Filled most-constrained first, exactly as build_feed does: the personal
     // sections choose before the generic ones can claim the bank.
@@ -492,33 +517,20 @@ __MIX_ITEMS__
              startup_order: startup ? startup.source : "" };
   }
 
-  // `topics.rank_missed`: what this listener was shown in the last week and
-  // did not take. The one rail on this page the live build can compute for
-  // real, because impressions are written into the database on every myFAM
-  // load - so opening the preview twice actually fills it.
-  //
-  // Bank only, like the server for anything it can no longer resolve: this
-  // page has no story pool, so a live tile offered last week has nothing
-  // behind it, and inventing one is the failure the whole subsystem is built
-  // against.
+  // `topics.rank_missed`: cached episodes other listeners played three to
+  // seven days ago that this listener never heard, most-listened first. No
+  // impressions, no story pool, no top-up - the owner's rule. (Scripts here
+  // carry no provenance, so the live-feed exclusion has nothing to exclude.)
   function missedRail(taken) {
-    var since = now() - 7 * 86400;
-    var shown = {};
-    rows("events").forEach(function (e) {
-      if (e.user_id !== UID || e.kind !== "impression" || !e.topic_id) return;
-      if (e.at < since) return;
-      shown[e.topic_id] = Math.max(shown[e.topic_id] || 0, e.at);
-    });
+    var counts = listens(now() - 7 * 86400, now() - 3 * 86400, UID);
     var mine = playedIds(UID);
-    var profile = taste(UID);
-    return Object.keys(shown)
-      .filter(function (id) { return !mine[id] && !taken[id] && BY_ID[id]; })
-      .map(function (id) {
-        return { t: BY_ID[id], s: affinity(BY_ID[id], profile), at: shown[id] };
+    return Object.keys(counts)
+      .filter(function (id) {
+        return !mine[id] && !taken[id] && BY_ID[id] && isCached(BY_ID[id].query);
       })
-      .sort(function (a, b) { return (b.s - a.s) || (b.at - a.at); })
-      .map(function (x) { return x.t; })
-      .slice(0, 8);
+      .sort(function (a, b) { return (counts[b] - counts[a]) || (a < b ? -1 : 1); })
+      .map(function (id) { return BY_ID[id]; })
+      .slice(0, 4);
   }
 
   // `topics.SECTIONS`, in order. Trending sits second, where Explore New used
@@ -530,9 +542,9 @@ __MIX_ITEMS__
   var SECTIONS = [
     ["from_history", "Made for you", "Your first episode starts this one off."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
-    ["missed", "What you missed last week", "Nothing went past you this week."],
+    ["missed", "What you missed last week", "Nothing went past you last week."],
     ["most_played", "What FAM can't stop listening to",
-     "Nothing has been played here yet. This fills up as people listen."],
+     "Nothing ready to replay has been played here yet. This fills up as people listen."],
     ["followers", "What your friends are listening to",
      "Follow some people and this fills up with what they play."]
   ];
@@ -1385,7 +1397,11 @@ __MIX_ITEMS__
       var mins = Number(qs.get("minutes") || 3);
       // Genuinely cached, from this database's own script table - which is
       // the point of the live preview: the badge means something here.
-      var all = sect.topics.concat(BANK.filter(function (x) { return !taken[x.id]; }))
+      // Only Made for you tops up from the bank; the crowd rails and What you
+      // missed hold cached episodes and nothing else.
+      var more = wantKey === "from_history"
+        ? BANK.filter(function (x) { return !taken[x.id]; }) : [];
+      var all = sect.topics.concat(more)
         .map(function (x) {
           var copy = {}; for (var k in x) copy[k] = x[k];
           copy.cached = rows("scripts").some(function (row) {
