@@ -483,11 +483,11 @@ async def lifespan(_: FastAPI):
         generator=None if DEMO_MODE else ScriptGenerator(),
         cache=SCRIPT_CACHE,
     )
-    # Trending's edition: built at 05:00 and 17:00 Eastern from GNews, with
-    # GDELT as the crutch, its ten episodes written into the shared cache
-    # before anybody taps (§139). On boot it catches up - a slot with no
-    # edition is built at once - so a new deployment does not wait for 5pm.
-    # Never awaited; the rail reads the pool until the first edition lands.
+    # Trending's edition: built at 05:00 and 17:00 Eastern from GNews and
+    # nothing else, its ten episodes written into the shared cache before
+    # anybody taps (§139). On boot it catches up - a slot with no edition is
+    # built at once - so a new deployment does not wait for 5pm. Never
+    # awaited; until the first edition lands the row is empty and says so.
     if settings.trending_bank:
         _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
             generator=None if DEMO_MODE else ScriptGenerator(),
@@ -739,8 +739,10 @@ def _database_report() -> list[dict]:
     ]
     # Trending's editions (§139). Holds the GNews request ledger as well as
     # the editions, so an image-local copy would reset the daily ceiling on
-    # every push as well as the rail.
-    if settings.trending_bank:
+    # every push as well as the rail. Reported once it exists, like the voice
+    # registry below: the first build creates it, and a health page must not
+    # be what creates a database on a machine that never built an edition.
+    if settings.trending_bank and trending_bank._exists():
         try:
             stores.append(("trending bank", "TRENDING_BANK_DB",
                            trending_bank.store().path))
@@ -3050,6 +3052,11 @@ class MixRequest(BaseModel):
     topic_ids: Optional[list[Union[str, dict]]] = None
     #: Public mixes appear on the listener's profile.
     public: Optional[bool] = None
+    #: The mix's cover photo as a data URL; "" removes it, omitted keeps it.
+    #: No `max_length` here on purpose: pydantic would refuse an oversized
+    #: photo with a 422 the interface cannot read, where mixes.clean_cover
+    #: refuses it with a sentence the listener can act on.
+    cover: Optional[str] = None
 
 
 def _attachments_for(user: str, ids: str) -> tuple:
@@ -3170,7 +3177,8 @@ async def list_mixes(request: Request):
 async def create_mix(req: MixRequest, request: Request):
     _read_limit(request)
     try:
-        mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [])
+        mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [],
+                           req.cover or "")
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3182,7 +3190,8 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
     try:
-        mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public)
+        mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
+                           req.cover)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return mix.as_dict()
@@ -3392,6 +3401,13 @@ async def read_preferences(request: Request):
         # lets it be seventy-odd entries without widening the vocabulary the
         # ranker reasons in by a single word.
         "catalogue": [i.as_dict() for i in topics_mod.INTEREST_CATALOGUE],
+        # The vocabulary a DailyFAM mix ranks catalogue subjects in: which
+        # facet each subtag lives under, and what each facet is called. The
+        # picker filters and orders subjects by the listener's interests and
+        # a mix's recommendations by what it already follows, and both need
+        # "ai" to count as Technology (§137).
+        "tag_parent": dict(topics_mod.TAG_PARENT),
+        "tag_labels": dict(topics_mod.TAG_LABELS),
         "languages": [dict(lang) for lang in prefs_mod.LANGUAGES],
         # False until per-language generation exists. Printed under the picker
         # rather than left implicit: a setting that silently changes nothing is

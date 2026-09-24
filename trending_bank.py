@@ -32,7 +32,8 @@ So Trending is an **edition** now:
 
 Where it departs from a rule, stated rather than buried
 -------------------------------------------------------
-**A bank episode keeps until the next edition**, however fresh its evidence
+**A bank episode keeps as long as its edition can be shown** (up to
+`TRENDING_BANK_MAX_AGE_HOURS`, plus an hour), however fresh its evidence
 had to be. `cache.ttl_for` would give a news episode fifteen minutes
 (`CACHE_TTL_VOLATILE`), so ten episodes written at 5am would be gone before
 anybody woke up. The owner asked for a bank that regenerates every twelve
@@ -87,9 +88,11 @@ FAILED = "failed"
 
 #: A claim this old with nothing finished is a crashed builder.
 STALE_CLAIM_SECONDS = 20 * 60
-#: How long a bank episode outlives the slot after its own, so the rail and
-#: the cache hand over without a gap while the next edition is written.
+#: How long a bank episode outlives the longest its edition can be shown
+#: (`TRENDING_BANK_MAX_AGE_HOURS`), so a tap in the last minute still finds it.
 EPISODE_GRACE_SECONDS = 3600
+#: What a build cut short by a shutdown writes, so the next boot retries at once.
+INTERRUPTED = "interrupted: the server stopped during the build"
 #: How often a running server re-reads the edition, so a build finished by
 #: another worker (or by `tools/trending_bank.py`) reaches every rail.
 RELOAD_SECONDS = 60.0
@@ -256,9 +259,11 @@ class BankStore:
     def claim(self, slot: str, now: float, force: bool = False) -> bool:
         """Take the right to build `slot`. True for exactly one caller.
 
-        A ready slot is never re-claimed unless `force`; a building one only
-        once it has gone quiet (`STALE_CLAIM_SECONDS`); a failed one only
-        after `TRENDING_BANK_RETRY_SECONDS`.
+        A ready slot is never re-claimed unless `force`; a failed one only
+        after `TRENDING_BANK_RETRY_SECONDS` unless `force`; a building one
+        only once it has gone quiet (`STALE_CLAIM_SECONDS`) - **never by
+        force**, because a live builder is spending GNews requests and ten
+        episodes, and a second one beside it would spend them twice.
         """
         with self._lock, self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -273,10 +278,11 @@ class BankStore:
                     return True
                 status, claimed_at = row
                 quiet = now - float(claimed_at or 0.0)
-                allowed = force or (
+                allowed = (
                     (status == BUILDING and quiet >= STALE_CLAIM_SECONDS)
-                    or (status == FAILED
-                        and quiet >= settings.trending_bank_retry_seconds))
+                    or (status == FAILED and (
+                        force or quiet >= settings.trending_bank_retry_seconds))
+                    or (status == READY and force))
                 if not allowed:
                     db.execute("ROLLBACK")
                     return False
@@ -288,6 +294,13 @@ class BankStore:
             except Exception:
                 db.execute("ROLLBACK")
                 raise
+
+    def touch(self, slot: str, now: float) -> None:
+        """A builder saying it is still alive, so a long build is not taken
+        over as a crashed one halfway through."""
+        with self._lock, self._connect() as db:
+            db.execute("UPDATE editions SET claimed_at = ? WHERE slot = ? "
+                       "AND status = ?", (now, slot, BUILDING))
 
     def finish(self, edition: Edition) -> None:
         with self._lock, self._connect() as db:
@@ -317,8 +330,12 @@ class BankStore:
 
     def latest(self) -> Optional[Edition]:
         with self._connect() as db:
-            row = db.execute("SELECT payload FROM editions WHERE status = ? "
-                             "ORDER BY built_at DESC LIMIT 1", (READY,)).fetchone()
+            # Any row with a finished edition in it, whatever its status: a
+            # slot being rebuilt is BUILDING with its old edition still in
+            # `payload`, and the rail keeps showing that until the new one
+            # replaces it. Only `finish` writes a payload.
+            row = db.execute("SELECT payload FROM editions WHERE payload IS NOT "
+                             "NULL ORDER BY built_at DESC LIMIT 1").fetchone()
         if row is None or not row[0]:
             return None
         try:
@@ -330,8 +347,8 @@ class BankStore:
 
     def latest_built_at(self) -> float:
         with self._connect() as db:
-            row = db.execute("SELECT MAX(built_at) FROM editions WHERE status = ?",
-                             (READY,)).fetchone()
+            row = db.execute("SELECT MAX(built_at) FROM editions WHERE "
+                             "payload IS NOT NULL").fetchone()
         return float(row[0] or 0.0) if row else 0.0
 
     def spend(self, provider: str, limit: int, now: Optional[float] = None) -> bool:
@@ -434,7 +451,8 @@ def current(now: Optional[float] = None) -> Optional[Edition]:
 
 
 def stories_now(now: Optional[float] = None) -> list:
-    """The current edition's stories, unexpired. `[]` means use the pool."""
+    """The current edition's stories, unexpired. `[]` means Trending is
+    empty - never that the pool should stand in (§139)."""
     edition = current(now)
     if edition is None:
         return []
@@ -442,18 +460,31 @@ def stories_now(now: Optional[float] = None) -> list:
     return [s for s in edition.stories if not s.expired(now)]
 
 
-def empty_reason() -> str:
-    """What Trending says when there is no edition to show."""
+def empty_reason(now: Optional[float] = None) -> str:
+    """What Trending says when it has nothing to show. One sentence per cause.
+
+    Read from the database and the edition rather than from this process, so
+    a restart, or a failure another worker hit, still gets the right one.
+    """
     import gnews
 
-    ok, _why = gnews.available()
-    attempt = _LAST_ATTEMPT.get("detail", "")
+    now = time.time() if now is None else now
+    if current(now) is not None:
+        # There is an edition; this listener has heard every story in it.
+        nxt = next_slot(now)
+        hour = nxt.strftime("%I %p").lstrip("0")
+        return (f"You've heard everything trending in this edition. The next "
+                f"one arrives at {hour} {nxt.tzname() or ''}".rstrip() + ".")
+    if not gnews.available()[0]:
+        return "FAM isn't connected to a live news source yet."
     if _BUILDING:
         return "Today's trending stories are being put together now."
-    if not ok:
-        return "FAM isn't connected to a live news source yet."
-    if attempt:
-        return "Couldn't reach the news sources for this edition. Trying again shortly."
+    try:
+        row = store().status(slot_id(last_slot(now))) if _exists() else None
+    except Exception:  # noqa: BLE001 - a sentence never breaks a page
+        row = None
+    if row and row.get("status") == FAILED:
+        return "Couldn't reach the news source for this edition. Trying again shortly."
     return "Today's trending stories are being put together now."
 
 
@@ -549,6 +580,10 @@ async def gnews_signals(client, now: float, size: int) -> list:
             failed += 1
             last_error = str(exc)
             log.warning("trending bank: %s %s failed: %s", kind, value, exc)
+            if exc.fatal:
+                # A refused key, a spent plan or a rate limit refuses every
+                # feed after it too, and each attempt is charged to the day.
+                break
     if asked and failed == asked:
         raise gnews.GNewsError(last_error or "every GNews request failed")
     if not articles:
@@ -585,6 +620,8 @@ async def gnews_signals(client, now: float, size: int) -> list:
         except gnews.GNewsError as exc:
             log.info("trending bank: could not count coverage for %r: %s",
                      words, exc)
+            if exc.fatal:
+                break
             continue
         candidate.coverage = found.total
         candidate.countries += [_country_of(a) for a in found.articles
@@ -746,6 +783,12 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
         return None
 
     _BUILDING = True
+    started = time.monotonic()
+
+    def alive() -> None:
+        # On the build's own clock, so a caller's `now` stays consistent.
+        store().touch(sid, now + (time.monotonic() - started))
+
     try:
         size = max(1, settings.trending_bank_size)
         signals, detail, requests = await collect(now, size, client=client)
@@ -755,6 +798,7 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
             log.error("trending bank: no edition for %s - %s", sid, detail)
             return None
 
+        alive()
         composed = await stories.compose(signals[:size], now)
         shelf = settings.trending_bank_max_age_hours * 3600.0
         edition_stories = [_placed(replace(s, first_seen=now, last_seen=now,
@@ -766,8 +810,14 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
                           minutes=settings.trending_bank_minutes)
 
         if settings.trending_bank_write and generator is not None and cache is not None:
-            expires_at = next_slot(now).timestamp() + EPISODE_GRACE_SECONDS
+            # For as long as this edition can be on the row: the next edition
+            # normally replaces it within twelve hours, but a failed build
+            # leaves it up for up to `TRENDING_BANK_MAX_AGE_HOURS`, and its
+            # episodes must not expire underneath it. It also covers a story
+            # the next edition repeats, which finds this script cached.
+            expires_at = now + shelf + EPISODE_GRACE_SECONDS
             for story in edition_stories:
+                alive()
                 edition.episodes[story.id] = await write_episode(
                     story, generator, cache, settings.trending_bank_minutes,
                     expires_at)
@@ -785,6 +835,15 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
                  sid, len(edition_stories), edition.written(), edition.dollars(),
                  requests)
         return edition
+    except asyncio.CancelledError:
+        # The server is going down mid-build - a redeploy at 05:00. Said in
+        # the row, so the next boot builds at once rather than waiting out a
+        # claim nobody is holding (`due`).
+        try:
+            store().fail(sid, INTERRUPTED)
+        except Exception:  # noqa: BLE001
+            pass
+        raise
     except Exception as exc:  # noqa: BLE001 - a build never takes the server down
         log.exception("trending bank: the build for %s failed", sid)
         try:
@@ -827,15 +886,19 @@ def due(now: Optional[float] = None) -> bool:
     if row["status"] == READY:
         return False
     if row["status"] == FAILED:
-        return (_failed_for_want_of_a_key(row)
+        return (_retry_at_once(row)
                 or now - float(row["claimed_at"] or 0)
                 >= settings.trending_bank_retry_seconds)
     return now - float(row["claimed_at"] or 0) >= STALE_CLAIM_SECONDS
 
 
-def _failed_for_want_of_a_key(row: Optional[dict]) -> bool:
+def _retry_at_once(row: Optional[dict]) -> bool:
+    """A failure that says nothing about GNews: no key at the time, or a
+    shutdown mid-build. Neither is a reason to wait out the retry."""
+    detail = str((row or {}).get("detail") or "")
     return bool(row and row.get("status") == FAILED
-                and "GNEWS_KEY is not set" in str(row.get("detail") or ""))
+                and ("GNEWS_KEY is not set" in detail
+                     or detail.startswith(INTERRUPTED)))
 
 
 async def run_forever(generator=None, cache=None) -> None:
@@ -855,7 +918,7 @@ async def run_forever(generator=None, cache=None) -> None:
             if due():
                 row = store().status(slot_id(last_slot()))
                 await build(generator=generator, cache=cache,
-                            force=_failed_for_want_of_a_key(row))
+                            force=_retry_at_once(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))

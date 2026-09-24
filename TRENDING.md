@@ -262,7 +262,7 @@ empty and the row said "The live sources didn't answer in time" to everybody.
 | From | GNews `top-headlines`: one call per category worldwide, one per country (`GNEWS_CATEGORIES`, `GNEWS_COUNTRIES`), then one `search` per leading candidate to count how widely it runs (`GNEWS_CORROBORATE`). About 26 requests an edition. |
 | Ranked on | how many articles run it (`totalArticles`, log-scaled), how many top-story feeds lead with it, and how high. At most three from one section. |
 | Holds | `TRENDING_BANK_SIZE` stories (10), composed into tiles by `stories.compose` exactly as the pool's are. |
-| Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept until the next edition plus an hour. |
+| Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept for as long as the edition can be on the row (`TRENDING_BANK_MAX_AGE_HOURS`, 36) plus an hour. |
 | Shown | by the Trending rail and its "View more", through `topics.world_inventory` - and nothing else: with no edition the row is empty and says why, never filled from the live pool. |
 | Kept apart | GNews is called only by `trending_bank`; the live pool (GDELT, API-Sports, Finnhub, Polymarket, every 15 minutes) never spends a GNews request, and a test scans the modules to keep it so. |
 | Order | Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
@@ -278,7 +278,9 @@ failed only for want of a key is built the moment one is set.
 
 **The one rule it bends, at the owner's direction.** `cache.ttl_for` gives a
 news episode fifteen minutes (`CACHE_TTL_VOLATILE`), which would expire a
-5am edition before anybody woke. A bank episode keeps until the next edition.
+5am edition before anybody woke. A bank episode keeps for as long as its
+edition can be shown - normally until the next edition replaces it, and up
+to 36 hours if a build fails and the old edition stays up.
 It still never keeps a score in progress, and never writes ahead a question
 whose answer is a result (`outcome_dependent`) - that tile is offered and
 the tap writes it.

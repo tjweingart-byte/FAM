@@ -247,8 +247,12 @@ def test_replaying_a_written_episode_is_not_paced(client, monkeypatch):
 def test_an_unwritten_episode_is_still_paced(client, monkeypatch):
     """The cache probe must not become a way past the pace. Nothing is cached
     here, so every one of these could spend a model call."""
+    # `rate_limit_seconds` pinned long: the bucket refills one start per
+    # RATE_LIMIT_SECONDS (3s), and a slow CI runner once took longer than
+    # that to stream the first episode, so the second was let through (§138).
     monkeypatch.setattr(appmod, "settings",
-                        dataclasses.replace(appmod.settings, rate_limit_burst=2))
+                        dataclasses.replace(appmod.settings, rate_limit_burst=2,
+                                            rate_limit_seconds=3600))
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", MemoryScriptCache())
     codes = [audio(client, f"nobody has ever asked this {n}").status_code
              for n in range(5)]
@@ -270,8 +274,12 @@ def test_the_two_refusals_are_told_apart(client, enforced, monkeypatch):
     """`429` in an access log is the same three digits whether the pace or the
     allowance said no, and the two have opposite fixes: wait three seconds, or
     wait until tomorrow. A day went into looking at the wrong one."""
+    # `rate_limit_seconds` pinned long: the bucket refills one start per
+    # RATE_LIMIT_SECONDS (3s), and a slow CI runner once took longer than
+    # that to stream the first episode, so the second was let through (§138).
     monkeypatch.setattr(appmod, "settings",
-                        dataclasses.replace(appmod.settings, rate_limit_burst=1))
+                        dataclasses.replace(appmod.settings, rate_limit_burst=1,
+                                            rate_limit_seconds=3600))
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", MemoryScriptCache())
     assert audio(client, "a first question").status_code == 200
     paced = audio(client, "a second question")

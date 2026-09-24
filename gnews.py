@@ -61,11 +61,31 @@ CATEGORIES = ("general", "world", "nation", "business", "technology",
 
 
 class GNewsError(RuntimeError):
-    """GNews did not answer usefully. The message never carries the key."""
+    """GNews did not answer usefully. The message never carries the key.
+
+    `status` is GNews's HTTP status, or 0 when none came back. `fatal` says
+    the next request would be refused too - a refused key (401), a spent or
+    insufficient plan (403), a rate limit (429) - so a caller should stop
+    asking rather than charge more requests to the day.
+    """
+
+    FATAL = (401, 403, 429)
+
+    def __init__(self, message: str, status: int = 0) -> None:
+        super().__init__(message)
+        self.status = status
+
+    @property
+    def fatal(self) -> bool:
+        return self.status in self.FATAL
 
 
 class QuotaSpent(GNewsError):
     """The app's own daily ceiling refused the request before it was made."""
+
+    @property
+    def fatal(self) -> bool:
+        return True
 
 
 class _Redact(logging.Filter):
@@ -215,7 +235,8 @@ class Client:
         finally:
             self._last = time.monotonic()
         if response.status_code != 200:
-            raise GNewsError(_refusal(endpoint, response))
+            raise GNewsError(_refusal(endpoint, response),
+                             status=response.status_code)
         try:
             return response.json()
         except ValueError:
@@ -266,13 +287,22 @@ def _refusal(endpoint: str, response: httpx.Response) -> str:
     return f"{reason} ({endpoint})" + (f": {detail}" if detail else "")
 
 
+def _ledger():
+    """The bank's daily ledger, so a check is counted like any request."""
+    import trending_bank
+
+    return lambda _endpoint: trending_bank.store().spend(
+        trending_bank.GNEWS, settings.gnews_daily_requests)
+
+
 async def verify() -> tuple[bool, str]:
     """A real request (§52). One top-headline; never on a request path."""
     ok, why = available()
     if not ok:
         return False, why
     try:
-        rows = await Client().top_headlines(category="general", limit=1)
+        rows = await Client(spend=_ledger()).top_headlines(category="general",
+                                                            limit=1)
     except GNewsError as exc:
         return False, str(exc)
     if not rows:

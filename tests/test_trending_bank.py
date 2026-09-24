@@ -321,9 +321,10 @@ def test_an_edition_writes_its_episodes_under_the_key_a_tap_computes(bank, monke
                                                settings.trending_bank_minutes)))
         assert edition.episodes[story.id]["key"] == tap
         assert cache.get(tap), "a tap would not find the bank's episode"
-        # Kept until the next edition and its grace hour - not fifteen minutes.
+        # Kept for as long as the edition can be shown - not fifteen minutes,
+        # and not only until the next edition, which might fail to build.
         expires = cache._data[tap][0]
-        assert expires >= TB.next_slot(now).timestamp() + TB.EPISODE_GRACE_SECONDS - 5
+        assert expires >= now + settings.trending_bank_max_age_hours * 3600 - 5
 
 
 def test_the_size_is_a_setting(bank, monkeypatch):
@@ -396,7 +397,7 @@ def test_a_slot_that_failed_for_want_of_a_key_is_built_once_there_is_one(bank,
     configure(monkeypatch, gnews_key="k")
     assert TB.due(now + 60)
     row = bank.status(TB.slot_id(TB.last_slot(now)))
-    assert TB._failed_for_want_of_a_key(row)
+    assert TB._retry_at_once(row)
 
 
 def test_a_gnews_that_failed_is_not_retried_in_a_loop(bank, monkeypatch):
@@ -519,3 +520,113 @@ def test_the_report_says_where_the_edition_came_from(bank, monkeypatch):
     assert report["schedule"]["hours"] == [5, 17]
     assert report["gnews"]["requests_today"] > 0
     json.dumps(report)
+
+
+
+# --------------------------------------------------------------------------
+# What the pre-merge review found
+# --------------------------------------------------------------------------
+def test_a_forced_rebuild_keeps_the_edition_on_the_row_while_it_runs(bank, monkeypatch):
+    now = et(2026, 9, 23, 5, 0, 5)
+    first = _build(bank, monkeypatch, now=now)
+    sid = TB.slot_id(TB.last_slot(now))
+    assert bank.claim(sid, now + 60, force=True)        # the operator's --build
+    assert bank.status(sid)["status"] == TB.BUILDING
+    TB.reset(bank)
+    assert [s.id for s in TB.stories_now(now + 120)] == [s.id for s in first.stories]
+
+
+def test_force_never_overrides_a_live_builder(bank):
+    assert bank.claim("s", 1000.0)
+    assert not bank.claim("s", 1060.0, force=True)
+    assert bank.claim("s", 1000.0 + TB.STALE_CLAIM_SECONDS, force=True)
+
+
+def test_a_long_build_keeps_its_claim_alive(bank):
+    assert bank.claim("s", 1000.0)
+    bank.touch("s", 1000.0 + TB.STALE_CLAIM_SECONDS - 1)
+    assert not bank.claim("s", 1000.0 + TB.STALE_CLAIM_SECONDS)
+
+
+def test_a_refused_key_stops_after_one_request(bank, monkeypatch):
+    configure(monkeypatch, gnews_key="bad")
+    calls = []
+
+    def refuse(request):
+        calls.append(request)
+        return httpx.Response(401, json={"errors": ["bad key"]})
+
+    client = gnews.Client(
+        spend=lambda _e: bank.spend(TB.GNEWS, settings.gnews_daily_requests),
+        transport=httpx.MockTransport(refuse), gap=0.0)
+    with pytest.raises(gnews.GNewsError):
+        asyncio.run(TB.gnews_signals(client, time.time(), 10))
+    assert len(calls) == 1 and bank.spent(TB.GNEWS) == 1
+
+
+def test_a_build_cut_short_by_a_shutdown_is_retried_at_once(bank, monkeypatch):
+    configure(monkeypatch, gnews_key="k")
+    now = time.time()
+
+    async def slow(*_a, **_k):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(TB, "collect", slow)
+
+    async def run():
+        task = asyncio.ensure_future(TB.build(now=now))
+        await asyncio.sleep(0.01)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(run())
+    row = bank.status(TB.slot_id(TB.last_slot(now)))
+    assert row["status"] == TB.FAILED and TB._retry_at_once(row)
+    assert TB.due(now + 60)
+
+
+def test_the_empty_sentence_is_right_for_each_cause(bank, monkeypatch):
+    now = et(2026, 9, 23, 5, 0, 5)
+    configure(monkeypatch, gnews_key="k")
+    assert TB.empty_reason(now) == "Today's trending stories are being put together now."
+    _build(bank, monkeypatch, now=now, fail=True)
+    TB.reset(bank)                      # a restart: nothing held in memory
+    assert TB.empty_reason(now + 60).startswith("Couldn't reach the news source")
+    _build(bank, monkeypatch, now=et(2026, 9, 23, 17, 0, 5))
+    TB.reset(bank)
+    # An edition exists and this listener has heard it all.
+    reason = TB.empty_reason(et(2026, 9, 23, 18, 0))
+    assert reason.startswith("You've heard everything trending") and "5 AM" in reason
+
+
+def test_a_trending_play_counts_like_any_other_tile(bank, monkeypatch):
+    edition = _build(bank, monkeypatch, now=time.time())
+    story = edition.stories[0]
+    assert story.id in T.known_topics()
+    assert T.tags_for_id(story.id) == tuple(story.tags)
+
+
+def test_health_does_not_create_the_database(tmp_path, monkeypatch):
+    path = tmp_path / "never" / "trending_bank.db"
+    monkeypatch.setenv("TRENDING_BANK_DB", str(path))
+    configure(monkeypatch, trending_bank=True)
+    TB.reset()
+    TB.report()
+    TB.empty_reason()
+    assert not path.exists()
+
+
+def test_health_reports_the_bank_database_once_it_exists(bank, monkeypatch):
+    """Lazy, like the voice registry - but reported once a build made it."""
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "settings",
+                        dataclasses.replace(appmod.settings, trending_bank=True))
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    _build(bank, monkeypatch, now=time.time())
+    body = TestClient(appmod.app).get("/api/health").json()
+    entry = next(e for e in body["databases"] if e["env_var"] == "TRENDING_BANK_DB")
+    assert entry["readable"] and entry["writable"]

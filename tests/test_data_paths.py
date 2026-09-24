@@ -93,7 +93,11 @@ ALL_VARS = sorted(DECLARED)
 #:
 #: Anything added here needs that kind of reason written beside it. The default
 #: is that a store the app opens is a store the health page names.
-LAZY_STORES = {"VOICE_REGISTRY_DB"}
+#: `TRENDING_BANK_DB` is the same case (§139): the first edition build
+#: creates it, and a health page that opened it would create a database on
+#: every machine that never built one - which is how a stray copy once
+#: appeared in the project root. Reported once it exists.
+LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB"}
 
 
 @pytest.fixture(autouse=True)
