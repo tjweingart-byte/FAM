@@ -370,6 +370,23 @@ def test_a_finished_listen_counts_once(store):
     assert T.rank_most_played(store, episode_info=info)[0].id == "space-race"
 
 
+def test_the_cache_is_asked_about_the_rail_and_not_the_traffic(store):
+    """A bound, not a result (§122): a month of distinct searched questions
+    must not become a cache read each on every page load."""
+    now = time.time()
+    for n in range(300):
+        store.record(T.Event(f"u{n}", "play", "", f"question number {n}", (),
+                             at=now - n))
+    asked = []
+
+    def probe(query):
+        asked.append(query)
+        return T.CachedEpisode()
+    picks = T.rank_most_played(store, now=now, episode_info=probe, limit=4)
+    assert len(picks) == 4
+    assert len(asked) <= 4, len(asked)
+
+
 def test_a_searched_episode_is_counted_and_shown_as_itself(store):
     """An episode is a question: somebody's search is a listen to it, and a
     cached episode no inventory holds still makes the row."""
@@ -614,3 +631,21 @@ def test_an_empty_rail_claims_neither_of_the_two_nothings(store):
     assert said
     for wrong in ("you played", "you have not", "nothing is happening"):
         assert wrong not in said, f"the rail claimed one of the two: {said!r}"
+
+
+@pytest.mark.parametrize("kind", ["memory", "sqlite"])
+def test_the_cache_says_which_episodes_a_circle_wrote(kind, tmp_path):
+    """`authored_by` is the "created" half of the friends rail, on both
+    backends: live rows by those authors, newest first, nobody else's."""
+    import cache as cache_mod
+
+    store = (cache_mod.MemoryScriptCache() if kind == "memory"
+             else cache_mod.SqliteScriptCache(str(tmp_path / "scripts.db")))
+    store.put("k1", ["A."], 600, "friend question", "", 3, "", "", "friend")
+    store.put("k2", ["B."], 600, "stranger question", "", 3, "", "", "stranger")
+    store.put("k3", ["C."], 600, "", "", 3, "", "", "friend")  # no question
+    rows = store.authored_by(["friend", ""])
+    assert [(r["query"], r["author"]) for r in rows] == [
+        ("friend question", "friend")]
+    assert store.authored_by([]) == []
+    assert store.authored_by(["friend"], since=time.time() + 60) == []

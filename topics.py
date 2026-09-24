@@ -146,14 +146,12 @@ MISSED_QUIET = 3 * 86400
 #: that no longer exists. It was `TRENDING_WINDOW`, three days.
 MOST_PLAYED_WINDOW = 30 * 86400
 
-#: The live feeds whose answer is only true the moment it was read. An episode
-#: whose provenance names one of these is never offered on "What you missed
-#: last week": a price, a score or a market line from four days ago replayed
-#: as though it were news is the stale-fact failure LIVE_FACTS.md is built
-#: against. Every `kind == "live"` attribution counts, not only these three
-#: names - SportsDataIO and Alpha Vantage are the same kind of feed, and a
-#: name list is the thing that misses the next one.
-LIVE_FEEDS = ("Polymarket", "Finnhub", "API-Sports")
+#: No constant names the live feeds "What you missed last week" refuses, on
+#: purpose. The owner named Polymarket, Finnhub and API-Sports; the rule is
+#: every `provenance.LIVE` attribution, because SportsDataIO and Alpha Vantage
+#: are the same kind of feed and a name list is what misses the next one. A
+#: price, a score or a market line from four days ago replayed as though it
+#: were news is the stale-fact failure LIVE_FACTS.md is built against.
 
 #: The fewest tiles the Trending rail may show while the pool can fill it.
 #:
@@ -2776,9 +2774,10 @@ def rank_most_played(
     from the row that claims to list them because it was reached by search.
 
     **A finished listen counts once** (`_tally_listens`): it writes a `play`
-    and a `complete`, and counting both scored every finished listen twice. The window is `MOST_PLAYED_WINDOW` - the longest a cached
-    script can live - so "total" means every listen to the episode that is
-    still here to be played.
+    and a `complete`, and counting both scored every finished listen twice.
+    The window is `MOST_PLAYED_WINDOW` - the longest a cached script can
+    live - so "total" means every listen to the episode that is still here
+    to be played.
 
     **Cached is a filter now, not a sort** - reversing §125's "not a filter"
     at the owner's direction. `episode_info` is `query -> CachedEpisode|None`
@@ -2798,16 +2797,9 @@ def rank_most_played(
     known = known_topics(now)
     tallies = _tally_listens(
         store.listens_between(now - MOST_PLAYED_WINDOW, now + 1), known)
-    rows = _crowd_tiles(tallies, known, exclude, episode_info, heard)
-    rows.sort(key=lambda r: (-r[1].listens, -len(r[1].users), -r[1].last,
-                             r[0].id))
-    out: list[Topic] = []
-    seen: set[str] = set()
-    for topic, _entry in rows:
-        if topic.id not in seen:
-            seen.add(topic.id)
-            out.append(topic)
-    return out[:limit]
+    rows = _crowd_tiles(tallies, known, exclude, episode_info, heard,
+                        limit=limit)
+    return [topic for topic, _entry in rows]
 
 
 def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
@@ -2954,9 +2946,14 @@ def _cached_info(episode_info, query: str) -> Optional[CachedEpisode]:
         return None
 
 
+def _by_listens(entry: _Tally) -> tuple:
+    return (-entry.listens, -len(entry.users), -entry.last)
+
+
 def _crowd_tiles(tallies: dict, known: dict, exclude: set,
                  episode_info=None, heard: Optional[Heard] = None,
-                 allow_live: bool = True) -> list[tuple[Topic, _Tally]]:
+                 allow_live: bool = True,
+                 limit: Optional[int] = None) -> list[tuple[Topic, _Tally]]:
     """Every tallied episode as a tile, **cached only** when a cache is given.
 
     With `episode_info=None` the caller has no cache to ask - a test, the
@@ -2964,11 +2961,23 @@ def _crowd_tiles(tallies: dict, known: dict, exclude: set,
     offered, as before this rule existed: an episode built from a bare
     question is only ever offered once the cache has vouched for it, because
     the cache is also what says the question was shareable.
+
+    Episodes are visited most-listened first, and the excluded and the heard
+    are dropped *before* the cache is asked. With `limit` it stops once that
+    many tiles are found, which is what keeps a page load from making a cache
+    read for every distinct question anybody played in thirty days - the
+    cost grows with the rail, not with the traffic.
     """
     by_question = {_norm_question(t.query): t for t in known.values()}
-    out = []
-    for entry in tallies.values():
+    out: list = []
+    seen: set[str] = set()
+    for entry in sorted(tallies.values(), key=_by_listens):
+        if limit is not None and len(out) >= limit:
+            break
         topic = _tile_for(entry, known, by_question)
+        if (topic.id in exclude or topic.id in seen
+                or (heard is not None and heard.last(topic))):
+            continue
         if episode_info is None:
             if topic.id not in known:
                 continue
@@ -2983,8 +2992,7 @@ def _crowd_tiles(tallies: dict, known: dict, exclude: set,
                 continue
             if topic.id not in known and info.title:
                 topic = replace(topic, title=info.title)
-        if topic.id in exclude or (heard is not None and heard.last(topic)):
-            continue
+        seen.add(topic.id)
         out.append((topic, entry))
     return out
 
@@ -3296,8 +3304,8 @@ def rank_missed(store: EventStore, user_id: str, exclude: set[str],
     * **cached** at the page's length (`episode_info`), so a tap replays and
       nothing is written;
     * **not written from a live feed** - an episode whose provenance names
-      Polymarket, Finnhub, API-Sports or any other `LIVE_FEEDS`-kind source
-      is a price or a score from days ago, and replaying it as though it
+      Polymarket, Finnhub, API-Sports or any other live feed
+      (`provenance.LIVE`) is a price or a score from days ago, and replaying it as though it
       were news is the stale-fact failure LIVE_FACTS.md exists to prevent;
     * **never heard by this listener**, on any surface (`heard`).
 
@@ -3324,19 +3332,15 @@ def rank_missed(store: EventStore, user_id: str, exclude: set[str],
                                              now - MISSED_QUIET)
             if r[0] != user_id]
     tallies = _tally_listens(rows, static)
+    # A few past the limit, so affinity can still break a tie at the edge,
+    # without a cache read per question listened to all week.
     picked = _crowd_tiles(tallies, static, exclude, episode_info, heard,
-                          allow_live=False)
+                          allow_live=False, limit=limit * CANDIDATE_FACTOR)
     profile = profile or {}
     picked.sort(key=lambda r: (-r[1].listens, -len(r[1].users),
                                -_affinity(r[0], profile) if profile else 0.0,
                                -r[1].last, r[0].id))
-    out: list[Topic] = []
-    seen: set[str] = set()
-    for topic, _entry in picked:
-        if topic.id not in seen:
-            seen.add(topic.id)
-            out.append(topic)
-    return out[:limit]
+    return [topic for topic, _entry in picked[:limit]]
 
 
 def rank_friends(
