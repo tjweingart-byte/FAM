@@ -613,11 +613,12 @@ def test_a_section_opens_at_full_length_in_the_rails_own_order(client, monkeypat
     # to have played more than a rail can show for "view more" to have more.
     # And it holds cached episodes only (the owner's rule), so each one is
     # written into the cache at the length both requests ask for.
+    # Two minutes: every myFAM episode is `BROWSE_MINUTES` (§147).
     played = T.TOPIC_BANK[:T.SECTION_SIZE + 4]
     for topic in played:
-        plan = appmod._validated_plan(topic.query, 3)
+        plan = appmod._validated_plan(topic.query, 2)
         appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."],
-                                600, topic.query, "", 3, "", "", "someone")
+                                600, topic.query, "", 2, "", "", "someone")
     crowd_plays(appmod.EVENTS, [t.id for t in played])
     rail = [t["id"] for s in client.get("/api/myfam?minutes=3").json()["sections"]
             if s["key"] == "most_played" for t in s["topics"]]
@@ -639,9 +640,9 @@ def test_the_ready_ones_come_first_and_are_counted(client):
     # Write the script for one bank topic, as another listener, at the length
     # the screen is asking for.
     topic = topics_mod.TOPIC_BANK[3]
-    plan = appmod._validated_plan(topic.query, 3)
+    plan = appmod._validated_plan(topic.query, 2)
     appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
-                            topic.query, "", 3, "", "", "someone-else")
+                            topic.query, "", 2, "", "", "someone-else")
     # And put it on the row, which now holds only what has been played. It is
     # seeded *last* of the three so it is bottom of the play ranking - which
     # is what makes "a ready tile was not put first" below a real assertion
@@ -655,9 +656,10 @@ def test_the_ready_ones_come_first_and_are_counted(client):
     assert [t["id"] for t in ready] == [topic.id]
     assert body["ready"] == 1
     assert body["topics"][0]["id"] == topic.id, "a ready tile was not put first"
-    # And at a length nothing was written for, nothing claims to be ready.
+    # And a length sent by an older client is ignored (§147): myFAM is two
+    # minutes, so the same tile is still the ready one.
     other = client.get("/api/myfam/section?key=most_played&minutes=7").json()
-    assert other["ready"] == 0
+    assert other["ready"] == 1
 
 
 def test_opening_a_section_costs_no_model_call(client, monkeypatch):
@@ -865,7 +867,10 @@ def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
     assert scheduled, "the browse page warmed nothing at all"
     listener, minutes = scheduled[0]
     assert listener, "a warm has to be attributed to the listener it is for"
-    assert minutes == 7, (
+    # Two, whatever an older client sent (§147): every myFAM episode is
+    # `BROWSE_MINUTES`, and a brief warmed at any other length is one nobody
+    # ever looks up.
+    assert minutes == appmod.BROWSE_MINUTES == 2, (
         "warmed at the wrong length: a brief is keyed by (query, minutes, "
         "context), so this one is a brief nobody ever looks up"
     )

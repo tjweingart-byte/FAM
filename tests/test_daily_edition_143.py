@@ -167,7 +167,7 @@ def test_a_mix_item_serves_the_words_and_length_the_edition_writes():
     served = item.as_dict()
     assert served["prompt"] == daily_edition.prompt_for(item)
     assert "{date}" not in served["prompt"]
-    assert served["minutes"] == daily_edition.minutes() == 3
+    assert served["minutes"] == daily_edition.minutes() == 2   # §147
 
 
 def test_subjects_are_shared_across_mixes_and_most_followed_first(tmp_path):
@@ -327,7 +327,7 @@ def test_a_mix_saved_between_editions_is_written_in_the_background(edition):
 
 def test_the_health_page_reports_the_edition(edition):
     report = daily_edition.report()
-    assert report["enabled"] and report["minutes"] == 3
+    assert report["enabled"] and report["minutes"] == 2   # §147
     assert report["schedule"]["hours"] == [5]
 
 

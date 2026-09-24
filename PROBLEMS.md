@@ -11897,3 +11897,64 @@ and make the X look like it did not work. Listening to it again does not
 un-dismiss it; the X is the statement. `/api/godeeper` reads a few more of
 each kind so a dismissed one is replaced rather than leaving the section a
 tile short. Account deletion erases the list with the rest of `saved.py`.
+
+## 147. Explore is searches only, a bank of voices, and two minutes off search
+
+Four instructions from one packet, at the owner's direction.
+
+**Explore holds episodes a search wrote, and nothing else.** Every surface
+writes into the one shared script cache - myFAM taps, the DailyFAM edition,
+the Trending bank, prefetch - and `recent()` read all of it, so Explore was
+partly a replay of browse tiles. The cache now records which surface wrote
+each entry (`scripts.origin`), stamped per request from `pipeline.origin`
+exactly as `author` is, and never on the plan: it is not part of the key.
+`/api/audio` takes a `surface` parameter (`search`, `myfam`, `dailyfam`,
+`share`, `other`) because `_surface` cannot tell a DailyFAM play or a shared
+link from a search by the parameters alone; an older client that sends none
+is derived as before, with Go Deeper counted as `other`. The background
+writers stamp `dailyfam`, `trending` and `prefetch`. A search re-writing an
+entry promotes it to `search`; nothing else moves an origin. Rows written
+before the column have none and are **off** Explore - on a week-long cache
+that empties itself of them within seven days, and `tools/seed_demo.py` seeds
+as searches so a demo still has a feed.
+
+**A bank of voices** (`voice_bank.py`, `VOICE_BANK_DB`). A voice is a
+reference recording and a rights record, stored in the app's database rather
+than on the GPU, because the pod is replaced without notice (§112) and the
+app is where anything durable lives. The default recording is part of the
+bank without being a row in it. A worker is told a voice by slug and
+fingerprint; one that has no copy answers with `MISSING_MARKER`, and the app
+sends the recording (and its rights) once on the retry - on the same address,
+before any failover, because a missing recording is not a broken worker. The
+worker checks the fingerprint and the rights again before it clones anything.
+It never substitutes the default voice for a missing one: a voice that fails
+must fail. `tools/voice_bank.py add|list|remove`, locally or `--url` against a
+deployment with `FAM_ADMIN_TOKEN`, is how a voice gets in; the admin
+endpoints are `/api/admin/voices`.
+
+**Search is the one surface with a voice.** A chip between the length and the
+attach button on the search page, and a "Voice for your searches" row under
+Listening in Settings, open the same list; the choice is kept per listener
+(`POST /api/voices/choice`, `GET /api/voices` returns it as `selected`). The
+player's Playback sheet offers length and voice only while the episode
+playing is a search.
+
+**Everything else draws a voice from the bank, once per episode.** The
+DailyFAM edition, the Trending bank and prefetch draw one when they write the
+script; a tap on an episode with none draws one then. Either way it is kept
+beside the script (`scripts.voice`, first one wins) and every later play
+reads it - because kept audio is keyed on the voice (§132), and a new draw
+per play would re-voice every replay on the GPU. Explore and a shared link
+never draw: they play the voice the episode was made in, or the default.
+
+**Every episode that is not a search is two minutes** (`config.BROWSE_MINUTES`).
+`DAILY_EDITION_MINUTES` and `TRENDING_BANK_MINUTES` are gone rather than left
+settable, because minutes are in the cache key and an edition written at one
+length and tapped at another is an edition nobody finds. `/api/audio` holds a
+`myfam` or `dailyfam` tap to two whatever it sends, `/api/myfam` ignores its
+`minutes`, and the interface lost myFAM's header length control, the Topic
+screen's, the Settings row and the album Generate sheet's length.
+
+Nothing here has spoken through a real worker: the retry, the fingerprint
+check and the rights gate are exercised against doubles, and the first voice
+added to a real bank is the thing to listen to.

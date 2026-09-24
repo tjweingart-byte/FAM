@@ -57,7 +57,7 @@ def test_every_length_placeholder_agrees_with_the_variable():
     check that fails when somebody edits one of the five.
     """
     want = "%d min" % _default_minutes()
-    for element_id in ("lengthVal", "gcLengthVal", "lengthModalVal"):
+    for element_id in ("lengthVal", "lengthModalVal"):
         m = re.search(r'id="%s"[^>]*>(\d+ min)' % element_id, INDEX)
         assert m, "no length placeholder found for #%s" % element_id
         assert m.group(1) == want, "#%s says %r, the variable says %r" % (

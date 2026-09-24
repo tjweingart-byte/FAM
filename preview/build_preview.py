@@ -399,30 +399,21 @@ def load_fixtures() -> dict:
             ],
             "similar": [],
         },
-        # What a real Mac reports, minus the hosted engine that was removed.
-        # One voice made the picker look like it had nothing to pick, and the
-        # grouping and the scrolling both only show up on a list long enough
-        # to need them - which is exactly the list a preview should show.
+        # A deployment with a bank of voices (§147): the default FAM voice
+        # first, then the bank. A search is spoken in the one chosen; every
+        # other surface draws one per episode, so this is the only list a
+        # listener sees.
         "/api/voices": {"voices": [
-            {"id": "piper:en_GB-alba-medium", "label": "Alba (GB, medium)",
-             "engine": "piper", "detail": "neural, ships with the app"},
-            {"id": "piper:en_GB-northern_english_male-medium",
-             "label": "Northern_English_Male (GB, medium)",
-             "engine": "piper", "detail": "neural, ships with the app"},
-            {"id": "piper:en_US-amy-medium", "label": "Amy (US, medium)",
-             "engine": "piper", "detail": "neural, ships with the app"},
-            {"id": "piper:en_US-lessac-medium", "label": "Lessac (US, medium)",
-             "engine": "piper", "detail": "neural, ships with the app"},
-            {"id": "say:Samantha", "label": "Samantha", "engine": "say", "detail": "en-US"},
-            {"id": "say:Daniel", "label": "Daniel", "engine": "say", "detail": "en-GB"},
-            {"id": "say:Karen", "label": "Karen", "engine": "say", "detail": "en-AU"},
-            {"id": "say:Moira", "label": "Moira", "engine": "say", "detail": "en-IE"},
-            {"id": "say:Aman", "label": "Aman", "engine": "say", "detail": "en-IN"},
-            {"id": "say:Fred", "label": "Fred", "engine": "say", "detail": "en-US"},
-            {"id": "say:Rishi", "label": "Rishi", "engine": "say", "detail": "en-IN"},
-            {"id": "say:Tara", "label": "Tara", "engine": "say", "detail": "en-IN"},
-            {"id": "say:Tessa", "label": "Tessa", "engine": "say", "detail": "en-ZA"},
-        ], "default": "piper:en_GB-alba-medium"},
+            {"id": "remote:reference_3", "label": "FAM", "engine": "remote",
+             "detail": "Chatterbox via http"},
+            {"id": "remote:nova", "label": "Nova", "engine": "remote",
+             "detail": "Warm, unhurried"},
+            {"id": "remote:ellis", "label": "Ellis", "engine": "remote",
+             "detail": "Bright, quick"},
+            {"id": "remote:maya", "label": "Maya", "engine": "remote",
+             "detail": "Low and steady"},
+        ], "default": "remote:reference_3", "selected": "remote:reference_3"},
+        "/api/voices/choice": {"ok": True},
         # The preview shows a signed-in listener, because that is the state
         # with something to look at - the signed-out one is two buttons.
         "/api/auth/me": {

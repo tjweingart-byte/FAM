@@ -318,7 +318,7 @@ def test_an_edition_writes_its_episodes_under_the_key_a_tap_computes(bank, monke
     assert edition.written() == len(edition.stories)
     for story in edition.stories:
         tap = asyncio.run(key_for(plan_episode(story.query,
-                                               settings.trending_bank_minutes)))
+                                               __import__("config").BROWSE_MINUTES)))
         assert edition.episodes[story.id]["key"] == tap
         assert cache.get(tap), "a tap would not find the bank's episode"
         # Kept for as long as the edition can be shown - not fifteen minutes,

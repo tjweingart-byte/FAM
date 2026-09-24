@@ -86,6 +86,7 @@ ENV CACHE_PATH=/data/scripts.db \
     SHARES_DB=/data/shares.db \
     QUOTAS_DB=/data/quotas.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \
+    VOICE_BANK_DB=/data/voice_bank.db \
     CATEGORIES_DB=/data/categories.db \
     TRENDING_BANK_DB=/data/trending_bank.db \
     PORT=8000

@@ -345,6 +345,11 @@ class PodcastPipeline:
         #: design the whole app rests on. It is a property of the request, so
         #: it lives on the thing built per request.
         self.author = author
+        #: Which surface this episode was asked for on ("search", "myfam",
+        #: "dailyfam", ...), stamped on the cache row it writes (§147) so
+        #: Explore can be searched episodes only. Like `author`, a property
+        #: of the request and never of the plan: it is not part of the key.
+        self.origin = ""
 
     def _start(self, sentences: AsyncIterator[str],
                marks: Optional[EpisodeMarks] = None,
@@ -1421,6 +1426,16 @@ class PodcastPipeline:
             # When its information was sourced (§143), on the same terms.
             if notes.sourced_at:
                 extra["sourced_at"] = notes.sourced_at
+            # Where it was asked for, and the voice it was first spoken in
+            # (§147), so Explore can hold searches only and every later play
+            # of a browse episode is the same voice - and hits its kept audio.
+            # A production voice only: a placeholder tone is not a voice.
+            if self.origin:
+                extra["origin"] = self.origin
+            if getattr(self.engine, "keeps_audio", False):
+                import voice_bank
+
+                extra["voice"] = voice_bank.slug_of(self._audio_voice())
             self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                            plan.minutes, bucket, sources, self.author,
                            stats.title, **extra)

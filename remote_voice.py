@@ -396,9 +396,20 @@ class RemoteChatterboxEngine(TTSEngine):
         if not cls.available():
             return []
         config = cls.config()
-        label = config.voice or "reference_3"
-        return [Voice(id=f"remote:{label}", label="FAM", engine=cls.name,
-                      detail=f"Chatterbox via {config.transport}")]
+        import voice_bank
+
+        # The default voice first, by the id it has always had, then every
+        # voice in the bank (§147). The bank lives in the app's database and
+        # the worker is sent a recording it lacks, so the list is the app's.
+        voices = [Voice(id=cls.default_voice_id(), label=voice_bank.DEFAULT_LABEL,
+                        engine=cls.name,
+                        detail=f"Chatterbox via {config.transport}")]
+        for v in voice_bank.catalogue():
+            if not v.default:
+                voices.append(Voice(id=f"remote:{v.slug}", label=v.label,
+                                    engine=cls.name,
+                                    detail=v.description or "Chatterbox"))
+        return voices
 
     @classmethod
     def default_voice_id(cls) -> str:
@@ -461,13 +472,31 @@ class RemoteChatterboxEngine(TTSEngine):
         return cls._gate
 
     @staticmethod
-    def _payload(text: str, config: RemoteConfig) -> dict:
-        return {
+    def _payload(text: str, config: RemoteConfig, voice: str | None = None,
+                 with_recording: bool = False) -> dict:
+        """One request's body. `voice` is a bank voice (§147), or None for the
+        default - which is `REMOTE_VOICE_ID` when set, exactly as before."""
+        import voice_bank
+
+        payload = {
             "text": text,
             "voice": config.voice or None,
             "sample_rate": config.sample_rate,
             "format": WIRE_FORMAT,
         }
+        if voice and not voice_bank.is_default(voice):
+            slug = voice_bank.slug_of(voice)
+            try:
+                fields = voice_bank.wire_fields(slug, with_recording)
+            except Exception as exc:  # noqa: BLE001 - phrased for the listener
+                raise RemoteVoiceError(
+                    f"voice {slug!r} could not be read from the bank: {exc}") from exc
+            # A voice that has left the bank is a stale choice, and is spoken
+            # in the default voice rather than refused - as it always was.
+            if fields:
+                payload["voice"] = slug
+                payload.update(fields)
+        return payload
 
     @staticmethod
     def _headers(token: str) -> dict:
@@ -677,11 +706,31 @@ class RemoteChatterboxEngine(TTSEngine):
             raise RemoteVoiceError(
                 f"remote voice is not configured: {config.problem()}")
 
-        payload = self._payload(text, config)
+        payload = self._payload(text, config, voice)
         started = time.monotonic()
         async with self._semaphore(config.concurrency):
             try:
-                output = await self._speak(payload, config, endpoint)
+                try:
+                    output = await self._speak(payload, config, endpoint)
+                    # A serverless worker reports a failure as `{"error"}`
+                    # inside a successful job rather than as a status code.
+                    if (isinstance(output, dict) and not output.get("audio")
+                            and output.get("error")):
+                        raise RemoteVoiceError(
+                            "the remote voice returned no audio. Worker said: "
+                            f"{str(output['error'])[:300]}")
+                except RemoteVoiceError as exc:
+                    # A bank voice this worker has never been sent (§147).
+                    # Not a fault with the worker - send the recording once,
+                    # on the same address, and it keeps it.
+                    import voice_bank
+
+                    if (voice_bank.MISSING_MARKER not in str(exc)
+                            or "reference" in payload):
+                        raise
+                    payload = self._payload(text, config, voice,
+                                            with_recording=True)
+                    output = await self._speak(payload, config, endpoint)
             except RemoteVoiceError as exc:
                 # A real call is the only thing that learns what a health check
                 # cannot - a worker whose /health is green and whose /synth is
