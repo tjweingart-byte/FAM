@@ -587,6 +587,34 @@
     display:flex; align-items:center; justify-content:center; }
   .nm-cover-hint{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.1em;
     text-transform:uppercase; color:var(--copper); margin:6px 0 16px; cursor:pointer; }
+  /* DailyFAM's search: other listeners' public mixes. */
+  .dm-search{ position:relative; display:flex; align-items:center; gap:8px; margin:0 0 12px; }
+  .dm-search input{ flex:1; min-width:0; height:38px; padding:0 12px 0 34px; border-radius:12px;
+    background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none; -webkit-appearance:none; appearance:none; }
+  .dm-search input:focus{ border-color:var(--copper); }
+  .dm-search input::-webkit-search-cancel-button{ display:none; }
+  .dm-search-i{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none; }
+  .dm-search-x{ flex:none; background:none; border:none; padding:0 2px; color:var(--copper);
+    font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
+  .dm-res-h{ font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--text-muted); margin:2px 0 10px; }
+  .mix-by{ color:var(--copper); }
+  /* The (+) that adds somebody else's mix to your own DailyFAM, and its
+     state once added. */
+  .mix-add{ flex:none; width:34px; height:34px; border-radius:50%; border:1.5px solid var(--copper);
+    background:transparent; color:var(--copper); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; padding:0; }
+  .mix-add.on{ background:var(--copper); color:var(--ink); }
+  .mix-add:disabled{ opacity:0.4; cursor:default; }
+  .mix-add:active{ transform:scale(0.94); }
+  .pub-add-btn{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    padding:13px; border-radius:14px; background:transparent; color:var(--copper);
+    border:1.5px solid var(--copper); font-family:'Space Grotesk',sans-serif;
+    font-size:12px; font-weight:700; cursor:pointer; margin:0 0 11px; }
+  .pub-add-btn.on{ background:var(--copper); color:var(--ink); }
+  .pub-add-btn:disabled{ opacity:0.5; cursor:default; }
+  .mix-hero-art.static{ cursor:default; }
   /* A mix's cover, wherever the folder is drawn. */
   .mix-folder.has-cover{ background-size:cover; background-position:center; }
   .mix-folder.has-cover svg{ display:none; }
@@ -2743,10 +2771,23 @@
             <button class="myfam-dots-btn" id="newMixBtn" onclick="openNewMix()"
                     aria-label="New mix" hidden>+</button>
           </div>
-          <div class="connect-sub" style="margin:2px 0 16px;">
+          <!-- Other listeners' public mixes. Tapping the bar lists every
+               public mix; typing narrows it by mix name, by a topic in the
+               mix, or by whose it is. Anybody can search and listen; adding
+               one to your own DailyFAM needs an account, like any mix. -->
+          <div class="dm-search" id="dailySearchRow">
+            <svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input id="dailySearch" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   placeholder="Search mixes, topics or people" aria-label="Search public mixes"
+                   onfocus="openDailySearch()" oninput="onDailySearch()"
+                   onkeydown="if(event.key==='Enter') this.blur()">
+            <button class="dm-search-x" id="dailySearchX" onclick="closeDailySearch()" hidden>Cancel</button>
+          </div>
+          <div class="connect-sub" id="dailySub" style="margin:2px 0 16px;">
             Your daily mixes. Each one is a standing list of topics — the
             episodes are new every day.
           </div>
+          <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
         </div>
         <div class="tabbar">
@@ -2766,6 +2807,18 @@
           <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
         </div>
         <div class="scroll" id="mixBody"></div>
+      </section>
+
+      <!-- ============ DAILYFAM — somebody else's public mix ============ -->
+      <!-- Opened from a DailyFAM search result, a mix on somebody's profile, or
+           a shared /m/ link. It can be played as it is, and the (+) adds a
+           copy to this listener's own DailyFAM. -->
+      <section class="screen" id="screen-publicmix">
+        <div class="back-row">
+          <span class="back" onclick="closePublicMix()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2 id="publicMixTitle">Mix</h2>
+        </div>
+        <div class="scroll" id="publicMixBody"></div>
       </section>
 
       <!-- ============ DAILYFAM — name a new mix ============ -->
@@ -3204,7 +3257,7 @@
 
       <div class="modal-overlay" id="shareOverlay" onclick="if(event.target===this) closeShareModal()">
         <div class="modal-card">
-          <div class="modal-title">Share this FAM</div>
+          <div class="modal-title" id="shareTitle">Share this FAM</div>
           <!-- The Audio / Transcript toggle used to live here. It only ever
                changed the word in a toast, and now that sending is real there
                is nothing behind "transcript" at all: a message carries the
@@ -5949,7 +6002,10 @@
         + '<div class="mix-meta">' + entries.length
         + (entries.length === 1 ? " briefing · daily" : " briefings · daily")
         + ' · <span class="' + (m.public ? "mix-public" : "mix-private") + '">'
-        + (m.public ? "public" : "private") + '</span></div>'
+        + (m.public ? "public" : "private") + '</span>'
+        // Added from somebody else's public mix: whose it was.
+        + (m.from ? ' · <span class="mix-by">from ' + escapeHtml(ownerLabel(m.from)) + '</span>' : '')
+        + '</div>'
         + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
         + '</div>'
         + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
@@ -6473,6 +6529,7 @@
       { label: "Rename", action: renameMix },
       { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
       { label: "Edit topics", action: editMixTopics },
+      { label: "Share mix", action: shareMix },
       { label: "Delete mix", action: deleteMix }
     ]);
   }
@@ -6509,6 +6566,336 @@
         openPlayFAM();
       })
       .catch(function(){ toast("Could not delete that mix"); });
+  }
+
+  // ---------------- Other listeners' mixes ----------------
+  // DailyFAM is also where somebody finds other people's daily playlists. The
+  // bar at the top lists every public mix the moment it is tapped, and typing
+  // narrows it by the mix's name, a topic in it, or whose it is - "gym",
+  // "AI updates" and "@sam" all work (`mixes.match_score` on the server).
+  // Any mix from somebody else carries a (+) that adds it to this listener's
+  // own DailyFAM, where it sits beside the ones they made.
+  var publicResults = [];
+  var publicSearchSeq = 0;
+  var publicSearchTimer = null;
+  //: The public mix on screen-publicmix.
+  var publicMix = null;
+
+  function ownerLabel(o){
+    if(!o) return "another listener";
+    return o.handle ? "@" + o.handle : (o.name || "another listener");
+  }
+
+  function openDailySearch(){
+    var res = document.getElementById("dailyResults");
+    if(!res.hidden) return;
+    res.hidden = false;
+    document.getElementById("mixList").hidden = true;
+    document.getElementById("dailySub").hidden = true;
+    document.getElementById("dailySearchX").hidden = false;
+    runDailySearch();
+  }
+
+  function closeDailySearch(){
+    var box = document.getElementById("dailySearch");
+    box.value = "";
+    box.blur();
+    clearTimeout(publicSearchTimer);
+    publicSearchSeq++;
+    document.getElementById("dailyResults").hidden = true;
+    document.getElementById("dailyResults").innerHTML = "";
+    document.getElementById("mixList").hidden = false;
+    document.getElementById("dailySub").hidden = false;
+    document.getElementById("dailySearchX").hidden = true;
+    // A mix added from the results belongs in the list being returned to.
+    loadMixes();
+  }
+
+  function onDailySearch(){
+    if(document.getElementById("dailyResults").hidden) openDailySearch();
+    clearTimeout(publicSearchTimer);
+    publicSearchTimer = setTimeout(runDailySearch, 180);
+  }
+
+  function runDailySearch(){
+    var q = document.getElementById("dailySearch").value.trim();
+    var seq = ++publicSearchSeq;
+    var el = document.getElementById("dailyResults");
+    if(!publicResults.length || !el.innerHTML)
+      el.innerHTML = '<div class="dm-res-h">Searching…</div>';
+    fetch("/api/mixes/public?q=" + encodeURIComponent(q))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        // A slower answer to an older query must not overwrite a newer one.
+        if(seq !== publicSearchSeq) return;
+        publicResults = d.mixes || [];
+        renderDailyResults(q);
+      })
+      .catch(function(){
+        if(seq !== publicSearchSeq) return;
+        el.innerHTML = '<div class="mix-empty">Could not search public mixes just now. '
+          + 'Your own mixes are fine — tap Cancel to see them.</div>';
+      });
+  }
+
+  function addIconSVG(on){
+    return on
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  }
+
+  // The (+) wherever somebody else's mix is drawn. `where` names the list the
+  // mix is in, so one handler serves search results and profiles alike.
+  function mixAddButtonHTML(m, where, i){
+    if(m.mine) return '';
+    return '<button class="mix-add' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
+      + ' aria-label="' + (m.added ? "In your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
+      + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
+      + addIconSVG(m.added) + '</button>';
+  }
+
+  function publicMixCardHTML(m, i){
+    var entries = m.items || [];
+    var names = entries.map(function(t){ return t.title; }).join(" · ");
+    return '<div class="mix-card" onclick="openPublicMixAt(' + i + ')">'
+      + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
+      + '<div class="mix-card-body">'
+      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-meta"><span class="mix-by">' + escapeHtml(ownerLabel(m.owner)) + '</span> · '
+      + entries.length + (entries.length === 1 ? " briefing" : " briefings") + ' · daily</div>'
+      + '<div class="mix-preview">' + escapeHtml(names) + '</div>'
+      + '</div>'
+      + mixAddButtonHTML(m, "search", i)
+      + '</div>';
+  }
+
+  function renderDailyResults(q){
+    var el = document.getElementById("dailyResults");
+    if(!publicResults.length){
+      el.innerHTML = q
+        ? '<div class="mix-empty">No public mixes match “' + escapeHtml(q) + '”. '
+          + 'Try a mix name, a topic, or somebody’s @handle.</div>'
+        : '<div class="mix-empty">Nobody has made a mix public yet. Make one of yours '
+          + 'public and it will show up here for everyone else.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="dm-res-h">' + (q ? "Public mixes matching “" + escapeHtml(q) + "”"
+                                                   : "Public mixes") + '</div>'
+      + publicResults.map(publicMixCardHTML).join("");
+  }
+
+  function openPublicMixAt(i){
+    var m = publicResults[i];
+    if(m) openPublicMix(m);
+  }
+
+  // Somebody else's mix, on a screen of its own: play it as it is, or add it.
+  function openPublicMix(m){
+    publicMix = m;
+    publicMixFromLink = false;
+    document.getElementById("publicMixTitle").textContent = m.name;
+    renderPublicMix();
+    navigate("publicmix");
+  }
+
+  //: Whether the mix on screen was opened by a shared link, with nothing of
+  //: this listener's underneath it to go back to.
+  var publicMixFromLink = false;
+
+  function closePublicMix(){
+    if(publicMixFromLink){
+      publicMixFromLink = false;
+      // Where a shared link's reader belongs next: DailyFAM, where the mix
+      // they may just have added is waiting - or the front door.
+      if(AUTH.authenticated) openPlayFAM(); else showScreen("welcome");
+      return;
+    }
+    goBack();
+  }
+
+  function renderPublicMix(){
+    var m = publicMix;
+    if(!m) return;
+    var items = m.items || [];
+    var o = m.owner || {};
+    var html = '<div class="mix-hero">'
+      + '<div class="mix-hero-art static' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>'
+      + '<svg class="fold" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+      + 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
+      + '</div><div>'
+      + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-hero-s">' + items.length + (items.length === 1 ? " briefing" : " briefings") + ' · daily</div>'
+      + (o.handle
+          ? '<button class="mix-hero-c" onclick="openPublicMixOwner()">by ' + escapeHtml(o.name || ("@" + o.handle))
+            + (o.name ? ' · @' + escapeHtml(o.handle) : '') + '</button>'
+          : '<div class="mix-hero-c" style="cursor:default;">by ' + escapeHtml(o.name || "another listener") + '</div>')
+      + '</div></div>';
+    if(m.mine){
+      html += '<div class="mix-meta" style="margin:0 0 11px;">This is one of your mixes</div>';
+    } else {
+      html += '<button class="pub-add-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
+        + ' onclick="addMixFrom(\'view\', 0)">' + addIconSVG(m.added)
+        + (m.added ? "In your DailyFAM" : "Add to my DailyFAM") + '</button>';
+    }
+    if(items.length){
+      html += '<button class="mix-play" onclick="playPublicMix(0)">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
+        + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
+        + (items.length === 1 ? " episode" : " episodes") + '</button>';
+      html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
+        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
+      html += items.map(function(t, i){
+        return '<div class="mix-topic">'
+          + '<div class="mix-topic-body">'
+          + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
+          + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle || "") + '</div>'
+          + '</div>'
+          + '<button class="mix-topic-act" title="Play this one" onclick="event.stopPropagation(); playPublicMix(' + i + ')">'
+          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
+          + '<path d="M8 5v14l11-7z"/></svg></button>'
+          + '</div>';
+      }).join("");
+    } else {
+      html += '<div class="mix-empty">This mix is empty.</div>';
+    }
+    document.getElementById("publicMixBody").innerHTML = html;
+  }
+
+  function openPublicMixOwner(){
+    var o = publicMix && publicMix.owner;
+    if(o && o.handle) openPersonProfile(o.handle, { name: o.name, avatar: o.avatar });
+  }
+
+  // Played as a playlist exactly like one of your own - hearing a mix does
+  // not need it to be yours first.
+  function playPublicMix(start){
+    if(!publicMix || !(publicMix.items || []).length) return;
+    startMixQueue(publicMix, start || 0);
+  }
+
+  function mixFromList(where, i){
+    if(where === "search") return publicResults[i];
+    if(where === "person") return personMixes[i];
+    if(where === "view") return publicMix;
+    return null;
+  }
+
+  // The (+). Adding makes a copy that is this listener's from then on - to
+  // play, rename and edit - and says whose it was.
+  function addMixFrom(where, i){
+    var m = mixFromList(where, i);
+    if(!m || m.mine) return;
+    if(m.added){ toast("Already in your DailyFAM"); return; }
+    if(!AUTH.authenticated){
+      showActionSheet([
+        { group: "Adding a mix to your DailyFAM needs an account. Listening never does." },
+        { label: "Sign up", action: function(){ openAuth("signup"); } },
+        { label: "Log in", action: function(){ openAuth("login"); } }
+      ]);
+      return;
+    }
+    document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = true; });
+    fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "POST" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "Could not add that mix");
+          return d;
+        });
+      })
+      .then(function(saved){
+        markMixAdded(m.id);
+        if(Array.isArray(mixes) && !mixById(saved.id)) mixes.push(saved);
+        toast("Added to your DailyFAM as " + saved.name);
+      })
+      .catch(function(e){
+        document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
+        toast(e.message);
+      });
+  }
+
+  // Every copy of that mix on screen - a search result, a profile row and the
+  // mix's own screen can all be showing it at once.
+  function markMixAdded(id){
+    [publicResults, personMixes, publicMix ? [publicMix] : []].forEach(function(list){
+      (list || []).forEach(function(m){ if(m && m.id === id) m.added = true; });
+    });
+    if(!document.getElementById("dailyResults").hidden)
+      renderDailyResults(document.getElementById("dailySearch").value.trim());
+    if(document.getElementById("screen-publicmix").classList.contains("active")) renderPublicMix();
+    if(viewingProfile && document.getElementById("screen-person").classList.contains("active"))
+      renderFriendProfile(viewingProfile, personPublished);
+  }
+
+  // A shared /m/<id> link lands on `/?mix=<id>`: open that mix once the app
+  // has decided which screen it starts on, and take the id out of the address
+  // so a reload does not open it again.
+  function openLinkedMix(){
+    var id = "";
+    try { id = new URLSearchParams(location.search).get("mix") || ""; } catch(e){}
+    if(!id) return;
+    try {
+      var u = new URL(location.href);
+      u.searchParams.delete("mix");
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch(e){}
+    fetch("/api/mixes/public/" + encodeURIComponent(id))
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "That mix is private or no longer exists.");
+          return d;
+        });
+      })
+      .then(function(m){ openPublicMix(m); publicMixFromLink = true; })
+      .catch(function(e){ toast(e.message); });
+  }
+
+  // ---------------- Sharing a mix ----------------
+  // "Share mix" in the mix's menu: the same sheet as sharing an episode - the
+  // people you follow, and every destination outside FAM - with the link
+  // opening the mix for whoever follows it. A link that opens a mix is a
+  // link anybody can see it through, so only a public mix can be shared, and
+  // a private one asks first rather than going public quietly.
+  function shareMix(){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    if(!m.items || !m.items.length){ toast("Add a topic before sharing it"); return; }
+    if(m.public){ openMixShareModal(m); return; }
+    showActionSheet([
+      { group: "Sharing “" + escapeHtml(m.name) + "” makes it public: it goes on your profile, "
+          + "and anyone with the link can see it and add it." },
+      { label: "Make public and share", action: function(){
+          saveMix("PATCH", "/api/mixes/" + m.id, { public: true }, function(saved){
+            openMix(saved.id);
+            openMixShareModal(saved);
+          });
+        } }
+    ]);
+  }
+
+  //: What the open share sheet is sharing: an episode (the default) or a mix.
+  var shareSubject = { kind: "episode" };
+
+  function openMixShareModal(m){
+    shareSubject = { kind: "mix", mix: m };
+    document.getElementById("shareTitle").textContent = "Share this mix";
+    document.getElementById("shareOverlay").classList.add("active");
+    loadShareContacts();
+    var grid = document.getElementById("shareTargets");
+    var note = document.getElementById("shareNote");
+    shareTargets = null;
+    note.hidden = true;
+    grid.innerHTML = '<div class="sh-name">Making a link…</div>';
+    fetch("/api/mixes/" + encodeURIComponent(m.id) + "/share", { method: "POST" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "Could not make a share link");
+          return d;
+        });
+      })
+      .then(function(d){ drawShareTargets(d); })
+      .catch(function(e){
+        grid.innerHTML = '<div class="sh-name">' + escapeHtml(e.message) + '</div>';
+      });
   }
 
   // --- choosing topics ---
@@ -6936,7 +7323,7 @@
       + '<div class="focus-row">'
       + '<input class="focus-input" id="focusInput" type="text" autocomplete="off" '
       + 'placeholder="Type a ' + escapeHtml(h.noun) + (h.pick[0] ? ', e.g. ' + escapeHtml(h.pick[0]) : '') + '" '
-      + 'onkeydown="if(event.key===\'Enter\'){ addFocus(' + q + ', this.value); }">'
+      + 'onkeydown="if(event.key===\'Enter\'){ addFocus(' + q + ', this.value, false, true); }">'
       + '<button class="focus-done" onclick="closeFocus()">Done</button>'
       + '</div></div>';
   }
@@ -6975,7 +7362,12 @@
     pickerOpenFocus = null;
     renderMixPicker();
   }
-  function addFocus(fid, value, silent){
+  // `typed` is true only from the "Type a ..." box itself. Tapping one of the
+  // suggested chips highlights it and does nothing else - it used to put the
+  // cursor back in the box, which on a phone is the keyboard sliding up over
+  // the list somebody was choosing from. The keyboard is for the box, and
+  // opens only when the box is tapped (or was already being typed in).
+  function addFocus(fid, value, silent, typed){
     var v = String(value || "").trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
     if(!v) return;
     var list = pickerFocus[fid] || (pickerFocus[fid] = []);
@@ -6987,8 +7379,10 @@
     var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
     renderMixPicker();
     if(body) body.scrollTop = top;
-    var box = document.getElementById("focusInput");
-    if(box) box.focus();
+    if(typed){
+      var box = document.getElementById("focusInput");
+      if(box) box.focus();
+    }
   }
   function removeFocus(fid, i){
     var list = pickerFocus[fid] || [];
@@ -9495,11 +9889,14 @@
     if(mixes.length){
       html += (personShowAll.mixes ? mixes : mixes.slice(0, 2)).map(function(m, i){
         var n = (m.items || m.topics || []).length;
-        return '<div class="yf-mix"><span class="yf-mix-art">' + yfIcon("mix", 18) + '</span>'
+        // Tapping the row opens the mix; (+) adds it to your own DailyFAM.
+        return '<div class="yf-mix" onclick="openPersonMix(' + i + ')" style="cursor:pointer;">'
+          + '<span class="yf-mix-art">' + yfIcon("mix", 18) + '</span>'
           + '<div class="yf-mix-body"><div class="yf-mix-name">' + escapeHtml(m.name) + '</div>'
           + '<div class="yf-mix-meta">' + n + ' ' + (n === 1 ? "EPISODE" : "EPISODES")
           + ' · DAILY</div></div>'
-          + '<button class="yf-round gold" onclick="playPersonMix(' + i + ')" aria-label="Play '
+          + mixAddButtonHTML(m, "person", i)
+          + '<button class="yf-round gold" onclick="event.stopPropagation(); playPersonMix(' + i + ')" aria-label="Play '
           + escapeHtml(m.name) + '">' + yfPlaySVG(12) + '</button></div>';
       }).join("");
     } else {
@@ -9565,6 +9962,16 @@
         : { label: "Follow", action: function(){ followPerson(person.user_id); } },
       { label: "Your friends", action: openFriends }
     ]);
+  }
+
+  function openPersonMix(i){
+    var m = personMixes[i];
+    if(!m) return;
+    if(!m.owner && viewingProfile){
+      m.owner = { name: viewingProfile.name || "", handle: viewingProfile.handle || "",
+                  avatar: viewingProfile.avatar || "" };
+    }
+    openPublicMix(m);
   }
 
   function playPersonMix(i){
@@ -10862,6 +11269,8 @@
   var pendingShareTopicKey = null;
   var shareTargets = null;   // {key: rendered} for the episode on screen
   function openShareModal(){
+    shareSubject = { kind: "episode" };
+    document.getElementById("shareTitle").textContent = "Share this FAM";
     pendingShareTopicKey = getCurrentPlayingTopicKey();
     document.getElementById("shareOverlay").classList.add("active");
     loadShareContacts();
@@ -10930,27 +11339,33 @@
         if(!r.ok) throw new Error(d.error || "Could not make a share link");
         return d;
       });
-    }).then(function(d){
-      shareTargets = d;
-      grid.innerHTML = Object.keys(d.targets).map(function(key){
-        var t = d.targets[key];
-        return '<div class="sh-target" onclick="shareTo(\'' + key + '\')">'
-          + '<div class="sh-circ">' + escapeHtml(shareGlyph(key)) + '</div>'
-          + '<div class="sh-name">' + escapeHtml(t.label) + '</div>'
-          + '<div class="sh-hint">' + escapeHtml(shareHint(key, t)) + '</div></div>';
-      }).join("");
-      if(!d.public){
-        // Said out loud rather than discovered: without PUBLIC_BASE_URL this
-        // link works inside the app and nowhere else, and a share posted to
-        // LinkedIn that resolves to localhost is the quiet failure this
-        // project keeps a rule about.
-        note.textContent = "This server has no public address set, so the link "
-          + "only works on this network.";
-        note.hidden = false;
-      }
-    }).catch(function(e){
+    }).then(drawShareTargets).catch(function(e){
       grid.innerHTML = '<div class="sh-name">' + escapeHtml(e.message) + '</div>';
     });
+  }
+  // The destinations for whatever the sheet is sharing - an episode from
+  // `/api/share` or a mix from `/api/mixes/<id>/share`, which answer in the
+  // same shape.
+  function drawShareTargets(d){
+    var grid = document.getElementById("shareTargets");
+    var note = document.getElementById("shareNote");
+    shareTargets = d;
+    grid.innerHTML = Object.keys(d.targets).map(function(key){
+      var t = d.targets[key];
+      return '<div class="sh-target" onclick="shareTo(\'' + key + '\')">'
+        + '<div class="sh-circ">' + escapeHtml(shareGlyph(key)) + '</div>'
+        + '<div class="sh-name">' + escapeHtml(t.label) + '</div>'
+        + '<div class="sh-hint">' + escapeHtml(shareHint(key, t)) + '</div></div>';
+    }).join("");
+    if(!d.public){
+      // Said out loud rather than discovered: without PUBLIC_BASE_URL this
+      // link works inside the app and nowhere else, and a share posted to
+      // LinkedIn that resolves to localhost is the quiet failure this
+      // project keeps a rule about.
+      note.textContent = "This server has no public address set, so the link "
+        + "only works on this network.";
+      note.hidden = false;
+    }
   }
   function shareGlyph(key){
     var glyphs = { copy: "\u29c9", sms: "\u2709", email: "@", whatsapp: "W",
@@ -11062,7 +11477,8 @@
       })
       .then(svgToPngBlob)
       .then(function(blob){
-        var file = new File([blob], "fam-episode.png", { type: "image/png" });
+        var file = new File([blob], shareSubject.kind === "mix" ? "fam-mix.png" : "fam-episode.png",
+                            { type: "image/png" });
         if(navigator.canShare && navigator.share
            && navigator.canShare({ files: [file] })){
           return navigator.share({ files: [file], text: t.text })
@@ -11166,6 +11582,7 @@
      allowances. See messages.py. */
   function sendToContact(i){
     var person = shareContacts[i];
+    if(person && shareSubject.kind === "mix"){ sendMixToContact(person); return; }
     var ep = currentEpisode();
     if(!person) return;
     if(!ep){ toast("Play something first"); return; }
@@ -11175,6 +11592,25 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: person.user_id, query: ep.query,
                              minutes: ep.minutes, title: ep.title })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "Could not send that");
+        return d;
+      });
+    }).then(function(){ toast("Sent to " + first + " \u2713"); })
+      .catch(function(err){ toast(err.message); });
+  }
+
+  // A mix sent inside FAM is a message carrying its link, in the same words
+  // the iMessage tile would use.
+  function sendMixToContact(person){
+    var t = shareTargets && shareTargets.targets && (shareTargets.targets.sms || shareTargets.targets.copy);
+    if(!t){ toast("Still making the link \u2014 try again in a moment"); return; }
+    closeShareModal();
+    var first = (person.name || person.handle || "").split(" ")[0];
+    fetch("/api/messages", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ to: person.user_id, text: t.text })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not send that");
@@ -12990,7 +13426,7 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen);
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix);
 </script>
 </body>
 </html>

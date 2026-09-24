@@ -31,11 +31,12 @@ import binascii
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Optional, Sequence
 from urllib.parse import quote, unquote
@@ -303,6 +304,12 @@ class Mix:
     public: bool = False
     #: A data URL, or "" - see `clean_cover`.
     cover: str = ""
+    #: Where this mix was added from, when it is a copy of somebody else's
+    #: public mix: that mix's id, and its owner. Both "" for a mix somebody
+    #: made. The owner is kept server-side only - `as_dict` never carries a
+    #: listener id - and is what lets the list say whose mix it came from.
+    source_id: str = ""
+    source_user: str = ""
 
     @property
     def topic_ids(self) -> list[str]:
@@ -321,6 +328,7 @@ class Mix:
             "custom_count": sum(1 for i in self.items if i.custom),
             "public": self.public,
             "cover": self.cover,
+            "source_id": self.source_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -369,6 +377,75 @@ def clean_items(raw: Sequence) -> list[MixItem]:
     return items
 
 
+#: Every column `_row_to_mix` reads, in its order.
+_COLUMNS = ("id, user_id, name, topic_ids, created_at, updated_at, items, public,"
+            " cover, source_id, source_user")
+
+#: How many public mixes one search returns. Covers are inline data URLs, so
+#: this is also what bounds the size of the response.
+MAX_PUBLIC_RESULTS = 40
+#: How many public rows a search reads before matching. Matching is done here
+#: rather than in SQL because an item's titles live inside a JSON column.
+PUBLIC_SCAN = 2000
+
+
+def owner_label(name: str, handle: str) -> str:
+    """How a mix's owner is named on somebody else's copy."""
+    return ("@" + handle) if handle else (name or "another listener")
+
+
+def match_score(mix: "Mix", query: str, owner_name: str = "",
+                owner_handle: str = "") -> int:
+    """How well a public mix answers a DailyFAM search, 0 meaning not at all.
+
+    Three things a mix can be found by, and every word typed has to be found
+    in one of them: its **name** ("gym"), a **topic in it** ("AI updates" -
+    title, question or the specific it is narrowed to), or **whose it is**
+    (a name or handle, "@sam" or "sam"). So "gym" and "AI updates" both find a
+    mix called Gym that follows AI updates, and typing somebody's handle
+    lists every public mix they have.
+
+    The score only orders what matched: a hit on the name outranks a hit on
+    the owner, which outranks a hit inside a topic, because the name is what
+    somebody who types a word most likely meant.
+    """
+    words = [w.lstrip("@") for w in query.lower().split()]
+    words = [w for w in words if w]
+    if not words:
+        return 1
+    name = mix.name.lower()
+    owner = f"{owner_name} {owner_handle}".lower()
+    # A followed subject is findable by its catalogue id as well as its
+    # label, so "ai" finds a mix following Artificial Intelligence (`f:ai`).
+    topics = " ".join(
+        f"{i.title} {i.query} {' '.join(i.focus)} {i.topic_label} "
+        f"{i.base[2:].replace('-', ' ') if i.base.startswith('f:') else ''}"
+        for i in mix.items
+    ).lower()
+    whole = " ".join(words)
+    score = 0
+    for w in words:
+        if _has_word(name, w):
+            score += 3
+        elif _has_word(owner, w):
+            score += 2
+        elif _has_word(topics, w):
+            score += 1
+        else:
+            return 0
+    if whole in name:
+        score += 4
+    elif whole in topics:
+        score += 2
+    return score
+
+
+def _has_word(text: str, word: str) -> bool:
+    """Whether some word in `text` starts with `word`: "gy" finds Gym while
+    it is being typed, and "ai" does not find "Taiwan" or "daily"."""
+    return any(token.startswith(word) for token in re.findall(r"[\w']+", text))
+
+
 class MixStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("MIXES_DB", "mixes.db", path)
@@ -396,10 +473,12 @@ class MixStore:
                 conn.execute("ALTER TABLE mixes ADD COLUMN public INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass
-            try:
-                conn.execute("ALTER TABLE mixes ADD COLUMN cover TEXT NOT NULL DEFAULT ''")
-            except sqlite3.OperationalError:
-                pass
+            for column in ("cover", "source_id", "source_user"):
+                try:
+                    conn.execute(f"ALTER TABLE mixes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+                except sqlite3.OperationalError:
+                    pass
+            conn.execute("CREATE INDEX IF NOT EXISTS mixes_public ON mixes(public, updated_at)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -421,7 +500,9 @@ class MixStore:
             items = [_bank_item(t) for t in row[3].split(",") if t in BANK_BY_ID]
         return Mix(row[0], row[1], row[2], items, row[4], row[5],
                    bool(row[7]) if len(row) > 7 else False,
-                   (row[8] or "") if len(row) > 8 else "")
+                   (row[8] or "") if len(row) > 8 else "",
+                   (row[9] or "") if len(row) > 9 else "",
+                   (row[10] or "") if len(row) > 10 else "")
 
     def public_for_user(self, user_id: str) -> list[Mix]:
         """What this listener has chosen to show on their profile."""
@@ -432,9 +513,7 @@ class MixStore:
             return []
         try:
             rows = self._conn().execute(
-                "SELECT id, user_id, name, topic_ids, created_at, updated_at, items, public,"
-                " cover"
-                " FROM mixes WHERE user_id = ? ORDER BY created_at",
+                "SELECT " + _COLUMNS + " FROM mixes WHERE user_id = ? ORDER BY created_at",
                 (user_id,),
             ).fetchall()
         except Exception:
@@ -445,9 +524,7 @@ class MixStore:
     def get(self, user_id: str, mix_id: str) -> Optional[Mix]:
         try:
             row = self._conn().execute(
-                "SELECT id, user_id, name, topic_ids, created_at, updated_at, items, public,"
-                " cover"
-                " FROM mixes WHERE id = ? AND user_id = ?",
+                "SELECT " + _COLUMNS + " FROM mixes WHERE id = ? AND user_id = ?",
                 (mix_id, user_id),
             ).fetchone()
         except Exception:
@@ -514,6 +591,91 @@ class MixStore:
         )
         return mix
 
+    def get_public(self, mix_id: str, viewer: str = "") -> Optional[Mix]:
+        """Anybody's mix by id, but only if its owner made it public - or it
+        is the viewer's own. A private mix is not found, which is the same
+        answer as a mix that does not exist, on purpose."""
+        try:
+            row = self._conn().execute(
+                "SELECT " + _COLUMNS + " FROM mixes WHERE id = ?", (mix_id,),
+            ).fetchone()
+        except Exception:
+            log.exception("could not read mix")
+            return None
+        if not row:
+            return None
+        mix = self._row_to_mix(row)
+        if mix.public or (viewer and mix.user_id == viewer):
+            return mix
+        return None
+
+    def all_public(self, exclude_user: str = "", limit: int = PUBLIC_SCAN) -> list[Mix]:
+        """Every public mix, most recently changed first, bar one listener's
+        own - DailyFAM's search is for finding *other people's* mixes."""
+        try:
+            rows = self._conn().execute(
+                "SELECT " + _COLUMNS + " FROM mixes WHERE public = 1 AND user_id != ?"
+                " ORDER BY updated_at DESC LIMIT ?",
+                (exclude_user or "", int(limit)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not list public mixes")
+            return []
+        return [self._row_to_mix(r) for r in rows]
+
+    def added_from(self, user_id: str) -> set[str]:
+        """The ids of the public mixes this listener has already added."""
+        return {m.source_id for m in self.list_for_user(user_id) if m.source_id}
+
+    def add_copy(self, user_id: str, source: Mix, owner: str = "") -> Mix:
+        """Add somebody else's public mix to this listener's DailyFAM.
+
+        **A copy, not a link.** It is theirs from now on - to play, rename,
+        re-cover and edit - and it does not change when the original does or
+        vanish when the original is made private or deleted. A mix is a
+        routine, and a routine that could be rewritten by somebody else
+        overnight is not one you can rely on. `source_id` remembers where it
+        came from, which is what stops the same mix being added twice and
+        lets the list say whose it was.
+
+        The name is kept where it is free; a clash takes the owner's handle
+        ("Gym · @sam") before it takes a number, because a listener with two
+        mixes called Gym needs to know which is which.
+        """
+        if not user_id:
+            raise MixError("No listener id; mixes are saved per person.")
+        if source.user_id == user_id:
+            raise MixError("That mix is already yours.")
+        existing = self.list_for_user(user_id)
+        if any(m.source_id == source.id for m in existing):
+            raise MixError("That mix is already in your DailyFAM.")
+        if len(existing) >= MAX_MIXES_PER_USER:
+            raise MixError(f"You already have {MAX_MIXES_PER_USER} mixes.")
+        taken = {m.name.lower() for m in existing}
+        name = source.name
+        if name.lower() in taken and owner:
+            name = clean_name(f"{source.name} \u00b7 {owner}")
+        n = 2
+        base = name
+        while name.lower() in taken:
+            name = clean_name(f"{base[:MAX_NAME - 4]} {n}")
+            n += 1
+        # A typed topic says "Added by you" under it, which on a copy is
+        # somebody else's words about somebody else.
+        items = [replace(i, subtitle=f"From {owner}'s mix" if owner else "From the original mix")
+                 if i.custom else i for i in source.items]
+        now = time.time()
+        mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now,
+                  cover=source.cover, source_id=source.id, source_user=source.user_id)
+        self._conn().execute(
+            "INSERT INTO mixes (id, user_id, name, topic_ids, created_at, updated_at, items,"
+            " cover, source_id, source_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mix.id, user_id, name, ",".join(mix.topic_ids), now, now,
+             json.dumps([i.as_dict() for i in items]), mix.cover, source.id,
+             source.user_id),
+        )
+        return mix
+
     def delete(self, user_id: str, mix_id: str) -> bool:
         cur = self._conn().execute(
             "DELETE FROM mixes WHERE id = ? AND user_id = ?", (mix_id, user_id)
@@ -540,6 +702,13 @@ class MixStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        # Other listeners' copies of this listener's public mixes are theirs
+        # and stay - but not with this listener's id written into them.
+        try:
+            self._conn().execute(
+                "UPDATE mixes SET source_user = '' WHERE source_user = ?", (user_id,))
+        except Exception:
+            log.exception("could not clear copies' owner for %r", user_id)
         return removed
 
 

@@ -199,7 +199,65 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
         "minutes": max(1, int(minutes or 0)),
         "url": url or "",
     }
-    text = chosen.template.format(**values)
+    return _rendered(chosen, chosen.template, chosen.subject, values)
+
+
+#: The same destinations, worded for a whole DailyFAM mix rather than one
+#: episode: `(template, subject)` per target key, with `{name}`, `{topics}`
+#: and `{url}` substituted. A mix is a standing list, so the pitch is "a fresh
+#: briefing every day on these", and the ask is to add it rather than to
+#: listen once. The owner is the one sharing it, hence "my".
+MIX_TEMPLATES: dict[str, tuple[str, str]] = {
+    "copy": ("{name} - a daily FAM mix: {topics}. {url}", ""),
+    "sms": ("My daily FAM mix, {name} - a new briefing every day on {topics}. "
+            "Add it to yours: {url}", ""),
+    "email": ("I made a daily mix on FAM called \"{name}\". Every day it is a "
+              "fresh briefing on {topics}.\n\nAdd it to your DailyFAM: {url}",
+              "{name} - a daily FAM mix"),
+    "whatsapp": ("My daily FAM mix, {name} - a new briefing every day on {topics}. "
+                 "Add it to yours: {url}", ""),
+    "x": ("My daily FAM mix, {name}: {topics}. {url}", ""),
+    "facebook": ("My daily FAM mix, {name} - a fresh briefing every day on {topics}. {url}", ""),
+    "linkedin": ("\"{name}\" is my daily FAM mix - a fresh briefing every morning on "
+                 "{topics}.\n\n{url}", ""),
+    "instagram_story": ("{name}", ""),
+    "snapchat_story": ("{name}", ""),
+}
+
+
+def mix_topics_line(titles: list[str], shown: int = 4) -> str:
+    """"NFL · Eagles, AI updates, Stocks and 2 more" - what a mix is about,
+    short enough to sit inside one sentence of a share."""
+    titles = [t for t in titles if t]
+    if not titles:
+        return "whatever I add to it"
+    head = titles[:shown]
+    rest = len(titles) - len(head)
+    if rest > 0:
+        return ", ".join(head) + f" and {rest} more"
+    if len(head) == 1:
+        return head[0]
+    return ", ".join(head[:-1]) + " and " + head[-1]
+
+
+def render_mix(target_key: str, *, name: str, topics: list[str], url: str) -> dict:
+    """One destination's wording for sharing a whole mix. Same trimming, same
+    hand-off rules as an episode - only the words differ."""
+    chosen = target(target_key)
+    if chosen is None:
+        raise ShareError(f"Unknown share destination {target_key!r}.")
+    template, subject = MIX_TEMPLATES.get(chosen.key, (chosen.template, chosen.subject))
+    values = {
+        "name": (name or "A DailyFAM mix").strip()[:MAX_TITLE],
+        "topics": mix_topics_line(list(topics))[:MAX_QUERY],
+        "url": url or "",
+    }
+    return _rendered(chosen, template, subject, values)
+
+
+def _rendered(chosen: Target, template: str, subject_template: str,
+              values: dict) -> dict:
+    text = template.format(**values)
     if chosen.max_chars and len(text) > chosen.max_chars:
         keep = text[:chosen.max_chars - 1]
         # Never cut the URL off: a share whose link is truncated is worse than
@@ -212,7 +270,7 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
         else:
             keep = keep.rsplit(" ", 1)[0] + "…"
         text = keep
-    subject = chosen.subject.format(**values) if chosen.subject else ""
+    subject = subject_template.format(**values) if subject_template else ""
     return {
         "target": chosen.key,
         "label": chosen.label,
@@ -293,7 +351,8 @@ def _wrap(text: str, per_line: int, max_lines: int) -> list[str]:
     return lines
 
 
-def story_card(title: str, question: str, minutes: int, handle: str = "") -> str:
+def story_card(title: str, question: str, minutes: int, handle: str = "",
+               pill: str = "") -> str:
     """A 1080x1920 story image, as SVG.
 
     Portrait and full-bleed because that is the only shape a story is. The
@@ -317,6 +376,9 @@ def story_card(title: str, question: str, minutes: int, handle: str = "") -> str
         f'<tspan x="90" dy="{0 if i == 0 else 46}">{esc(line)}</tspan>'
         for i, line in enumerate(ask))
     who = esc(("@" + handle.lstrip("@")) if handle else "on FAM")
+    # The rounded label under the question: an episode's length, or what a
+    # mix is ("Daily mix") - anything short enough for the same pill.
+    pill = (pill or f"{minutes} min")[:24]
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
   <defs>
@@ -342,11 +404,11 @@ def story_card(title: str, question: str, minutes: int, handle: str = "") -> str
   <text x="90" y="1180" fill="#ABA3C4" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
         font-size="38">{ask_svg}</text>
 
-  <rect x="90" y="1320" width="{110 + len(str(minutes)) * 26}" height="64" rx="32"
+  <rect x="90" y="1320" width="{60 + len(pill) * 18}" height="64" rx="32"
         fill="none" stroke="#E0B563" stroke-width="2"/>
-  <text x="{120 + len(str(minutes)) * 4}" y="1362" fill="#E0B563"
+  <text x="120" y="1362" fill="#E0B563"
         font-family="'Space Grotesk',Helvetica,Arial,sans-serif" font-size="30"
-        font-weight="600">{minutes} min</text>
+        font-weight="600">{esc(pill)}</text>
 
   <text x="90" y="1700" fill="#8FAE9A" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
         font-size="32" font-weight="500">{who}</text>
