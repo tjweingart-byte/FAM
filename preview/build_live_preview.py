@@ -457,8 +457,9 @@ __MIX_ITEMS__
     }).filter(function (x) { return x.s > 0; }).sort(function (a, b) { return b.s - a.s; });
 
     // `topics.rank_most_played`: cached episodes only, ranked by total
-    // listens, a finished listen counted once (`_tally_listens`).
-    var counts = listens(0, Infinity, UID);
+    // listens by everybody, a finished listen counted once
+    // (`_tally_listens`); `take` then drops what this listener has heard.
+    var counts = listens(now() - 30 * 86400, Infinity, null);
     var byCount = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })
       .map(function (id) { return BY_ID[id]; })
       .filter(function (t) { return t && isCached(t.query); });

@@ -1509,6 +1509,10 @@ the rest of this list it needs taste rather than a key.
   else. **What you missed last week** is a shelf of episodes they can still
   have: what FAM put in front of them in the last seven days and they did not
   take.
+  **Superseded by §141, at the owner's direction** - what follows is the
+  history. The rail is now cached episodes other listeners played three to
+  seven days ago that this one never heard, none written from a live feed,
+  most-listened first, with no impressions, no story pool and no top-up.
   **What counts as "missed" is wider than what FAM showed you** *(§114, at
   the owner's direction, reversing the line below it).* It used to be the
   impression log and nothing else, and that made the rail a report on our own

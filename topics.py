@@ -1386,8 +1386,8 @@ def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
     listening to", and should: hiding the most-played episode in the app
     because of who is looking would be §125's own over-claim in reverse, a row
     whose heading is a claim about this deployment quietly filtered per
-    listener. The rails that *choose for you* - Made for you, What you missed,
-    and the post-episode popup's own passes - are the ones where offering a
+    listener. The rails that *choose for you* - Made for you and the
+    post-episode popup's own passes - are the ones where offering a
     standing explainer to somebody with an account is the thing this rule is
     about.
     """
@@ -1876,33 +1876,6 @@ class EventStore:
                   section=r[3], algo=r[4])
             for r in rows
         ]
-
-    def impressions_since(self, user_id: str, since: float) -> dict[str, float]:
-        """Which tiles were put in front of this listener since `since`, and
-        when they last were.
-
-        The read behind "What you missed last week". Deliberately *not* a
-        ranking input the way `impression_occasions` is - this answers "was
-        this offered", which is a fact about the feed, and the rail then
-        removes everything they played. An impression still never becomes
-        taste: the ordering below it is `_affinity`, the same profile every
-        other personal rail scores against.
-        """
-        if not user_id:
-            return {}
-        try:
-            rows = self._conn().execute(
-                "SELECT topic_id, MAX(at) FROM events"
-                " WHERE user_id = ? AND kind = ? AND topic_id != '' AND at >= ?"
-                " GROUP BY topic_id",
-                (user_id, IMPRESSION, float(since)),
-            ).fetchall()
-        except Exception:
-            # One rail short is a far better outcome than no feed, which is
-            # the rule every other read in this class keeps.
-            log.exception("could not read recent impressions")
-            return {}
-        return {r[0]: float(r[1]) for r in rows}
 
     def impression_occasions(self, user_id: str) -> dict[str, int]:
         """How many separate occasions each tile was put in front of them.
@@ -2953,7 +2926,8 @@ def _by_listens(entry: _Tally) -> tuple:
 def _crowd_tiles(tallies: dict, known: dict, exclude: set,
                  episode_info=None, heard: Optional[Heard] = None,
                  allow_live: bool = True,
-                 limit: Optional[int] = None) -> list[tuple[Topic, _Tally]]:
+                 limit: Optional[int] = None,
+                 order=_by_listens) -> list[tuple[Topic, _Tally]]:
     """Every tallied episode as a tile, **cached only** when a cache is given.
 
     With `episode_info=None` the caller has no cache to ask - a test, the
@@ -2971,7 +2945,7 @@ def _crowd_tiles(tallies: dict, known: dict, exclude: set,
     by_question = {_norm_question(t.query): t for t in known.values()}
     out: list = []
     seen: set[str] = set()
-    for entry in sorted(tallies.values(), key=_by_listens):
+    for entry in sorted(tallies.values(), key=order):
         if limit is not None and len(out) >= limit:
             break
         topic = _tile_for(entry, known, by_question)
@@ -3398,7 +3372,13 @@ def rank_friends(
         rows.append((author, "", query, float(row.get("created") or now),
                      "play"))
     tallies = _tally_listens(rows, known)
-    picked = _crowd_tiles(tallies, known, exclude, episode_info, heard)
+    # Visited in the rail's own order - most friends, then most listens - and
+    # bounded like the crowd row, so a circle's month of searches is not a
+    # cache read each. Fatigue only lowers a score, so a few spare cover it.
+    picked = _crowd_tiles(
+        tallies, known, exclude, episode_info, heard,
+        limit=limit * CANDIDATE_FACTOR,
+        order=lambda e: (-len(e.users), -e.listens, -e.last))
     if not picked:
         return []
     scored = []
@@ -3672,10 +3652,10 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # a rule spelled out at each call site is a rule one of them will spell
     # differently - which is §119 exactly. See `browse_inventory`.
     inventory = browse_inventory(live, has_account)
-    # Everything the pool holds, cap included. "What you missed" has to be able
-    # to resolve a tile that was offered a few days ago and has since been
-    # pushed under the variety cap - to that listener it was on the page, and
-    # a rail that quietly dropped it would be answering a different question.
+    # Everything the pool holds, cap included - what the variety cap is
+    # hiding is still a tile this page can name, for Trending's own inventory
+    # and for the no-repeats check below. ("What you missed" used to read it;
+    # since §141 it reads nothing from the pool.)
     live_held = trending_for(
         topics_from_stories(stories.pool().held(now), now=now), heard, now)
     # **No repeats, part two.** Everything this listener has ever heard, from
@@ -4358,8 +4338,11 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
     * **Trending**: the live pool, then what the pool's variety cap is
       holding, and nothing else. It used to fall through to the startup set
       and the bank; the owner has ruled both off that row (§134).
-    * **Made for you** and **What you missed**: this listener's own
-      inventory in affinity order, then the rest of the tiles FAM has.
+    * **Made for you**: this listener's own inventory in affinity order,
+      then the rest of the tiles FAM has.
+    * **What you missed last week** is not topped up since §141 - every
+      source here is an inventory of mostly unwritten tiles, and that rail
+      holds cached episodes only.
     * **What FAM can't stop listening to** is no longer topped up at all
       (§134) - a tile nobody played under a heading that says it was played
       is making one up.
