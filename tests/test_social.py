@@ -187,7 +187,7 @@ def test_a_strangers_vibe_lifts_a_card_without_naming_them(client):
     """A vibe is somebody choosing to send an episode, which is a real reason
     for a card to lead. It is not a reason to put a name the listener has
     never heard of on one - which is the mistake §102 took off myFAM."""
-    appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt", "", 3)
+    appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt", "", 3, origin="search")
     rachel = TestClient(appmod.app)
     rachel.post("/api/me", json={"name": "Rachel", "handle": "rachel"})
     rachel.post("/api/echo", json={"query": "why volcanoes erupt",
@@ -211,7 +211,7 @@ def test_a_friends_vibe_names_them_on_the_card(client):
         # She generated it - authorship is what the cache records - and
         # vibed it.
         appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
-                                "", 3, "", "", her)
+                                "", 3, "", "", her, origin="search")
         rachel.post("/api/echo", json={"query": "why volcanoes erupt",
                                        "title": "Why Volcanoes Erupt",
                                        "minutes": 3})
@@ -234,7 +234,7 @@ def test_a_friend_who_did_not_generate_it_is_not_credited(client):
         # Nobody recorded as the author - a row written before authorship
         # existed, which is shown to everybody and credited to nobody.
         appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
-                                "", 3)
+                                "", 3, origin="search")
         rachel.post("/api/echo", json={"query": "why volcanoes erupt",
                                        "title": "Why Volcanoes Erupt",
                                        "minutes": 3})
@@ -251,7 +251,7 @@ def test_somebody_you_only_follow_is_not_a_friend_on_a_card(client):
         her = _account(rachel, "rachel")
         client.post("/api/friends/follow", json={"user_id": her})  # one way
         appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt",
-                                "", 3, "", "", her)
+                                "", 3, "", "", her, origin="search")
         rachel.post("/api/echo", json={"query": "why volcanoes erupt",
                                        "title": "Why Volcanoes Erupt",
                                        "minutes": 3})
@@ -274,7 +274,7 @@ def test_a_taken_handle_is_a_readable_refusal(client):
 
 
 def test_vibing_and_echoing_are_the_same_row(client):
-    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3)
+    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3, origin="search")
     client.post("/api/me", json={"name": "Ada", "handle": "ada"})
     made = client.post("/api/vibe", json={"query": "why tides turn",
                                           "title": "Why tides turn",
@@ -291,7 +291,7 @@ def test_vibing_and_echoing_are_the_same_row(client):
 
 
 def test_my_vibe_lists_what_this_listener_vibed(client):
-    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3)
+    appmod.SCRIPT_CACHE.put("v", ["A sentence."], 600, "why tides turn", "", 3, origin="search")
     client.post("/api/me", json={"name": "Ada", "handle": "ada"})
     client.post("/api/vibe", json={"query": "why tides turn",
                                    "title": "Why tides turn", "minutes": 3})

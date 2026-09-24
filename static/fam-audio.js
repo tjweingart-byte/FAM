@@ -383,7 +383,10 @@ window.FamAudio = (function () {
               // Documents, photos and links the listener attached. Sent as ids
               // because the text was extracted when they were added - the
               // generation path never parses a file or fetches a page.
-              (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "");
+              (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "") +
+              // Which surface the tap came from (§147): only a search picks
+              // its voice and length, and only a search goes on Explore.
+              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "");
 
     ctx.resume().then(function () {
       return fetch(url, { signal: controller.signal });

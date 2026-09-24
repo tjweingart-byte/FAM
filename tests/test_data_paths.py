@@ -33,6 +33,7 @@ import saved as SV  # noqa: E402
 import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
 import topics as T  # noqa: E402
+import voice_bank as VB  # noqa: E402
 import voice_registry as VR  # noqa: E402
 import trending_bank as TB  # noqa: E402
 
@@ -54,6 +55,7 @@ STORES = [
     ("SHARES_DB", "shares.db", SH.ShareStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
+    ("VOICE_BANK_DB", "voice_bank.db", VB.VoiceBank),
     ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),
     ("TRENDING_BANK_DB", "trending_bank.db", TB.BankStore),
 ]
@@ -97,7 +99,9 @@ ALL_VARS = sorted(DECLARED)
 #: creates it, and a health page that opened it would create a database on
 #: every machine that never built one - which is how a stray copy once
 #: appeared in the project root. Reported once it exists.
-LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB"}
+#: `VOICE_BANK_DB` (§147) is opened by the first request that asks which
+#: voice to use, and reported from then on - the registry's rule again.
+LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB"}
 
 
 @pytest.fixture(autouse=True)

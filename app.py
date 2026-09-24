@@ -11,6 +11,7 @@ Endpoints
 from __future__ import annotations
 
 import asyncio
+import base64
 import hmac
 import os
 import json
@@ -46,7 +47,7 @@ import oauth
 import quotas
 import saved as saved_mod
 import sharing
-from config import (DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
+from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
                     key_source, settings)
 import prefetch
 import prefetch_sources
@@ -79,8 +80,10 @@ from tts import (
     engine_for_voice,
     engine_report,
     list_voices,
+    production_engines,
     warm_up,
 )
+import voice_bank
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("podcast")
@@ -801,6 +804,12 @@ def _database_report() -> list[dict]:
             stores.append(("voice workers", "VOICE_REGISTRY_DB", held.path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # The bank of voices (§147): the recordings and every listener's choice.
+    # Opened by the first request that asks which voice to use, and reported
+    # from then on, on the same terms as the registry above.
+    held_bank = voice_bank.opened()
+    if held_bank is not None:
+        stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -1132,6 +1141,15 @@ def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
                   episode_key=getattr(verdict, "episode_key", ""))
 
 
+class _VoiceChoices:
+    """The voice bank's per-listener half, opened only when erased from, so a
+    bank that cannot open fails its own row rather than the whole erase."""
+
+    @staticmethod
+    def forget(user_id: str) -> int:
+        return voice_bank.bank().forget(user_id)
+
+
 def erase_listener(user_id: str) -> dict:
     """Delete everything FAM holds about one listener, and say what went.
 
@@ -1159,7 +1177,8 @@ def erase_listener(user_id: str) -> dict:
     for name, store in (("events", EVENTS), ("mixes", MIXES), ("social", SOCIAL),
                         ("preferences", PREFS), ("attachments", ATTACHMENTS),
                         ("quotas", QUOTAS), ("messages", MESSAGES),
-                        ("saved", SAVED), ("shares", SHARES)):
+                        ("saved", SAVED), ("shares", SHARES),
+                        ("voice_choice", _VoiceChoices())):
         try:
             removed[name] = store.forget(user_id)
         except Exception:
@@ -2838,13 +2857,88 @@ async def plans_read(request: Request) -> dict:
 
 
 @app.get("/api/voices")
-async def voices() -> dict:
-    """Voices this server can speak in, best first."""
+async def voices(request: Request) -> dict:
+    """Voices this server can speak in, best first, and this listener's.
+
+    `selected` is the voice their searches are spoken in (§147) - chosen on
+    the search page or under Listening in Settings, and nowhere else. Every
+    other surface is spoken in a voice drawn from the bank per episode, so
+    this is the only voice a listener ever picks.
+    """
+    listed = [v.as_dict() for v in list_voices()]
+    default = default_voice()
+    chosen = _chosen_voice(_listener(request))
+    selected = default
+    if chosen:
+        selected = next((v["id"] for v in listed
+                         if voice_bank.slug_of(v["id"]) == chosen), default)
     return {
-        "default": default_voice(),
+        "default": default,
+        "selected": selected,
         "store": VOICE_STORE["dir"],
-        "voices": [v.as_dict() for v in list_voices()],
+        "voices": listed,
     }
+
+
+class VoiceChoice(BaseModel):
+    voice: str = Field(..., max_length=80)
+
+
+@app.post("/api/voices/choice")
+async def choose_voice(req: VoiceChoice, request: Request) -> dict:
+    """Keep the voice this listener's searches are spoken in (§147).
+
+    Kept on the listener's server-minted id, account or not: it is a setting
+    about how search sounds, not something the ranker learns from.
+    """
+    _read_limit(request)
+    if not voice_bank.known(req.voice):
+        raise HTTPException(status_code=400, detail="That voice is not in the bank.")
+    slug = voice_bank.slug_of(req.voice)
+    voice_bank.bank().choose(_listener(request),
+                             "" if voice_bank.is_default(slug) else slug)
+    return {"ok": True, "voice": req.voice}
+
+
+class BankVoiceRequest(BaseModel):
+    slug: str = Field(..., max_length=40)
+    label: str = Field(..., max_length=40)
+    description: str = Field("", max_length=160)
+    #: The reference recording, a WAV, base64-encoded.
+    audio: str = Field(..., max_length=12 * 1024 * 1024)
+    #: consent, commercial_use and synthetic_voice_cleared, each "yes".
+    rights: dict
+    replace: bool = False
+
+
+@app.get("/api/admin/voices")
+async def admin_voices(request: Request) -> dict:
+    """The voice bank as stored. Admin only, like `/api/usage`."""
+    _require_admin(request)
+    return {"voices": [v.as_dict() | {"sha256": v.sha256, "added": v.added}
+                       for v in voice_bank.catalogue()]}
+
+
+@app.post("/api/admin/voices")
+async def admin_add_voice(req: BankVoiceRequest, request: Request) -> dict:
+    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this."""
+    _require_admin(request)
+    try:
+        audio = base64.b64decode(req.audio, validate=True)
+        added = voice_bank.bank().add(req.slug, req.label, audio, req.rights,
+                                      description=req.description,
+                                      replace=req.replace)
+    except (ValueError, voice_bank.VoiceBankError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "voice": added.as_dict()}
+
+
+@app.delete("/api/admin/voices/{slug}")
+async def admin_remove_voice(slug: str, request: Request) -> dict:
+    """Take a voice out of the bank. Episodes already given it keep their
+    kept audio; a play that needs it voiced again draws another (§147)."""
+    _require_admin(request)
+    return {"ok": voice_bank.bank().remove(slug)}
 
 
 @app.post("/api/script")
@@ -3079,6 +3173,93 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     if context:
         return "godeeper"
     return "search"
+
+
+#: Where a tap may say it came from (§147). The interface sends it, because
+#: `_surface` cannot tell a DailyFAM play or a shared link from a search by
+#: the parameters alone - and Explore is searched episodes only.
+PLAY_SURFACES = ("search", "myfam", "dailyfam", "share", "other")
+
+#: The surfaces that offer no length and no voice: two minutes, and a voice
+#: drawn from the bank per episode (§147).
+BROWSE_SURFACES = ("myfam", "dailyfam")
+
+
+def _play_surface(surface: str, cached_only: bool, topic_id: str,
+                  context: str) -> str:
+    """Which surface this play is, for the rules §147 hangs on it."""
+    if cached_only:
+        return "explore"
+    named = (surface or "").strip().lower()
+    if named in PLAY_SURFACES:
+        return named
+    derived = _surface(cached_only, topic_id, context)
+    return "other" if derived == "godeeper" else derived
+
+
+def _voice_engine() -> str:
+    """The production engine's name, or "" when nothing but a tone speaks."""
+    for cls in production_engines():
+        try:
+            if cls.available():
+                return cls.name
+        except Exception:  # noqa: BLE001 - a name, never a reason to fail
+            continue
+    return ""
+
+
+def _chosen_voice(user: str) -> str:
+    """The bank voice this listener's searches are spoken in, or "" for the
+    default. A choice whose voice has left the bank is the default again."""
+    try:
+        chosen = voice_bank.bank().choice(user)
+    except Exception:  # noqa: BLE001 - the default voice still speaks
+        log.exception("could not read a listener's voice choice")
+        return ""
+    return chosen if chosen and voice_bank.known(chosen) else ""
+
+
+def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
+    """The voice this play is spoken in (§147). None is the default voice.
+
+    * **searchFAM** - the one surface with a voice picker: the voice the
+      request names, else the listener's kept choice.
+    * **Everywhere else** - the voice kept beside the episode's script, and
+      for an episode with none, one drawn at random from the bank and kept,
+      so the next play is the same voice and replays its kept audio. Explore
+      and a shared link never draw: they play the voice the episode was made
+      in, or the default.
+
+    On a machine with no production voice this is what the request named,
+    exactly as before - there is no bank to draw from, only a tone.
+    """
+    engine = _voice_engine()
+    if not engine:
+        return asked or None
+    slug = ""
+    if where == "search":
+        if asked and voice_bank.known(asked):
+            slug = voice_bank.slug_of(asked)
+        else:
+            slug = _chosen_voice(user)
+    else:
+        key = _episode_key(plan)
+        store = SCRIPT_CACHE
+        try:
+            slug = store.voice_of(key) if (key and store is not None) else ""
+        except Exception:  # noqa: BLE001
+            slug = ""
+        if slug and not voice_bank.known(slug):
+            slug = ""
+        if not slug and where not in ("explore", "share"):
+            slug = voice_bank.random_slug()
+            if key and store is not None and hasattr(store, "set_voice"):
+                # First one wins: two listeners tapping one tile at once
+                # hear the same voice.
+                slug = store.set_voice(key, slug) or slug
+    if not slug or voice_bank.is_default(slug):
+        return None
+    return f"{engine}:{slug}"
 
 
 def _record_usage(user: str, usage: metering.Usage, *, surface: str,
@@ -3835,6 +4016,7 @@ async def myfam_section(request: Request,
     never a model call, so marking them is as free as ranking them.
     """
     _read_limit(request)
+    minutes = BROWSE_MINUTES   # §147: only searchFAM offers a length
     user = _listener(request)
     written = _written_probe(minutes)
     try:
@@ -4041,15 +4223,16 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     fakes. `taste_source` says which of the two ordered the first rail. See
     `startup.py`.
 
-    `minutes` is the browse length this listener has chosen. It is here for one
-    reason: whether a tile's script is already written depends on the length it
-    would be written at, so asking the cache at the wrong length would mark
-    ready tiles as unready and sort the rails wrong.
+    `minutes` is accepted and ignored: every myFAM episode is
+    `BROWSE_MINUTES` long (§147), and only searchFAM offers a length. It
+    matters because whether a tile's script is already written depends on the
+    length it would be written at.
     """
     # A cheap read: ranking a fixed inventory costs no model call, so it takes
     # the reader's limit rather than the generation one.
     _read_limit(request)
     user = _listener(request)
+    minutes = BROWSE_MINUTES
 
     # One refresh serves every listener, so this is scheduled rather than
     # awaited: myFAM renders from whatever the shared pool holds and stays
@@ -4617,6 +4800,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     instantly for them anywhere else, and still appears on everyone else's
     feed. Entries written before authorship was recorded have no author and
     are shown to everybody, which is what they were already doing.
+
+    **And searched episodes only** (§147). Every surface writes into the one
+    shared cache, and Explore is what other listeners *searched* - never a
+    myFAM tile, a DailyFAM edition, a Trending episode or a prefetch guess.
+    `scripts.origin` says which surface wrote an entry; one written before
+    that column existed says nothing and is left off.
     """
     _read_limit(request)
     store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
@@ -4644,7 +4833,10 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     anyone = SOCIAL.recent_echoes(exclude_user=listener)
 
     episodes = []
-    entries = store.recent(limit, exclude_author=listener)
+    # Searched episodes only (§147, at the owner's direction): a myFAM tile,
+    # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
+    # and none of them is on Explore.
+    entries = store.recent(limit, exclude_author=listener, origin="search")
     all_counts = SOCIAL.episode_counts_many(
         [(e["query"], e["minutes"]) for e in entries], listener)
     for entry in entries:
@@ -4981,6 +5173,9 @@ async def audio(
     cached_only: bool = Query(False, description="Replay only; never generate. Used by Explore"),
     topic_id: str = Query("", max_length=64, description="Bank topic id, when played from myFAM"),
     attach: str = Query("", max_length=400, description="Attachment ids from /api/attach"),
+    surface: str = Query("", max_length=16,
+                         description="Where the tap came from: search, myfam, "
+                                     "dailyfam, explore, share or other"),
 ):
     """Stream the episode.
 
@@ -4992,6 +5187,12 @@ async def audio(
     # requests that can actually spend a model call.
     _read_limit(request)
     user = _listener(request)
+    where = _play_surface(surface, cached_only, topic_id, context)
+    # §147: only searchFAM offers a length. Every myFAM and DailyFAM episode
+    # is two minutes, whatever an older client sends, because minutes are in
+    # the cache key and the background editions are written at two.
+    if where in BROWSE_SURFACES:
+        minutes = BROWSE_MINUTES
     minutes = min(minutes, entitlements.max_minutes(_tier(request),
                                                     settings.max_minutes))
     plan = _validated_plan(q, minutes, context, search, cached_only,
@@ -5021,13 +5222,17 @@ async def audio(
                         surface=_surface(cached_only, topic_id, context))
 
     try:
-        pipeline = _make_pipeline(voice or None, author=user)
+        pipeline = _make_pipeline(_episode_voice(user, where, plan, voice),
+                                  author=user)
     except TTSUnavailable as exc:
         # The server cannot speak at all. Nothing was generated and nothing was
         # billed, so the allowance goes back - this is the machine being
         # broken, not the listener spending.
         _refund(reserved, user)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    # Stamped on anything this writes to the shared cache, so Explore can be
+    # searched episodes and nothing else (§147).
+    pipeline.origin = where
 
     # Ask for a GPU now, before Claude has written a word.
     #

@@ -174,28 +174,13 @@ def test_the_voice_store_survived_because_chatterbox_uses_it():
 # --------------------------------------------------------------------------
 # the interface, deliberately untouched
 # --------------------------------------------------------------------------
-def test_the_voice_picker_still_names_piper_and_that_is_inert():
-    """`static/index.html` was not edited by the removal, on purpose.
-
-    The picker groups voices by engine through a label map and an ordering
-    array that both still contain "piper". Both are keyed off what
-    `/api/voices` actually returns and skip any group with no members
-    (`if(!group.length) return;`), so with no piper voice ever served the entry
-    is dead data rather than a code path.
-
-    This is asserted rather than tidied because the interface is out of scope
-    for this change and "the frontend is unchanged" is a claim worth being able
-    to make exactly. One cosmetic consequence is recorded here so it is not
-    discovered as a surprise: Chatterbox is not in the ordering array either,
-    so its voice appears under the picker's "Other" heading until the interface
-    is next touched.
-    """
+def test_the_voice_picker_no_longer_names_piper():
+    """The picker grouped voices by engine through a label map and an
+    ordering array that still said "piper" long after Piper was removed,
+    asserted here as dead data until the interface was next touched. §147
+    touched it: the picker is one list of the bank's voices now, so nothing
+    names an engine that no longer exists."""
     page = (ROOT / "static" / "index.html").read_text()
-    assert 'var order = ["piper", "say", "espeak", "debug"];' in page
-    assert "if(!group.length) return;" in page, (
-        "the empty-group skip is what makes the stale entry inert")
-    assert "chatterbox" not in page, (
-        "if the interface has learned about chatterbox, update this test and "
-        "the ordering array together")
-    # The thing that actually keeps it inert.
+    assert "piper" not in page.lower()
+    assert "VOICE_GROUPS" not in page
     assert not [v for v in tts.list_voices() if v.engine == "piper"]

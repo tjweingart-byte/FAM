@@ -996,7 +996,9 @@ __MIX_ITEMS__
       // generated is dropped from their own feed; one with no author - a
       // warmed script, or a row written before this existed - belongs to
       // everybody and stays.
-      .filter(function (s) { return s.expires > now() && s.author !== UID; })
+      .filter(function (s) { return s.expires > now() && s.author !== UID
+                                    // Searched episodes only (§147).
+                                    && s.origin === "search"; })
       .sort(function (a, b) { return b.created - a.created; })
       .slice(0, limit || 30)
       .map(function (s) {
@@ -1813,7 +1815,7 @@ __MIX_ITEMS__
 
   // The script cache on the generation path, in the order the pipeline does
   // it: exact key, then - only on a miss - the near-match scan, then write.
-  function touchScript(query, minutes) {
+  function touchScript(query, minutes, origin) {
     var key = keyFor(query, minutes);
     return getOne("scripts", key).then(function (hit) {
       var live = hit && hit.expires > now();
@@ -1822,11 +1824,11 @@ __MIX_ITEMS__
       var near = bestMatch(query, minutes);
       if (near) {
         return getOne("scripts", near.id).then(function (row) {
-          if (!row) return write(key, query, minutes, near);
+          if (!row) return write(key, query, minutes, near, origin);
           return bump(near.id, row, "near", query, near);
         });
       }
-      return write(key, query, minutes, null);
+      return write(key, query, minutes, null, origin);
     });
   }
   function bump(id, row, how, asked, near) {
@@ -1836,7 +1838,7 @@ __MIX_ITEMS__
     d.hits = (row.hits || 0) + 1;
     return put("scripts", id, d).then(function () { paint(); return true; });
   }
-  function write(key, query, minutes, near) {
+  function write(key, query, minutes, near, origin) {
     note("miss", query, near, "");
     return put("scripts", key, {
       query: query, minutes: minutes,
@@ -1846,6 +1848,8 @@ __MIX_ITEMS__
       // Stamped on the write, from the listener whose tap paid for it - the
       // same place the server does it. See cache.recent.
       author: UID,
+      // Which surface wrote it (§147). Explore shows searches only.
+      origin: origin || "",
       // The two columns the near-match cache added. The vector is written
       // here, on the write, for the reason the whole design turns on: doing
       // it on the read would put work in front of the first word.
@@ -1906,7 +1910,9 @@ __MIX_ITEMS__
       // The play is recorded server-side in the real app, from the audio
       // request, because a play that reached the server is a fact.
       READY.then(function () {
-        touchScript(q, mins);
+        // Where the tap came from (§147): only a search's episode is
+        // stamped so Explore will show it.
+        touchScript(q, mins, qs.get("cached_only") ? "" : (qs.get("surface") || "search"));
         var tid = qs.get("topic_id") || "";
         if (!EMAIL) return;   // a guest's play is served, not remembered (§127)
         addDoc("events", {
@@ -2220,6 +2226,8 @@ __MIX_ITEMS__
           // Explore is *other people's*, so an episode generated here drops
           // off this listener's own feed and the seeded ones stay.
           author: p[0],
+          // Seeded as other listeners' searches, which is all Explore shows.
+          origin: "search",
           bucket: "m3:hashing:" + DIMS, vector: embed(normalize(t.query))
         }));
       });

@@ -151,7 +151,7 @@ def test_the_feed_is_empty_before_anyone_has_searched(client):
 
 
 def test_the_feed_lists_what_has_been_generated(client):
-    appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt", "how magma moves", 3)
+    appmod.SCRIPT_CACHE.put("k", ["A sentence."], 600, "why volcanoes erupt", "how magma moves", 3, origin="search")
     body = client.get("/api/explore").json()["episodes"]
     assert len(body) == 1
     assert body[0]["query"] == "why volcanoes erupt"
@@ -199,9 +199,9 @@ def test_an_episode_is_dropped_from_its_own_authors_feed(client):
     me = client.get("/api/auth/me").json()["user_id"]
     assert me, "the test client was not given a session"
     appmod.SCRIPT_CACHE.put("mine", ["A sentence."], 600, "what I asked", "", 3,
-                            "", "", me)
+                            "", "", me, origin="search")
     appmod.SCRIPT_CACHE.put("theirs", ["A sentence."], 600, "what they asked",
-                            "", 3, "", "", "someone-else")
+                            "", 3, "", "", "someone-else", origin="search")
 
     queries = [e["query"] for e in client.get("/api/explore").json()["episodes"]]
     assert "what they asked" in queries
@@ -209,13 +209,17 @@ def test_an_episode_is_dropped_from_its_own_authors_feed(client):
         "Explore showed a listener their own episode"
 
 
-def test_an_unattributed_episode_is_still_shown_to_everybody(client):
-    """Prefetch writes with no author, and so does every entry made before
-    authorship existed. Neither is anybody's, so both stay on every feed."""
+def test_an_unattributed_search_is_still_shown_to_everybody(client):
+    """A search with no author is nobody's, so it stays on every feed. A
+    warmed script is nobody's too, but it was never a search, so since §147
+    it is on nobody's feed."""
+    appmod.SCRIPT_CACHE.put("anon", ["A sentence."], 600, "asked by nobody",
+                            "", 3, origin="search")
     appmod.SCRIPT_CACHE.put("warm", ["A sentence."], 600, "warmed for nobody",
-                            "", 3)
+                            "", 3, origin="prefetch")
     queries = [e["query"] for e in client.get("/api/explore").json()["episodes"]]
-    assert "warmed for nobody" in queries
+    assert "asked by nobody" in queries
+    assert "warmed for nobody" not in queries
 
 
 def test_the_author_is_not_part_of_the_cache_key(client):

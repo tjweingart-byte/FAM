@@ -506,7 +506,8 @@ class ScriptCache(Protocol):
     #: `exclude_author` drops entries this listener generated themselves -
     #: Explore is other people's episodes, and your own coming back at you
     #: reads as the app having nothing rather than as a feature.
-    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]: ...
+    def recent(self, limit: int = 40, exclude_author: str = "",
+               origin: str = "") -> list[dict]: ...
     #: The closest *near* match in the same bucket, or None. Only consulted
     #: after an exact lookup has already missed.
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
@@ -569,6 +570,13 @@ class MemoryScriptCache:
         #: unchanged. "" for anything written with no listener behind it -
         #: prefetch, a tool, a test - which is shown to everybody.
         self._authors: dict[str, str] = {}
+        #: key -> the surface that first wrote it ("search", "myfam",
+        #: "dailyfam", "trending", "prefetch", ...). Explore reads it (§147).
+        self._origins: dict[str, str] = {}
+        #: key -> the voice the episode is spoken in when nobody chose one
+        #: (§147): a bank voice drawn at random for a browse episode, or the
+        #: voice a search was first heard in. Explore replays it.
+        self._voices: dict[str, str] = {}
         #: key -> provenance JSON. Beside the tuple rather than in it, so the
         #: shape the existing tests assert on is unchanged.
         self._sources: dict[str, str] = {}
@@ -651,9 +659,15 @@ class MemoryScriptCache:
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
         author: str = "", title: str = "", summary: str = "", slide: bool = False,
-        sourced_at: Optional[float] = None
+        sourced_at: Optional[float] = None, origin: str = "", voice: str = ""
     ) -> None:
         before = self._data.get(key)
+        # A search re-writing an entry makes it a search episode; nothing
+        # else changes where an episode came from (§147).
+        if origin == "search" or not self._origins.get(key):
+            self._origins[key] = origin or ""
+        if voice and not self._voices.get(key):
+            self._voices[key] = voice
         now = time.time()
         sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
         self._data[key] = (expires, list(sentences), thread, query, int(minutes))
@@ -688,7 +702,23 @@ class MemoryScriptCache:
         ]
         return best_match(query, rows)
 
-    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
+    def voice_of(self, key: str) -> str:
+        return self._voices.get(key, "") if key in self._data else ""
+
+    def set_voice(self, key: str, voice: str) -> str:
+        """See `SqliteScriptCache.set_voice`."""
+        if not key or not voice or key not in self._data:
+            return self.voice_of(key)
+        self._voices.setdefault(key, voice)
+        if not self._voices[key]:
+            self._voices[key] = voice
+        return self._voices[key]
+
+    def origin_of(self, key: str) -> str:
+        return self._origins.get(key, "") if key in self._data else ""
+
+    def recent(self, limit: int = 40, exclude_author: str = "",
+               origin: str = "") -> list[dict]:
         live = [
             {"key": k, "query": v[3], "minutes": v[4],
              "created": self._created.get(k, 0.0),
@@ -696,10 +726,13 @@ class MemoryScriptCache:
              "title": self._titles.get(k, ""),
              "author": self._authors.get(k, ""),
              "sourced_at": self.sourced_at(k) or 0.0,
-             "current": self._current(k)}
+             "current": self._current(k),
+             "origin": self._origins.get(k, ""),
+             "voice": self._voices.get(k, "")}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and not (exclude_author and self._authors.get(k) == exclude_author)
+            and not (origin and self._origins.get(k, "") != origin)
         ]
         live.sort(key=lambda e: -e["created"])
         return live[:limit]
@@ -805,7 +838,8 @@ class MemoryScriptCache:
 
     def clear(self) -> int:
         removed = len(self._data)
-        for table in (self._data, self._authors, self._sources, self._titles,
+        for table in (self._data, self._authors, self._origins, self._voices,
+                      self._sources, self._titles,
                       self._summaries, self._vectors, self._audio, self._clocks):
             table.clear()
         return removed
@@ -905,6 +939,16 @@ class SqliteScriptCache:
                 # when created, current until they expire (`_CURRENT_UNTIL`).
                 ("sourced_at", "ALTER TABLE scripts ADD COLUMN sourced_at REAL NOT NULL DEFAULT 0"),
                 ("fresh_until", "ALTER TABLE scripts ADD COLUMN fresh_until REAL NOT NULL DEFAULT 0"),
+                # §147: which surface wrote it. Explore is searched episodes
+                # only, and without this the cache cannot tell a search from
+                # a myFAM tile, a DailyFAM edition or a warmed guess. Rows
+                # written before it have '' and are not on Explore.
+                ("origin", "ALTER TABLE scripts ADD COLUMN origin TEXT NOT NULL DEFAULT ''"),
+                # §147: the voice the episode is spoken in when the listener
+                # did not choose one - a random bank voice for a browse
+                # episode, the searcher's own for a search. Kept so every
+                # later play is the same voice and so its kept audio is hit.
+                ("voice", "ALTER TABLE scripts ADD COLUMN voice TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -1093,7 +1137,7 @@ class SqliteScriptCache:
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
         author: str = "", title: str = "", summary: str = "", slide: bool = False,
-        sourced_at: Optional[float] = None
+        sourced_at: Optional[float] = None, origin: str = "", voice: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -1134,8 +1178,8 @@ class SqliteScriptCache:
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
                 "  bucket, vector, sources, author, title, summary, ttl,"
-                "  sourced_at, fresh_until)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  sourced_at, fresh_until, origin, voice)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
                 "  ttl = excluded.ttl, sourced_at = excluded.sourced_at,"
@@ -1152,11 +1196,21 @@ class SqliteScriptCache:
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
                 "               ELSE scripts.title END,"
                 "  summary = CASE WHEN excluded.summary != '' THEN excluded.summary"
-                "                 ELSE scripts.summary END",
+                "                 ELSE scripts.summary END,"
+                # §147. Where it came from is the first writer's, except that
+                # a search re-writing it makes it a searched episode. Its
+                # voice is the first one it was given, so every later play
+                # (and the audio kept for it) stays the same voice.
+                "  origin = CASE WHEN excluded.origin = 'search' THEN 'search'"
+                "                WHEN scripts.origin != '' THEN scripts.origin"
+                "                ELSE excluded.origin END,"
+                "  voice = CASE WHEN scripts.voice != '' THEN scripts.voice"
+                "               ELSE excluded.voice END",
                 (key, expires, now, query[:500], json.dumps(sentences),
                  thread[:200], int(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
-                 int(ttl) if slide else 0, sourced, fresh_until),
+                 int(ttl) if slide else 0, sourced, fresh_until,
+                 (origin or "")[:16], (voice or "")[:80]),
             )
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
@@ -1356,7 +1410,41 @@ class SqliteScriptCache:
             log.exception("script cache summary read failed")
             return ""
 
-    def recent(self, limit: int = 40, exclude_author: str = "") -> list[dict]:
+    def voice_of(self, key: str) -> str:
+        """The voice this episode is spoken in when nobody chose one (§147)."""
+        try:
+            row = self._conn().execute(
+                "SELECT voice FROM scripts WHERE key = ? AND expires >= ?",
+                (key, time.time())).fetchone()
+        except Exception:
+            log.exception("script cache voice read failed")
+            return ""
+        return (row[0] or "") if row else ""
+
+    def set_voice(self, key: str, voice: str) -> str:
+        """Give a kept episode a voice if it has none, and return the one it
+        has. First one wins, so two listeners tapping one browse tile at once
+        hear - and keep audio for - the same voice (§147)."""
+        if not key or not voice:
+            return self.voice_of(key)
+        try:
+            self._conn().execute(
+                "UPDATE scripts SET voice = ? WHERE key = ? AND voice = ''",
+                (voice[:80], key))
+        except Exception:
+            log.exception("script cache voice write failed")
+        return self.voice_of(key)
+
+    def origin_of(self, key: str) -> str:
+        try:
+            row = self._conn().execute(
+                "SELECT origin FROM scripts WHERE key = ?", (key,)).fetchone()
+        except Exception:
+            return ""
+        return (row[0] or "") if row else ""
+
+    def recent(self, limit: int = 40, exclude_author: str = "",
+               origin: str = "") -> list[dict]:
         """Live cache entries, newest first - the raw material for Explore.
 
         Only *shareable* queries are ever written here (see `is_shareable`),
@@ -1373,17 +1461,22 @@ class SqliteScriptCache:
         their own. It is a filter on display and never on storage - the entry
         stays in the shared cache, still serves them an instant replay, and
         still appears on everybody else's feed.
+
+        `origin` keeps only entries one surface wrote. Explore passes
+        "search" (§147): its feed is what other people *searched*, never a
+        myFAM tile, a DailyFAM edition or a warmed guess.
         """
         now = time.time()
         try:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, plays, thread, title,"
-                f" author, {_SOURCED}, {_CURRENT_UNTIL} FROM scripts"
+                f" author, {_SOURCED}, {_CURRENT_UNTIL}, origin, voice FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"
+                "   AND (? = '' OR origin = ?)"
                 " ORDER BY created DESC LIMIT ?",
                 (now, exclude_author or "", exclude_author or "",
-                 int(limit)),
+                 origin or "", origin or "", int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read recent scripts")
@@ -1401,7 +1494,8 @@ class SqliteScriptCache:
              # §143: when its information was sourced, and whether a new
              # request would still be served it. Replay surfaces show the
              # first; nothing here hides an entry that is kept but not current.
-             "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now}
+             "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now,
+             "origin": r[10] or "", "voice": r[11] or ""}
             for r in rows
         ]
 

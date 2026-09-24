@@ -101,6 +101,9 @@
   .attach-chip.failed{ border-color:var(--coral); color:var(--coral); }
   .length-chip{ display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-muted); }
   .length-chip .val{ display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border-radius:7px; padding:3px 7px 3px 9px; color:var(--text); font-weight:600; cursor:pointer; }
+  /* A voice's name can be longer than "2 min"; cut it rather than push the
+     attach and go buttons off a phone's width. */
+  .voice-chip #homeVoiceName{ max-width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .section{ margin-top:20px; }
   .section-kicker{ display:flex; align-items:center; justify-content:space-between; font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:9px; }
@@ -2614,6 +2617,10 @@
           <div class="attach-row" id="attachRow"></div>
           <div class="fam-controls">
             <div class="length-chip">Length <span class="val" id="lengthVal" onclick="openLengthMenu()">2 min<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
+            <!-- The voice this search is spoken in (§147). Only here and under
+                 Listening in Settings: every other surface draws a voice from
+                 the bank per episode. -->
+            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">FAM</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
             <div style="display:flex; align-items:center; gap:9px;">
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -2655,8 +2662,6 @@
         <div class="myfam-header myfam-header-fixed">
             <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
             <div class="myfam-head-actions">
-              <span class="gd-len" onclick="openMyFamLengthMenu()" role="button"
-                    aria-label="Episode length on myFAM"><b id="myfamLengthVal">2 min</b><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span>
               <button class="myfam-msg-btn" onclick="openMessages()" aria-label="Messages">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
                 <span class="msg-dot" id="msgUnread" hidden></span>
@@ -3166,10 +3171,6 @@
       <div class="modal-overlay" id="gcOverlay" onclick="if(event.target===this) closeGenerateConfig()">
         <div class="modal-card">
           <div class="modal-title">Generate</div>
-          <div class="gc-field">
-            <div class="gc-label">Length</div>
-            <div class="gc-val" id="gcLengthVal" onclick="openLengthMenu()">2 min</div>
-          </div>
           <div class="gc-field">
             <div class="gc-label">From</div>
             <div class="gc-val" id="gcFromVal" onclick="openFromMenu()">Yesterday</div>
@@ -4142,7 +4143,7 @@
   function episodeSignature(key){
     var t = TOPICS[key];
     if(!t) return "";
-    return (t.prompt || t.title) + "|" + (t.exploreMinutes || selectedLengthMinutes)
+    return (t.prompt || t.title) + "|" + episodeMinutes(t.exploreMinutes || 0, playSurface(t))
          + "|" + selectedVoice + "|" + (t.parentTopic || "");
   }
   // The request that has been sent and has produced no audio yet.
@@ -4966,6 +4967,23 @@
     if(nowBarState) navigate("player");
   }
 
+  //: Which surface the episode playing came from (§147) - "search" is the
+  //: only one whose length and voice the player offers to change.
+  var currentPlaySurface = "";
+  var currentPlayMinutes = 0;
+  function episodeMinutes(named, surface){
+    if(named) return named;
+    return (surface === "myfam" || surface === "dailyfam") ? BROWSE_MINUTES
+                                                           : selectedLengthMinutes;
+  }
+  //: Where a tap came from, for `/api/audio` (§147). Explore sends
+  //: `cached_only` instead; an attachment is always a search.
+  function playSurface(t){
+    if(!t || t.cachedOnly) return "";
+    if(t.attach) return "search";
+    return historySurface(t) || "other";
+  }
+
   function speakText(title, captionHtml, onEnd, context, bankTopicId, opts){
     opts = opts || {};
     // Explore's reels come here directly and are never listening history.
@@ -4973,7 +4991,13 @@
     // Explore replays a script that was written for a specific length. Asking
     // for a different one is a different cache key, so it would miss - and on
     // a replay-only request a miss is a refusal, not a regeneration.
-    var minutes = opts.minutes || selectedLengthMinutes;
+    //
+    // Only a search takes the length control (§147); everything else that
+    // names no length of its own is two minutes.
+    var surface = opts.surface || "";
+    var minutes = episodeMinutes(opts.minutes, surface);
+    currentPlaySurface = opts.cachedOnly ? "explore" : surface;
+    currentPlayMinutes = minutes;
     var totalSeconds = minutes * 60;
     rememberEpisode(title, minutes, context || "", !!opts.cachedOnly);
     var episodeTopicId = bankTopicId || "";
@@ -5064,9 +5088,11 @@
         setPlayState(false);
         onGenerationFailed(err && err.message, err);
       }
-    }, context, selectedVoice, {
+    // The voice is sent only for a search (§147): every other surface is
+    // spoken in the voice the server keeps for that episode.
+    }, context, surface === "search" ? selectedVoice : null, {
       topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
-      attach: opts.attach || ""
+      attach: opts.attach || "", surface: surface
     });
 
     // The brief names the episode during the wait, several seconds before the
@@ -5142,8 +5168,10 @@
     // typed; the title is only a display label derived from it.
     var query = t.prompt || t.title;
     var context = t.parentTopic || "";
-    var playOpts = { cachedOnly: !!t.cachedOnly, minutes: t.exploreMinutes || 0,
-                     attach: t.attach || "" };
+    var where = playSurface(t);
+    var playOpts = { cachedOnly: !!t.cachedOnly,
+                     minutes: episodeMinutes(t.exploreMinutes || 0, where),
+                     attach: t.attach || "", surface: where };
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the
     // listener went and chose something, and a queue that resumed behind
@@ -5179,8 +5207,8 @@
     // reset play state to "playing"
     setPlayState(true);
 
-    // duration reflects the chosen Length setting
-    var shownMinutes = t.exploreMinutes || selectedLengthMinutes;
+    // duration reflects the length this episode is actually asked at
+    var shownMinutes = playOpts.minutes;
     var totalSeconds = shownMinutes * 60;
     document.getElementById("totalTime").textContent = formatTime(totalSeconds);
     // Starts at zero and is advanced by startProgress() from real playback
@@ -5499,7 +5527,11 @@
     // in overflowed and carried the captions button off the side of the
     // screen. The voice is one tap away, in the panel this pill opens, which
     // is also the only place it can be changed.
-    return selectedSpeed + " · " + (minutes || selectedLengthMinutes) + " min";
+    // The episode playing's own length when it is not a search (§147) -
+    // a myFAM episode is two minutes whatever the search length says.
+    var shown = minutes || (currentPlaySurface && currentPlaySurface !== "search"
+                            ? currentPlayMinutes : 0) || selectedLengthMinutes;
+    return selectedSpeed + " · " + shown + " min";
   }
   // Every place the chosen length is printed, written from the one variable
   // that holds it, and called at boot as well as on every change.
@@ -5518,15 +5550,10 @@
     // A text node beside the chevron SVG, so the text node is what changes -
     // textContent on the span would take the chevron with it.
     if(homeVal && homeVal.firstChild) homeVal.firstChild.textContent = selectedLengthMinutes + " min";
-    ["gcLengthVal", "lengthModalVal"].forEach(function(id){
+    ["lengthModalVal"].forEach(function(id){
       var el = document.getElementById(id);
       if(el) el.textContent = selectedLengthMinutes + " min";
     });
-    // myFAM's own length, which is a different number on purpose (see
-    // `myfamLengthMinutes`) and lives in the fixed header now (§127), so it
-    // is painted with the rest before anything is drawn.
-    var browseVal = document.getElementById("myfamLengthVal");
-    if(browseVal) browseVal.textContent = myfamLengthMinutes + " min";
     updateSpeedLenPillText();
   }
   function updateSpeedLenPillText(){
@@ -5612,59 +5639,56 @@
     for(var i = 0; i < AVAILABLE_VOICES.length; i++){
       if(AVAILABLE_VOICES[i].id === id) return AVAILABLE_VOICES[i].label;
     }
-    return "Default";
+    return AVAILABLE_VOICES.length ? AVAILABLE_VOICES[0].label : "FAM";
   }
 
+  // The voice a search is spoken in (§147). The server keeps each listener's
+  // choice, so this reads it back rather than opening on the default.
+  function paintVoiceControls(){
+    var name = voiceLabel(selectedVoice);
+    var el = document.getElementById("voiceModalVal");
+    if(el) el.textContent = name;
+    var home = document.getElementById("homeVoiceName");
+    if(home) home.textContent = name;
+    updateSpeedLenPillText();
+  }
   fetch("/api/voices").then(function(r){ return r.json(); }).then(function(v){
     AVAILABLE_VOICES = v.voices || [];
-    selectedVoice = v.default || null;
-    var el = document.getElementById("voiceModalVal");
-    if(el) el.textContent = voiceLabel(selectedVoice);
-    updateSpeedLenPillText();
+    selectedVoice = v.selected || v.default || null;
+    paintVoiceControls();
   }).catch(function(){});
 
-  // Grouped by engine. A flat list of every voice on the machine is thirty-odd
-  // entries on a Mac, and the one you want is findable only by scrolling.
-  var VOICE_GROUPS = {
-    piper:  "Built in",
-    say:    "macOS system voices",
-    espeak: "espeak",
-    debug:  "No speech engine"
-  };
-
+  // The bank of voices (§147), as one list. This is the only place a
+  // listener picks a voice, and it governs their searches alone: myFAM,
+  // DailyFAM and everything else is spoken in a voice drawn from the bank per
+  // episode, so the heading says so.
   function openVoiceMenu(){
     if(!AVAILABLE_VOICES.length){ toast("No voices reported by the server"); return; }
-    var order = ["piper", "say", "espeak", "debug"];
-    var items = [], seen = {};
-    order.forEach(function(engine){
-      var group = AVAILABLE_VOICES.filter(function(v){ return v.engine === engine; });
-      if(!group.length) return;
-      items.push({ group: VOICE_GROUPS[engine] || engine });
-      group.forEach(function(v){ seen[v.id] = 1; items.push(voiceItem(v)); });
-    });
-    // Anything from an engine this list does not know about still appears.
-    var rest = AVAILABLE_VOICES.filter(function(v){ return !seen[v.id]; });
-    if(rest.length){
-      items.push({ group: "Other" });
-      rest.forEach(function(v){ items.push(voiceItem(v)); });
-    }
+    var items = [{ group: "Voice for your searches" }];
+    AVAILABLE_VOICES.forEach(function(v){ items.push(voiceItem(v)); });
     showActionSheet(items);
   }
 
   function voiceItem(v){
     return {
-      label: v.label + (v.detail ? "  ·  " + v.detail : "") + (v.id === selectedVoice ? "  ✓" : ""),
+      label: v.label + (v.id === selectedVoice ? "  \u2713" : ""),
       action: function(){
         if(v.id === selectedVoice) return;
         selectedVoice = v.id;
-        var el = document.getElementById("voiceModalVal");
-        if(el) el.textContent = v.label;
-        updateSpeedLenPillText();
+        paintVoiceControls();
+        refreshSettingsIfOpen();
+        // Kept on the server, so the next search - on this device or after a
+        // reload - is in the same voice.
+        fetch("/api/voices/choice", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ voice: v.id })
+        }).catch(function(){});
         // The voice changes the audio but not the script, so re-generating
         // reuses the cached script: no model call, no cost, near-instant.
+        // A searched episode only - nothing else takes a chosen voice.
         var onPlayer = document.querySelector(".screen.active")
                     && document.querySelector(".screen.active").id === "screen-player";
-        if(onPlayer && currentPlayingTopicKey){
+        if(onPlayer && currentPlayingTopicKey && currentPlaySurface === "search"){
           toast("Switching to " + v.label);
           generate(currentPlayingTopicKey);
         }
@@ -5676,6 +5700,14 @@
     document.getElementById("speedModalVal").textContent = selectedSpeed;
     document.getElementById("lengthModalVal").textContent = selectedLengthMinutes + " min";
     document.getElementById("voiceModalVal").textContent = voiceLabel(selectedVoice);
+    // Length and voice are a search's to choose (§147). On anything else the
+    // episode is two minutes in the bank voice it was given, so the rows are
+    // not offered rather than offered and ignored.
+    var searched = currentPlaySurface === "search";
+    ["lengthModalVal", "voiceModalVal"].forEach(function(id){
+      var row = document.getElementById(id);
+      if(row && row.parentNode) row.parentNode.style.display = searched ? "" : "none";
+    });
     document.getElementById("speedLengthOverlay").classList.add("active");
   }
   function closeSpeedLengthModal(){
@@ -5914,7 +5946,6 @@
       return;
     }
     pendingPlayAllAlbum = albumKey;
-    document.getElementById("gcLengthVal").textContent = selectedLengthMinutes + " min";
     document.getElementById("gcFromVal").textContent = selectedFromRange;
     document.getElementById("gcOverlay").classList.add("active");
   }
@@ -7769,51 +7800,12 @@
 
   var myFamTopics = {};   // id -> topic, so a tap knows what to generate
 
-  // How long an episode started from a browse surface runs for.
-  //
-  // **Separate from `selectedLengthMinutes`, which is the search player's.**
-  // The packet asks for these two to operate independently, and the reason
-  // holds up: a question you have just typed and a tile you are scrolling
-  // past are different appetites, and one shared number meant setting either
-  // silently reset the other. Kept per device, because it is a habit rather
-  // than something the server needs to know.
-  var myfamLengthMinutes = (function(){
-    var kept = parseInt(localPrefs().myfam_minutes, 10);
-    return (kept >= 1 && kept <= 10) ? kept : 2;
-  })();
-
-  function openMyFamLengthMenu(){
-    var items = [];
-    for(var m = 1; m <= 10; m++){
-      (function(minutes){
-        items.push({
-          label: minutes + " min" + (minutes === myfamLengthMinutes ? "  \u2713" : ""),
-          action: function(){
-            myfamLengthMinutes = minutes;
-            saveLocalPrefs({ myfam_minutes: minutes });
-            var el = document.getElementById("myfamLengthVal");
-            if(el) el.textContent = minutes + " min";
-            // The Topic screen uses this same pill and sheet, and its card
-            // badges follow it.
-            if(topicScreenOpen()) renderTopic();
-            refreshSettingsIfOpen();
-            // The Go Deeper tiles print their own length, so they are redrawn
-            // rather than left showing the old one - a tile that says "3 min"
-            // and generates five is the interface lying about the control the
-            // listener just used.
-            renderGoDeeper(goDeeperData);
-            // And the rails are reloaded, for the same reason one step down:
-            // "ready" means "already written *at this length*", so every badge
-            // on the page was just answered against the old number. Costs no
-            // model call - the whole feed is a ranking of things that already
-            // exist.
-            loadMyFamFeed();
-          }
-        });
-      })(m);
-    }
-    showActionSheet(items);
-  }
+  // How long an episode started from a browse surface runs for: two minutes,
+  // always (§147, at the owner's direction). Only searchFAM offers a length;
+  // myFAM, DailyFAM and everything else that is not a search is written at
+  // `BROWSE_MINUTES`, and the server holds them to it whatever is sent.
+  var BROWSE_MINUTES = 2;
+  var myfamLengthMinutes = BROWSE_MINUTES;
 
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
@@ -8387,6 +8379,10 @@
       // A resume card goes back to the episode that was half heard, at the
       // length it was written at; everything else honours the browse length.
       exploreMinutes: c.minutes || myfamLengthMinutes,
+      // A resume is the episode already heard in part, whatever surface it
+      // came from - not a new myFAM episode, so it keeps its own length and
+      // the voice it was made in (§147).
+      surface: c.kind === "resume" ? "other" : "",
       titleOverridden: true
     };
     // "2:41 left" is a promise to carry on from there, not to start again.
@@ -8473,9 +8469,10 @@
       // end of the run, which is the point at which "what now" is a real
       // question - and paSkip already renders the segment bar.
       if(paIndex < b.topics.length - 1){ paSkip(); }
-    }, "", "", { nextUp: paIndex >= b.topics.length - 1 });
+    }, "", "", { nextUp: paIndex >= b.topics.length - 1,
+                 minutes: BROWSE_MINUTES, surface: "other" });
     document.getElementById("pa-index").textContent = "Topic " + (paIndex + 1) + " of " + b.topics.length;
-    var totalSeconds = selectedLengthMinutes * 60;
+    var totalSeconds = BROWSE_MINUTES * 60;
     document.getElementById("pa-totaltime").textContent = formatTime(totalSeconds);
     document.getElementById("pa-curtime").textContent = formatTime(0);
     (function(){
@@ -9445,8 +9442,11 @@
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
-      + settingsRow("Episode length on myFAM", myfamLengthMinutes + " min",
-          "openMyFamLengthMenu()");
+      // The one voice a listener picks (§147): their searches'. Every other
+      // episode is spoken in a voice drawn from the bank, so this row says
+      // what it governs.
+      + settingsRow("Voice for your searches", escapeHtml(voiceLabel(selectedVoice)),
+          "openVoiceMenu()");
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -10272,10 +10272,6 @@
       + '" onclick="setTopicFilter(\'latest\')">Latest</button>'
       + '<button class="yf-filter' + (st.filter === "friends" ? " on" : "")
       + '" onclick="setTopicFilter(\'friends\')">Friends vibed</button>'
-      + '<span class="gd-len" onclick="openMyFamLengthMenu()" role="button" '
-      + 'aria-label="Episode length" aria-haspopup="true"><b id="topicLengthVal">' + len
-      + ' min</b><svg width="7" height="7" viewBox="0 0 24 24" fill="none" '
-      + 'stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span>'
       + '</div>';
     if(st.loading && !st.cards.length){
       html += '<div class="pf-empty">Loading…</div>';
@@ -12456,7 +12452,7 @@
         toast(err && err.message ? err.message : "That one has expired");
         nextReel();
       }
-    }, "", selectedVoice, { cachedOnly: true });
+    }, "", null, { cachedOnly: true });   // its own voice (§147)
   }
 
   function reelTogglePlay(){

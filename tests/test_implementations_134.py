@@ -483,7 +483,7 @@ def client(monkeypatch, tmp_path):
 
 def test_an_explore_card_carries_its_counts_and_its_key(client):
     appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
-                            "", 3)
+                            "", 3, origin="search")
     appmod.SCRIPT_CACHE.record_play("k1")
     appmod.SOCIAL.echo("someone", "why volcanoes erupt", "Volcanoes", 3)
     appmod.SOCIAL.rate("someone", "why volcanoes erupt", 3, 1)
@@ -496,7 +496,7 @@ def test_an_explore_card_carries_its_counts_and_its_key(client):
 
 def test_rating_an_episode_returns_the_cards_fresh_counts(client):
     appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
-                            "", 3)
+                            "", 3, origin="search")
     body = client.post("/api/rate", json={"query": "why volcanoes erupt",
                                           "minutes": 3, "value": 1}).json()
     assert body["likes"] == 1 and body["rating"] == 1
@@ -509,7 +509,7 @@ def test_rating_an_episode_returns_the_cards_fresh_counts(client):
 
 def test_episode_stats_include_the_play_that_just_started(client):
     appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
-                            "", 3)
+                            "", 3, origin="search")
     appmod.SCRIPT_CACHE.record_play("k1")
     appmod.SCRIPT_CACHE.record_play("k1")
     stats = client.get("/api/episode/stats",
@@ -630,7 +630,7 @@ def test_a_page_of_counts_matches_one_episode_at_a_time(tmp_path):
 
 def test_a_thumb_does_not_zero_the_play_count(client):
     appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
-                            "", 3)
+                            "", 3, origin="search")
     appmod.SCRIPT_CACHE.record_play("k1")
     body = client.post("/api/rate", json={"query": "why volcanoes erupt",
                                           "minutes": 3, "value": 1,
