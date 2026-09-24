@@ -1165,6 +1165,12 @@
      arithmetic below was done for (§127). */
   .gd-card:has(.gd-card-sum){ height:104px; }
   .gd-card:active{ transform:scale(0.99); }
+  /* The X that dismisses a tile for good. The title keeps clear of it. */
+  .gd-x{ position:absolute; top:4px; right:4px; width:20px; height:20px; padding:0;
+    border:none; border-radius:50%; background:transparent; color:var(--text-muted);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:1; }
+  .gd-x:active{ background:rgba(244,239,228,0.08); }
+  .gd-card-title{ padding-right:14px; }
   /* flex:none matters. Without it the column shrinks the title below the
      lines the clamp allows, so text was cut with room still in the card -
      which is what the clamp was supposed to prevent.
@@ -8323,6 +8329,10 @@
         : "Similar \u00b7 " + c.minutes + " min";
       return '<div class="gd-card' + (c.kind === "resume" ? " resume" : "")
         + '" onclick="playGoDeeper(' + i + ')">'
+        + '<button class="gd-x" aria-label="Dismiss ' + escapeHtml(c.title) + '"'
+        + ' onclick="event.stopPropagation(); dismissGoDeeper(' + i + ')">'
+        + '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+        + ' stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
         + '<div class="gd-card-title">' + escapeHtml(c.title) + '</div>'
         // One sentence on what it is, like every other myFAM tile carries.
         + (c.summary ? '<div class="gd-card-sum">' + escapeHtml(c.summary) + '</div>' : '')
@@ -8336,6 +8346,26 @@
   }
 
   var goDeeperCardCache = [];
+
+  // The X on a tile: gone at once and never offered again (the server keeps
+  // the list, so it holds on every device). What was behind it - the next
+  // part-heard episode, thread or similar one - moves up into the gap.
+  function dismissGoDeeper(i){
+    var c = goDeeperCardCache[i];
+    if(!c) return;
+    var q = (c.query || "").toLowerCase();
+    var d = goDeeperData || {};
+    renderGoDeeper({
+      resume: (d.resume || []).filter(function(r){ return (r.query || "").toLowerCase() !== q; }),
+      threads: (d.threads || []).filter(function(t){ return (t.thread || "").toLowerCase() !== q; }),
+      similar: (d.similar || []).filter(function(t){ return (t.query || "").toLowerCase() !== q; })
+    });
+    fetch("/api/godeeper/dismiss", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: c.query })
+    }).then(function(r){ if(r.ok) loadGoDeeper(); })
+      .catch(function(){});
+  }
 
   function playGoDeeper(i){
     var c = goDeeperCardCache[i];

@@ -4479,7 +4479,12 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
     if not user or not _remembers(request):
         return {"threads": [], "resume": [], "similar": []}
 
-    resume = SAVED.progress(user, limit=4)
+    # Tiles closed with their X are never offered again, so a few more of
+    # each are read and the closed ones filtered out - the next one along
+    # takes the place of one that was dismissed.
+    hidden = SAVED.dismissed(user)
+    resume = [r for r in SAVED.progress(user, limit=4 + len(hidden))
+              if not SAVED.is_dismissed(hidden, r["query"])][:4]
     try:
         pipeline = _make_pipeline() if resume else None
     except TTSUnavailable:
@@ -4490,7 +4495,8 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
         row["title"] = title or row.get("title") or ""
         row["summary"] = summary
 
-    threads = EVENTS.open_threads(user)
+    threads = [t for t in EVENTS.open_threads(user)
+               if not SAVED.is_dismissed(hidden, t.get("thread", ""))]
     for row in threads[:4]:
         # The follow-up itself has usually not been made, so there is no
         # summary of *it* to read - the line says where it comes from instead,
@@ -4509,14 +4515,31 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
         picks = topics_mod.rank_next_up(
             EVENTS, user, after_text=last,
             interests=_interests_for(request, interests), has_account=True)
-        for topic in picks[:4]:
+        for topic in picks:
+            if len(similar) >= 4:
+                break
             tile = topic.as_dict()
+            if SAVED.is_dismissed(hidden, tile.get("query", "")):
+                continue
             similar.append({"topic_id": tile.get("id", ""),
                             "query": tile.get("query", ""),
                             "title": tile.get("title", ""),
                             "summary": tile.get("angle") or tile.get("subtitle")
                                        or ""})
     return {"threads": threads, "resume": resume, "similar": similar}
+
+
+class DismissRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=300)
+
+
+@app.post("/api/godeeper/dismiss")
+async def dismiss_go_deeper(req: DismissRequest, request: Request):
+    """The X on a "Pick up where you left off" tile: never offer that
+    question there again. Account only, like the section itself."""
+    _read_limit(request)
+    SAVED.dismiss(_require_account(request), req.query)
+    return {"ok": True}
 
 
 class RateRequest(BaseModel):

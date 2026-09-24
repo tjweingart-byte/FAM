@@ -412,6 +412,28 @@ def main() -> int:
                 f"/{measured['lineHeight']} (webfonts: {measured['fonts']})"
             )
 
+        def a_go_deeper_tile_is_dismissed_by_its_x():
+            """Every tile under "Pick up where you left off" has an X, and
+            the X takes that tile away for good - it is not back after the
+            section reloads."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(800)
+            if not page.query_selector("#goDeeperBlock .gd-card"):
+                return
+            cards = page.query_selector_all("#goDeeperBlock .gd-card")
+            xs = page.query_selector_all("#goDeeperBlock .gd-card .gd-x")
+            assert len(xs) == len(cards), f"{len(cards)} tiles, {len(xs)} Xs"
+            first = page.evaluate("goDeeperCardCache[0].title")
+            xs[0].click()
+            page.wait_for_timeout(300)
+            assert page.query_selector("#screen-myfam.active"), \
+                "the X opened the episode instead of dismissing it"
+            titles = lambda: page.evaluate("goDeeperCardCache.map(c => c.title)")
+            assert first not in titles(), f"{first!r} is still offered after its X"
+            page.evaluate("loadGoDeeper()")
+            page.wait_for_timeout(800)
+            assert first not in titles(), f"{first!r} came back after a reload"
+
         def go_deeper_waits_for_a_new_listener():
             """Nothing to pick up until the listener has done something (§127).
 
@@ -2188,7 +2210,8 @@ def main() -> int:
             page.click("#dailyResults .mix-add.on")
             page.wait_for_selector("#sheetOverlay.active", timeout=3000)
             sheet = page.inner_text("#sheetCard")
-            assert "Remove Morning brief from your DailyFAM?" in sheet, sheet[:200]
+            # The group heading is drawn in capitals, which inner_text reports.
+            assert "remove morning brief from your dailyfam?" in sheet.lower(), sheet[:200]
             page.click("#sheetCard .sheet-item.danger")
             page.wait_for_timeout(500)
             assert not page.query_selector("#dailyResults .mix-add.on"), \
@@ -3017,6 +3040,7 @@ def main() -> int:
         check("a cold start's rail does not claim to be personal",
               a_cold_start_rail_does_not_claim_to_be_personal)
         check("Go Deeper titles are not cut off", go_deeper_titles_fit)
+        check("A Go Deeper tile is dismissed by its X", a_go_deeper_tile_is_dismissed_by_its_x)
         check("Go Deeper waits for a new listener", go_deeper_waits_for_a_new_listener)
         check("myFAM's header stays put while the rails scroll", myfam_header_stays_put)
         check("The loading screen can be cancelled", the_loading_screen_can_be_cancelled)

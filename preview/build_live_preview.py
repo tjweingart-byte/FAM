@@ -106,6 +106,8 @@ __MIX_ITEMS__
   var THREADS = {}, NEXT_MSG_ID = 1;
   //: Part-heard episodes for this page's account, newest first (§127).
   var PROGRESS = [];
+  //: Go Deeper tiles closed with their X, for this page's lifetime.
+  var DISMISSED = {};
   //: Listening history (§142), in this page's memory like PROGRESS.
   var PREVIEW_HISTORY = [];
   var PREVIEW_AUTHED = function () { return !!EMAIL; };
@@ -1197,9 +1199,17 @@ __MIX_ITEMS__
     // Nothing for a guest, and resume positions from this page's own memory
     // for an account - the server keeps them per account (§127), and a
     // preview with no second device has nothing to gain from a table.
+    if (path === "/api/godeeper/dismiss") {
+      if (!EMAIL) return json({ error: "Sign up to keep this." }, 401);
+      DISMISSED[String(body.query || "").toLowerCase()] = true;
+      return json({ ok: true });
+    }
     if (path === "/api/godeeper") {
       if (!EMAIL) return json({ threads: [], resume: [], similar: [] });
-      return json({ threads: threads(), resume: PROGRESS.slice(0, 4), similar: [] });
+      var shown = function (q) { return !DISMISSED[String(q || "").toLowerCase()]; };
+      return json({ threads: threads().filter(function (t) { return shown(t.thread); }),
+                    resume: PROGRESS.filter(function (r) { return shown(r.query); }).slice(0, 4),
+                    similar: [] });
     }
     if (path === "/api/progress") {
       if (!EMAIL) return json({ ok: true, remembered: false });

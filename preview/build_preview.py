@@ -675,6 +675,8 @@ SHIM = """
   var realFetch = window.fetch.bind(window);
 __MIX_ITEMS__
   var mixes = JSON.parse(JSON.stringify(FIXTURES["/api/mixes"]));
+  //: Go Deeper tiles closed with their X, for this page's lifetime.
+  var GD_DISMISSED = {};
   var nextMixId = 100;
   //: Other listeners' public mixes. Mutable: adding one marks it added.
   var PUBLIC_MIXES = JSON.parse(JSON.stringify(FIXTURES["/api/mixes/public"])).mixes;
@@ -1395,6 +1397,19 @@ __MIX_ITEMS__
       });
       return json({ share: { id: "preview" }, url: link, public: false,
                     card: "/api/share/card?share=preview", targets: made });
+    }
+    if (path === "/api/godeeper/dismiss") {
+      GD_DISMISSED[String(JSON.parse((init && init.body) || "{}").query || "").toLowerCase()] = true;
+      return json({ ok: true });
+    }
+    if (path === "/api/godeeper") {
+      var gd = FIXTURES["/api/godeeper"] || {};
+      var gdShown = function (q) { return !GD_DISMISSED[String(q || "").toLowerCase()]; };
+      return json({
+        resume: (gd.resume || []).filter(function (r) { return gdShown(r.query); }),
+        threads: (gd.threads || []).filter(function (t) { return gdShown(t.thread); }),
+        similar: (gd.similar || []).filter(function (t) { return gdShown(t.query); })
+      });
     }
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in the preview build." }, 404);

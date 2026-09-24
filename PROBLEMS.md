@@ -11814,3 +11814,20 @@ like the add, because that is the only id the (+) knows
 (`MixStore.remove_copy` deletes by `source_id`). Account-gated, 404 when
 there is no copy, and the original is untouched. Both preview builds mock it,
 and a smoke check drives add, tap again, confirm, and the list without it.
+
+## 145. A "Pick up where you left off" tile could not be put away
+
+The section offers part-heard episodes, open threads and similar episodes,
+and the only way to stop seeing one was to play it. A tile somebody had
+decided against stayed at the top of myFAM indefinitely.
+
+**Every tile has an X now, top right, and it is permanent.** The tile goes at
+once, the next part-heard episode, thread or similar one moves into the gap,
+and the question is never offered in that section again - on any device,
+because the list is kept on the account (`saved.py`'s `dismissed` table,
+`POST /api/godeeper/dismiss`) rather than in the phone. Keyed on the question
+alone, not its length, so the same subject cannot come back at another length
+and make the X look like it did not work. Listening to it again does not
+un-dismiss it; the X is the statement. `/api/godeeper` reads a few more of
+each kind so a dismissed one is replaced rather than leaving the section a
+tile short. Account deletion erases the list with the rest of `saved.py`.
