@@ -11471,3 +11471,21 @@ API; `/api/person`'s mixes now carry `added` and `mine` for the (+).
 
 **Not done.** No Open Graph preview for a mix link, since it redirects rather
 than serving a page; a mix link posted to Facebook previews as the app.
+
+**Found by the review before merge**, each fixed and tested in
+`tests/test_public_mixes.py`:
+
+* Matching was raw substring, so "ai" found every mix with "daily" or
+  "Taiwan" in it - and did *not* find one following the catalogue's
+  Artificial Intelligence, whose id `f:ai` was not searchable. Words now match
+  from their start (`mixes._has_word`; "gy" still finds Gym while it is being
+  typed), and a followed subject is findable by its catalogue id. Both
+  previews mirror it.
+* Deleting an account left that listener's id in `source_user` on everybody
+  else's copies of their mixes. `forget` now blanks it; the copy and its
+  `source_id` stay, so it still cannot be added twice.
+* A copy whose owner has no name or handle - never set, or account gone -
+  showed "from another listener". It shows nothing now.
+* Every search result carried the owner's avatar, an inline data URL, once
+  per mix, for a field nothing drew. Dropped.
+* An empty search parsed up to 2,000 rows to show 40. It reads 120.

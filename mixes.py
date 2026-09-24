@@ -31,6 +31,7 @@ import binascii
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -413,18 +414,22 @@ def match_score(mix: "Mix", query: str, owner_name: str = "",
     if not words:
         return 1
     name = mix.name.lower()
-    owner = f"{owner_name} {owner_handle} @{owner_handle}".lower()
+    owner = f"{owner_name} {owner_handle}".lower()
+    # A followed subject is findable by its catalogue id as well as its
+    # label, so "ai" finds a mix following Artificial Intelligence (`f:ai`).
     topics = " ".join(
-        f"{i.title} {i.query} {' '.join(i.focus)} {i.topic_label}" for i in mix.items
+        f"{i.title} {i.query} {' '.join(i.focus)} {i.topic_label} "
+        f"{i.base[2:].replace('-', ' ') if i.base.startswith('f:') else ''}"
+        for i in mix.items
     ).lower()
     whole = " ".join(words)
     score = 0
     for w in words:
-        if w in name:
+        if _has_word(name, w):
             score += 3
-        elif w in owner:
+        elif _has_word(owner, w):
             score += 2
-        elif w in topics:
+        elif _has_word(topics, w):
             score += 1
         else:
             return 0
@@ -433,6 +438,12 @@ def match_score(mix: "Mix", query: str, owner_name: str = "",
     elif whole in topics:
         score += 2
     return score
+
+
+def _has_word(text: str, word: str) -> bool:
+    """Whether some word in `text` starts with `word`: "gy" finds Gym while
+    it is being typed, and "ai" does not find "Taiwan" or "daily"."""
+    return any(token.startswith(word) for token in re.findall(r"[\w']+", text))
 
 
 class MixStore:
@@ -691,6 +702,13 @@ class MixStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        # Other listeners' copies of this listener's public mixes are theirs
+        # and stay - but not with this listener's id written into them.
+        try:
+            self._conn().execute(
+                "UPDATE mixes SET source_user = '' WHERE source_user = ?", (user_id,))
+        except Exception:
+            log.exception("could not clear copies' owner for %r", user_id)
         return removed
 
 

@@ -81,6 +81,20 @@ def test_every_word_has_to_be_found_somewhere():
     assert not M.match_score(gym, "gym cooking", "Sam", "sam")
 
 
+def test_words_match_from_their_start_not_anywhere_inside():
+    """"ai" is a word people type; as a substring it is inside "daily" and
+    "Taiwan", which would put every such mix under an AI search."""
+    daily = _mix("Daily Taiwan", [{"query": "tea from taiwan"}])
+    assert not M.match_score(daily, "ai")
+    assert M.match_score(daily, "tai")      # a word being typed still finds it
+    assert M.match_score(daily, "dai")
+
+
+def test_a_followed_subject_is_found_by_its_catalogue_id():
+    """The catalogue calls it "Artificial Intelligence"; people type "AI"."""
+    assert M.match_score(_mix("Morning", ["f:ai"]), "ai")
+
+
 def test_a_name_hit_outranks_a_topic_hit():
     by_name = _mix("AI mornings", ["f:stocks"])
     by_topic = _mix("Gym", [{"query": "AI mornings"}])
@@ -138,6 +152,15 @@ def test_you_cannot_add_your_own_mix(store):
         store.add_copy("a", mine)
 
 
+def test_deleting_an_account_leaves_no_id_in_other_peoples_copies(store):
+    source = store.create("b", "Gym", ["f:ai"])
+    copy = store.add_copy("a", source)
+    store.forget("b")
+    kept = store.get("a", copy.id)
+    assert kept is not None and kept.source_user == ""
+    assert kept.source_id == source.id      # still cannot be added twice
+
+
 def test_a_copy_survives_a_restart(tmp_path):
     first = M.MixStore(str(tmp_path / "m.db"))
     source = first.create("b", "Gym", ["f:ai"])
@@ -167,7 +190,7 @@ def test_a_search_result_names_its_owner_and_carries_no_listener_id():
     bee = person("bee@fam.test", "Bee Owens", "bee")
     make_mix(bee, "Gym", [{"query": "AI updates"}])
     row = person("me@fam.test").get("/api/mixes/public").json()["mixes"][0]
-    assert row["owner"] == {"name": "Bee Owens", "handle": "bee", "avatar": ""}
+    assert row["owner"] == {"name": "Bee Owens", "handle": "bee"}
     assert row["mine"] is False and row["added"] is False
     assert "user_id" not in row and "source_user" not in row
     assert row["items"][0]["subtitle"] == "Typed in by @bee"
@@ -203,6 +226,14 @@ def test_plus_adds_it_to_your_dailyfam_beside_your_own():
     assert me.get("/api/person?handle=bee").json()["mixes"][0]["added"] is True
     again = me.post(f"/api/mixes/{gym['id']}/add")
     assert again.status_code == 400
+
+
+def test_a_copy_whose_owner_has_no_name_does_not_say_from_nobody():
+    anon = person("anon@fam.test")          # an account with no name or handle
+    gym = make_mix(anon, "Gym", ["f:ai"])
+    me = person("me@fam.test")
+    me.post(f"/api/mixes/{gym['id']}/add")
+    assert "from" not in me.get("/api/mixes").json()["mixes"][0]
 
 
 def test_adding_needs_an_account():

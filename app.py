@@ -3237,8 +3237,9 @@ def _public_mix(mix: "mixes_mod.Mix", viewer: str, added: set,
             item["subtitle"] = f"Typed in by {who}"
     body.pop("topics", None)
     body.update(
-        owner={"name": owner.get("name") or "", "handle": owner.get("handle") or "",
-               "avatar": owner.get("avatar") or ""},
+        # No avatar: it is an inline data URL, it would ride along once per
+        # mix, and the owner's profile - one tap away - carries it anyway.
+        owner={"name": owner.get("name") or "", "handle": owner.get("handle") or ""},
         mine=bool(viewer) and mix.user_id == viewer,
         added=mix.id in added,
     )
@@ -3252,6 +3253,10 @@ def _source_label(mix: "mixes_mod.Mix", people: dict) -> dict:
     if mix.source_user not in people:
         people[mix.source_user] = SOCIAL.person(mix.source_user)
     owner = people[mix.source_user] or {}
+    if not (owner.get("name") or owner.get("handle")):
+        # Nothing to name them by - an owner who never set one, or whose
+        # account has gone. "From another listener" would tell nobody anything.
+        return {}
     return {"from": {"name": owner.get("name") or "", "handle": owner.get("handle") or ""}}
 
 
@@ -3272,7 +3277,10 @@ async def public_mixes(request: Request, q: str = Query("", max_length=80)) -> d
     added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
     people: dict = {}
     scored = []
-    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer)):
+    # With nothing typed only the newest are shown, so only a few more than
+    # that are read (an empty mix is skipped); a search reads the lot.
+    scan = mixes_mod.PUBLIC_SCAN if q.strip() else mixes_mod.MAX_PUBLIC_RESULTS * 3
+    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer, limit=scan)):
         if not mix.items:
             continue
         if q.strip():

@@ -1031,12 +1031,15 @@ __MIX_ITEMS__
     return body;
   }
   function publicMixMatches(m, q) {
-    var hay = [m.name, m.owner.name, m.owner.handle, "@" + m.owner.handle]
+    var hay = [m.name, m.owner.name, m.owner.handle]
       .concat(m.items.map(function (i) {
-        return [i.title, i.query, (i.focus || []).join(" "), i.topic_label || ""].join(" ");
-      })).join(" ").toLowerCase();
+        return [i.title, i.query, (i.focus || []).join(" "), i.topic_label || "",
+                String(i.base || "").replace(/^f:/, "").replace(/-/g, " ")].join(" ");
+      })).join(" ").toLowerCase().match(/[A-Za-z0-9_']+/g) || [];
+    // Word prefixes, as `mixes._has_word` does: "ai" is not in "daily".
     return q.toLowerCase().split(/\s+/).map(function (w) { return w.replace(/^@/, ""); })
-      .filter(Boolean).every(function (w) { return hay.indexOf(w) !== -1; });
+      .filter(Boolean).every(function (w) {
+        return hay.some(function (t) { return t.indexOf(w) === 0; }); });
   }
   function mixShareBody(m) {
     var titles = m.items.map(function (i) { return i.title; });
