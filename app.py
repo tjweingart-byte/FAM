@@ -1141,6 +1141,15 @@ def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
                   episode_key=getattr(verdict, "episode_key", ""))
 
 
+class _VoiceChoices:
+    """The voice bank's per-listener half, opened only when erased from, so a
+    bank that cannot open fails its own row rather than the whole erase."""
+
+    @staticmethod
+    def forget(user_id: str) -> int:
+        return voice_bank.bank().forget(user_id)
+
+
 def erase_listener(user_id: str) -> dict:
     """Delete everything FAM holds about one listener, and say what went.
 
@@ -1169,7 +1178,7 @@ def erase_listener(user_id: str) -> dict:
                         ("preferences", PREFS), ("attachments", ATTACHMENTS),
                         ("quotas", QUOTAS), ("messages", MESSAGES),
                         ("saved", SAVED), ("shares", SHARES),
-                        ("voice_choice", voice_bank.bank())):
+                        ("voice_choice", _VoiceChoices())):
         try:
             removed[name] = store.forget(user_id)
         except Exception:

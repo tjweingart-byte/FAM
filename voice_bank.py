@@ -398,12 +398,15 @@ def wire_fields(slug: str, with_recording: bool = False) -> dict:
     """
     if is_default(slug):
         return {}
+    if not with_recording:
+        # Every sentence carries this, so it reads the fingerprint and never
+        # the recording itself.
+        voice = bank().get(slug)
+        return {"voice_sha": voice.sha256} if voice else {}
     held = bank().recording(slug)
     if held is None:
         return {}
     audio, rights, sha = held
-    fields = {"voice_sha": sha}
-    if with_recording:
-        fields["reference"] = base64.b64encode(audio).decode("ascii")
-        fields["rights"] = rights
-    return fields
+    return {"voice_sha": sha,
+            "reference": base64.b64encode(audio).decode("ascii"),
+            "rights": rights}

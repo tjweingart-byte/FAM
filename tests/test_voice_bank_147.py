@@ -311,3 +311,28 @@ def test_browse_lengths_are_fixed_in_code():
     assert daily_edition.minutes() == 2
     assert not hasattr(config.settings, "daily_edition_minutes")
     assert not hasattr(config.settings, "trending_bank_minutes")
+
+
+def test_account_deletion_forgets_the_voice_choice_and_survives_a_broken_bank(
+        bank, monkeypatch):
+    """The choice is per-listener data, so deleting an account removes it -
+    and a bank that cannot open fails its own row, never the whole erase."""
+    bank.add("nova", "Nova", wav(), RIGHTS)
+    bank.choose("leaver", "nova")
+    removed = appmod.erase_listener("leaver")
+    assert removed["voice_choice"] == 1 and bank.choice("leaver") == ""
+
+    def broken():
+        raise RuntimeError("the bank could not open")
+    monkeypatch.setattr(voice_bank, "bank", broken)
+    removed = appmod.erase_listener("another")
+    assert removed["voice_choice"] == -1
+    assert removed["events"] >= 0, "a broken bank stopped the rest of the erase"
+
+
+def test_a_sentence_carries_the_fingerprint_and_never_reads_the_recording(
+        bank, monkeypatch):
+    bank.add("nova", "Nova", wav(), RIGHTS)
+    monkeypatch.setattr(bank, "recording", lambda slug: pytest.fail(
+        "an ordinary sentence read the whole recording"))
+    assert set(voice_bank.wire_fields("nova")) == {"voice_sha"}
