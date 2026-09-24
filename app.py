@@ -52,6 +52,7 @@ from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
+import live_captions
 import live_sources
 from gdelt import report as gdelt_report
 import provenance as provenance_mod
@@ -3004,7 +3005,8 @@ if _ALLOWED_ORIGINS:
         allow_headers=["Authorization", "Content-Type"],
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
-        expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds"],
+        expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
+                    "X-FAM-Cache"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -5105,6 +5107,49 @@ async def episode_transcript(
             "starts": starts if len(starts) == len(sentences) else []}
 
 
+@app.get("/api/progress")
+async def progress(
+    request: Request,
+    q: str = Query(..., description="What the listener asked"),
+    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    context: str = Query("", description="Topic the listener just heard"),
+    # Same reason as /api/audio: the answer is keyed on the episode, and the
+    # key has to be built the way the audio request built it.
+    search: bool | None = Query(None),
+    # And for the same reason, the two that decide a browse tap's length
+    # (§147): the audio request holds myFAM and DailyFAM to BROWSE_MINUTES,
+    # so this has to as well or it asks about a different key.
+    surface: str = Query("", max_length=16),
+    topic_id: str = Query("", max_length=64),
+):
+    """Which of the loading screen's steps the episode being made has finished.
+
+    The audio response cannot carry this: its status line is only sent once
+    the first audio exists, which is after every step. So the loading screen
+    asks here while it waits, the same side channel `/api/transcript` and
+    `/api/next` already use, keyed the same way.
+
+    `steps` is four booleans in waiting order - the brief, the retrieval, the
+    writer's planning, the first sentence written - each set from the mark
+    the pipeline records when that step really finishes, never from a
+    timer. `cached` means the episode is a replay with nothing to write.
+    `known` False means this worker is not making it; the interface then
+    walks the list when the audio arrives, since audio means all of it
+    happened.
+
+    **It never generates** - it reads the live track and nothing else.
+    """
+    _read_limit(request)
+    if _play_surface(surface, False, topic_id, context) in BROWSE_SURFACES:
+        minutes = BROWSE_MINUTES
+    plan = _validated_plan(q, minutes, context, search)
+    try:
+        pipeline = _make_pipeline()
+    except TTSUnavailable:
+        return live_captions.read_progress("")
+    return await pipeline.progress_for(plan)
+
+
 @app.get("/api/next")
 async def next_thread(
     request: Request,
@@ -5425,6 +5470,11 @@ async def audio(
             "X-Accel-Buffering": "no",  # tell nginx not to buffer the stream
             "X-Sample-Rate": str(sample_rate),
             "X-Requested-Seconds": str(plan.target_seconds),
+            # Whether this was a replay. The loading screen walks its steps
+            # only for an episode that was actually written (§148) - a replay
+            # has no steps, and holding one for ten seconds to check off work
+            # nobody did would be the filler this app deletes.
+            "X-FAM-Cache": stats.cache or "",
             # Measurement headers. Additive: the player reads none of them,
             # and `tools/preroll_sweep.py` reads all of them.
             "X-Preroll-Seconds": f"{PREROLL_SECONDS:g}",

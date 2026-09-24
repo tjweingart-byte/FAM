@@ -1377,11 +1377,41 @@
     100% { opacity:.22; transform:scale(.78); }
   }
 
+  /* The five steps of a written episode (§148). Each circle is checked off
+     when that step really finishes on the server, and each is on screen for
+     at least GEN_STEP_MIN_MS - so a slow step reads as slow and a fast one
+     still reads at all. Only a wait that is writing something shows them;
+     the dots stand in everywhere else. */
+  .fam-steps{ display:none; list-style:none; margin:2px 0 0; padding:0;
+    flex-direction:column; gap:13px; text-align:left; }
+  .fam-loading.stepped .fam-steps{ display:flex; }
+  .fam-loading.stepped .fam-loading-dots{ display:none; }
+  .fam-steps li{ display:flex; align-items:center; gap:12px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
+    color:var(--text-muted); opacity:.55; transition:opacity .35s ease, color .35s ease; }
+  .fam-steps li.active, .fam-steps li.done{ opacity:1; }
+  .fam-steps li.active{ color:var(--text); }
+  .fam-steps li.done{ color:var(--copper); }
+  .fam-step-dot{ position:relative; flex:none; width:20px; height:20px; border-radius:50%;
+    border:1.6px solid currentColor; display:flex; align-items:center; justify-content:center;
+    transition:background .3s ease, border-color .3s ease; }
+  .fam-steps li.active .fam-step-dot{ border-color:var(--copper);
+    animation:famStepPulse 1.6s ease-in-out infinite; }
+  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); }
+  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); opacity:0;
+    transform:scale(.4); transition:opacity .25s ease, transform .3s cubic-bezier(.3,1.6,.5,1); }
+  .fam-steps li.done .fam-step-dot svg{ opacity:1; transform:scale(1); }
+  @keyframes famStepPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(224,181,99,0.45); }
+    50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
+  }
+
   /* Motion is decoration here; the words are the information. Anyone who has
      asked for less of it still gets the full status line. */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ animation:none; opacity:1; }
     .fam-loading-dots i{ animation:none; opacity:.7; }
+    .fam-steps li.active .fam-step-dot{ animation:none; }
   }
 
   .demo-badge{
@@ -2155,6 +2185,17 @@
 
         <div class="fam-loading-word">FAMiliarizing…</div>
         <div class="fam-loading-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+        <!-- What FAM is doing, one step at a time (§148). Checked off from the
+             server's own marks for this episode, never from a timer - see
+             /api/progress. -->
+        <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
+          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Contextualizing your search</span></li>
+          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Retrieving your information</span></li>
+          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Verifying the relevance</span></li>
+          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Finalizing your script</span></li>
+          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Generating the audio</span></li>
+        </ol>
 
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put
              this in its place: what it is waiting for, and how long it has
@@ -3603,8 +3644,7 @@
                      + "the same built-in sample script describing how the audio works. It is not "
                      + "answering your search. Add your key to .env and restart for real briefings.";
       // Say so on the loading overlay too, where attention actually is.
-      var canned = document.getElementById("famLoadingStatus");
-      if(canned) canned.textContent = "Playing the built-in sample script…";
+      genStatusNote = "Playing the built-in sample script…";
     } else if(h.credentials && h.credentials.state === "rejected"){
       // "Live" was a lie whenever the key did not work: the server had a key
       // configured, so it said live, and then every episode 502'd. The server
@@ -3615,14 +3655,11 @@
       el.textContent = "KEY REJECTED — " + h.credentials.detail
                      + "  Key in force: " + h.credentials.key
                      + ". Nothing will generate until this is fixed and the server restarted.";
-      var rejected = document.getElementById("famLoadingStatus");
-      if(rejected) rejected.textContent = "The server's API key was rejected…";
+      genStatusNote = "The server's API key was rejected…";
     } else {
       el.style.color = "var(--sage)";
       el.textContent = "Live — briefings written by " + h.model + ", voice: " + h.tts.selected + ".";
     }
-    if(h.research_words) RESEARCH_WORDS = h.research_words;
-    if(h.search_mode) SEARCH_MODE = h.search_mode;
     if(h.tts.selected === "debug"){
       el.textContent += "  No speech engine found: you will hear a placeholder tone.";
       el.style.color = "var(--coral)";
@@ -3825,8 +3862,9 @@
     if(genTimeout){ clearTimeout(genTimeout); genTimeout = null; }
     if(genTicker){ clearInterval(genTicker); genTicker = null; }
     if(genHideTimer){ clearTimeout(genHideTimer); genHideTimer = null; }
+    stopGenSteps();
     var el = famLoadingEl();
-    if(el) el.classList.remove("active");
+    if(el) el.classList.remove("active", "stepped");
     activeGenOverlay = null;
   }
 
@@ -3857,91 +3895,153 @@
     genHideTimer = setTimeout(clearGenOverlay, GEN_MIN_VISIBLE_MS - held);
   }
 
-  // The words that make a question a researched one. Served by /api/health from
-  // the same set the server decides with, so the interface cannot tell the
-  // listener one thing while the server does another.
-  var RESEARCH_WORDS = [];
-  // Which of the three modes the server is actually in, served by /api/health
-  // for the same reason the word list is: the caption must not claim a
-  // decision the server did not make. Production is "always", and then the
-  // word list decides nothing.
-  var SEARCH_MODE = "always";
+  // ---------------- The five steps of a written episode (§148) ----------------
+  //
+  // The loading screen used to guess its stages from elapsed time ("reading
+  // sources" at four seconds, whatever the server was doing). It now checks
+  // each one off when the server says that step has finished, read from
+  // /api/progress - the episode's own marks, not a timer:
+  //
+  //   0 Contextualizing your search   the brief (episode intelligence)
+  //   1 Retrieving your information   Exa, GDELT and the live providers
+  //   2 Verifying the relevance       the writer's planning, to its first token
+  //   3 Finalizing your script        its first sentence, handed to the voice
+  //   4 Generating the audio          the first audio, here in the browser
+  //
+  // The script goes on being written while the episode plays - that is the
+  // streaming design - so "finalizing" is the opening being settled, not the
+  // last word: waiting for the last word would put the whole writing time in
+  // front of the first one.
+  //
+  // Every step is on screen for at least GEN_STEP_MIN_MS, so a step that took
+  // a tenth of a second is still seen to happen and a slow one is seen to be
+  // slow. To keep that honest the audio is *held* (FamAudio's `startGate`)
+  // until the fifth check lands, rather than playing behind the list. A
+  // replay has no steps and is never held: it shows all five done and starts.
+  var GEN_STEP_MIN_MS = 2000;
+  var GEN_STEP_POLL_MS = 700;
+  //: How long the fifth check is seen before the episode starts.
+  var GEN_STEP_LAST_BEAT_MS = 400;
+  var GEN_STEP_COUNT = 5;
+  var genSteps = null;
+  //: Set by /api/health when this server cannot write a real episode - no
+  //: key, or a rejected one - and shown under the steps.
+  var genStatusNote = "";
 
-  function willResearch(query){
-    if(SEARCH_MODE === "always") return true;
-    if(SEARCH_MODE === "never") return false;
-    var text = String(query || "").toLowerCase();
-    var words = text.split(/[^a-z0-9]+/);
-    for(var i = 0; i < words.length; i++){
-      if(RESEARCH_WORDS.indexOf(words[i]) >= 0) return true;
+  function paintGenSteps(shown, all){
+    var el = famLoadingEl();
+    if(!el) return;
+    var items = el.querySelectorAll(".fam-steps li");
+    for(var i = 0; i < items.length; i++){
+      var done = all || i < shown;
+      items[i].classList.toggle("done", done);
+      items[i].classList.toggle("active", !done && i === shown);
     }
-    // A recent year is a question about now, however it is phrased.
-    var year = text.match(/\b(20\d\d)\b/);
-    if(year && Number(year[1]) >= new Date().getFullYear() - 1) return true;
-    // The server also has a couple of phrase rules ("who runs X", "how many")
-    // that are not mirrored here. The only consequence is which of two loading
-    // captions shows for a second; the server's decision is unaffected, and
-    // erring toward the plainer caption is the safe direction.
-    return false;
   }
 
-  // The honest wait. There is no filler any more - nothing is spoken until the
-  // real episode is - so the only decent thing left is to say what is happening
-  // and how long it has been happening for. A researched episode says so up
-  // front, because a wait you were warned about is a different experience from
-  // the same wait unexplained.
-  function startHonestWait(overlay, query){
-    var node = overlay ? overlay.querySelector(".gen-text") : null;
-    if(!node) return;
-    var researching = willResearch(query);
-    // What a researched episode actually does before a word is spoken, in the
-    // order it does it: work out what is being asked, search for that, write.
-    //
-    // This used to say 'Answering now, checking sources underneath', which
-    // was true while the from-knowledge cover was speaking over the research.
-    // It is not true now: that cover is deleted (PROBLEMS.md §108), and the
-    // brief, the retrieval and the writer's own planning all happen before a
-    // word is spoken - so a line claiming audio had started would be a new lie
-    // in the place the old one was removed from, which is the one thing this
-    // overlay exists not to do.
-    //
-    // Every episode is understood first now, researched or not, so both lists
-    // start on the same stage.
-    //
-    // The boundaries are estimated from elapsed time rather than reported by
-    // the server, and that is a real limitation worth knowing: each stage
-    // names something that genuinely happens, in the order it happens, but a
-    // fast brief can leave "working out what you're asking" on screen while
-    // the search has already started. It misdescribes nothing the listener can
-    // check, and the honest fix - progress events from the generation path -
-    // is a server change rather than a wording one.
-    var stages = researching
-      ? [[0, "Working out what you're asking"],
-         [4, "Reading today's sources"],
-         [7, "Writing your episode"]]
-      : [[0, "Working out what you're asking"],
-         [3, "Writing your episode"]];
-    var started = Date.now();
-    function leadAt(seconds){
-      var lead = stages[0][1];
-      for(var i = 0; i < stages.length; i++){
-        if(seconds >= stages[i][0]) lead = stages[i][1];
+  function startGenSteps(){
+    stopGenSteps();
+    var el = famLoadingEl();
+    if(!el) return;
+    el.classList.add("stepped");
+    var st = genSteps = {
+      server: [false, false, false, false], shown: 0, since: Date.now(),
+      started: Date.now(), audioReady: false, release: null, plan: null,
+      timer: null, poll: null, asking: false, releasing: false
+    };
+    paintGenSteps(0);
+    var node = document.getElementById("famLoadingStatus");
+    if(node) node.textContent = genStatusNote;
+    st.timer = setInterval(function(){ advanceGenSteps(st); }, 100);
+  }
+
+  // Which episode to ask about. Set by `speakText`, which is the one place
+  // that knows the exact question, length and context the audio request was
+  // sent with - the progress is keyed on exactly those.
+  function trackGenSteps(query, minutes, context, surface, topicId){
+    var st = genSteps;
+    if(!st || st.plan) return;
+    // Everything the audio request's key is built from, and the two that
+    // decide a browse tap's length (§147) - the server holds those to two
+    // minutes, and a different length is a different episode.
+    st.plan = "q=" + encodeURIComponent(query) + "&minutes="
+      + encodeURIComponent(minutes)
+      + (context ? "&context=" + encodeURIComponent(context) : "")
+      + (surface ? "&surface=" + encodeURIComponent(surface) : "")
+      + (topicId ? "&topic_id=" + encodeURIComponent(topicId) : "");
+    pollGenSteps(st);
+    st.poll = setInterval(function(){ pollGenSteps(st); }, GEN_STEP_POLL_MS);
+  }
+
+  function pollGenSteps(st){
+    if(st !== genSteps || st.asking || st.audioReady) return;
+    st.asking = true;
+    fetch("/api/progress?" + st.plan).then(function(r){
+      return r.ok ? r.json() : null;
+    }).then(function(d){
+      st.asking = false;
+      if(st !== genSteps || !d || !d.steps) return;
+      ["contextualized", "retrieved", "verified", "written"].forEach(function(k, i){
+        if(d.steps[k]) st.server[i] = true;
+      });
+    }).catch(function(){ st.asking = false; });
+  }
+
+  function advanceGenSteps(st){
+    if(st !== genSteps) return;
+    var now = Date.now();
+    if(st.shown < GEN_STEP_COUNT && now - st.since >= GEN_STEP_MIN_MS){
+      // Audio existing means every step before it happened, whatever the
+      // poll managed to see - another worker, or a missed answer.
+      var finished = st.shown < GEN_STEP_COUNT - 1
+        ? (st.server[st.shown] || st.audioReady) : st.audioReady;
+      if(finished){
+        st.shown++;
+        st.since = now;
+        paintGenSteps(st.shown);
       }
-      return lead;
     }
-    node.textContent = stages[0][1] + "…";
-    if(genTicker) clearInterval(genTicker);
-    genTicker = setInterval(function(){
-      var seconds = Math.round((Date.now() - started) / 1000);
-      var lead = leadAt(seconds);
-      // Under three seconds the counter is noise; past that it is the only
-      // thing telling the listener the app has not died.
-      node.textContent = seconds < 3 ? lead + "…" : lead + "… " + seconds + "s";
-      if(researching && seconds >= 20){
-        node.textContent = "Still working. This one needs today's facts. "
-          + seconds + "s";
-      }
-    }, 500);
+    if(st.shown >= GEN_STEP_COUNT && st.release && !st.releasing){
+      st.releasing = true;
+      setTimeout(function(){
+        if(st !== genSteps) return;
+        var begin = st.release;
+        stopGenSteps();
+        begin();
+      }, GEN_STEP_LAST_BEAT_MS);
+    }
+    // The seconds, as the old status line counted them: under three they
+    // are noise, past that they are what says the app has not died.
+    // A machine that cannot write says so here too, where attention is.
+    var node = document.getElementById("famLoadingStatus");
+    var seconds = Math.round((now - st.started) / 1000);
+    var count = seconds < 3 ? "" : seconds + "s";
+    if(node) node.textContent = genStatusNote
+      ? genStatusNote + (count ? " " + count : "") : count;
+  }
+
+  function stopGenSteps(){
+    var st = genSteps;
+    genSteps = null;
+    if(!st) return;
+    if(st.timer) clearInterval(st.timer);
+    if(st.poll) clearInterval(st.poll);
+  }
+
+  // Handed to FamAudio as `startGate`: audio has arrived, start it when the
+  // list is finished. A replay starts at once, with all five shown done.
+  function genStepsGate(begin, info){
+    if(genTimeout){ clearTimeout(genTimeout); genTimeout = null; }
+    var st = genSteps;
+    if(!st){ begin(); return; }
+    if(info && info.cache === "hit"){
+      paintGenSteps(GEN_STEP_COUNT, true);
+      stopGenSteps();
+      begin();
+      return;
+    }
+    st.audioReady = true;
+    st.release = begin;
   }
 
   function onGenerationStarted(){
@@ -4168,7 +4268,9 @@
     activeGenOverlay = overlay;
     if(overlay){ overlay.classList.add("active"); genShownAt = Date.now(); }
 
-    startHonestWait(overlay, key && key.query ? key.query : (key && key.title) || "");
+    // A tap that writes an episode shows the five steps instead of the old
+    // guessed stage line (§148).
+    startGenSteps();
 
     // Never spin forever if the server is unreachable or wedged.
     genTimeout = setTimeout(function(){
@@ -5019,7 +5121,10 @@
     setTimeout(refreshSavedState, 0);
     markPlaying();
     awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
+    if(!opts.cachedOnly) trackGenSteps(title, minutes, context || "", surface,
+                                       episodeTopicId);
     FamAudio.play(title, minutes, {
+      startGate: genStepsGate,
       onFirstAudio: function(){
         awaitingFirstAudio = "";
         // Heard, so it goes in the listening history (§142) - only now, so a

@@ -7,17 +7,21 @@ Three ways, in the order of how little they need from you.
 Open **`preview/loading-screen.html`** in any browser, on a laptop or a phone.
 It is one self-contained file; double-clicking it is enough.
 
-The screen is held still so it can be judged, with buttons for the four states
-the status line actually takes:
+The screen is held still so it can be judged, with a button for each step
+a written episode walks through (PROBLEMS.md §148) and the two notices a
+machine that cannot write shows:
 
 | Button | When the app shows it |
 |---|---|
-| Instant answer | The question can be answered from what the model knows |
-| Needs today's facts | Research is running underneath, with a counter |
+| Contextualizing … Generating audio | One per step. Each circle is checked off when the server says that step finished, and each is on screen for at least two seconds |
 | No API key | Demo mode — the canned script is playing |
 | Key rejected | The key was refused at startup; nothing can be written |
 
-**Show a cache hit (450 ms)** plays the shortest wait the app can produce.
+**Play a real-looking wait** walks all five with uneven step times, the way a
+real episode does.
+
+**Show a cache hit (450 ms)** plays the shortest wait the app can produce:
+a replay has nothing to write, so it shows all five done and starts.
 That is the floor added after the smoke test measured a 3 ms flash; anything
 faster read as a glitch rather than as speed.
 

@@ -1131,7 +1131,8 @@ __MIX_ITEMS__
   var SHARE_TEMPLATES = __SHARE_TEMPLATES__;
   /* The first run's interest catalogue, from topics.py at build time. */
   var CATALOGUE = __CATALOGUE__;
-  function silence(seconds) {
+__WRITING_SIM__
+  function silence(seconds, cached) {
     var total = Math.round(seconds * SAMPLE_RATE), sent = 0;
     return Promise.resolve(new Response(new ReadableStream({
       pull: function (c) {
@@ -1140,7 +1141,8 @@ __MIX_ITEMS__
         c.enqueue(new Uint8Array(n * 2));
         return new Promise(function (r) { setTimeout(r, 60); });
       }
-    }), { status: 200, headers: { "Content-Type": "audio/L16", "X-Sample-Rate": String(SAMPLE_RATE) } }));
+    }), { status: 200, headers: { "Content-Type": "audio/L16", "X-Sample-Rate": String(SAMPLE_RATE),
+                                  "X-FAM-Cache": cached === false ? "miss" : "hit" } }));
   }
 
   var ACCOUNT_REQUIRED = "You need an account for this. Signing up keeps the "
@@ -1923,8 +1925,11 @@ __MIX_ITEMS__
           at: now(), thread: followUp(tid, q), section: "", algo: ""
         }).then(paint);
       });
-      return silence(mins * 60);
+      return afterWrite(beginWrite(q), function (cached) {
+        return silence(mins * 60, cached);
+      });
     }
+    if (path === "/api/progress") return json(writeProgress(qs.get("q") || ""));
     if (STATIC_SET[path] && path !== "/api/attach") return Promise.resolve(json(FIXTURES[path]));
     if (path === "/api/attach") {
       if (method === "DELETE") return Promise.resolve(json({ ok: true }));
@@ -2441,6 +2446,7 @@ def build() -> pathlib.Path:
     from config import settings  # noqa: E402
 
     shim = (LIVE_SHIM
+            .replace("__WRITING_SIM__", bp.WRITING_SIM_JS)
             .replace("__FIXTURES__", json.dumps(bp.load_fixtures()))
             .replace("__ALGO__", json.dumps(topics.ALGO_VERSION))
             .replace("__MIX_ITEMS__", bp.mix_items_js())

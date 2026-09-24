@@ -92,7 +92,11 @@ exactly what came back from listening.
 
 So the whole mechanism is deleted. **On search, the wait is now in front of
 the first word and is honest about it**: the brief, the retrieval and the
-writer's own planning all happen before anything is spoken. Starting earlier
+writer's own planning all happen before anything is spoken. *(Since §148 the
+loading screen shows that wait as five steps - contextualizing, retrieving,
+verifying, finalizing, generating the audio - each checked off when the
+server's marks say it finished, each on screen for at least two seconds, and
+the audio held until the fifth. A replay skips them.)* Starting earlier
 is still the answer to latency - it is just that on search there is nothing
 left to start earlier than the tap, which is why the browse surfaces, where
 there is, matter more than they did.
@@ -2443,7 +2447,10 @@ mix taken back out by tapping its button again; and **§146**, an X on every
 "Pick up where you left off" tile that dismisses it for good; and **§147**,
 Explore made searches only, a bank of voices chosen on search and drawn at
 random everywhere else, and every episode that is not a search fixed at two
-minutes),
+minutes; and **§148**,
+the loading screen's five steps checked off from the server's own marks via
+`/api/progress`, each held at least two seconds, with the audio held until
+the last),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2466,13 +2473,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-five** named smoke
+**twice** - once per preview build - and **seventy-six** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 75 as of §147,
-which added the search page's voice chip. It was 74 as of §146,
+prose does not fail when somebody adds a behaviour. (It is 76 as of §148,
+which added the loading screen checking off its five steps. It was 75 as
+of §147, which added the search page's voice chip. It was 74 as of §146,
 which added the X on a Go Deeper tile. It was 73 as of §145, which added
 removing an added mix by tapping its button again. It was 72 as of §142,
 which replaced the two wheel checks with the player minimising, the Settings

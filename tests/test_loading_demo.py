@@ -55,10 +55,12 @@ def test_the_honest_wait_is_shown_not_replaced(page):
     """The brand animation frames the status line; it does not stand in for
     it. A demo that dropped the line would be showing a nicer version of the
     thing PROBLEMS.md 55 deleted."""
-    assert "Writing your episode" in page
-    assert "Working out what you're asking" in page
-    assert "Reading today's sources" in page
+    assert 'id="famLoadingStatus"' in page
     assert ".gen-text{" in page
+    # The five steps are the shipped five, lifted out with the markup.
+    for step in ("Contextualizing your search", "Generating the audio"):
+        assert step in page
+    assert ".fam-steps" in page
 
 
 def test_the_cache_hit_floor_is_demonstrated_at_its_real_value(page):
