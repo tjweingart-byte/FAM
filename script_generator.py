@@ -615,6 +615,13 @@ class EpisodePlan:
     #: alternative is a gap filled from month-old memory and delivered in the
     #: same confident voice as the researched half.
     thin_on: tuple = ()
+    #: What earlier editions of this same daily episode were called, newest
+    #: first - filled for a DailyFAM prompt by `daily_edition.earlier_titles`.
+    #: A daily episode that asks for "a new one" cannot keep that promise
+    #: without being told what the old ones were (the 24/09 bug). **Never in
+    #: the cache key**: it describes yesterday, not what today's episode is,
+    #: and `key_for` reads named fields only, so it is invisible there.
+    covered: tuple = ()
 
     @property
     def images(self) -> list:
@@ -886,6 +893,20 @@ This is a FOLLOW-UP. The listener has just heard a briefing on:
 
 Treat that as known. Do not re-explain it or re-introduce the subject. Go
 straight into the narrower thing they asked for and stay on it.
+"""
+
+    # A daily episode's earlier editions. Said to the writer as well as to EI:
+    # EI picks the search, but the writer picks which lesson, story or
+    # development out of the evidence the episode is about, and a brief
+    # warmed before this was known has no idea what came before.
+    if plan.covered:
+        listed = "; ".join(f'"{t}"' for t in plan.covered)
+        follow_up += f"""
+This is one day's edition of an episode they get every day. Earlier editions
+were: {listed}.
+Today's must be a different one. If it is a lesson, a tip or a story, choose
+one none of those were about; if it is news, lead with what is new since
+them. Never retell an earlier edition, and never mention that there were any.
 """
 
     return f"""Someone just asked FAM this:
@@ -1191,8 +1212,11 @@ class ScriptGenerator:
             _publish_title(notes, warmed)
             return dataclasses.replace(plan, brief=warmed)
 
+        # `covered` only when there is some, so a call for anything that is
+        # not a later daily edition is exactly the call it always was.
+        extra = {"covered": plan.covered} if plan.covered else {}
         brief = await episode_intelligence.understand(
-            plan.query, plan.minutes, plan.context, notes)
+            plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
         return dataclasses.replace(plan, brief=brief)
 

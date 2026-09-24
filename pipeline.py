@@ -1334,6 +1334,15 @@ class PodcastPipeline:
         if client is not None and not isinstance(client, TimedClient):
             self.generator.client = TimedClient(client, stats.marks)
 
+        # A DailyFAM edition nobody wrote ahead: told what the earlier days'
+        # editions were, as the background edition is, so a tap never gets
+        # yesterday's lesson again. Local reads only; a no-op for anything
+        # that is not a dated daily prompt.
+        if self.cache:
+            import daily_edition
+
+            plan = await daily_edition.with_earlier_editions(plan, self.cache)
+
         # --- Generate ------------------------------------------------------
         # Nothing is spoken until the real script arrives. The opener that used
         # to cover this wait is gone: see PROBLEMS.md 55.

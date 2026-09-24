@@ -28,7 +28,9 @@ Three surfaces, all backed by generated audio:
    written in the background before it is tapped**: a daily edition
    (`daily_edition.py`, 05:00 Eastern) writes one episode per distinct
    subject across every mix, with EI on each, and a mix saved between
-   editions is written at once. The server owns the date and the length a
+   editions is written at once. *A typed subject may be a kind of thing
+   ("founders lesson of the day") rather than news, and each edition is told
+   its earlier editions' titles so it is a new one (§149).* The server owns the date and the length a
    tap sends (`/api/mixes` serves `prompt` and `minutes`), so a tap is a
    cache hit.
 3. **explore** (was dailyFAM) — a vertical feed of episodes *other listeners
@@ -2450,7 +2452,10 @@ random everywhere else, and every episode that is not a search fixed at two
 minutes; and **§148**,
 the loading screen's five steps checked off from the server's own marks via
 `/api/progress`, each held at least two seconds, with the audio held until
-the last),
+the last; and **§149**, a typed DailyFAM topic asking for a *kind* of thing -
+"Founders lesson of the day" - worded as news about a named thing and searched
+as a blog post, now worded so EI can tell, and every daily edition told what
+its earlier editions were called so it picks a new one),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

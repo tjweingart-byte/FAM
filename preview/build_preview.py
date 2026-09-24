@@ -588,14 +588,17 @@ MIX_ITEMS_JS = r"""
       var shown = item.focus.join(" and ");
       head = "The latest on " + shown + " (" + item.topic_label + ") as of " + MIX_RULES.date
         + ". Cover only " + shown + ", not " + item.topic_label + " in general";
+    } else if (item.custom && !item.follow) {
+      head = MIX_RULES.typed_head.split("{topic}").join(item.query);
     } else {
       head = "The latest on " + item.query + " as of " + MIX_RULES.date;
     }
-    for (var i = 0; i < MIX_RULES.endings.length; i++) {
-      var whole = head + MIX_RULES.endings[i];
+    var endings = (item.custom && !item.follow) ? MIX_RULES.typed_endings : MIX_RULES.endings;
+    for (var i = 0; i < endings.length; i++) {
+      var whole = head + endings[i];
       if (whole.split(MIX_RULES.date).join(MIX_RULES.longest).length <= MIX_RULES.max_prompt) return whole;
     }
-    return head + MIX_RULES.endings[MIX_RULES.endings.length - 1];
+    return head + endings[endings.length - 1];
   }
   // `f:nfl` or `f:nfl~Eagles`: a followed catalogue subject. null for
   // anything else, including an id naming no subject.
@@ -649,7 +652,9 @@ def mix_items_js() -> str:
         "date": mixes_mod.DAILY_DATE, "longest": mixes_mod.LONGEST_DATE,
         "max_prompt": mixes_mod.MAX_PROMPT, "max_focus": mixes_mod.MAX_FOCUS,
         "max_query": mixes_mod.MAX_QUERY,
-        "endings": list(mixes_mod.DAILY_ENDINGS)}))
+        "endings": list(mixes_mod.DAILY_ENDINGS),
+        "typed_head": mixes_mod.TYPED_HEAD,
+        "typed_endings": list(mixes_mod.TYPED_ENDINGS)}))
 
 
 #: The loading screen's five steps, walked the way a written episode walks
