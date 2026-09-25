@@ -1,6 +1,6 @@
 """Build the published HTML version of docs/ (FINANCIAL, BACKEND, DATA).
 
-    pip install markdown
+    pip install markdown mdx_truly_sane_lists
     python docs/build_html.py [out.html]      # default: docs/build/fam-docs.html
 
 The markdown files are the source of truth; the page is generated from them
@@ -20,7 +20,7 @@ def render(src):
     src = re.sub(r"```mermaid\n(.*?)```", keep, src, flags=re.S)
     # drop the H1 and the metadata table: shown in the page header instead
     src = re.sub(r"\A# .*?\n", "", src)
-    body = markdown.markdown(src, extensions=["tables","fenced_code","sane_lists"])
+    body = markdown.markdown(src, extensions=["tables","fenced_code","mdx_truly_sane_lists"])
     for i,b in enumerate(blocks):
         body = body.replace(f"<p>MERMAIDBLOCK{i}</p>", f'<div class="diagram"><pre class="mermaid">{html.escape(b)}</pre></div>')
     for k,v in LINKS.items():

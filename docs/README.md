@@ -40,5 +40,5 @@ The same three documents are published as one page:
 <https://claude.ai/artifact/1KQ5xwih3Tum77ixi8Gr7E>
 
 Rebuild it from the markdown with `python docs/build_html.py` (it needs
-`pip install markdown`), then republish to that URL, so the link never
+`pip install markdown mdx_truly_sane_lists`), then republish to that URL, so the link never
 changes.
