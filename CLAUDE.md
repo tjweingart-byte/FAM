@@ -875,8 +875,8 @@ the rest of this list it needs taste rather than a key.
    episode - and `sharing.py` for a link posted outside FAM. All three cost one
    row: sending an episode to ten people costs ten rows and not ten episodes,
    because their taps are what synthesise audio, from one cached script,
-   against their own allowances. Mixes are private by default and appear on the
-   profile once made public.
+   against their own allowances. A new mix is public by default (§153) and
+   appears on the profile until its owner makes it private.
 9. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
    **And it is called YourFAM** *(§133, the owner's handoff).* The last tab is
    one social hub - identity, story-style friend avatars, Messages as one

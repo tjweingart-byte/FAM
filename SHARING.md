@@ -174,8 +174,8 @@ stops people using a feature. *(No interface exposes folders any more — see
 `GET /api/person?handle=…` returns **only what they chose to publish**, and
 that is the whole specification:
 
-* **public mixes** — private by default, so anything here is a mix its owner
-  switched on;
+* **public mixes** — a new mix is public by default (§153), so this is every
+  mix its owner has not switched to private;
 * **vibes** — a vibe *is* the act of showing somebody an episode, so a list of
   them is a list of things they published;
 * **the interests they pinned**, or failing that the ones they declared and
