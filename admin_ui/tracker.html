@@ -78,7 +78,9 @@
   .store .missing { font-size:12px; color:var(--faint); }
   .gate { max-width:460px; margin:10vh auto; }
   .gate p { color:var(--muted); }
-  .gate .askrow { margin-top:12px; }
+  .gate .login { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate .login input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .gate .login .err { color:var(--rose); margin:0; }
   .section { margin-bottom:14px; }
   [hidden] { display:none !important; }
 </style>
@@ -94,13 +96,19 @@
       <span class="dot" id="dot"></span><span id="state">connecting…</span>
       <button class="ghost" id="pause">Pause</button>
       <button class="ghost" id="refresh">Refresh now</button>
+      <button class="ghost" id="signOut" hidden>Sign out</button>
     </div>
   </header>
 
   <div id="gate" class="card gate" hidden>
     <h2>Admins only</h2>
-    <p>This page reads every store in the deployment. Sign in to FAM with an account listed in <code>FAM_ADMIN_ACCOUNTS</code> and reload, or paste the deployment's admin token.</p>
-    <div class="askrow"><input id="token" type="password" placeholder="FAM_ADMIN_TOKEN" autocomplete="off"><button class="go" id="useToken">Open</button></div>
+    <p>This page reads every store in the deployment. Sign in with the email and password of an account listed in <code>FAM_ADMIN_ACCOUNTS</code>.</p>
+    <form id="loginForm" class="login" autocomplete="on">
+      <input id="adminEmail" type="email" placeholder="Admin email" autocomplete="username" required>
+      <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button class="go" id="loginBtn" type="submit">Sign in</button>
+      <p class="sub err" id="loginErr" hidden></p>
+    </form>
   </div>
 
   <main id="main" hidden>
@@ -153,8 +161,6 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 <script>
 (function () {
   "use strict";
-  var TOKEN = "";
-  try { TOKEN = sessionStorage.getItem("fam_admin_token") || ""; } catch (e) {}
   var paused = false, timer = null, lastAt = 0;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -165,7 +171,6 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   function api(path, body) {
     var headers = { "Accept": "application/json" };
-    if (TOKEN) headers["X-Admin-Token"] = TOKEN;
     if (body) headers["Content-Type"] = "application/json";
     return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
                          body: body ? JSON.stringify(body) : undefined })
@@ -367,7 +372,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   var chipsDrawn = false;
   function load() {
     return api("/api/admin/tracker").then(function (s) {
-      $("gate").hidden = true; $("main").hidden = false;
+      $("gate").hidden = true; $("main").hidden = false; $("signOut").hidden = false;
       lastAt = s.at;
       drawKpis(s.metrics || {});
       drawChart(s.signups);
@@ -384,7 +389,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     }).catch(function (e) {
       if (e.status === 404) {
         setState(false, "not authorised");
-        $("main").hidden = true; $("gate").hidden = false;
+        $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
         stop();
       } else {
         setState(false, "refresh failed: " + e.message);
@@ -403,10 +408,27 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     paused = !paused; this.textContent = paused ? "Resume" : "Pause"; tick();
   });
   $("refresh").addEventListener("click", load);
-  $("useToken").addEventListener("click", function () {
-    TOKEN = $("token").value.trim();
-    try { sessionStorage.setItem("fam_admin_token", TOKEN); } catch (e) {}
-    load().then(start);
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value })
+      .then(function () {
+        $("adminPassword").value = "";
+        return load().then(start);
+      })
+      .catch(function (e) {
+        $("loginErr").textContent = e.status === 429 ? "Too many attempts. Wait a moment and try again."
+                                                     : "That email and password are not an admin's.";
+        $("loginErr").hidden = false;
+      })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+  $("signOut").addEventListener("click", function () {
+    stop();
+    api("/api/admin/logout", {}).catch(function () {}).then(function () {
+      $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
+      setState(false, "signed out");
+    });
   });
   window.addEventListener("resize", function () { drawChart(series); });
   load().then(start);

@@ -1303,7 +1303,7 @@ __WRITING_SIM__
     if (path === "/api/mixes" && method === "POST") {
       var body = JSON.parse((init && init.body) || "{}");
       var made = buildMix("m" + (nextMixId++), body.name || "New mix",
-                          body.topic_ids || [], !!body.public, body.cover || "");
+                          body.topic_ids || [], body.public !== false, body.cover || "");
       mixes.mixes.push(made);
       return json(made);
     }

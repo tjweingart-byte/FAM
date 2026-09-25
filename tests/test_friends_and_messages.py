@@ -331,7 +331,7 @@ def test_a_person_profile_carries_only_what_they_published(client):
         mix = beth.post("/api/mixes", json={"name": "Morning",
                                             "topic_ids": ["ai-agents"]}).json()
         beth.patch(f"/api/mixes/{mix['id']}", json={"public": True})
-        beth.post("/api/mixes", json={"name": "Private one",
+        beth.post("/api/mixes", json={"name": "Private one", "public": False,
                                       "topic_ids": ["fed-next-move"]})
         beth.post("/api/vibe", json={"query": "why bonds move", "title": "Bonds",
                                      "minutes": 2})

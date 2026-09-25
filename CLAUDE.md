@@ -754,10 +754,12 @@ the rest of this list it needs taste rather than a key.
    list, and wanting a mix of subjects you already like is the entire point of
    a mix. The heading reads `personalised` rather than asserting, because a
    declared order and a measurement look identical on screen.
-   And the **privacy switch means private**, with the lock on the knob: closed
-   and lit for Private, open for Public. It used to mean public, so the lit
-   position was the one where other people could see your mix - read backwards
-   by everybody who has ever used a phone.
+   And the **privacy switch means public** *(§152, at the owner's direction,
+   reversing the old "means private")*: on is Public with an open lock, off is
+   Private with a closed one, and **a new mix is public by default** so other
+   listeners can find it in DailyFAM search. A copy added from somebody else's
+   mix still starts private - republishing another person's mix is not the
+   copier's call to have made for them.
    **And the picker can be given a topic somebody typed again** *(§111).* It
    could not, for as long as the interests catalogue has existed: both screens
    declared a top-level `addTypedTopic`, the later one won, and every tap on a
@@ -2462,7 +2464,9 @@ its earlier editions were called so it picks a new one;
 and **§150**, `/admin` - a live tracker over every store, derived
 from the code so none is left off, with a question box that answers "how many
 accounts have over 5 friends" by recipe or by Claude writing one read-only
-SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`; and **§151**, voice
+SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN` - since §152
+the page asks for the admin account's email and password itself, and being
+signed in to the app no longer opens it; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send),
 `MYFAM.md` for the browse page, the

@@ -2805,11 +2805,8 @@ def main() -> int:
             """Public/private has to be reachable, not buried in a menu - and
             it has to read the right way round.
 
-            The switch means **private** and carries the lock. It used to mean
-            public, which made the lit position the state where other people
-            could see your mix, and a toggle whose on position is the less
-            private one is read backwards by everybody who has ever used a
-            phone."""
+            The switch means **public** (at the owner's direction): on is
+            Public with an open lock, off is Private with a closed one."""
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             page.wait_for_timeout(400)
@@ -2828,15 +2825,15 @@ def main() -> int:
                 return lit, word, note, shackle
 
             lit, word, note, shackle = state()
-            # On means private, off means public, and the word matches.
-            assert (word == "Private") == lit, \
+            # On means public, off means private, and the word matches.
+            assert (word == "Public") == lit, \
                 f"the switch says {word!r} in its {'on' if lit else 'off'} position"
-            if not lit:
+            if lit:
                 assert "displayed on your profile" in note.lower(), \
                     f"the public note is missing: {note!r}"
             # A closed padlock closes: its shackle path ends back at the body.
-            assert shackle.rstrip().endswith("v3.1") == lit, \
-                f"the lock is {'open' if lit else 'closed'} in the wrong position"
+            assert shackle.rstrip().endswith("v3.1") != lit, \
+                f"the lock is {'open' if not lit else 'closed'} in the wrong position"
 
             page.click(".mix-vis")
             page.wait_for_timeout(900)

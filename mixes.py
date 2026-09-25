@@ -358,9 +358,10 @@ class Mix:
     items: list[MixItem]
     created_at: float
     updated_at: float
-    #: Public mixes appear on the listener's profile. Private is the default:
-    #: a mix is a routine, and a routine is personal until someone decides
-    #: otherwise.
+    #: Public mixes appear on the listener's profile and in DailyFAM search.
+    #: A mix somebody *makes* is public by default (`MixStore.create`, at the
+    #: owner's direction); this field's own default is False because it is
+    #: also what a copy of somebody else's mix and an old row read as.
     public: bool = False
     #: A data URL, or "" - see `clean_cover`.
     cover: str = ""
@@ -607,7 +608,10 @@ class MixStore:
         return self._row_to_mix(row) if row else None
 
     def create(self, user_id: str, name: str, topic_ids: Sequence = (),
-               cover: str = "") -> Mix:
+               cover: str = "", public: bool = True) -> Mix:
+        """A new mix, public unless asked otherwise - a mix is found and
+        added by other listeners in DailyFAM search, and one that starts
+        private is one nobody else ever sees."""
         if not user_id:
             raise MixError("No listener id; mixes are saved per person.")
         name = clean_name(name)
@@ -619,12 +623,13 @@ class MixStore:
         if any(m.name.lower() == name.lower() for m in existing):
             raise MixError(f"You already have a mix called {name}.")
         now = time.time()
-        mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now, cover=cover)
+        mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now,
+                  public=bool(public), cover=cover)
         self._conn().execute(
             "INSERT INTO mixes (id, user_id, name, topic_ids, created_at, updated_at, items,"
-            " cover) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " cover, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mix.id, user_id, name, ",".join(mix.topic_ids), now, now,
-             json.dumps([i.as_dict() for i in items]), cover),
+             json.dumps([i.as_dict() for i in items]), cover, int(mix.public)),
         )
         return mix
 

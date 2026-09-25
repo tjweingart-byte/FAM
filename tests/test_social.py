@@ -119,13 +119,21 @@ def test_an_echo_from_someone_with_no_name_still_reads(store):
 # --- mix visibility -------------------------------------------------------
 
 
-def test_a_mix_is_private_until_it_is_not(tmp_path):
+def test_a_new_mix_is_public_until_it_is_not(tmp_path):
     mixes = M.MixStore(str(tmp_path / "m.db"))
     mix = mixes.create("u", "Morning", ["ai-agents"])
-    assert mix.public is False, "a routine is personal until someone says otherwise"
-    assert mixes.public_for_user("u") == []
-    mixes.update("u", mix.id, public=True)
+    assert mix.public is True, "a new mix is public by default"
     assert [m.name for m in mixes.public_for_user("u")] == ["Morning"]
+    mixes.update("u", mix.id, public=False)
+    assert mixes.public_for_user("u") == []
+
+
+def test_a_new_mix_can_be_made_private_from_the_start(client):
+    client.post("/api/auth/signup",
+                json={"email": "priv@fam.test", "password": "a-long-enough-password"})
+    made = client.post("/api/mixes", json={"name": "Mine", "public": False}).json()
+    assert made["public"] is False
+    assert client.post("/api/mixes", json={"name": "Ours"}).json()["public"] is True
 
 
 def test_visibility_survives_a_restart(tmp_path):
@@ -137,7 +145,7 @@ def test_visibility_survives_a_restart(tmp_path):
 
 def test_renaming_a_mix_does_not_publish_it(tmp_path):
     mixes = M.MixStore(str(tmp_path / "m.db"))
-    mix = mixes.create("u", "Morning", [])
+    mix = mixes.create("u", "Morning", [], public=False)
     assert mixes.update("u", mix.id, name="Early").public is False
 
 
@@ -158,7 +166,7 @@ def test_only_public_mixes_reach_the_profile(client):
     # Mixes need an account now; the profile that shows them does not.
     client.post("/api/auth/signup",
                 json={"email": "public@fam.test", "password": "a-long-enough-password"})
-    made = client.post("/api/mixes", json={"user": "u1", "name": "Morning",
+    made = client.post("/api/mixes", json={"user": "u1", "name": "Morning", "public": False,
                                             "topic_ids": ["ai-agents"]}).json()
     assert client.get("/api/profile?user=u1").json()["mixes"] == []
     client.patch(f"/api/mixes/{made['id']}", json={"user": "u1", "public": True})

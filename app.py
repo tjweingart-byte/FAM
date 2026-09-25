@@ -2020,8 +2020,8 @@ async def person_profile(request: Request,
     history. Three things come back, and each one is something the person
     actively decided to show:
 
-    * **public mixes** - a mix is private by default and appears here only
-      once its owner switched it to public;
+    * **public mixes** - a new mix is public by default, and one its owner
+      switched to private never appears here;
     * **vibes** - a vibe *is* the act of showing somebody an episode, so a
       list of them is a list of things they chose to publish;
     * **interests they have not hidden** - declared in the first run or in
@@ -3482,8 +3482,10 @@ async def list_mixes(request: Request):
 async def create_mix(req: MixRequest, request: Request):
     _read_limit(request)
     try:
+        # Public unless the request says otherwise: a new mix is public by
+        # default, at the owner's direction.
         mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [],
-                           req.cover or "")
+                           req.cover or "", public=req.public is not False)
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -5520,8 +5522,24 @@ def _admin_configured() -> bool:
     return bool(ADMIN_TOKEN or _admin_accounts())
 
 
-def _is_admin_account(request: Request) -> bool:
-    listener = getattr(request.state, "listener", None)
+#: The admin page's own session cookie. Signing in to the app is not signing
+#: in to `/admin`: the dashboard asks for an admin's email and password every
+#: time, and what that mints is a session held here and nowhere else - so a
+#: phone left signed in to FAM is not a phone that can read every store.
+ADMIN_COOKIE = "fam_admin"
+#: How long an admin sign-in lasts in the browser before it asks again.
+ADMIN_SESSION_SECONDS = 12 * 3600
+
+
+def _admin_listener(request: Request):
+    """Whoever the admin cookie belongs to, or None. Never the app session."""
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if not token:
+        return None
+    return ACCOUNTS.listener_for(token)
+
+
+def _allowed_admin(listener) -> bool:
     if listener is None or not listener.is_authenticated:
         return False
     allowed = _admin_accounts()
@@ -5530,6 +5548,11 @@ def _is_admin_account(request: Request) -> bool:
     mine = {listener.user_id.lower(), (listener.email or "").lower(),
             (listener.phone or "").lower()} - {""}
     return bool(mine & allowed)
+
+
+def _is_admin_account(request: Request) -> bool:
+    """Signed in to `/admin` with an admin's email and password."""
+    return _allowed_admin(_admin_listener(request))
 
 
 def _require_admin(request: Request) -> None:
@@ -5541,8 +5564,9 @@ def _require_admin(request: Request) -> None:
 
     Two ways in, one rule. `FAM_ADMIN_TOKEN` is for a machine or a terminal;
     `FAM_ADMIN_ACCOUNTS` names the accounts that are admins, checked against
-    the session the server minted - never against anything the client says
-    about itself. A listener without an account is never an admin.
+    the admin session `/api/admin/login` minted from that account's email and
+    password - never against the app's own session, and never against
+    anything the client says about itself.
     """
     if _is_admin_account(request):
         return
@@ -5598,6 +5622,53 @@ async def admin_page(request: Request):
     return HTMLResponse(page.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "no-store",
                                  "X-Robots-Tag": "noindex"})
+
+
+class AdminLogin(BaseModel):
+    email: str = ""
+    password: str = ""
+
+
+@app.post("/api/admin/login")
+async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
+    """The dashboard's sign-in: an admin account's email and password.
+
+    One refusal for every failure - no such account, wrong password, a right
+    password on an account that is not an admin - so the form cannot be used
+    to learn which addresses are admins. 404 on a deployment with no admin
+    accounts configured, like every other admin path.
+    """
+    if not _admin_accounts():
+        raise HTTPException(status_code=404, detail="Not found")
+    _rate_limit(request)
+    refused = HTTPException(status_code=401,
+                            detail="That email and password are not an admin's.")
+    try:
+        listener = ACCOUNTS.log_in(req.email, req.password)
+    except accounts_mod.AuthError:
+        raise refused from None
+    if not _allowed_admin(listener):
+        log.warning("admin sign-in refused for a non-admin account")
+        raise refused
+    old = request.cookies.get(ADMIN_COOKIE, "")
+    if old:
+        ACCOUNTS.end_session(old)
+    token, _ = ACCOUNTS.new_session(listener.user_id)
+    response = JSONResponse({"ok": True, "email": listener.email})
+    response.set_cookie(ADMIN_COOKIE, token, max_age=ADMIN_SESSION_SECONDS,
+                        httponly=True, samesite="strict",
+                        secure=request.url.scheme == "https", path="/")
+    return response
+
+
+@app.post("/api/admin/logout")
+async def admin_logout(request: Request) -> JSONResponse:
+    token = request.cookies.get(ADMIN_COOKIE, "")
+    if token:
+        ACCOUNTS.end_session(token)
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(ADMIN_COOKIE, path="/")
+    return response
 
 
 @app.get("/api/admin/tracker")
