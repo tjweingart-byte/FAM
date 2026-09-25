@@ -1969,6 +1969,114 @@ def main() -> int:
             assert shown == "Nova", f"the voice chip reads {shown!r} after choosing Nova"
             assert page.evaluate("selectedVoice") == "remote:nova"
 
+        def voice_search_hears_you_and_waits_for_send():
+            # Whatever happens, leave no overlay over the checks after this.
+            try:
+                voice_search_steps()
+            finally:
+                page.evaluate("() => { closeVoiceSearch();"
+                              " if (window.__runSearch) runSearch = window.__runSearch; }")
+
+        def voice_search_steps():
+            """The mic under the search box (§151) opens a voice screen: the
+            words appear at the top as they are heard, the lines around the
+            mark move only while somebody is talking, the send button appears
+            once they stop - and nothing is searched until it is pressed. The
+            X goes back to searchFAM with the box untouched.
+
+            Headless Chromium has no speech recognition, so a stand-in is
+            installed that fires the same events a real recogniser does."""
+            page.evaluate(
+                """() => {
+                    window.__fakeRecs = [];
+                    window.SpeechRecognition = function(){
+                        this.started = false; window.__fakeRecs.push(this);
+                    };
+                    SpeechRecognition.prototype.start = function(){
+                        this.started = true;
+                        var r = this; setTimeout(function(){ r.onstart && r.onstart(); }, 0);
+                    };
+                    SpeechRecognition.prototype.stop = function(){
+                        var r = this; setTimeout(function(){ r.onend && r.onend(); }, 0);
+                    };
+                    SpeechRecognition.prototype.abort = function(){ this.aborted = true; };
+                    window.__say = function(text, final){
+                        var r = window.__fakeRecs[window.__fakeRecs.length - 1];
+                        var res = [{ transcript: text }]; res.isFinal = !!final;
+                        r.onresult({ results: [res] });
+                    };
+                }""")
+            page.evaluate("setTab('home'); paintVoiceMic()")
+            page.wait_for_timeout(300)
+            mic = page.query_selector("#screen-home #voiceMicBtn")
+            assert mic and mic.is_visible(), "no voice search button on searchFAM"
+            page.evaluate("document.getElementById('searchInput').value = ''")
+            mic.click()
+            page.wait_for_timeout(250)
+            assert page.is_visible("#voiceSearch"), "the voice screen did not open"
+            assert page.evaluate("VOICE.listening"), "it is not listening"
+            assert not page.is_visible("#vsSend"), "send shows before anything was said"
+            assert page.evaluate(
+                "!document.getElementById('voiceSearch').classList.contains('speaking')"), \
+                "the lines move while nobody is talking"
+            page.evaluate("__say('who won the', false)")
+            page.wait_for_timeout(120)
+            assert page.evaluate(
+                "document.getElementById('voiceSearch').classList.contains('speaking')"), \
+                "the lines do not move while somebody is talking"
+            words = page.text_content("#vsWords")
+            assert "who won the" in words, f"the heard words are not shown: {words!r}"
+            page.evaluate("__say('who won the ryder cup', true)")
+            # Chrome on Android repeats earlier results inside later ones in
+            # continuous mode; the question must still read once.
+            page.evaluate(
+                """() => {
+                    var r = window.__fakeRecs[window.__fakeRecs.length - 1];
+                    var a = [{ transcript: 'who won the' }]; a.isFinal = true;
+                    var b = [{ transcript: 'who won the ryder cup' }]; b.isFinal = true;
+                    r.onresult({ results: [a, b] });
+                }""")
+            words = page.text_content("#vsWords").strip()
+            assert words == "who won the ryder cup", \
+                f"repeated results were shown twice: {words!r}"
+            assert not page.is_visible("#vsSend"), "send shows while they are still talking"
+            # They stop talking: the recogniser is stopped after the silence
+            # window and the send button appears. Nothing has been searched.
+            page.evaluate("() => { window.__searched = 0; window.__runSearch = runSearch;"
+                          " runSearch = function(){ window.__searched++; }; }")
+            page.wait_for_timeout(2000)
+            assert not page.evaluate("VOICE.listening"), "it kept listening after silence"
+            assert page.is_visible("#vsSend"), "no send button once they stopped"
+            assert page.evaluate("window.__searched") == 0, "it searched without send"
+            # X: back to searchFAM, nothing put in the box.
+            page.click("#voiceSearch .sheet-close")
+            page.wait_for_timeout(150)
+            assert not page.is_visible("#voiceSearch"), "the X did not close it"
+            assert page.is_visible("#screen-home"), "the X did not return to searchFAM"
+            assert page.input_value("#searchInput") == "", "closing typed into the box"
+            assert page.evaluate("window.__fakeRecs[window.__fakeRecs.length-1].aborted") \
+                or not page.evaluate("VOICE.rec"), "recognition outlived the screen"
+            # Again, and this time send: one search, with the words said.
+            mic.click()
+            page.wait_for_timeout(150)
+            page.evaluate("__say('what is a bogey', true)")
+            page.evaluate("VOICE.rec.stop()")
+            page.wait_for_timeout(150)
+            page.evaluate("() => { runSearch = function(){ window.__searched++;"
+                          " window.__q = document.getElementById('searchInput').value; }; }")
+            page.click("#vsSend")
+            page.wait_for_timeout(150)
+            assert page.evaluate("window.__searched") == 1, "send did not search once"
+            assert page.evaluate("window.__q") == "what is a bogey", \
+                f"send searched {page.evaluate('window.__q')!r}"
+            assert not page.is_visible("#voiceSearch"), "the voice screen stayed up"
+            page.evaluate("() => { runSearch = window.__runSearch;"
+                          "document.getElementById('searchInput').value = '';"
+                          "delete window.SpeechRecognition;"
+                          "window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
+            assert not page.is_visible("#voiceMicBtn"), \
+                "a mic is offered in a browser that cannot recognise speech"
+
         def the_search_page_opens_on_the_length_it_will_generate():
             """The number on the search chip and the number its own menu ticks
             are one setting, so they have to be one answer.
@@ -3174,6 +3282,8 @@ def main() -> int:
               the_search_page_opens_on_the_length_it_will_generate)
         check("Search picks its voice from the bank",
               the_search_page_picks_its_voice_from_the_bank)
+        check("Voice search hears you and waits for send",
+              voice_search_hears_you_and_waits_for_send)
         check("picker offers a typed topic", picker)
         check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",

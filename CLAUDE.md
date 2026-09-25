@@ -10,6 +10,9 @@ Three surfaces, all backed by generated audio:
 
 1. **searchFAM** — ask anything, hear a briefing of a chosen length. *Working
    today.* This is the only surface that fully works.
+   *Since §151 it can be asked by voice*: a mic under the box opens a screen
+   that shows the words as they are heard and searches only when send is
+   pressed - speech ending is not a request.
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
@@ -2459,7 +2462,9 @@ its earlier editions were called so it picks a new one;
 and **§150**, `/admin` - a live tracker over every store, derived
 from the code so none is left off, with a question box that answers "how many
 accounts have over 5 friends" by recipe or by Claude writing one read-only
-SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`),
+SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`; and **§151**, voice
+search on searchFAM - the browser's recogniser, the words shown as heard, and
+nothing searched until send),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
@@ -2482,12 +2487,13 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-six** named smoke
+**twice** - once per preview build - and **seventy-seven** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 76 as of §148,
+prose does not fail when somebody adds a behaviour. (It is 77 as of §151,
+which added voice search hearing you and waiting for send. It was 76 as of §148,
 which added the loading screen checking off its five steps. It was 75 as
 of §147, which added the search page's voice chip. It was 74 as of §146,
 which added the X on a Go Deeper tile. It was 73 as of §145, which added

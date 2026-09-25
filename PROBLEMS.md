@@ -12128,3 +12128,60 @@ because nothing else would (§114).
 
 **Not yet run against the production disk.** The build container has no
 deployment data; the numbers were checked against seeded stores.
+
+## 151. Voice search on searchFAM
+
+**Asked for from a sketch.** A mic button under the search box opens a voice
+screen of its own: an X in the corner back to searchFAM, the FAM mark in a
+ring in the middle, lines around it that appear and move while somebody is
+talking, the words they have said at the top, and - once they stop - a send
+button in the bottom corner. The sketch had a line crossed out that read "it
+takes what you say and turns it into a searchFAM episode, generating once
+you're done talking". That crossing out is the decision: **speech ending is
+not a request.** A pause is not somebody asking, so nothing is generated until
+send is pressed.
+
+**How it works.** The browser's own speech recognition (`SpeechRecognition`,
+`webkitSpeechRecognition` on Safari and Chrome), with interim results so the
+words fill in as they are said. Nothing new reaches the server: send puts the
+words in `#searchInput` and calls `runSearch()`, the same path as the arrow
+beside the box, so a spoken search is a typed one in every respect - title,
+event log, cache key, the five-step loading screen.
+
+"Done speaking" is 1.6 seconds with nothing new heard (`VOICE_SILENCE_MS`), or
+the recogniser ending by itself. Tapping the mark while it listens stops it;
+tapping it afterwards listens again and **adds** to what was said rather than
+replacing it, so a question that came out in two breaths is still one
+question.
+
+**Found when the branch was double-checked for merging:** Chrome on Android,
+in continuous mode, can return each new result with everything before it
+repeated inside it ("who won the", then "who won the ryder cup"), and
+appending them blindly shows - and would search - the question twice.
+`voiceJoin` lets a result that begins with what is already there replace it
+rather than follow it, and the smoke check feeds it exactly that pair. The
+cost, accepted: somebody who genuinely says "yes" and then "yes please" gets
+"yes please".
+
+**The lines are driven by what is heard, not by a timer.** Each speech or
+result event raises a level that decays every frame; the lines are drawn only
+while the level is up, and their swing scales with it. A silent room is a
+still mark. This deliberately does not open a second microphone stream for an
+audio meter: on iOS Safari a `getUserMedia` stream beside speech recognition
+is a known way to stop the recogniser, and a meter that costs the words is the
+wrong trade.
+
+**A browser that cannot recognise speech is not offered a mic** -
+`paintVoiceMic` hides it, for the reason §95 gave about controls with nothing
+behind them. A refusal after it opens is a sentence on the screen: microphone
+blocked for the page (which is what the claude.ai preview frame may well say,
+since it is an iframe), no microphone, the recognition service unreachable,
+nothing heard.
+
+**What it does not cover.** The native iOS app will need `SFSpeechRecognizer`;
+this is interface-only by nature, and the API it feeds is unchanged, so there
+is nothing to port on the server. Recognition quality and whether the words
+reach the recogniser's service are the browser vendor's - Chrome sends audio
+to Google for this, Safari to Apple. Headless Chromium has no recogniser, so
+the smoke check installs a stand-in that fires the same events; nobody has
+yet spoken to it on a real phone.
