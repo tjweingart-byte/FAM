@@ -55,7 +55,7 @@ def world(tmp_path, monkeypatch):
     soc.follow("u3", "u4")          # one-way: a follow, not a friendship
     public = mix.create("u0", "Gym")
     mix.update("u0", public.id, public=True)
-    mix.create("u1", "Run")          # private
+    mix.create("u1", "Run", public=False)
     guest = mix.create("u7", "Guest mix")   # u7 has no account
     mix.update("u7", guest.id, public=True)
     stores = [s for s in AT.discover_stores()
@@ -212,11 +212,17 @@ def test_a_guest_and_an_ordinary_account_get_nothing(client, monkeypatch):
     assert page.status_code == 200 and "@fam.test" not in page.text
 
 
-def test_an_admin_account_gets_in_with_no_token(client, monkeypatch):
+def test_an_admin_account_gets_in_with_its_email_and_password(client, monkeypatch):
     _, c = client
     monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "someone@else.test, Boss@FAM.test")
     assert c.post("/api/auth/signup", json={"email": "boss@fam.test",
                                             "password": PASSWORD}).status_code == 200
+    # Being signed in to the app is not being signed in to the dashboard.
+    assert _all_status(c) == [404] * 4
+    wrong = c.post("/api/admin/login", json={"email": "boss@fam.test", "password": "nope-nope-nope"})
+    assert wrong.status_code == 401 and "fam_admin" not in wrong.cookies
+    ok = c.post("/api/admin/login", json={"email": "Boss@fam.test", "password": PASSWORD})
+    assert ok.status_code == 200
     assert _all_status(c) == [200] * 4
     snap = c.get("/api/admin/tracker").json()
     assert snap["metrics"]["accounts_total"] == 6 and snap["via"] == "account"
@@ -225,6 +231,24 @@ def test_an_admin_account_gets_in_with_no_token(client, monkeypatch):
     assert answer["rows"] == [[1]] and answer["sql"]
     bad = c.post("/api/admin/query", json={"sql": "DELETE FROM accounts.accounts"})
     assert bad.status_code == 400
+    assert c.post("/api/admin/logout").status_code == 200
+    assert _all_status(c) == [404] * 4
+
+
+def test_a_right_password_on_a_non_admin_account_is_refused(client, monkeypatch):
+    _, c = client
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    assert c.post("/api/auth/signup", json={"email": "nobody@fam.test",
+                                            "password": PASSWORD}).status_code == 200
+    r = c.post("/api/admin/login", json={"email": "nobody@fam.test", "password": PASSWORD})
+    assert r.status_code == 401
+    assert _all_status(c) == [404] * 4
+
+
+def test_no_admin_accounts_means_no_admin_login(client):
+    _, c = client
+    r = c.post("/api/admin/login", json={"email": "a@b.test", "password": PASSWORD})
+    assert r.status_code == 404
 
 
 def test_the_token_still_works_and_a_wrong_one_does_not(client, monkeypatch):

@@ -12222,3 +12222,32 @@ the code wins and the document is the thing to fix.
 `FINANCIAL.md` §4 is illustrative: nobody has measured a real month, and
 the first `usage_report.py --days 30` on the deployment should replace it.
 
+## 153. The admin dashboard asks for a password; DailyFAM mixes start public
+
+Two changes at the owner's direction.
+
+**`/admin` asks for an admin's email and password.** §150 let an account
+listed in `FAM_ADMIN_ACCOUNTS` in by its ordinary app session, so any phone
+left signed in to FAM as that account could open a page reading every store.
+The page now shows a sign-in form; `POST /api/admin/login` checks the
+credentials with `AccountStore.log_in` and the address against
+`FAM_ADMIN_ACCOUNTS`, and mints a session held in its own HttpOnly,
+`SameSite=Strict` cookie (`fam_admin`, twelve hours) - never the app's
+`fam_session`. `_is_admin_account` reads only that cookie, so the app session
+opens nothing. Every failure is the same 401 sentence, so the form cannot
+say which addresses are admins; with no admin accounts configured the login
+path is a 404 like the rest. **Sign out** ends that session server-side.
+`FAM_ADMIN_TOKEN` still works as a header for scripts and `tools/`; the
+page no longer offers a box to paste it.
+
+**A new DailyFAM mix is public, and the switch's "on" is Public.** The old
+design had the switch mean private and new mixes private, on the reasoning
+that a routine is personal. The owner wants mixes found in DailyFAM search by
+default, so `MixStore.create` takes `public=True` unless the request sends
+`"public": false`, and the switch is lit with an open padlock for Public and
+off with a closed one for Private. Two things deliberately not changed:
+existing mixes keep whatever they were (the column default stays 0, so no
+old private mix is published by a deploy), and **a copy added from somebody
+else's mix starts private** - republishing another person's mix is not a
+choice to make for the person copying it.
+

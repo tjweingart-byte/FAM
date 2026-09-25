@@ -100,12 +100,12 @@ sequenceDiagram
 ```
 
 Each step is timed by `episode_marks.EpisodeMarks`. The server logs one
-`episode timing` block per non-cached episode at first audio (`app.py:5383`),
+`episode timing` block per non-cached episode at first audio (`app.py:5385`),
 and a second line when the stream ends.
 
 | # | Stage (log name) | Marks | What happens | Code | Budget or measured time |
 |---|---|---|---|---|---|
-| 0 | **setup** | origin → `claude_start` | Rate limit, `_validated_plan`, quota reservation, voice choice, `_wake_remote_voice()` fired without waiting, cache lookup (exact key, then vector near-match) | `app.py:5202`, `pipeline.py:1209` | Near-match scan **8.93 ms** on a miss (measured) |
+| 0 | **setup** | origin → `claude_start` | Rate limit, `_validated_plan`, quota reservation, voice choice, `_wake_remote_voice()` fired without waiting, cache lookup (exact key, then vector near-match) | `app.py:5204`, `pipeline.py:1209` | Near-match scan **8.93 ms** on a miss (measured) |
 | 1 | **brief** | `brief_start` → `brief_ready` | One Claude call returning a JSON `Brief`: the query to run, recency window, story shape, what must not be assumed. **Skipped** when prefetch warmed it. | `script_generator.py:1181`, `episode_intelligence.py:745` | Timeout **8 s** (`EI_TIMEOUT_SECONDS`); on failure the raw query is used. Real duration **not yet measured.** |
 | 2 | **evidence** | `evidence_start` → `evidence_ready` | `asyncio.gather(live_lookup, research)`. The live lookup runs only for sports, markets and elections. | `script_generator.py:1243` | Live: 1.5 s per source, 2.5 s total. Exa ≈ **0.5 s** (measured). |
 | 2a | – search | → `retrieval_ready` | Exa (`fast`, 8 results) → Exa again without the recency window if the result is thin → GDELT | `research.py:581`, `:799` | GDELT rung waits ≤ 6 s for a slot |
@@ -180,7 +180,7 @@ lets a background-written script match the key a tap asks for.
 ## 3. Where each section comes from
 
 Every browse rail is built by `topics.build_feed`, called from `/api/myfam`
-(`app.py:4210`). That route makes **no model call** and awaits nothing
+(`app.py:4212`). That route makes **no model call** and awaits nothing
 external. It reads the event log, the cache and the in-memory pools, records
 impressions, and schedules prefetch.
 
@@ -287,7 +287,7 @@ flowchart LR
 | | |
 |---|---|
 | **Source** | `scripts.db`, through `cache.recent(exclude_author=listener, origin="search")` (`cache.py:1446`): searched episodes by **other** listeners, anything kept (≤ 7 days), labelled with when it was sourced |
-| **Path** | `/api/explore` (`app.py:4788`). Playback sends `cached_only=1`. |
+| **Path** | `/api/explore` (`app.py:4790`). Playback sends `cached_only=1`. |
 | **Fallback** | **It never generates.** A missing entry gives `NotCached` → HTTP 409. An empty cache gives "Nothing here yet". |
 
 ---

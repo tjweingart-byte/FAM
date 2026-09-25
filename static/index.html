@@ -1112,8 +1112,7 @@
     color:var(--copper); margin-left:0.09em; margin-right:0.15em;
     vertical-align:baseline; }
 
-  /* Public / private on a mix. Private is the default: a mix is a routine,
-     and a routine is personal until someone decides otherwise. */
+  /* Public / private on a mix. Public is the default for a new mix. */
   .mix-public{ color:var(--copper); }
   /* The profile's interest row, named and editable. */
   .pf-tags-lab{ align-self:center; font-family:'JetBrains Mono', monospace;
@@ -6605,24 +6604,21 @@
       html += '<div class="mix-empty">This mix is empty. Add the topics you want '
         + 'to hear about every day.</div>';
     }
-    // Public mixes appear on the profile. Private is the default: a mix is a
-    // routine, and a routine is personal until someone decides otherwise.
+    // Public mixes appear on the profile and in DailyFAM search, and a new
+    // mix is public by default (at the owner's direction).
     //
-    // **The switch means private, and the lock is on the switch.** It used to
-    // mean public, which made "on" the state in which other people could see
-    // your mix - and a toggle whose lit position is the *less* private one is
-    // read the wrong way round by everybody who has ever used a phone. On
-    // with a closed padlock and the word Private; off with an open one and
-    // the word Public. The word is beside the switch and the lock is on the
-    // knob, so the two halves of the state cannot be read separately.
+    // **The switch means public**: on (lit, open padlock) is Public, off
+    // (closed padlock) is Private. The word is beside the switch and the lock
+    // is on the knob, so the two halves of the state cannot be read
+    // separately.
     html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
-      + ' role="switch" aria-checked="' + (m.public ? "false" : "true") + '"'
-      + ' aria-label="Private">'
+      + ' role="switch" aria-checked="' + (m.public ? "true" : "false") + '"'
+      + ' aria-label="Public">'
       + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
       + '<div class="mix-vis-s">' + (m.public
           ? "Public will be displayed on your profile"
           : "Only you can see this mix") + '</div></div>'
-      + '<div class="mix-switch' + (m.public ? "" : " on") + '"><span>'
+      + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>'
       + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
       + '</div>';
     html += '<button class="mix-new" onclick="editMixTopics()">'
@@ -7067,8 +7063,7 @@
     ]);
   }
 
-  // Public mixes appear on the profile. Private is the default: a mix is a
-  // routine, and a routine is personal until someone decides otherwise.
+  // Public mixes appear on the profile. A new mix is public by default.
   function toggleMixVisibility(){
     var m = mixById(currentMixId);
     if(!m) return;
@@ -10462,8 +10457,8 @@
     personInterests = interestRows(pub);
     html += '<div class="yf-chips">' + interestChipsHTML(personInterests, "openPersonInterest") + '</div>';
 
-    // Their public DailyFAM mixes. Private is the default, so anything here
-    // is a mix they switched on themselves.
+    // Their public DailyFAM mixes - a new mix is public unless its owner
+    // switched it off.
     var mixes = pub.mixes || [];
     var name = firstName(face).toUpperCase();
     html += '<div class="yf-row"><span class="yf-label">' + escapeHtml(name)

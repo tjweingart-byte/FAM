@@ -45,10 +45,9 @@ def person(email: str, name: str = "", handle: str = "") -> TestClient:
 
 
 def make_mix(client, name, entries, public=True):
-    made = client.post("/api/mixes", json={"name": name, "topic_ids": entries})
+    made = client.post("/api/mixes", json={"name": name, "topic_ids": entries,
+                                            "public": public})
     assert made.status_code == 200, made.text
-    if public:
-        client.patch(f"/api/mixes/{made.json()['id']}", json={"public": True})
     return made.json()
 
 
@@ -104,9 +103,9 @@ def test_a_name_hit_outranks_a_topic_hit():
 # --- the store --------------------------------------------------------------
 
 def test_only_public_mixes_are_listed_and_never_your_own(store):
-    store.create("a", "Mine", ["f:ai"])
+    store.create("a", "Mine", ["f:ai"], public=False)
     theirs = store.create("b", "Theirs", ["f:ai"])
-    store.create("b", "Hidden", ["f:ai"])
+    store.create("b", "Hidden", ["f:ai"], public=False)
     store.update("b", theirs.id, public=True)
     mine = store.create("a", "Mine public", ["f:ai"])
     store.update("a", mine.id, public=True)
@@ -114,7 +113,7 @@ def test_only_public_mixes_are_listed_and_never_your_own(store):
 
 
 def test_a_private_mix_is_not_found_by_id(store):
-    hidden = store.create("b", "Hidden", ["f:ai"])
+    hidden = store.create("b", "Hidden", ["f:ai"], public=False)
     assert store.get_public(hidden.id) is None
     assert store.get_public(hidden.id, viewer="b") is not None
 

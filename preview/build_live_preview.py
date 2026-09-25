@@ -1671,7 +1671,7 @@ __WRITING_SIM__
         items: (body.topic_ids || []).map(function (e) {
           return typeof e === "string" ? e : ("q:" + mixTypedQuery(e.query));
         }).join(","),
-        created_at: now(), updated_at: now(), public: 0,
+        created_at: now(), updated_at: now(), public: body.public === false ? 0 : 1,
         cover: typeof body.cover === "string" ? body.cover : ""
       }).then(function () {
         paint();
