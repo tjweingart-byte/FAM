@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-09-25 (code at `Main` after PR #58) |
+| **As of** | 2026-09-25 (code at `Main` after PR #59) |
 | **Audience** | Engineers, and anyone answering a privacy, retention or capacity question |
 | **Companion docs** | [`FINANCIAL.md`](FINANCIAL.md), [`BACKEND.md`](BACKEND.md), `DATABASE.md` (the design reasoning) |
 
@@ -56,6 +56,7 @@ flowchart TB
 | **RunPod network volume** `/state` (~20 GB recommended) | Chatterbox weights (`/state/hf`), `reference_3.wav` and its rights file, bank voices materialised after a SHA and rights check | Yes |
 | **RunPod container disk** | Nothing that matters | No |
 | **The listener's device** | Session cookie or token, device-only settings (playback speed, first-run flag), the avatar crop source (≤ 1024 px) | Until cleared. **No IndexedDB**: downloads were removed. |
+| **The browser vendor's speech service** | The audio of a voice search (§151). Chrome sends it to Google, Safari to Apple. FAM never receives or stores the audio; it gets only the recognised words, exactly as if they had been typed. | Under the vendor's own policy, not FAM's |
 | **`~/.fam/`** (dev machines only) | `env` (API keys), `voices/`, `embed/` | n/a on Render |
 
 **No listener data is stored on RunPod.** The worker receives text and a voice

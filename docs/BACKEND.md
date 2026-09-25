@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-09-25 (code at `Main` after PR #58) |
+| **As of** | 2026-09-25 (code at `Main` after PR #59) |
 | **Audience** | Engineers, and anyone who needs to know why a screen shows what it shows |
 | **Companion docs** | [`FINANCIAL.md`](FINANCIAL.md), [`DATA.md`](DATA.md), `MYFAM.md`, `TRENDING.md`, `LIVE_FACTS.md`, `REMOTE_VOICE.md` |
 
@@ -270,7 +270,7 @@ flowchart LR
 
 | | |
 |---|---|
-| **Source** | The typed question (plus attachments) |
+| **Source** | The typed question (plus attachments), or a spoken one (§151): the browser's own speech recognition turns it into text on the phone, and only that text reaches FAM, through the same `runSearch()` path as typing. Nothing is searched until send is pressed. |
 | **Path** | The full pipeline in §2.1. `origin="search"`. The listener picks the voice. Minutes are whatever they chose, 1-10. |
 | **Fallbacks** | Exact cache → near-match cache → generate. **Brief:** Claude → raw query (`degraded`). **Evidence:** Exa → Exa without recency → GDELT → **refuse** (`NoEvidence`, HTTP 503, refunded), and only if the question depends on current facts. Evergreen questions are answered from knowledge. **Voice:** see §4. An attached episode is never cached. |
 

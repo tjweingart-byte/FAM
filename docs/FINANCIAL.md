@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-09-25 (code at `Main` after PR #58) |
+| **As of** | 2026-09-25 (code at `Main` after PR #59) |
 | **Audience** | Founders, anyone pricing a plan or approving spend |
 | **Companion docs** | [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
 
