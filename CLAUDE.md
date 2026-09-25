@@ -2450,7 +2450,10 @@ random everywhere else, and every episode that is not a search fixed at two
 minutes; and **§148**,
 the loading screen's five steps checked off from the server's own marks via
 `/api/progress`, each held at least two seconds, with the audio held until
-the last),
+the last; and **§149**, `/admin` - a live tracker over every store, derived
+from the code so none is left off, with a question box that answers "how many
+accounts have over 5 friends" by recipe or by Claude writing one read-only
+SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

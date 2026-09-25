@@ -12022,3 +12022,56 @@ question on an uneven clock so the steps can be watched on a phone
 is a replay unless `window.famPreviewWrites` is set, which is how the smoke
 check walks the five steps and asserts the floor and the held audio.
 **Unmeasured against a real server** - there is no key here.
+
+## 149. An admin tracker that reads the real stores, and answers questions
+
+**Reported:** the old tracker was not up to date on the total number of
+accounts, among other things. It could not have been: the nearest thing was a
+demo artifact whose "live database" was the artifact's *own* storage, filled by
+taps on that page. It never read a byte of the deployment.
+
+**What there is now:** `/admin` on the server itself (`admin_tracker.py`,
+`admin_ui/tracker.html`). Every number is read from the stores on each request
+and the page refreshes every fifteen seconds: accounts (total, today, this
+week, thirty days, by sign-in route), listeners and who was active, follows and
+friendships, mixes and public mixes, messages, plays and searches, the episode
+cache and kept audio, vibes, saves, shares, and thirty days of spend. A chart
+of new accounts per day, the newest twenty-five accounts, the week's top
+searches, and **every store and table with its live row count** - tap one to
+see its newest hundred rows.
+
+**The store list is derived, not written down.** `discover_stores` reads the
+`data_path("VAR", "file.db")` calls out of the source, the same way
+`tests/test_data_paths.py` does, and resolves each through `data_path` so the
+tracker opens exactly the file the app writes. A store added tomorrow is on the
+page tomorrow. This is §107's "a guard whose subject is enumerated by hand is
+decorative" applied to a dashboard - an enumerated one is how the last one went
+stale.
+
+**Asking it questions.** "How many of the accounts have made public mixes?"
+and "how many accounts have over 5 friends?" are answered by built-in recipes
+with no model and no key: words pick the recipe, the number and the comparison
+("over", "at least", "fewer than", "exactly") and a time window ("this week",
+"last 3 days") are read out of the question. A friend is the mutual case, as
+everywhere else. Anything no recipe fits goes to Claude with the live schema
+and comes back as one `SELECT`, retried once with the error if it fails. The
+SQL is shown under every answer, and an admin can write their own.
+
+**It cannot write, and it cannot read a secret.** Each file is attached
+`mode=ro`, the connection is `query_only`, an authorizer allows only `SELECT`,
+column reads and a list of functions (no `PRAGMA`, no `ATTACH`, no
+`zeroblob`), and a progress handler stops a query after four seconds. Password
+hashes, session token hashes, provider subjects, message text, attachment text
+and every BLOB read as NULL - in the sandbox, so a question the model writes
+cannot reach them either.
+
+**Only admins.** `FAM_ADMIN_ACCOUNTS` names the admin accounts by email, phone
+or listener id; a signed-in account on that list opens `/admin` with nothing to
+paste. `FAM_ADMIN_TOKEN` still works for a terminal. Everybody else - a guest,
+an ordinary account, a wrong token - gets the same 404 as `/api/usage`, and the
+page is not served at all on a deployment with neither set. The account is the
+session's, never a parameter. `render.yaml` asks for `FAM_ADMIN_ACCOUNTS`,
+because nothing else would (§114).
+
+**Not yet run against the production disk.** The build container has no
+deployment data; the numbers were checked against seeded stores.

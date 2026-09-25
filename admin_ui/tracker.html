@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM Admin Tracker</title>
+<style>
+  /* FAM's own dark plum and amber, painted explicitly. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --amber-dk:#8A6A22; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); -webkit-font-smoothing:antialiased; }
+  button, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:1200px; margin:0 auto; padding:22px 16px 60px; }
+  header.top { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between; margin-bottom:18px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0; letter-spacing:-.01em; }
+  h2 { font-family:var(--serif); font-size:18px; font-weight:600; margin:0 0 10px; }
+  .status { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font:12px var(--mono); color:var(--muted); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--faint); display:inline-block; }
+  .dot.live { background:var(--green); box-shadow:0 0 0 3px rgba(107,194,168,.18); }
+  .dot.off { background:var(--rose); }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .ghost:hover { color:var(--ink); border-color:var(--amber-dk); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
+  .grid { display:grid; gap:14px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .kpi { background:var(--panel); padding:12px 14px; }
+  .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .kpi b { display:block; font-family:var(--serif); font-size:26px; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
+  .two { display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px; align-items:start; }
+  @media (min-width:900px) { .two { grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); } }
+  .chart { position:relative; }
+  .chart svg { width:100%; height:170px; display:block; }
+  .tip { position:absolute; pointer-events:none; background:var(--raised); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font:11.5px var(--mono); white-space:nowrap; transform:translate(-50%,-100%); display:none; }
+  .sub { color:var(--muted); font-size:12.5px; margin:-4px 0 10px; }
+  /* ask */
+  .thread { display:flex; flex-direction:column; gap:10px; max-height:520px; overflow-y:auto; margin-bottom:10px; }
+  .q { align-self:flex-end; background:var(--raised); border-radius:12px 12px 2px 12px; padding:7px 12px; max-width:85%; }
+  .a { background:var(--surface); border:1px solid var(--line); border-radius:12px 12px 12px 2px; padding:10px 12px; min-width:0; }
+  .a.err { border-color:var(--rose); background:var(--rose-bg); }
+  .a .big { font-family:var(--serif); font-size:20px; }
+  .a .meta { font:10.5px var(--mono); color:var(--faint); margin-top:6px; }
+  details summary { cursor:pointer; font:11px var(--mono); color:var(--muted); margin-top:6px; }
+  pre { white-space:pre-wrap; word-break:break-word; background:var(--ground); border:1px solid var(--line); border-radius:8px; padding:8px; font:11.5px var(--mono); margin:6px 0 0; }
+  .askrow { display:flex; gap:8px; }
+  .askrow input, textarea { flex:1; min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  textarea { width:100%; min-height:80px; font:12px var(--mono); resize:vertical; }
+  .go { background:var(--amber); color:#241E0B; border:0; border-radius:10px; padding:0 16px; font-weight:700; }
+  .go:disabled { opacity:.5; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+  .chip { background:var(--raised); border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:12px; color:var(--muted); }
+  .chip:hover { color:var(--ink); border-color:var(--amber-dk); }
+  /* tables */
+  .tbl { overflow:auto; max-height:420px; border:1px solid var(--line); border-radius:10px; margin-top:8px; }
+  table { width:100%; border-collapse:collapse; font:11.5px var(--mono); }
+  th { position:sticky; top:0; background:var(--surface); text-align:left; padding:7px 10px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line); font-weight:500; white-space:nowrap; }
+  td { padding:6px 10px; border-bottom:1px solid var(--line); color:var(--muted); white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis; }
+  td.n { text-align:right; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .stores { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
+  .store { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .store h3 { margin:0; font:600 13px var(--mono); color:var(--amber); display:flex; justify-content:space-between; gap:6px; }
+  .store h3 small { color:var(--faint); font-weight:400; }
+  .store button.t { display:flex; justify-content:space-between; width:100%; background:none; border:0; padding:3px 0; font:12px var(--mono); color:var(--muted); text-align:left; }
+  .store button.t:hover { color:var(--ink); }
+  .store .missing { font-size:12px; color:var(--faint); }
+  .gate { max-width:460px; margin:10vh auto; }
+  .gate p { color:var(--muted); }
+  .gate .askrow { margin-top:12px; }
+  .section { margin-bottom:14px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">FAM · admin</div>
+      <h1>Live tracker</h1>
+    </div>
+    <div class="status">
+      <span class="dot" id="dot"></span><span id="state">connecting…</span>
+      <button class="ghost" id="pause">Pause</button>
+      <button class="ghost" id="refresh">Refresh now</button>
+    </div>
+  </header>
+
+  <div id="gate" class="card gate" hidden>
+    <h2>Admins only</h2>
+    <p>This page reads every store in the deployment. Sign in to FAM with an account listed in <code>FAM_ADMIN_ACCOUNTS</code> and reload, or paste the deployment's admin token.</p>
+    <div class="askrow"><input id="token" type="password" placeholder="FAM_ADMIN_TOKEN" autocomplete="off"><button class="go" id="useToken">Open</button></div>
+  </div>
+
+  <main id="main" hidden>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="two">
+      <section class="card">
+        <h2>Ask the database</h2>
+        <p class="sub">Common questions are answered instantly without a model. Anything else is turned into one read-only query by Claude. The SQL is always shown.</p>
+        <div class="thread" id="thread"></div>
+        <form class="askrow" id="askForm">
+          <input id="ask" placeholder="How many accounts have over 5 friends?" maxlength="500" autocomplete="off">
+          <button class="go" id="askBtn">Ask</button>
+        </form>
+        <div class="chips" id="chips"></div>
+        <details>
+          <summary>Write SQL yourself</summary>
+          <p class="sub" style="margin-top:8px">Name tables by store: <code>accounts.accounts</code>, <code>social.follows</code>, <code>mixes.mixes</code>. <code>:now</code> is the current time in Unix seconds. Read-only; passwords, tokens, message text and binary data read as NULL.</p>
+          <textarea id="sql" spellcheck="false">SELECT datetime(created,'unixepoch') AS created, email, phone, plan
+FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
+          <div style="margin-top:8px"><button class="go" id="runSql" style="padding:8px 16px">Run</button></div>
+        </details>
+      </section>
+
+      <div class="grid">
+        <section class="card">
+          <h2>New accounts, last 30 days</h2>
+          <div class="chart" id="chart"><svg id="bars" role="img" aria-label="Accounts created per day"></svg><div class="tip" id="tip"></div></div>
+        </section>
+        <section class="card">
+          <h2>Top searches, last 7 days</h2>
+          <div id="searches"></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="card section">
+      <h2>Newest accounts</h2>
+      <div id="recent"></div>
+    </section>
+
+    <section class="card section">
+      <h2>Every store</h2>
+      <p class="sub">Found by reading the code, so a store added later appears here on its own. Tap a table to see its newest 100 rows.</p>
+      <div class="stores" id="stores"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var TOKEN = "";
+  try { TOKEN = sessionStorage.getItem("fam_admin_token") || ""; } catch (e) {}
+  var paused = false, timer = null, lastAt = 0;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (TOKEN) headers["X-Admin-Token"] = TOKEN;
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function fmt(n) {
+    if (n == null) return "—";
+    if (typeof n === "number") return n.toLocaleString();
+    return esc(n);
+  }
+  function bytes(n) {
+    if (!n) return "0 B";
+    var u = ["B", "KB", "MB", "GB"], i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i ? n.toFixed(1) : n) + " " + u[i];
+  }
+  function when(t) {
+    if (!t) return "—";
+    var d = new Date(t * 1000);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " +
+      d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+
+  // ---------------------------------------------------------------- KPIs
+  function kpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + value + '</b>' +
+      (note ? '<em>' + note + '</em>' : '') + '</div>';
+  }
+  function drawKpis(m) {
+    var money = function (v) { return v == null ? "—" : "$" + Number(v).toFixed(2); };
+    $("kpis").innerHTML = [
+      kpi("Accounts", fmt(m.accounts_total),
+        "+" + fmt(m.accounts_24h) + " today · +" + fmt(m.accounts_7d) + " this week"),
+      kpi("New in 30 days", fmt(m.accounts_30d), fmt(m.logins_24h) + " signed in today"),
+      kpi("Sign-in routes", fmt(m.accounts_email) + " email",
+        fmt(m.accounts_phone) + " phone · " + fmt(m.accounts_google) + " Google · " + fmt(m.accounts_apple) + " Apple"),
+      kpi("Listeners (incl. guests)", fmt(m.listeners_total),
+        fmt(m.active_24h) + " active today · " + fmt(m.active_7d) + " this week"),
+      kpi("Friendships", fmt(m.friendships),
+        fmt(m.accounts_with_friend) + " accounts have a friend · " + fmt(m.follows) + " follows"),
+      kpi("Mixes", fmt(m.mixes_total),
+        fmt(m.mixes_public) + " public · " + fmt(m.accounts_public_mix) + " accounts share one"),
+      kpi("Messages", fmt(m.messages), fmt(m.messages_24h) + " today · " + fmt(m.threads) + " chats"),
+      kpi("Plays this week", fmt(m.plays_7d),
+        fmt(m.plays_24h) + " today · " + fmt(m.completes_7d) + " finished · " + fmt(m.searches_24h) + " searches today"),
+      kpi("Episodes cached", fmt(m.episodes_cached),
+        fmt(m.episodes_current) + " current · " + fmt(m.episodes_24h) + " written today"),
+      kpi("Audio kept", fmt(m.audio_kept), bytes(m.audio_bytes)),
+      kpi("Vibes · saves · shares", fmt(m.vibes) + " · " + fmt(m.saved) + " · " + fmt(m.shares),
+        fmt(m.share_opens) + " share-link opens"),
+      kpi("Spend, 30 days", money(m.cost_30d),
+        money(m.cost_24h) + " today · " + fmt(m.generated_30d) + " episodes metered")
+    ].join("");
+  }
+
+  // --------------------------------------------------------------- chart
+  var series = [];
+  function drawChart(data) {
+    series = data || [];
+    var svg = $("bars"), W = svg.clientWidth || 500, H = 170, pad = { l: 28, r: 6, t: 10, b: 22 };
+    var max = Math.max(1, Math.max.apply(null, series.map(function (d) { return d.n; })));
+    var step = (W - pad.l - pad.r) / Math.max(1, series.length), bw = Math.max(3, step - 2);
+    var y = function (v) { return pad.t + (H - pad.t - pad.b) * (1 - v / max); };
+    var ticks = [0, Math.ceil(max / 2), max].filter(function (v, i, a) { return a.indexOf(v) === i; });
+    var out = ticks.map(function (v) {
+      return '<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + y(v) + '" y2="' + y(v) +
+        '" stroke="#3A3348" stroke-width="1"/><text x="' + (pad.l - 6) + '" y="' + (y(v) + 4) +
+        '" fill="#7C7391" font-size="10" text-anchor="end" font-family="ui-monospace,monospace">' + v + '</text>';
+    });
+    series.forEach(function (d, i) {
+      var x = pad.l + i * step + (step - bw) / 2, top = y(d.n), h = Math.max(0, y(0) - top);
+      if (d.n > 0) {
+        var r = Math.min(4, bw / 2, h);
+        out.push('<path d="M' + x + ',' + y(0) + 'V' + (top + r) + 'Q' + x + ',' + top + ' ' + (x + r) + ',' + top +
+          'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + top + ' ' + (x + bw) + ',' + (top + r) + 'V' + y(0) + 'Z" fill="#E9BC63"/>');
+      }
+      out.push('<rect data-i="' + i + '" x="' + (pad.l + i * step) + '" y="' + pad.t + '" width="' + step +
+        '" height="' + (H - pad.t - pad.b) + '" fill="transparent"/>');
+      if (i === 0 || i === series.length - 1 || i === Math.floor(series.length / 2)) {
+        out.push('<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" fill="#7C7391" font-size="10" text-anchor="middle" font-family="ui-monospace,monospace">' +
+          d.day.slice(5) + '</text>');
+      }
+    });
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.innerHTML = out.join("");
+  }
+  $("bars").addEventListener("mousemove", function (e) {
+    var t = e.target.closest("rect[data-i]"), tip = $("tip");
+    if (!t) { tip.style.display = "none"; return; }
+    var d = series[+t.getAttribute("data-i")], box = $("chart").getBoundingClientRect();
+    tip.textContent = d.day + " · " + d.n + " account" + (d.n === 1 ? "" : "s");
+    tip.style.left = (e.clientX - box.left) + "px"; tip.style.top = (e.clientY - box.top - 8) + "px";
+    tip.style.display = "block";
+  });
+  $("bars").addEventListener("mouseleave", function () { $("tip").style.display = "none"; });
+
+  // --------------------------------------------------------------- tables
+  var TIME_COLS = /^(at|created|created_at|updated|updated_at|joined|last_seen|last_login|expires|read_at|sourced_at|fresh_until|played)$/;
+  function table(res, opts) {
+    opts = opts || {};
+    if (!res || !res.columns || !res.columns.length) return '<p class="sub">Nothing to show.</p>';
+    if (!res.rows.length) return '<p class="sub">No rows.</p>';
+    var cols = res.columns;
+    var head = cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join("");
+    var body = res.rows.map(function (r) {
+      return '<tr>' + r.map(function (v, i) {
+        var c = cols[i];
+        if (typeof v === "number" && TIME_COLS.test(c) && v > 1e9) return '<td title="' + v + '">' + esc(when(v)) + '</td>';
+        if (typeof v === "number") return '<td class="n">' + v.toLocaleString() + '</td>';
+        if (v === null) return '<td style="color:var(--faint)">null</td>';
+        return '<td title="' + esc(v) + '">' + esc(v) + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    return '<div class="tbl"' + (opts.short ? ' style="max-height:260px"' : '') + '><table><thead><tr>' + head +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+      (res.truncated ? '<p class="sub" style="margin-top:6px">Showing the first ' + res.rows.length + ' rows.</p>' : '');
+  }
+  function drawRecent(res) {
+    if (res && res.columns) {
+      // user_id last and the raw login times formatted by the table helper.
+      res = { columns: ["created", "email", "phone", "name", "handle", "plan", "last_login", "last_seen", "user_id"],
+              rows: res.rows, truncated: res.truncated };
+    }
+    $("recent").innerHTML = table(res);
+  }
+
+  // ---------------------------------------------------------------- stores
+  function drawStores(stores) {
+    $("stores").innerHTML = stores.map(function (s) {
+      var rows = s.tables.reduce(function (a, t) { return a + t.rows; }, 0);
+      return '<div class="store"><h3>' + esc(s.alias) + ' <small>' + (s.exists ? rows.toLocaleString() + " rows · " + bytes(s.bytes) : "") + '</small></h3>' +
+        (s.exists ? (s.tables.length ? s.tables.map(function (t) {
+          return '<button class="t" data-table="' + esc(s.alias + "." + t.name) + '"><span>' + esc(t.name) + '</span><span>' + t.rows.toLocaleString() + '</span></button>';
+        }).join("") : '<div class="missing">No tables.</div>')
+          : '<div class="missing">Not created yet on this server (' + esc(s.file) + ').</div>') +
+        (s.error ? '<div class="missing">' + esc(s.error) + '</div>' : '') + '</div>';
+    }).join("");
+  }
+  $("stores").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-table]"); if (!b) return;
+    var name = b.getAttribute("data-table");
+    runSql("SELECT * FROM " + name + " ORDER BY rowid DESC LIMIT 100", "Newest rows in " + name);
+    $("thread").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  // ------------------------------------------------------------------ ask
+  function bubble(html, cls) {
+    var el = document.createElement("div"); el.className = cls; el.innerHTML = html;
+    $("thread").appendChild(el); $("thread").scrollTop = $("thread").scrollHeight;
+    return el;
+  }
+  function answer(el, res) {
+    var single = res.rows && res.rows.length === 1 && res.columns.length === 1;
+    el.innerHTML =
+      '<div class="' + (single ? "big" : "") + '">' + esc(res.answer || ((res.label || "Result") + ": " + res.rows.length + " rows")) + '</div>' +
+      (single ? "" : table(res, { short: true })) +
+      '<details><summary>SQL</summary><pre>' + esc(res.sql || "") + '</pre></details>' +
+      '<div class="meta">' + (res.source === "recipe" ? "built-in question" : res.source === "model" ? "written by " + esc(res.model) : "your query") +
+      ' · ' + esc((res.stores || []).join(", ") || "no store") + ' · ' + res.ms + ' ms</div>';
+  }
+  function fail(el, err) {
+    el.className = "a err";
+    el.textContent = err.message || String(err);
+  }
+  function ask(q) {
+    q = (q || "").trim(); if (!q) return;
+    bubble(esc(q), "q");
+    var el = bubble('<span class="sub">Looking…</span>', "a");
+    $("askBtn").disabled = true;
+    api("/api/admin/ask", { question: q }).then(function (res) { answer(el, res); })
+      .catch(function (e) { fail(el, e); })
+      .then(function () { $("askBtn").disabled = false; });
+  }
+  function runSql(sql, label) {
+    bubble('<code>' + esc(label || sql.slice(0, 120)) + '</code>', "q");
+    var el = bubble('<span class="sub">Running…</span>', "a");
+    api("/api/admin/query", { sql: sql }).then(function (res) {
+      res.sql = sql; res.source = "sql"; res.label = label || "Result";
+      res.answer = (res.rows.length === 1 && res.columns.length === 1)
+        ? res.label + ": " + res.rows[0][0] : res.label + ": " + res.rows.length + " row" + (res.rows.length === 1 ? "" : "s");
+      answer(el, res);
+    }).catch(function (e) { fail(el, e); });
+  }
+  $("askForm").addEventListener("submit", function (e) { e.preventDefault(); ask($("ask").value); $("ask").value = ""; });
+  $("runSql").addEventListener("click", function () { runSql($("sql").value); });
+  $("chips").addEventListener("click", function (e) {
+    var b = e.target.closest(".chip"); if (b) ask(b.textContent);
+  });
+
+  // --------------------------------------------------------------- refresh
+  function setState(live, text) {
+    $("dot").className = "dot " + (live ? "live" : "off"); $("state").textContent = text;
+  }
+  var chipsDrawn = false;
+  function load() {
+    return api("/api/admin/tracker").then(function (s) {
+      $("gate").hidden = true; $("main").hidden = false;
+      lastAt = s.at;
+      drawKpis(s.metrics || {});
+      drawChart(s.signups);
+      drawRecent(s.recent_accounts);
+      $("searches").innerHTML = table(s.top_searches, { short: true });
+      if (!chipsDrawn) {
+        $("chips").innerHTML = (s.suggestions || []).slice(0, 10).map(function (q) {
+          return '<button class="chip" type="button">' + esc(q) + '</button>';
+        }).join("");
+        chipsDrawn = true;
+      }
+      tick();
+      return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
+    }).catch(function (e) {
+      if (e.status === 404) {
+        setState(false, "not authorised");
+        $("main").hidden = true; $("gate").hidden = false;
+        stop();
+      } else {
+        setState(false, "refresh failed: " + e.message);
+      }
+    });
+  }
+  function tick() {
+    if (!lastAt) return;
+    var ago = Math.max(0, Math.round(Date.now() / 1000 - lastAt));
+    setState(!paused, (paused ? "paused · " : "live · ") + "updated " + (ago < 5 ? "just now" : ago + "s ago"));
+  }
+  function start() { stop(); timer = setInterval(function () { if (!paused) load(); }, 15000); }
+  function stop() { if (timer) clearInterval(timer); timer = null; }
+  setInterval(tick, 1000);
+  $("pause").addEventListener("click", function () {
+    paused = !paused; this.textContent = paused ? "Resume" : "Pause"; tick();
+  });
+  $("refresh").addEventListener("click", load);
+  $("useToken").addEventListener("click", function () {
+    TOKEN = $("token").value.trim();
+    try { sessionStorage.setItem("fam_admin_token", TOKEN); } catch (e) {}
+    load().then(start);
+  });
+  window.addEventListener("resize", function () { drawChart(series); });
+  load().then(start);
+})();
+</script>
+</body>
+</html>

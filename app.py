@@ -5503,13 +5503,49 @@ async def audio(
 ADMIN_TOKEN = os.environ.get("FAM_ADMIN_TOKEN", "").strip()
 
 
+def _admin_accounts() -> set[str]:
+    """Who is an admin by *account*: `FAM_ADMIN_ACCOUNTS`, comma separated.
+
+    Each entry is an email address, a phone number or a listener id, matched
+    against the signed-in account - so an admin opens `/admin` signed in to
+    the app like anybody else, with no token to paste. Read at call time, so
+    adding somebody is an environment edit and a restart, never a code change.
+    Nothing is an admin by default: an unset variable is an empty set.
+    """
+    raw = os.environ.get("FAM_ADMIN_ACCOUNTS", "")
+    return {part.strip().lower() for part in raw.split(",") if part.strip()}
+
+
+def _admin_configured() -> bool:
+    return bool(ADMIN_TOKEN or _admin_accounts())
+
+
+def _is_admin_account(request: Request) -> bool:
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        return False
+    allowed = _admin_accounts()
+    if not allowed:
+        return False
+    mine = {listener.user_id.lower(), (listener.email or "").lower(),
+            (listener.phone or "").lower()} - {""}
+    return bool(mine & allowed)
+
+
 def _require_admin(request: Request) -> None:
-    """Constant-time check of the admin credential, or a 404.
+    """The admin credential or an admin account, or a 404.
 
     404 rather than 401: an unconfigured deployment should not advertise that
     it has a billing endpoint at all, and a wrong token should not tell the
     person holding it that they got the path right.
+
+    Two ways in, one rule. `FAM_ADMIN_TOKEN` is for a machine or a terminal;
+    `FAM_ADMIN_ACCOUNTS` names the accounts that are admins, checked against
+    the session the server minted - never against anything the client says
+    about itself. A listener without an account is never an admin.
     """
+    if _is_admin_account(request):
+        return
     if not ADMIN_TOKEN:
         raise HTTPException(status_code=404, detail="Not found")
     sent = (request.headers.get("x-admin-token")
@@ -5540,6 +5576,75 @@ async def usage(
     if flagged:
         report["flagged"] = metering.suspects(METER)
     return report
+
+
+# ---------------------------------------------------------------- tracker
+#
+# The live admin tracker (`admin_tracker.py`): every store, read on each
+# request, and a question box over them. Behind `_require_admin` like the
+# usage report, and for the same reason - it is every listener's data.
+
+import admin_tracker
+
+
+@app.get("/admin", include_in_schema=False)
+async def admin_page(request: Request):
+    """The tracker's page. A shell with no data in it; every number on it is
+    fetched from the endpoints below, which are what check who is asking.
+    Not served at all on a deployment with no admin configured."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "tracker.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/tracker")
+async def admin_tracker_snapshot(request: Request) -> dict:
+    """Every headline number, read live from the stores."""
+    _require_admin(request)
+    snap = await asyncio.to_thread(admin_tracker.snapshot)
+    snap["suggestions"] = admin_tracker.suggestions()
+    snap["via"] = "account" if _is_admin_account(request) else "token"
+    return snap
+
+
+@app.get("/api/admin/schema")
+async def admin_tracker_schema(request: Request) -> dict:
+    """Every store, table, column and live row count."""
+    _require_admin(request)
+    return {"stores": await asyncio.to_thread(admin_tracker.schema)}
+
+
+class AdminAsk(BaseModel):
+    question: str = Field("", max_length=500)
+
+
+class AdminQuery(BaseModel):
+    sql: str = Field("", max_length=8000)
+
+
+@app.post("/api/admin/ask")
+async def admin_tracker_ask(req: AdminAsk, request: Request) -> dict:
+    """A question in words. A built-in recipe when one fits, the model
+    otherwise; the SQL that produced the answer always comes back with it."""
+    _require_admin(request)
+    try:
+        return await admin_tracker.ask(req.question)
+    except admin_tracker.QueryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/admin/query")
+async def admin_tracker_query(req: AdminQuery, request: Request) -> dict:
+    """One read-only SELECT, run in the tracker's sandbox."""
+    _require_admin(request)
+    try:
+        return await asyncio.to_thread(
+            admin_tracker.run_query, req.sql, {"now": time.time()})
+    except admin_tracker.QueryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 class WipeRequest(BaseModel):
