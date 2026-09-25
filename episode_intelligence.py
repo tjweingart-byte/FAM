@@ -637,7 +637,8 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
             f"{context}\nThe search must find what is *new* relative to that, "
             "not the same ground again.\n")
     if covered:
-        # A daily episode's earlier editions (`daily_edition.earlier_titles`).
+        # A daily episode's earlier editions
+        # (`daily_edition.with_earlier_editions`).
         # Without them "a new one every day" is a promise nothing can keep:
         # the same request on consecutive days is the same request, and the
         # likeliest example is the likeliest example every morning.

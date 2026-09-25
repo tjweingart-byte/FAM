@@ -616,7 +616,8 @@ class EpisodePlan:
     #: same confident voice as the researched half.
     thin_on: tuple = ()
     #: What earlier editions of this same daily episode were called, newest
-    #: first - filled for a DailyFAM prompt by `daily_edition.earlier_titles`.
+    #: first - filled for a DailyFAM prompt by
+    #: `daily_edition.with_earlier_editions`.
     #: A daily episode that asks for "a new one" cannot keep that promise
     #: without being told what the old ones were (the 24/09 bug). **Never in
     #: the cache key**: it describes yesterday, not what today's episode is,
