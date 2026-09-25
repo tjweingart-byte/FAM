@@ -5877,6 +5877,17 @@
     var b = document.getElementById("voiceMicBtn");
     if(b) b.hidden = !speechRecognitionCtor();
   }
+  // Chrome on Android, in continuous mode, can hand back each new result
+  // with everything before it repeated ("who won" then "who won the ryder
+  // cup"), so appending blindly says the question twice. A result that
+  // begins with what is already there replaces it rather than following it.
+  function voiceJoin(sofar, next){
+    var a = sofar.trim(), b = (next || "").trim();
+    if(!a) return b;
+    if(!b) return a;
+    if(b.toLowerCase().indexOf(a.toLowerCase()) === 0) return b;
+    return a + " " + b;
+  }
   function voiceText(){
     return (VOICE.before + " " + VOICE.heard).replace(/\s+/g, " ").trim();
   }
@@ -5958,10 +5969,10 @@
       var fin = "", mid = "";
       for(var i = 0; i < e.results.length; i++){
         var t = e.results[i][0] ? e.results[i][0].transcript : "";
-        if(e.results[i].isFinal) fin += t + " "; else mid += t + " ";
+        if(e.results[i].isFinal) fin = voiceJoin(fin, t); else mid = voiceJoin(mid, t);
       }
-      VOICE.heard = fin.trim();
-      VOICE.interim = mid.trim();
+      VOICE.heard = fin;
+      VOICE.interim = mid;
       voiceHeard(1);
       paintVoiceWords();
       // They have stopped when nothing new has been heard for a moment, and

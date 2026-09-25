@@ -2027,6 +2027,18 @@ def main() -> int:
             words = page.text_content("#vsWords")
             assert "who won the" in words, f"the heard words are not shown: {words!r}"
             page.evaluate("__say('who won the ryder cup', true)")
+            # Chrome on Android repeats earlier results inside later ones in
+            # continuous mode; the question must still read once.
+            page.evaluate(
+                """() => {
+                    var r = window.__fakeRecs[window.__fakeRecs.length - 1];
+                    var a = [{ transcript: 'who won the' }]; a.isFinal = true;
+                    var b = [{ transcript: 'who won the ryder cup' }]; b.isFinal = true;
+                    r.onresult({ results: [a, b] });
+                }""")
+            words = page.text_content("#vsWords").strip()
+            assert words == "who won the ryder cup", \
+                f"repeated results were shown twice: {words!r}"
             assert not page.is_visible("#vsSend"), "send shows while they are still talking"
             # They stop talking: the recogniser is stopped after the silence
             # window and the send button appears. Nothing has been searched.

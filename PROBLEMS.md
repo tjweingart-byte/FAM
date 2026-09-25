@@ -12154,6 +12154,15 @@ tapping it afterwards listens again and **adds** to what was said rather than
 replacing it, so a question that came out in two breaths is still one
 question.
 
+**Found when the branch was double-checked for merging:** Chrome on Android,
+in continuous mode, can return each new result with everything before it
+repeated inside it ("who won the", then "who won the ryder cup"), and
+appending them blindly shows - and would search - the question twice.
+`voiceJoin` lets a result that begins with what is already there replace it
+rather than follow it, and the smoke check feeds it exactly that pair. The
+cost, accepted: somebody who genuinely says "yes" and then "yes please" gets
+"yes please".
+
 **The lines are driven by what is heard, not by a timer.** Each speech or
 result event raises a level that decays every frame; the lines are drawn only
 while the level is up, and their swing scales with it. A silent room is a
