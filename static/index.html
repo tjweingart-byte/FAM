@@ -88,6 +88,63 @@
     color:var(--text-muted); border:1px solid var(--border-strong); display:flex;
     align-items:center; justify-content:center; flex:none; cursor:pointer; }
   .attach-btn:active{ transform:scale(0.94); }
+  /* Voice search (§151). The mic sits under the search box's own controls,
+     and opens a screen of its own over the app: the words heard so far at the
+     top, the FAM mark in a ring in the middle, and lines around it that only
+     appear - and only move - while somebody is actually talking. Nothing is
+     searched until they press send: speech ending is not a request. */
+  .voice-mic{ align-self:center; margin:26px 0 0; width:64px; height:64px; border-radius:50%;
+    background:none; border:1.5px solid var(--border-strong); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .voice-mic:active{ transform:scale(0.95); background:rgba(244,239,228,0.06); }
+  .voice-mic[hidden]{ display:none; }
+  .voice-search{ position:absolute; top:38px; left:0; right:0; bottom:0; z-index:450;
+    background:var(--bg); display:flex; flex-direction:column; padding:14px 20px 22px; }
+  .voice-search[hidden]{ display:none; }
+  .voice-search.open{ animation:sheet-in 220ms cubic-bezier(0.22,0.7,0.3,1); }
+  .vs-top{ display:flex; justify-content:flex-end; flex:none; }
+  .vs-words{ flex:none; min-height:96px; max-height:34%; overflow-y:auto; margin:10px 4px 0;
+    font-family:'Fraunces', serif; font-size:21px; line-height:1.35; color:var(--text);
+    text-align:center; }
+  .vs-words .interim{ color:var(--text-muted); }
+  .vs-words.placeholder{ color:var(--text-faint); font-size:17px; }
+  .vs-stage{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
+  .vs-orb{ position:relative; width:250px; height:250px; }
+  .vs-waves{ position:absolute; inset:0; width:100%; height:100%; overflow:visible;
+    color:var(--copper); pointer-events:none; }
+  .vs-waves path{ fill:none; stroke:currentColor; stroke-linecap:round; stroke-width:3;
+    opacity:0; transform-box:view-box; transform-origin:125px 125px;
+    transition:opacity .35s ease; }
+  .voice-search.speaking .vs-waves path{ opacity:calc(0.35 + var(--lvl, 0.5) * 0.65);
+    animation:vs-wave 1.1s ease-in-out infinite; }
+  .voice-search.speaking .vs-waves path.r2{ animation-delay:.18s; }
+  .voice-search.speaking .vs-waves path.r3{ animation-delay:.36s; }
+  .voice-search.speaking .vs-waves path.low{ animation-name:vs-line; }
+  @keyframes vs-wave{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(calc(1 + var(--lvl, 0.5) * 0.09)); }
+  }
+  @keyframes vs-line{
+    0%,100%{ transform:scaleX(1); }
+    50%{ transform:scaleX(calc(1 + var(--lvl, 0.5) * 0.35)); }
+  }
+  .vs-mark{ position:absolute; left:50%; top:50%; width:104px; height:104px;
+    margin:-52px 0 0 -52px; border-radius:50%; border:2px solid var(--text);
+    background:var(--surface); color:var(--copper); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; padding:0; }
+  .vs-mark svg{ width:40px; height:40px; }
+  .voice-search.listening .vs-mark{ border-color:var(--copper); }
+  .vs-status{ flex:none; text-align:center; font-family:'JetBrains Mono', monospace;
+    font-size:10.5px; letter-spacing:0.06em; color:var(--text-muted); min-height:30px;
+    line-height:1.45; margin:0 10px; }
+  .vs-bottom{ flex:none; display:flex; justify-content:flex-end; min-height:48px; }
+  .vs-send{ width:48px; height:48px; }
+  .go-btn[hidden], .vs-send[hidden]{ display:none; }
+  .vs-send svg{ width:18px; height:18px; }
+  @media (prefers-reduced-motion: reduce){
+    .voice-search.open{ animation:none; }
+    .voice-search.speaking .vs-waves path{ animation:none; }
+  }
   .attach-row{ display:flex; flex-wrap:wrap; gap:6px; margin:9px 2px 0; }
   .attach-row:empty{ display:none; }
   .attach-chip{ display:flex; align-items:center; gap:7px; max-width:100%;
@@ -2644,6 +2701,35 @@
         <div class="scroll" id="histBody"></div>
       </section>
 
+      <!-- Voice search (§151): opened by the mic under the search box. An
+           overlay rather than a screen on the stack, like the splash, because
+           the X only ever goes one place - back to searchFAM, as it was. -->
+      <div class="voice-search" id="voiceSearch" hidden role="dialog" aria-modal="true" aria-label="Voice search">
+        <div class="vs-top">
+          <button class="sheet-close" onclick="closeVoiceSearch()" aria-label="Close voice search, back to searchFAM"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="vs-words placeholder" id="vsWords" aria-live="polite">The words you speak appear here…</div>
+        <div class="vs-stage">
+          <div class="vs-orb">
+            <svg class="vs-waves" viewBox="0 0 250 250" aria-hidden="true">
+              <path d="M177.1 81.3A68 68 0 0 1 177.1 168.7"/>
+              <path class="r2" d="M190.9 69.7A86 86 0 0 1 190.9 180.3"/>
+              <path class="r3" d="M204.7 58.1A104 104 0 0 1 204.7 191.9"/>
+              <path d="M72.9 168.7A68 68 0 0 1 72.9 81.3"/>
+              <path class="r2" d="M59.1 180.3A86 86 0 0 1 59.1 69.7"/>
+              <path class="r3" d="M45.3 191.9A104 104 0 0 1 45.3 58.1"/>
+              <path class="low r2" d="M97 212H153"/>
+              <path class="low r3" d="M108 225H142"/>
+            </svg>
+            <button class="vs-mark" id="vsMark" onclick="toggleVoiceListening()" aria-label="Listen again"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></button>
+          </div>
+        </div>
+        <div class="vs-status" id="vsStatus"></div>
+        <div class="vs-bottom">
+          <button class="go-btn vs-send" id="vsSend" hidden onclick="sendVoiceSearch()" aria-label="Search for what you said"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
       <!-- ============ HOME ============ -->
       <section class="screen" id="screen-home">
         <div class="scroll" style="display:flex; flex-direction:column;">
@@ -2667,6 +2753,10 @@
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
           </div>
+          <!-- Voice search (§151). Hidden until `paintVoiceMic` finds speech
+               recognition in this browser: a mic that cannot hear is a
+               control with nothing behind it. -->
+          <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
           <input type="file" id="attachFile" hidden accept=".pdf,.docx,.txt,.md,.csv,.json,image/*" onchange="attachChosenFile(this)">
           <!-- The profile picture. `capture` is deliberately absent: on a
                phone that would go straight to the camera, and most people are
@@ -5762,6 +5852,204 @@
     selectedVoice = v.selected || v.default || null;
     paintVoiceControls();
   }).catch(function(){});
+
+  // ---- Voice search (§151) -------------------------------------------------
+  // The browser's own speech recognition turns what is said into the words of
+  // a search; nothing new reaches the server, which receives exactly the
+  // question it would have if it had been typed. Three rules:
+  //  * Speech ending is not a request. A pause is not somebody asking, so the
+  //    send button appears when they stop and the episode starts when they
+  //    press it - never on its own.
+  //  * The lines move because somebody is talking. They are driven by what
+  //    the recogniser actually hears (its speech and result events), so a
+  //    silent room shows a still mark rather than a performance of listening.
+  //  * A browser that cannot recognise speech is not offered a mic at all,
+  //    and a refusal (microphone blocked, service unreachable) is said in
+  //    words on the screen rather than left as a ring that never fills.
+  var VOICE = { rec: null, listening: false, before: "", heard: "", interim: "",
+                lvl: 0, raf: 0, quiet: 0, error: "" };
+  var VOICE_SILENCE_MS = 1600;
+
+  function speechRecognitionCtor(){
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+  function paintVoiceMic(){
+    var b = document.getElementById("voiceMicBtn");
+    if(b) b.hidden = !speechRecognitionCtor();
+  }
+  function voiceText(){
+    return (VOICE.before + " " + VOICE.heard).replace(/\s+/g, " ").trim();
+  }
+  function paintVoiceWords(){
+    var el = document.getElementById("vsWords");
+    var said = voiceText(), interim = VOICE.interim.trim();
+    el.textContent = "";
+    if(!said && !interim){
+      el.classList.add("placeholder");
+      el.textContent = "The words you speak appear here…";
+      return;
+    }
+    el.classList.remove("placeholder");
+    if(said) el.appendChild(document.createTextNode(said + (interim ? " " : "")));
+    if(interim){
+      var s = document.createElement("span");
+      s.className = "interim";
+      s.textContent = interim;
+      el.appendChild(s);
+    }
+    el.scrollTop = el.scrollHeight;
+  }
+  function paintVoiceState(){
+    var box = document.getElementById("voiceSearch");
+    var status = document.getElementById("vsStatus");
+    var said = voiceText();
+    box.classList.toggle("listening", VOICE.listening);
+    document.getElementById("vsSend").hidden = VOICE.listening || !said;
+    document.getElementById("vsMark").setAttribute("aria-label",
+      VOICE.listening ? "Stop listening" : (said ? "Add more" : "Listen again"));
+    if(VOICE.error) status.textContent = VOICE.error;
+    else if(VOICE.listening) status.textContent = "Listening…";
+    else if(said) status.textContent = "Press send to search, or tap the mark to add more";
+    else status.textContent = "Tap the mark to start again";
+  }
+  function voiceLevelLoop(){
+    var box = document.getElementById("voiceSearch");
+    VOICE.lvl *= 0.93;
+    box.style.setProperty("--lvl", VOICE.lvl.toFixed(3));
+    box.classList.toggle("speaking", VOICE.listening && VOICE.lvl > 0.08);
+    VOICE.raf = requestAnimationFrame(voiceLevelLoop);
+  }
+  function voiceHeard(amount){
+    VOICE.lvl = Math.max(VOICE.lvl, amount);
+  }
+  var VOICE_ERRORS = {
+    "not-allowed": "FAM can't hear you - microphone access is off for this page",
+    "service-not-allowed": "Speech recognition is turned off on this device",
+    "audio-capture": "No microphone was found",
+    "network": "Speech recognition couldn't reach its service. Check your connection",
+    "no-speech": "Didn't catch anything. Tap the mark to try again",
+    "language-not-supported": "Speech recognition doesn't support this language here"
+  };
+  function startVoiceListening(){
+    var Ctor = speechRecognitionCtor();
+    if(!Ctor) return;
+    stopVoiceRecognition(true);
+    VOICE.before = voiceText();
+    VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    var rec;
+    try{ rec = new Ctor(); }catch(e){
+      VOICE.error = "Speech recognition couldn't start in this browser";
+      paintVoiceState();
+      return;
+    }
+    VOICE.rec = rec;
+    rec.lang = document.documentElement.lang || navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onstart = function(){
+      if(VOICE.rec !== rec) return;
+      VOICE.listening = true;
+      paintVoiceState();
+    };
+    rec.onspeechstart = function(){ if(VOICE.rec === rec) voiceHeard(0.7); };
+    rec.onresult = function(e){
+      if(VOICE.rec !== rec) return;
+      var fin = "", mid = "";
+      for(var i = 0; i < e.results.length; i++){
+        var t = e.results[i][0] ? e.results[i][0].transcript : "";
+        if(e.results[i].isFinal) fin += t + " "; else mid += t + " ";
+      }
+      VOICE.heard = fin.trim();
+      VOICE.interim = mid.trim();
+      voiceHeard(1);
+      paintVoiceWords();
+      // They have stopped when nothing new has been heard for a moment, and
+      // stopping is when the send button appears.
+      clearTimeout(VOICE.quiet);
+      VOICE.quiet = setTimeout(function(){
+        if(VOICE.rec === rec && VOICE.listening) try{ rec.stop(); }catch(_){}
+      }, VOICE_SILENCE_MS);
+    };
+    rec.onerror = function(e){
+      if(VOICE.rec !== rec || e.error === "aborted") return;
+      VOICE.error = VOICE_ERRORS[e.error] || "Speech recognition stopped (" + e.error + ")";
+      if(e.error === "no-speech" && voiceText()) VOICE.error = "";
+      paintVoiceState();
+    };
+    rec.onend = function(){
+      if(VOICE.rec !== rec) return;
+      clearTimeout(VOICE.quiet);
+      // Whatever was still interim when it stopped is what they said.
+      if(VOICE.interim){
+        VOICE.heard = (VOICE.heard + " " + VOICE.interim).trim();
+        VOICE.interim = "";
+      }
+      VOICE.listening = false;
+      VOICE.rec = null;
+      paintVoiceWords();
+      paintVoiceState();
+    };
+    try{
+      rec.start();
+      VOICE.listening = true;
+    }catch(e){
+      VOICE.rec = null;
+      VOICE.error = "Speech recognition couldn't start in this browser";
+    }
+    paintVoiceState();
+  }
+  function stopVoiceRecognition(abort){
+    var rec = VOICE.rec;
+    clearTimeout(VOICE.quiet);
+    if(!rec) return;
+    if(abort){
+      VOICE.rec = null;
+      VOICE.listening = false;
+      try{ rec.abort(); }catch(_){}
+    } else {
+      try{ rec.stop(); }catch(_){}
+    }
+  }
+  function openVoiceSearch(){
+    if(!speechRecognitionCtor()){
+      toast("This browser can't turn speech into a search");
+      paintVoiceMic();
+      return;
+    }
+    var box = document.getElementById("voiceSearch");
+    VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    VOICE.lvl = 0;
+    box.hidden = false;
+    box.classList.remove("open");
+    void box.offsetWidth;
+    box.classList.add("open");
+    paintVoiceWords();
+    cancelAnimationFrame(VOICE.raf);
+    voiceLevelLoop();
+    startVoiceListening();
+  }
+  function toggleVoiceListening(){
+    if(VOICE.listening) stopVoiceRecognition(false);
+    else startVoiceListening();
+  }
+  function closeVoiceSearch(){
+    stopVoiceRecognition(true);
+    cancelAnimationFrame(VOICE.raf);
+    var box = document.getElementById("voiceSearch");
+    box.hidden = true;
+    box.classList.remove("speaking", "listening", "open");
+    VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+  }
+  // Exactly what the send button beside the search box does, with the words
+  // they said in the box: one path into generation, not a second.
+  function sendVoiceSearch(){
+    var said = voiceText();
+    if(!said) return;
+    closeVoiceSearch();
+    document.getElementById("searchInput").value = said;
+    runSearch();
+  }
 
   // The bank of voices (§147), as one list. This is the only place a
   // listener picks a voice, and it governs their searches alone: myFAM,
@@ -13917,6 +14205,7 @@
   // Before anything is drawn, so no screen is ever read with the markup's
   // placeholder length still on it.
   paintLengthControls();
+  paintVoiceMic();
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
