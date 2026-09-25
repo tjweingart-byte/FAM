@@ -126,7 +126,10 @@ def test_every_play_is_that_days_edition():
 
 def test_a_typed_topic_is_followed_the_same_way():
     item = M.custom_item("Stanford")
-    assert "The latest on Stanford as of" in M.prompt_for(item, date(2026, 9, 23))
+    # Every day's edition, dated - worded so it may be a subject or a kind of
+    # thing (§149), where a followed subject is always "the latest on".
+    prompt = M.prompt_for(item, date(2026, 9, 23))
+    assert '"Stanford", for Wednesday, September 23, 2026' in prompt
 
 
 def test_a_bank_episode_plays_as_itself():

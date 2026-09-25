@@ -12022,3 +12022,56 @@ question on an uneven clock so the steps can be watched on a phone
 is a replay unless `window.famPreviewWrites` is set, which is how the smoke
 check walks the five steps and asserts the floor and the held audio.
 **Unmeasured against a real server** - there is no key here.
+
+## 149. A DailyFAM topic that asked for a kind of thing was searched as a name
+
+**Reported (24/09).** "Founders lesson of the day", typed into a DailyFAM mix,
+was expected to give a new lesson about being a founder each morning. The
+episode instead said it could not find up-to-date information about a blog
+post called "Founders lesson of the day", and that the post had not been
+updated in a while.
+
+**Cause: the prompt, before episode intelligence ever saw it.** Every typed
+mix item was sent as a followed news subject: `The latest on Founders lesson
+of the day as of Thursday...: what happened in the last 24 hours, what
+changed, and why it matters.` That wording says the words are the name of
+something that has news, so EI did the right thing with the wrong input: it
+resolved the words as a named publication, searched for it, and the evidence
+(or the lack of it) turned into the episode. The date made each day's
+episode a new cache key, but nothing told the writer what the earlier days
+had said, so "new every day" was only true of the date.
+
+**Fix, in three places.**
+
+* `mixes.daily_prompt` words a **typed** topic differently from a followed
+  catalogue subject: `Today's daily episode of "<topic>", for <date>. If that
+  names something in the news, the last 24 hours; if it asks for a kind of
+  thing (a lesson, a tip, a story), a new one, never an earlier day's.` A
+  typed topic can be either, and only a model call can tell which - EI is
+  that call, so the prompt offers both readings instead of choosing wrongly
+  in code. Followed subjects (`f:nfl`, `f:nfl~Eagles`) are always subjects and
+  keep "The latest on". The preview shim builds the same words, and a test
+  runs it under node against the Python.
+* `EI_SYSTEM` says what a request for a *kind* of thing is: a request for one
+  good example, never the title of a blog, column or newsletter to go and
+  find, and never an episode about whether such a thing exists. Subject
+  resolved to what it is about, search aimed at the substance an example
+  would come from, why-now empty, recency 0 unless the kind of thing is news.
+* **Earlier editions are named to EI and to the writer.**
+  `mixes.earlier_prompts` rebuilds the same prompt with each of the six
+  previous days' dates - which are exactly those editions' cache keys - and
+  `daily_edition.with_earlier_editions` reads their titles from the cache
+  (kept a week since §143). They travel on `EpisodePlan.covered`, which is
+  **not** in the key: it describes yesterday, not what today's episode is. EI
+  aims its search at something different, and the writer is told to pick a
+  lesson none of them were about, or for news to lead with what is new since.
+  Both the background edition and a tap that misses the cache do this; it is
+  local reads, never a model call, and never raises.
+
+**What it costs and does not.** Every typed mix item's words changed, so each
+gets a new cache key: the next edition writes them afresh, and the old rows
+age out. A brief prefetch warmed before the earlier titles were known is
+still used (the writer is still told); with `CACHE_SEMANTIC_KEY=1` the
+earlier keys are not found and the episode is written as before this.
+**Unheard** - there is no key here, so whether the model now picks a different
+founder each day is the first thing to listen for.

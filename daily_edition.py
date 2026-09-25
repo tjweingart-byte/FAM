@@ -360,6 +360,47 @@ def _ei_state(brief) -> str:
     return "degraded" if getattr(brief, "degraded", True) else "ok"
 
 
+#: How many earlier editions of a subject a new one is told about. The cache
+#: keeps every episode a week (§143), so six days back is everything it can
+#: still name.
+EARLIER_EDITIONS = 6
+
+
+async def with_earlier_editions(plan, cache):
+    """`plan` with the titles of its earlier daily editions in `covered`.
+
+    For a dated DailyFAM prompt only: the same words with each earlier day
+    in place of today's are exactly the earlier editions' cache keys
+    (`mixes.earlier_prompts`), so this is a few local reads and no model
+    call. Anything else comes back unchanged. Never raises - knowing what
+    was said yesterday improves an episode and must never prevent one.
+
+    The key is computed without the semantic canonicaliser: that is a model
+    call per day looked up, on a tap's path. With `CACHE_SEMANTIC_KEY=1`
+    (off by default) these lookups therefore find nothing, and the episode
+    is written exactly as it was before this existed.
+    """
+    import dataclasses
+
+    import mixes
+    from pipeline import key_for
+
+    if cache is None or getattr(plan, "covered", ()) or getattr(plan, "attachments", ()):
+        return plan
+    try:
+        titles = []
+        for earlier in mixes.earlier_prompts(plan.query, EARLIER_EDITIONS):
+            key = await key_for(dataclasses.replace(plan, query=earlier), None)
+            title = (getattr(cache, "title", lambda _k: "")(key) or "").strip() if key else ""
+            if title and title.lower() not in (t.lower() for t in titles):
+                titles.append(title)
+    except Exception as exc:  # noqa: BLE001 - see the docstring
+        log.warning("daily edition: could not read earlier editions of %r: %s",
+                    plan.query, exc)
+        return plan
+    return dataclasses.replace(plan, covered=tuple(titles)) if titles else plan
+
+
 async def write_episode(query: str, generator, cache, length: int,
                         current_until: float, since: float = 0.0) -> dict:
     """Write one subject's episode into the shared cache. Never raises.
@@ -396,6 +437,8 @@ async def write_episode(query: str, generator, cache, length: int,
                     extend(key, current_until)
                 return {"status": "cached", "key": key}
         notes = ScriptNotes()
+        # What the earlier editions were, so today's is a different one.
+        plan = await with_earlier_editions(plan, cache)
         # Episode intelligence first, exactly as a tap would run it: the
         # retrieval query, the recency window and the story shape all come
         # from this brief. A brief prefetch already warmed is taken instead.
