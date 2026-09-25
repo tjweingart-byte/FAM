@@ -2455,7 +2455,11 @@ the loading screen's five steps checked off from the server's own marks via
 the last; and **§149**, a typed DailyFAM topic asking for a *kind* of thing -
 "Founders lesson of the day" - worded as news about a named thing and searched
 as a blog post, now worded so EI can tell, and every daily edition told what
-its earlier editions were called so it picks a new one),
+its earlier editions were called so it picks a new one;
+and **§150**, `/admin` - a live tracker over every store, derived
+from the code so none is left off, with a question box that answers "how many
+accounts have over 5 friends" by recipe or by Claude writing one read-only
+SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`),
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a

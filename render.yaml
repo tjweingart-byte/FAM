@@ -24,6 +24,12 @@ services:
         sync: false        # set once in the dashboard; never in the repo
       - key: DEMO_MODE
         value: "0"
+      # Who may open /admin, the live tracker (admin_tracker.py): the email,
+      # phone or listener id of each admin account, comma separated. Asked
+      # for here because nothing else prompts for it, and unset means nobody
+      # is an admin by account and /admin 404s unless FAM_ADMIN_TOKEN is set.
+      - key: FAM_ADMIN_ACCOUNTS
+        sync: false
       - key: MODEL
         value: claude-sonnet-5
       # --- The voice ----------------------------------------------------
