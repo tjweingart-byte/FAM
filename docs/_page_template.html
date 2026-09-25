@@ -1,0 +1,101 @@
+<title>FAM Operating Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#F4EFE4; --surface:#FBF8F1; --surface-2:#ECE5D6; --line:#DCD3C2;
+  --text:#18151F; --muted:#5B5468; --faint:#857E93;
+  --accent:#8C5E12; --accent-soft:#F1E3C6; --code-bg:#EDE6D8;
+  --display:"Fraunces", Georgia, "Times New Roman", serif;
+  --body:"Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#1E1B27; --surface:#2A2733; --surface-2:#38334A; --line:#433D55;
+    --text:#F4EFE4; --muted:#ABA3C4; --faint:#8A83A0;
+    --accent:#E0B563; --accent-soft:#3A3226; --code-bg:#25222F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#1E1B27; --surface:#2A2733; --surface-2:#38334A; --line:#433D55;
+  --text:#F4EFE4; --muted:#ABA3C4; --faint:#8A83A0;
+  --accent:#E0B563; --accent-soft:#3A3226; --code-bg:#25222F;
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--text); font:15px/1.6 var(--body); padding-inline:16px; padding-block:0 64px}
+a{color:var(--accent)}
+a:focus-visible,.tab:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+.masthead{max-width:1180px; margin:0 auto; padding-block:28px 0; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 24px}
+.brand{display:flex; flex-direction:column; gap:2px}
+.brand .mark{font:600 13px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--accent)}
+.brand .name{font:600 clamp(26px,4vw,36px)/1.1 var(--display); margin:0}
+.brand .sub{color:var(--muted); margin:0; font-size:14px}
+.tabs{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bg); max-width:1180px; margin:18px auto 0; display:flex; gap:4px; border-bottom:1px solid var(--line); overflow-x:auto}
+.tab{font:500 15px/1 var(--body); color:var(--muted); text-decoration:none; padding:14px 16px 12px; border-bottom:2px solid transparent; white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--text); border-bottom-color:var(--accent)}
+.doc{max-width:1180px; margin:0 auto; scroll-margin-top:50px}
+.doc + .doc{margin-top:56px; border-top:3px double var(--line)}
+.dochead{padding-block:28px 8px}
+.eyebrow{font:500 12px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0 0 10px}
+.dochead h1{font:600 clamp(24px,3.4vw,34px)/1.2 var(--display); margin:0; text-wrap:balance; max-width:30ch}
+.docgrid{display:grid; grid-template-columns:220px minmax(0,1fr); gap:40px; align-items:start}
+.toc{position:sticky; top:calc(env(safe-area-inset-top,0px) + 64px); padding-top:18px; max-height:calc(100vh - 90px); overflow:auto}
+.toc-label{font:500 11px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin:0 0 10px}
+.toc ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; counter-reset:t}
+.toc a{display:block; color:var(--muted); text-decoration:none; font-size:13.5px; line-height:1.35; padding:5px 0 5px 10px; border-left:2px solid var(--line)}
+.toc a:hover{color:var(--text); border-left-color:var(--accent)}
+.prose{min-width:0; max-width:880px}
+.prose h2{font:600 24px/1.25 var(--display); margin:44px 0 14px; padding-top:18px; border-top:1px solid var(--line); text-wrap:balance; scroll-margin-top:70px}
+.prose h3{font:600 17px/1.35 var(--body); margin:28px 0 10px; scroll-margin-top:70px}
+.prose p,.prose li{max-width:72ch}
+.prose p{margin:0 0 12px}
+.prose ul,.prose ol{padding-left:22px; margin:0 0 14px}
+.prose li{margin:3px 0}
+.prose strong{font-weight:600}
+.prose hr{display:none}
+.prose code{font:13px/1.4 var(--mono); background:var(--code-bg); padding:1px 5px; border-radius:4px}
+.prose pre:not(.mermaid){background:var(--code-bg); border:1px solid var(--line); border-radius:8px; padding:14px 16px; overflow-x:auto}
+.prose pre code{background:none; padding:0}
+.tw{overflow-x:auto; margin:14px 0 20px; border:1px solid var(--line); border-radius:8px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:13.5px; font-variant-numeric:tabular-nums}
+th{font:500 11.5px/1.3 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:left; background:var(--surface-2); padding:9px 12px; white-space:nowrap}
+td{padding:9px 12px; border-top:1px solid var(--line); vertical-align:top; min-width:110px}
+td:first-child{font-weight:500}
+.diagram{overflow-x:auto; margin:16px 0 22px; padding:18px; background:var(--surface); border:1px solid var(--line); border-radius:8px}
+.diagram pre.mermaid{margin:0; background:none; border:0; text-align:center}
+@media (max-width:860px){
+  .docgrid{grid-template-columns:1fr; gap:0}
+  .toc{position:static; max-height:none; padding-top:8px}
+  .toc ol{flex-direction:row; flex-wrap:wrap; gap:6px}
+  .toc a{border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:12.5px}
+}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<header class="masthead">
+  <div class="brand">
+    <span class="mark">FAM · docs v1 · 2026-09-25</span>
+    <p class="name">FAM Operating Manual</p>
+    <p class="sub">Costs and scaling, how the backend produces every screen, and what data is kept where.</p>
+  </div>
+</header>
+<nav class="tabs" role="tablist" aria-label="Documents">{{TABS}}</nav>
+<main>{{SECTIONS}}</main>
+
+<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  function mark(slug){ tabs.forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === slug ? "true" : "false"); }); }
+  mark("financial");
+  if("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting) mark(e.target.dataset.doc); });
+    }, {rootMargin:"-45% 0px -50% 0px"});
+    document.querySelectorAll(".doc").forEach(function(d){ io.observe(d); });
+  }
+})();
+</script>

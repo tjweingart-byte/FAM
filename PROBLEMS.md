@@ -12186,7 +12186,43 @@ to Google for this, Safari to Apple. Headless Chromium has no recogniser, so
 the smoke check installs a stand-in that fires the same events; nobody has
 yet spoken to it on a real phone.
 
-## 152. The admin dashboard asks for a password; DailyFAM mixes start public
+## 152. Official documentation, and what writing it found
+
+**Asked for:** formal documentation of FAM's finances, backend and data.
+It is `docs/` - `FINANCIAL.md`, `BACKEND.md`, `DATA.md` - written from a read
+of the code rather than of the other notes, with every number labelled as a
+code constant, a measurement from this file, a provider's list price
+(checked 2026-09-25) or an estimate with its working. `docs/build_html.py`
+renders the three as one published page. Where they disagree with the code,
+the code wins and the document is the thing to fix.
+
+**Four things it found that nothing had said:**
+
+1. **The metering GPU line is understated about 70x.** `metering.py` prices
+   GPU time with `SYNTHESIS_REALTIME_FACTOR = 330`, which was measured on the old
+   CPU voices, espeak and Piper, near the top of this file. Chatterbox measured about 4.6x (§75).
+   No code change is needed - set `SYNTHESIS_REALTIME_FACTOR=4.6` and the
+   real `GPU_USD_PER_HOUR` on Render - but until then `usage_report.py`
+   reports a GPU cost that is a rounding error when it is not.
+2. **Exa's fallback price is below the list price.** `research.COST_PER_SEARCH
+   = 0.005` is used only when a response omits `cost_dollars`; today's list
+   is $7/1k searches plus $1/1k pages of contents, about $0.015 for FAM's
+   eight highlighted results.
+3. **Bandwidth is a real line, not a scale question.** Raw PCM is 2.65 MB a
+   minute and Render's Hobby workspace includes 5 GB of egress, so a hundred
+   listeners already exceed it; at ten thousand it is about $360 a month.
+   Opus is the answer `IOS_APP.md` already names.
+4. **`DATABASE.md` is out of date** in four places: it counts fourteen stores
+   (there are sixteen - `voice_bank.db` and `trending_bank.db`), says `share`
+   is dropped, says location is not stored, and says the embedding model is
+   never run. `docs/DATA.md` follows the code; `DATABASE.md` was left as the
+   design reasoning it is.
+
+**Not verified against production.** The scaling model in
+`FINANCIAL.md` §4 is illustrative: nobody has measured a real month, and
+the first `usage_report.py --days 30` on the deployment should replace it.
+
+## 153. The admin dashboard asks for a password; DailyFAM mixes start public
 
 Two changes at the owner's direction.
 

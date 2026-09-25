@@ -754,7 +754,7 @@ the rest of this list it needs taste rather than a key.
    list, and wanting a mix of subjects you already like is the entire point of
    a mix. The heading reads `personalised` rather than asserting, because a
    declared order and a measurement look identical on screen.
-   And the **privacy switch means public** *(§152, at the owner's direction,
+   And the **privacy switch means public** *(§153, at the owner's direction,
    reversing the old "means private")*: on is Public with an open lock, off is
    Private with a closed one, and **a new mix is public by default** so other
    listeners can find it in DailyFAM search. A copy added from somebody else's
@@ -2464,11 +2464,15 @@ its earlier editions were called so it picks a new one;
 and **§150**, `/admin` - a live tracker over every store, derived
 from the code so none is left off, with a question box that answers "how many
 accounts have over 5 friends" by recipe or by Claude writing one read-only
-SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN` - since §152
+SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN` - since §153
 the page asks for the admin account's email and password itself, and being
 signed in to the app no longer opens it; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send),
+`docs/` for the official reference set - `FINANCIAL.md` (unit costs,
+scaling, every provider's limits), `BACKEND.md` (latency, where each section
+comes from, every external call site) and `DATA.md` (stores, retention,
+guardrails, the algorithm) - written from the code, every number labelled,
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
