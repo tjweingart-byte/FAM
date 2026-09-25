@@ -2465,6 +2465,10 @@ accounts have over 5 friends" by recipe or by Claude writing one read-only
 SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN`; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send),
+`docs/` for the official reference set - `FINANCIAL.md` (unit costs,
+scaling, every provider's limits), `BACKEND.md` (latency, where each section
+comes from, every external call site) and `DATA.md` (stores, retention,
+guardrails, the algorithm) - written from the code, every number labelled,
 `MYFAM.md` for the browse page, the
 live story pool and the startup set that fill it, `DATABASE.md` for what the
 fourteen stores hold and the one path from a row in them to a tile on a
