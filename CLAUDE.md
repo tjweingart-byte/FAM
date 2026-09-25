@@ -12,7 +12,9 @@ Three surfaces, all backed by generated audio:
    today.* This is the only surface that fully works.
    *Since §151 it can be asked by voice*: a mic under the box opens a screen
    that shows the words as they are heard and searches only when send is
-   pressed - speech ending is not a request.
+   pressed - speech ending is not a request. Since §154 saying "hey FAM"
+   or "what's up FAM" opens that screen from any tab (off until turned on in
+   Settings, since it keeps the microphone open).
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
@@ -2468,7 +2470,8 @@ SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN` - since §153
 the page asks for the admin account's email and password itself, and being
 signed in to the app no longer opens it; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
-nothing searched until send),
+nothing searched until send; and **§154**, "hey FAM" opening voice search,
+opt-in because it keeps the microphone open),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2495,12 +2498,13 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-seven** named smoke
+**twice** - once per preview build - and **seventy-eight** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 77 as of §151,
+prose does not fail when somebody adds a behaviour. (It is 78 as of §154,
+which added "Hey FAM" opening voice search. It was 77 as of §151,
 which added voice search hearing you and waiting for send. It was 76 as of §148,
 which added the loading screen checking off its five steps. It was 75 as
 of §147, which added the search page's voice chip. It was 74 as of §146,

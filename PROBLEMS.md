@@ -12251,3 +12251,46 @@ old private mix is published by a deploy), and **a copy added from somebody
 else's mix starts private** - republishing another person's mix is not a
 choice to make for the person copying it.
 
+
+## 154. "Hey FAM" opens voice search
+
+**Asked for:** saying "hey FAM" or "what's up FAM" should bring up voice
+search, so the spoken path does not start with finding the mic under the box.
+
+**How it works.** A second `SpeechRecognition` listens in continuous mode
+with interim results and matches one pattern (`WAKE_PHRASE`: hey / hi /
+what's up / sup, then fam, pham or fahm as a whole word - "family" is not
+it). On a hit it aborts itself, switches to searchFAM if another tab is
+showing (voice search is drawn over searchFAM and its X promises to go back
+there), and calls `openVoiceSearch(rest)`, where `rest` is whatever followed
+the phrase in the same breath - "what's up fam who won the ryder cup" opens
+the screen with "who won the ryder cup" already in the words. Everything
+after that is §151 unchanged: listening adds to it, and **send is still the
+only thing that starts an episode.** The wake phrase never searches.
+
+**Off until asked for** (Settings > Listening > Say "Hey FAM" to search). It
+keeps the microphone open whenever FAM is on screen, and the browser's
+speech service hears all of it - Chrome sends it to Google, Safari to Apple -
+which is not a thing to switch on for somebody. The setting is per device in
+`fam.prefs`, like pitch lock, because microphone permission is per device
+too; turning it on is a tap, which is the gesture the permission prompt
+needs. The note under the row says exactly what is open and when.
+
+**It stands aside** whenever something else should have the microphone or
+the room: while voice search is open, while the page is hidden, and while an
+episode is playing (it would be listening to FAM, and on a phone an open
+microphone reroutes playback to call audio). `syncWake` decides, and is
+called from `setPlayState`, `visibilitychange`, closing voice search (after
+1.5 s, so send can start the episode before the listener could come back)
+and a two-second interval as the net for anything that changes playback
+without passing through those. Recognisers end on their own every minute or
+so; it restarts, backing off exponentially to 30 s on repeated failures. A
+blocked microphone or no microphone turns the setting off and says so rather
+than retrying forever.
+
+**Not verified on a real phone.** Headless Chromium has no recogniser, so the
+smoke check ("Hey FAM" opens voice search) installs a stand-in. Whether
+iOS Safari keeps a continuous recogniser alive long enough to be useful, and
+how often a recogniser writes "fam" as something the pattern misses, are
+both unmeasured. The native app would need its own wake handling
+(`SFSpeechRecognizer`); the server is untouched.

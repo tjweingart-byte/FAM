@@ -5531,6 +5531,8 @@
     setReelPlaying(playing);
     setNowBarPlaying(playing);
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
+    // "Hey FAM" (§154) never listens over an episode.
+    scheduleWake(playing ? 0 : 400);
     // A pause is the moment a position is most likely to be the last one, so
     // it is sent now rather than on the next throttled tick (§127).
     if(!playing && nowBarState && !pendingResumeSeek){
@@ -6021,14 +6023,18 @@
       try{ rec.stop(); }catch(_){}
     }
   }
-  function openVoiceSearch(){
+  function openVoiceSearch(seed){
     if(!speechRecognitionCtor()){
       toast("This browser can't turn speech into a search");
       paintVoiceMic();
       return;
     }
     var box = document.getElementById("voiceSearch");
-    VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    stopWake();
+    VOICE.before = ""; VOICE.interim = ""; VOICE.error = "";
+    // Whatever followed "hey FAM" in the same breath is the start of the
+    // question, so it is on screen already and listening adds to it.
+    VOICE.heard = typeof seed === "string" ? seed.trim() : "";
     VOICE.lvl = 0;
     box.hidden = false;
     box.classList.remove("open");
@@ -6050,6 +6056,9 @@
     box.hidden = true;
     box.classList.remove("speaking", "listening", "open");
     VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    // Not at once: send closes this and then starts an episode, and the wake
+    // listener must not be back on the microphone in between.
+    scheduleWake(WAKE_AFTER_CLOSE_MS);
   }
   // Exactly what the send button beside the search box does, with the words
   // they said in the box: one path into generation, not a second.
@@ -6060,6 +6069,122 @@
     document.getElementById("searchInput").value = said;
     runSearch();
   }
+
+  // ---- "Hey FAM" (§154) ----------------------------------------------------
+  // Saying "hey FAM" or "what's up FAM" opens voice search, so the spoken
+  // path does not start with finding a button. A second recogniser listens
+  // for the phrase and nothing else; when it hears it, it gets off the
+  // microphone and voice search takes over, with anything said after the
+  // phrase already in the words. Four rules:
+  //  * It is asked for, never assumed. Off until turned on in Settings,
+  //    because it keeps the microphone open while FAM is on screen and the
+  //    browser's speech service hears all of it. Turning it on is a tap,
+  //    which is the gesture the permission prompt needs.
+  //  * It hears the phrase and does nothing else. Nothing it hears is kept,
+  //    sent to FAM or searched; it opens the screen, and send is still the
+  //    only thing that starts an episode (§151).
+  //  * It stands aside. Not while an episode is playing (it would be
+  //    listening to FAM, and on a phone an open microphone reroutes the
+  //    audio), not while voice search has the microphone, not in the
+  //    background.
+  //  * A refusal turns it off and says so, rather than retrying a blocked
+  //    microphone forever. Anything else backs off and tries again.
+  var wakeOn = localPrefs().wake_phrase === true;
+  var WAKE = { rec: null, timer: 0, fails: 0 };
+  var WAKE_AFTER_CLOSE_MS = 1500;
+  // Recognisers write the name several ways, and "fam" on its own is the
+  // only one that matters; "family" is not it.
+  var WAKE_PHRASE = /\b(?:hey|hi|hay|what'?s up|whats up|what up|wassup|sup)[\s,.!]+(?:fam|pham|fahm)\b[\s,.!?]*(.*)$/i;
+
+  function wakeHeard(text){
+    var m = WAKE_PHRASE.exec(text || "");
+    return m ? { rest: (m[1] || "").trim() } : null;
+  }
+  function wakeShouldRun(){
+    if(!wakeOn || !speechRecognitionCtor()) return false;
+    if(document.visibilityState === "hidden") return false;
+    var box = document.getElementById("voiceSearch");
+    if(box && !box.hidden) return false;
+    if(FamAudio.isActive() && isPlaying) return false;
+    return true;
+  }
+  function scheduleWake(ms){
+    if(!WAKE) return;   // called by setPlayState, which is declared above
+    clearTimeout(WAKE.timer);
+    WAKE.timer = setTimeout(syncWake, ms || 0);
+  }
+  function syncWake(){
+    clearTimeout(WAKE.timer);
+    var should = wakeShouldRun();
+    if(should && !WAKE.rec) startWake();
+    else if(!should && WAKE.rec) stopWake();
+  }
+  function stopWake(){
+    if(!WAKE) return;
+    clearTimeout(WAKE.timer);
+    var rec = WAKE.rec;
+    WAKE.rec = null;
+    if(rec) try{ rec.abort(); }catch(_){}
+  }
+  function startWake(){
+    var Ctor = speechRecognitionCtor();
+    var rec;
+    try{ rec = new Ctor(); }catch(e){ return; }
+    WAKE.rec = rec;
+    rec.lang = document.documentElement.lang || navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onresult = function(e){
+      if(WAKE.rec !== rec) return;
+      WAKE.fails = 0;
+      for(var i = e.resultIndex || 0; i < e.results.length; i++){
+        var hit = wakeHeard(e.results[i][0] ? e.results[i][0].transcript : "");
+        if(hit){ wakeUp(hit.rest); return; }
+      }
+    };
+    rec.onerror = function(e){
+      if(WAKE.rec !== rec) return;
+      if(e.error === "not-allowed" || e.error === "service-not-allowed"
+         || e.error === "audio-capture"){
+        stopWake();
+        setWakePhrase(false, VOICE_ERRORS[e.error] + ", so \u201cHey FAM\u201d is off");
+        return;
+      }
+      // "no-speech" is a quiet room, not a fault.
+      if(e.error !== "no-speech" && e.error !== "aborted") WAKE.fails++;
+    };
+    rec.onend = function(){
+      if(WAKE.rec !== rec) return;
+      WAKE.rec = null;
+      // Recognisers end on their own every minute or so; start again, and
+      // back off when it keeps failing rather than spinning on it.
+      scheduleWake(WAKE.fails ? Math.min(30000, 1000 * Math.pow(2, WAKE.fails)) : 250);
+    };
+    try{ rec.start(); }catch(e){ WAKE.rec = null; scheduleWake(5000); }
+  }
+  // Heard. Voice search is drawn over searchFAM, and its X says it goes back
+  // there, so searchFAM is what is under it.
+  function wakeUp(rest){
+    stopWake();
+    var active = document.querySelector(".screen.active");
+    if(!active || active.id !== "screen-home") setTab("home");
+    openVoiceSearch(rest);
+  }
+  function setWakePhrase(on, why){
+    wakeOn = !!on && !!speechRecognitionCtor();
+    saveLocalPrefs({ wake_phrase: wakeOn });
+    refreshSettingsIfOpen();
+    toast(why || (wakeOn
+      ? "Say \u201cHey FAM\u201d to search by voice"
+      : "\u201cHey FAM\u201d is off"));
+    if(wakeOn) syncWake(); else stopWake();
+  }
+  document.addEventListener("visibilitychange", syncWake);
+  // A safety net for everything that changes whether it may listen without
+  // passing through here - an episode starting, a stream ending. Cheap: it
+  // compares four things and does nothing when they agree.
+  setInterval(function(){ if(wakeOn || WAKE.rec) syncWake(); }, 2000);
 
   // The bank of voices (§147), as one list. This is the only place a
   // listener picks a voice, and it governs their searches alone: myFAM,
@@ -9846,6 +9971,15 @@
       // what it governs.
       + settingsRow("Voice for your searches", escapeHtml(voiceLabel(selectedVoice)),
           "openVoiceMenu()");
+    // "Hey FAM" (§154), only where the browser can recognise speech at all.
+    if(speechRecognitionCtor()){
+      html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
+          "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
+        + '<div class="set-note">Opens voice search when you say \u201cHey FAM\u201d '
+        + 'or \u201cWhat\u2019s up FAM\u201d. While it is on, the microphone is open '
+        + 'whenever FAM is on screen and no episode is playing, and your browser\u2019s '
+        + 'speech service hears it. Nothing is searched until you press send.</div>';
+    }
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -14212,6 +14346,7 @@
   // placeholder length still on it.
   paintLengthControls();
   paintVoiceMic();
+  syncWake();
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.

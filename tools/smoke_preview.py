@@ -2077,6 +2077,77 @@ def main() -> int:
             assert not page.is_visible("#voiceMicBtn"), \
                 "a mic is offered in a browser that cannot recognise speech"
 
+        def hey_fam_opens_voice_search():
+            try:
+                hey_fam_steps()
+            finally:
+                page.evaluate("() => { try { setWakePhrase(false); } catch(e) {}"
+                              " closeVoiceSearch(); stopWake(); setTab('home');"
+                              " document.getElementById('searchInput').value = '';"
+                              " delete window.SpeechRecognition;"
+                              " window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
+
+        def hey_fam_steps():
+            """Saying "hey FAM" or "what's up FAM" opens voice search (§154),
+            from any tab, with whatever followed the phrase already in the
+            words - and searches nothing. It is off until Settings turns it
+            on, it does not listen over a playing episode, and an unrelated
+            sentence or "family" does not wake it."""
+            page.evaluate(
+                """() => {
+                    window.__recs = [];
+                    window.SpeechRecognition = function(){ window.__recs.push(this); };
+                    SpeechRecognition.prototype.start = function(){ this.started = true; };
+                    SpeechRecognition.prototype.stop = function(){
+                        var r = this; setTimeout(function(){ r.onend && r.onend(); }, 0);
+                    };
+                    SpeechRecognition.prototype.abort = function(){ this.aborted = true; };
+                    window.__live = function(){
+                        for (var i = window.__recs.length - 1; i >= 0; i--)
+                            if (window.__recs[i].started && !window.__recs[i].aborted)
+                                return window.__recs[i];
+                        return null;
+                    };
+                    window.__hear = function(text){
+                        var res = [{ transcript: text }]; res.isFinal = false;
+                        window.__live().onresult({ resultIndex: 0, results: [res] });
+                    };
+                    window.__searched = 0; window.__rs = runSearch;
+                    runSearch = function(){ window.__searched++; };
+                }""")
+            page.evaluate("syncWake()")
+            assert page.evaluate("!WAKE.rec"), "it listens for the phrase before being asked"
+            page.evaluate("setTab('myfam'); setWakePhrase(true)")
+            page.wait_for_timeout(100)
+            assert page.evaluate("!!WAKE.rec && !!__live()"), "turning it on did not listen"
+            page.evaluate("__hear('my family is coming over')")
+            page.evaluate("__hear('hey there')")
+            page.wait_for_timeout(100)
+            assert not page.is_visible("#voiceSearch"), "an ordinary sentence opened voice search"
+            page.evaluate("__hear(\"what's up fam who won the ryder cup\")")
+            page.wait_for_timeout(200)
+            assert page.is_visible("#voiceSearch"), "\"what's up fam\" did not open voice search"
+            assert page.is_visible("#screen-home"), "voice search did not open over searchFAM"
+            assert page.evaluate("!WAKE.rec"), "the wake listener kept the microphone"
+            words = page.text_content("#vsWords").strip()
+            assert words == "who won the ryder cup", f"the rest of the sentence was lost: {words!r}"
+            assert page.evaluate("window.__searched") == 0, "the wake phrase searched"
+            page.click("#voiceSearch .sheet-close")
+            page.wait_for_timeout(1800)
+            assert page.evaluate("!!WAKE.rec"), "it stopped listening after voice search closed"
+            page.evaluate("__hear('Hey FAM')")
+            page.wait_for_timeout(200)
+            assert page.is_visible("#voiceSearch"), "\"Hey FAM\" did not open voice search"
+            assert "appear here" in page.text_content("#vsWords"), \
+                "a bare wake phrase put words on the screen"
+            page.evaluate("closeVoiceSearch(); stopWake()")
+            # An episode playing: it stands aside.
+            page.evaluate("() => { window.__ia = FamAudio.isActive;"
+                          " FamAudio.isActive = function(){ return true; }; isPlaying = true; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "it listens over a playing episode"
+            page.evaluate("() => { FamAudio.isActive = window.__ia; runSearch = window.__rs; }")
+            assert page.evaluate("window.__searched") == 0, "the wake phrase searched"
+
         def the_search_page_opens_on_the_length_it_will_generate():
             """The number on the search chip and the number its own menu ticks
             are one setting, so they have to be one answer.
@@ -3281,6 +3352,7 @@ def main() -> int:
               the_search_page_picks_its_voice_from_the_bank)
         check("Voice search hears you and waits for send",
               voice_search_hears_you_and_waits_for_send)
+        check("\"Hey FAM\" opens voice search", hey_fam_opens_voice_search)
         check("picker offers a typed topic", picker)
         check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",
