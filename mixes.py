@@ -37,7 +37,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Optional, Sequence
 from urllib.parse import quote, unquote
 
@@ -144,6 +144,25 @@ DAILY_ENDINGS = (
     ": what happened in the last 24 hours, what changed, and why it matters.",
     ".",
 )
+#: A topic somebody *typed* is not always a subject in the news, and wording
+#: it as one is what produced the 24/09 bug: "Founders lesson of the day" was
+#: sent as "The latest on Founders lesson of the day ... what happened in the
+#: last 24 hours", so episode intelligence went looking for a publication by
+#: that name and the episode reported that it had not been updated lately.
+#: A typed topic names either a subject ("Eagles") or a *kind of thing* the
+#: listener wants a fresh one of every day ("a stoic quote", "founders lesson
+#: of the day"), and nothing short of a model call can tell which - so the
+#: prompt says both and EI, which is that model call, decides. A followed
+#: catalogue subject is always a subject and keeps `DAILY_ENDINGS`.
+TYPED_HEAD = 'Today\'s daily episode of "{topic}", for ' + DAILY_DATE
+TYPED_ENDINGS = (
+    ". If that names something in the news, cover what happened in the last "
+    "24 hours and why it matters. If it asks for a kind of thing (a lesson, a "
+    "tip, a story), give a new one, never one from an earlier day.",
+    ". If it is news, the last 24 hours; if it is a kind of thing, a new one, "
+    "never an earlier day's.",
+    ".",
+)
 
 
 def daily_prompt(item: "MixItem") -> str:
@@ -173,15 +192,18 @@ def daily_prompt(item: "MixItem") -> str:
         heads = (f"The latest on {shown} ({item.topic_label}) as of {DAILY_DATE}. "
                  f"Cover only {shown}, not {item.topic_label} in general",
                  f"The latest on {shown} ({item.topic_label}) as of {DAILY_DATE}")
+    elif item.custom and not item.follow:
+        heads = (TYPED_HEAD.replace("{topic}", item.query),)
     else:
         heads = (f"The latest on {item.query} as of {DAILY_DATE}",)
+    endings = TYPED_ENDINGS if (item.custom and not item.follow) else DAILY_ENDINGS
     for head in heads:
-        for ending in DAILY_ENDINGS:
+        for ending in endings:
             if len((head + ending).replace(DAILY_DATE, LONGEST_DATE)) <= MAX_PROMPT:
                 return head + ending
     # Unreachable with today's limits (a typed topic is at most MAX_QUERY and
     # a followed one at most MAX_FOCUS_PER_ITEM x MAX_FOCUS); a test says so.
-    return heads[-1] + DAILY_ENDINGS[-1]
+    return heads[-1] + endings[-1]
 
 
 def date_label(day: date) -> str:
@@ -189,6 +211,35 @@ def date_label(day: date) -> str:
     `toLocaleDateString("en-US", {weekday, month, day, year: long/numeric})`
     prints, so a date filled in here and one filled in there agree."""
     return f"{day:%A}, {day:%B} {day.day}, {day.year}"
+
+
+_DATE_LABEL = re.compile(
+    r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), "
+    r"(?:January|February|March|April|May|June|July|August|September|October|"
+    r"November|December) \d{1,2}, \d{4}\b")
+
+
+def earlier_prompts(query: str, days: int) -> list:
+    """The same daily prompt as it read on each of the `days` days before.
+
+    Newest first, and [] for anything that is not a dated daily prompt. Found
+    by the `date_label` in the words rather than by a stored item, because the
+    prompt *is* the episode's identity: the day is the only thing that differs
+    between one edition of a subject and the next, so replacing it is exactly
+    how to name yesterday's.
+    """
+    match = _DATE_LABEL.search(query or "")
+    if not match:
+        return []
+    try:
+        day = datetime.strptime(match.group(0), "%A, %B %d, %Y").date()
+    except ValueError:
+        return []
+    if date_label(day) != match.group(0):   # a weekday that is not that date's
+        return []
+    head, tail = query[:match.start()], query[match.end():]
+    return [head + date_label(day - timedelta(days=n)) + tail
+            for n in range(1, max(0, days) + 1)]
 
 
 def prompt_for(item: "MixItem", day: Optional[date] = None) -> str:

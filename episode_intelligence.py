@@ -613,11 +613,22 @@ You do not know whether anything has happened, finished, or even started. That \
 is not something to work around - it is the one thing you are certain of. Ask \
 instead whether the answer they want is a *result*, which is a question about \
 their request and not about the world, and say so. Then write cautions that \
-hold whichever way it turns out."""
+hold whichever way it turns out.
+
+**Not every request names a thing.** Some ask for a *kind* of thing - "founders \
+lesson of the day", "a stoic quote", "a history story", "a word to know". That \
+is a request for one good example, chosen by you, never the title of a blog, \
+column, newsletter or podcast to go and find. Do not search for the words as \
+a name, and never let the episode become a report on whether such a thing \
+exists or has been updated. Resolve the subject to what it is about ("lessons \
+from how founders built their companies"), search for the substance a good \
+example would come from (a specific founder's documented decision, what they \
+learned, and what happened), leave why_now empty and low, and set recency to \
+0 unless the kind of thing is itself news."""
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",
-                    now: str = "") -> str:
+                    now: str = "", covered=()) -> str:
     depth_name, depth_mix = depth_for(minutes)
     follow_up = ""
     if context:
@@ -625,6 +636,19 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
             f"\nThis is a follow-up. They have already heard a briefing on: "
             f"{context}\nThe search must find what is *new* relative to that, "
             "not the same ground again.\n")
+    if covered:
+        # A daily episode's earlier editions
+        # (`daily_edition.with_earlier_editions`).
+        # Without them "a new one every day" is a promise nothing can keep:
+        # the same request on consecutive days is the same request, and the
+        # likeliest example is the likeliest example every morning.
+        follow_up += (
+            "\nThis is today's edition of an episode they get every day. "
+            "Earlier editions were called: "
+            + "; ".join(f'"{t}"' for t in covered)
+            + ".\nPick something different for today and aim the search at "
+            "it - a different example if they asked for a kind of thing, "
+            "what is new since then if it is news.\n")
     return f"""Someone asked a briefing app this:
 
 <request>{query}</request>
@@ -694,7 +718,7 @@ Work out:
 
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
-                     notes=None, now: str | None = None) -> Brief:
+                     notes=None, now: str | None = None, covered=()) -> Brief:
     """Work out what this request is, before anything is retrieved.
 
     Never raises. Every failure path returns `fallback_brief`, which searches
@@ -728,7 +752,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
                 },
                 messages=[{
                     "role": "user",
-                    "content": build_ei_prompt(query, minutes, context, now),
+                    "content": build_ei_prompt(query, minutes, context, now,
+                                               tuple(covered or ())),
                 }],
             ),
             timeout=settings.ei_timeout_seconds,
