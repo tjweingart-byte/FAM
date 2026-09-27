@@ -1981,7 +1981,7 @@ def main() -> int:
             """The mic under the search box (§151) opens a voice screen: the
             words appear at the top as they are heard, the lines around the
             mark move only while somebody is talking, and once they stop
-            "Search now" appears centred with an X beside it (§158). It fills
+            "Search now" appears centred with an X beside it (§159). It fills
             as it counts down and searches when full; the X stops the count
             and leaves a button that still searches when pressed. The screen's
             own X goes back to searchFAM with the box untouched.
@@ -2133,7 +2133,7 @@ def main() -> int:
                               " window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
 
         def hey_fam_steps():
-            """Saying "hey FAM" or "what's up FAM" opens voice search (§157),
+            """Saying "hey FAM" or "what's up FAM" opens voice search (§158),
             from any tab, with whatever followed the phrase already in the
             words - and searches nothing. It is off until Settings turns it
             on, it does not listen over a playing episode, and an unrelated
@@ -2190,7 +2190,32 @@ def main() -> int:
             page.evaluate("() => { window.__ia = FamAudio.isActive;"
                           " FamAudio.isActive = function(){ return true; }; isPlaying = true; syncWake(); }")
             assert page.evaluate("!WAKE.rec"), "it listens over a playing episode"
-            page.evaluate("() => { FamAudio.isActive = window.__ia; runSearch = window.__rs; }")
+            page.evaluate("() => { FamAudio.isActive = window.__ia; }")
+            # Nor while an episode is being written: its audio is about to
+            # start, and the microphone must not be open when it does.
+            page.evaluate("() => { activeGenOverlay = document.body; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "it listens while an episode is being written"
+            page.evaluate("activeGenOverlay = null")
+            # A failure's backoff holds even against the two-second net.
+            page.evaluate("() => { WAKE.notBefore = Date.now() + 60000; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "the interval undid the backoff"
+            page.evaluate("() => { WAKE.notBefore = 0; syncWake(); }")
+            assert page.evaluate("!!WAKE.rec"), "it did not listen again after the backoff"
+            page.evaluate("stopWake()")
+            # Put away mid-countdown, Search now stops counting (§159) and
+            # stays pressable; nothing is searched unseen.
+            page.evaluate("() => { openVoiceSearch('what is a birdie'); VOICE.rec.stop(); }")
+            page.wait_for_timeout(200)
+            assert page.evaluate("!!VOICE.countdown"), "a seeded question did not count down"
+            page.evaluate("""() => {
+                Object.defineProperty(document, 'visibilityState',
+                    { value: 'hidden', configurable: true });
+                document.dispatchEvent(new Event('visibilitychange'));
+                delete document.visibilityState;
+            }""")
+            assert page.evaluate("!VOICE.countdown"), "the countdown ran on in the background"
+            assert page.is_visible("#vsSend"), "going to the background took Search now away"
+            page.evaluate("() => { closeVoiceSearch(); stopWake(); runSearch = window.__rs; }")
             assert page.evaluate("window.__searched") == 0, "the wake phrase searched"
 
         def the_search_page_opens_on_the_length_it_will_generate():

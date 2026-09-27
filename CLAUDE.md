@@ -11,11 +11,11 @@ Three surfaces, all backed by generated audio:
 1. **searchFAM** — ask anything, hear a briefing of a chosen length. *Working
    today.* This is the only surface that fully works.
    *Since §151 it can be asked by voice*: a mic under the box opens a screen
-   that shows the words as they are heard. *Since §158, at the owner's
+   that shows the words as they are heard. *Since §159, at the owner's
    direction*, stopping brings up a centred **Search now** that fills over
    five seconds and searches when full, with an X beside it that stops the
    count - speech ending starts a visible, refusable countdown, never a
-   silent search. Since §157 saying "hey FAM"
+   silent search. Since §158 saying "hey FAM"
    or "what's up FAM" opens that screen from any tab (off until turned on in
    Settings, since it keeps the microphone open).
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
@@ -2484,9 +2484,9 @@ search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send; and **§154**, the evergreen bank as a guest's
 whole myFAM page and an example DailyFAM playlist, neither able to write an
 episode or wake RunPod, and Go Deeper cut to this week's unfinished episodes
-and this week's Go Deeper prompts; and **§157**, "hey FAM"
+and this week's Go Deeper prompts; and **§158**, "hey FAM"
 opening voice search, opt-in because it keeps the microphone open; and
-**§158**, voice search's send replaced by a "go now" Search now that counts
+**§159**, voice search's send replaced by a "go now" Search now that counts
 down five seconds and an X that stops it),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
@@ -2519,7 +2519,7 @@ behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 78 as of §157,
+prose does not fail when somebody adds a behaviour. (It is 78 as of §158,
 which added "Hey FAM" opening voice search. It was 77 as of §151,
 which added voice search hearing you and waiting for send. It was 76 as of §148,
 which added the loading screen checking off its five steps. It was 75 as

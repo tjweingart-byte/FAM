@@ -12317,7 +12317,10 @@ changed is what moves up behind it - eight of each are read, so a dismissed
 tile is replaced only by another that qualifies. `similar` stays in the
 response, always empty, so an older client draws nothing rather than failing.
 
-## 157. "Hey FAM" opens voice search
+## 158. "Hey FAM" opens voice search
+
+*(§155-§157 are taken by an open branch, `claude/ecstatic-allen-1zd6h1`,
+which was not merged when this was written; the numbers were left for it.)*
 
 **Asked for:** saying "hey FAM" or "what's up FAM" should bring up voice
 search, so the spoken path does not start with finding the mic under the box.
@@ -12360,7 +12363,17 @@ how often a recogniser writes "fam" as something the pattern misses, are
 both unmeasured. The native app would need its own wake handling
 (`SFSpeechRecognizer`); the server is untouched.
 
-## 158. Voice search counts down to "Search now"
+**Found when the branch was double-checked for merging, all three fixed:**
+the two-second safety interval restarted a failed listener at once, which
+undid the exponential backoff it sat beside (`WAKE.notBefore` now holds it);
+the listener could come back on during the loading screen of the search it
+had just opened, with the episode's audio seconds away (`activeGenOverlay`
+now counts as busy); and Search now's countdown (§159) ran on when the app
+was put away, so it could spend an episode nobody was looking at - going to
+the background now stops the count and leaves the button to press. The smoke
+check covers all three.
+
+## 159. Voice search counts down to "Search now"
 
 **Asked for, and it reverses a line of §151 at the owner's direction.** §151
 decided that speech ending is not a request: when somebody stopped talking a
