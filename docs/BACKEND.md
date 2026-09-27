@@ -238,7 +238,7 @@ flowchart LR
 
 | | |
 |---|---|
-| **Sources** | (1) The `<<NEXT:>>` line the writer produced for this episode, stored in the cache's `thread` column and served by `/api/next`. No extra model call. (2) `rank_next_up` (`topics.py:4769`) over `browse_inventory`. (3) `/api/godeeper`: saved progress, open threads, and "similar". |
+| **Sources** | (1) The `<<NEXT:>>` line the writer produced for this episode, stored in the cache's `thread` column and served by `/api/next`. No extra model call. (2) `rank_next_up` (`topics.py:4769`) over `browse_inventory`. (3) `/api/godeeper`: episodes started in the last seven days and not finished, and the `<<NEXT:>>` prompt of episodes finished in the last seven days - nothing else (§154). |
 | **Path** | Countdown tile: the album's next episode if there is one → the predicted `<<NEXT:>>` follow-up → the ranking's first pick. Grid tiles: `rank_from_history` (with the just-heard episode's tags seeded at `JUST_HEARD_WEIGHT`) → `rank_followers` → `rank_most_played` → the inventory ignoring "already played". |
 | **Fallback** | That chain is the fallback. `/api/godeeper` is account-only and empty until something has been played. Not shown on Explore. |
 

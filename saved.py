@@ -437,16 +437,23 @@ class SavedStore:
             log.exception("could not record progress for %r", user_id)
             return False
 
-    def progress(self, user_id: str, limit: int = 4) -> list[dict]:
-        """Part-heard episodes, most recently listened to first."""
+    def progress(self, user_id: str, limit: int = 4,
+                 since: float = 0.0) -> list[dict]:
+        """Part-heard episodes, most recently listened to first.
+
+        `since` drops anything last listened to before it - Go Deeper asks
+        for the last week only, because an episode left half-heard a month
+        ago is not something anybody is about to pick back up.
+        """
         if not user_id:
             return []
         try:
             rows = self._conn().execute(
                 "SELECT query, minutes, seconds, title, updated, context"
                 " FROM progress"
-                " WHERE user_id = ? ORDER BY updated DESC LIMIT ?",
-                (user_id, int(limit))).fetchall()
+                " WHERE user_id = ? AND updated >= ?"
+                " ORDER BY updated DESC LIMIT ?",
+                (user_id, float(since or 0.0), int(limit))).fetchall()
         except Exception:
             log.exception("could not read progress for %r", user_id)
             return []

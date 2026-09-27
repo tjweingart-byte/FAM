@@ -291,10 +291,46 @@ def load_fixtures() -> dict:
                               "angle": t.subtitle})
         interest[tag] = cards
 
+    # A guest's page (§154): the evergreen bank on every rail, and the example
+    # DailyFAM playlist. Nothing is kept in a preview, so no tile is playable
+    # and a guest's tap opens the sign-up sheet exactly as the server's 403
+    # would.
+    def _unplayable(tiles):
+        for tile in tiles:
+            tile["cached"] = False
+            tile["playable"] = False
+        return tiles
+
+    guest_myfam = topics_mod.guest_feed()
+    for section in guest_myfam["sections"]:
+        _unplayable(section["topics"])
+    guest_sections = {}
+    for key, _title in topics_mod.SECTIONS:
+        body = topics_mod.guest_section(key)
+        _unplayable(body["topics"])
+        body.update(ready=0, minutes=2)
+        guest_sections["/api/myfam/section:guest:" + key] = body
+    sample_name, sample_ids = topics_mod.GUEST_SAMPLE_MIX
+    sample_items = _unplayable([
+        {"id": t.id, "title": t.title, "query": t.query, "custom": False,
+         "subtitle": t.subtitle, "icon": t.icon, "daily_prompt": "",
+         "prompt": "", "minutes": 2}
+        for t in (topics_mod.BANK_BY_ID[i] for i in sample_ids)])
+
     import time as _time
     return {
         "/api/interest": interest,
         "/api/myfam": myfam,
+        "/api/myfam:guest": guest_myfam,
+        **guest_sections,
+        "/api/mixes/sample": {
+            "mix": {"id": "sample", "name": sample_name, "sample": True,
+                    "items": sample_items, "topics": sample_items,
+                    "topic_ids": list(sample_ids), "custom_count": 0,
+                    "public": False, "cover": "", "source_id": "",
+                    "created_at": 0, "updated_at": 0},
+            "note": ("An example playlist. Create an account to make your "
+                     "own - named for when you listen, fresh every morning.")},
         # Trending's "View more", grouped by where each story is trending -
         # built by `topics.trending_groups`, as the server builds it (§135).
         "/api/myfam/section:world_trending": {

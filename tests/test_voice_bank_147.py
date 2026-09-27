@@ -254,6 +254,10 @@ def served(bank, monkeypatch, tmp_path):
 
 def test_a_myfam_tap_is_two_minutes_in_a_bank_voice_it_keeps(served):
     client = TestClient(appmod.app)
+    # An account: a guest's myFAM tap never writes an episode.
+    assert client.post("/api/auth/signup", json={
+        "email": "voice@fam.test",
+        "password": "correct horse battery"}).status_code == 200
     res = client.get("/api/audio?q=why+tides+happen&minutes=7&fmt=pcm"
                      "&surface=myfam&voice=chatterbox:ellis")
     assert res.status_code == 200

@@ -1981,7 +1981,7 @@ def main() -> int:
             """The mic under the search box (§151) opens a voice screen: the
             words appear at the top as they are heard, the lines around the
             mark move only while somebody is talking, and once they stop
-            "Search now" appears centred with an X beside it (§155). It fills
+            "Search now" appears centred with an X beside it (§158). It fills
             as it counts down and searches when full; the X stops the count
             and leaves a button that still searches when pressed. The screen's
             own X goes back to searchFAM with the box untouched.
@@ -2133,7 +2133,7 @@ def main() -> int:
                               " window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
 
         def hey_fam_steps():
-            """Saying "hey FAM" or "what's up FAM" opens voice search (§154),
+            """Saying "hey FAM" or "what's up FAM" opens voice search (§157),
             from any tab, with whatever followed the phrase already in the
             words - and searches nothing. It is off until Settings turns it
             on, it does not listen over a playing episode, and an unrelated
