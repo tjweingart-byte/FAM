@@ -1314,13 +1314,25 @@ def _adopt_identity(signal, known: list):
     return signal
 
 
-def _seen_again(previous: Story, signal, now: float) -> Story:
+def _seen_again(previous: Story, signal, now: float,
+                news_swept: bool = True) -> Story:
     """A held story, updated from this sweep's signal. Title and clock kept.
 
     What moves with every sweep: how strong it is, how many outlets carry it,
     where they are, and - for a game - the score and the status. A provider
     that could not say this time keeps the last answer rather than erasing it.
+
+    `news_swept` is False on a tick where the news sources sat out (§155:
+    they run every two hours, sports and markets every fifteen minutes). A
+    game or a price that the press was covering at the last news sweep was
+    lifted by `corroborate`; this tick has no press to corroborate against,
+    so without this the lift would vanish for an hour and fifty minutes and
+    come back - the absence of a news sweep read as the world losing interest.
     """
+    strength = float(signal.strength)
+    if (not news_swept and previous.domain != ATTENTION
+            and previous.coverage and not signal.coverage):
+        strength = max(strength, float(previous.strength))
     countries = tuple(signal.countries) or previous.countries
     scope, key, label = _geography(countries, signal.region_hint
                                    or previous.region_hint)
@@ -1333,7 +1345,7 @@ def _seen_again(previous: Story, signal, now: float) -> Story:
         query = sports_query(previous.subject, signal.live_status)
     return replace(
         previous,
-        strength=float(signal.strength),
+        strength=strength,
         last_seen=now,
         countries=countries,
         keywords=tuple(signal.keywords) or previous.keywords,
@@ -1371,6 +1383,9 @@ async def refresh(now: Optional[float] = None) -> Pool:
     _REFRESHING = True
     try:
         signals, reports = await collect(now=now)
+        # Whether any news source actually ran this tick - see `_seen_again`.
+        news_swept = any(r.domain == ATTENTION and r.outcome != SKIPPED
+                         for r in reports)
         # One signal per story, whichever sources saw it - see `corroborate`.
         signals = corroborate(signals)
         # And one id per story across sweeps - see `_adopt_identity`.
@@ -1395,7 +1410,7 @@ async def refresh(now: Optional[float] = None) -> Pool:
             if previous is not None and not previous.expired(now):
                 # Where it is being covered moves with every sweep, like its
                 # strength, its coverage and a game's score do.
-                kept.append(_seen_again(previous, signal, now))
+                kept.append(_seen_again(previous, signal, now, news_swept))
                 continue
             # Not held - but possibly *known*. A subject dropped for room, or
             # one whose story expired while nothing was looking, has a clock

@@ -150,7 +150,7 @@ flowchart TB
   subgraph Timers["Timers (America/New_York)"]
     T1["05:00 & 17:00<br/>trending_bank.build()"]
     T2["05:00<br/>daily_edition.build()"]
-    T3["every 15 min<br/>stories.refresh()"]
+    T3["every 15 min<br/>stories.refresh()<br/>(news sources every 2 h)"]
     T4["hourly<br/>categories sweep"]
   end
   subgraph OnView["When myFAM is drawn"]
@@ -168,7 +168,7 @@ flowchart TB
 |---|---|---|---|
 | **Trending edition** (`trending_bank.py:771`) | 05:00 and 17:00 ET, boot + 60 s stagger | 10 whole **scripts** in the cache (`origin="trending"`), kept until the edition expires (≤ 36 h) | **Cache hit**: no Claude, no Exa. The first play voices it (GPU). Every later play streams from SQLite. |
 | **DailyFAM edition** (`daily_edition.py:498`) | 05:00 ET, plus immediately when a mix is saved (`_write_mix_ahead`) | One whole **script** per distinct subject (`origin="dailyfam"`), told its earlier editions' titles | **Cache hit**, the same as above. The server owns the dated prompt and the minutes, so the tap's key matches. |
-| **Story pool** (`stories.py:1352`) | Every 15 min, and whenever `/api/myfam` finds it stale | Tiles only: a title and an angle. **No script.** | A tap is a real generation, minus the brief if prefetch warmed it |
+| **Story pool** (`stories.py:1352`) | Every 15 min, and whenever `/api/myfam` finds it stale. Sports and markets are asked each tick; GDELT, the trending registry and Polymarket every 2 h (§155) | Tiles only: a title and an angle. **No script.** | A tap is a real generation, minus the brief if prefetch warmed it |
 | **Prefetch** (`prefetch.py:922`) | On `/api/myfam`, at most once per 5 min per listener, while no live episode is generating | Warmed **briefs** (`PREFETCH_LEVEL=brief`) for up to 6 likely taps | Removes stage 1 from the tap |
 | **Category sweep** (`categories.py`) | Hourly | The ranking vocabulary (no episodes) | n/a |
 

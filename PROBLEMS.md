@@ -12375,3 +12375,49 @@ still offered a college football game. `tests/test_made_for_you_154.py`.
 news") now sees fewer live stories on Made for you and more evergreen ones,
 until they ask about something specific. Trending is untouched and still
 carries the day's biggest stories for everybody.
+
+## 155. Sports and markets every fifteen minutes, news every two hours
+
+The owner first asked for the whole story refresh to move from fifteen
+minutes to two hours, then - before it shipped - narrowed it: "we don't want
+sports data to be that outdated". So the pool keeps its fifteen-minute tick
+and the sources are split by how fast what they measure moves:
+
+| Source | Floor | Was |
+|---|---|---|
+| API-Sports | its daily budget, ~14 min on the free tier | unchanged |
+| Finnhub | 15 min (`STORIES_MARKETS_INTERVAL_SECONDS`) | 30 min |
+| GDELT news sweep | 2 h (`STORIES_NEWS_INTERVAL_SECONDS`) | 10 min |
+| Trending registry | 2 h | every tick |
+| Polymarket | 2 h | 30 min |
+
+No new mechanism: `collect` already skipped a source inside its
+`min_interval_seconds`, and `refresh` already carried every unexpired story a
+source did not mention this time (`still`). The floors became settings.
+
+**One thing the split would have broken, fixed with it.** `corroborate`
+lifts a game or a price the press is also covering. On a tick where GDELT sat
+out there is no press to corroborate against, so `_seen_again` would have
+reset that story's strength to the bare scoreboard's - the absence of a news
+sweep read as the world losing interest, for an hour and fifty minutes of
+every two hours. It now keeps the corroborated strength on a tick where no
+news source ran (`news_swept`), and takes the new reading the next time one
+does.
+
+**What it buys.** GDELT from ~3,000 requests a day to ~380; Polymarket from
+48 sweeps to 12; composer calls fall because between news sweeps only new
+games and new market moves are new. **What it costs.** A news story reaches
+Made for you up to two hours late, and a wave that rises and fades inside
+two hours is not admitted. Finnhub doubles, to one request per watchlist
+symbol every fifteen minutes - inside the free tier's 60 a minute, but
+double the metered estimate (`live_sources.py`, $0.80 per 1,000). Scores are
+as fresh as the API-Sports allowance allows, as before. **The category tree
+is unaffected**: it reads every story the pool holds, and stories are held
+for their whole shelf life.
+
+The score card also drops its "live" badge once the score is over twenty
+minutes old (`seedLiveHtml`): it already said its age, and an in-progress
+score that old - which happens when the API-Sports allowance runs low - is
+not happening now.
+
+`tests/test_story_refresh_155.py`.

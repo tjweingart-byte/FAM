@@ -1383,7 +1383,11 @@ the rest of this list it needs taste rather than a key.
   says the place, and View more is the whole of it grouped Worldwide, then
   theirs, then everywhere else (`topics.trending_groups`). The pool refreshes
   itself every fifteen minutes with nobody looking
-  (`STORIES_BACKGROUND_SECONDS`). Nothing here has made a real request from
+  (`STORIES_BACKGROUND_SECONDS`) - **but only sports and markets are asked
+  that often** *(§155, at the owner's direction)*: GDELT's news sweep, the
+  trending registry and Polymarket have a floor of two hours
+  (`STORIES_NEWS_INTERVAL_SECONDS`), and what they found is carried between
+  their sweeps. Nothing here has made a real request from
   the build container.
   **Amended by §127, at the owner's direction: every drawn rail except the
   friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
