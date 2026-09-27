@@ -141,6 +141,12 @@ def test_switching_it_on_is_one_setting(client, enforced):
 def test_the_refusal_is_about_the_thing_they_pressed(client, enforced, surface,
                                                      params, expected):
     """One allowance, three ways of spending it, three different sentences."""
+    if surface == "myfam":
+        # A guest's bank tile plays only kept audio and never spends at all
+        # (see `app._guest_play_gated`), so the allowance is an account's.
+        assert client.post("/api/auth/signup", json={
+            "email": "limit@fam.test",
+            "password": "correct horse battery"}).status_code == 200
     assert audio(client, "the one they get", **params).status_code == 200
     refused = audio(client, "the one over the line", **params)
     assert refused.status_code == 429

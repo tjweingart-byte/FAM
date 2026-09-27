@@ -3478,6 +3478,40 @@ async def list_mixes(request: Request):
     }
 
 
+@app.get("/api/mixes/sample")
+async def sample_mix(request: Request):
+    """An example DailyFAM playlist for a listener with no account.
+
+    Built from the evergreen bank (`topics.GUEST_SAMPLE_MIX`), so a guest sees
+    what a mix *is* - a name, a cover, a handful of briefings and a play
+    button - instead of only a wall. Nothing is stored and nothing is written:
+    each item asks for the bank tile's own question at the browse length, the
+    same episode myFAM's tile is, and a guest's tap on it plays only kept
+    audio (see `_guest_play_gated`). Open to everybody; the interface asks for
+    it only when `/api/mixes` answered 401.
+    """
+    _read_limit(request)
+    name, ids = topics_mod.GUEST_SAMPLE_MIX
+    items = []
+    for topic_id in ids:
+        topic = topics_mod.BANK_BY_ID.get(topic_id)
+        if topic is None:
+            continue
+        item = mixes_mod.MixItem(topic.id, topic.title, topic.query, False,
+                                 topic.subtitle, topic.icon).as_dict()
+        # The bank tile's own words, never a dated edition: this is the same
+        # episode as the myFAM tile, so one kept recording serves both.
+        item.update(daily_prompt="", prompt="", minutes=BROWSE_MINUTES)
+        _mark_guest_tiles([item], BROWSE_MINUTES)
+        items.append(item)
+    return {"mix": {"id": "sample", "name": name, "sample": True,
+                    "items": items, "topics": items, "topic_ids": list(ids),
+                    "custom_count": 0, "public": False, "cover": "",
+                    "source_id": "", "created_at": 0, "updated_at": 0},
+            "note": ("An example playlist. Create an account to make your "
+                     "own - named for when you listen, fresh every morning.")}
+
+
 @app.post("/api/mixes")
 async def create_mix(req: MixRequest, request: Request):
     _read_limit(request)
@@ -4001,6 +4035,48 @@ async def next_up(
     return {"topics": [t.as_dict() for t in picks], "algo": EVENTS.algo_stamp()}
 
 
+#: What a guest is told when they tap an episode that has not been made yet.
+#: Making it would cost a script and a GPU, and a guest's sample page is
+#: promised to cost nothing (at the owner's direction).
+GUEST_GATE_MESSAGE = ("Create a free account to hear this one. Episodes are "
+                      "made fresh for listeners with an account.")
+
+
+def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
+    """Say on each guest tile whether its script is written, and whether it
+    would play for a guest at all.
+
+    `playable` is the cheap half of `_guest_may_play`: written script and
+    kept audio, read from SQLite. Never a model call, never the voice."""
+    written = _written_probe(minutes)
+    for tile in tiles:
+        tile["cached"] = written(tile.get("query", ""))
+        tile["playable"] = bool(tile["cached"]
+                                and _audio_is_kept(tile.get("query", ""), minutes))
+
+
+def _audio_is_kept(query: str, minutes: int) -> bool:
+    """Whether any voice's audio for this episode is kept beside its script.
+    A read, and only a read - see `ScriptCache.has_any_audio`."""
+    store = SCRIPT_CACHE
+    if store is None or not hasattr(store, "has_any_audio"):
+        return False
+    try:
+        key = _episode_key(_validated_plan(query, minutes))
+        return bool(key) and store.has_any_audio(key)
+    except Exception:  # noqa: BLE001 - a tile's marker is never worth a 500
+        return False
+
+
+def _guest_play_gated(request: Request, where: str, topic_id: str) -> bool:
+    """Whether this play is a guest's tap on the sample pages - myFAM, the
+    DailyFAM example playlist, or any bank tile - which may never write a
+    script or wake the voice."""
+    if _has_account(request):
+        return False
+    return where in BROWSE_SURFACES or topic_id in topics_mod.BANK_BY_ID
+
+
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
@@ -4022,6 +4098,19 @@ async def myfam_section(request: Request,
     _read_limit(request)
     minutes = BROWSE_MINUTES   # §147: only searchFAM offers a length
     user = _listener(request)
+    if not _has_account(request):
+        # A guest's page is the evergreen bank on every rail, and so is the
+        # screen behind each rail's "View more". See `topics.guest_feed`.
+        try:
+            body = topics_mod.guest_section(key)
+        except KeyError as exc:
+            raise HTTPException(status_code=404,
+                                detail="No such section.") from exc
+        _mark_guest_tiles(body["topics"], minutes)
+        body["ready"] = sum(1 for t in body["topics"] if t["cached"])
+        body["minutes"] = minutes
+        body["algo"] = EVENTS.algo_stamp()
+        return body
     written = _written_probe(minutes)
     try:
         place = _place_for(request)
@@ -4237,6 +4326,21 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     _read_limit(request)
     user = _listener(request)
     minutes = BROWSE_MINUTES
+
+    # **A guest is shown the evergreen bank on every rail, and nothing on this
+    # path may cost anything** (at the owner's direction). So none of what
+    # follows runs for one: no story sweep, no vocabulary growth, no prefetch
+    # cycle - the last of those spends a model call per warmed brief - and no
+    # impressions, which a guest does not keep anyway. A tap on one of these
+    # tiles plays kept audio or asks for an account; see `_guest_may_play`.
+    if not _has_account(request):
+        SOCIAL.seen(user)
+        feed = topics_mod.guest_feed()
+        for section in feed["sections"]:
+            _mark_guest_tiles(section["topics"], minutes)
+        feed["minutes"] = minutes
+        feed["algo"] = EVENTS.algo_stamp()
+        return feed
 
     # One refresh serves every listener, so this is scheduled rather than
     # awaited: myFAM renders from whatever the shared pool holds and stays
@@ -4645,35 +4749,54 @@ async def _episode_blurb(pipeline, query: str, minutes: int,
         return "", ""
 
 
+#: How far back "Pick up where you left off" looks. Both of its sources -
+#: episodes started and not finished, and the follow-up the player's Go Deeper
+#: button would offer on an episode heard - must come from listening inside
+#: this window, at the owner's direction.
+GO_DEEPER_WINDOW_SECONDS = 7 * 24 * 3600
+#: How many of each source are read. The section shows four, and the rest wait
+#: behind them so a tile closed with its X is replaced - but only ever by
+#: another tile that qualifies.
+GO_DEEPER_DEPTH = 8
+
+
 @app.get("/api/godeeper")
 async def go_deeper(request: Request, interests: str = Query("", max_length=200)):
-    """"Pick up where you left off": part-heard episodes, the follow-ups the
-    finished ones predicted, and episodes like the last one heard.
+    """"Pick up where you left off": two things, and nothing else.
 
-    **Empty until the listener has done something** (§127). It used to top
-    itself up from the bank so it was never empty, which meant a brand-new
-    listener was told they had left something off before they had played
-    anything. Now nothing is offered until there is something to pick up.
+    1. **Episodes started in the last week and not finished** (`resume`).
+    2. **The Go Deeper prompt of an episode finished in the last week**
+       (`threads`) - exactly the follow-up the player's Go Deeper button
+       would have offered on it, so the tile is that episode.
+
+    It used to top itself up with "similar" episodes from the feed's next-up
+    ranking, seeded with the last thing heard. Those were adjacent rather than
+    deeper - a different subject in the same facet - so they are gone, at the
+    owner's direction. **Fewer than four is the honest answer** when fewer
+    than four qualify, and a tile closed with its X is replaced only by
+    another that qualifies. `similar` stays in the response, always empty, so
+    a client that still reads it draws nothing rather than failing.
 
     **Only for an account**, on the same rule as the event log: what somebody
     was halfway through is part of what FAM remembers about them, and a guest
     session is a device rather than a person.
 
-    Each card carries a one-sentence `summary` when the cache has one, which is
-    what makes the section read like the rest of myFAM rather than a bare list
-    of titles. Costs nothing: every line here is read, never written.
+    Costs nothing: every line here is read, never written. `interests` is
+    accepted and unused, for clients that still send it.
     """
     _read_limit(request)
     user = _listener(request)
     if not user or not _remembers(request):
         return {"threads": [], "resume": [], "similar": []}
 
+    since = time.time() - GO_DEEPER_WINDOW_SECONDS
     # Tiles closed with their X are never offered again, so a few more of
     # each are read and the closed ones filtered out - the next one along
     # takes the place of one that was dismissed.
     hidden = SAVED.dismissed(user)
-    resume = [r for r in SAVED.progress(user, limit=4 + len(hidden))
-              if not SAVED.is_dismissed(hidden, r["query"])][:4]
+    resume = [r for r in SAVED.progress(user, limit=GO_DEEPER_DEPTH + len(hidden),
+                                        since=since)
+              if not SAVED.is_dismissed(hidden, r["query"])][:GO_DEEPER_DEPTH]
     try:
         pipeline = _make_pipeline() if resume else None
     except TTSUnavailable:
@@ -4684,38 +4807,20 @@ async def go_deeper(request: Request, interests: str = Query("", max_length=200)
         row["title"] = title or row.get("title") or ""
         row["summary"] = summary
 
-    threads = [t for t in EVENTS.open_threads(user)
-               if not SAVED.is_dismissed(hidden, t.get("thread", ""))]
-    for row in threads[:4]:
+    resuming = {" ".join(r["query"].lower().split()) for r in resume}
+    threads = [t for t in EVENTS.open_threads(
+                   user, limit=GO_DEEPER_DEPTH + len(hidden), since=since)
+               if not SAVED.is_dismissed(hidden, t.get("thread", ""))
+               # Already one of the part-heard tiles: offered once, as that.
+               and " ".join(t.get("thread", "").lower().split()) not in resuming
+               ][:GO_DEEPER_DEPTH]
+    for row in threads:
         # The follow-up itself has usually not been made, so there is no
         # summary of *it* to read - the line says where it comes from instead,
         # which is the one true thing known about it.
         row["summary"] = (f"Follows on from {row['from_title']}."
                           if row.get("from_title") else "")
-
-    # "Similar": the feed's own next-up ranking, seeded with the last thing
-    # they heard - the same ranker as the post-episode popup, so the two
-    # cannot disagree. Only once there is something to be similar *to*.
-    similar: list[dict] = []
-    last = (resume[0]["query"] if resume
-            else next((e.text for e in EVENTS.for_user(user, limit=20)
-                       if e.kind in ("play", "complete") and e.text), ""))
-    if last:
-        picks = topics_mod.rank_next_up(
-            EVENTS, user, after_text=last,
-            interests=_interests_for(request, interests), has_account=True)
-        for topic in picks:
-            if len(similar) >= 4:
-                break
-            tile = topic.as_dict()
-            if SAVED.is_dismissed(hidden, tile.get("query", "")):
-                continue
-            similar.append({"topic_id": tile.get("id", ""),
-                            "query": tile.get("query", ""),
-                            "title": tile.get("title", ""),
-                            "summary": tile.get("angle") or tile.get("subtitle")
-                                       or ""})
-    return {"threads": threads, "resume": resume, "similar": similar}
+    return {"threads": threads, "resume": resume, "similar": []}
 
 
 class DismissRequest(BaseModel):
@@ -5280,6 +5385,21 @@ async def audio(
     # Stamped on anything this writes to the shared cache, so Explore can be
     # searched episodes and nothing else (§147).
     pipeline.origin = where
+
+    # **A guest's tap on the sample pages costs nothing** (at the owner's
+    # direction). myFAM and the DailyFAM example playlist are the evergreen
+    # bank for a guest, and one of those tiles plays only when its script is
+    # current and its audio is already kept - which is read out of SQLite and
+    # never reaches Claude or RunPod. Anything else is refused *here*, before
+    # the GPU is woken and before a word is written, with a reason the
+    # interface turns into the sign-up screen. Refunded, because nothing was
+    # spent.
+    if _guest_play_gated(request, where, topic_id):
+        stored = getattr(pipeline, "has_stored_audio", None)
+        if stored is None or not await stored(plan):
+            _refund(reserved, user)
+            raise HTTPException(status_code=403, detail=GUEST_GATE_MESSAGE,
+                                headers={"X-FAM-Refused-By": "account"})
 
     # Ask for a GPU now, before Claude has written a word.
     #

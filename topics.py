@@ -1931,24 +1931,29 @@ class EventStore:
             for r in rows
         ]
 
-    def open_threads(self, user_id: str, limit: int = 8) -> list[dict]:
+    def open_threads(self, user_id: str, limit: int = 8,
+                     since: float = 0.0) -> list[dict]:
         """Threads from episodes this listener finished, newest first.
 
         Each finished episode carries the model's guess at what its listener
-        would most likely ask next. This is where those land: an episode they
-        have already heard, and the obvious question after it, one tap from
-        being answered.
+        would most likely ask next - the same prompt the player's Go Deeper
+        button offers. This is where those land: an episode they have already
+        heard, and the obvious question after it, one tap from being answered.
 
-        A thread they have since asked about is dropped - it is no longer
-        open - which is why this reads the log rather than a stored list.
+        A thread they have since asked about *or listened to* is dropped - it
+        is no longer open - which is why this reads the log rather than a
+        stored list. `since` keeps only episodes finished after it: Go Deeper
+        asks for the last week, so a thread is always about something this
+        listener heard recently rather than an adjacent guess at an old one.
         """
         events = self.for_user(user_id, limit=200)
-        asked = " ".join(e.text.lower() for e in events if e.kind == "search")
+        asked = " ".join(e.text.lower() for e in events
+                         if e.kind in ("search", "play", "complete") and e.text)
         seen: set[str] = set()
         out: list[dict] = []
         for event in events:
             thread = (event.thread or "").strip()
-            if not thread or event.kind != "complete":
+            if not thread or event.kind != "complete" or event.at < since:
                 continue
             key = thread.lower()
             if key in seen or key in asked:
@@ -3878,6 +3883,90 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             "live_stories": len(live),
             "taste_source": "startup" if cold else "taste",
             "startup_order": startup_source}
+
+
+#: What the top of a guest's myFAM says the page is, and what "View more"
+#: says under it. See `guest_feed`.
+GUEST_SAMPLE_NOTE = ("A sample of what FAM makes. Create an account and "
+                     "every row here is chosen for you.")
+
+
+def _guest_order() -> list[Topic]:
+    """The evergreen bank dealt round-robin by facet, so every rail it fills
+    is a spread of subjects rather than four of one. Deterministic: the same
+    page for every guest, which is what one shared script per tile is for."""
+    by_facet: dict[str, list[Topic]] = {}
+    for topic in TOPIC_BANK:
+        facet = facet_of(topic.tags[0]) if topic.tags else ""
+        by_facet.setdefault(facet, []).append(topic)
+    order: list[Topic] = []
+    queues = [by_facet[f] for f in sorted(by_facet)]
+    while any(queues):
+        for queue in queues:
+            if queue:
+                order.append(queue.pop(0))
+    return order
+
+
+def guest_feed() -> dict:
+    """The whole myFAM page for a listener with no account: **the evergreen
+    bank and nothing else, across every rail** (at the owner's direction).
+
+    A guest is somebody deciding whether FAM is worth an account, so they are
+    shown what the app looks like when it is full rather than one row of
+    content and four empty sentences. Every rail is drawn, with the bank dealt
+    across them so no tile appears twice while the bank lasts.
+
+    **It costs nothing, and nothing here can cause a cost.** No event log is
+    read (a guest has none), no live pool, no story sweep and no prefetch - the
+    endpoint schedules none of them for a guest - and a tap on one of these
+    tiles plays only an episode whose audio is already kept (`/api/audio`
+    refuses a guest's browse tap otherwise and offers an account instead). So
+    a guest can never be the reason a script is written or RunPod is woken.
+
+    `sample` says the page is the bank rather than a ranking, so the interface
+    can say so instead of heading a sample "Made for you" as though it had
+    been chosen. The rail headings are kept, because showing what each rail
+    *is* is the point of the page.
+    """
+    order = _guest_order()
+    sections = []
+    for i, (key, title) in enumerate(SECTIONS):
+        tiles = order[i * SECTION_SIZE:(i + 1) * SECTION_SIZE]
+        if not tiles:
+            # More rails than the bank has tiles for: start again rather than
+            # draw an empty row on a page whose whole job is looking full.
+            start = (i * SECTION_SIZE) % max(1, len(order))
+            tiles = (order[start:] + order[:start])[:SECTION_SIZE]
+        sections.append({"key": key, "title": title,
+                         "topics": [t.as_dict() for t in tiles],
+                         "empty_reason": ""})
+    return {"sections": sections, "personalised": False, "live_stories": 0,
+            "taste_source": "sample", "startup_order": "",
+            "sample": True, "sample_note": GUEST_SAMPLE_NOTE}
+
+
+def guest_section(key: str) -> dict:
+    """One rail of `guest_feed` at full length, for its "View more": the
+    rail's own four first, then the rest of the bank in the same deal."""
+    if key not in dict(SECTIONS):
+        raise KeyError(key)
+    feed = {s["key"]: s for s in guest_feed()["sections"]}
+    head = feed[key]["topics"]
+    ids = {t["id"] for t in head}
+    rest = [t.as_dict() for t in _guest_order() if t.id not in ids]
+    return {"key": key, "title": dict(SECTIONS)[key],
+            "topics": (head + rest)[:FULL_SECTION_SIZE],
+            "empty_reason": "", "sample": True,
+            "sample_note": GUEST_SAMPLE_NOTE}
+
+
+#: A DailyFAM playlist for a listener with no account, so the tab shows what a
+#: mix is rather than only a wall. Bank topics only, for the same reason as
+#: `guest_feed`: a tap plays only kept audio and never writes anything.
+GUEST_SAMPLE_MIX = ("Example: Morning commute",
+                    ("fed-next-move", "ai-agents", "sleep-science",
+                     "the-trade"))
 
 
 #: How many tiles a full-screen section shows. The bank is ~28 topics, so

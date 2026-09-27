@@ -1856,6 +1856,11 @@
   .xn-card-sub{ font-size:11px; line-height:1.4; color:var(--text-faint); }
 
   /* An account gate has to read as a choice, not as a broken screen. */
+  .sample-note{ display:flex; align-items:center; gap:10px; margin:0 0 16px;
+    padding:11px 12px; border-radius:12px; background:var(--surface);
+    border:1px solid var(--border); font-size:12.5px; line-height:1.4; color:var(--text-muted); }
+  .sample-note-btn{ flex:none; margin-left:auto; padding:6px 12px; border-radius:999px;
+    border:none; background:var(--copper); color:var(--ink); font-weight:700; font-size:12px; cursor:pointer; }
   .locked-note{ padding:16px; border-radius:14px; background:var(--surface);
     border:1px dashed var(--border-strong); font-size:12.5px; line-height:1.55;
     color:var(--text-muted); }
@@ -3455,6 +3460,19 @@
            and the day it is switched on it appears without another change.
            Every word in it apart from the button labels comes from the
            server's verdict, so the app and the iOS client say the same thing. -->
+      <!-- A guest tapped a sample episode that has not been made yet. Making
+           it would cost a script and a GPU, so the way on is an account. -->
+      <div class="modal-overlay" id="guestGateOverlay" onclick="if(event.target===this) closeGuestGate()">
+        <div class="modal-card">
+          <div class="modal-title">Sign up to listen</div>
+          <div class="limit-body" id="guestGateBody"></div>
+          <div class="modal-btns">
+            <button class="modal-btn ghost" onclick="closeGuestGate()">Not now</button>
+            <button class="modal-btn primary" onclick="guestGateSignUp()">Sign up</button>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="limitOverlay" onclick="if(event.target===this) closeLimit()">
         <div class="modal-card">
           <div class="limit-mark">
@@ -4178,6 +4196,9 @@
     // the wrong shape for it: it vanishes, it cannot be acted on, and it does
     // not say when the allowance comes back. Everything else still toasts.
     if(err && err.refusedBy === "quota" && err.quota){ showLimitReached(err.quota); return; }
+    // A guest's tap on a sample episode that has not been made yet: the way
+    // on is an account, so that is what is offered.
+    if(err && err.refusedBy === "account"){ showGuestGate(message); return; }
     toast(message || "Could not generate that briefing");
   }
 
@@ -4226,6 +4247,23 @@
       return when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
              + (soon ? "" : " on " + when.toLocaleDateString([], { weekday: "long" }));
     } catch(e){ return when.toISOString(); }
+  }
+
+  // ---------------- A guest reaching an episode that is not made yet ----------------
+  function showGuestGate(message){
+    // The player may already be on screen behind a loading overlay.
+    if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
+    var body = document.getElementById("guestGateBody");
+    if(body) body.textContent = message
+      || "Create a free account to hear this one. Episodes are made fresh for listeners with an account.";
+    document.getElementById("guestGateOverlay").classList.add("active");
+  }
+  function closeGuestGate(){
+    document.getElementById("guestGateOverlay").classList.remove("active");
+  }
+  function guestGateSignUp(){
+    closeGuestGate();
+    openAuth("signup");
   }
 
   function closeLimit(){
@@ -6462,7 +6500,12 @@
       // this tab rather than the first.
       topicBank = res[1].topics || [];
       if(res[1].personalised !== undefined) topicBankRanked = !!res[1].personalised;
-      if(res[0].locked){ renderMixesLocked(); return; }
+      if(res[0].locked){
+        renderMixesLocked();
+        loadSampleMix();
+        return;
+      }
+      sampleMix = null;
       mixes = res[0].mixes;
       mixStarters = res[0].starters || [];
       renderMixList();
@@ -6486,7 +6529,67 @@
       + '<div class="locked-acts">'
       + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
+      + '</div></div>'
+      + (sampleMix ? sampleMixCardHTML(sampleMix) : '');
+  }
+
+  // **An example playlist for a guest** (at the owner's direction), so
+  // DailyFAM shows what a mix is rather than only the wall above. Built by
+  // the server from the evergreen bank; nothing is stored, and a guest's tap
+  // plays only an episode that is already made (the server refuses anything
+  // else and this page offers an account instead). It is never in `mixes`,
+  // so nothing that edits, shares or deletes a mix can reach it.
+  var sampleMix = null;
+  function loadSampleMix(){
+    fetch("/api/mixes/sample")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(d){
+        if(!d || !d.mix) return;
+        sampleMix = d.mix;
+        sampleMix.note = d.note || "";
+        renderMixesLocked();
+      });
+  }
+  function sampleMixCardHTML(m){
+    var names = m.items.map(function(t){ return t.title; }).join(" \u00b7 ");
+    return '<div class="mix-card" onclick="openMix(\'sample\')">'
+      + '<div class="mix-folder">' + folderSVG() + '</div>'
+      + '<div class="mix-card-body">'
+      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-meta">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
+      + '<div class="mix-preview">' + escapeHtml(names) + '</div>'
+      + '</div>'
+      + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
+      + '</div>';
+  }
+
+  // Inside the example: its briefings and a play button, and none of the
+  // controls that edit a mix - there is nothing kept to edit.
+  function renderSampleMixBody(m){
+    var html = '<div class="mix-hero"><div class="mix-hero-art">' + folderSVG() + '</div><div>'
+      + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-hero-s">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
       + '</div></div>';
+    html += '<button class="mix-play" onclick="playMix()">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
+      + '<path d="M8 5v14l11-7z"/></svg>Play ' + m.items.length + ' episodes</button>';
+    html += m.items.map(function(t){
+      return '<div class="mix-topic">'
+        + '<div class="mix-topic-body">'
+        + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
+        + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle || "") + '</div>'
+        + '</div>'
+        + '<button class="mix-topic-act" title="Play this one" data-id="' + escapeHtml(t.id) + '" '
+        + 'onclick="event.stopPropagation(); playMixFrom(this.dataset.id)">'
+        + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
+        + '<path d="M8 5v14l11-7z"/></svg></button>'
+        + '</div>';
+    }).join("");
+    html += '<div class="locked-note" style="margin-top:14px;">' + escapeHtml(m.note || "")
+      + gateActions() + '</div>';
+    document.getElementById("mixBody").innerHTML = html;
   }
 
   // The "+" and the body of this screen are two halves of one answer, so
@@ -6540,6 +6643,7 @@
   }
 
   function mixById(id){
+    if(id === "sample") return sampleMix;
     for(var i = 0; i < mixes.length; i++){ if(mixes[i].id === id) return mixes[i]; }
     return null;
   }
@@ -6552,6 +6656,11 @@
     if(currentMixId !== id) recFocus = { id: null, picks: [], all: false };
     currentMixId = id;
     document.getElementById("mixTitle").textContent = m.name;
+    if(m.sample){
+      renderSampleMixBody(m);
+      navigate("mixdetail");
+      return;
+    }
     renderMixBody(m);
     navigate("mixdetail");
     // The recommendations are drawn from the catalogue; if it has not
@@ -7013,6 +7122,14 @@
   // `inQueue` false is a single episode played from a mix (a friend's), which
   // ends any running playlist rather than joining it (§134).
   function playMixItem(item, inQueue){
+    // The guest's example playlist plays only episodes already made; the
+    // server refuses the rest, and this says so before the loading screen.
+    if(item.playable === false && !AUTH.authenticated){
+      mixPlay = null;
+      drawMixSkip(false);
+      showGuestGate();
+      return;
+    }
     var key = "mix_" + item.id.replace(/[^a-z0-9]/gi, "") + "_" + Date.now();
     // A followed or typed topic is a standing subject, so it is asked for as
     // of today: every play of the mix is that day's edition, never a rerun.
@@ -7052,7 +7169,9 @@
 
   function openMixMenu(){
     var m = mixById(currentMixId);
-    if(!m) return;
+    // The example playlist is not kept anywhere, so there is nothing to
+    // rename, share or delete.
+    if(!m || m.sample) return;
     showActionSheet([
       { label: m.public ? "Make private" : "Make public", action: toggleMixVisibility },
       { label: "Rename", action: renameMix },
@@ -8119,6 +8238,8 @@
   // heading is the only thing that reads it and a second parameter threaded
   // through the renderer for one string is how a renderer stops being generic.
   var myfamTasteSource = "taste";
+  // The server's sentence over a guest's sample page, or "" for a real one.
+  var myfamSampleNote = "";
 
   function madeForTitle(){
     var h = new Date().getHours();
@@ -8131,7 +8252,8 @@
     // is and the heading stops claiming it was chosen for somebody the app
     // has never met. It becomes "Made for you" by itself on the next draw
     // after their first episode; see `topics.build_feed` on `cold`.
-    if(myfamTasteSource === "startup") return "Start here,\n" + day + " " + part;
+    if(myfamTasteSource === "startup" || myfamTasteSource === "sample")
+      return "Start here,\n" + day + " " + part;
     return "Made for you,\n" + day + " " + part;
   }
 
@@ -8259,6 +8381,13 @@
 
       return '<div class="feed-section">' + heading + rail + '</div>';
     }).join("");
+    // A guest's page is the evergreen bank on every rail, and says so once
+    // at the top rather than letting four rows of samples pass as choices.
+    if(myfamSampleNote){
+      html = '<div class="sample-note">' + escapeHtml(myfamSampleNote)
+        + '<button class="sample-note-btn" onclick="openAuth(\'signup\')">Sign up</button></div>'
+        + html;
+    }
     document.getElementById("myfamFeed").innerHTML = html;
     watchRailEnds();
   }
@@ -8375,8 +8504,8 @@
   }
 
   // ---------------- Go Deeper ----------------
-  // "Pick up where you left off": episodes still part-heard, the threads
-  // finished episodes left open, and episodes like the last one heard. All of
+  // "Pick up where you left off": episodes started this week and not
+  // finished, and the Go Deeper prompts of episodes finished this week. All of
   // it is things the listener already has a foothold in, which is why it sits
   // above the recommendations.
   //
@@ -8669,32 +8798,17 @@
       return { kind: "thread", query: t.thread, minutes: myfamLengthMinutes,
                title: t.title, summary: t.summary || "" };
     });
-    var similar = (d.similar || []).map(function(t){
-      return { kind: "similar", query: t.query, minutes: myfamLengthMinutes,
-               title: t.title, summary: t.summary || "", topicId: t.topic_id };
-    });
-    // Alternated rather than grouped: four part-heard episodes in a block
-    // reads as a backlog, and the mix is what makes the section feel like a
-    // set of ways in rather than a list of chores. Similar episodes only fill
-    // what the other two leave.
+    // Only these two (at the owner's direction): something started this
+    // week and not finished, and the Go Deeper prompt of something finished
+    // this week. The "similar" episodes that used to fill the gaps were
+    // adjacent rather than deeper, so fewer than four is the honest answer
+    // when fewer than four qualify. Alternated rather than grouped: four
+    // part-heard episodes in a block reads as a backlog.
     var out = [];
     while(out.length < 4 && (resume.length || threads.length)){
       if(resume.length) out.push(resume.shift());
       if(out.length < 4 && threads.length) out.push(threads.shift());
     }
-    // The rails below are already showing their own picks, so a similar
-    // episode that is also down there is skipped: the same title twice on
-    // one screen reads as a bug.
-    var shown = {};
-    out.forEach(function(c){ shown[(c.title || "").toLowerCase()] = true; });
-    similar.forEach(function(c){
-      if(out.length >= 4) return;
-      if(c.topicId && myFamTopics[c.topicId]) return;
-      var k = (c.title || "").toLowerCase();
-      if(!k || shown[k]) return;
-      shown[k] = true;
-      out.push(c);
-    });
     return out;
   }
 
@@ -8716,8 +8830,7 @@
     html += '<div class="gd-grid">' + goDeeperCardCache.map(function(c, i){
       var meta = c.kind === "resume"
         ? formatTime(c.left) + " left"
-        : c.kind === "thread" ? "Go deeper \u00b7 " + c.minutes + " min"
-        : "Similar \u00b7 " + c.minutes + " min";
+        : "Go deeper \u00b7 " + c.minutes + " min";
       return '<div class="gd-card' + (c.kind === "resume" ? " resume" : "")
         + '" onclick="playGoDeeper(' + i + ')">'
         + '<button class="gd-x" aria-label="Dismiss ' + escapeHtml(c.title) + '"'
@@ -8740,7 +8853,8 @@
 
   // The X on a tile: gone at once and never offered again (the server keeps
   // the list, so it holds on every device). What was behind it - the next
-  // part-heard episode, thread or similar one - moves up into the gap.
+  // part-heard episode or Go Deeper prompt from this week - moves up into the
+  // gap, and when nothing else qualifies the section is simply one shorter.
   function dismissGoDeeper(i){
     var c = goDeeperCardCache[i];
     if(!c) return;
@@ -8748,8 +8862,7 @@
     var d = goDeeperData || {};
     renderGoDeeper({
       resume: (d.resume || []).filter(function(r){ return (r.query || "").toLowerCase() !== q; }),
-      threads: (d.threads || []).filter(function(t){ return (t.thread || "").toLowerCase() !== q; }),
-      similar: (d.similar || []).filter(function(t){ return (t.query || "").toLowerCase() !== q; })
+      threads: (d.threads || []).filter(function(t){ return (t.thread || "").toLowerCase() !== q; })
     });
     fetch("/api/godeeper/dismiss", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -8763,16 +8876,13 @@
     if(!c) return;
     var key = "gd_" + i + "_" + Date.now();
     var source = c.kind === "resume" ? "Picking up where you left off"
-               : c.kind === "similar" ? "myFAM"
                : "Following a thread";
     TOPICS[key] = {
       title: c.title,
       source: source,
       caption: "Live captions will appear here as this plays\u2014",
       prompt: c.query,
-      // A similar tile is a real feed tile, so it carries its id and is
-      // counted as one in the event log.
-      bankTopicId: c.topicId || "",
+      bankTopicId: "",
       // A resumed follow-up goes back to the same episode, context included.
       parentTopic: c.context || "",
       // A resume card goes back to the episode that was half heard, at the
@@ -8807,6 +8917,7 @@
         // Before the render, so the first rail's heading is right on the
         // first paint rather than correcting itself a frame later.
         myfamTasteSource = data.taste_source || "taste";
+        myfamSampleNote = data.sample ? (data.sample_note || "") : "";
         renderMyFamFeed(data.sections);
         loadGoDeeper();
       })
@@ -8820,6 +8931,11 @@
   function startBankTopic(topicId){
     var t = myFamTopics[topicId];
     if(!t) return;
+    // A guest's sample tile plays only an episode that is already made
+    // (the server refuses anything else, so a guest never costs a script or
+    // a GPU). When the page already knows it is not, say so now rather than
+    // opening the loading screen to be refused.
+    if(t.playable === false && !AUTH.authenticated){ showGuestGate(); return; }
     var key = "bank_" + topicId + "_" + Date.now();
     TOPICS[key] = {
       title: t.title,

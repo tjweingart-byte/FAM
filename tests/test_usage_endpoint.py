@@ -63,6 +63,11 @@ def test_the_surface_is_recorded_so_explore_can_be_told_from_search(metered):
     """Explore replays and never writes a script, so an Explore-heavy listener
     costs a fraction of a search-heavy one. A blended number hides that."""
     client, store = metered
+    # A guest's bank tile never spends (see `app._guest_play_gated`), so the
+    # myFAM play here is an account's.
+    assert client.post("/api/auth/signup", json={
+        "email": "surface@fam.test",
+        "password": "correct horse battery"}).status_code == 200
     client.get("/api/audio?q=one&minutes=1&fmt=pcm")
     client.get("/api/audio?q=two&minutes=1&fmt=pcm&topic_id=chip-supply")
     assert [r["surface"] for r in store.rows()] == ["search", "myfam"]

@@ -651,6 +651,8 @@ def test_the_ready_ones_come_first_and_are_counted(client):
                 [topics_mod.TOPIC_BANK[0].id, topics_mod.TOPIC_BANK[1].id,
                  topic.id])
 
+    # An account: a guest's "View more" is the evergreen bank, not a ranking.
+    _account(client)
     body = client.get("/api/myfam/section?key=most_played&minutes=3").json()
     ready = [t for t in body["topics"] if t["cached"]]
     assert [t["id"] for t in ready] == [topic.id]
@@ -863,6 +865,8 @@ def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
                         lambda listener="", minutes=0: scheduled.append(
                             (listener, minutes)) or True)
 
+    # A guest's page warms nothing - see the test below - so an account.
+    _account(client)
     assert client.get("/api/myfam?minutes=7").status_code == 200
     assert scheduled, "the browse page warmed nothing at all"
     listener, minutes = scheduled[0]
