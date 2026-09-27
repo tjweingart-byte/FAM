@@ -151,7 +151,7 @@ flowchart TB
     T1["05:00 & 17:00<br/>trending_bank.build()"]
     T2["05:00<br/>daily_edition.build()"]
     T3["every 15 min<br/>stories.refresh()<br/>(news sources every 2 h)"]
-    T4["hourly<br/>categories sweep"]
+    T4["every 2 h<br/>categories sweep"]
   end
   subgraph OnView["When myFAM is drawn"]
     T5["prefetch.schedule_cycle()<br/>≤ 1 per 5 min per listener"]
@@ -170,7 +170,7 @@ flowchart TB
 | **DailyFAM edition** (`daily_edition.py:498`) | 05:00 ET, plus immediately when a mix is saved (`_write_mix_ahead`) | One whole **script** per distinct subject (`origin="dailyfam"`), told its earlier editions' titles | **Cache hit**, the same as above. The server owns the dated prompt and the minutes, so the tap's key matches. |
 | **Story pool** (`stories.py:1352`) | Every 15 min, and whenever `/api/myfam` finds it stale. Sports and markets are asked each tick; GDELT, the trending registry and Polymarket every 2 h (§155) | Tiles only: a title and an angle. **No script.** | A tap is a real generation, minus the brief if prefetch warmed it |
 | **Prefetch** (`prefetch.py:922`) | On `/api/myfam`, at most once per 5 min per listener, while no live episode is generating | Warmed **briefs** (`PREFETCH_LEVEL=brief`) for up to 6 likely taps | Removes stage 1 from the tap |
-| **Category sweep** (`categories.py`) | Hourly | The ranking vocabulary (no episodes) | n/a |
+| **Category sweep** (`categories.py`) | Every 2 h (§156) | The ranking vocabulary (no episodes) | n/a |
 
 Every browse episode is fixed at **2 minutes** (`BROWSE_MINUTES`). That is what
 lets a background-written script match the key a tap asks for.

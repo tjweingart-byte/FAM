@@ -47,7 +47,7 @@ flowchart LR
     T[Trending edition, 2x/day]
     S[Story pool compose, per 15 min]
     D[DailyFAM edition, per distinct subject]
-    C[Category placement, hourly]
+    C[Category placement, every 2 h]
   end
   subgraph Marginal["Marginal: grows with listeners"]
     M[New search episode: brief + Exa + writer + first voicing]
@@ -112,7 +112,7 @@ rather than one per listener.
 | Call | Where | Frequency | Ceiling |
 |---|---|---|---|
 | Story/tile composer | `stories.py:1028` | Once per 15-min refresh, only if there are new stories. Also once per Trending edition. | 6,000 output tokens ≈ **$0.06/call max** |
-| Category placer | `categories.py:1209` | At most hourly (`SWEEP_INTERVAL=3600`), up to 40 new nodes | 4,000 output ≈ **$0.04/call max** |
+| Category placer | `categories.py:1209` | At most every 2 h (`SWEEP_INTERVAL=7200`, §156), up to 40 new nodes | 4,000 output ≈ **$0.04/call max** |
 | Admin question box | `admin_tracker.py:701` | Admin use only | 1,500 output |
 | Startup key check | `app.py:140` (`models.retrieve`) | Once per boot | Free |
 | Canonical cache key | `cache.py:1638`, Haiku | **Off** (`CACHE_SEMANTIC_KEY=0`) | ~$0.0002/request if turned on |
@@ -247,7 +247,7 @@ so none of them can run away.
 | **Trending edition** (`trending_bank.py`) | 05:00 and 17:00 Eastern | ~26 GNews requests, 1 compose call, **10 episodes** written | 20 episodes/day × $0.055 + compose ≈ **$35-40** | 10 episodes per edition |
 | **DailyFAM edition** (`daily_edition.py`) | 05:00 Eastern | One episode per **distinct subject** across every mix | $0.055 × subjects × 30. At 50 subjects: **~$80** | `DAILY_EDITION_MAX_EPISODES=300`, `DAILY_EDITION_MAX_DOLLARS=15` per day → **$450/mo max** |
 | **Story pool** (`stories.py`) | Every 15 min (`STORIES_BACKGROUND_SECONDS=900`); GDELT, trending registry and Polymarket every 2 h (`STORIES_NEWS_INTERVAL_SECONDS=7200`, §155) | Composes only stories that are new since the last window - between news sweeps that is new games and new market moves only | Typically **$10-40** | 96 calls/day × $0.06 ≈ $170/mo worst case |
-| **Category placement** (`categories.py`) | Hourly | 1 call for new vocabulary | **≤ $10-30** | 24 calls/day |
+| **Category placement** (`categories.py`) | Every 2 h (§156) | 1 call for new vocabulary, only when something was minted | **≤ $5-15** | 12 calls/day |
 | **Prefetch briefs** (`prefetch.py`) | When myFAM is drawn, at most once per 5 min per listener | Warms up to 6 briefs | Grows with listeners until it hits the ceiling | `PREFETCH_DAILY_DOLLARS=2`, `PREFETCH_DAILY_BRIEFS=400` → **$60/mo max** |
 
 The worst case for all background work together is about **$700/month**, with

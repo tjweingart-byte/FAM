@@ -12421,3 +12421,35 @@ score that old - which happens when the API-Sports allowance runs low - is
 not happening now.
 
 `tests/test_story_refresh_155.py`.
+
+## 156. The vocabulary sweep every two hours, and what the placer never sees
+
+At the owner's direction `categories.SWEEP_INTERVAL` goes from one hour to
+two, matching the news sources' clock (§155). At most twelve placer calls a
+day instead of twenty-four - a ceiling of about $15 a month rather than $30
+at the repo's Sonnet 5 rate - and still far faster than the vocabulary moves:
+a listener phrase needs three people behind it, which takes days.
+
+**The owner also chose "place sports games in code rather than with the
+model", on my estimate that games were most of what the placer handles. That
+estimate was wrong, and nothing was built for it.** A game's subject is
+`"{home} vs {away}"`, and `mint` refuses any phrase with a word under three
+letters or more than four words - so `wofford vs mercer` and `kansas city
+chiefs vs buffalo bills` have never entered the tree at all, and so have
+never reached the placer. Neither have most news headlines (over four
+words) or Polymarket questions. What the placer actually receives is
+Finnhub's company names ("Nvidia"), the rare headline of four words or
+fewer, and listener phrases that cleared the threshold - a small batch, so
+the realistic cost is lower than the §155 table said.
+
+What it also means: a game tile's tags come from its declared `sports` tag
+and whatever the tree finds in the team, sport and league words - never a
+league node like "college football" unless the league's own name contains
+it. So after §154 a game is offered on Made for you when the listener has
+named one of its teams or its town, or asked something nearly identical, and
+not because they follow the league. Tagging games with their league in code
+is the version of "place games in code" that would change anything; it was
+put to the owner rather than built, because it widens what Made for you
+offers.
+
+`tests/test_story_refresh_155.py`.

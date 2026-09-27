@@ -372,7 +372,7 @@ term = 0.6 * clip((best - 0.3) / (1 - 0.3), 0, None)        # SEMANTIC_WEIGHT, S
 | `is_repeat` | A heard evergreen tile never returns. A heard live story returns only as a "what's new" follow-up (after 6 h) or not at all. A heard startup question may return only as a *different* episode, ≥ 24 h later. |
 | `RAIL_MINIMUM` | Made for you is topped up to 4 from the fallback inventory. The crowd rails are never topped up. |
 
-**The vocabulary tree** (`categories.py`, hourly) grows from listeners'
+**The vocabulary tree** (`categories.py`, every 2 h since §156) grows from listeners'
 searches, the story pool's subjects and typed interests:
 
 - A phrase is promoted when **≥ 3 listeners** used it in **≥ 2 different

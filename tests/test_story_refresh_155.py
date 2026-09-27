@@ -136,3 +136,11 @@ def test_a_stale_score_does_not_claim_to_be_live():
     body = html[html.index("function seedLiveHtml"):]
     body = body[:body.index("\n  }\n")]
     assert '"in_progress" && fresh' in body
+
+
+def test_the_vocabulary_sweeps_every_two_hours():
+    """§156: on the news sources' clock. It was one hour."""
+    import categories
+
+    assert categories.SWEEP_INTERVAL == 7200.0
+    assert not categories.is_stale(now=categories._LAST_SWEEP + 3600.0 + 1)
