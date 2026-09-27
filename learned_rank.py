@@ -129,9 +129,7 @@ def features(topic, profile: dict, semantic: dict, damp: dict,
     live = 1.0 if (topic.freshness > 0 or topic.id.startswith("st-")) else 0.0
     # `freshness > 0` and not `live`: that is the condition the served
     # penalty uses, and a feature that fires where serving does not is skew.
-    broad = 1.0 if (topic.freshness > 0 and topics._is_broad_match(topic, profile)
-                    and not topics._subject_is_familiar(topic, familiar)
-                    and not semantic.get(topic.id)) else 0.0
+    broad = 1.0 if topics._off_subject(topic, profile, familiar, semantic) else 0.0
     return [
         topics._affinity(topic, profile),
         semantic.get(topic.id, 0.0),

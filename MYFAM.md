@@ -408,6 +408,25 @@ would empty their rail in the name of relevance; the bank's twenty-eight
 subjects are broad by construction, so penalising breadth there would
 penalise the whole evergreen inventory.
 
+**Since §154 it excludes** (the owner: "if I have listened to an episode about
+football in the past, I should not be seeing a random division II college
+football game"). The damping was offering such a story one place lower, and
+the rail's floor then put it back. Three things changed together:
+
+* a live story that is off this listener's subject is not offered at all,
+  and the floor tops Made for you up from evergreen tiles only - never from
+  the live pool, whose leftovers are exactly what the ranking turned down;
+* a grown category counts as a *subject* only two levels below a heading
+  (`SUBJECT_DEPTH`) - `football` and `american football` are fields,
+  `college football` and `nfl` are subjects;
+* a word counts as *familiar* only if it names a thing - a field's own words
+  (`football`, `game`, `market`) do not (`_field_words`), and a semantic
+  match exempts a story only when it is a near paraphrase
+  (`SEMANTIC_NEAR_COSINE`).
+
+`_off_subject` is the one definition, read by the ranker and by
+`learned_rank.features`.
+
 ## The two cached rows
 
 Both lead with tiles whose script is **already written**: those start instantly

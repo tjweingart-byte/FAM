@@ -12316,3 +12316,62 @@ than four is the answer when fewer qualify. The X was already there; what
 changed is what moves up behind it - eight of each are read, so a dismissed
 tile is replaced only by another that qualifies. `similar` stays in the
 response, always empty, so an older client draws nothing rather than failing.
+
+## 155. Made for you offered fields, not subjects
+
+The owner: "If I have listened to an episode about football in the past, I
+should not be seeing a random division II college football game on my made
+for you page." The 20/09 packet reported the same thing and its fix damped
+such a story; its test asserted only that the story no longer *led* the rail.
+
+**Reproduced before changing anything**, with the seeded tree and the real
+floors: one listen to "who won the eagles vs cowboys football game", a pool
+holding *Slippery Rock vs Shepherd*, *Wofford vs Mercer* and an Eagles
+injury report. Made for you was Wofford, Slippery Rock, Eagles - the one
+story about the team they asked about came third. Three leaks, each enough
+alone:
+
+1. **The damping was an offer.** `BROAD_MATCH_PENALTY` cut an off-subject
+   live story to 0.3 of a strong `sports` score, which still cleared
+   `RELEVANCE_FLOOR` (0.12). And §127's floor topped the rail up from the
+   whole inventory in affinity order, live pool first - so a story the
+   ranking had dropped came straight back.
+2. **`football` was "specific".** The seed puts `football` (and `american
+   football`) directly under `sports`. `_is_broad_match` counted any grown
+   category as specific, so every game with the word in it matched a
+   listener who had typed it once.
+3. **`football` was "familiar".** `_subject_is_familiar` exempted a story on
+   any shared word, and the listener had typed "football".
+
+A semantic term also exempted a story on any value over
+`taste_vectors.SEMANTIC_FLOOR`, and "who won the Eagles game" is that close
+to every football game.
+
+**The fix**, all in `topics.py`:
+
+* `BROAD_MATCH_PENALTY = 0.0` - an off-subject live story is not offered.
+  Kept as a constant because `learned_rank.hand_score` multiplies by it.
+  §114's reason for never excluding ("a rule would empty a new listener's
+  rail") expired with §127's floor.
+* `_rail_fallback` tops Made for you up from **evergreen tiles only**. What
+  the live pool has left after a ranking that looks `READY_REACH` deep is
+  what that ranking turned down.
+* `SUBJECT_DEPTH = 2` / `_names_a_subject`: a category names a subject only
+  two levels under a heading. `tag_weight` and `_is_specific` are unchanged -
+  a sport *is* narrower than a heading, it is just not a subject.
+* `_field_words`: the eight headings, every keyword list, every depth-0/1
+  category and a short list of fixture words (`game`, `match`, `score`...)
+  no longer count as familiarity. Teams, towns, companies and people do.
+* `SEMANTIC_NEAR_COSINE = 0.6`: only a near paraphrase exempts a story. A
+  judgement, not a measurement - nothing here has a real history to tune on.
+* `_off_subject` is the one definition, read by `rank_from_history` and by
+  `learned_rank.features`, so the fitted model trains on what is served.
+
+After: the same listener gets the Eagles story first, then evergreen sports
+and general tiles; somebody who has asked about college football twice is
+still offered a college football game. `tests/test_made_for_you_154.py`.
+
+**What it costs**: a listener whose history is one broad question ("sports
+news") now sees fewer live stories on Made for you and more evergreen ones,
+until they ask about something specific. Trending is untouched and still
+carries the day's biggest stories for everybody.

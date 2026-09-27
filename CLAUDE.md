@@ -628,6 +628,16 @@ the rest of this list it needs taste rather than a key.
    been near, is damped. It damps and never excludes, and only live stories:
    a rule would empty a new listener's rail in the name of relevance, and the
    bank's twenty-eight subjects are broad on purpose.)*
+   *(**Reversed by §154, at the owner's direction: it excludes now.** One
+   Eagles question still put *Wofford vs Mercer* and a Division II fixture on
+   Made for you - the 0.3 cut cleared the floor, the floor's top-up put back
+   what the ranking dropped, and `football` counted as both "specific" (a
+   depth-1 seed node) and "familiar" (a word they typed). A live story is
+   offered only when it names something they follow: a subtag or a category
+   at least two levels deep (`SUBJECT_DEPTH`), a word they used that is not a
+   field's own name, their place, or a near paraphrase
+   (`SEMANTIC_NEAR_COSINE`). The floor since §127 is what makes excluding
+   safe - it tops up from evergreen tiles, never from the live pool.)*
    *(**Superseded by §147**: there is no length control on myFAM any more -
    every episode that is not a search is `BROWSE_MINUTES`, two. What follows
    is the history.)* *(Two things on the surface changed in §95. The header's right-hand slot is

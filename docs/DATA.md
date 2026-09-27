@@ -266,7 +266,7 @@ flowchart TB
 | Term | Value | Effect |
 |---|---|---|
 | `FRESHNESS_BOOST` | 1.6 | New live stories lead |
-| `BROAD_MATCH_PENALTY` | 0.3 | A live story that matches only a whole facet, on words the listener has never used, and has no semantic match, is damped. It is never excluded. |
+| `BROAD_MATCH_PENALTY` | 0.0 | A live story that matches only a field (a facet, or a category one level under it such as `football`), on no word the listener used that names a thing, and is not a near paraphrase (`SEMANTIC_NEAR_COSINE` 0.6) of anything they asked, is **not offered** on Made for you (§154). The rail's top-up never draws on the live pool. |
 | `LOCAL_BOOST` | 1.5 | A live story naming the listener's city or region. **Country never ranks.** |
 | Fatigue | `max(0.15, 1/(1 + 0.35·(occasions − 2)))` | A tile shown on more than 2 separate hours and never played sinks |
 | Engagement | `rate = (took + 20·overall)/(shown + 20)`; lift clamped to **[0.6, 1.5]** | A global click-through rate, never per listener; a new tile scores exactly 1.0 |
