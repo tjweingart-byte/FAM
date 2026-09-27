@@ -132,6 +132,17 @@ def test_a_kept_episode_plays_for_a_guest(client, monkeypatch):
     assert r.status_code != 403
 
 
+def test_a_guest_sample_episode_does_not_count_down_into_the_gate():
+    """The What's next popup starts its first tile by itself. For a guest on
+    the sample pages every tile would be refused into the sign-up sheet, so
+    the popup is not offered there at all."""
+    with open(os.path.join(os.path.dirname(__file__), "..", "static", "index.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    offer = html.split("function maybeOfferNextUp(", 1)[1].split("\n  }\n", 1)[0]
+    assert "AUTH.authenticated" in offer and '"myfam"' in offer and '"dailyfam"' in offer
+
+
 # --- DailyFAM's example playlist ------------------------------------------
 
 def test_the_sample_mix_is_bank_topics_at_the_browse_length(client):

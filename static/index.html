@@ -6568,7 +6568,7 @@
   // Inside the example: its briefings and a play button, and none of the
   // controls that edit a mix - there is nothing kept to edit.
   function renderSampleMixBody(m){
-    var html = '<div class="mix-hero"><div class="mix-hero-art">' + folderSVG() + '</div><div>'
+    var html = '<div class="mix-hero"><div class="mix-hero-art static">' + folderSVG() + '</div><div>'
       + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
       + '<div class="mix-hero-s">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
       + '</div></div>';
@@ -13895,6 +13895,12 @@
 
   function maybeOfferNextUp(query, topicId){
     if(!nextUpAllowedHere()) return;
+    // A guest on the sample pages can play only episodes already made, and
+    // every tile here would be refused into the sign-up sheet - which the
+    // countdown would then raise by itself, fifteen seconds after an episode
+    // they enjoyed. So a guest's sample episode simply ends (§154).
+    if(!AUTH.authenticated
+       && (currentPlaySurface === "myfam" || currentPlaySurface === "dailyfam")) return;
     buildNextUpTiles(query, topicId, function(tiles){
       // One tile is not a grid, and a popup offering nothing is worse than
       // the silence it replaced. Below two, the player simply stops.

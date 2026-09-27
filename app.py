@@ -3483,9 +3483,9 @@ async def sample_mix(request: Request):
     """An example DailyFAM playlist for a listener with no account.
 
     Built from the evergreen bank (`topics.GUEST_SAMPLE_MIX`), so a guest sees
-    what a mix *is* - a name, a cover, a handful of briefings and a play
-    button - instead of only a wall. Nothing is stored and nothing is written:
-    each item asks for the bank tile's own question at the browse length, the
+    what a mix *is* - a name, a handful of briefings and a play button -
+    instead of only a wall. Nothing is stored and nothing is written: each
+    item asks for the bank tile's own question at the browse length, the
     same episode myFAM's tile is, and a guest's tap on it plays only kept
     audio (see `_guest_play_gated`). Open to everybody; the interface asks for
     it only when `/api/mixes` answered 401.
@@ -4046,7 +4046,7 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
     """Say on each guest tile whether its script is written, and whether it
     would play for a guest at all.
 
-    `playable` is the cheap half of `_guest_may_play`: written script and
+    `playable` is the cheap half of `_guest_play_gated`: written script and
     kept audio, read from SQLite. Never a model call, never the voice."""
     written = _written_probe(minutes)
     for tile in tiles:
@@ -4332,7 +4332,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # follows runs for one: no story sweep, no vocabulary growth, no prefetch
     # cycle - the last of those spends a model call per warmed brief - and no
     # impressions, which a guest does not keep anyway. A tap on one of these
-    # tiles plays kept audio or asks for an account; see `_guest_may_play`.
+    # tiles plays kept audio or asks for an account; see `_guest_play_gated`.
     if not _has_account(request):
         SOCIAL.seen(user)
         feed = topics_mod.guest_feed()
