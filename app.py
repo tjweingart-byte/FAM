@@ -4349,9 +4349,10 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # fall back to the bank on a cold first load and are full on the next.
     # The vocabulary keeps growing, on the same shape as the story sweep
     # beside it: scheduled, never awaited, at most once every two hours for
-    # the whole deployment (§156). Without this the tree would be whatever it was at boot, and
-    # a process that has been up for a week would be ranking on a week-old
-    # vocabulary while the log filled with subjects it cannot name.
+    # the whole deployment (§157). Without this the tree would be whatever it
+    # was at boot, and a process that has been up for a week would be
+    # ranking on a week-old vocabulary while the log filled with subjects it
+    # cannot name.
     if categories_mod.is_stale():
         asyncio.create_task(_grow_categories())
     if stories_mod.is_stale():

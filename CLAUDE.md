@@ -628,7 +628,7 @@ the rest of this list it needs taste rather than a key.
    been near, is damped. It damps and never excludes, and only live stories:
    a rule would empty a new listener's rail in the name of relevance, and the
    bank's twenty-eight subjects are broad on purpose.)*
-   *(**Reversed by §154, at the owner's direction: it excludes now.** One
+   *(**Reversed by §155, at the owner's direction: it excludes now.** One
    Eagles question still put *Wofford vs Mercer* and a Division II fixture on
    Made for you - the 0.3 cut cleared the floor, the floor's top-up put back
    what the ranking dropped, and `football` counted as both "specific" (a
@@ -1384,7 +1384,7 @@ the rest of this list it needs taste rather than a key.
   theirs, then everywhere else (`topics.trending_groups`). The pool refreshes
   itself every fifteen minutes with nobody looking
   (`STORIES_BACKGROUND_SECONDS`) - **but only sports and markets are asked
-  that often** *(§155, at the owner's direction)*: GDELT's news sweep, the
+  that often** *(§156, at the owner's direction)*: GDELT's news sweep, the
   trending registry and Polymarket have a floor of two hours
   (`STORIES_NEWS_INTERVAL_SECONDS`), and what they found is carried between
   their sweeps. Nothing here has made a real request from
@@ -2493,7 +2493,12 @@ search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send; and **§154**, the evergreen bank as a guest's
 whole myFAM page and an example DailyFAM playlist, neither able to write an
 episode or wake RunPod, and Go Deeper cut to this week's unfinished episodes
-and this week's Go Deeper prompts),
+and this week's Go Deeper prompts; and **§155**, Made for you offering a
+live story only when it names something the listener follows - one Eagles
+question had been buying every football fixture in the world; and **§156**,
+the story pool's sports and markets on a fifteen-minute tick with the news
+sources on two hours; and **§157**, the vocabulary sweep every two hours,
+and the finding that a game's subject has never reached the tree at all),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,

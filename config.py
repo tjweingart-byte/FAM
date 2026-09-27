@@ -521,7 +521,7 @@ class Settings:
     # is the whole economics of the browse page, and the per-source floors in
     # `story_sources` keep the providers with daily quotas off this clock.
     # This is the *tick*: how often the pool asks whichever sources are due.
-    # Each source keeps its own floor (§155) - sports and markets every tick,
+    # Each source keeps its own floor (§156) - sports and markets every tick,
     # the news sweep and prediction markets every two hours below - so
     # fifteen minutes here costs a news sweep only when one is due.
     stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
@@ -532,7 +532,7 @@ class Settings:
     # current. 0 switches the loop off and leaves the page-load trigger.
     stories_background_seconds: float = _env_float(
         "STORIES_BACKGROUND_SECONDS", 900.0)
-    # **How often the slow sources are swept (§155, at the owner's
+    # **How often the slow sources are swept (§156, at the owner's
     # direction).** GDELT's news sweep (~32 paced requests), the trending
     # registry and Polymarket answer "what is the world talking about" and
     # "what is the crowd betting on", which move over hours; sports scores
@@ -544,7 +544,7 @@ class Settings:
     stories_news_interval_seconds: float = _env_float(
         "STORIES_NEWS_INTERVAL_SECONDS", 7200.0)
     # Finnhub's floor. Fifteen minutes so a market move reaches its card on
-    # the same clock as a score (§155; it was thirty). The free tier's quotes
+    # the same clock as a score (§156; it was thirty). The free tier's quotes
     # are delayed twenty minutes regardless, and the card says delayed.
     stories_markets_interval_seconds: float = _env_float(
         "STORIES_MARKETS_INTERVAL_SECONDS", 900.0)

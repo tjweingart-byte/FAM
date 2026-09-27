@@ -266,7 +266,7 @@ flowchart TB
 | Term | Value | Effect |
 |---|---|---|
 | `FRESHNESS_BOOST` | 1.6 | New live stories lead |
-| `BROAD_MATCH_PENALTY` | 0.0 | A live story that matches only a field (a facet, or a category one level under it such as `football`), on no word the listener used that names a thing, and is not a near paraphrase (`SEMANTIC_NEAR_COSINE` 0.6) of anything they asked, is **not offered** on Made for you (§154). The rail's top-up never draws on the live pool. |
+| `BROAD_MATCH_PENALTY` | 0.0 | A live story that matches only a field (a facet, or a category one level under it such as `football`), on no word the listener used that names a thing, and is not a near paraphrase (`SEMANTIC_NEAR_COSINE` 0.6) of anything they asked, is **not offered** on Made for you (§155). The rail's top-up never draws on the live pool. |
 | `LOCAL_BOOST` | 1.5 | A live story naming the listener's city or region. **Country never ranks.** |
 | Fatigue | `max(0.15, 1/(1 + 0.35·(occasions − 2)))` | A tile shown on more than 2 separate hours and never played sinks |
 | Engagement | `rate = (took + 20·overall)/(shown + 20)`; lift clamped to **[0.6, 1.5]** | A global click-through rate, never per listener; a new tile scores exactly 1.0 |
@@ -372,7 +372,7 @@ term = 0.6 * clip((best - 0.3) / (1 - 0.3), 0, None)        # SEMANTIC_WEIGHT, S
 | `is_repeat` | A heard evergreen tile never returns. A heard live story returns only as a "what's new" follow-up (after 6 h) or not at all. A heard startup question may return only as a *different* episode, ≥ 24 h later. |
 | `RAIL_MINIMUM` | Made for you is topped up to 4 from the fallback inventory. The crowd rails are never topped up. |
 
-**The vocabulary tree** (`categories.py`, every 2 h since §156) grows from listeners'
+**The vocabulary tree** (`categories.py`, every 2 h since §157) grows from listeners'
 searches, the story pool's subjects and typed interests:
 
 - A phrase is promoted when **≥ 3 listeners** used it in **≥ 2 different

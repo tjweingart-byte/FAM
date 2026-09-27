@@ -123,7 +123,7 @@ def test_a_local_story_outranks_a_comparable_one_elsewhere():
                    "the Cincinnati Hartwell stadium deal", ("sports",))
     away = _story("st-2", "Glasgow Hartwell stadium deal",
                   "the Glasgow Hartwell stadium deal", ("sports",))
-    # Both name something this listener has asked about (§154: a live story
+    # Both name something this listener has asked about (§155: a live story
     # that names nothing they follow is not offered at all), and `build_feed`
     # folds their place into `familiar` exactly like this.
     ranked = T.rank_from_history(profile, set(), candidates=[away, local],

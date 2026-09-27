@@ -237,7 +237,7 @@ def test_the_crowd_rows_never_invent_a_play_and_show_four_once_they_can(store):
 def test_view_more_holds_what_the_rail_does_not_show(store):
     seed_busy_day()
     finished(store, "me", "chip-supply", "chips", ("tech", "chips"))
-    # §154: a live story whose only claim is the whole heading is not
+    # §155: a live story whose only claim is the whole heading is not
     # offered, so somebody who has asked about chips is not handed the AI
     # lawsuit - one who has asked about AI too is.
     finished(store, "me", "", "the ai copyright lawsuits", ("tech", "ai"))

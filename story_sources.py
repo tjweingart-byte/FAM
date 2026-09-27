@@ -134,7 +134,7 @@ class GdeltSignals(stories.StorySource):
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
     #: Keyless, but not unlimited (§144): one request every five seconds per
-    #: address, and a sweep is ~32 paced requests. Since §155 it is asked on
+    #: address, and a sweep is ~32 paced requests. Since §156 it is asked on
     #: the slow clock, `STORIES_NEWS_INTERVAL_SECONDS` (two hours), never
     #: under ten minutes; sports and markets keep the fifteen-minute tick.
     @property
@@ -283,7 +283,7 @@ class TrendingRegistrySignals(stories.StorySource):
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
 
-    #: News, so on the slow clock beside GDELT (§155).
+    #: News, so on the slow clock beside GDELT (§156).
     @property
     def min_interval_seconds(self) -> float:
         return float(settings.stories_news_interval_seconds)
@@ -385,7 +385,7 @@ class FinnhubSignals(stories.StorySource):
     domain = stories.MARKETS
     #: Free tier; $0 and 60 requests a minute. The watchlist is a dozen.
     cost_per_refresh = 0.0
-    #: Fifteen minutes since §155, at the owner's direction (it was half an
+    #: Fifteen minutes since §156, at the owner's direction (it was half an
     #: hour): a market move reaches its card on the same clock as a score.
     #: One request per watchlist symbol per sweep, far inside 60 a minute.
     @property
@@ -484,11 +484,10 @@ class PolymarketSignals(stories.StorySource):
     cost_per_refresh = 0.0
 
     #: A prediction market is held four days and moves over weeks, so it
-    #: rides the slow clock with the news (§155).
+    #: rides the slow clock with the news (§156).
     @property
     def min_interval_seconds(self) -> float:
         return float(settings.stories_news_interval_seconds)
-
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.stories_polymarket:

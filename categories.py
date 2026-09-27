@@ -169,10 +169,10 @@ MIN_WORD = 3
 #: How often the growth sweep may run. A module constant rather than a
 #: setting, deliberately: a vocabulary is not something a deployment needs to
 #: tune the cadence of, and every env var is a line in four files and one more
-#: thing that can be set two ways. Two hours since §156, at the owner's
+#: thing that can be set two ways. Two hours since §157, at the owner's
 #: direction (it was one): still far faster than the vocabulary actually
 #: moves - `MIN_LISTENERS` different people have to have used a phrase before
-#: anything changes - and it matches the news sources' clock (§155), which are
+#: anything changes - and it matches the news sources' clock (§156), which are
 #: the pool's slowest-changing subjects. Twelve model calls a day at the very
 #: most, for the whole deployment.
 SWEEP_INTERVAL = 7200.0

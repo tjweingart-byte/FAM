@@ -262,7 +262,7 @@ any source that matches a news story takes that story's coverage
 (`geography.py`), the Trending rail keeps two of its four places for the
 listener's own part of the world, and "View more" on Trending is grouped by
 place. The pool refreshes itself every `STORIES_BACKGROUND_SECONDS` (fifteen
-minutes), and each source keeps its own floor (§155): API-Sports on its daily
+minutes), and each source keeps its own floor (§156): API-Sports on its daily
 budget (~14 min on the free tier) and Finnhub every 15 minutes, while GDELT,
 the trending registry and Polymarket are asked every two hours
 (`STORIES_NEWS_INTERVAL_SECONDS`). Stories a source found are carried until it
@@ -413,7 +413,7 @@ would empty their rail in the name of relevance; the bank's twenty-eight
 subjects are broad by construction, so penalising breadth there would
 penalise the whole evergreen inventory.
 
-**Since §154 it excludes** (the owner: "if I have listened to an episode about
+**Since §155 it excludes** (the owner: "if I have listened to an episode about
 football in the past, I should not be seeing a random division II college
 football game"). The damping was offering such a story one place lower, and
 the rail's floor then put it back. Three things changed together:
@@ -553,8 +553,8 @@ source look broken.
     STORIES=1                       # the registry; leave on
     STORIES_SOURCES=                # empty = every source this build knows
     STORIES_TTL_SECONDS=900.0       # the tick: sources that are due are asked
-    STORIES_NEWS_INTERVAL_SECONDS=7200.0     # GDELT, trending registry, Polymarket (§155)
-    STORIES_MARKETS_INTERVAL_SECONDS=900.0   # Finnhub (§155)
+    STORIES_NEWS_INTERVAL_SECONDS=7200.0     # GDELT, trending registry, Polymarket (§156)
+    STORIES_MARKETS_INTERVAL_SECONDS=900.0   # Finnhub (§156)
     STORIES_TIMEOUT_SECONDS=12.0    # per source; never in front of the first word
     STORIES_COMPOSE=1               # 0 = templated tiles, which is a real product
     STORIES_MODEL=                  # defaults to MODEL

@@ -301,7 +301,7 @@ CATEGORY_DEPTH_WEIGHT = SUBTAG_WEIGHT
 #: What a live story is worth to Made for you when its only claim on this
 #: listener is a whole field and they have never been near its subject.
 #:
-#: **Nothing, since §154, at the owner's direction.** It was 0.3 - a damping,
+#: **Nothing, since §155, at the owner's direction.** It was 0.3 - a damping,
 #: "never an exclusion", on the reasoning that a rule would empty a new
 #: listener's rail. That reasoning expired with §127: the rail now has a
 #: floor, topped up from the evergreen bank and the startup set, so excluding
@@ -1087,7 +1087,7 @@ def _is_specific(tag: str) -> bool:
 
 
 #: How deep a grown category has to be before matching it says this listener
-#: and this tile share a *subject* rather than a *field* (§154).
+#: and this tile share a *subject* rather than a *field* (§155).
 #:
 #: Depth 1 is a node straight under one of the eight headings - `football`,
 #: `american football`, `basketball`, `markets` - and that is a sport or a
@@ -1160,7 +1160,7 @@ def _is_local(topic: Topic, local: frozenset[str]) -> bool:
 def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
     """Whether this listener has ever been near the words on this tile.
 
-    **A field's own name does not count** (§154). "football", "game",
+    **A field's own name does not count** (§155). "football", "game",
     "market" are words a listener uses about a whole heading, and every tile
     under that heading carries them - so one Eagles question made every
     football fixture in the world "familiar", which exempted all of them
@@ -3178,9 +3178,9 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
         score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0))
                  * damp.get(topic.id, 1.0)
                  * (1.0 + FRESHNESS_BOOST * topic.freshness))
-        # A live story is one specific thing that happened; `freshness` is
-        # exactly what distinguishes one from a bank topic here, and it is
-        # set by `topics_from_stories` and by nothing else.
+        # A live story is one specific thing that happened, and one this
+        # listener has given no sign of caring about is not offered (§155) -
+        # see `_off_subject` and `BROAD_MATCH_PENALTY`.
         if score > 0 and _off_subject(topic, profile, familiar, semantic):
             score *= BROAD_MATCH_PENALTY
         # After the penalty rather than before it, so the two multiply in a
@@ -4572,7 +4572,7 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
         # episodes". Nothing calls this for Trending today - it is not in
         # `RAIL_MINIMUM` - and this answer is what makes that safe to change.
         return list(live) + list(live_held)
-    # **No live story in a top-up** (§154). A top-up is chosen for nobody in
+    # **No live story in a top-up** (§155). A top-up is chosen for nobody in
     # particular, and a live story chosen for nobody in particular is exactly
     # the Division II fixture the owner reported: every live story that could
     # be relevant to this listener was already offered by the ranking, which

@@ -1,4 +1,4 @@
-"""§155: sports and markets every fifteen minutes, the news every two hours.
+"""§156: sports and markets every fifteen minutes, the news every two hours.
 
 The owner asked for the story refresh to move to two hours, then narrowed it:
 scores must not be that outdated. So the pool keeps its fifteen-minute tick
@@ -139,7 +139,7 @@ def test_a_stale_score_does_not_claim_to_be_live():
 
 
 def test_the_vocabulary_sweeps_every_two_hours():
-    """§156: on the news sources' clock. It was one hour."""
+    """§157: on the news sources' clock. It was one hour."""
     import categories
 
     assert categories.SWEEP_INTERVAL == 7200.0

@@ -1322,7 +1322,7 @@ def _seen_again(previous: Story, signal, now: float,
     where they are, and - for a game - the score and the status. A provider
     that could not say this time keeps the last answer rather than erasing it.
 
-    `news_swept` is False on a tick where the news sources sat out (§155:
+    `news_swept` is False on a tick where the news sources sat out (§156:
     they run every two hours, sports and markets every fifteen minutes). A
     game or a price that the press was covering at the last news sweep was
     lifted by `corroborate`; this tick has no press to corroborate against,
