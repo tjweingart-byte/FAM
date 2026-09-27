@@ -11,8 +11,11 @@ Three surfaces, all backed by generated audio:
 1. **searchFAM** — ask anything, hear a briefing of a chosen length. *Working
    today.* This is the only surface that fully works.
    *Since §151 it can be asked by voice*: a mic under the box opens a screen
-   that shows the words as they are heard and searches only when send is
-   pressed - speech ending is not a request. Since §154 saying "hey FAM"
+   that shows the words as they are heard. *Since §155, at the owner's
+   direction*, stopping brings up a centred **Search now** that fills over
+   five seconds and searches when full, with an X beside it that stops the
+   count - speech ending starts a visible, refusable countdown, never a
+   silent search. Since §154 saying "hey FAM"
    or "what's up FAM" opens that screen from any tab (off until turned on in
    Settings, since it keeps the microphone open).
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
@@ -2471,7 +2474,9 @@ the page asks for the admin account's email and password itself, and being
 signed in to the app no longer opens it; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send; and **§154**, "hey FAM" opening voice search,
-opt-in because it keeps the microphone open),
+opt-in because it keeps the microphone open; and **§155**, voice search's
+send replaced by a "go now" Search now that counts down five seconds and an X
+that stops it),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,

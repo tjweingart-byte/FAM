@@ -12294,3 +12294,42 @@ iOS Safari keeps a continuous recogniser alive long enough to be useful, and
 how often a recogniser writes "fam" as something the pattern misses, are
 both unmeasured. The native app would need its own wake handling
 (`SFSpeechRecognizer`); the server is untouched.
+
+## 155. Voice search counts down to "Search now"
+
+**Asked for, and it reverses a line of §151 at the owner's direction.** §151
+decided that speech ending is not a request: when somebody stopped talking a
+send button appeared and nothing happened until it was pressed. The owner
+wants Google Maps' "Go now" instead - when they stop, a **Search now** button
+appears centred at the bottom and fills like a loading bar; pressing it
+searches at once, letting it fill (about five seconds) searches by itself,
+and an **X** beside it stops the automatic search in case they want to change
+what they said.
+
+**How it works.** When the recogniser ends with words and no error,
+`startVoiceCountdown` sweeps `#vsGoFill` across the button with a CSS
+transition of `VOICE_AUTO_SEND_MS` (5000) and sets a timer of the same length
+that calls `sendVoiceSearch` - one number for both, so the button is full at
+the moment it searches. It is the same two-frame reset the What's next
+countdown uses. The X (`cancelVoiceCountdown`) clears the timer and leaves the
+button solid and still pressable: it means "not by itself", not "not at all".
+Tapping the mark to add more, closing the screen, or pressing Search now all
+stop the count, and a new pause after adding more starts a new one. Search
+now still goes through `runSearch`, so a spoken search is a typed one on the
+server in every respect.
+
+**What was kept of §151's reasoning.** A pause is still not treated as a
+request *silently*: the count is on screen, filling, with a one-tap refusal
+beside it, which is the difference between the two. And it does not count
+down after a recognition failure - a fragment cut off by a dropped connection
+is not a question to send on its own; the button is there to press instead.
+
+**Where the five seconds starts.** From the button appearing, which is itself
+1.6 s of silence (`VOICE_SILENCE_MS`) after the last word, so about six and a
+half seconds from the end of speech to the episode starting unaided.
+
+The smoke check is now "Voice search counts down to Search now, and X stops
+it": centred, at the bottom, filling, the X stops it and nothing searches
+after, the count run out searches once with the words said, and pressing the
+button searches once with no second search when the count would have ended.
+Not tried on a real phone.
