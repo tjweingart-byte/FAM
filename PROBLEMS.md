@@ -12251,3 +12251,68 @@ old private mix is published by a deploy), and **a copy added from somebody
 else's mix starts private** - republishing another person's mix is not a
 choice to make for the person copying it.
 
+
+## 154. The evergreen bank is a guest's whole sample, and Go Deeper is this week only
+
+Two changes at the owner's direction.
+
+**A guest sees the evergreen bank on every myFAM rail, and it costs
+nothing.** `browse_inventory` already kept the bank for listeners with no
+account, but only the first rail could use it: Trending needs the live pool,
+and the three crowd rails show cached plays, so a guest's page was one row
+of content and several empty sentences. `topics.guest_feed` now draws the
+whole page for a guest from the bank alone - dealt round-robin by facet so
+every rail is a spread and no tile appears twice while the bank lasts - and
+`guest_section` is each rail's "View more". The page says it is a sample
+(`sample_note`, with a Sign up button) and the first rail is headed "Start
+here", not "Made for you", because nothing was chosen. An account never sees
+it: `/api/myfam` branches on `_has_account` before `build_feed`.
+
+"Should not cost us any money" is enforced in two places:
+
+* **The page.** A guest's `/api/myfam` schedules no story sweep, no
+  vocabulary growth and no prefetch cycle - the last one spends a model call
+  per warmed brief - and records no impressions.
+* **The tap.** `/api/audio` refuses a guest's play on myFAM, DailyFAM or any
+  bank tile (`_guest_play_gated`) unless `has_stored_audio` says the script is
+  current and its audio already kept - which is read from SQLite and reaches
+  neither Claude nor RunPod. The refusal is a 403 with
+  `refused_by: "account"`, raised before the GPU is woken and before anything
+  is written, and refunded. The interface turns it into a "Sign up to
+  listen" sheet, and skips the round trip when a tile already says
+  `playable: false`.
+
+What that costs, stated: on a deployment where nobody has made the bank's
+episodes, every sample tile asks for an account - account holders are offered
+the startup set, not the bank, so their listening never makes them.
+`python tools/warm_guest_bank.py` is the one place they are made: one script
+and one voicing per bank topic, under the same key, length, voice draw and
+`myfam` origin a tap would use, paid once by whoever runs it and never by a
+guest. `--dry-run` says how many a guest can hear today.
+
+**DailyFAM has an example playlist for a guest.** `/api/mixes/sample` builds
+one from `topics.GUEST_SAMPLE_MIX` - four bank topics, the bank's own
+questions (never a dated edition), at the browse length - so it is the same
+episode as the myFAM tile and one kept recording serves both. It sits under
+the sign-up wall, opens to its briefings and a play button, carries none of
+the editing controls, and is never in `mixes`, so nothing that renames,
+shares or deletes a mix can reach it. Its taps go through the same gate.
+
+**Go Deeper is two things, from the last seven days, and nothing else.**
+"Pick up where you left off" filled its gaps with `similar` - the feed's
+next-up ranking seeded with the last thing heard - which offered episodes
+adjacent to something heard rather than deeper into it. Gone. The section is
+now:
+
+1. episodes started in the last week and not finished
+   (`SavedStore.progress(since=...)`, on the row's last-listened time), and
+2. the Go Deeper prompt of an episode finished in the last week - exactly
+   what the player's Go Deeper button offered on it
+   (`EventStore.open_threads(since=...)`).
+
+A thread already one of the part-heard tiles is offered once; a thread the
+listener has since *played* is closed as well as one they searched. Fewer
+than four is the answer when fewer qualify. The X was already there; what
+changed is what moves up behind it - eight of each are read, so a dismissed
+tile is replaced only by another that qualifies. `similar` stays in the
+response, always empty, so an older client draws nothing rather than failing.

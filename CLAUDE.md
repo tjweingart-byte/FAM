@@ -1408,6 +1408,14 @@ the rest of this list it needs taste rather than a key.
   who has played something keeps the bank, and the set still leads only for
   somebody who has said and done nothing, which is what `startup.py` says it
   is for.
+  **And a guest's whole page is the bank now** *(§154, at the owner's
+  direction)*: every rail, dealt by facet (`topics.guest_feed`), marked as a
+  sample, with an example DailyFAM playlist beside it
+  (`/api/mixes/sample`). **It costs nothing**: no sweep, no prefetch, and a
+  guest's tap on a sample tile plays only an episode whose audio is already
+  kept - anything else is a 403 that opens sign-up, before the GPU is woken
+  (`app._guest_play_gated`). `tools/warm_guest_bank.py` makes the bank's
+  episodes once, paid by whoever runs it.
   **Two exemptions, and they are decisions**: the DailyFAM mix picker
   (`rank_bank`) and Explore New (`rank_might_like`) keep the whole bank,
   because the rule is about what FAM offers *unprompted* and both are places
@@ -2468,7 +2476,10 @@ SELECT, open only to `FAM_ADMIN_ACCOUNTS` or `FAM_ADMIN_TOKEN` - since §153
 the page asks for the admin account's email and password itself, and being
 signed in to the app no longer opens it; and **§151**, voice
 search on searchFAM - the browser's recogniser, the words shown as heard, and
-nothing searched until send),
+nothing searched until send; and **§154**, the evergreen bank as a guest's
+whole myFAM page and an example DailyFAM playlist, neither able to write an
+episode or wake RunPod, and Go Deeper cut to this week's unfinished episodes
+and this week's Go Deeper prompts),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,

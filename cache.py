@@ -794,6 +794,12 @@ class MemoryScriptCache:
         row = self._audio.get((key, voice))
         return bool(row) and self._live(key) and row[1] == int(sample_rate)
 
+    def has_any_audio(self, key: str) -> bool:
+        """Whether any voice's audio is kept for this episode. A marker for a
+        guest's sample tile only - playing still asks `has_audio` for the
+        voice and rate that will actually be served."""
+        return self._live(key) and any(k == key for k, _v in self._audio)
+
     def get_audio(self, key: str, voice: str, sample_rate: int) -> Optional[StoredAudio]:
         if not self.has_audio(key, voice, sample_rate):
             return None
@@ -1234,6 +1240,20 @@ class SqliteScriptCache:
                 " WHERE a.key = ? AND a.voice = ? AND a.sample_rate = ?"
                 " AND s.expires >= ?",
                 (key, voice, int(sample_rate), time.time()),
+            ).fetchone()
+            return row is not None
+        except Exception:
+            log.exception("audio cache check failed")
+            return False
+
+    def has_any_audio(self, key: str) -> bool:
+        """Whether any voice's audio is kept for this episode, while its
+        script is still readable. See the memory backend's twin."""
+        try:
+            row = self._conn().execute(
+                "SELECT 1 FROM episode_audio a JOIN scripts s ON s.key = a.key"
+                " WHERE a.key = ? AND s.expires >= ? LIMIT 1",
+                (key, time.time()),
             ).fetchone()
             return row is not None
         except Exception:

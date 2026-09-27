@@ -613,6 +613,9 @@ __MIX_ITEMS__
   }
 
   function myfamBody() {
+    // A guest's page is the evergreen bank on every rail (§154), built by
+    // `topics.guest_feed` at build time exactly as the server builds it.
+    if (!EMAIL) return JSON.parse(JSON.stringify(FIXTURES["/api/myfam:guest"]));
     var f = feed(), shown = [];
     // Filled after the rest, from what they were shown on previous loads and
     // did not play, and never repeating a tile the page is already showing.
@@ -1470,6 +1473,10 @@ __WRITING_SIM__
     }
 
     // ---- "View more": one rail, at full length
+    if (path === "/api/myfam/section" && !EMAIL) {
+      var guestSect = FIXTURES["/api/myfam/section:guest:" + (qs.get("key") || "")];
+      return guestSect ? json(guestSect) : json({ error: "No such section." }, 404);
+    }
     if (path === "/api/myfam/section") {
       var wantKey = qs.get("key") || "most_played";
       var sect = myfamBody().sections.filter(function (x) {
@@ -1655,6 +1662,8 @@ __WRITING_SIM__
     // Mixes are kept for you, so they need an account - see ACCOUNT_REQUIRED
     // in app.py. Mirrored here rather than left open, because a preview that
     // is more permissive than the server hides exactly this decision.
+    // The example playlist a guest sees under the wall (§154). Open to all.
+    if (path === "/api/mixes/sample") return json(FIXTURES["/api/mixes/sample"]);
     if (path.indexOf("/api/mixes") === 0 && !EMAIL) {
       return json({ error: ACCOUNT_REQUIRED }, 401);
     }
@@ -1907,6 +1916,14 @@ __WRITING_SIM__
     try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
 
     if (path === "/api/audio") {
+      // A guest's tap on the sample pages plays only kept audio, and a
+      // preview keeps none - so it is refused as the server refuses it (§154).
+      var gSurface = qs.get("surface") || "", gTopic = qs.get("topic_id") || "";
+      if (!EMAIL && (gSurface === "myfam" || gSurface === "dailyfam" || BY_ID[gTopic])) {
+        return json({ error: "Create a free account to hear this one. Episodes "
+                      + "are made fresh for listeners with an account.",
+                      refused_by: "account" }, 403);
+      }
       var mins = Math.max(1, Number(qs.get("minutes") || 1));
       var q = qs.get("q") || "";
       // The play is recorded server-side in the real app, from the audio
