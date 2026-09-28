@@ -15,7 +15,9 @@ Three surfaces, all backed by generated audio:
    direction*, stopping brings up a centred **Search now** that fills over
    five seconds and searches when full, with an X beside it that stops the
    count - speech ending starts a visible, refusable countdown, never a
-   silent search. Since §158 saying "hey FAM"
+   silent search. *Since §165 the heard words are editable in place* -
+   tapping them stops the microphone and the count, and Search now sends the
+   corrected words. Since §158 saying "hey FAM"
    or "what's up FAM" opens that screen from any tab (off until turned on in
    Settings, since it keeps the microphone open).
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
@@ -386,6 +388,12 @@ the rest of this list it needs taste rather than a key.
    GPU, so `RUNPOD_PRODUCTION.md` is the procedure that closes that gap and
    `python verify_voice.py` is the check that says whether a given machine can
    speak at all. **That listening test is the next move.**
+   **Hard names are respelled for the voice** *(§165, `pronunciation.py`)*:
+   EI's brief and the writer's `<<SAY: Name = respelling>>` lines (written
+   *before* the script) feed one lexicon in the voice bank's database, an
+   admin fixes any name on /admin and is never overridden, and only the text
+   handed to the voice changes - captions, cache and titles keep the real
+   spelling. Unheard.
 2. ~~**Voice selection**~~ — *done, and a bank now* (§147). `voice_bank.py`
    keeps several cloned voices, each a recording plus its rights record, in
    the app's database; a worker without one is sent it once. **Only searchFAM
@@ -655,7 +663,9 @@ the rest of this list it needs taste rather than a key.
    that section. That screen is the same ranking at full length, with the
    tiles whose script is already written marked and sorted to the front; it
    generates nothing, because the rail was showing six of something that
-   already had twenty-eight.)*
+   already had twenty-eight. *Since §165 it shows eight at a time, and
+   Refresh deals the next eight of that ranking not yet shown, starting
+   again from the top when they run out.*)*
    `topics.py` ranks a *shared* bank of ~28 topics **four** ways (history /
    exploration / co-listener / trending) from an append-only event log. Tags
    still come from keyword matching, not a classifier - but there are now
@@ -2528,7 +2538,10 @@ lasts 24 hours), and folders the listener makes on Save for Later and My
 Vibes; and **§163**, "Sunday Night Football" resolved in code as the name
 of one game (`named_slots.py`) after a recap of it was about an afternoon
 game, and the demo page reduced to the phone - full-screen on a phone, with
-the follow banner dropping inside it),
+the follow banner dropping inside it; and **§165**, the 28/09 packet - hard
+names respelled for the voice from EI's brief, the writer's `<<SAY:>>` lines
+and /admin, voice search's heard words corrected in place, and View more
+showing eight with a Refresh that deals the next eight of the same ranking),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2555,12 +2568,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **eighty-two** named smoke
+**twice** - once per preview build - and **eighty-four** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 82 as of §162,
+prose does not fail when somebody adds a behaviour. (It is 84 as of §165,
+which added correcting voice search's words and View more's refresh. It was
+82 as of §162,
 which added filing episodes in folders on both shelves. It was 81 as of §161,
 which added a myFAM card being saved or waved off, a friend's vibes playing
 as stories, and offline fading what is not on the device. It was 78 as of §158,

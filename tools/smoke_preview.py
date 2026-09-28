@@ -1977,6 +1977,99 @@ def main() -> int:
             assert shown == "Nova", f"the voice chip reads {shown!r} after choosing Nova"
             assert page.evaluate("selectedVoice") == "remote:nova"
 
+        def voice_search_words_can_be_corrected():
+            try:
+                voice_search_correction_steps()
+            finally:
+                page.evaluate("() => { closeVoiceSearch(); VOICE_AUTO_SEND_MS = 5000;"
+                              " if (window.__runSearch2) runSearch = window.__runSearch2;"
+                              " document.getElementById('searchInput').value = '';"
+                              " delete window.SpeechRecognition;"
+                              " window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
+
+        def voice_search_correction_steps():
+            """What voice search heard can be corrected before it is searched
+            (§165, the 28/09 packet). Tapping the words puts the caret in
+            them, stops the microphone and the countdown - somebody fixing a
+            word does not want it sent by itself - and Search now, or Enter,
+            searches the corrected words."""
+            page.evaluate(
+                """() => {
+                    window.__fakeRecs = [];
+                    window.SpeechRecognition = function(){ window.__fakeRecs.push(this); };
+                    SpeechRecognition.prototype.start = function(){
+                        var r = this; setTimeout(function(){ r.onstart && r.onstart(); }, 0);
+                    };
+                    SpeechRecognition.prototype.stop = function(){
+                        var r = this; setTimeout(function(){ r.onend && r.onend(); }, 0);
+                    };
+                    SpeechRecognition.prototype.abort = function(){ this.aborted = true; };
+                    window.__say = function(text, final){
+                        var r = window.__fakeRecs[window.__fakeRecs.length - 1];
+                        var res = [{ transcript: text }]; res.isFinal = !!final;
+                        r.onresult({ results: [res] });
+                    };
+                    window.__searched = 0; window.__runSearch2 = runSearch;
+                    runSearch = function(){ window.__searched++;
+                        window.__q = document.getElementById('searchInput').value; };
+                    VOICE_AUTO_SEND_MS = 900;
+                }""")
+            page.evaluate("setTab('home'); paintVoiceMic()")
+            page.wait_for_timeout(200)
+            page.click("#screen-home #voiceMicBtn")
+            page.wait_for_timeout(150)
+            page.evaluate("__say('what was the score of the dodges game', true)")
+            page.evaluate("VOICE.rec.stop()")
+            page.wait_for_timeout(150)
+            assert page.evaluate("!!VOICE.countdown"), "the countdown did not start"
+            editable = page.get_attribute("#vsWords", "contenteditable")
+            assert editable == "true", f"the heard words cannot be edited ({editable!r})"
+            page.click("#vsWords")
+            page.wait_for_timeout(100)
+            assert page.evaluate("VOICE.editing"), "tapping the words did not start editing"
+            assert page.evaluate("!VOICE.countdown"), "the countdown kept running while editing"
+            assert page.evaluate("!VOICE.listening && !VOICE.rec"), \
+                "the microphone stayed on while editing"
+            assert page.is_visible("#vsSend"), "Search now went away while editing"
+            page.evaluate("""() => {
+                var el = document.getElementById('vsWords');
+                var r = document.createRange(); r.selectNodeContents(el);
+                var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+            }""")
+            page.keyboard.type("what was the score of the dodgers game")
+            page.wait_for_timeout(1300)
+            assert page.evaluate("window.__searched") == 0, \
+                "it searched by itself while the words were being corrected"
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(150)
+            assert page.evaluate("window.__searched") == 1, "Enter did not search"
+            assert page.evaluate("window.__q") == "what was the score of the dodgers game", \
+                f"the uncorrected words were searched: {page.evaluate('window.__q')!r}"
+            assert not page.is_visible("#voiceSearch"), "the voice screen stayed up"
+
+        def view_more_shows_eight_and_refreshes():
+            """"View more" shows eight of the rail and Refresh replaces them
+            with eight the screen has not shown (§165, the 28/09 packet)."""
+            page.evaluate("setTab('myfam'); openSection('from_history')")
+            page.wait_for_timeout(700)
+            first = page.evaluate(
+                "Array.from(document.querySelectorAll('#sectionGrid .seed-card[data-topic]'))"
+                ".map(function(e){ return e.getAttribute('data-topic'); })")
+            assert 0 < len(first) <= 8, f"View more showed {len(first)} tiles, not eight"
+            assert page.evaluate("sectionState.seen.length") == 8, \
+                f"the screen asked for {page.evaluate('sectionState.seen.length')}, not eight"
+            assert page.is_visible("#sectionRefresh"), "no Refresh on View more"
+            page.click("#sectionRefresh")
+            page.wait_for_timeout(700)
+            second = page.evaluate(
+                "Array.from(document.querySelectorAll('#sectionGrid .seed-card[data-topic]'))"
+                ".map(function(e){ return e.getAttribute('data-topic'); })")
+            assert second, "Refresh emptied the screen"
+            assert not set(first) & set(second), \
+                f"Refresh dealt tiles already shown: {sorted(set(first) & set(second))}"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(200)
+
         def voice_search_counts_down_to_search_now():
             # Whatever happens, leave no overlay over the checks after this.
             try:
@@ -3632,6 +3725,10 @@ def main() -> int:
               offline_fades_what_is_not_on_the_device)
         check("Episodes can be filed in folders on both shelves",
               episodes_are_filed_in_folders_on_both_shelves)
+        check("Voice search's words can be corrected before searching",
+              voice_search_words_can_be_corrected)
+        check("View more shows eight and refreshes to eight new ones",
+              view_more_shows_eight_and_refreshes)
 
         if errors:
             failures.append(f"page errors: {errors}")

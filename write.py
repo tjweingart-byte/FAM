@@ -129,6 +129,9 @@ async def main() -> int:
             print(f"    must answer {'; '.join(brief.must_establish)}")
         if brief.cautions:
             print(f"    careful of  {'; '.join(brief.cautions)}")
+        if brief.pronounce:
+            print("    say as      " + "; ".join(
+                f"{p['name']} = {p['say']}" for p in brief.pronounce))
         if plan.thin_on:
             print(f"    NOT FOUND   {'; '.join(plan.thin_on)}  <- one search "
                   "missed it; that is a fact about the search, not the world")
@@ -179,6 +182,9 @@ async def main() -> int:
         print(f'  predicted follow-up (never spoken): "{notes.thread}"')
     else:
         print("  NOTE: no predicted follow-up. Go Deeper falls back without one.")
+    # How the voice was told to say the hard names the writer found (§165).
+    for name, say in notes.pronunciations:
+        print(f"  SAY: {name} = {say}")
     # The guard firing means the prompt rule did not hold. It is caught before
     # anything is spoken, so the episode is fine - but a rule that has to be
     # caught is a rule to fix, and this is where somebody would see it.

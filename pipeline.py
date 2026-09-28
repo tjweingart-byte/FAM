@@ -32,6 +32,7 @@ import metering
 from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
 import live_captions
+from pronunciation import respell
 from spoken_text import speakable
 from script_buffer import ASSEMBLER_TICK, ScriptBuffer
 from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_words
@@ -616,8 +617,9 @@ class PodcastPipeline:
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
         # The voice is handed numbers and abbreviations as they are said
-        # (`spoken_text`); the captions and the cache keep the digits.
-        pcm = await self.engine.synth(speakable(fit.text), wpm, self.voice)
+        # (`spoken_text`) and hard names respelled (`pronunciation`, §165);
+        # the captions and the cache keep the digits and the real spelling.
+        pcm = await self.engine.synth(speakable(respell(fit.text)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:
@@ -719,7 +721,7 @@ class PodcastPipeline:
         stats.marks.mark("first_tts_start")
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
-        pcm = await self.engine.synth(speakable(sentence), wpm, self.voice)
+        pcm = await self.engine.synth(speakable(respell(sentence)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:

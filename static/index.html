@@ -127,6 +127,13 @@
     text-align:center; }
   .vs-words .interim{ color:var(--text-muted); }
   .vs-words.placeholder{ color:var(--text-faint); font-size:17px; }
+  /* The heard words are the search, so they can be corrected in place
+     (§165): tap anywhere in them and the caret lands there, the countdown
+     and the microphone stop, and Search now sends what is on screen. */
+  .vs-words{ cursor:text; outline:none; border-radius:12px; padding:6px 8px;
+    -webkit-user-select:text; user-select:text; transition:background .2s; }
+  .voice-search.editing .vs-words{ background:rgba(244,239,228,0.06);
+    box-shadow:inset 0 -2px 0 var(--copper); }
   .vs-stage{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
   .vs-orb{ position:relative; width:250px; height:250px; }
   .vs-waves{ position:absolute; inset:0; width:100%; height:100%; overflow:visible;
@@ -269,6 +276,17 @@
      they came from is pictures, and a section that changed shape on the way
      through would not read as the same shelf. */
   .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  /* "View more" shows eight, and this deals the next eight of the same
+     ranking (§165). In the header, so it is in reach without scrolling past
+     the eight it replaces. */
+  .sec-refresh{ flex:none; display:flex; align-items:center; gap:6px; height:32px;
+    padding:0 13px; border-radius:16px; border:1px solid var(--border-strong);
+    background:none; color:var(--text); cursor:pointer;
+    font-family:'Space Grotesk', sans-serif; font-size:12.5px; font-weight:600; }
+  .sec-refresh[hidden]{ display:none; }
+  .sec-refresh:active{ background:rgba(244,239,228,0.06); }
+  .sec-refresh.spinning svg{ animation:sec-spin .6s linear infinite; }
+  @keyframes sec-spin{ to{ transform:rotate(360deg); } }
   .sec-grid .seed-card{ width:auto; }
   /* The rail sets this on its own thumbs; the grid needs it too, or the
      "ready" badge positions itself against the page. */
@@ -2770,8 +2788,9 @@
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="sectionTitle">Section</h2>
+          <button class="sec-refresh" id="sectionRefresh" hidden onclick="refreshSection()" aria-label="Show eight different episodes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span>Refresh</span></button>
         </div>
-        <div class="scroll" style="padding:0 18px 20px;">
+        <div class="scroll" id="sectionScroll" style="padding:0 18px 20px;">
           <p class="xn-reason" id="sectionReason">Loading…</p>
           <div class="sec-grid" id="sectionGrid"></div>
         </div>
@@ -2814,7 +2833,7 @@
         <div class="vs-top">
           <button class="sheet-close" onclick="closeVoiceSearch()" aria-label="Close voice search, back to searchFAM"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
-        <div class="vs-words placeholder" id="vsWords" aria-live="polite">The words you speak appear here…</div>
+        <div class="vs-words placeholder" id="vsWords" aria-live="polite" contenteditable="true" spellcheck="true" autocapitalize="off" enterkeyhint="search" role="textbox" aria-label="Your search - tap to correct it" onfocus="editVoiceWords()" oninput="voiceWordsEdited()" onkeydown="voiceWordsKey(event)" onpaste="voiceWordsPaste(event)" onblur="voiceWordsDone()">The words you speak appear here…</div>
         <div class="vs-stage">
           <div class="vs-orb">
             <svg class="vs-waves" viewBox="0 0 250 250" aria-hidden="true">
@@ -6279,7 +6298,7 @@
   //    and a refusal (microphone blocked, service unreachable) is said in
   //    words on the screen rather than left as a ring that never fills.
   var VOICE = { rec: null, listening: false, before: "", heard: "", interim: "",
-                lvl: 0, raf: 0, quiet: 0, error: "", countdown: 0 };
+                lvl: 0, raf: 0, quiet: 0, error: "", countdown: 0, editing: false };
   var VOICE_SILENCE_MS = 1600;
   var VOICE_AUTO_SEND_MS = 5000;
 
@@ -6332,11 +6351,73 @@
     document.getElementById("vsGoCancel").hidden = !VOICE.countdown;
     document.getElementById("vsMark").setAttribute("aria-label",
       VOICE.listening ? "Stop listening" : (said ? "Add more" : "Listen again"));
+    box.classList.toggle("editing", VOICE.editing);
     if(VOICE.error) status.textContent = VOICE.error;
+    else if(VOICE.editing) status.textContent = said
+      ? "Fix the words, then press Search now" : "Type your question, or tap the mark to speak";
     else if(VOICE.listening) status.textContent = "Listening…";
-    else if(VOICE.countdown) status.textContent = "Searching when the button fills. X to wait";
-    else if(said) status.textContent = "Press Search now, or tap the mark to add more";
+    else if(VOICE.countdown) status.textContent = "Searching when the button fills. Tap the words to fix them, X to wait";
+    else if(said) status.textContent = "Tap the words to fix them, or the mark to add more";
     else status.textContent = "Tap the mark to start again";
+  }
+  // Correcting what was heard (§165, the 28/09 packet: "there needs to be a
+  // way to edit this if it heard you incorrectly"). The words are the search
+  // box itself: tapping them puts the caret where the finger landed, stops
+  // the microphone (what was still being heard is kept) and the countdown -
+  // somebody fixing a word is not somebody who wants it sent in five seconds
+  // - and leaves Search now as an ordinary button that sends what is on the
+  // screen. Enter sends too. Tapping the mark afterwards adds to the edited
+  // words rather than replacing them.
+  function voiceWordsEl(){ return document.getElementById("vsWords"); }
+  function editVoiceWords(){
+    var el = voiceWordsEl();
+    if(VOICE.rec || VOICE.listening){
+      if(VOICE.interim){
+        VOICE.heard = (VOICE.heard + " " + VOICE.interim).trim();
+        VOICE.interim = "";
+      }
+      stopVoiceRecognition(true);
+    }
+    stopVoiceCountdown(true);
+    VOICE.editing = true;
+    VOICE.error = "";
+    // Interim words are said words once somebody is editing them. The class
+    // comes off in place, so the caret the tap put there stays put.
+    Array.prototype.forEach.call(el.querySelectorAll(".interim"),
+      function(n){ n.classList.remove("interim"); });
+    if(el.classList.contains("placeholder")){
+      el.classList.remove("placeholder");
+      el.textContent = "";
+    }
+    paintVoiceState();
+  }
+  function voiceWordsEdited(){
+    VOICE.before = (voiceWordsEl().textContent || "").replace(/\s+/g, " ").trim();
+    VOICE.heard = ""; VOICE.interim = "";
+    paintVoiceState();
+  }
+  function voiceWordsKey(e){
+    // Not while an input method is still composing a word: that Enter
+    // picks the word, it does not send the search.
+    if(e.key === "Enter" && !e.isComposing){
+      e.preventDefault();
+      voiceWordsEdited();
+      sendVoiceSearch();
+    }
+  }
+  // Plain text only: a pasted link or styled snippet is words, not markup.
+  function voiceWordsPaste(e){
+    var text = (e.clipboardData || window.clipboardData || { getData: function(){ return ""; } })
+      .getData("text");
+    e.preventDefault();
+    if(text) document.execCommand("insertText", false, text.replace(/\s+/g, " "));
+  }
+  function voiceWordsDone(){
+    if(!VOICE.editing) return;
+    voiceWordsEdited();
+    VOICE.editing = false;
+    if(!voiceText()) paintVoiceWords();
+    paintVoiceState();
   }
   function voiceLevelLoop(){
     var box = document.getElementById("voiceSearch");
@@ -6359,6 +6440,10 @@
   function startVoiceListening(){
     var Ctor = speechRecognitionCtor();
     if(!Ctor) return;
+    if(VOICE.editing){ voiceWordsEdited(); VOICE.editing = false; }
+    // Safari keeps focus in the words when a button is tapped, which would
+    // leave the keyboard up over a screen that is listening.
+    if(document.activeElement === voiceWordsEl()) voiceWordsEl().blur();
     stopVoiceRecognition(true);
     stopVoiceCountdown(false);
     VOICE.before = voiceText();
@@ -6417,7 +6502,7 @@
       paintVoiceWords();
       // Not after a failure: a fragment cut off by a dropped connection is
       // not a question to send by itself.
-      if(voiceText() && !VOICE.error) startVoiceCountdown();
+      if(voiceText() && !VOICE.error && !VOICE.editing) startVoiceCountdown();
       paintVoiceState();
     };
     try{
@@ -6449,7 +6534,7 @@
     }
     var box = document.getElementById("voiceSearch");
     stopWake();
-    VOICE.before = ""; VOICE.interim = ""; VOICE.error = "";
+    VOICE.before = ""; VOICE.interim = ""; VOICE.error = ""; VOICE.editing = false;
     // Whatever followed "hey FAM" in the same breath is the start of the
     // question, so it is on screen already and listening adds to it.
     VOICE.heard = typeof seed === "string" ? seed.trim() : "";
@@ -6503,12 +6588,14 @@
     else startVoiceListening();
   }
   function closeVoiceSearch(){
+    VOICE.editing = false;
+    if(document.activeElement === voiceWordsEl()) voiceWordsEl().blur();
     stopVoiceRecognition(true);
     stopVoiceCountdown(false);
     cancelAnimationFrame(VOICE.raf);
     var box = document.getElementById("voiceSearch");
     box.hidden = true;
-    box.classList.remove("speaking", "listening", "open");
+    box.classList.remove("speaking", "listening", "open", "editing");
     VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
     // Not at once: send closes this and then starts an episode, and the wake
     // listener must not be back on the microphone in between.
@@ -6517,6 +6604,7 @@
   // Exactly what the send button beside the search box does, with the words
   // they said in the box: one path into generation, not a second.
   function sendVoiceSearch(){
+    if(VOICE.editing) voiceWordsEdited();
     var said = voiceText();
     stopVoiceCountdown(false);
     if(!said) return;
@@ -9082,6 +9170,13 @@
   // fill this screen - the rail was showing six of something that already had
   // twenty-eight.
   var sectionTopics = {};
+  // The "View more" screen shows eight of the rail's ranking at a time, and
+  // Refresh deals the next eight (§165). `seen` is every tile this screen has
+  // shown since it opened, which is what "new" means - the server returns the
+  // first eight of the same ranking not in it, and starts again from the top
+  // once there are none.
+  var SECTION_PAGE = 8;
+  var sectionState = { key: "", seen: [], busy: false, req: 0 };
 
   function openSection(key){
     var grid = document.getElementById("sectionGrid");
@@ -9098,22 +9193,58 @@
          : "More");
     reason.textContent = "Loading\u2026";
     grid.innerHTML = "";
+    document.getElementById("sectionRefresh").hidden = true;
+    sectionState = { key: key, seen: [], busy: false, req: sectionState.req + 1 };
     navigate("section");
+    loadSectionPage();
+  }
+
+  function loadSectionPage(){
+    var reason = document.getElementById("sectionReason");
+    var btn = document.getElementById("sectionRefresh");
+    var key = sectionState.key;
+    var req = ++sectionState.req;
+    sectionState.busy = true;
+    btn.classList.add("spinning");
     fetch(withInterests("/api/myfam/section?key=" + encodeURIComponent(key)
-                        + "&minutes=" + myfamLengthMinutes))
+                        + "&minutes=" + myfamLengthMinutes
+                        + "&page_size=" + SECTION_PAGE
+                        + "&seen=" + encodeURIComponent(sectionState.seen.join(","))))
       .then(function(r){ if(!r.ok) throw new Error("section unavailable"); return r.json(); })
-      .then(function(d){ renderSection(d); })
+      .then(function(d){
+        // A late answer for a section the listener has already left, or
+        // for an earlier opening of this one.
+        if(sectionState.key !== key || sectionState.req !== req) return;
+        if(d.wrapped) sectionState.seen = [];
+        (d.topics || []).forEach(function(t){ sectionState.seen.push(t.id); });
+        renderSection(d);
+        document.getElementById("sectionScroll").scrollTop = 0;
+      })
       .catch(function(){
         // Same rule as the feed: a failure has to look like a failure.
         reason.textContent = "Could not load this section. Everything else "
           + "still works, and this fills in when the server is back.";
+      })
+      .then(function(){
+        if(sectionState.req !== req) return;
+        sectionState.busy = false;
+        btn.classList.remove("spinning");
       });
+  }
+
+  function refreshSection(){
+    if(sectionState.busy || !sectionState.key) return;
+    loadSectionPage();
   }
 
   function renderSection(d){
     var grid = document.getElementById("sectionGrid");
     var reason = document.getElementById("sectionReason");
     var topics = d.topics || [];
+    var refresh = document.getElementById("sectionRefresh");
+    // Offered only when a refresh can show something this page does not:
+    // a rail with eight or fewer eligible tiles has nothing else to deal.
+    refresh.hidden = !(d.page_size && d.total > topics.length);
     if(!topics.length){
       reason.textContent = d.empty_reason || "Nothing in this section yet.";
       grid.innerHTML = "";
@@ -9124,6 +9255,15 @@
     reason.textContent = d.ready
       ? d.ready + " of these " + (d.ready === 1 ? "plays" : "play") + " instantly."
       : "";
+    // Where the refresh has got to, when that is not obvious: back at the
+    // top after dealing everything, or on the last of them.
+    if(d.page_size && d.wrapped){
+      reason.textContent = "That was all " + d.total + " for this rail, so these are the first again. "
+        + reason.textContent;
+    } else if(d.page_size && !d.more && sectionState.seen.length > topics.length){
+      reason.textContent = "The last of this rail. Refresh starts again from the top. "
+        + reason.textContent;
+    }
     function card(t){
       sectionTopics[t.id] = t;
       // In the feed's map too, so the card's save and "not interested"

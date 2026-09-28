@@ -12902,3 +12902,84 @@ one that is not a draft. And `THUMBNAILS_TIMEOUT_SECONDS` goes from 60 to 120,
 because a timeout stops the whole run and Gemini image generation is slower
 than Imagen's was. This branch's entry was written as §163 and renumbered
 §164 when Main turned out to have a §163 of its own.
+
+## 165. The 28/09 packet: names said right, heard words corrected, View more refreshed
+
+Three items, and the first is episode intelligence doing one more job on a
+call it was already making.
+
+**Hard names were a guess.** "Jaron-Keawe Sagapolutele", Cal's quarterback,
+came out of the voice as English spelling read aloud. Chatterbox has no
+phoneme input and no lexicon: the letters are the whole instruction, and a
+Samoan, Hawaiian, Polish or Vietnamese name read as though it were an English
+word is usually wrong. `spoken_text` (§161) already rewrites what the voice
+is handed for numbers and abbreviations; names are the same move, and
+`pronunciation.py` makes it. A hard name is **respelled in the text handed to
+the voice and nowhere else** - "Sah-gah-poh-loo-teh-leh" - so the captions,
+the cache, the title and the audio key keep the real spelling.
+
+Where a respelling comes from, with no new model call anywhere:
+
+* **Episode intelligence** already resolves the subject before retrieval, so
+  `Brief.pronounce` respells the hard names in the request and its subject -
+  a few output tokens on the call in front of the first word, and kept the
+  moment the brief lands, so the first sentence already has them.
+* **The writer** holds the evidence, where most hard names arrive, and writes
+  `<<SAY: Name = respelling>>` lines **before** the script. Before, not after
+  like `<<TITLE:>>`: the first sentence is spoken before the rest of the
+  episode exists, and it is the likeliest place a name first appears. The
+  stream takes each line out the moment it is complete, so a SAY line never
+  holds the episode behind the `<<` that marks metadata - including one the
+  model writes mid-script, which would otherwise have swallowed every
+  sentence after it.
+* **An admin** fixes any name under "How names are said" on /admin, and an
+  admin's respelling is never replaced by a model's (nor a writer's by a
+  brief's: the brief guessed before anything was read).
+
+All three go into one lexicon - a `pronunciations` table in the voice bank's
+database, because it is a fact about how the voice speaks and needed no store
+of its own - so a name learned once is said the same way in every later
+episode, including a cached script voiced again. A full name also teaches
+each of its words when the respelling lines up, because an episode names
+somebody in full once and by surname after that. A model's guess is fenced:
+an entry must look like a name (a capital, no digits), a respelling is
+letters, spaces and hyphens, common words are refused, and a stressed
+syllable written in capitals is lowered before the voice sees it, or
+`spoken_text` would spell "TEH" as three letters. It never raises; a broken
+lexicon hands the voice the words it had. `write.py` prints both lists.
+
+**A personal episode's names are never kept** (found checking the branch
+before merge). The lexicon is shared by every listener and shown on /admin,
+so a writer respelling a name out of somebody's attached document, or out of
+a question the cache already refuses to share (`cache.is_shareable`), would
+have written that name into both. Those respellings are held in memory for
+the episode (`Lexicon.hold`, thirty minutes) and never stored, and the
+brief's are taken where the plan is known - `ScriptGenerator.understand`,
+not inside EI, which cannot see an attachment. A wipe leaves the lexicon
+alone on purpose: it holds facts about names, not about episodes or
+listeners.
+
+**Unheard**, like every other change to what the voice says: whether
+Chatterbox reads "Sah-gah-poh-loo-teh-leh" better than "Sagapolutele" is the
+first thing to listen for, and the lexicon on /admin is where to fix a
+respelling that did not land.
+
+**Voice search could not be corrected.** What the recogniser heard was the
+search, with no way to fix a misheard word but to say it all again. The words
+are editable in place now (`#vsWords` is `contenteditable`): tapping them
+puts the caret where the finger landed, stops the microphone (whatever was
+still being heard is kept) and the countdown - somebody fixing a word does
+not want it sent in five seconds - and Search now, or Enter, sends what is on
+the screen. Tapping the mark afterwards adds to the corrected words.
+
+**View more showed the rail's ranking at full length with no way to ask for
+different ones.** It shows **eight** now (`topics.VIEW_MORE_PAGE`) - the
+rail's four and the four after them - with a **Refresh** in the header that
+replaces them with the next eight of the **same ranking** not yet shown on
+this screen (`topics.page_section`, `seen` on the request). New ones of one
+list rather than a second list, so a rail and the screen behind it still
+cannot disagree about what is best. When everything eligible has been shown
+it starts again from the top and says so, rather than an empty page; a rail
+with eight or fewer eligible tiles offers no Refresh at all. Only the page
+drawn is recorded as an impression - a tile nobody was shown was not passed
+over, and the old screen logged all forty.

@@ -92,7 +92,7 @@ the Render deployment.
 | **metering.db** | `metering.py` | One row per episode: tokens, Exa searches, live calls, audio seconds, cache hit, cost split between Claude, Exa and GPU | Yes | 1 row per episode, forever |
 | **attachments.db** | `attachments.py` | Extracted text of attached documents (≤ 24k chars) | Yes | Purged after 6 h |
 | **voice_registry.db** | `voice_registry.py` | RunPod workers that announced themselves (url, port, contract, last seen) | No | ≤ 20 rows |
-| **voice_bank.db** | `voice_bank.py` | Cloned voices: the reference recording as a **BLOB** (≤ 8 MiB each) plus its rights record; each listener's search-voice choice | Mixed | A few MB per voice |
+| **voice_bank.db** | `voice_bank.py` | Cloned voices: the reference recording as a **BLOB** (≤ 8 MiB each) plus its rights record; each listener's search-voice choice; the pronunciation lexicon - how the voice says hard names, from EI, the writer or an admin (§165; a personal episode's names are never stored) | Mixed | A few MB per voice |
 | **categories.db** | `categories.py` | The grown vocabulary tree (label, parent, depth, source, listener count) | No, shared | ≤ 4,000 nodes |
 | **trending_bank.db** | `trending_bank.py` | Trending editions (the payload of each slot) and GNews spend per day | No, shared | 2 per day |
 | **thumbnails.db** | `thumbnails.py` | One tile picture per category-tree node (a ~30 KB WebP **BLOB**), its scene, the checker's verdict and status; one `spend` row per image requested (§160) | No, shared | ≤ 1 per node, ~30 KB each |
