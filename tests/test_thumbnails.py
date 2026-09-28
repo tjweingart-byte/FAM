@@ -824,3 +824,33 @@ def test_the_review_page_shows_every_answer_that_fails_a_picture():
                              "thumbnails.html")).read()
     for key in th._FAILS_ON:
         assert f'"{key}"' in page, key
+
+
+def test_a_facet_is_never_skipped_as_not_a_subject(tree):
+    async def write(paths):
+        return [th.Scene(p.split(" > ")[-1], "a sunlit stadium", False,
+                         paintable=False) for p in paths]
+    paint = _painter([])
+    _run(only=["sports"], writer=write, painter=paint, checker=_checker([]))
+    assert len(paint.calls) == 1
+    assert th.store().get("sports").status == th.STATUS_APPROVED
+
+
+def test_a_paid_picture_is_kept_when_a_later_attempt_brings_nothing(
+        tree, monkeypatch):
+    # attempts=2: the first picture has a logo, the second is filtered. The
+    # first was paid for, so it is held rather than lost.
+    _set(monkeypatch, thumbnails_attempts=2)
+    paint = _painter([th.Painting(_png(), "image/png"),
+                      th.GenerationError("returned no image (filtered)")])
+    _run(only=["college football"], writer=_writer(), painter=paint,
+         checker=_checker([dict(CLEAN, logo=True)]))
+    row = th.store().get("college football")
+    assert row.status == th.STATUS_REVIEW and "logo" in row.reason
+    assert th.store().image("college football", any_status=True) is not None
+
+
+def test_health_says_how_many_paintings_a_node_may_cost(monkeypatch):
+    assert th.health()["attempts"] == 1
+    _set(monkeypatch, thumbnails_attempts=3)
+    assert th.health()["attempts"] == 3

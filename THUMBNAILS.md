@@ -38,9 +38,6 @@ picture is never on a tile until you approve it. `THUMBNAILS_ATTEMPTS=2` or
 more brings back automatic repaints, for a logo, text, a real person or a
 real product only.
 
-```
-```
-
 A tile asks for the **deepest** node the tree finds in its question that has
 a live picture. A node still waiting for review falls back to its parent, and
 so on up to the facet; with no picture anywhere the tile draws the old line

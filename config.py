@@ -659,8 +659,7 @@ class Settings:
         "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 2.0)
     thumbnails_claude_output_per_mtok: float = _env_float(
         "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 10.0)
-    # How many paintings a node gets before it is marked failed.
-    # One by default (§169): a picture that fails a check is held for a
+    # How many paid paintings a node gets per run. One by default (§169): a picture that fails a check is held for a
     # person rather than paid for again. Raise it to repaint on a logo, text,
     # a real person or a real product.
     thumbnails_attempts: int = _env_int("THUMBNAILS_ATTEMPTS", 1)

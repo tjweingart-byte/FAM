@@ -161,11 +161,13 @@ WRITER_SYSTEM = (
     "labels. Screens, monitors and phones show only abstract glowing colour, "
     "never charts, numbers or words.\n"
     "- Make sibling topics in the batch look different from one another.\n\n"
-    "Set paintable to false, and still write a short scene, when the last "
-    "part of the path is not a subject someone would listen to an episode "
-    "about: a filler or function word ('please', 'things'), a fragment, a "
-    "slur or other offensive term, or a word too vague to picture on its "
-    "own. It is then skipped and costs nothing; everything else is true.\n\n"
+    "Set paintable to false, and still write a short scene, only when the "
+    "last part of the path, read together with the path before it, is not a "
+    "subject someone would listen to an episode about: a filler or function "
+    "word ('please', 'things'), a fragment, or a slur or other offensive "
+    "term. A broad subject ('world', 'money', 'business > price') is "
+    "paintable. It is then skipped and costs nothing; everything else is "
+    "true.\n\n"
     "Set names_real_entity to true when the topic itself is a specific real "
     "organisation, brand, product, person, team or league (e.g. 'nfl', "
     "'formula one', 'cincinnati bengals'), false for a generic subject "
@@ -1200,6 +1202,9 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
     tries = 0
     last_reason = ""
     last_check: dict = {}
+    #: The last paid picture that failed a check, held at the end if no later
+    #: attempt does better - a paid image is never thrown away (§169).
+    candidate: Optional[tuple] = None
     leaked = names_leak(node_id, scene.scene, scene.flagged)
     if leaked:
         last_reason = "the scene named the subject; not painted"
@@ -1263,6 +1268,7 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
         hard = [b for b in bad if b not in _SOFT]
         if hard and tries < max(1, attempts):
             last_reason = "checker found: " + ", ".join(bad)
+            candidate = (stored, stored_mime, check, last_reason)
             continue
         if bad:
             return _hold(thumb_store, live, node_id, facet, scene, prompt,
@@ -1281,6 +1287,11 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
                       updated_at=time.time())
         thumb_store.put(thumb, stored)
         return thumb
+    if candidate is not None:
+        image, mime, check, found = candidate
+        return _hold(thumb_store, live, node_id, facet, scene, prompt,
+                     image, mime, check, tries, spent,
+                     found + "; held for you rather than painted again")
     reason = last_reason or "no clean picture"
     if live:
         # **A failed repaint keeps the picture that was live.** Repainting is
@@ -1454,6 +1465,10 @@ async def _backfill(limit: int, *, only: Iterable[str],
                     return result
                 facet = node_id if node_id in facets else \
                     _facet_of_node(tree, node_id, facets)
+                if node_id in facets and not scene.paintable:
+                    # The eight facets are every tile's last fallback; the
+                    # writer may not skip one for being broad.
+                    scene.paintable = True
                 try:
                     thumb = await make_one(
                         node_id, scene, facet, painter=painter,
@@ -1513,6 +1528,9 @@ def health() -> dict:
     out = {"generation": settings.thumbnails,
            "configured": ok, "image_model": settings.thumbnails_image_model,
            "review": settings.thumbnails_review,
+           # Paid paintings per node (§169). Said here because a value set
+           # in the host's dashboard beats the code default silently.
+           "attempts": settings.thumbnails_attempts,
            "style_references": len(style_references())}
     if style_dir() is not None and not out["style_references"]:
         out["style_warning"] = (f"no reference pictures in {style_dir()}; "

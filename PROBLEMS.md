@@ -13177,3 +13177,13 @@ logo the checker caught is kept (held, not live) where it used to be
 discarded. Both are the owner's trade - a review is free, an image is not.
 **Unseen** with a real key: whether the positive wording actually reduces
 borders and text is the thing to look at on the next Paint.
+
+**Found on the review before merging, both fixed.** The skip rule told the
+writer to skip "a word too vague to picture on its own", which reads as a
+description of the eight facets - `world`, `money` - and a facet is every
+tile's last fallback, so skipping one would leave tiles with no picture
+anywhere up their tree. The rule now judges a word *in its path* and says a
+broad subject is paintable, and code forces a facet paintable whatever the
+writer says. And with `THUMBNAILS_ATTEMPTS` above 1, a paid picture that
+failed a check was dropped if the next attempt came back filtered or
+unreadable; the last such picture is now held rather than lost.
