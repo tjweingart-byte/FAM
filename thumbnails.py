@@ -32,10 +32,11 @@ Three calls per attempt, and two of them are Claude:
    pictures** (`thumbnail_style/`, §166) with every request. Words describe
    a look loosely and pictures are matched closely, the same reason
    `examples/` is the strongest lever on the scripts.
-3. **Claude looks at the result** and answers four yes/no questions: a logo
+3. **Claude looks at the result** and answers six yes/no questions: a logo
    or emblem, readable text, a face or a real person, an identifiable real
-   product. Small anonymous figures are part of the house style since §166
-   and pass. Any yes and the picture is thrown away and painted again, up to
+   product, a pale border or faded edges, obsolete equipment (§167).
+   Small anonymous figures are part of the house style since §166 and
+   pass. Any yes and the picture is thrown away and painted again, up to
    `THUMBNAILS_ATTEMPTS` times. This is the only step that *catches* a logo
    rather than making one less likely.
 
@@ -102,16 +103,18 @@ CHECK_WIDTH = 768
 #: surfaces") rather than what it is not, because a model with no negative
 #: prompt tends to draw the thing a sentence says to leave out.
 HOUSE_STYLE = (
-    "Vintage watercolour and gouache illustration on textured cream paper: "
-    "loose transparent washes with soft bleeding edges, fine sepia-ink "
-    "linework, warm late-morning sunshine and a pale turquoise sky, in a "
-    "nostalgic mid-century mood of travel and leisure. Palette of cream "
-    "paper, sky blue, grass and racing green, terracotta clay red, ochre and "
-    "sun yellow. One clear subject seen from a slight distance, with calm "
-    "open space along the bottom edge. Any figures are small and anonymous, "
-    "seen from behind or far off, in plain period clothes. Unbranded "
-    "vehicles and equipment and plain unmarked surfaces throughout, wordless "
-    "and symbol-free."
+    "Vintage-style watercolour and gouache painting of a present-day scene: "
+    "the brushwork, ink linework and light are mid-century, the objects, "
+    "equipment and materials in it are modern. Rich, fairly saturated colour "
+    "in mid and deep tones - racing green, deep sky blue, terracotta clay "
+    "red, ochre, warm grey asphalt - with firm shadows under strong "
+    "sunlight; nothing washed out or pastel. Full-bleed: the painting fills "
+    "the whole frame to every edge, with no border, no white margin, no "
+    "unpainted paper and no fading or vignette at the edges. One clear "
+    "subject seen from a slight distance. Any figures are small and "
+    "anonymous, seen from behind or far off, in plain present-day clothes. "
+    "Unbranded vehicles and equipment and plain unmarked surfaces "
+    "throughout, wordless and symbol-free."
 )
 
 #: Said to Gemini between the reference pictures and the scene, so it takes
@@ -119,8 +122,10 @@ HOUSE_STYLE = (
 #: a golf course and asked for a stock exchange otherwise paints a bit of both.
 STYLE_REFERENCE_NOTE = (
     "The pictures above are the house style. Match their medium, brushwork, "
-    "paper texture, palette and light closely. Do not copy their subjects, "
-    "buildings or composition. Paint this scene:"
+    "colour depth, palette and light closely, painted edge to edge like "
+    "them. Do not copy their subjects, vehicles, buildings or composition, "
+    "and draw today's equipment rather than their period objects. Paint "
+    "this scene:"
 )
 
 WRITER_SYSTEM = (
@@ -134,14 +139,18 @@ WRITER_SYSTEM = (
     "person, character or country. Describe a generic equivalent instead: "
     "'an American football stadium at dusk' rather than any team's, 'a "
     "smartphone' rather than any maker's.\n"
-    "- Build the scene from the topic's objects and places, set in a "
-    "sunlit, nostalgic mid-century world of travel and leisure (vintage "
-    "cars, clubhouses, courts, harbours, stations, cafes, studies). A modern "
-    "subject is fine, shown simply: a laptop on a wooden desk by an open "
-    "window rather than a data centre.\n"
+    "- Build the scene from the topic's objects and places as they are "
+    "TODAY: current sports equipment, modern stadiums and courts, today's "
+    "cars, phones, laptops, headphones and screens. The painting style is "
+    "vintage; the contents are not. Never an obsolete object standing in "
+    "for the topic - no old radios, rotary phones, typewriters, film "
+    "cameras, wooden rackets, leather footballs, ticker tape or classic "
+    "cars.\n"
+    "- Sunlit and warm, with a sense of place (a stadium, a court, a "
+    "harbour, a street, a desk by a window).\n"
     "- At most a few small, anonymous figures, seen from behind or far off, "
-    "in plain period clothes. Never a face in close-up, a crowd, a real or "
-    "famous person, or anyone in a team kit.\n"
+    "in plain present-day clothes. Never a face in close-up, a crowd, a real "
+    "or famous person, or anyone in a team kit.\n"
     "- No text, signs, scoreboards with writing, labels, flags, emblems, "
     "jerseys, uniforms, numbers or logos.\n"
     "- Make sibling topics in the batch look different from one another.\n\n"
@@ -182,7 +191,12 @@ CHECKER_SYSTEM = (
     "anonymous figures seen from behind or far off, with no facial "
     "features, are part of the house style and do not. A recognisable "
     "specific commercial product design (a particular phone, car model, "
-    "console, shoe) counts as an identifiable product."
+    "console, shoe) counts as an identifiable product. A white or pale "
+    "border, a margin of unpainted paper, or colour that fades out towards "
+    "the edges counts as a border. Equipment or technology that has not "
+    "been in ordinary use for decades (a valve radio, a rotary phone, a "
+    "typewriter, a wooden racket, a vintage car) shown as the subject "
+    "counts as obsolete."
 )
 
 CHECKER_SCHEMA = {
@@ -192,18 +206,21 @@ CHECKER_SCHEMA = {
         "text": {"type": "boolean"},
         "person": {"type": "boolean"},
         "identifiable_product": {"type": "boolean"},
+        "border": {"type": "boolean"},
+        "obsolete": {"type": "boolean"},
         "matches_subject": {"type": "boolean"},
         "notes": {"type": "string"},
     },
     "required": ["logo", "text", "person", "identifiable_product",
-                 "matches_subject", "notes"],
+                 "border", "obsolete", "matches_subject", "notes"],
     "additionalProperties": False,
 }
 
 #: Which checker answers fail a picture. `matches_subject` is here too: a
 #: clean picture of the wrong thing is worse on a tile than the drawing it
 #: replaces.
-_FAILS_ON = ("logo", "text", "person", "identifiable_product")
+_FAILS_ON = ("logo", "text", "person", "identifiable_product", "border",
+             "obsolete")
 
 
 # --------------------------------------------------------------------------
@@ -972,7 +989,7 @@ async def imagen_painter(prompt: str) -> Painting:
 
 async def claude_checker(image: bytes, mime: str, subject: str
                          ) -> tuple[dict, float]:
-    """Claude's four yes/no answers about a picture, and what it cost."""
+    """Claude's yes/no answers about a picture, and what it cost."""
     import credentials
     from anthropic_client import build_async_client
     from config import settings
@@ -992,8 +1009,9 @@ async def claude_checker(image: bytes, mime: str, subject: str
                     "data": base64.standard_b64encode(image).decode()}},
                 {"type": "text", "text":
                     f"This is meant to be a cover for the topic '{subject}'. "
-                    "Does it contain a logo, text, a person (as defined), or "
-                    "an identifiable real product? Does it read as that "
+                    "Does it contain a logo, text, a person (as defined), "
+                    "an identifiable real product, a pale border or faded "
+                    "edges, or obsolete equipment? Does it read as that "
                     "topic?"},
             ]}],
         ),
@@ -1003,6 +1021,43 @@ async def claude_checker(image: bytes, mime: str, subject: str
         raise GenerationError("the checker declined")
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text), cost
+
+
+#: `_trim_pale_edges`: a strip counts as unpainted paper when it is this
+#: bright and this grey (0-255 HSV), and at most this share of a side goes.
+_PAPER_VALUE, _PAPER_SATURATION, _TRIM_MAX = 222, 34, 0.18
+
+
+def _trim_pale_edges(im):
+    """Cut a white or faded border off each side (§167).
+
+    The prompt and the checker both ask for a full-bleed painting; this is
+    the belt to those braces, because a watercolour model's favourite habit
+    is a margin of paper. A strip goes when it is bright *and* grey, so a
+    pale blue sky along the top is kept - only paper is taken."""
+    hsv = im.convert("HSV")
+    w, h = im.size
+    step_x, step_y = max(1, w // 100), max(1, h // 100)
+
+    def paper(box) -> bool:
+        from PIL import ImageStat
+        mean = ImageStat.Stat(hsv.crop(box)).mean
+        return mean[2] >= _PAPER_VALUE and mean[1] <= _PAPER_SATURATION
+
+    left, top, right, bottom = 0, 0, w, h
+    while left < w * _TRIM_MAX and paper((left, top, left + step_x, bottom)):
+        left += step_x
+    while w - right < w * _TRIM_MAX and paper((right - step_x, top, right,
+                                                bottom)):
+        right -= step_x
+    while top < h * _TRIM_MAX and paper((left, top, right, top + step_y)):
+        top += step_y
+    while h - bottom < h * _TRIM_MAX and paper((left, bottom - step_y,
+                                                 right, bottom)):
+        bottom -= step_y
+    if (left, top, right, bottom) == (0, 0, w, h):
+        return im
+    return im.crop((left, top, right, bottom))
 
 
 def _resize(image: bytes, width: int, height: Optional[int], fmt: str
@@ -1016,7 +1071,7 @@ def _resize(image: bytes, width: int, height: Optional[int], fmt: str
                     "stored uncropped at full size (pip install Pillow)")
         return image, "image/png"
     with Image.open(io.BytesIO(image)) as im:
-        im = im.convert("RGB")
+        im = _trim_pale_edges(im.convert("RGB"))
         w, h = im.size
         target = 4 / 3
         if w / h > target:

@@ -694,3 +694,65 @@ def test_the_house_style_is_the_owners_watercolour():
     assert "anonymous figures" in th.WRITER_SYSTEM
     assert "real or famous person" in th.WRITER_SYSTEM
     assert "do not" in th.CHECKER_SYSTEM and "real person" in th.CHECKER_SYSTEM
+
+
+# --- §167: full-bleed, deeper colour, modern equipment ---------------------
+
+
+def _bordered(size, fill, border=0, border_fill=(250, 248, 244)):
+    from PIL import Image
+    im = Image.new("RGB", size, border_fill if border else fill)
+    if border:
+        im.paste(Image.new("RGB", (size[0] - 2 * border, size[1] - 2 * border),
+                           fill), (border, border))
+    out = io.BytesIO()
+    im.save(out, "PNG")
+    return out.getvalue()
+
+
+def _open(data):
+    from PIL import Image
+    return Image.open(io.BytesIO(data)).convert("RGB")
+
+
+def test_a_white_paper_border_is_cut_off():
+    pytest.importorskip("PIL")
+    data, _ = th._resize(_bordered((800, 600), (40, 110, 70), border=60),
+                         400, 300, "jpeg")
+    im = _open(data)
+    for xy in ((1, 1), (398, 1), (1, 298), (398, 298), (200, 1), (1, 150)):
+        r, g, b = im.getpixel(xy)
+        assert g < 170 and r < 120, (xy, im.getpixel(xy))
+
+
+def test_a_pale_blue_sky_is_not_mistaken_for_paper():
+    pytest.importorskip("PIL")
+    from PIL import Image
+    im = Image.new("RGB", (800, 600), (40, 110, 70))
+    im.paste(Image.new("RGB", (800, 150), (175, 215, 230)), (0, 0))
+    assert th._trim_pale_edges(im).size == (800, 600)
+
+
+def test_a_border_or_obsolete_equipment_fails_the_picture():
+    assert th.failed_checks(dict(CLEAN, border=True)) == ["border"]
+    assert th.failed_checks(dict(CLEAN, obsolete=True)) == ["obsolete"]
+    assert {"border", "obsolete"} <= set(th.CHECKER_SCHEMA["required"])
+
+
+def test_the_look_is_full_bleed_deeper_and_modern():
+    for words in ("Full-bleed", "no border", "vignette", "deep tones",
+                  "modern"):
+        assert words in th.HOUSE_STYLE
+    assert "pastel" in th.HOUSE_STYLE
+    for words in ("TODAY", "old radios", "obsolete"):
+        assert words in th.WRITER_SYSTEM
+    assert "today's equipment" in th.STYLE_REFERENCE_NOTE
+
+
+def test_the_review_page_shows_every_answer_that_fails_a_picture():
+    # The admin page lists the checker's answers by hand; one it leaves out
+    # is a reason a picture failed that nobody reviewing it can see.
+    page = open(os.path.join(os.path.dirname(th.__file__), "admin_ui",
+                             "thumbnails.html")).read()
+    for key in th._FAILS_ON:
+        assert f'"{key}"' in page, key
