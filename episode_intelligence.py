@@ -53,6 +53,7 @@ from datetime import datetime, timezone
 import credentials
 import live_facts
 import metering
+import named_slots
 from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
 
@@ -258,6 +259,10 @@ class Brief:
     #: degraded brief, and the player then keeps the title derived from the
     #: question - which is what it showed before this existed (§127).
     title: str = ""
+    #: The key of the named broadcast slot the request names
+    #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
+    #: Night Football" is one game, and a scoreboard picks it by kick-off.
+    named_slot: str = ""
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -345,8 +350,51 @@ def fallback_brief(query: str, reason: str) -> Brief:
     layer must never drop below.
     """
     log.warning("episode intelligence degraded (%s); using the raw query", reason)
-    return Brief(query=query, subject=query.strip(), search_query=query.strip(),
-                 degraded=True, notes=[reason])
+    return apply_named_slot(
+        Brief(query=query, subject=query.strip(), search_query=query.strip(),
+              degraded=True, notes=[reason]), query)
+
+
+def apply_named_slot(brief: Brief, query: str) -> Brief:
+    """Resolve a named broadcast slot in code, whatever the model made of it.
+
+    "Sunday night football recap" once became an episode about an afternoon
+    game, because the phrase was read as a description rather than as the
+    name of one game (`named_slots`). A degraded brief gets this too: it has
+    no model call to have got it right, and the search is the half it keeps.
+    """
+    slot = named_slots.find(query)
+    if slot is None:
+        return brief
+    brief.named_slot = slot.key
+    name = slot.name.lower()
+    # The name goes into both searches verbatim, because it is what a report
+    # of that game is headlined with - and a search without it matches every
+    # game played that day.
+    if name not in (brief.search_query or "").lower():
+        brief.search_query = f"{slot.name} {slot.league} {brief.search_query}".strip()
+    if brief.search_fallback and name not in brief.search_fallback.lower():
+        brief.search_fallback = f"{slot.name} {brief.search_fallback}".strip()
+    if name not in (brief.subject or "").lower():
+        brief.subject = f"{slot.name} ({slot.definition})"
+    caution = (
+        f'"{slot.name}" is the name of one specific game: {slot.definition}. '
+        f"The episode is about that game and no other - identify which teams "
+        f"played in it from the evidence before saying anything, and never "
+        f"substitute another game from the same day because it was reported "
+        f"more prominently")
+    if not any(slot.name in c for c in brief.cautions):
+        # After the "nothing confirmed yet" caution when there is one, which
+        # `gate` keeps first on purpose.
+        at = 1 if brief.cautions and "confirmed yet" in brief.cautions[0] else 0
+        brief.cautions.insert(at, caution)
+        brief.cautions = brief.cautions[:6]
+    wanted = f"which teams played in {slot.name} ({slot.when})"
+    if not any(slot.name in m for m in brief.must_establish):
+        brief.must_establish.insert(0, wanted)
+        brief.must_establish = brief.must_establish[:6]
+    brief.notes.append(f"named slot: {slot.name}")
+    return brief
 
 
 # --------------------------------------------------------------------------
@@ -524,6 +572,8 @@ def gate(brief: Brief, query: str) -> Brief:
     if not brief.subject.strip():
         brief.subject = query.strip()
 
+    apply_named_slot(brief, query)
+
     if problems:
         log.info("EI gate repaired %d thing(s) for %r: %s",
                  len(problems), query, "; ".join(problems))
@@ -624,7 +674,18 @@ exists or has been updated. Resolve the subject to what it is about ("lessons \
 from how founders built their companies"), search for the substance a good \
 example would come from (a specific founder's documented decision, what they \
 learned, and what happened), leave why_now empty and low, and set recency to \
-0 unless the kind of thing is itself news."""
+0 unless the kind of thing is itself news.
+
+**And some phrases that read as descriptions are proper names.** "Sunday \
+Night Football" is not football played on a Sunday night: it is the name of \
+one game, NBC's prime-time NFL game that week. The same goes for "Monday Night \
+Football", "Thursday Night Football", "Sunday Night Baseball", "Hockey Night in \
+Canada", "El Clasico", "the Iron Bowl", a named derby or rivalry, a named show \
+or segment. When a request uses a name like that, resolve the subject to the \
+single thing it names, put the name itself in the search query verbatim (it is \
+what reports of it are headlined with), and never widen it to the category - \
+a recap of Sunday Night Football is never a recap of whichever game that \
+Sunday was reported most."""
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",

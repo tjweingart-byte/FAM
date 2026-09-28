@@ -12811,6 +12811,43 @@ where the picture (`seedThumbOpen`) and the card's buttons (`seedActsHtml`)
 simply sit together. With Main's new Pillow requirement installed the merged
 tree passes the whole check.
 
+## 163. "Sunday Night Football" is a name, and the demo is the phone
+
+**Reported.** `sunday night football recap` produced an episode about Bengals
+v Steelers - an afternoon kick-off - instead of that night's NBC game.
+
+**Cause.** Nothing between the typed words and the search knew the phrase was
+a proper name. Read as a description ("football, on a Sunday night") every
+NFL report from that Sunday matches it, and the most reported game won. The
+scoreboard half had the same blindness: `ApiSportsSource.resolve` matches
+subject words against team names, and "sunday", "night" and "football" name
+no team, so it either found nothing or whichever row contained "football".
+
+**Fix.** `named_slots.py` lists the broadcast slots FAM is likeliest to be
+asked about (Sunday/Monday/Thursday Night Football, Sunday Night Baseball),
+each with what it names, the words a report of it uses, and its weekday and
+earliest Eastern kick-off. `episode_intelligence.apply_named_slot` runs in
+`gate` and in `fallback_brief`, so it holds whatever the model made of the
+words and on a degraded brief too: the name goes into both searches verbatim,
+the subject is resolved to the one game, `must_establish` leads with "which
+teams played in Sunday Night Football", and a caution forbids substituting
+another game from the same day. `Brief.named_slot` carries the key to the
+scoreboard, which now picks the game **by kick-off time** (latest in the
+window, by date rather than `live=all` so a finished game is found) and
+returns nothing rather than the nearest game when nothing is in the window.
+`EI_SYSTEM` carries the general rule for names the table does not list -
+Hockey Night in Canada, El Clasico, a named rivalry. Unheard: no key here.
+
+**And the demo page.** The follow banner dropped over the whole demo page,
+not the phone: `#notifBanner` sat after `.phone` while its comment said it
+was inside. It and the toast (which was `position:fixed` to the window) are
+inside `.phone` now. A stray `</div>` closes `.frame` early, so their box is
+`.phone` and the banner is offset past the 14px bezel on desktop. On a
+screen 520px wide or less the page **is** the app - no bezel, notch, fake
+status bar, explainer, footnote, or (in the live preview) database panel -
+and on a desktop the explainer and footnote are gone as well, leaving the
+phone.
+
 ## 164. A Paint run that stops leaves nothing on the page
 
 Reported: `/admin/thumbnails` showed 217 nodes with no picture, nothing live,

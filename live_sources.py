@@ -57,6 +57,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import live_facts
+import named_slots
 from config import settings
 from live_facts import Entity, LiveFacts, LiveSource
 
@@ -653,6 +654,13 @@ class ApiSportsSource(LiveSource):
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
         if not subject:
             return None
+        # A named slot ("Sunday Night Football") names one game by when it
+        # kicks off, and its words match no team - so without this the row
+        # picked was whichever one happened to contain "football", or none.
+        slot = named_slots.by_key(getattr(brief, "named_slot", "") or "")
+        if slot is not None and slot.sport in SPORTS:
+            return await self._resolve_slot(brief, slot)
+
         sport = sport_for(subject)
         # Today's card from the last sweep first: finding *which* game costs
         # no request when the sweep already listed it. Only a game the sweep
@@ -680,6 +688,41 @@ class ApiSportsSource(LiveSource):
                     id=f"{sport.key}:{self._game_id(row)}",
                     label=f"{home} v {away}")
         return None
+
+    async def _resolve_slot(self, brief, slot) -> Optional[Entity]:
+        """The one game a named slot names, picked by its kick-off time.
+
+        No game in the window is no game - never the nearest one, which is
+        how an afternoon kick-off became a "Sunday Night Football" recap.
+        """
+        sport = SPORTS[slot.sport]
+        rows = card_rows(sport.key, max_age=6 * 3600.0) or []
+        if not any(named_slots.in_slot(slot, self._kickoff(r)) for r in rows):
+            # By date rather than `live=all`: a recap is asked after the game,
+            # when it is no longer live. The prime-time slots all kick off
+            # after midnight UTC, so today's UTC card holds last night's game.
+            data = await api_sports_json(
+                f"{sport.host}/{sport.path}",
+                {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
+                settings.live_timeout_seconds)
+            rows = (data or {}).get("response", []) or []
+        timed = [r for r in rows if named_slots.in_slot(slot, self._kickoff(r))]
+        typed = " ".join((getattr(brief, "query", "") or "").lower().split())
+        slot_words = set(slot.name.lower().split()) | {slot.key, "recap", "score"}
+        team_words = {w for w in typed.split() if len(w) > 3 and w not in slot_words}
+        if team_words:
+            timed = [r for r in timed
+                     if any(w in " ".join(self._team_names(r)).lower()
+                            for w in team_words)] or timed
+        if not timed:
+            return None
+        # The latest kick-off in the window: a Monday doubleheader's second
+        # game is the one still being talked about.
+        row = max(timed, key=self._kickoff)
+        home, away = self._team_names(row)
+        return Entity(domain="sports", provider=self.name,
+                      id=f"{sport.key}:{self._game_id(row)}",
+                      label=f"{home} v {away}")
 
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
         sport_key, _, game_id = entity.id.partition(":")
@@ -775,9 +818,15 @@ class ApiSportsSource(LiveSource):
             where = f"{elapsed}'"
         return status, "Live \u00b7 " + score + (f" \u00b7 {where}" if where else "")
 
-    @staticmethod
-    def _start_time(row: dict) -> str:
+    @classmethod
+    def _start_time(cls, row: dict) -> str:
         """Kick-off as `HH:MM UTC`, from whichever field this sport uses."""
+        at = cls._kickoff(row)
+        return at.strftime("%H:%M UTC") if at else ""
+
+    @staticmethod
+    def _kickoff(row: dict) -> Optional[datetime]:
+        """Kick-off as an aware UTC datetime, or None when unreadable."""
         stamp = None
         for holder in ("game", "fixture"):
             block = (row or {}).get(holder) or {}
@@ -788,10 +837,9 @@ class ApiSportsSource(LiveSource):
                 stamp = block.get("timestamp")
         stamp = stamp or (row or {}).get("timestamp")
         try:
-            at = datetime.fromtimestamp(int(stamp), tz=timezone.utc)
+            return datetime.fromtimestamp(int(stamp), tz=timezone.utc)
         except (TypeError, ValueError, OverflowError, OSError):
-            return ""
-        return at.strftime("%H:%M UTC")
+            return None
 
     def to_facts(self, row: dict, entity: Entity,
                  sport: Optional[Sport] = None) -> Optional[LiveFacts]:
