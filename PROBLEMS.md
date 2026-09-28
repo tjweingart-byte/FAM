@@ -12847,3 +12847,58 @@ screen 520px wide or less the page **is** the app - no bezel, notch, fake
 status bar, explainer, footnote, or (in the live preview) database panel -
 and on a desktop the explainer and footnote are gone as well, leaving the
 phone.
+
+## 164. A Paint run that stops leaves nothing on the page
+
+Reported: `/admin/thumbnails` showed 217 nodes with no picture, nothing live,
+nothing failed and $0 spent, with the Gemini key set on Render.
+
+Two separate things, and only one of them was a defect.
+
+* **Nothing paints by itself until `THUMBNAILS=1`.** `render.yaml` ships it
+  `"0"` on purpose (THUMBNAILS.md, step 9): the first pictures are meant to be
+  painted by hand from the page, looked at, and the style fixed before a
+  background sweep spends anything. With the key set and the flag off,
+  nothing happening is the documented state.
+* **A run that stopped was indistinguishable from a run that never started.**
+  Pressing Paint returns "painting in the background" at once. If Imagen then
+  answers anything but 200 or 400 - a key without billing, the API not
+  enabled on the project, a quota, a model name the key cannot see - the run
+  raises `StopRun` before any spend or node row is written, by design, so no
+  node is blamed for a deployment problem. The same is true when the batched
+  scene writer fails. Either way the page redrew with every counter at zero
+  and the reason lived only in the server log - §51's failure in a new
+  place. The last run's outcome (minus the per-node list) is now kept in a
+  `runs` table in `thumbnails.db`, returned as `last_run` in the store report
+  (so on `/api/health` too), and the page says it under the Paint button:
+  what was painted, or the sentence that stopped it.
+
+**Then the reason showed up, in the Render log: Imagen 4 no longer exists.**
+The first real Paint run stopped on `models/imagen-4.0-generate-001 is not
+found for API version v1beta, or is not supported for predict` - Google shut
+down all three Imagen 4 models on 2026-08-17, a month after §160 was written
+against them, and named Gemini 3.1 Flash Image as the successor. That is
+not a new model name on the same call: it is `:generateContent` with
+`responseModalities: ["IMAGE"]`, the image comes back as `inlineData` on a
+candidate, and there is no `personGeneration` switch (the house style and
+the checker are what keep people off now).
+
+The default is `gemini-3.1-flash-image`, and so that the next retirement is
+not another dead Paint button, **a 404 no longer ends the run**: the painter asks the key which image models it can call
+(`GET v1beta/models`), takes the best (Flash before Pro, stable before
+preview, newest first), logs which one, and keeps it for the process. Only a
+key that can call no image model at all stops, with a sentence naming
+`THUMBNAILS_IMAGE_MODEL`. The price default (`THUMBNAILS_IMAGE_PRICE`,
+0.067) is an estimate, not a looked-up list price - the pricing page was not
+reachable from the build container.
+
+**Found reviewing the above before merge.** The request asked for
+`imageSize: "1K"`, which is the default anyway and which an older model the
+404 fallback might pick does not accept - a 400 there is recorded against the
+node, so a whole Paint run would have marked every node failed. It is gone. A
+thinking image model can return interim pictures marked `thought` before the
+final one, and the painter took the first image it saw; it now takes the last
+one that is not a draft. And `THUMBNAILS_TIMEOUT_SECONDS` goes from 60 to 120,
+because a timeout stops the whole run and Gemini image generation is slower
+than Imagen's was. This branch's entry was written as §163 and renumbered
+§164 when Main turned out to have a §163 of its own.

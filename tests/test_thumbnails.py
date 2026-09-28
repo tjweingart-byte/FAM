@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import os
 import sys
 
@@ -221,6 +222,10 @@ def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
     assert "403" in result["stopped"]
     assert len(paint.calls) == 1
     assert th.store().get("golf") is None and th.store().get("tennis") is None
+    # ...and is kept for the review page, since it left no node and no spend
+    # to show anything happened (§164).
+    last = th.store().report()["last_run"]
+    assert "403" in last["stopped"] and last["at"] > 0
 
 
 def test_a_refused_prompt_fails_its_node_and_the_run_goes_on(tree):
@@ -306,7 +311,9 @@ def test_the_real_painter_switches_people_off_at_the_model(monkeypatch):
 
     import httpx
     monkeypatch.setattr(httpx, "AsyncClient", Client)
-    _set(monkeypatch, gemini_api_key="k")
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="imagen-4.0-generate-001")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
     got = asyncio.run(th.imagen_painter("a scene"))
     assert got.image == b"png"
     assert sent["body"]["parameters"]["personGeneration"] == "dont_allow"
@@ -337,7 +344,9 @@ def test_an_empty_imagen_answer_reads_as_filtered(monkeypatch):
 
     import httpx
     monkeypatch.setattr(httpx, "AsyncClient", Client)
-    _set(monkeypatch, gemini_api_key="k")
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="imagen-4.0-generate-001")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
     with pytest.raises(th.GenerationError, match="filtered"):
         asyncio.run(th.imagen_painter("a scene"))
 
@@ -504,3 +513,128 @@ def test_the_admin_decides_on_a_held_repaint(tree, client):
                     headers=headers)
     assert r.json()["kept_live"] is True
     assert client.get("/api/thumb/formula%20one").status_code == 200
+
+
+def test_a_scene_writer_failure_is_kept_for_the_review_page(tree):
+    async def broken(paths):
+        raise RuntimeError("model not found")
+    result = _run(only=["golf"], writer=broken, painter=_painter([]),
+                  checker=_checker([]))
+    assert result["wanted"] == 1 and result["approved"] == 0
+    last = th.store().report()["last_run"]
+    assert "model not found" in last["errors"][0]
+    assert "nodes" not in last
+
+
+class _Google:
+    """A fake of Google's API: `answers` maps a model to (status, body), and
+    `models` is what the listing returns."""
+
+    def __init__(self, answers, models=()):
+        self.answers, self.models, self.posts = answers, list(models), []
+
+    def client(self):
+        fake = self
+
+        class Resp:
+            def __init__(self, status, body):
+                self.status_code, self._body = status, body
+                self.text = json.dumps(body)
+
+            def json(self):
+                return self._body
+
+        class Client:
+            def __init__(self, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def post(self, url, json=None, headers=None):
+                fake.posts.append((url, json))
+                model = url.rsplit("/", 1)[-1].split(":")[0]
+                return Resp(*fake.answers.get(model, (404, {"error": {}})))
+
+            async def get(self, url, params=None, headers=None):
+                return Resp(200, {"models": fake.models})
+
+        return Client
+
+
+def _gemini_image(data=b"png"):
+    return {"candidates": [{"content": {"parts": [
+        {"text": "here"},
+        {"inlineData": {"mimeType": "image/png",
+                        "data": base64.b64encode(data).decode()}}]}}]}
+
+
+def test_a_gemini_image_model_is_asked_through_generate_content(monkeypatch):
+    import httpx
+    google = _Google({"gemini-3.1-flash-image": (200, _gemini_image())})
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="gemini-3.1-flash-image")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    got = asyncio.run(th.imagen_painter("a scene"))
+    assert got.image == b"png" and got.mime == "image/png"
+    url, body = google.posts[0]
+    assert url.endswith("gemini-3.1-flash-image:generateContent")
+    assert body["generationConfig"]["responseModalities"] == ["IMAGE"]
+    assert body["generationConfig"]["imageConfig"] == {"aspectRatio": "4:3"}
+
+
+def test_a_draft_image_from_thinking_is_not_the_picture(monkeypatch):
+    import httpx
+    answer = {"candidates": [{"content": {"parts": [
+        {"thought": True, "inlineData": {
+            "mimeType": "image/png",
+            "data": base64.b64encode(b"draft").decode()}},
+        {"inlineData": {"mimeType": "image/png",
+                        "data": base64.b64encode(b"final").decode()}}]}}]}
+    google = _Google({"gemini-3.1-flash-image": (200, answer)})
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="gemini-3.1-flash-image")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    assert asyncio.run(th.imagen_painter("a scene")).image == b"final"
+
+
+def test_a_retired_model_is_replaced_by_one_the_key_can_call(monkeypatch):
+    # Imagen 4 was shut down on 2026-08-17 and answered 404 (§164).
+    import httpx
+    google = _Google(
+        {"gemini-3.1-flash-image-preview": (200, _gemini_image())},
+        models=[
+            {"name": "models/gemini-3-pro-image-preview",
+             "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-3.1-flash-image-preview",
+             "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-3.1-flash",
+             "supportedGenerationMethods": ["generateContent"]},
+        ])
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="imagen-4.0-generate-001")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    got = asyncio.run(th.imagen_painter("a scene"))
+    assert got.image == b"png"
+    assert google.posts[-1][0].endswith(
+        "gemini-3.1-flash-image-preview:generateContent")
+    # Remembered, so the next picture does not pay for the 404 again.
+    asyncio.run(th.imagen_painter("another"))
+    assert len(google.posts) == 3
+
+
+def test_no_image_model_at_all_stops_the_run_and_says_so(monkeypatch):
+    import httpx
+    google = _Google({}, models=[])
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="imagen-4.0-generate-001")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    with pytest.raises(th.StopRun, match="THUMBNAILS_IMAGE_MODEL"):
+        asyncio.run(th.imagen_painter("a scene"))
