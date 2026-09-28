@@ -12653,3 +12653,35 @@ iOS app is where this matters most and it is not built there**; the same
 shape (keep the whole PCM of a finished stream, key it on question, length
 and context) is what it should do. Not tried on a real phone or with the
 network actually cut.
+
+## 162. Three follow-ups to §161: no "not for me", vibes kept, folders
+
+**The player's "not for me" is gone**, at the owner's direction. Not
+interested stays on the myFAM cards (card and View more), where it was asked
+for; on the player it was a fifth icon on a row designed for four, beside an
+episode somebody had chosen to play. The smoke check on the player's labels
+is back to exactly share, vibe, save and captions.
+
+**A vibe is on the profile for good.** §161 cut a public profile's vibes to
+the last 24 hours, which read the packet's "24 hours" too widely: the day is
+how long a vibe is a **story** - the VIBE badge and gold ring on a friend's
+face, and what tapping it plays - never how long it stays on anybody's
+profile. `/api/person` lists every vibe again. The listener's own vibes live
+on My Vibes, reachable from the YourFAM hub as before and now from Settings
+too (**My Vibes** and **Save for Later** under Listening).
+
+**Folders on both shelves.** A listener can make folders on Save for Later
+and on My Vibes, name and rename them, delete them, and choose the folder for
+each episode from a folder button on its row; chips along the top filter the
+shelf, and a chosen folder shows Rename and Delete folder. One folder system,
+two shelves: `folders.kind` (`saved` or `vibe`, a column added to the table
+§96's folders already lived in), so a vibe folder is never offered on the
+saved shelf or the other way round and the server refuses a cross-shelf move.
+A saved episode's folder is its row's `folder_id`, as it always was; a vibe's
+is `vibe_files`, keyed on the episode (question, length) beside the shelf,
+because the vibe itself is the public row in `social.py` and the folder is
+private tidying. Taking a vibe back takes it out of its folder; deleting a
+folder unfiles and never deletes; `forget` erases the filing with the rest.
+Nothing is pre-made: the preview fixture's "Commute" folder, the one §96
+removed the chips over, is gone, and a smoke check says no folder appears
+that the listener did not make.

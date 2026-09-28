@@ -1939,6 +1939,8 @@ class SaveRequest(BaseModel):
 
 class FolderRequest(BaseModel):
     name: str = Field(..., max_length=saved_mod.MAX_NAME)
+    #: Which shelf: "saved" (Save for Later, the default) or "vibe" (My Vibes).
+    kind: str = Field("saved", max_length=8)
 
 
 class MoveRequest(BaseModel):
@@ -2092,12 +2094,12 @@ async def person_profile(request: Request,
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
-        # Only the last 24 hours: a vibe is a story, and a story comes down
-        # after a day (the 27/09 packet). `vibe_count` is still the total.
+        # Every vibe, for good (the owner's direction after §161): the 24
+        # hours are how long a vibe is a *story* on somebody's face, never
+        # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
                        topic=_topic_label(e.query, e.title))
-                  for e in SOCIAL.echoes_by(target, limit=12)
-                  if time.time() - e.at <= CIRCLE_VIBE_WINDOW],
+                  for e in SOCIAL.echoes_by(target, limit=12)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
         "interests": interests,
         "interest_labels": [row["label"] for row in shown],
@@ -2522,7 +2524,8 @@ async def saved_folder_create(req: FolderRequest, request: Request) -> dict:
     _read_limit(request)
     try:
         return {"ok": True,
-                "folder": SAVED.create_folder(_require_account(request), req.name)}
+                "folder": SAVED.create_folder(_require_account(request), req.name,
+                                              kind=req.kind)}
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -4542,7 +4545,15 @@ async def post_echo(req: EchoRequest, request: Request):
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
                       minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
-    return {"ok": SOCIAL.unecho(_listener(request), q, minutes)}
+    user = _listener(request)
+    ok = SOCIAL.unecho(user, q, minutes)
+    # A vibe taken back leaves its folder too, or the folder counts a ghost.
+    if ok:
+        try:
+            SAVED.file_vibe(user, q, minutes, "")
+        except Exception:  # noqa: BLE001 - the vibe is gone either way
+            log.exception("could not unfile a vibe taken back")
+    return {"ok": ok}
 
 
 # --- vibe -----------------------------------------------------------------
@@ -4582,8 +4593,33 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
     user = _listener(request)
     person = SOCIAL.person(user)
     vibes = SOCIAL.echoes_by(user, limit=limit)
-    return {"vibes": [v.as_dict(person["name"], person["handle"]) for v in vibes],
+    # Their own folders, and which one each vibe is filed in (after §161).
+    # A guest has neither: folders are kept on an account.
+    filed = SAVED.vibe_files(user) if _has_account(request) else {}
+    return {"vibes": [dict(v.as_dict(person["name"], person["handle"]),
+                           folder_id=filed.get((v.query, int(v.minutes)), ""))
+                      for v in vibes],
+            "folders": SAVED.folders(user, "vibe") if _has_account(request) else [],
             "count": len(SOCIAL.echoes_by(user, limit=200))}
+
+
+class VibeFileRequest(BaseModel):
+    query: str = Field(..., max_length=300)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    #: A vibe folder's id, or "" to take the vibe out of any folder.
+    folder_id: str = Field("", max_length=64)
+
+
+@app.post("/api/vibes/file")
+async def file_vibe(req: VibeFileRequest, request: Request) -> dict:
+    """Put one of this listener's vibes in one of their vibe folders."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        folder = SAVED.file_vibe(user, req.query, req.minutes, req.folder_id)
+    except saved_mod.SavedError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "folder_id": folder}
 
 
 @app.get("/api/profile")

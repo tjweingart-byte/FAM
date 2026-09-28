@@ -1868,6 +1868,10 @@ the rest of this list it needs taste rather than a key.
   shown a fixture named "Commute" as though it were theirs, and **a control
   with nothing behind it is worse than no control**. `saved.py`'s filing is
   untouched, so putting folders back costs nothing anybody filed.
+  **They came back in §162, at the owner's direction, as the listener's
+  own**: folders are made, named, renamed and deleted by the listener on
+  both Save for Later and My Vibes (`folders.kind`), each episode's folder is
+  chosen from its row, and none is ever made for them.
 - **A shared link lands on one episode, and play is the only thing that
   works.** *(§106, `static/listen.html`, SHARING.md.)* `/s/<id>` used to
   redirect into the web app, so somebody sent one episode arrived at a search
@@ -2516,7 +2520,10 @@ rewritten as spoken before the voice (`spoken_text.py`), "not interested"
 and save on every myFAM card, /admin signing in on every load, the app's
 descriptions rewritten for listeners, a sign-up screen that is the form,
 VIBE as 24-hour stories, startup cards named by the episode they became,
-and offline listening for finished episodes),
+and offline listening for finished episodes; and **§162**, the player's
+"not for me" removed, vibes kept on the profile for good (only the story
+lasts 24 hours), and folders the listener makes on Save for Later and My
+Vibes),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2543,12 +2550,13 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **eighty-one** named smoke
+**twice** - once per preview build - and **eighty-two** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 81 as of §161,
+prose does not fail when somebody adds a behaviour. (It is 82 as of §162,
+which added filing episodes in folders on both shelves. It was 81 as of §161,
 which added a myFAM card being saved or waved off, a friend's vibes playing
 as stories, and offline fading what is not on the device. It was 78 as of §158,
 which added "Hey FAM" opening voice search. It was 77 as of §151,

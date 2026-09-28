@@ -620,7 +620,12 @@ def main() -> int:
             assert not page.query_selector("#svDownloadBar"), \
                 "the offline-capacity bar came back"
             assert not page.query_selector(".sv-chip"), \
-                "the folder chips came back"
+                "the old fixture folder chips came back"
+            # Folders are the listener's own since §161: none is made for them.
+            names = page.eval_on_selector_all(
+                "#svBody .shelf-chip", "e => e.map(x => x.textContent.trim())")
+            assert names in ([], ["All", "+ New folder"]), \
+                f"the shelf offered folders nobody made: {names}"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -1097,10 +1102,8 @@ def main() -> int:
             this row was the odd one out."""
             page.evaluate("showScreen('player')")
             page.wait_for_timeout(300)
-            # "not for me" (27/09 packet) is only on a myFAM episode, so it
-            # is hidden here - a visible label is the one being counted.
             words = page.eval_on_selector_all(
-                "#screen-player .pc-row2 .pt-icon:not([hidden]) .pt-cap",
+                "#screen-player .pc-row2 .pt-cap",
                 "e => e.map(x => x.textContent.trim().toLowerCase())")
             assert words == ["share", "vibe", "save", "captions"], \
                 f"the player's icons are labelled {words}"
@@ -3445,6 +3448,45 @@ def main() -> int:
             finally:
                 page.evaluate("setOffline(false); OfflineShelf.clear()")
 
+        def episodes_are_filed_in_folders_on_both_shelves():
+            """After §161: make a folder on each shelf, name it, put an episode
+            in it from the row's folder button, and filter by it."""
+            ensure_account()
+            for kind, opener, body, row_btn in (
+                    ("saved", "openSavedAll()", "#svBody", "#svBody .sv-row .shelf-fold"),
+                    ("vibe", "openMyVibe()", "#myVibeBody", "#myVibeBody .vibe-row .shelf-fold")):
+                page.evaluate(opener)
+                page.wait_for_timeout(900)
+                if not page.query_selector(row_btn):
+                    # The live build may have nothing vibed yet.
+                    assert kind == "vibe", f"no folder button on the {kind} shelf"
+                    continue
+                page.click(f"{body} .shelf-chip.add")
+                page.wait_for_selector("#modalOverlay.active", timeout=3000)
+                page.fill("#modalInput", "Smoke " + kind)
+                page.click("#modalConfirmBtn")
+                page.wait_for_timeout(700)
+                chips = page.eval_on_selector_all(
+                    f"{body} .shelf-chip", "e => e.map(x => x.textContent.trim())")
+                assert any(c.startswith("Smoke " + kind) for c in chips), chips
+                # The new folder is chosen and empty; back to All to file one.
+                page.click(f"{body} .shelf-chip")
+                page.wait_for_timeout(300)
+                page.click(row_btn)
+                page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+                page.click(f"#sheetCard .sheet-item:has-text('Smoke {kind}')")
+                page.wait_for_timeout(800)
+                page.click(f"{body} .shelf-chip:has-text('Smoke {kind}')")
+                page.wait_for_timeout(400)
+                rows = page.eval_on_selector_all(
+                    f"{body} .sv-row, {body} .vibe-row", "e => e.length")
+                assert rows == 1, f"the {kind} folder shows {rows} episodes, not the one filed"
+                assert page.query_selector(f"{body} .shelf-folder-acts"), \
+                    f"no rename or delete on the chosen {kind} folder"
+                page.evaluate("shelfPick.saved = ''; shelfPick.vibe = ''")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
         check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
@@ -3570,6 +3612,8 @@ def main() -> int:
         check("A friend's vibes play as stories", a_friends_vibes_play_as_stories)
         check("Offline fades what is not on the device",
               offline_fades_what_is_not_on_the_device)
+        check("Episodes can be filed in folders on both shelves",
+              episodes_are_filed_in_folders_on_both_shelves)
 
         if errors:
             failures.append(f"page errors: {errors}")

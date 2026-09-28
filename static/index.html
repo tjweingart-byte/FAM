@@ -959,8 +959,6 @@
   /* Saved is green, and the green is the same on all four players. Mirrors
      `.echoed`, which is copper, so the two states are distinguishable at a
      glance rather than both being "lit". */
-  .pt-icon[hidden]{ display:none; }
-  .pt-icon.hidden-on{ opacity:0.45; }
   .pt-icon.saved-on{ background:var(--sage); color:var(--ink);
     border-color:var(--sage); }
   .pt-icon.saved-on .pt-cap{ color:var(--sage); }
@@ -1908,6 +1906,23 @@
      One list of pointers. There used to be a second view of it - Downloads,
      the audio held on the device - and a switch between them; both are gone
      with the feature. */
+  /* Folders on Save for Later and My Vibes (after §161). */
+  .shelf-chips{ display:flex; gap:7px; overflow-x:auto; padding:2px 18px 10px; scrollbar-width:none; }
+  .shelf-chips::-webkit-scrollbar{ display:none; }
+  .shelf-chip{ flex:0 0 auto; height:30px; padding:0 13px; border-radius:15px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Space Grotesk',sans-serif;
+    font-size:11.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .shelf-chip span{ color:var(--text-muted); font-weight:500; margin-left:3px; }
+  .shelf-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .shelf-chip.on span{ color:var(--ink); }
+  .shelf-chip.add{ background:none; border-style:dashed; color:var(--copper); }
+  .shelf-folder-acts{ display:flex; gap:16px; padding:0 18px 8px; }
+  .shelf-folder-acts button{ background:none; border:none; padding:4px 0; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em; color:var(--copper); }
+  .shelf-folder-acts button.danger{ color:var(--coral); }
+  .shelf-fold{ display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  #myVibeBody .shelf-chips, #myVibeBody .shelf-folder-acts{ padding-left:0; padding-right:0; }
+  .vibe-row .shelf-fold{ margin-right:6px; }
   .sv-row{ display:flex; align-items:center; gap:11px; padding:12px 18px;
     border-bottom:1px solid var(--border); cursor:pointer; }
   .sv-row:active{ background:var(--surface); }
@@ -3091,7 +3106,6 @@
             <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
             <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
             <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
-            <span class="pt-icon" id="playerHide" onclick="notInterestedPlaying()" title="Not interested" aria-label="Not interested: never suggest this one again" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg><span class="pt-cap">not for me</span></span>
             <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span class="pt-cap">Captions</span></span>
           </div>
         </div>
@@ -5676,7 +5690,6 @@
       return;
     }
     currentPlayingTopicKey = key;
-    paintPlayerHide();
     document.getElementById("p-title").textContent = t.title;
     document.getElementById("p-src").textContent = "from " + t.source;
     document.getElementById("cc-text").innerHTML =
@@ -8888,28 +8901,6 @@
     toast("Got it. We won\u2019t suggest that one again");
   }
 
-  // The player's "Not interested" (27/09 packet): the same action, on the
-  // episode that is playing, when it came from a myFAM tile. Shown only
-  // then - a search is something the listener asked for.
-  function playingTileId(){
-    var key = currentPlayingTopicKey;
-    return (key && TOPICS[key] && TOPICS[key].bankTopicId) || "";
-  }
-  function paintPlayerHide(){
-    var el = document.getElementById("playerHide");
-    if(!el) return;
-    var id = playingTileId();
-    el.hidden = !id;
-    el.classList.toggle("hidden-on", !!(id && hiddenTiles[id]));
-  }
-  function notInterestedPlaying(){
-    var id = playingTileId();
-    if(!id) return;
-    if(hiddenTiles[id]){ toast("Already off your myFAM"); return; }
-    notInterested(id);
-    paintPlayerHide();
-  }
-
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
@@ -10690,6 +10681,9 @@
           "openInterestsFromSettings()")
       // Everything heard in the last two weeks, by where it was heard (§142).
       + settingsRow("Listening history", "Last 2 weeks", "openHistory()")
+      // Both shelves, with their folders (after §161).
+      + settingsRow("My Vibes", "", "openMyVibe()")
+      + settingsRow("Save for Later", "", "openSavedAll()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
@@ -10878,6 +10872,10 @@
     var el = document.getElementById("myVibeBody");
     el.innerHTML = '<div class="pf-empty">Loading…</div>';
     navigate("myvibe");
+    loadMyVibe();
+  }
+  function loadMyVibe(){
+    var el = document.getElementById("myVibeBody");
     fetch("/api/vibes")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderMyVibe)
@@ -10889,21 +10887,28 @@
   var myVibes = [];
   function renderMyVibe(d){
     myVibes = d.vibes || [];
+    shelfFolders.vibe = d.folders || [];
     var el = document.getElementById("myVibeBody");
     if(!myVibes.length){
-      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode to share it with your followers for 24 hours.</div>';
+      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode to share it with your followers. It stays here, and shows on your friends\u2019 screens as a story for 24 hours.</div>';
       return;
     }
-    el.innerHTML = myVibes.map(function(v, i){
+    var shown = shelfFilter("vibe", myVibes);
+    el.innerHTML = folderChipsHtml("vibe") + (shown.length ? shown.map(function(v){
+      var i = myVibes.indexOf(v);
+      var where = folderName("vibe", v.folder_id);
       return '<div class="vibe-row" onclick="playMyVibe(' + i + ')">'
         + '<div class="vibe-row-body">'
         + '<div class="vibe-row-title">' + escapeHtml(v.title || v.query) + '</div>'
-        + '<div class="vibe-row-meta">' + v.minutes + ' min · vibed</div></div>'
+        + '<div class="vibe-row-meta">' + v.minutes + ' min · vibed'
+        + (where ? ' · ' + escapeHtml(where) : '') + '</div></div>'
+        + (AUTH.authenticated ? '<button class="vibe-row-x shelf-fold" aria-label="Choose a folder for this vibe" '
+          + 'onclick="event.stopPropagation(); chooseFolderFor(\'vibe\', ' + i + ')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></button>' : '')
         + '<button class="vibe-row-x" aria-label="Take this vibe back" '
         + 'onclick="event.stopPropagation(); unvibe(' + i + ')">'
         + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
         + '</button></div>';
-    }).join("");
+    }).join("") : '<div class="pf-empty">Nothing in this folder yet. Tap the folder on any vibe to put it here.</div>');
   }
 
   function playMyVibe(i){
@@ -10922,7 +10927,7 @@
     if(!v) return;
     fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes,
           { method: "DELETE" })
-      .then(function(){ openMyVibe(); toast("Vibe taken back"); })
+      .then(function(){ loadMyVibe(); toast("Vibe taken back"); })
       .catch(function(){ toast("Could not take that back"); });
   }
 
@@ -11334,7 +11339,7 @@
 
     // And their vibes, which are by definition public: a vibe *is* the act of
     // showing somebody an episode.
-    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 last 24 hours</span>'
+    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 ' + vibes + '</span>'
       + (theirVibes.length > 3 ? '<button class="yf-link" onclick="togglePersonMore(\'vibes\')">'
           + (personShowAll.vibes ? "Show less" : "View more") + '</button>' : '')
       + '</div>';
@@ -11348,7 +11353,7 @@
           + (v.minutes || 2) + ' min</div></div></div>';
       }).join("");
     } else {
-      html += '<div class="pf-empty">No vibes in the last 24 hours.</div>';
+      html += '<div class="pf-empty">Nothing vibed yet.</div>';
     }
     personVibes = theirVibes;
     personMixes = mixes;
@@ -12724,24 +12729,153 @@
   }
   function renderSaved(d){
     var items = d.items || [];
+    shelfFolders.saved = d.folders || [];
     if(!items.length){
       document.getElementById("svBody").innerHTML =
         '<div class="sv-empty">Nothing here yet.<br>Press save on the player '
         + 'and the episode lands here.</div>';
       return;
     }
-    document.getElementById("svBody").innerHTML = items.map(function(i){
+    var shown = shelfFilter("saved", items);
+    document.getElementById("svBody").innerHTML = folderChipsHtml("saved")
+      + (shown.length ? shown.map(function(i){
+      var where = folderName("saved", i.folder_id);
       return '<div class="sv-row">'
         + '<div class="sv-art" onclick="playSaved(\'' + i.id + '\')">'
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
         + '<div class="sv-main" onclick="playSaved(\'' + i.id + '\')">'
         + '<div class="sv-title">' + escapeHtml(i.title || i.query) + '</div>'
-        + '<div class="sv-meta">' + i.minutes + ' MIN</div></div>'
+        + '<div class="sv-meta">' + i.minutes + ' MIN' + (where ? ' · ' + escapeHtml(where) : '') + '</div></div>'
+        + '<div class="sv-x shelf-fold" role="button" aria-label="Choose a folder for this episode"'
+        + ' onclick="chooseFolderFor(\'saved\', \'' + i.id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>'
         + '<div class="sv-x" onclick="removeSaved(\'' + i.id + '\')">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>'
         + '</div>';
-    }).join("");
+    }).join("") : '<div class="sv-empty">Nothing in this folder yet.<br>Tap the folder on any episode to put it here.</div>');
   }
+
+  // ---- folders on both shelves (after §161, at the owner's direction) ----
+  //
+  // Save for Later and My Vibes each keep their own folders: the listener
+  // makes one, names it, and chooses the folder for each episode from the
+  // folder button on its row. The chips along the top filter the shelf; with
+  // a folder chosen, Rename and Delete appear beside them. Deleting a folder
+  // unfiles its episodes and never deletes one (`SavedStore.delete_folder`).
+  var shelfFolders = { saved: [], vibe: [] };
+  var shelfPick = { saved: "", vibe: "" };   // "" is All
+
+  function reloadShelf(kind){ if(kind === "vibe") loadMyVibe(); else loadSaved(); }
+  function folderName(kind, id){
+    var f = (shelfFolders[kind] || []).filter(function(x){ return x.id === id; })[0];
+    return f ? f.name : "";
+  }
+  function shelfFilter(kind, rows){
+    var pick = shelfPick[kind];
+    if(pick && !folderName(kind, pick)) pick = shelfPick[kind] = "";
+    return pick ? rows.filter(function(r){ return r.folder_id === pick; }) : rows;
+  }
+  function folderChipsHtml(kind){
+    if(!AUTH.authenticated) return "";
+    var pick = shelfPick[kind];
+    var chip = function(id, label, n){
+      return '<button class="shelf-chip' + (pick === id ? ' on' : '') + '" type="button"'
+        + ' onclick="pickShelfFolder(\'' + kind + '\', \'' + id + '\')">' + escapeHtml(label)
+        + (n != null ? ' <span>' + n + '</span>' : '') + '</button>';
+    };
+    var html = '<div class="shelf-chips">' + chip("", "All")
+      + (shelfFolders[kind] || []).map(function(f){ return chip(f.id, f.name, f.items); }).join("")
+      + '<button class="shelf-chip add" type="button" onclick="newShelfFolder(\'' + kind + '\')">+ New folder</button>'
+      + '</div>';
+    if(pick){
+      html += '<div class="shelf-folder-acts">'
+        + '<button type="button" onclick="renameShelfFolder(\'' + kind + '\')">Rename</button>'
+        + '<button type="button" class="danger" onclick="deleteShelfFolder(\'' + kind + '\')">Delete folder</button>'
+        + '</div>';
+    }
+    return html;
+  }
+  function pickShelfFolder(kind, id){
+    shelfPick[kind] = id;
+    if(kind === "vibe") renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
+    else renderSaved(savedCache);
+  }
+  function postJSON(path, body){
+    return fetch(path, { method: "POST", headers: {"Content-Type": "application/json"},
+                         body: JSON.stringify(body) })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){
+          if(!r.ok) throw new Error(d.error || (typeof d.detail === "string" ? d.detail : "That did not work"));
+          return d;
+        });
+      });
+  }
+  // Name a new folder; `then` receives it, so a folder made from an
+  // episode's own menu can take that episode straight away.
+  function newShelfFolder(kind, then){
+    showModal({ title: "New folder", placeholder: kind === "vibe" ? "e.g. Best of the week" : "e.g. Commute",
+                confirmLabel: "Create", onConfirm: function(name){
+      postJSON("/api/saved/folders", { name: name, kind: kind })
+        .then(function(d){
+          if(then){ then(d.folder); return; }
+          shelfPick[kind] = d.folder.id;
+          toast("Folder created");
+          reloadShelf(kind);
+        })
+        .catch(function(e){ toast(e.message); });
+    } });
+  }
+  function renameShelfFolder(kind){
+    var id = shelfPick[kind];
+    if(!id) return;
+    showModal({ title: "Rename folder", value: folderName(kind, id), confirmLabel: "Save",
+                onConfirm: function(name){
+      postJSON("/api/saved/folders/" + encodeURIComponent(id), { name: name })
+        .then(function(){ toast("Renamed"); reloadShelf(kind); })
+        .catch(function(e){ toast(e.message); });
+    } });
+  }
+  function deleteShelfFolder(kind){
+    var id = shelfPick[kind];
+    if(!id) return;
+    showActionSheet([
+      { group: "Delete \u201c" + escapeHtml(folderName(kind, id)) + "\u201d? Its episodes stay, outside any folder." },
+      { label: "Delete folder", danger: true, action: function(){
+          fetch("/api/saved/folders/" + encodeURIComponent(id), { method: "DELETE" })
+            .then(function(){ shelfPick[kind] = ""; toast("Folder deleted"); reloadShelf(kind); })
+            .catch(function(){ toast("Could not delete that folder"); });
+        } }
+    ]);
+  }
+  // `ref` is a saved item's id, or an index into `myVibes`.
+  function fileInFolder(kind, ref, folderId){
+    var req = kind === "vibe"
+      ? postJSON("/api/vibes/file", { query: myVibes[ref].query, minutes: myVibes[ref].minutes,
+                                      folder_id: folderId })
+      : postJSON("/api/saved/" + encodeURIComponent(ref) + "/move", { folder_id: folderId });
+    return req.then(function(){
+      var name = folderName(kind, folderId);
+      toast(folderId ? "Moved to " + (name || "the folder") : "Taken out of the folder");
+      reloadShelf(kind);
+    }).catch(function(e){ toast(e.message); });
+  }
+  function chooseFolderFor(kind, ref){
+    var row = kind === "vibe" ? myVibes[ref] : savedItem(ref);
+    if(!row) return;
+    var items = [{ group: "Put this episode in a folder" }];
+    (shelfFolders[kind] || []).forEach(function(f){
+      items.push({ label: (row.folder_id === f.id ? "\u2713 " : "") + escapeHtml(f.name),
+                   action: function(){ fileInFolder(kind, ref, f.id); } });
+    });
+    if(row.folder_id) items.push({ label: "No folder", action: function(){ fileInFolder(kind, ref, ""); } });
+    items.push({ label: "+ New folder", action: function(){
+      newShelfFolder(kind, function(folder){
+        shelfFolders[kind] = (shelfFolders[kind] || []).concat([folder]);
+        fileInFolder(kind, ref, folder.id);
+      });
+    } });
+    showActionSheet(items);
+  }
+
   function savedItem(id){
     return (savedCache.items || []).filter(function(i){ return i.id === id; })[0];
   }

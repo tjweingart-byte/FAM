@@ -1309,10 +1309,13 @@ __WRITING_SIM__
       var mine = rows("echoes").filter(function (e) { return e.user_id === UID; })
         .sort(function (a, b) { return b.at - a.at; });
       var who = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
-      return json({ count: mine.length, vibes: mine.map(function (e) {
+      var vfiles = window.__famVibeFiles || {};
+      return json({ count: mine.length, folders: window.__famVibeFolders || [],
+                    vibes: mine.map(function (e) {
         return { id: e.id, query: e.query, title: e.title, minutes: e.minutes,
                  thread: e.thread || "", at: e.at,
-                 by: who.name || "", handle: who.handle || "" };
+                 by: who.name || "", handle: who.handle || "",
+                 folder_id: vfiles[e.query + "|" + (e.minutes || 0)] || "" };
       }) });
     }
 
@@ -1781,9 +1784,45 @@ __WRITING_SIM__
       if (!already) shelf.items.unshift(item);
       return json({ ok: true, saved: true, item: item });
     }
+    // Folders on both shelves (after §161): the saved shelf's live in its
+    // fixture, the vibe shelf's here, and a vibe's folder is keyed on the
+    // episode as the server keys it.
+    if (!window.__famVibeFolders) { window.__famVibeFolders = []; window.__famVibeFiles = {}; }
+    var VFOLD = window.__famVibeFolders, VFILE = window.__famVibeFiles;
+    var recount = function () {
+      var sv = FIXTURES["/api/saved"];
+      (sv.folders || []).forEach(function (f) {
+        f.items = sv.items.filter(function (i) { return i.folder_id === f.id; }).length; });
+      VFOLD.forEach(function (f) {
+        f.items = Object.keys(VFILE).filter(function (k) { return VFILE[k] === f.id; }).length; });
+    };
+    if (path === "/api/vibes/file" && method === "POST") {
+      var vf = body;
+      if (vf.folder_id && !VFOLD.some(function (f) { return f.id === vf.folder_id; }))
+        return json({ error: "No such folder." }, 400);
+      var vkey = vf.query + "|" + (vf.minutes || 0);
+      if (vf.folder_id) VFILE[vkey] = vf.folder_id; else delete VFILE[vkey];
+      recount();
+      return json({ ok: true, folder_id: vf.folder_id || "" });
+    }
+    if (path.indexOf("/api/saved/folders/") === 0) {
+      var fid = path.split("/")[4];
+      var inSaved = FIXTURES["/api/saved"].folders;
+      var list = inSaved.some(function (f) { return f.id === fid; }) ? inSaved : VFOLD;
+      var fold = list.filter(function (f) { return f.id === fid; })[0];
+      if (method === "DELETE") {
+        if (fold) list.splice(list.indexOf(fold), 1);
+        FIXTURES["/api/saved"].items.forEach(function (i) { if (i.folder_id === fid) i.folder_id = ""; });
+        Object.keys(VFILE).forEach(function (k) { if (VFILE[k] === fid) delete VFILE[k]; });
+        recount();
+        return json({ ok: true });
+      }
+      if (fold) fold.name = body.name || fold.name;
+      return json({ ok: true, folder: fold || null });
+    }
     if (path === "/api/saved/folders" && method === "POST") {
       var folder = { id: "fld_" + rid(), name: body.name, created: now(), items: 0 };
-      FIXTURES["/api/saved"].folders.push(folder);
+      (body.kind === "vibe" ? VFOLD : FIXTURES["/api/saved"].folders).push(folder);
       return json({ ok: true, folder: folder });
     }
     if (path.indexOf("/api/saved/") === 0) {
@@ -1791,6 +1830,7 @@ __WRITING_SIM__
       var sid = bits[3], verb = bits[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === sid; })[0];
+      if (verb === "move" && found) { found.folder_id = body.folder_id || ""; recount(); }
       if (verb) return json({ ok: true, item: found || null });
       if (method === "DELETE") {
         var at = shelf2.items.indexOf(found);
