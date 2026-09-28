@@ -8,7 +8,7 @@ does not drift or re-litigate them.
 
 This is the **core**: every rule, one or two lines each, loaded every session.
 The reasoning, history and exact wording behind each rule live in
-`docs/claude/*.md`, moved there verbatim (PROBLEMS.md §167). Every line below
+`docs/claude/*.md`, moved there verbatim (PROBLEMS.md §168). Every line below
 ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **Read the full text before changing anything a rule covers**, and before

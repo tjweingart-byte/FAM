@@ -1,6 +1,6 @@
 """CLAUDE.md is a core of one line per rule; docs/claude/ holds the rest.
 
-The split (PROBLEMS.md §165) is only safe while every rule in the topic files
+The split (PROBLEMS.md §168) is only safe while every rule in the topic files
 still has its line in the core. A rule that exists only in a file nobody loads
 is a rule nobody follows, and nothing would fail - so the IDs are compared in
 both directions here rather than trusted.

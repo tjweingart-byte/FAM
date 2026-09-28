@@ -170,4 +170,5 @@ and `limit` = Lines.
 | 12851 | 55 | 164. A Paint run that stops leaves nothing on the page |
 | 12906 | 81 | 165. The 28/09 packet: names said right, heard words corrected, View more refreshed |
 | 12987 | 47 | 166. Tile pictures in the owner's look: watercolour, from reference pictures |
-| 13034 | 34 | 167. CLAUDE.md was 186 KB, loaded into every session and every subagent |
+| 13034 | 37 | 167. Tile pictures: no pale border, deeper colour, today's equipment |
+| 13071 | 34 | 168. CLAUDE.md was 186 KB, loaded into every session and every subagent |

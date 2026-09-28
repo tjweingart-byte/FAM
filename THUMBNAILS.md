@@ -17,6 +17,7 @@ category tree node        e.g. sports > american football > college football
    ├─ 2. Gemini 3.1 Flash Image paints it, shown the reference
    │     pictures in thumbnail_style/ as the look to match      (~$0.067/image)
    ├─ 3. Claude looks at the result: logo? text? a face? real product?
+   │     pale border? obsolete equipment?
    │     on-subject? Any failure → paint again (up to 3 times)  (~$0.004/check)
    └─ 4. Cropped to 480×360 WebP (~30 KB) and stored in thumbnails.db
          clean + generic subject      → live
@@ -39,23 +40,37 @@ sweep, when `THUMBNAILS=1`), from `/admin/thumbnails`, or from
 
 ## The look
 
-Vintage watercolour and gouache on cream paper - sunlit, mid-century travel
-and leisure, a palette of sky blue, racing green, clay red and ochre - chosen
-by the owner from reference pictures (PROBLEMS.md §166). Two things carry it:
+A vintage-style watercolour of a **present-day** scene: mid-century
+brushwork, ink linework and strong sun, fairly deep saturated colour (racing
+green, deep sky blue, clay red, ochre, warm grey asphalt), painted edge to
+edge. The objects in it are today's - current sports gear, stadiums, phones,
+laptops - never an old radio or a wooden racket standing in for the topic.
+Chosen by the owner from reference pictures (PROBLEMS.md §166, §167).
 
-- **The pictures in `thumbnail_style/`**, sent with every Gemini request
-  ahead of the scene, with an instruction to take their medium, palette and
-  light and not their subjects. This is the strong lever. Up to three are
-  sent (sorted by file name); `THUMBNAILS_STYLE_DIR` points elsewhere, `0`
-  sends none.
+What carries it:
+
+- **The picture in `thumbnail_style/`**, sent with every Gemini request
+  ahead of the scene, with an instruction to take its medium, colour depth
+  and light and not its subjects or period objects. This is the strong
+  lever. Up to three are sent (sorted by file name); `THUMBNAILS_STYLE_DIR`
+  points elsewhere, `0` sends none. Today it is one: the owner's airport
+  watercolour, cropped to the terminal, tarmac and car, with the sign cut
+  away and the bonnet crest painted out.
 - **`HOUSE_STYLE`** in `thumbnails.py`, the same look in words, appended to
   every scene.
+- **The scene writer** is told contents are modern and given a list of
+  obsolete stand-ins it may not use.
+- **The checker** fails a picture with a pale border or faded edges, or
+  with obsolete equipment as its subject, and it is painted again.
+- **The resize trims unpainted paper** off any edge before the 4:3 crop -
+  a strip that is bright *and* grey, so a pale blue sky is kept.
 
 **To change the look, change the pictures first.** A reference must have no
 text, sign, logo, crest, signature, recognisable product or detailed face -
 the image model copies what it is shown, and the checker then throws the
-result away at a paid attempt each. Crop them out. Use pictures you own or
-generated yourself; a reference ships in the image.
+result away at a paid attempt each. A light or pastel reference makes light
+pictures, and one with paper showing at its edges invites a border. Use
+pictures you own or generated yourself; a reference ships in the image.
 
 Small anonymous figures, seen from behind or far off, are part of the look.
 A face drawn with features, a crowd, team kit or anybody who could be a real

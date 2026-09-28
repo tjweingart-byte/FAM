@@ -173,7 +173,7 @@
     }
     $("grid").innerHTML = rows.map(function (t) {
       var ck = t.check || {}, chips = [];
-      ["logo", "text", "person", "identifiable_product"].forEach(function (k) {
+      ["logo", "text", "person", "identifiable_product", "border", "obsolete"].forEach(function (k) {
         if (k in ck) chips.push('<span class="chip ' + (ck[k] ? "bad" : "ok") + '">' + (ck[k] ? "" : "no ") + k.replace("_", " ") + '</span>');
       });
       if (t.flagged) chips.push('<span class="chip flag">names a real thing</span>');

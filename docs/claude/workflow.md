@@ -1,6 +1,6 @@
 # Shipping, picking up a session, and the environment
 
-> Moved verbatim from `CLAUDE.md` (2026-09-28, PROBLEMS.md §167). `CLAUDE.md`
+> Moved verbatim from `CLAUDE.md` (2026-09-28, PROBLEMS.md §168). `CLAUDE.md`
 > keeps one line per rule and loads every session; this file keeps the
 > reasoning and history and is read on demand. Each rule starts at a
 > `<!-- rule:ID -->` marker, and `CLAUDE.md` cites the same ID in brackets -
@@ -191,7 +191,10 @@ branch of the category tree, scenes written with no names in them and every
 result checked by Claude for logos and people, `THUMBNAILS.md` for setup; and **§166**, those pictures in the owner's
 look - vintage watercolour, carried by reference pictures in
 `thumbnail_style/` sent with every Gemini request, with small anonymous
-figures now allowed; and **§161**, the 27/09 packet - reference_3 shown as
+figures now allowed; and **§167**, the same pictures full-bleed, deeper
+in colour and of present-day equipment - one darker reference, a checker
+that fails a border or an obsolete object, and paper trimmed off the edges;
+and **§161**, the 27/09 packet - reference_3 shown as
 "Ian" and the voice bank managed on /admin, numbers and abbreviations
 rewritten as spoken before the voice (`spoken_text.py`), "not interested"
 and save on every myFAM card, /admin signing in on every load, the app's

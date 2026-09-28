@@ -1,6 +1,6 @@
 # Settled constraints
 
-> Moved verbatim from `CLAUDE.md` (2026-09-28, PROBLEMS.md §167). `CLAUDE.md`
+> Moved verbatim from `CLAUDE.md` (2026-09-28, PROBLEMS.md §168). `CLAUDE.md`
 > keeps one line per rule and loads every session; this file keeps the
 > reasoning and history and is read on demand. Each rule starts at a
 > `<!-- rule:ID -->` marker, and `CLAUDE.md` cites the same ID in brackets -
