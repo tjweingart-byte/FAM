@@ -12546,6 +12546,77 @@ after, the count run out searches once with the words said, and pressing the
 button searches once with no second search when the count would have ended.
 Not tried on a real phone.
 
+## 160. Tile pictures, one per branch of the category tree
+
+**What was asked.** Replace the line icons on episode covers with generated
+pictures - one per branch of the category tree, applied to every episode
+under it - with the broad category (SPORTS, TECH, MONEY) as the one word on
+the picture. Imagen 4 was chosen after comparing it with GPT Image 2,
+Ideogram 3, Recraft and Flux, and the deciding factor was keeping logos and
+people out.
+
+**Why a branch and not an episode.** The cost is then the size of the
+vocabulary (188 nodes at seed, ~$12.70 to paint once) rather than the number
+of episodes, and two listeners looking at the same subject see the same
+picture - the script cache's shared-inventory argument, applied to pictures.
+
+**How logos and people are kept out, in the order the levers work.** No model
+has a logo switch, and logos appear because a prompt names a brand. So (1)
+Claude rewrites each node's path into a scene with every team, league,
+company, product, person and country name removed, and a code-side check
+refuses to paint a flagged subject's scene that repeats its name; (2) Imagen
+runs with `personGeneration: "dont_allow"`, the one hard off switch for
+people among the candidates; (3) Claude inspects every result for a logo,
+text, a person or an identifiable product, and anything flagged is painted
+again, up to three times, and never stored as live. A picture whose subject
+is itself a real named thing waits for a person at `/admin/thumbnails`
+(`THUMBNAILS_REVIEW=flagged`), and a picture the checker could not inspect
+waits too - unchecked is not clean.
+
+**Imagen 4's cost in prompt work, paid once.** It takes no negative prompt
+and no style reference, so `HOUSE_STYLE` is the whole of the consistency
+across two hundred pictures and describes exclusions as what the picture *is*
+("plain unmarked surfaces") rather than what it is not.
+
+**The read path.** `Topic.as_dict` asks `thumbnails.pick`, which reads an
+in-process map of approved nodes and the tree's `match` - no database open,
+no model call, memoised on the tree's and the store's generation. The deepest
+node with a live picture wins; `match` already returns ancestors, so a node
+in review falls back to its parent without a second rule. With no store on
+disk it returns nothing and the tile draws the old icon underneath, which is
+also what shows if the image fails to load. The label on a tile with a
+picture is the picture's own facet, so word and image agree.
+
+**The write path.** Background only: after the two-hourly category sweep when
+`THUMBNAILS=1`, from `/admin/thumbnails`, or `tools/thumbnails.py`. Broadest
+first, inside a rolling daily image ceiling, one run at a time per process,
+never raising. A key or billing problem stops at the first attempt rather
+than spending three; a filtered result (Imagen returns no image rather than
+an error) is retried. Spend is recorded per image requested.
+
+**Not verified.** No Gemini key here, so no picture has been painted or seen.
+The request follows Google's published `:predict` shape, and every branch of
+the loop is tested with fakes (`tests/test_thumbnails.py`).
+
+**Found in review before merging, and fixed.** Three things the first commit
+got wrong. (1) A Repaint of a live picture replaced it outright: a repaint
+that failed stored no image, and one that needed approval stored the new
+picture as the row's only picture - either way tiles fell back to the parent
+until somebody acted, and a rejected repaint lost the old picture for good.
+A repaint now either goes live, waits *beside* the live picture
+(`pending_image`, approved or dropped from `/admin/thumbnails`), or only
+counts its attempts. (2) The approved map was reloaded only by the process
+that wrote, so pictures painted or approved from `tools/thumbnails.py` - the
+documented way to seed the tree - never reached a running server until it
+restarted; reads now check `PRAGMA data_version` at most every 30 seconds.
+(3) Any non-filtered Imagen error stopped the run without recording the
+node, so one prompt Imagen refused with a 400 sat first in a deterministic
+queue and stopped every run after it. A 400 now fails its own node; only a
+key, billing, quota or outage stops a run. Smaller: the daily ceiling is
+checked per image rather than per node, image resizing runs off the event
+loop, and the admin Paint button says when there is nothing to paint instead
+of reporting a run that never happens.
+
 ## 161. The 27/09 packet: ten changes
 
 Ten items from the owner, in the packet's order.

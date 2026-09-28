@@ -62,6 +62,10 @@ DELIBERATELY_OPTIONAL = {
     # autocorrect.py logs that it is unavailable, passes every word through
     # unchanged, and /api/spell answers `available: false` (§142).
     "spellchecker": "declared as pyspellchecker; autocorrect.py says so when absent",
+    # Declared - as `Pillow`, which imports as `PIL`. And safe to be missing:
+    # thumbnails.py stores the painted picture uncropped and logs that it did
+    # (§160).
+    "PIL": "declared as Pillow; thumbnails.py says so when absent",
     # diagnose_api.py reports which HTTP libraries are present. Both imports
     # are inside try/except and their absence IS the diagnostic output.
     "h2": "diagnose_api.py reports its absence rather than needing it",

@@ -89,6 +89,7 @@ ENV CACHE_PATH=/data/scripts.db \
     VOICE_BANK_DB=/data/voice_bank.db \
     CATEGORIES_DB=/data/categories.db \
     TRENDING_BANK_DB=/data/trending_bank.db \
+    THUMBNAILS_DB=/data/thumbnails.db \
     PORT=8000
 RUN mkdir -p /data
 

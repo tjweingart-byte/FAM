@@ -619,6 +619,59 @@ class Settings:
     # asking about now rather than what they asked a year ago.
     categories_window_days: int = _env_int("CATEGORIES_WINDOW_DAYS", 45)
 
+    # --- Thumbnails: one picture per branch of the category tree (§160) ---
+    #
+    # Whether the background sweep paints pictures for nodes that have none.
+    # Off by default, like every other thing here that spends money on its
+    # own: serving a picture that exists costs nothing and is always on, and
+    # `tools/thumbnails.py` or `/admin/thumbnails` can paint with this off.
+    thumbnails: bool = field(
+        default_factory=lambda: os.environ.get("THUMBNAILS", "0")
+        not in ("0", "false", "False", ""))
+    # Google AI Studio key for Imagen 4. `GOOGLE_API_KEY` is accepted as well
+    # because it is what Google's own tools write.
+    gemini_api_key: str = field(
+        default_factory=lambda: (os.environ.get("GEMINI_API_KEY", "")
+                                 or os.environ.get("GOOGLE_API_KEY", "")).strip())
+    # Standard, not Fast or Ultra: Fast is less consistent across a set of
+    # pictures meant to look like one family, and Ultra costs half as much
+    # again for a picture shown at 150px.
+    thumbnails_image_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "THUMBNAILS_IMAGE_MODEL", "imagen-4.0-generate-001"))
+    # The list price of one image from that model, for the spend record.
+    thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.04)
+    # The model that writes scenes and checks pictures for logos and people.
+    thumbnails_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "THUMBNAILS_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    # Its list prices, per million tokens, for the spend record.
+    thumbnails_claude_input_per_mtok: float = _env_float(
+        "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 2.0)
+    thumbnails_claude_output_per_mtok: float = _env_float(
+        "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 10.0)
+    # How many paintings a node gets before it is marked failed.
+    thumbnails_attempts: int = _env_int("THUMBNAILS_ATTEMPTS", 3)
+    # What `tools/thumbnails.py plan` budgets per node.
+    thumbnails_expected_attempts: float = _env_float(
+        "THUMBNAILS_EXPECTED_ATTEMPTS", 1.5)
+    # The ceiling on images requested per rolling day, across the deployment.
+    # A new node waits for tomorrow rather than a runaway spending tonight.
+    thumbnails_daily_images: int = _env_int("THUMBNAILS_DAILY_IMAGES", 60)
+    # How many nodes one background sweep paints.
+    thumbnails_per_sweep: int = _env_int("THUMBNAILS_PER_SWEEP", 20)
+    # Nodes per scene-writing call.
+    thumbnails_writer_batch: int = _env_int("THUMBNAILS_WRITER_BATCH", 25)
+    thumbnails_timeout_seconds: float = _env_float(
+        "THUMBNAILS_TIMEOUT_SECONDS", 60.0)
+    # Which clean pictures still wait for a person: `flagged` holds the ones
+    # whose subject is a real named thing (a team, a company), `all` holds
+    # every one, `none` publishes on the checker's word alone.
+    thumbnails_review: str = field(
+        default_factory=lambda: os.environ.get("THUMBNAILS_REVIEW", "flagged")
+        if os.environ.get("THUMBNAILS_REVIEW", "flagged") in ("flagged", "all", "none")
+        else "flagged")
+
     # How far a price has to move before it is worth an episode. A market
     # where nothing moved more than a percent has no story in it, and offering
     # one anyway is how a browse page fills with tiles nobody wants.

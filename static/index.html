@@ -1309,6 +1309,14 @@
   .seed-card .seed-tag{ position:absolute; left:12px; bottom:9px;
     font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.1em;
     text-transform:uppercase; color:#5a5347; }
+  /* A generated picture over the drawing (§160). The label sits on a cream
+     chip so it reads over any picture, in the same face as before. */
+  .seed-thumb .seed-img{ position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; display:block; }
+  .seed-thumb.has-img .seed-tag{ z-index:1; left:9px; bottom:8px;
+    background:rgba(237,230,214,0.92); color:#2A2530; padding:3px 6px 2px;
+    border-radius:4px; }
+  .seed-thumb .sec-ready{ z-index:1; }
   /* Two lines, clamped, so a rail's cards are one height whatever their
      hooks are. `startup.MAX_HOOK` is the other half of this: a clamp is the
      one failure that hides itself, so the budget is asserted on the strings
@@ -8680,6 +8688,24 @@
   }
 
 
+  // **The picture on a tile** (§160): one per branch of the category tree,
+  // chosen by the server and sent as `thumb`. The drawing is still drawn
+  // underneath it, so a picture that fails to load - an old cache, a network
+  // blip - leaves the tile exactly as it was rather than blank.
+  function seedThumbOpen(t){
+    var img = (t && t.thumb)
+      ? '<img class="seed-img" src="' + escapeHtml(t.thumb) + '" alt="" loading="lazy"'
+        + ' decoding="async" onerror="seedImgFailed(this)">'
+      : '';
+    return '<div class="seed-thumb' + (img ? ' has-img' : '') + '">'
+      + seedThumbSVG(t && t.icon) + img;
+  }
+  function seedImgFailed(el){
+    var box = el.parentNode;
+    if(box) box.classList.remove("has-img");
+    el.remove();
+  }
+
   function seedThumbSVG(type){
     var squiggle = '<path d="M-10 90 Q35 25 75 65 T170 35" fill="none" stroke="#2A2530" stroke-width="1.5" opacity="0.22"/>';
     var icons = {
@@ -8817,6 +8843,9 @@
   // rail says the subject. A tile with no geography falls back to the subject.
   function seedTagText(sectionKey, topic){
     if(sectionKey === "world_trending" && topic && topic.geo) return topic.geo;
+    // A tile with a picture is labelled with the picture's own facet, so the
+    // word and the image always agree about what the episode is (§160).
+    if(topic && topic.thumb && topic.thumb_facet) return topic.thumb_facet;
     return (topic && topic.tags && topic.tags[0]) ? topic.tags[0] : "";
   }
 
@@ -8961,7 +8990,7 @@
         myFamTopics[t.id] = t;
         var tag = seedTagText(sec.key, t);
         return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startBankTopic(\'' + t.id + '\')">'
-          + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
+          + seedThumbOpen(t)
           + seedActsHtml(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
           // Already written, so it starts instantly and costs nothing to
@@ -9077,7 +9106,7 @@
       if(hiddenTiles[t.id]) return "";
       var tag = seedTagText(d.key, t);
       return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
-        + '<div class="seed-thumb">' + seedThumbSVG(t.icon) + seedActsHtml(t)
+        + seedThumbOpen(t) + seedActsHtml(t)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
         + (t.cached ? '<span class="sec-ready">ready</span>' : '')
         + '</div>'
