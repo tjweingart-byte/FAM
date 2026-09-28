@@ -2092,9 +2092,12 @@ async def person_profile(request: Request,
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
+        # Only the last 24 hours: a vibe is a story, and a story comes down
+        # after a day (the 27/09 packet). `vibe_count` is still the total.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
                        topic=_topic_label(e.query, e.title))
-                  for e in SOCIAL.echoes_by(target, limit=12)],
+                  for e in SOCIAL.echoes_by(target, limit=12)
+                  if time.time() - e.at <= CIRCLE_VIBE_WINDOW],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
         "interests": interests,
         "interest_labels": [row["label"] for row in shown],
@@ -4055,6 +4058,40 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
                                 and _audio_is_kept(tile.get("query", ""), minutes))
 
 
+import startup
+
+
+def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
+    """A startup tile that has been written is called what it turned out to
+    be about (the 27/09 packet).
+
+    A startup tile is a question asked before anything is retrieved -
+    "this week's biggest storylines in sports" - so its own title cannot name
+    a subject, and on a card that reads as vague. Once somebody's tap has
+    written the episode, the cache holds the model's `<<TITLE:>>` and
+    `<<SUMMARY:>>` for it, and those name the actual story; the card takes
+    them. Only startup tiles: a bank tile's title is its own and is never
+    replaced (§104), and a live story's was composed from the story itself.
+    Two local reads per written tile, never a model call.
+    """
+    for tile in tiles:
+        if not tile.get("cached") or not str(tile.get("id", "")).startswith(
+                startup.ID_PREFIX):
+            continue
+        try:
+            key = _episode_key(_validated_plan(tile.get("query", ""), minutes))
+            title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
+            summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
+                       if title else "")
+        except Exception:  # noqa: BLE001 - a card's name is never worth a 500
+            log.exception("could not name a written startup tile")
+            continue
+        if title:
+            tile["title"] = title
+            if summary:
+                tile["angle"] = summary
+
+
 def _audio_is_kept(query: str, minutes: int) -> bool:
     """Whether any voice's audio for this episode is kept beside its script.
     A read, and only a read - see `ScriptCache.has_any_audio`."""
@@ -4140,6 +4177,9 @@ async def myfam_section(request: Request,
     # groups. A listener on this screen is browsing, and an episode that
     # starts instantly is a better thing to put in front of them than one
     # three places higher that has to be written first.
+    _name_written_tiles(body["topics"], minutes)
+    for group in body.get("groups", ()):
+        _name_written_tiles(group["topics"], minutes)
     body["topics"].sort(key=lambda t: not t["cached"])
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
@@ -4383,6 +4423,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     for section in feed["sections"]:
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
+        _name_written_tiles(section["topics"], minutes)
     feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
@@ -4603,13 +4644,15 @@ async def profile(request: Request):
     return body
 
 
-#: How recent a friend's vibe has to be for their avatar to carry the VIBE
-#: badge on YourFAM. A week, the same window "What you missed last week" uses:
-#: a badge that stayed up for a vibe from March would stop meaning anything.
-CIRCLE_VIBE_WINDOW = 7 * 24 * 3600
-#: And the gold ring - "something new from this person" - is narrower: a vibe
-#: in the last two days, or a message you have not read yet.
-CIRCLE_FRESH_WINDOW = 2 * 24 * 3600
+#: How long a vibe is a story. A friend's avatar on YourFAM carries the VIBE
+#: badge, and tapping it plays their vibes like stories, for 24 hours after
+#: each one and not a minute longer (the 27/09 packet, at the owner's
+#: direction - it was a week, and a badge that outlives its story is a badge
+#: that opens nothing).
+CIRCLE_VIBE_WINDOW = 24 * 3600
+#: The gold ring - "something new from this person" - is the same day: a vibe
+#: still up as a story, or a message you have not read yet.
+CIRCLE_FRESH_WINDOW = CIRCLE_VIBE_WINDOW
 CIRCLE_MAX = 12
 
 
@@ -4636,6 +4679,8 @@ def _circle_row(user: str) -> list[dict]:
         return []
     now = time.time()
     latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
+    stories = SOCIAL.stories_among([p["user_id"] for p in people],
+                                   now - CIRCLE_VIBE_WINDOW)
     unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
     friends = {p["user_id"] for p in SOCIAL.friends(user)}
     out = []
@@ -4651,6 +4696,9 @@ def _circle_row(user: str) -> list[dict]:
             "vibed": bool(vibed_at) and now - vibed_at <= CIRCLE_VIBE_WINDOW,
             "fresh": (uid in unread
                       or (bool(vibed_at) and now - vibed_at <= CIRCLE_FRESH_WINDOW)),
+            # Their vibes of the last 24 hours, oldest first: what tapping
+            # the face plays, story by story.
+            "stories": stories.get(uid, []),
         })
     return out
 

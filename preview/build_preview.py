@@ -944,7 +944,14 @@ __WRITING_SIM__
                    avatar: p.avatar || "", friend: g.friends.some(function (f) {
                      return f.user_id === p.user_id; }),
                    vibed: p.user_id === "u_beth",
-                   fresh: p.user_id === "u_beth" || !!self.unread[p.user_id] });
+                   fresh: p.user_id === "u_beth" || !!self.unread[p.user_id],
+                   // Beth's vibes of the last 24 hours, as stories.
+                   stories: p.user_id === "u_beth" ? [
+                     { query: "why the fed held rates in september", minutes: 2, thread: "",
+                       title: "Why the Fed Held Rates", at: Date.now() / 1000 - 5 * 3600 },
+                     { query: "what the eagles changed on offense", minutes: 2, thread: "",
+                       title: "What the Eagles Changed on Offense", at: Date.now() / 1000 - 40 * 60 }
+                   ] : [] });
       });
       return out;
     },

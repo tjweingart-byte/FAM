@@ -218,3 +218,28 @@ def test_edit_profile_never_replaces_topics_with_a_list_it_never_loaded():
     body = page[start:page.index("\n  }\n", start)]
     assert "Array.isArray(PREF_CHOICES.topics)" in body
     assert "PREF_CHOICES.topics) || []" not in body
+
+
+def test_a_friends_vibes_are_stories_for_24_hours(client, monkeypatch):
+    """27/09 packet: a face with the VIBE badge plays that friend's vibes
+    like stories, oldest first, and a vibe comes down after 24 hours - off
+    the avatar row and off their public profile."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    beth = TestClient(appmod.app)
+    with beth:
+        her = signed_in(beth, "beth@b.com", "Beth", "beth")
+        beth.post("/api/vibe", json={"query": "why bonds move", "minutes": 2, "title": "Bonds"})
+        beth.post("/api/vibe", json={"query": "what the eagles changed", "minutes": 2,
+                                     "title": "Eagles"})
+    client.post("/api/friends/follow", json={"user_id": her})
+
+    row = client.get("/api/profile").json()["circle"][0]
+    assert row["vibed"] and [s["title"] for s in row["stories"]] == ["Bonds", "Eagles"]
+    assert len(client.get("/api/person", params={"handle": "beth"}).json()["vibes"]) == 2
+
+    later = appmod.time.time() + appmod.CIRCLE_VIBE_WINDOW + 60
+    monkeypatch.setattr(appmod.time, "time", lambda: later)
+    row = client.get("/api/profile").json()["circle"][0]
+    assert not row["vibed"] and not row["fresh"] and row["stories"] == []
+    person = client.get("/api/person", params={"handle": "beth"}).json()
+    assert person["vibes"] == [] and person["vibe_count"] == 2

@@ -611,5 +611,13 @@ window.FamAudio = (function () {
     isActive: function () { return active; },
     // True once the whole episode has been received.
     isComplete: function () { return streamDone; },
+    // The whole episode as received, once it has all arrived - what the
+    // offline shelf keeps on this device (27/09 packet). A copy, so the
+    // stored samples cannot change under the player or the other way round.
+    // Null until the stream is done: half an episode is never kept.
+    whole: function () {
+      if (!streamDone || !pcm || !totalSamples) return null;
+      return { rate: sampleRate, samples: pcm.slice(0, totalSamples) };
+    },
   };
 })();

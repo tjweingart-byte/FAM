@@ -1035,9 +1035,12 @@ the rest of this list it needs taste rather than a key.
   forward on each *play* - never on a look - up to `CACHE_MAX_AGE_SECONDS`, so a popular episode
   keeps its audio; a re-write with identical words keeps the audio; and a
   near match with kept audio does not wake the GPU. `AUDIO_CACHE=0` restores re-synthesis on
-  every play exactly. Downloads - audio in the listener's own IndexedDB -
-  are still **removed**, and `saved.py` still holds pointers and only
-  pointers.
+  every play exactly. Downloads as a *button* are still **removed**, and
+  `saved.py` still holds pointers and only pointers - **but the device now
+  keeps what it finished** *(§160, at the owner's direction)*: an episode
+  whose whole stream arrived is kept as raw PCM in the page's IndexedDB
+  (`OfflineShelf`, bounded, emptied on log-out), so it plays offline, and
+  `static/sw.js` keeps the app shell. Still no audio file and no MP3.
 - **Duration is a ceiling, not a quota.** *(Revised.)* The selected length still
   caps the episode and over-runs are trimmed, but a script that runs out of
   substance now ends early instead of being padded. Enforcing the number in both
@@ -1853,7 +1856,8 @@ the rest of this list it needs taste rather than a key.
   VIBE! and drawn the same way, by a `data-save` sweep rather than a list of
   ids, which is the mistake that once left the main player with no vibe
   button at all.
-  **Download is gone**, and gone rather than switched off: the endpoints, the
+  **Download is gone** as a control *(§160 brought offline listening back
+  automatically, with no button - see the audio constraint above)*, and gone rather than switched off: the endpoints, the
   store methods, the tier field, the offline IndexedDB layer, the second view
   of the shelf and the Downloads tile. What it cost was the thing the shelf is
   for - pressing save raised a question instead of saving. Its three columns
@@ -2506,7 +2510,13 @@ sources on two hours; and **§157**, the vocabulary sweep every two hours,
 and the finding that a game's subject has never reached the tree at all; and **§158**, "hey FAM" opening voice search,
 opt-in because it keeps the microphone open; and **§159**, voice search's
 send replaced by a "go now" Search now that counts down five seconds and an
-X that stops it),
+X that stops it; and **§160**, the 27/09 packet - reference_3 shown as
+"Ian" and the voice bank managed on /admin, numbers and abbreviations
+rewritten as spoken before the voice (`spoken_text.py`), "not interested"
+and save on every myFAM card, /admin signing in on every load, the app's
+descriptions rewritten for listeners, a sign-up screen that is the form,
+VIBE as 24-hour stories, startup cards named by the episode they became,
+and offline listening for finished episodes),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2533,12 +2543,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-eight** named smoke
+**twice** - once per preview build - and **eighty-one** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 78 as of §158,
+prose does not fail when somebody adds a behaviour. (It is 81 as of §160,
+which added a myFAM card being saved or waved off, a friend's vibes playing
+as stories, and offline fading what is not on the device. It was 78 as of §158,
 which added "Hey FAM" opening voice search. It was 77 as of §151,
 which added voice search hearing you and waiting for send. It was 76 as of §148,
 which added the loading screen checking off its five steps. It was 75 as

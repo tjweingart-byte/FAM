@@ -12545,3 +12545,111 @@ it": centred, at the bottom, filling, the X stops it and nothing searches
 after, the count run out searches once with the words said, and pressing the
 button searches once with no second search when the count would have ended.
 Not tried on a real phone.
+
+## 160. The 27/09 packet: ten changes
+
+Ten items from the owner, in the packet's order.
+
+**1-2. The bank of voices, and "Ian".** The bank itself was built in §147;
+what was missing was a way to manage it without a terminal. `/admin` now has
+a **Voice bank** card that lists every voice, adds one (a WAV, a label, an
+id, and the three rights boxes the server already checks) and removes one.
+The default recording, `reference_3`, is shown as **Ian** everywhere a
+listener sees a voice name (`voice_bank.REFERENCE_LABELS`), because the
+voice is a person and "FAM" is the product. A default recording not named
+there still reads "FAM".
+
+**3. Not interested, and save, on a myFAM card.** Every card on a rail and
+on View more carries two buttons over its picture: save for later (the same
+`/api/saved` pointer the player saves) and **not interested**. The second is
+a new event kind, `hide`: the tile is never offered again on any rail, View
+more, or the post-episode popup (`EventStore.hidden`, read in `build_feed`,
+`build_section` and `rank_next_up`, and read over the listener's whole
+history rather than `taste`'s last 400 events), and its tags take a small
+negative weight (`EVENT_WEIGHT["hide"] = -1.0`, below a skip - "not this
+one" is weaker evidence about a subject than walking out halfway). The
+player shows **not for me** while a myFAM episode plays; a search is
+something the listener asked for, so it does not. A guest's hide is not
+kept (§127), so the page remembers it for as long as it is open.
+
+**4. Numbers and abbreviations as they are said.** The voice read "612
+yards" digit by digit, a 10:00 kickoff as "one, zero, zero, zero", a 62-41
+record and a 37-14 final the same way, and pronounced abbreviations as
+words. The prompt already asked for numbers as a person says them; a model
+mostly obeys that, and a rule a model mostly obeys is not a rule. Chatterbox
+has no text normaliser, so **the fix is in code, not in Claude**:
+`spoken_text.speakable` rewrites the text handed to the voice - scores ("to"),
+records ("and", or "ten, six and one"), times ("ten o'clock", "seven thirty
+P M"), years, decades, money, percentages, ordinals, every other number as a
+cardinal, dotted and all-capital initialisms as letters ("N F L") unless
+people say them as a word ("NASA"). It is applied at the pipeline's two
+`engine.synth` calls and nowhere else, so the script, the captions, the
+title and the cache keep their digits and no cache key changes. It never
+raises: on a surprise the voice gets the text as it was. The prompt line was
+tightened in the same breath, inside `test_the_prompt_stays_lean`'s bound.
+**Unheard** - no voice here - and audio already kept (§132) keeps the old
+reading until its episode is re-voiced.
+
+**5. /admin asks every time.** Loading `/admin` ends whatever admin session
+the browser brought and deletes its cookie, and the sign-in cookie has no
+max-age, so the page always opens on the email and password form. A page
+restored from the back/forward cache signs out and shows the form too.
+
+**6. Every automated description, read again.** The circled sentences were
+written to be true about the system - "it costs nothing, because the script
+already exists", "a standing list of topics the server keeps for you",
+"nothing ready to replay has been played here yet" - and read as engineering
+notes. About forty were rewritten to say one thing to a listener, shortly.
+Three were not only wordy but **wrong since §127**: "signing up keeps the
+listening you have already done" and its two cousins, when a guest's
+listening has not been recorded since then.
+
+**7. Sign-up.** The screen opened on Google and Apple buttons that the web
+app cannot complete (they are the iOS app's) and hid the one working form
+behind a third button; it required a phone number the server has always
+treated as optional; and it ended on two warnings that a forgotten password
+is a lost account. Now: the form is the screen, the phone is marked
+optional, the password has Show/Hide, errors appear under the fields instead
+of only in a toast, the button says what it is doing, Enter submits, and
+"Already have an account? Log in" / "New to FAM? Sign up" switch between the
+two without losing where the listener came from. The password-reset caveat
+is one calm line. The welcome and identity copy was rewritten with it.
+
+**8. VIBE is a story, for 24 hours.** A friend's face on YourFAM carried the
+VIBE badge for a week and opened their profile. The badge and the gold ring
+now mean a vibe in the last 24 hours (`CIRCLE_VIBE_WINDOW`), the circle row
+carries each friend's vibes of that day (`SocialStore.stories_among`), and
+tapping the face plays them as stories: progress bars, tap right for the
+next and left for the previous, six seconds each, on to the next friend's
+when one runs out, **Play episode** and **View profile** on each. A ring goes
+grey once watched (per device, in localStorage). A person's public profile
+lists only the last day's vibes; the count is still the total.
+
+**9. Titles that say what the episode is.** "Why Everyone Is Watching This"
+and "The Argument in Sport Right Now" are startup tiles (§116) - questions
+asked before anything is retrieved, so they cannot name a subject. Two
+changes: their fallback titles now describe what the episode covers ("This
+Week's Biggest Storylines in Sports"), and **once the episode has been
+written, the card takes the episode's own `<<TITLE:>>` and `<<SUMMARY:>>`**
+from the cache (`app._name_written_tiles`), so after the first tap anybody
+makes, everybody sees what it turned out to be about. Only startup tiles: a
+bank tile's title is its own (§104) and a live story's was composed from the
+story.
+
+**10. Offline listening.** Possible, and built for the web app, **reversing
+"downloads are removed" at the owner's direction** - in a different shape
+from the download that was removed. Nothing is pressed: an episode heard
+until its whole stream has arrived is kept on the device (`OfflineShelf`,
+IndexedDB, the raw PCM the player already holds - still no audio file,
+still no MP3), up to forty episodes or 250 MB, least recently played out
+first, and emptied on log-out and on account deletion. A service worker
+(`static/sw.js`) keeps the app shell - `/`, `fam-audio.js` - network first,
+so the app opens with no connection; it never touches `/api/`. Offline, myFAM
+draws the last page it had, the cards whose episode is on the device at full
+brightness and the rest faded, with a line saying so; a faded card says it is
+not on the device when tapped. A play whose request fails for want of a
+network and whose episode is on the device plays from the device. **The
+iOS app is where this matters most and it is not built there**; the same
+shape (keep the whole PCM of a finished stream, key it on question, length
+and context) is what it should do. Not tried on a real phone or with the
+network actually cut.

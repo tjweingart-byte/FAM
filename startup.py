@@ -112,41 +112,41 @@ ID_PREFIX = "su-"
 #: the brief is what `episode_intelligence` resolves against and a question
 #: with no angle in it gets a shapeless one.
 STARTUP_TOPICS: tuple[StartupSpec, ...] = (
-    ("su-world", "The Week the World Just Had",
-     "One story from this week, from the beginning.",
+    ("su-world", "This Week's Biggest World Story, Explained",
+     "From the beginning, and why it matters now.",
      "the most consequential world news story of the past week, explained from "
      "the beginning and why it matters now",
      "world", "business"),
-    ("su-tech", "What Actually Shipped in AI",
+    ("su-tech", "The Biggest AI News, and What It Changes",
      "Past the announcements, to what changed.",
      "the most significant recent developments in artificial intelligence and "
      "what they actually change",
      "tech", "tech"),
-    ("su-sports", "The Argument in Sport Right Now",
-     "Walk in already knowing the argument.",
+    ("su-sports", "This Week's Biggest Storylines in Sports",
+     "What is really at stake, and who it hurts.",
      "the biggest storylines in professional sport right now and what is "
      "actually at stake in them",
      "sports", "sports"),
-    ("su-business", "The Bet a Big Company Just Made",
+    ("su-business", "A Big Company's Newest Bet, Explained",
      "Big bets are public. The thinking rarely is.",
      "a major strategic move a large company has made recently and the "
      "thinking behind it",
      "business", "business"),
-    ("su-money", "What the Market Is Actually Worried About",
+    ("su-money", "What Is Moving the Markets This Week",
      "Not the number. The thing behind it.",
      "what is moving markets right now and what investors are watching next",
      "money", "business"),
-    ("su-science", "What the Lab Actually Found",
+    ("su-science", "A New Scientific Finding, Explained",
      "One recent result, and what it doesn't prove.",
      "a significant recent scientific finding and what it actually establishes",
      "science", "rocket"),
-    ("su-health", "The New Health Advice, Weighed",
+    ("su-health", "New Health Research, and What It Shows",
      "The headline claimed more than the study.",
      "recent health research that changed what experts recommend, and what the "
      "evidence actually shows",
      "health", "leaf"),
-    ("su-culture", "Why Everyone Is Watching This",
-     "Why this, why now, why all at once.",
+    ("su-culture", "What Everyone Is Watching This Week",
+     "The show, film or moment, and why it caught on.",
      "what is capturing cultural attention right now and why it caught on",
      "culture", "camera"),
 )
@@ -179,7 +179,7 @@ STARTUP_TOPICS: tuple[StartupSpec, ...] = (
 LOCAL_ID = "su-local"
 
 LOCAL_TOPIC: StartupSpec = (
-    LOCAL_ID, "What Changed in {place}",
+    LOCAL_ID, "What Changed in {place} This Week",
     "The week where you actually live.",
     "what has changed recently in and around {place} and why it matters to "
     "people who live there",

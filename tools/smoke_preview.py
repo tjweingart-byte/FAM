@@ -942,7 +942,7 @@ def main() -> int:
             assert "Vibes" in body, "no vibes section on a friend's profile"
             # The line that has to stay true of this screen, whether or not
             # there is anything on it.
-            assert "no endpoint" in body, \
+            assert "stays private" in body, \
                 "the profile stopped saying what it deliberately does not know"
 
             # The rest is about what a *filled* profile shows, and needs
@@ -1097,8 +1097,10 @@ def main() -> int:
             this row was the odd one out."""
             page.evaluate("showScreen('player')")
             page.wait_for_timeout(300)
+            # "not for me" (27/09 packet) is only on a myFAM episode, so it
+            # is hidden here - a visible label is the one being counted.
             words = page.eval_on_selector_all(
-                "#screen-player .pc-row2 .pt-cap",
+                "#screen-player .pc-row2 .pt-icon:not([hidden]) .pt-cap",
                 "e => e.map(x => x.textContent.trim().toLowerCase())")
             assert words == ["share", "vibe", "save", "captions"], \
                 f"the player's icons are labelled {words}"
@@ -1602,9 +1604,12 @@ def main() -> int:
             assert page.eval_on_selector_all("#screen-playfam .locked-acts .pf-btn",
                                              "e => e.length") == 2, \
                 "the gate offered no way to sign up or log in"
+            # It says what a mix is for. It used to promise that signing up
+            # keeps the listening already done, which has not been true
+            # since a guest's listening stopped being recorded (§127, §160).
             text = page.text_content("#screen-playfam .locked-note").lower()
-            assert "start you over" in text, \
-                "the gate did not say signing up keeps what they already have"
+            assert "every day" in text and "account" in text, \
+                "the gate did not say what a mix is and that it needs an account"
 
         def signed_out():
             """Present as a guest without destroying the session.
@@ -2433,7 +2438,7 @@ def main() -> int:
             assert page.is_visible("#dailyResults") and not page.is_visible("#mixList"), \
                 "tapping the search bar did not swap the mixes for results"
             if not page.evaluate("publicResults.length"):
-                assert "Nobody has made a mix public yet" in page.inner_text("#dailyResults"), \
+                assert "No public mixes yet" in page.inner_text("#dailyResults"), \
                     page.inner_text("#dailyResults")[:200]
                 page.click("#dailySearchX")
                 return
@@ -3313,7 +3318,7 @@ def main() -> int:
             ), "the plans sheet does not say which plan they are on"
             # Said out loud, not discovered by tapping: there is no checkout.
             note = page.text_content("#plansList .plan-note") or ""
-            assert "not switched on yet" in note, (
+            assert "aren\u2019t available yet" in note, (
                 f"the plans sheet does not say upgrading is unavailable: {note!r}")
 
             page.evaluate("closePlans()")
@@ -3350,6 +3355,96 @@ def main() -> int:
             assert page.text_content("#reelTitle") != first, "swipe did not advance"
 
         print(f"smoke test: {target.name}")
+        def a_myfam_card_is_saved_or_waved_off():
+            """27/09 packet: every myFAM card carries Save for later and Not
+            interested. Pressing either does its job and does not play the
+            card; not interested takes the card off the page."""
+            ensure_account()
+            page.evaluate("openMyFamTab(); loadMyFamFeed()")
+            page.wait_for_selector("#myfamFeed .seed-card[data-topic] .tile-hide",
+                                   timeout=10000)
+            first = page.eval_on_selector(
+                "#myfamFeed .seed-card[data-topic]", "e => e.getAttribute('data-topic')")
+            page.click("#myfamFeed .seed-card[data-topic] .tile-save")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
+                "saving a card played it"
+            assert page.eval_on_selector(
+                "#myfamFeed .seed-card[data-topic] .tile-save",
+                "e => e.classList.contains('saved-on')"), "the save button did not light"
+            page.click("#myfamFeed .seed-card[data-topic] .tile-hide")
+            page.wait_for_timeout(600)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
+                "waving a card off played it"
+            left = page.eval_on_selector_all(
+                "#myfamFeed .seed-card[data-topic]",
+                "(els, id) => els.filter(e => e.getAttribute('data-topic') === id).length",
+                first)
+            assert left == 0, "the card waved off is still on the page"
+
+        def a_friends_vibes_play_as_stories():
+            """27/09 packet: a face with the VIBE badge plays that friend's
+            vibes of the last day as stories - bars, tap to advance, X."""
+            ensure_account()
+            page.evaluate("openProfile()")
+            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
+            page.wait_for_timeout(600)
+            # The live build's database has one listener in it, so nobody's
+            # vibes are there to play; the fixture build has Beth's two.
+            if not page.query_selector("#screen-profile .yf-friend .yf-vibe"):
+                assert page.evaluate("typeof openStory") == "function", \
+                    "the story viewer is missing"
+                return
+            page.click("#screen-profile .yf-friend:has(.yf-vibe)")
+            page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
+            bars = page.eval_on_selector_all("#storyBars .story-bar", "e => e.length")
+            assert bars == 2, f"{bars} story bars for two vibes"
+            first = page.text_content("#storyTitle").strip()
+            page.click("#storyOverlay .story-tap.right")
+            page.wait_for_timeout(200)
+            second = page.text_content("#storyTitle").strip()
+            assert first and second and first != second, "tapping right did not advance"
+            page.click("#storyOverlay .story-x")
+            page.wait_for_timeout(200)
+            assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \
+                "the X did not close the stories"
+            assert page.eval_on_selector(
+                "#screen-profile .yf-friend:has(.yf-vibe) .yf-ring",
+                "e => e.classList.contains('seen')"), "a watched ring did not go grey"
+
+        def offline_fades_what_is_not_on_the_device():
+            """27/09 packet: offline, a card whose episode is on this device
+            keeps full brightness and the rest are faded."""
+            ensure_account()
+            page.evaluate("openMyFamTab(); loadMyFamFeed()")
+            page.wait_for_selector("#myfamFeed .seed-card[data-topic]", timeout=10000)
+            kept = page.evaluate(
+                """() => {
+                    var card = document.querySelector('#myfamFeed .seed-card[data-topic]');
+                    var t = myFamTopics[card.getAttribute('data-topic')];
+                    return OfflineShelf.put(t.query, BROWSE_MINUTES, '', t.title,
+                        { rate: 22050, samples: new Int16Array(22050) })
+                      .then(function(){ return OfflineShelf.has(t.query, BROWSE_MINUTES, '')
+                                               ? card.getAttribute('data-topic') : ''; });
+                }""")
+            page.evaluate("setOffline(true)")
+            try:
+                faded = page.eval_on_selector_all(
+                    "#myfamFeed .seed-card.not-offline", "e => e.length")
+                total = page.eval_on_selector_all(
+                    "#myfamFeed .seed-card[data-topic]", "e => e.length")
+                assert faded > 0, "offline, nothing was faded"
+                assert not page.eval_on_selector("#offlineBar", "e => e.hidden"), \
+                    "offline, nothing said so"
+                if kept:
+                    assert faded < total, "the card on this device was faded too"
+                    assert page.eval_on_selector(
+                        f"#myfamFeed .seed-card[data-topic='{kept}']",
+                        "e => !e.classList.contains('not-offline')"), \
+                        "the card on this device was faded"
+            finally:
+                page.evaluate("setOffline(false); OfflineShelf.clear()")
+
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
         check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
@@ -3470,6 +3565,11 @@ def main() -> int:
         check("The mini bar offers no VIBE", the_mini_bar_offers_no_vibe)
         check("One transport for one episode", one_transport_for_one_episode)
         check("VIBE! state reaches every player", echo_state_reaches_every_player)
+        check("A myFAM card can be saved or waved off",
+              a_myfam_card_is_saved_or_waved_off)
+        check("A friend's vibes play as stories", a_friends_vibes_play_as_stories)
+        check("Offline fades what is not on the device",
+              offline_fades_what_is_not_on_the_device)
 
         if errors:
             failures.append(f"page errors: {errors}")

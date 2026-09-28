@@ -587,6 +587,36 @@ class SocialStore:
             return {}
         return {user_id: float(at or 0.0) for user_id, at in rows}
 
+    def stories_among(self, user_ids, since: float,
+                      per_person: int = 10) -> dict:
+        """user_id -> their vibes since `since`, oldest first, as stories.
+
+        YourFAM's avatar row plays a friend's vibes the way a story app plays
+        stories (the 27/09 packet): one after another, oldest first, and only
+        for 24 hours. Every vibe counts here - two friends vibing the same
+        episode are two stories - which is why this is not `echoes_among`.
+        """
+        ids = [str(u) for u in (user_ids or []) if u]
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, query, title, minutes, thread, at FROM echoes"
+                f" WHERE user_id IN ({marks}) AND at >= ? ORDER BY at ASC",
+                (*ids, float(since)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read the circle's stories")
+            return {}
+        out: dict = {}
+        for user_id, query, title, minutes, thread, at in rows:
+            out.setdefault(user_id, []).append(
+                {"query": query, "title": title or "", "minutes": int(minutes or 0),
+                 "thread": thread or "", "at": float(at)})
+        # The newest `per_person`, still oldest first.
+        return {uid: items[-per_person:] for uid, items in out.items()}
+
     # --- the follow graph -------------------------------------------------
 
     def follow(self, user_id: str, target_id: str, at: float = 0.0) -> bool:
