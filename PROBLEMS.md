@@ -12453,3 +12453,95 @@ put to the owner rather than built, because it widens what Made for you
 offers.
 
 `tests/test_story_refresh_156.py`.
+
+## 158. "Hey FAM" opens voice search
+
+**Asked for:** saying "hey FAM" or "what's up FAM" should bring up voice
+search, so the spoken path does not start with finding the mic under the box.
+
+**How it works.** A second `SpeechRecognition` listens in continuous mode
+with interim results and matches one pattern (`WAKE_PHRASE`: hey / hi /
+what's up / sup, then fam, pham or fahm as a whole word - "family" is not
+it). On a hit it aborts itself, switches to searchFAM if another tab is
+showing (voice search is drawn over searchFAM and its X promises to go back
+there), and calls `openVoiceSearch(rest)`, where `rest` is whatever followed
+the phrase in the same breath - "what's up fam who won the ryder cup" opens
+the screen with "who won the ryder cup" already in the words. Everything
+after that is §151 unchanged: listening adds to it, and **send is still the
+only thing that starts an episode.** The wake phrase never searches.
+
+**Off until asked for** (Settings > Listening > Say "Hey FAM" to search). It
+keeps the microphone open whenever FAM is on screen, and the browser's
+speech service hears all of it - Chrome sends it to Google, Safari to Apple -
+which is not a thing to switch on for somebody. The setting is per device in
+`fam.prefs`, like pitch lock, because microphone permission is per device
+too; turning it on is a tap, which is the gesture the permission prompt
+needs. The note under the row says exactly what is open and when.
+
+**It stands aside** whenever something else should have the microphone or
+the room: while voice search is open, while the page is hidden, and while an
+episode is playing (it would be listening to FAM, and on a phone an open
+microphone reroutes playback to call audio). `syncWake` decides, and is
+called from `setPlayState`, `visibilitychange`, closing voice search (after
+1.5 s, so send can start the episode before the listener could come back)
+and a two-second interval as the net for anything that changes playback
+without passing through those. Recognisers end on their own every minute or
+so; it restarts, backing off exponentially to 30 s on repeated failures. A
+blocked microphone or no microphone turns the setting off and says so rather
+than retrying forever.
+
+**Not verified on a real phone.** Headless Chromium has no recogniser, so the
+smoke check ("Hey FAM" opens voice search) installs a stand-in. Whether
+iOS Safari keeps a continuous recogniser alive long enough to be useful, and
+how often a recogniser writes "fam" as something the pattern misses, are
+both unmeasured. The native app would need its own wake handling
+(`SFSpeechRecognizer`); the server is untouched.
+
+**Found when the branch was double-checked for merging, all three fixed:**
+the two-second safety interval restarted a failed listener at once, which
+undid the exponential backoff it sat beside (`WAKE.notBefore` now holds it);
+the listener could come back on during the loading screen of the search it
+had just opened, with the episode's audio seconds away (`activeGenOverlay`
+now counts as busy); and Search now's countdown (§159) ran on when the app
+was put away, so it could spend an episode nobody was looking at - going to
+the background now stops the count and leaves the button to press. The smoke
+check covers all three.
+
+## 159. Voice search counts down to "Search now"
+
+**Asked for, and it reverses a line of §151 at the owner's direction.** §151
+decided that speech ending is not a request: when somebody stopped talking a
+send button appeared and nothing happened until it was pressed. The owner
+wants Google Maps' "Go now" instead - when they stop, a **Search now** button
+appears centred at the bottom and fills like a loading bar; pressing it
+searches at once, letting it fill (about five seconds) searches by itself,
+and an **X** beside it stops the automatic search in case they want to change
+what they said.
+
+**How it works.** When the recogniser ends with words and no error,
+`startVoiceCountdown` sweeps `#vsGoFill` across the button with a CSS
+transition of `VOICE_AUTO_SEND_MS` (5000) and sets a timer of the same length
+that calls `sendVoiceSearch` - one number for both, so the button is full at
+the moment it searches. It is the same two-frame reset the What's next
+countdown uses. The X (`cancelVoiceCountdown`) clears the timer and leaves the
+button solid and still pressable: it means "not by itself", not "not at all".
+Tapping the mark to add more, closing the screen, or pressing Search now all
+stop the count, and a new pause after adding more starts a new one. Search
+now still goes through `runSearch`, so a spoken search is a typed one on the
+server in every respect.
+
+**What was kept of §151's reasoning.** A pause is still not treated as a
+request *silently*: the count is on screen, filling, with a one-tap refusal
+beside it, which is the difference between the two. And it does not count
+down after a recognition failure - a fragment cut off by a dropped connection
+is not a question to send on its own; the button is there to press instead.
+
+**Where the five seconds starts.** From the button appearing, which is itself
+1.6 s of silence (`VOICE_SILENCE_MS`) after the last word, so about six and a
+half seconds from the end of speech to the episode starting unaided.
+
+The smoke check is now "Voice search counts down to Search now, and X stops
+it": centred, at the bottom, filling, the X stops it and nothing searches
+after, the count run out searches once with the words said, and pressing the
+button searches once with no second search when the count would have ended.
+Not tried on a real phone.

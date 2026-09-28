@@ -1969,20 +1969,22 @@ def main() -> int:
             assert shown == "Nova", f"the voice chip reads {shown!r} after choosing Nova"
             assert page.evaluate("selectedVoice") == "remote:nova"
 
-        def voice_search_hears_you_and_waits_for_send():
+        def voice_search_counts_down_to_search_now():
             # Whatever happens, leave no overlay over the checks after this.
             try:
                 voice_search_steps()
             finally:
-                page.evaluate("() => { closeVoiceSearch();"
+                page.evaluate("() => { closeVoiceSearch(); VOICE_AUTO_SEND_MS = 5000;"
                               " if (window.__runSearch) runSearch = window.__runSearch; }")
 
         def voice_search_steps():
             """The mic under the search box (§151) opens a voice screen: the
             words appear at the top as they are heard, the lines around the
-            mark move only while somebody is talking, the send button appears
-            once they stop - and nothing is searched until it is pressed. The
-            X goes back to searchFAM with the box untouched.
+            mark move only while somebody is talking, and once they stop
+            "Search now" appears centred with an X beside it (§159). It fills
+            as it counts down and searches when full; the X stops the count
+            and leaves a button that still searches when pressed. The screen's
+            own X goes back to searchFAM with the box untouched.
 
             Headless Chromium has no speech recognition, so a stand-in is
             installed that fires the same events a real recogniser does."""
@@ -2041,13 +2043,35 @@ def main() -> int:
                 f"repeated results were shown twice: {words!r}"
             assert not page.is_visible("#vsSend"), "send shows while they are still talking"
             # They stop talking: the recogniser is stopped after the silence
-            # window and the send button appears. Nothing has been searched.
+            # window and "Search now" appears, counting down, with its X.
             page.evaluate("() => { window.__searched = 0; window.__runSearch = runSearch;"
                           " runSearch = function(){ window.__searched++; }; }")
             page.wait_for_timeout(2000)
             assert not page.evaluate("VOICE.listening"), "it kept listening after silence"
-            assert page.is_visible("#vsSend"), "no send button once they stopped"
-            assert page.evaluate("window.__searched") == 0, "it searched without send"
+            assert page.is_visible("#vsSend"), "no Search now button once they stopped"
+            assert page.is_visible("#vsGoCancel"), "no X to stop the automatic search"
+            assert page.evaluate("!!VOICE.countdown"), "the countdown did not start"
+            go = page.evaluate("""() => {
+                var b = document.getElementById('vsSend').getBoundingClientRect();
+                var s = document.getElementById('voiceSearch').getBoundingClientRect();
+                return { mid: b.left + b.width / 2 - (s.left + s.width / 2),
+                         below: s.bottom - b.bottom,
+                         fill: getComputedStyle(document.getElementById('vsGoFill')).transform };
+            }""")
+            assert abs(go["mid"]) < 40, f"Search now is not centred ({go['mid']:.0f}px off)"
+            assert go["below"] < 60, f"Search now is not at the bottom ({go['below']:.0f}px up)"
+            assert go["fill"] not in ("none", "matrix(0, 0, 0, 1, 0, 0)"), \
+                f"Search now is not filling as it counts down: {go['fill']}"
+            assert page.evaluate("window.__searched") == 0, "it searched before the count ran out"
+            # The X stops the count: nothing searches by itself, and the
+            # button is still there to press.
+            page.click("#vsGoCancel")
+            page.wait_for_timeout(150)
+            assert page.evaluate("!VOICE.countdown"), "the X did not stop the countdown"
+            assert not page.is_visible("#vsGoCancel"), "the X stayed after cancelling"
+            assert page.is_visible("#vsSend"), "cancelling took Search now away"
+            page.wait_for_timeout(5300)
+            assert page.evaluate("window.__searched") == 0, "it searched after the X"
             # X: back to searchFAM, nothing put in the box.
             page.click("#voiceSearch .sheet-close")
             page.wait_for_timeout(150)
@@ -2056,7 +2080,25 @@ def main() -> int:
             assert page.input_value("#searchInput") == "", "closing typed into the box"
             assert page.evaluate("window.__fakeRecs[window.__fakeRecs.length-1].aborted") \
                 or not page.evaluate("VOICE.rec"), "recognition outlived the screen"
-            # Again, and this time send: one search, with the words said.
+            # Left alone, the count runs out and searches, once, with the
+            # words said. Shortened here so the check is not five seconds.
+            page.evaluate("VOICE_AUTO_SEND_MS = 900")
+            mic.click()
+            page.wait_for_timeout(150)
+            page.evaluate("__say('who designed the eiffel tower', true)")
+            page.evaluate("VOICE.rec.stop()")
+            page.evaluate("() => { runSearch = function(){ window.__searched++;"
+                          " window.__q = document.getElementById('searchInput').value; }; }")
+            page.wait_for_timeout(1400)
+            page.evaluate("VOICE_AUTO_SEND_MS = 5000")
+            assert page.evaluate("window.__searched") == 1, \
+                "the full countdown did not search by itself"
+            assert page.evaluate("window.__q") == "who designed the eiffel tower", \
+                f"the countdown searched {page.evaluate('window.__q')!r}"
+            assert not page.is_visible("#voiceSearch"), "the voice screen stayed up"
+            page.evaluate("() => { window.__searched = 0;"
+                          " document.getElementById('searchInput').value = ''; }")
+            # Again, and this time press Search now: one search, at once.
             mic.click()
             page.wait_for_timeout(150)
             page.evaluate("__say('what is a bogey', true)")
@@ -2066,7 +2108,10 @@ def main() -> int:
                           " window.__q = document.getElementById('searchInput').value; }; }")
             page.click("#vsSend")
             page.wait_for_timeout(150)
-            assert page.evaluate("window.__searched") == 1, "send did not search once"
+            assert page.evaluate("window.__searched") == 1, "Search now did not search once"
+            page.wait_for_timeout(5300)
+            assert page.evaluate("window.__searched") == 1, \
+                "the countdown searched again after Search now"
             assert page.evaluate("window.__q") == "what is a bogey", \
                 f"send searched {page.evaluate('window.__q')!r}"
             assert not page.is_visible("#voiceSearch"), "the voice screen stayed up"
@@ -2076,6 +2121,102 @@ def main() -> int:
                           "window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
             assert not page.is_visible("#voiceMicBtn"), \
                 "a mic is offered in a browser that cannot recognise speech"
+
+        def hey_fam_opens_voice_search():
+            try:
+                hey_fam_steps()
+            finally:
+                page.evaluate("() => { try { setWakePhrase(false); } catch(e) {}"
+                              " closeVoiceSearch(); stopWake(); setTab('home');"
+                              " document.getElementById('searchInput').value = '';"
+                              " delete window.SpeechRecognition;"
+                              " window.webkitSpeechRecognition = undefined; paintVoiceMic(); }")
+
+        def hey_fam_steps():
+            """Saying "hey FAM" or "what's up FAM" opens voice search (§158),
+            from any tab, with whatever followed the phrase already in the
+            words - and searches nothing. It is off until Settings turns it
+            on, it does not listen over a playing episode, and an unrelated
+            sentence or "family" does not wake it."""
+            page.evaluate(
+                """() => {
+                    window.__recs = [];
+                    window.SpeechRecognition = function(){ window.__recs.push(this); };
+                    SpeechRecognition.prototype.start = function(){ this.started = true; };
+                    SpeechRecognition.prototype.stop = function(){
+                        var r = this; setTimeout(function(){ r.onend && r.onend(); }, 0);
+                    };
+                    SpeechRecognition.prototype.abort = function(){ this.aborted = true; };
+                    window.__live = function(){
+                        for (var i = window.__recs.length - 1; i >= 0; i--)
+                            if (window.__recs[i].started && !window.__recs[i].aborted)
+                                return window.__recs[i];
+                        return null;
+                    };
+                    window.__hear = function(text){
+                        var res = [{ transcript: text }]; res.isFinal = false;
+                        window.__live().onresult({ resultIndex: 0, results: [res] });
+                    };
+                    window.__searched = 0; window.__rs = runSearch;
+                    runSearch = function(){ window.__searched++; };
+                }""")
+            page.evaluate("syncWake()")
+            assert page.evaluate("!WAKE.rec"), "it listens for the phrase before being asked"
+            page.evaluate("setTab('myfam'); setWakePhrase(true)")
+            page.wait_for_timeout(100)
+            assert page.evaluate("!!WAKE.rec && !!__live()"), "turning it on did not listen"
+            page.evaluate("__hear('my family is coming over')")
+            page.evaluate("__hear('hey there')")
+            page.wait_for_timeout(100)
+            assert not page.is_visible("#voiceSearch"), "an ordinary sentence opened voice search"
+            page.evaluate("__hear(\"what's up fam who won the ryder cup\")")
+            page.wait_for_timeout(200)
+            assert page.is_visible("#voiceSearch"), "\"what's up fam\" did not open voice search"
+            assert page.is_visible("#screen-home"), "voice search did not open over searchFAM"
+            assert page.evaluate("!WAKE.rec"), "the wake listener kept the microphone"
+            words = page.text_content("#vsWords").strip()
+            assert words == "who won the ryder cup", f"the rest of the sentence was lost: {words!r}"
+            assert page.evaluate("window.__searched") == 0, "the wake phrase searched"
+            page.click("#voiceSearch .sheet-close")
+            page.wait_for_timeout(1800)
+            assert page.evaluate("!!WAKE.rec"), "it stopped listening after voice search closed"
+            page.evaluate("__hear('Hey FAM')")
+            page.wait_for_timeout(200)
+            assert page.is_visible("#voiceSearch"), "\"Hey FAM\" did not open voice search"
+            assert "appear here" in page.text_content("#vsWords"), \
+                "a bare wake phrase put words on the screen"
+            page.evaluate("closeVoiceSearch(); stopWake()")
+            # An episode playing: it stands aside.
+            page.evaluate("() => { window.__ia = FamAudio.isActive;"
+                          " FamAudio.isActive = function(){ return true; }; isPlaying = true; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "it listens over a playing episode"
+            page.evaluate("() => { FamAudio.isActive = window.__ia; }")
+            # Nor while an episode is being written: its audio is about to
+            # start, and the microphone must not be open when it does.
+            page.evaluate("() => { activeGenOverlay = document.body; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "it listens while an episode is being written"
+            page.evaluate("activeGenOverlay = null")
+            # A failure's backoff holds even against the two-second net.
+            page.evaluate("() => { WAKE.notBefore = Date.now() + 60000; syncWake(); }")
+            assert page.evaluate("!WAKE.rec"), "the interval undid the backoff"
+            page.evaluate("() => { WAKE.notBefore = 0; syncWake(); }")
+            assert page.evaluate("!!WAKE.rec"), "it did not listen again after the backoff"
+            page.evaluate("stopWake()")
+            # Put away mid-countdown, Search now stops counting (§159) and
+            # stays pressable; nothing is searched unseen.
+            page.evaluate("() => { openVoiceSearch('what is a birdie'); VOICE.rec.stop(); }")
+            page.wait_for_timeout(200)
+            assert page.evaluate("!!VOICE.countdown"), "a seeded question did not count down"
+            page.evaluate("""() => {
+                Object.defineProperty(document, 'visibilityState',
+                    { value: 'hidden', configurable: true });
+                document.dispatchEvent(new Event('visibilitychange'));
+                delete document.visibilityState;
+            }""")
+            assert page.evaluate("!VOICE.countdown"), "the countdown ran on in the background"
+            assert page.is_visible("#vsSend"), "going to the background took Search now away"
+            page.evaluate("() => { closeVoiceSearch(); stopWake(); runSearch = window.__rs; }")
+            assert page.evaluate("window.__searched") == 0, "the wake phrase searched"
 
         def the_search_page_opens_on_the_length_it_will_generate():
             """The number on the search chip and the number its own menu ticks
@@ -3279,8 +3420,9 @@ def main() -> int:
               the_search_page_opens_on_the_length_it_will_generate)
         check("Search picks its voice from the bank",
               the_search_page_picks_its_voice_from_the_bank)
-        check("Voice search hears you and waits for send",
-              voice_search_hears_you_and_waits_for_send)
+        check("Voice search counts down to Search now, and X stops it",
+              voice_search_counts_down_to_search_now)
+        check("\"Hey FAM\" opens voice search", hey_fam_opens_voice_search)
         check("picker offers a typed topic", picker)
         check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",

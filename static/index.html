@@ -137,10 +137,27 @@
   .vs-status{ flex:none; text-align:center; font-family:'JetBrains Mono', monospace;
     font-size:10.5px; letter-spacing:0.06em; color:var(--text-muted); min-height:30px;
     line-height:1.45; margin:0 10px; }
-  .vs-bottom{ flex:none; display:flex; justify-content:flex-end; min-height:48px; }
-  .vs-send{ width:48px; height:48px; }
-  .go-btn[hidden], .vs-send[hidden]{ display:none; }
-  .vs-send svg{ width:18px; height:18px; }
+  /* "Search now" (§159), after Google Maps' "Go now": centred at the bottom
+     once they stop talking, filling from the left over VOICE_AUTO_SEND_MS,
+     and searching by itself when it is full. The X beside it stops the
+     count and leaves an ordinary button. */
+  .vs-bottom{ flex:none; display:flex; justify-content:center; align-items:center;
+    gap:10px; min-height:48px; }
+  .vs-bottom[hidden]{ display:flex; visibility:hidden; }
+  .vs-go{ position:relative; overflow:hidden; height:48px; min-width:176px;
+    padding:0 26px; border-radius:24px; border:none; cursor:pointer;
+    background:rgba(224,181,99,0.32); color:var(--ink);
+    font-family:'Space Grotesk', sans-serif; font-size:14px; font-weight:700;
+    letter-spacing:0.01em; }
+  .vs-go:active{ transform:scale(0.97); }
+  .vs-go-fill{ position:absolute; inset:0; background:var(--copper);
+    transform-origin:left center; transform:scaleX(0); }
+  .vs-go-label{ position:relative; }
+  .vs-go-x{ width:48px; height:48px; border-radius:50%; flex:none;
+    border:1px solid var(--border-strong); background:none; color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .vs-go-x[hidden]{ display:none; }
+  .vs-go-x:active{ background:rgba(244,239,228,0.06); }
   @media (prefers-reduced-motion: reduce){
     .voice-search.open{ animation:none; }
     .voice-search.speaking .vs-waves path{ animation:none; }
@@ -2729,8 +2746,11 @@
           </div>
         </div>
         <div class="vs-status" id="vsStatus"></div>
-        <div class="vs-bottom">
-          <button class="go-btn vs-send" id="vsSend" hidden onclick="sendVoiceSearch()" aria-label="Search for what you said"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <!-- "Search now" (§159): it fills while it counts down and searches
+             when full; the X beside it stops the count. -->
+        <div class="vs-bottom" id="vsGo" hidden>
+          <button class="vs-go" id="vsSend" onclick="sendVoiceSearch()" aria-label="Search now"><span class="vs-go-fill" id="vsGoFill"></span><span class="vs-go-label">Search now</span></button>
+          <button class="vs-go-x" id="vsGoCancel" hidden onclick="cancelVoiceCountdown()" aria-label="Don't search automatically"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
       </div>
 
@@ -5569,6 +5589,8 @@
     setReelPlaying(playing);
     setNowBarPlaying(playing);
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
+    // "Hey FAM" (§158) never listens over an episode.
+    scheduleWake(playing ? 0 : 400);
     // A pause is the moment a position is most likely to be the last one, so
     // it is sent now rather than on the next throttled tick (§127).
     if(!playing && nowBarState && !pendingResumeSeek){
@@ -5894,9 +5916,12 @@
   // The browser's own speech recognition turns what is said into the words of
   // a search; nothing new reaches the server, which receives exactly the
   // question it would have if it had been typed. Three rules:
-  //  * Speech ending is not a request. A pause is not somebody asking, so the
-  //    send button appears when they stop and the episode starts when they
-  //    press it - never on its own.
+  //  * Speech ending starts a countdown, never a search (§159, at the
+  //    owner's direction, replacing §151's "nothing until send"). When they
+  //    stop, "Search now" appears and fills over VOICE_AUTO_SEND_MS; pressing
+  //    it searches at once, letting it fill searches, and the X beside it
+  //    stops the count. A pause is still not a request on its own - it is
+  //    one they are shown and can refuse.
   //  * The lines move because somebody is talking. They are driven by what
   //    the recogniser actually hears (its speech and result events), so a
   //    silent room shows a still mark rather than a performance of listening.
@@ -5904,8 +5929,9 @@
   //    and a refusal (microphone blocked, service unreachable) is said in
   //    words on the screen rather than left as a ring that never fills.
   var VOICE = { rec: null, listening: false, before: "", heard: "", interim: "",
-                lvl: 0, raf: 0, quiet: 0, error: "" };
+                lvl: 0, raf: 0, quiet: 0, error: "", countdown: 0 };
   var VOICE_SILENCE_MS = 1600;
+  var VOICE_AUTO_SEND_MS = 5000;
 
   function speechRecognitionCtor(){
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -5952,12 +5978,14 @@
     var status = document.getElementById("vsStatus");
     var said = voiceText();
     box.classList.toggle("listening", VOICE.listening);
-    document.getElementById("vsSend").hidden = VOICE.listening || !said;
+    document.getElementById("vsGo").hidden = VOICE.listening || !said;
+    document.getElementById("vsGoCancel").hidden = !VOICE.countdown;
     document.getElementById("vsMark").setAttribute("aria-label",
       VOICE.listening ? "Stop listening" : (said ? "Add more" : "Listen again"));
     if(VOICE.error) status.textContent = VOICE.error;
     else if(VOICE.listening) status.textContent = "Listening…";
-    else if(said) status.textContent = "Press send to search, or tap the mark to add more";
+    else if(VOICE.countdown) status.textContent = "Searching when the button fills. X to wait";
+    else if(said) status.textContent = "Press Search now, or tap the mark to add more";
     else status.textContent = "Tap the mark to start again";
   }
   function voiceLevelLoop(){
@@ -5982,6 +6010,7 @@
     var Ctor = speechRecognitionCtor();
     if(!Ctor) return;
     stopVoiceRecognition(true);
+    stopVoiceCountdown(false);
     VOICE.before = voiceText();
     VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
     var rec;
@@ -6036,6 +6065,9 @@
       VOICE.listening = false;
       VOICE.rec = null;
       paintVoiceWords();
+      // Not after a failure: a fragment cut off by a dropped connection is
+      // not a question to send by itself.
+      if(voiceText() && !VOICE.error) startVoiceCountdown();
       paintVoiceState();
     };
     try{
@@ -6059,14 +6091,18 @@
       try{ rec.stop(); }catch(_){}
     }
   }
-  function openVoiceSearch(){
+  function openVoiceSearch(seed){
     if(!speechRecognitionCtor()){
       toast("This browser can't turn speech into a search");
       paintVoiceMic();
       return;
     }
     var box = document.getElementById("voiceSearch");
-    VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    stopWake();
+    VOICE.before = ""; VOICE.interim = ""; VOICE.error = "";
+    // Whatever followed "hey FAM" in the same breath is the start of the
+    // question, so it is on screen already and listening adds to it.
+    VOICE.heard = typeof seed === "string" ? seed.trim() : "";
     VOICE.lvl = 0;
     box.hidden = false;
     box.classList.remove("open");
@@ -6077,27 +6113,200 @@
     voiceLevelLoop();
     startVoiceListening();
   }
+  // The "go now" countdown (§159). The fill and the timer run off the same
+  // number, so the button is full at the moment it searches.
+  function startVoiceCountdown(){
+    stopVoiceCountdown(false);
+    var fill = document.getElementById("vsGoFill");
+    fill.style.transition = "none";
+    fill.style.transform = "scaleX(0)";
+    // Two frames, so the reset and the sweep are not folded into one style
+    // recalculation and the transition skipped (the same as What's next).
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        if(!VOICE.countdown) return;
+        fill.style.transition = "transform " + VOICE_AUTO_SEND_MS + "ms linear";
+        fill.style.transform = "scaleX(1)";
+      });
+    });
+    VOICE.countdown = setTimeout(function(){
+      VOICE.countdown = 0;
+      sendVoiceSearch();
+    }, VOICE_AUTO_SEND_MS);
+  }
+  // `asButton` leaves a full, still button: the X means "not by itself",
+  // not "not at all".
+  function stopVoiceCountdown(asButton){
+    clearTimeout(VOICE.countdown);
+    VOICE.countdown = 0;
+    var fill = document.getElementById("vsGoFill");
+    if(!fill) return;
+    fill.style.transition = "none";
+    fill.style.transform = asButton ? "scaleX(1)" : "scaleX(0)";
+  }
+  function cancelVoiceCountdown(){
+    stopVoiceCountdown(true);
+    paintVoiceState();
+  }
   function toggleVoiceListening(){
     if(VOICE.listening) stopVoiceRecognition(false);
     else startVoiceListening();
   }
   function closeVoiceSearch(){
     stopVoiceRecognition(true);
+    stopVoiceCountdown(false);
     cancelAnimationFrame(VOICE.raf);
     var box = document.getElementById("voiceSearch");
     box.hidden = true;
     box.classList.remove("speaking", "listening", "open");
     VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
+    // Not at once: send closes this and then starts an episode, and the wake
+    // listener must not be back on the microphone in between.
+    scheduleWake(WAKE_AFTER_CLOSE_MS);
   }
   // Exactly what the send button beside the search box does, with the words
   // they said in the box: one path into generation, not a second.
   function sendVoiceSearch(){
     var said = voiceText();
+    stopVoiceCountdown(false);
     if(!said) return;
     closeVoiceSearch();
     document.getElementById("searchInput").value = said;
     runSearch();
   }
+
+  // ---- "Hey FAM" (§158) ----------------------------------------------------
+  // Saying "hey FAM" or "what's up FAM" opens voice search, so the spoken
+  // path does not start with finding a button. A second recogniser listens
+  // for the phrase and nothing else; when it hears it, it gets off the
+  // microphone and voice search takes over, with anything said after the
+  // phrase already in the words. Four rules:
+  //  * It is asked for, never assumed. Off until turned on in Settings,
+  //    because it keeps the microphone open while FAM is on screen and the
+  //    browser's speech service hears all of it. Turning it on is a tap,
+  //    which is the gesture the permission prompt needs.
+  //  * It hears the phrase and does nothing else. Nothing it hears is kept,
+  //    sent to FAM or searched; it opens the screen, and what happens next
+  //    is voice search's own - "Search now" and its countdown (§159).
+  //  * It stands aside. Not while an episode is playing (it would be
+  //    listening to FAM, and on a phone an open microphone reroutes the
+  //    audio), not while voice search has the microphone, not in the
+  //    background.
+  //  * A refusal turns it off and says so, rather than retrying a blocked
+  //    microphone forever. Anything else backs off and tries again.
+  var wakeOn = localPrefs().wake_phrase === true;
+  var WAKE = { rec: null, timer: 0, fails: 0, notBefore: 0 };
+  var WAKE_AFTER_CLOSE_MS = 1500;
+  // Recognisers write the name several ways, and "fam" on its own is the
+  // only one that matters; "family" is not it.
+  var WAKE_PHRASE = /\b(?:hey|hi|hay|what'?s up|whats up|what up|wassup|sup)[\s,.!]+(?:fam|pham|fahm)\b[\s,.!?]*(.*)$/i;
+
+  function wakeHeard(text){
+    var m = WAKE_PHRASE.exec(text || "");
+    return m ? { rest: (m[1] || "").trim() } : null;
+  }
+  function wakeShouldRun(){
+    if(!wakeOn || !speechRecognitionCtor()) return false;
+    if(document.visibilityState === "hidden") return false;
+    var box = document.getElementById("voiceSearch");
+    if(box && !box.hidden) return false;
+    if(FamAudio.isActive() && isPlaying) return false;
+    // Nor while an episode is being written: the audio is about to start,
+    // and the microphone must not be open when it does.
+    if(activeGenOverlay) return false;
+    return true;
+  }
+  function scheduleWake(ms){
+    if(!WAKE) return;   // called by setPlayState, which is declared above
+    clearTimeout(WAKE.timer);
+    WAKE.timer = setTimeout(syncWake, ms || 0);
+  }
+  function syncWake(){
+    clearTimeout(WAKE.timer);
+    var should = wakeShouldRun();
+    // The interval below must not undo the backoff after a failure.
+    if(should && !WAKE.rec && Date.now() < WAKE.notBefore){
+      WAKE.timer = setTimeout(syncWake, WAKE.notBefore - Date.now());
+      return;
+    }
+    if(should && !WAKE.rec) startWake();
+    else if(!should && WAKE.rec) stopWake();
+  }
+  function stopWake(){
+    if(!WAKE) return;
+    clearTimeout(WAKE.timer);
+    var rec = WAKE.rec;
+    WAKE.rec = null;
+    if(rec) try{ rec.abort(); }catch(_){}
+  }
+  function startWake(){
+    var Ctor = speechRecognitionCtor();
+    var rec;
+    try{ rec = new Ctor(); }catch(e){ return; }
+    WAKE.rec = rec;
+    rec.lang = document.documentElement.lang || navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onresult = function(e){
+      if(WAKE.rec !== rec) return;
+      WAKE.fails = 0;
+      for(var i = e.resultIndex || 0; i < e.results.length; i++){
+        var hit = wakeHeard(e.results[i][0] ? e.results[i][0].transcript : "");
+        if(hit){ wakeUp(hit.rest); return; }
+      }
+    };
+    rec.onerror = function(e){
+      if(WAKE.rec !== rec) return;
+      if(e.error === "not-allowed" || e.error === "service-not-allowed"
+         || e.error === "audio-capture"){
+        stopWake();
+        setWakePhrase(false, VOICE_ERRORS[e.error] + ", so \u201cHey FAM\u201d is off");
+        return;
+      }
+      // "no-speech" is a quiet room, not a fault.
+      if(e.error !== "no-speech" && e.error !== "aborted") WAKE.fails++;
+    };
+    rec.onend = function(){
+      if(WAKE.rec !== rec) return;
+      WAKE.rec = null;
+      // Recognisers end on their own every minute or so; start again, and
+      // back off when it keeps failing rather than spinning on it.
+      var wait = WAKE.fails ? Math.min(30000, 1000 * Math.pow(2, WAKE.fails)) : 250;
+      WAKE.notBefore = Date.now() + wait;
+      scheduleWake(wait);
+    };
+    try{ rec.start(); }
+    catch(e){ WAKE.rec = null; WAKE.notBefore = Date.now() + 5000; scheduleWake(5000); }
+  }
+  // Heard. Voice search is drawn over searchFAM, and its X says it goes back
+  // there, so searchFAM is what is under it.
+  function wakeUp(rest){
+    stopWake();
+    var active = document.querySelector(".screen.active");
+    if(!active || active.id !== "screen-home") setTab("home");
+    openVoiceSearch(rest);
+  }
+  function setWakePhrase(on, why){
+    wakeOn = !!on && !!speechRecognitionCtor();
+    saveLocalPrefs({ wake_phrase: wakeOn });
+    refreshSettingsIfOpen();
+    toast(why || (wakeOn
+      ? "Say \u201cHey FAM\u201d to search by voice"
+      : "\u201cHey FAM\u201d is off"));
+    WAKE.fails = 0; WAKE.notBefore = 0;
+    if(wakeOn) syncWake(); else stopWake();
+  }
+  document.addEventListener("visibilitychange", function(){
+    syncWake();
+    // Put away mid-countdown: nobody is looking at the button filling, so
+    // it does not spend an episode by itself (§159). It is left pressable.
+    if(document.visibilityState === "hidden" && VOICE.countdown) cancelVoiceCountdown();
+  });
+  // A safety net for everything that changes whether it may listen without
+  // passing through here - an episode starting, a stream ending. Cheap: it
+  // compares four things and does nothing when they agree.
+  setInterval(function(){ if(wakeOn || WAKE.rec) syncWake(); }, 2000);
 
   // The bank of voices (§147), as one list. This is the only place a
   // listener picks a voice, and it governs their searches alone: myFAM,
@@ -9966,6 +10175,15 @@
       // what it governs.
       + settingsRow("Voice for your searches", escapeHtml(voiceLabel(selectedVoice)),
           "openVoiceMenu()");
+    // "Hey FAM" (§158), only where the browser can recognise speech at all.
+    if(speechRecognitionCtor()){
+      html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
+          "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
+        + '<div class="set-note">Opens voice search when you say \u201cHey FAM\u201d '
+        + 'or \u201cWhat\u2019s up FAM\u201d. While it is on, the microphone is open '
+        + 'whenever FAM is on screen and no episode is playing, and your browser\u2019s '
+        + 'speech service hears it.</div>';
+    }
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -14338,6 +14556,7 @@
   // placeholder length still on it.
   paintLengthControls();
   paintVoiceMic();
+  syncWake();
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.

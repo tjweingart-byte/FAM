@@ -11,8 +11,13 @@ Three surfaces, all backed by generated audio:
 1. **searchFAM** — ask anything, hear a briefing of a chosen length. *Working
    today.* This is the only surface that fully works.
    *Since §151 it can be asked by voice*: a mic under the box opens a screen
-   that shows the words as they are heard and searches only when send is
-   pressed - speech ending is not a request.
+   that shows the words as they are heard. *Since §159, at the owner's
+   direction*, stopping brings up a centred **Search now** that fills over
+   five seconds and searches when full, with an X beside it that stops the
+   count - speech ending starts a visible, refusable countdown, never a
+   silent search. Since §158 saying "hey FAM"
+   or "what's up FAM" opens that screen from any tab (off until turned on in
+   Settings, since it keeps the microphone open).
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
@@ -2498,7 +2503,10 @@ live story only when it names something the listener follows - one Eagles
 question had been buying every football fixture in the world; and **§156**,
 the story pool's sports and markets on a fifteen-minute tick with the news
 sources on two hours; and **§157**, the vocabulary sweep every two hours,
-and the finding that a game's subject has never reached the tree at all),
+and the finding that a game's subject has never reached the tree at all; and **§158**, "hey FAM" opening voice search,
+opt-in because it keeps the microphone open; and **§159**, voice search's
+send replaced by a "go now" Search now that counts down five seconds and an
+X that stops it),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2525,12 +2533,13 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **seventy-seven** named smoke
+**twice** - once per preview build - and **seventy-eight** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 77 as of §151,
+prose does not fail when somebody adds a behaviour. (It is 78 as of §158,
+which added "Hey FAM" opening voice search. It was 77 as of §151,
 which added voice search hearing you and waiting for send. It was 76 as of §148,
 which added the loading screen checking off its five steps. It was 75 as
 of §147, which added the search page's voice chip. It was 74 as of §146,
