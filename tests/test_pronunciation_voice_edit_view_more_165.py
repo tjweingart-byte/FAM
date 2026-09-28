@@ -9,6 +9,7 @@ and never by listening.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import inspect
 import json
 import os
@@ -85,6 +86,11 @@ def test_a_learned_name_is_respelled_for_the_voice_and_nowhere_else(lexicon):
 def test_the_name_inside_a_longer_word_is_left_alone(lexicon):
     lexicon.learn([("Keawe", "keh-AH-veh")], "writer")
     assert lexicon.apply("Keaweville is a town") == "Keaweville is a town"
+
+
+def test_a_known_word_is_found_inside_a_hyphenated_name(lexicon):
+    lexicon.learn([("Keawe", "keh-AH-veh")], "writer")
+    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Keh-ah-veh threw"
 
 
 def test_a_full_name_teaches_each_of_its_words(lexicon):
@@ -201,7 +207,7 @@ def test_the_writer_is_asked_for_say_lines_before_the_script(lexicon):
 
 def test_clean_for_speech_strips_a_say_line():
     assert script_generator.clean_for_speech(
-        "Hello there. <<SAY: Keawe = keh-AH-veh>> Next.") == "Hello there.  Next.".replace("  ", " ")
+        "Hello there. <<SAY: Keawe = keh-AH-veh>> Next.") == "Hello there. Next."
 
 
 # --------------------------------------------------------------------------
@@ -230,10 +236,37 @@ def test_the_brief_respells_the_hard_names_it_resolves(monkeypatch, lexicon):
     monkeypatch.setattr(ei.credentials, "active", lambda name: "sk-test")
     brief = asyncio.run(ei.understand("cal jks", 3))
     assert brief.pronounce == [{"name": "Sagapolutele", "say": "sah-gah-poh-loo-TEH-leh"}]
-    # Kept at once, so the first sentence - spoken before the writer's own
-    # lines could matter - already has it.
-    assert lexicon.apply("Sagapolutele") == "Sah-gah-poh-loo-teh-leh"
     assert "pronounce" in ei.BRIEF_SCHEMA["required"]
+    # Taken the moment the brief lands on the plan, so the first sentence -
+    # spoken before the writer's own lines could matter - already has it.
+    plan = plan_episode("cal jks", 3, search=False)
+    script_generator._take_brief_names(dataclasses.replace(plan, brief=brief))
+    assert lexicon.apply("Sagapolutele") == "Sah-gah-poh-loo-teh-leh"
+    assert [r["name"] for r in voice_bank.bank().pronunciations()] == ["Sagapolutele"]
+
+
+def test_a_personal_episodes_names_are_said_right_and_never_kept(lexicon):
+    """An attachment, or a question the cache will not share: its names are
+    somebody's own, and the lexicon is shared and shown on /admin."""
+    plan = plan_episode("who is the cal quarterback", 3, search=False)
+    personal = dataclasses.replace(plan, attachments=(object(),))
+    assert not script_generator._names_are_shared(personal)
+    assert script_generator._names_are_shared(plan)
+    script_generator._take_pronunciations(
+        "<<SAY: Wojciechowska = voy-cheh-HOF-skah>> Hello.", None,
+        script_generator._names_are_shared(personal))
+    assert lexicon.apply("Wojciechowska wrote") == "Voy-cheh-hof-skah wrote"
+    assert voice_bank.bank().pronunciations() == []
+    # And never offered to another episode's writer as "on file".
+    assert pronunciation.known_in("Wojciechowska") == []
+
+
+def test_held_names_expire(lexicon, monkeypatch):
+    lexicon.hold([("Wojciechowska", "voy-cheh-HOF-skah")], "writer")
+    later = pronunciation.time.time() + pronunciation.HOLD_SECONDS + 1
+    monkeypatch.setattr(pronunciation.time, "time", lambda: later)
+    lexicon.reload(force=True)
+    assert lexicon.apply("Wojciechowska") == "Wojciechowska"
 
 
 def test_a_degraded_brief_respells_nothing():

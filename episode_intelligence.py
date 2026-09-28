@@ -266,8 +266,9 @@ class Brief:
     named_slot: str = ""
     #: Names in the request or its resolved subject that the voice is likely
     #: to get wrong, each `{"name", "say"}` with a plain-letters respelling
-    #: (§165). Kept in `pronunciation`'s shared lexicon and applied only to
-    #: the text handed to the voice. Empty when there are none, and on a
+    #: (§165). Taken into `pronunciation`'s lexicon by
+    #: `ScriptGenerator.understand`, which knows whether the episode is
+    #: personal, and applied only to the text handed to the voice. Empty when there are none, and on a
     #: degraded brief.
     pronounce: list = field(default_factory=list)
     #: True when the model call did not happen or could not be used, and this
@@ -903,10 +904,6 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         pronounce=_pronounce_pairs(data.get("pronounce")),
     )
     brief = gate(brief, query)
-    # Kept at once, before retrieval or the writer: the first sentence is
-    # spoken before the rest exists, and it is the likeliest to name them.
-    if brief.pronounce:
-        pronunciation.learn(brief.pronounce, "brief")
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
              "why_now=%s(%s) search=%r fallback=%r", query, brief.intent,
              brief.structure, brief.recency_days,

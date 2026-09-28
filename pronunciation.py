@@ -33,6 +33,10 @@ database - it is a fact about how the voice speaks, and it needs no store of
 its own), so a name learned once is said the same way in every later
 episode, including a cached script voiced again.
 
+**A personal episode's names are never kept** - an attachment, or a
+question the cache already refuses to share. They are held in memory for
+that episode (`Lexicon.hold`) and never reach the shared table or /admin.
+
 What keeps a model's guess from doing damage: an entry must look like a name
 (a capital letter, no digits, a sane length), a respelling must be plain
 letters and hyphens, and a word every English speaker already says right is
@@ -60,6 +64,11 @@ SOURCES = ("admin", "writer", "brief")
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
 RELOAD_SECONDS = 60.0
+
+#: How long a personal episode's respellings are held in memory (§165).
+#: Long enough for the longest episode to finish speaking, and never written
+#: down: a name from somebody's own document or private question is theirs.
+HOLD_SECONDS = 30 * 60
 
 #: Most entries a single episode may add. A writer listing forty names is not
 #: telling us about hard names, it is listing every name.
@@ -123,6 +132,21 @@ def strip_markers(text: str) -> str:
     return SAY_MARKER.sub("", text or "")
 
 
+def _cleaned(pairs: Iterable) -> list[tuple[str, str]]:
+    """`(name, say)` pairs or `{"name", "say"}` dicts, cleaned, at most
+    `MAX_PER_EPISODE`."""
+    out = []
+    for raw in list(pairs or ())[:MAX_PER_EPISODE]:
+        try:
+            name, say = (raw["name"], raw["say"]) if isinstance(raw, dict) else raw
+        except (KeyError, TypeError, ValueError):
+            continue
+        pair = clean(str(name), str(say))
+        if pair:
+            out.append(pair)
+    return out
+
+
 def _split(name: str, say: str) -> list[tuple[str, str]]:
     """The whole name, then each word of it when the respelling lines up.
 
@@ -137,7 +161,7 @@ def _split(name: str, say: str) -> list[tuple[str, str]]:
     if len(names) > 1 and len(names) == len(says):
         for n, s in zip(names, says):
             pair = clean(n, s)
-            if pair and len(n) >= 4:
+            if pair and len(n) >= 5:
                 pairs.append(pair)
     return pairs
 
@@ -154,8 +178,12 @@ class Lexicon:
         self._store = store
         self._lock = threading.Lock()
         self._entries: dict[str, tuple[str, str]] = {}
+        self._stored: dict[str, tuple[str, str]] = {}
         self._pattern: Optional[re.Pattern] = None
         self._loaded = 0.0
+        #: name -> (say, source, expires): respellings from personal episodes,
+        #: in this process only and never in the table. See `hold`.
+        self._held: dict[str, tuple[str, str, float]] = {}
 
     def _bank(self):
         if self._store is not None:
@@ -163,11 +191,23 @@ class Lexicon:
         import voice_bank
         return voice_bank.bank()
 
+    def _merged(self) -> dict[str, tuple[str, str]]:
+        """The table's entries with any unexpired held ones under them: a
+        stored respelling (an admin's above all) still wins."""
+        now = time.time()
+        self._held = {n: v for n, v in self._held.items() if v[2] > now}
+        merged = {n: (v[0], v[1]) for n, v in self._held.items()}
+        merged.update(self._stored)
+        return merged
+
     def _compile(self) -> None:
+        self._entries = self._merged()
         names = sorted(self._entries, key=len, reverse=True)
         self._pattern = (re.compile(
-            r"(?<![A-Za-zÀ-ÿĀ-ſ'’-])(" + "|".join(re.escape(n) for n in names)
-            + r")(?![A-Za-zÀ-ÿĀ-ſ-])") if names else None)
+            # A hyphen is a boundary, so "Keawe" is found in "Jaron-Keawe";
+            # a letter or an apostrophe before it is not ("O'Keawe").
+            r"(?<![A-Za-zÀ-ÿĀ-ſ'’])(" + "|".join(re.escape(n) for n in names)
+            + r")(?![A-Za-zÀ-ÿĀ-ſ])") if names else None)
 
     def reload(self, force: bool = False) -> None:
         now = time.time()
@@ -184,10 +224,10 @@ class Lexicon:
         rank = {s: i for i, s in enumerate(SOURCES)}
         rows = sorted(rows, key=lambda r: -rank.get(r.get("source"), len(SOURCES)))
         with self._lock:
-            self._entries = {}
+            self._stored = {}
             for row in rows:
                 for n, s in _split(row["name"], row["say"]):
-                    self._entries[n] = (s, row["source"])
+                    self._stored[n] = (s, row["source"])
             self._compile()
             self._loaded = now
 
@@ -211,20 +251,34 @@ class Lexicon:
             log.exception("pronunciation lexicon failed to apply")
             return text
 
+    def hold(self, pairs: Iterable, source: str) -> int:
+        """Use these respellings in this process for `HOLD_SECONDS`, and never
+        write them down.
+
+        For a personal episode - an attachment, or a question the cache
+        already refuses to share (`cache.is_shareable`). Its names still have
+        to be said right, but the lexicon is shared by every listener and
+        shown on /admin, and a name out of somebody's own document does not
+        belong in either.
+        """
+        until = time.time() + HOLD_SECONDS
+        held = 0
+        with self._lock:
+            for pair in _cleaned(pairs):
+                for n, s in _split(*pair):
+                    self._held[n] = (s, source, until)
+                held += 1
+            if held:
+                self._compile()
+        return held
+
     def learn(self, pairs: Iterable, source: str) -> int:
         """Keep what a brief or a writer said about names. Returns how many
         were new or changed. Never replaces an admin's respelling."""
         if source not in SOURCES:
             raise ValueError(source)
         kept = 0
-        for raw in list(pairs or ())[:MAX_PER_EPISODE]:
-            try:
-                name, say = (raw["name"], raw["say"]) if isinstance(raw, dict) else raw
-            except (KeyError, TypeError, ValueError):
-                continue
-            pair = clean(name, say)
-            if not pair:
-                continue
+        for pair in _cleaned(pairs):
             try:
                 if self._bank().learn_pronunciation(pair[0], pair[1], source):
                     kept += 1
@@ -277,10 +331,13 @@ def respell(text: str) -> str:
     return lexicon().apply(text)
 
 
-def learn(pairs: Iterable, source: str) -> int:
-    """Keep respellings from a brief or a writer. Never raises."""
+def learn(pairs: Iterable, source: str, keep: bool = True) -> int:
+    """Respellings from a brief or a writer: kept in the shared lexicon, or -
+    `keep=False`, for a personal episode - only held in this process for a
+    while (`Lexicon.hold`). Never raises."""
     try:
-        return lexicon().learn(pairs, source)
+        lex = lexicon()
+        return lex.learn(pairs, source) if keep else lex.hold(pairs, source)
     except Exception:  # noqa: BLE001
         log.exception("pronunciation learning failed")
         return 0
@@ -290,7 +347,10 @@ def known_in(text: str, limit: int = 20) -> list[str]:
     """Names the lexicon already holds that appear in `text`, so a writer
     handed that text need not list them again. Never raises."""
     try:
-        return sorted(n for n in lexicon().entries()
+        lex = lexicon()
+        lex.reload()
+        # Stored names only: a held one came from somebody's personal episode.
+        return sorted(n for n in dict(lex._stored)
                       if re.search(r"(?<![A-Za-z])" + re.escape(n) + r"(?![A-Za-z])",
                                    text or ""))[:limit]
     except Exception:  # noqa: BLE001

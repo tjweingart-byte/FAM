@@ -12948,6 +12948,17 @@ syllable written in capitals is lowered before the voice sees it, or
 `spoken_text` would spell "TEH" as three letters. It never raises; a broken
 lexicon hands the voice the words it had. `write.py` prints both lists.
 
+**A personal episode's names are never kept** (found checking the branch
+before merge). The lexicon is shared by every listener and shown on /admin,
+so a writer respelling a name out of somebody's attached document, or out of
+a question the cache already refuses to share (`cache.is_shareable`), would
+have written that name into both. Those respellings are held in memory for
+the episode (`Lexicon.hold`, thirty minutes) and never stored, and the
+brief's are taken where the plan is known - `ScriptGenerator.understand`,
+not inside EI, which cannot see an attachment. A wipe leaves the lexicon
+alone on purpose: it holds facts about names, not about episodes or
+listeners.
+
 **Unheard**, like every other change to what the voice says: whether
 Chatterbox reads "Sah-gah-poh-loo-teh-leh" better than "Sagapolutele" is the
 first thing to listen for, and the lexicon on /admin is where to fix a

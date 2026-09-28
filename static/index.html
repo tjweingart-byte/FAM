@@ -6397,7 +6397,9 @@
     paintVoiceState();
   }
   function voiceWordsKey(e){
-    if(e.key === "Enter"){
+    // Not while an input method is still composing a word: that Enter
+    // picks the word, it does not send the search.
+    if(e.key === "Enter" && !e.isComposing){
       e.preventDefault();
       voiceWordsEdited();
       sendVoiceSearch();
@@ -6439,6 +6441,9 @@
     var Ctor = speechRecognitionCtor();
     if(!Ctor) return;
     if(VOICE.editing){ voiceWordsEdited(); VOICE.editing = false; }
+    // Safari keeps focus in the words when a button is tapped, which would
+    // leave the keyboard up over a screen that is listening.
+    if(document.activeElement === voiceWordsEl()) voiceWordsEl().blur();
     stopVoiceRecognition(true);
     stopVoiceCountdown(false);
     VOICE.before = voiceText();
@@ -9171,7 +9176,7 @@
   // first eight of the same ranking not in it, and starts again from the top
   // once there are none.
   var SECTION_PAGE = 8;
-  var sectionState = { key: "", seen: [], busy: false };
+  var sectionState = { key: "", seen: [], busy: false, req: 0 };
 
   function openSection(key){
     var grid = document.getElementById("sectionGrid");
@@ -9189,7 +9194,7 @@
     reason.textContent = "Loading\u2026";
     grid.innerHTML = "";
     document.getElementById("sectionRefresh").hidden = true;
-    sectionState = { key: key, seen: [], busy: false };
+    sectionState = { key: key, seen: [], busy: false, req: sectionState.req + 1 };
     navigate("section");
     loadSectionPage();
   }
@@ -9198,6 +9203,7 @@
     var reason = document.getElementById("sectionReason");
     var btn = document.getElementById("sectionRefresh");
     var key = sectionState.key;
+    var req = ++sectionState.req;
     sectionState.busy = true;
     btn.classList.add("spinning");
     fetch(withInterests("/api/myfam/section?key=" + encodeURIComponent(key)
@@ -9206,8 +9212,9 @@
                         + "&seen=" + encodeURIComponent(sectionState.seen.join(","))))
       .then(function(r){ if(!r.ok) throw new Error("section unavailable"); return r.json(); })
       .then(function(d){
-        // A late answer for a section the listener has already left.
-        if(sectionState.key !== key) return;
+        // A late answer for a section the listener has already left, or
+        // for an earlier opening of this one.
+        if(sectionState.key !== key || sectionState.req !== req) return;
         if(d.wrapped) sectionState.seen = [];
         (d.topics || []).forEach(function(t){ sectionState.seen.push(t.id); });
         renderSection(d);
@@ -9219,6 +9226,7 @@
           + "still works, and this fills in when the server is back.";
       })
       .then(function(){
+        if(sectionState.req !== req) return;
         sectionState.busy = false;
         btn.classList.remove("spinning");
       });

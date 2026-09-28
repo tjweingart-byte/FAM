@@ -29,7 +29,7 @@ import live_facts
 import metering
 import prefetch
 from anthropic_client import build_async_client
-from cache import research_reason
+from cache import is_shareable, research_reason
 import live_captions
 from config import settings
 
@@ -1010,13 +1010,35 @@ have not started yet.
 Begin."""
 
 
-def _take_pronunciations(buffer: str, notes: "ScriptNotes | None") -> str:
-    """Keep every complete `<<SAY:>>` line in `buffer` and return it without them."""
-    pairs = pronunciation.parse_markers(buffer)
+def _names_are_shared(plan: EpisodePlan) -> bool:
+    """Whether this episode's respellings may go into the shared lexicon.
+
+    Not for a personal one - an attachment, or a question the cache already
+    refuses to share - whose names are held for the episode and never kept
+    (`pronunciation.Lexicon.hold`). The same line the cache draws, for the
+    same reason: what is somebody's own must not reach anybody else.
+    """
+    return not plan.attachments and is_shareable(plan.query)
+
+
+def _take_brief_names(plan: EpisodePlan) -> None:
+    """The brief's respellings, taken the moment it lands - before retrieval
+    or the writer, because the first sentence is spoken before the rest
+    exists and is the likeliest to name them."""
+    names = getattr(plan.brief, "pronounce", None)
+    if names:
+        pronunciation.learn(names, "brief", keep=_names_are_shared(plan))
+
+
+def _take_pronunciations(buffer: str, notes: "ScriptNotes | None",
+                         keep: bool = True) -> str:
+    """Take every complete `<<SAY:>>` line out of `buffer`, keeping (or, for
+    a personal episode, holding) what it says."""
     if not pronunciation.SAY_MARKER.search(buffer):
         return buffer
+    pairs = pronunciation.parse_markers(buffer)
     if pairs:
-        pronunciation.learn(pairs, "writer")
+        pronunciation.learn(pairs, "writer", keep=keep)
         if notes is not None:
             notes.pronunciations = tuple(notes.pronunciations) + tuple(pairs)
     # Only complete lines go; a half-written one stays until it is whole.
@@ -1255,7 +1277,9 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
-            return dataclasses.replace(plan, brief=warmed)
+            plan = dataclasses.replace(plan, brief=warmed)
+            _take_brief_names(plan)
+            return plan
 
         # `covered` only when there is some, so a call for anything that is
         # not a later daily edition is exactly the call it always was.
@@ -1263,7 +1287,9 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        return dataclasses.replace(plan, brief=brief)
+        plan = dataclasses.replace(plan, brief=brief)
+        _take_brief_names(plan)
+        return plan
 
     async def live_lookup(self, plan: EpisodePlan,
                           notes: ScriptNotes | None = None) -> EpisodePlan:
@@ -1429,6 +1455,7 @@ class ScriptGenerator:
         # One per stream, never per generator: one generator serves many
         # concurrent episodes and each stream has its own opening to protect.
         guard = OpeningGuard()
+        shared = _names_are_shared(plan)
 
         _mark(notes, "writer_request")
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
@@ -1440,7 +1467,7 @@ class ScriptGenerator:
                 # of the text, so the "<<" below never holds the episode
                 # back behind one.
                 if "<<" in buffer:
-                    buffer = _take_pronunciations(buffer, notes)
+                    buffer = _take_pronunciations(buffer, notes, shared)
                 # Everything from "<<" onwards is the go-deeper marker rather
                 # than speech, and it can arrive split across events. Hold it
                 # back instead of letting the sentence splitter reach it.
@@ -1460,7 +1487,7 @@ class ScriptGenerator:
                 if emitted_words > plan.max_words * 1.35:
                     break
 
-            buffer = _take_pronunciations(buffer, notes)
+            buffer = _take_pronunciations(buffer, notes, shared)
             tail = clean_for_speech(buffer)
             if tail and guard.allow(tail):
                 yield tail
