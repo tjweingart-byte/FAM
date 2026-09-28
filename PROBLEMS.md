@@ -13030,3 +13030,40 @@ Every picture painted before this is in the old style and stays on tiles
 until repainted: `python tools/thumbnails.py run --regenerate --limit 200
 --ignore-daily-cap`, or Repaint on /admin/thumbnails - paint ten first and
 look before paying for the tree.
+
+## 167. Tile pictures: no pale border, deeper colour, today's equipment
+
+The first pictures in the §166 look came back with three faults the owner
+named, and sent one image - the airport watercolour, whole - as the thing to
+base them on.
+
+**A border that fades to white.** Watercolour's habit is a margin of paper,
+and §166 had asked for it in so many words: "textured cream paper", "calm
+open space along the bottom edge", and a golf reference whose edges are
+washed out. Three layers now say the opposite. `HOUSE_STYLE` asks for a
+full-bleed painting with no border, margin, unpainted paper or vignette;
+the checker has a `border` answer that fails the picture; and `_resize`
+trims unpainted paper off each edge before the 4:3 crop
+(`_trim_pale_edges`) - a strip that is bright *and* grey, so a pale blue sky
+is kept and only paper goes, at most 18% a side.
+
+**Too light.** "Pale turquoise sky", "cream paper" and the golf reference -
+the lightest of the six - are gone. The style asks for mid and deep tones,
+firm shadows and nothing washed out or pastel, and the references are now
+one: the owner's airport picture cropped to its darker half (terminal,
+tarmac, the car's front), sign cut away, bonnet crest painted out. §166 had
+cropped it to the pale sky strip, which is exactly the part that was not the
+point.
+
+**Old equipment.** §166 set scenes "in a nostalgic mid-century world", which
+the writer read as mid-century *objects*: a sports tile got a valve radio.
+The vintage is the painting, not the contents. The writer is told objects
+are as they are today, with a list of stand-ins it may not use (old radios,
+rotary phones, typewriters, film cameras, wooden rackets, leather balls,
+ticker tape, classic cars); the reference note says to draw today's
+equipment rather than the reference's period objects; and the checker's
+`obsolete` answer fails a picture whose subject is decades-old technology.
+
+Both new checker answers cost a retry rather than a tile, and are in
+`_FAILS_ON`. **Unseen** - no Gemini key here. Every picture painted under
+§166 keeps its look until repainted.
