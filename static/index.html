@@ -217,6 +217,15 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
+  /* Offline (27/09 packet): a card whose episode is not on this device is
+     faded; one that is keeps full brightness and plays from here. */
+  .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
+  .seed-card.not-offline .seed-card-body{ opacity:0.5; }
+  .is-offline .seed-card .seed-acts{ display:none; }
+  .offline-bar{ margin:0 16px 10px; padding:9px 12px; border-radius:12px;
+    background:var(--surface); border:1px solid var(--border); font-size:12px;
+    color:var(--text-muted); }
+  .offline-bar[hidden]{ display:none; }
   .seed-card{ background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; cursor:pointer; }
   .seed-card:active{ transform:scale(0.98); }
   .seed-thumb{ width:100%; aspect-ratio:4/3; background:#EDE6D6; position:relative; overflow:hidden; }
@@ -249,6 +258,22 @@
      starts at once and costs nothing but the audio. Said on the tile rather
      than only in the summary, because which ones are instant is the reason
      this screen orders them the way it does. */
+  /* A card's two buttons (27/09 packet): save it for later, or say "not
+     interested" and never see it again. Top right, over the picture, where
+     the "ready" marker used to sit - so on a card that has them the marker
+     moves to the left. */
+  .seed-acts{ position:absolute; top:6px; right:6px; display:flex; gap:5px; z-index:1; }
+  .seed-act{ width:24px; height:24px; padding:0; border:none; border-radius:50%;
+    background:rgba(26,22,34,0.62); color:#F4EFE4; display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .seed-act:active{ transform:scale(0.92); }
+  .tile-save, .tile-hide{ flex:none; }
+  /* The thumbnail's artwork rule (.seed-thumb svg) stretches every svg
+     inside the picture; these two icons are not artwork. */
+  .seed-thumb .seed-act svg{ position:static; inset:auto; width:13px; height:13px; }
+  .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
+  .seed-card.has-acts .sec-ready{ right:auto; left:8px; }
+  .seed-card.leaving{ opacity:0; transform:scale(0.96); transition:opacity .22s, transform .22s; }
   .sec-ready{ position:absolute; right:8px; top:8px; padding:3px 7px;
     border-radius:999px; background:var(--copper); color:var(--ink);
     font-family:'JetBrains Mono', monospace; font-size:7px; font-weight:700;
@@ -1689,24 +1714,19 @@
   .entry-note{ font-size:11.5px; line-height:1.5; color:var(--text-faint);
     margin-top:16px; }
 
-  /* The three sign-in methods. Google and Apple are drawn because they are
-     the design; they are not connected, and they say so rather than failing
-     silently when tapped. */
-  .auth-method{ display:flex; align-items:center; gap:11px; width:100%;
-    padding:13px 14px; margin-bottom:10px; border-radius:14px;
-    background:var(--surface); border:1px solid var(--border);
-    color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px;
-    font-weight:600; cursor:pointer; text-align:left; }
-  .auth-method:active{ transform:scale(0.99); }
-  .auth-method .am-icon{ flex:0 0 26px; height:26px; border-radius:8px;
-    background:var(--paper); color:var(--ink); display:flex; align-items:center;
-    justify-content:center; font-weight:700; font-size:12px; }
-  .auth-method .am-body{ flex:1; min-width:0; }
-  .auth-method .am-sub{ display:block; font-family:'JetBrains Mono', monospace;
-    font-size:8.5px; letter-spacing:0.06em; text-transform:uppercase;
-    color:var(--text-faint); font-weight:400; margin-top:3px; }
-  .auth-method.soon{ opacity:0.72; }
+  /* The sign-up and log-in form (reviewed in the 27/09 packet). */
   .auth-field{ margin-bottom:13px; }
+  .auth-sub{ font-size:13px; color:var(--text-muted); margin:2px 0 18px; }
+  .auth-opt{ text-transform:none; letter-spacing:0; color:var(--text-faint); margin-left:4px; }
+  .pw-row{ position:relative; }
+  .pw-row .modal-input{ padding-right:62px; }
+  .pw-eye{ position:absolute; right:6px; top:50%; transform:translateY(-50%); height:30px;
+    padding:0 10px; border:none; background:none; color:var(--copper); cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em; }
+  .auth-error{ color:var(--coral); font-size:12.5px; line-height:1.45; margin:2px 0 10px; }
+  .auth-switch{ text-align:center; margin-top:18px; font-size:13px; color:var(--text-muted); }
+  .auth-switch button{ background:none; border:none; color:var(--copper); font:inherit;
+    font-weight:600; cursor:pointer; padding:4px; }
   .auth-label{ font-family:'JetBrains Mono', monospace; font-size:9px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);
     margin-bottom:6px; }
@@ -1894,6 +1914,23 @@
      One list of pointers. There used to be a second view of it - Downloads,
      the audio held on the device - and a switch between them; both are gone
      with the feature. */
+  /* Folders on Save for Later and My Vibes (after §161). */
+  .shelf-chips{ display:flex; gap:7px; overflow-x:auto; padding:2px 18px 10px; scrollbar-width:none; }
+  .shelf-chips::-webkit-scrollbar{ display:none; }
+  .shelf-chip{ flex:0 0 auto; height:30px; padding:0 13px; border-radius:15px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Space Grotesk',sans-serif;
+    font-size:11.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .shelf-chip span{ color:var(--text-muted); font-weight:500; margin-left:3px; }
+  .shelf-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .shelf-chip.on span{ color:var(--ink); }
+  .shelf-chip.add{ background:none; border-style:dashed; color:var(--copper); }
+  .shelf-folder-acts{ display:flex; gap:16px; padding:0 18px 8px; }
+  .shelf-folder-acts button{ background:none; border:none; padding:4px 0; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em; color:var(--copper); }
+  .shelf-folder-acts button.danger{ color:var(--coral); }
+  .shelf-fold{ display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  #myVibeBody .shelf-chips, #myVibeBody .shelf-folder-acts{ padding-left:0; padding-right:0; }
+  .vibe-row .shelf-fold{ margin-right:6px; }
   .sv-row{ display:flex; align-items:center; gap:11px; padding:12px 18px;
     border-bottom:1px solid var(--border); cursor:pointer; }
   .sv-row:active{ background:var(--surface); }
@@ -2034,6 +2071,39 @@
   .yf-ring .av{ width:42px; height:42px; border-radius:50%; display:flex;
     align-items:center; justify-content:center; color:var(--ink);
     font-weight:700; font-size:14px; }
+  /* A friend's vibes as stories (27/09 packet). */
+  .story{ position:absolute; inset:0; z-index:80; background:linear-gradient(180deg,#2A2233 0%,#16121C 100%);
+    display:flex; flex-direction:column; padding:44px 16px 28px; color:#F4EFE4;
+    border-radius:inherit; overflow:hidden; }
+  .story-main{ margin:auto 0; position:relative; z-index:0; display:flex; flex-direction:column;
+    gap:10px; text-align:center; padding:0 8px; pointer-events:none; }
+  .story[hidden]{ display:none; }
+  .story-bars{ display:flex; gap:4px; }
+  .story-bar{ flex:1; height:2.5px; border-radius:2px; background:rgba(244,239,228,0.25); overflow:hidden; }
+  .story-bar i{ display:block; height:100%; width:0; background:#F4EFE4; }
+  .story-bar.done i{ width:100%; }
+  .story-bar.on i{ animation:storyFill var(--story-ms, 6000ms) linear forwards; }
+  .story.paused .story-bar.on i{ animation-play-state:paused; }
+  @keyframes storyFill{ from{ width:0; } to{ width:100%; } }
+  .story-head{ display:flex; align-items:center; gap:10px; margin-top:12px; position:relative; z-index:2; }
+  .story-av .av{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; color:var(--ink); font-weight:700; font-size:13px; overflow:hidden; }
+  .story-who{ flex:1; min-width:0; display:flex; flex-direction:column; font-size:13px; }
+  .story-who span{ font-size:11px; color:rgba(244,239,228,0.6); }
+  .story-x{ width:32px; height:32px; border:none; background:none; color:inherit; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+  .story-tap{ position:absolute; top:100px; bottom:150px; width:50%; z-index:1; cursor:pointer; }
+  .story-tap.left{ left:0; } .story-tap.right{ right:0; }
+  .story-card{ position:relative; z-index:2; display:flex; flex-direction:column; gap:10px; }
+  .story-kicker{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.18em; color:var(--copper); }
+  .story-title{ font-family:'Fraunces', serif; font-size:30px; line-height:1.15; font-weight:500; }
+  .story-meta{ font-size:12px; color:rgba(244,239,228,0.6); }
+  .story-play{ margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px;
+    height:46px; border:none; border-radius:999px; background:var(--copper); color:var(--ink);
+    font:600 14px inherit; font-family:inherit; cursor:pointer; }
+  .story-profile{ height:40px; border:1px solid rgba(244,239,228,0.25); border-radius:999px;
+    background:none; color:inherit; font-family:inherit; font-size:13px; cursor:pointer; }
+  .yf-ring.seen{ border-color:var(--text-faint); }
   .yf-vibe{ position:absolute; right:-5px; bottom:-3px; height:16px; padding:0 5px;
     border-radius:8px; background:var(--copper); color:var(--ink);
     font-family:'JetBrains Mono', monospace; font-size:8px; font-weight:700;
@@ -2310,9 +2380,9 @@
               <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
             </div>
             <div class="entry-h">Ask anything. Hear the answer.</div>
-            <p class="entry-lede">An account keeps your mixes, your interests
-              and what you save — on any device you sign in on. Listening
-              works without one.</p>
+            <p class="entry-lede">Type any question and hear a short episode that
+              answers it. Free to listen &mdash; an account keeps your mixes,
+              interests and saved episodes on every device.</p>
             <div class="entry-acts">
               <button class="entry-btn primary" onclick="openAuth('signup')">Sign Up</button>
               <button class="entry-btn" onclick="openAuth('login')">Log In</button>
@@ -2329,36 +2399,30 @@
         </div>
         <div class="scroll">
           <div class="entry-wrap" style="padding-top:6px;">
-            <button class="auth-method soon" onclick="authNotConnected('Google')">
-              <span class="am-icon">G</span>
-              <span class="am-body">Sign in with Google
-                <span class="am-sub">not connected yet</span></span>
-            </button>
-            <button class="auth-method soon" onclick="authNotConnected('Apple')">
-              <!-- A letter, not the Apple glyph: U+F8FF is a private-use
-                   codepoint that only resolves on Apple platforms and renders
-                   as an empty box everywhere else, including the preview. -->
-              <span class="am-icon">A</span>
-              <span class="am-body">Sign in with Apple
-                <span class="am-sub">not connected yet</span></span>
-            </button>
-            <button class="auth-method" onclick="showAuthForm()">
-              <span class="am-icon">@</span>
-              <span class="am-body">Continue with email
-                <span class="am-sub">email, phone and a password</span></span>
-            </button>
-            <div id="authForm" hidden>
+            <!-- Straight to the form (27/09 packet, reviewing sign-up). It
+                 used to open on Google and Apple buttons that the web app
+                 cannot complete - they are the iOS app's, where the system
+                 sheet does the work - and hid the one form that works behind
+                 a third button. A control with nothing behind it is worse
+                 than no control. -->
+            <div class="auth-sub" id="authSub">Takes ten seconds. Listening stays free either way.</div>
+            <form id="authForm" onsubmit="event.preventDefault(); submitAuthForm();" novalidate>
               <div class="auth-field">
                 <div class="auth-label">Email</div>
                 <input class="modal-input" id="authEmail" type="email"
                        autocomplete="email" placeholder="you@example.com"
-                       style="margin-bottom:0;">
+                       style="margin-bottom:0;" oninput="clearAuthError()">
               </div>
               <div class="auth-field">
                 <div class="auth-label">Password</div>
-                <input class="modal-input" id="authPassword" type="password"
-                       autocomplete="new-password"
-                       placeholder="at least 8 characters" style="margin-bottom:0;">
+                <div class="pw-row">
+                  <input class="modal-input" id="authPassword" type="password"
+                         autocomplete="new-password"
+                         placeholder="at least 8 characters" style="margin-bottom:0;"
+                         oninput="clearAuthError()">
+                  <button class="pw-eye" type="button" id="authPwEye"
+                          onclick="togglePasswordShown()" aria-label="Show password">Show</button>
+                </div>
               </div>
               <!-- Phone is asked for and kept on the same account as the
                    address. The code is a select rather than something typed
@@ -2367,7 +2431,7 @@
                    part that cannot be inferred is the one part that is
                    picked rather than typed. -->
               <div class="auth-field" id="authPhoneField">
-                <div class="auth-label">Phone</div>
+                <div class="auth-label">Phone <span class="auth-opt">optional</span></div>
                 <div class="phone-row">
                   <select class="modal-input phone-cc" id="authPhoneCC"
                           aria-label="Country code"></select>
@@ -2378,16 +2442,11 @@
                          oninput="formatPhoneInput(this)">
                 </div>
               </div>
-              <button class="entry-btn primary" id="authSubmit"
-                      onclick="submitAuthForm()">Create account</button>
-              <p class="entry-note" id="authNote">Your password is what signs you
-                in. Your number is kept on the account and works as a second way
-                in — there is no SMS delivery behind it yet, so it cannot verify
-                you or recover an account.</p>
-            </div>
-            <p class="entry-note">There is no password reset yet: it needs email
-              delivery this app has no route to. A forgotten password today is a
-              lost account.</p>
+              <p class="auth-error" id="authError" role="alert" hidden></p>
+              <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
+              <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
+            </form>
+            <div class="auth-switch" id="authSwitch"></div>
           </div>
         </div>
       </section>
@@ -2469,9 +2528,7 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0;">
             <div class="entry-h" id="identityHeading">Who are you?</div>
-            <p class="entry-lede" id="identityLede">A name and a handle are how
-              your friends find you, and how a vibe you send says who it is
-              from. Both can change later.</p>
+            <p class="entry-lede" id="identityLede">Your name and @handle are how friends find you. You can change them any time.</p>
 
             <div class="id-pic-row">
               <div class="pf-pic" id="identityPic" onclick="pickAvatar()"
@@ -2511,8 +2568,7 @@
                 <span class="yf-label">Your interests</span>
                 <span class="yf-int-count" id="identityIntCount"></span>
               </div>
-              <div class="yf-int-note">Picked from what you listen to. Tap to
-                swap, or add your own &mdash; up to <span id="identityIntMax">5</span>.</div>
+              <div class="yf-int-note">Shown on your profile. Tap one to remove it, or add your own &mdash; up to <span id="identityIntMax">5</span>.</div>
               <div class="yf-int-chips" id="identityIntChips"></div>
               <div class="yf-int-add">
                 <input id="identityIntAdd" type="text" autocomplete="off" autocorrect="off"
@@ -2548,8 +2604,7 @@
                        autocapitalize="words" spellcheck="false"
                        placeholder="Country" style="margin-bottom:0;">
               </div>
-              <div class="id-note">Optional. It is used to offer you episodes
-                about where you live, and it is never on your profile.</div>
+              <div class="id-note">Optional. For local episodes &mdash; never shown on your profile.</div>
             </div>
 
             <!-- The account, last: private, like the location above it. The
@@ -2620,9 +2675,7 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0;">
             <div class="entry-h">Where you are</div>
-            <p class="entry-lede">FAM uses this to offer you episodes about
-              where you live. It is never shown on your profile, and leaving
-              it blank changes nothing else.</p>
+            <p class="entry-lede">So we can offer you episodes about where you live. It&rsquo;s never shown on your profile.</p>
 
             <div class="auth-field">
               <div class="auth-label">City</div>
@@ -2644,7 +2697,7 @@
                      autocomplete="country-name" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="Country" style="margin-bottom:0;">
-              <div class="id-note" id="locNote">Stored for your account only.</div>
+              <div class="id-note" id="locNote">Only you can see this.</div>
             </div>
           </div>
         </div>
@@ -2779,7 +2832,7 @@
             <!-- The voice this search is spoken in (§147). Only here and under
                  Listening in Settings: every other surface draws a voice from
                  the bank per episode. -->
-            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">FAM</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
+            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">Ian</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
             <div style="display:flex; align-items:center; gap:9px;">
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -2839,6 +2892,7 @@
             </div>
           </div>
           <div id="goDeeperBlock"></div>
+          <div class="offline-bar" id="offlineBar" hidden>You&rsquo;re offline. Episodes you&rsquo;ve finished on this device still play.</div>
           <div id="myfamFeed"></div>
           <!-- "Different picks" used to sit here and reload the page for a
                fresh draw. Removed at the owner's direction: every rail now
@@ -2907,8 +2961,7 @@
             <button class="dm-search-x" id="dailySearchX" onclick="closeDailySearch()" hidden>Cancel</button>
           </div>
           <div class="connect-sub" id="dailySub" style="margin:2px 0 16px;">
-            Your daily mixes. Each one is a standing list of topics — the
-            episodes are new every day.
+            Your mixes, with fresh episodes every morning.
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
@@ -2961,7 +3014,7 @@
           <div class="nm-cover-hint" id="nmCoverHint">Tap to add a cover photo</div>
           <input type="file" id="coverFile" hidden accept="image/*" onchange="coverChosen(this)">
           <h3 class="nm-h">Name your mix</h3>
-          <p class="nm-sub">Name it after when you listen. You&rsquo;ll pick the topics next.</p>
+          <p class="nm-sub">Name it after when you&rsquo;ll listen. You&rsquo;ll pick topics next.</p>
           <input class="nm-input" id="nmInput" type="text" maxlength="40" autocomplete="off" autocorrect="off" spellcheck="false"
                  placeholder="Morning commute" aria-label="Mix name"
                  oninput="onNewMixName()" onkeydown="if(event.key==='Enter') confirmNewMix()">
@@ -3312,7 +3365,7 @@
       <div class="modal-overlay" id="mixDoneOverlay">
         <div class="nextup-card mixdone-card" role="dialog" aria-labelledby="mixDoneH">
           <div class="mixdone-h" id="mixDoneH">You have finished listening to your playlist for today</div>
-          <div class="mixdone-sub">Tomorrow it will have new episodes on the same subjects.</div>
+          <div class="mixdone-sub">Fresh episodes on the same topics tomorrow.</div>
           <button class="nextup-back" onclick="closeMixDone(true)">Back to DailyFAM</button>
         </div>
       </div>
@@ -3488,6 +3541,31 @@
            and the day it is switched on it appears without another change.
            Every word in it apart from the button labels comes from the
            server's verdict, so the app and the iOS client say the same thing. -->
+      <!-- A friend's vibes, played as stories (27/09 packet). Opened from a
+           face on YourFAM that carries the VIBE badge; each vibe is one
+           story, up for 24 hours. Left half back, right half forward, and it
+           moves on by itself - to the next friend's when one runs out. -->
+      <div class="story" id="storyOverlay" hidden role="dialog" aria-label="Vibes">
+        <div class="story-bars" id="storyBars"></div>
+        <div class="story-head">
+          <span class="story-av" id="storyAv"></span>
+          <div class="story-who"><b id="storyName"></b><span id="storyAgo"></span></div>
+          <button class="story-x" onclick="closeStory()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="story-tap left" onclick="storyStep(-1)" aria-hidden="true"></div>
+        <div class="story-tap right" onclick="storyStep(1)" aria-hidden="true"></div>
+        <div class="story-main">
+          <div class="story-kicker">VIBE</div>
+          <div class="story-title" id="storyTitle"></div>
+          <div class="story-meta" id="storyMeta"></div>
+        </div>
+        <div class="story-card">
+          <button class="story-play" onclick="playStory()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>
+            Play episode</button>
+          <button class="story-profile" onclick="storyProfile()">View profile</button>
+        </div>
+      </div>
       <!-- A guest tapped a sample episode that has not been made yet. Making
            it would cost a script and a GPU, so the way on is an account. -->
       <div class="modal-overlay" id="guestGateOverlay" onclick="if(event.target===this) closeGuestGate()">
@@ -4340,8 +4418,7 @@
       .then(function(r){ return r.json(); })
       .then(renderPlans)
       .catch(function(){
-        list.innerHTML = '<div class="plan-note">Could not reach the server, '
-          + 'so there is nothing to show here yet.</div>';
+        list.innerHTML = '<div class="plan-note">Plans could not load. Check your connection and try again.</div>';
       });
   }
   function closePlans(){
@@ -4368,9 +4445,7 @@
     // The seam where checkout goes, named as one. Nothing sets a paid plan
     // yet, so a row that looked buyable would be a promise the app cannot
     // keep - and the listener would find that out after tapping.
-    html += '<div class="plan-note">Upgrading is not switched on yet \u2014 there '
-         + 'is no checkout behind these plans, and nothing on this server '
-         + 'charges anybody. This is where it will go.</div>';
+    html += '<div class="plan-note">Upgrades aren\u2019t available yet. Everything is free for now.</div>';
     document.getElementById("plansList").innerHTML = html;
   }
 
@@ -5224,6 +5299,192 @@
     if(nowBarState) navigate("player");
   }
 
+  // ---------------- Offline listening (27/09 packet) ----------------
+  //
+  // Episodes heard to the end on this device are kept on it, so they play
+  // with no connection. Automatic, not a download button: the owner asked
+  // for "cached episodes" to be listenable offline, and the episodes a
+  // listener has already played are the ones this device has in hand.
+  //
+  // What is kept is exactly what the player already holds - the raw PCM of
+  // the whole episode, in IndexedDB - so there is still no audio *file* and
+  // nothing is converted to MP3 (the settled constraint). Two stores, so the
+  // index of what is here can be read without loading any audio. Bounded,
+  // oldest played out first, and emptied on log-out: this device is not the
+  // next listener's.
+  //
+  // Offline, the myFAM cards whose episode is not on the device are faded
+  // (`not-offline`) and say so when tapped; the ones that are play from here.
+  var OfflineShelf = (function(){
+    var DB = "fam-offline", META = "meta", AUDIO = "audio";
+    var MAX_EPISODES = 40, MAX_BYTES = 250 * 1024 * 1024;
+    var index = {};        // key -> meta row, read once at boot
+    var dbPromise = null;
+
+    function norm(q){ return String(q || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+    function keyOf(query, minutes, context){
+      return norm(query) + "|" + (Number(minutes) || 0) + "|" + norm(context);
+    }
+    function open(){
+      if(dbPromise) return dbPromise;
+      dbPromise = new Promise(function(resolve, reject){
+        try {
+          if(!window.indexedDB){ reject(new Error("no IndexedDB")); return; }
+          var req = indexedDB.open(DB, 1);
+          req.onupgradeneeded = function(){
+            var db = req.result;
+            if(!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "key" });
+            if(!db.objectStoreNames.contains(AUDIO)) db.createObjectStore(AUDIO, { keyPath: "key" });
+          };
+          req.onsuccess = function(){ resolve(req.result); };
+          req.onerror = function(){ reject(req.error); };
+        } catch(e){ reject(e); }
+      });
+      dbPromise.catch(function(){ dbPromise = null; });
+      return dbPromise;
+    }
+    function tx(stores, mode, fn){
+      return open().then(function(db){
+        return new Promise(function(resolve, reject){
+          var t = db.transaction(stores, mode);
+          var out = fn(t);
+          // A request resolves to its result - `undefined` for a missing row -
+          // and anything else a caller returned resolves as itself.
+          t.oncomplete = function(){
+            resolve((typeof IDBRequest !== "undefined" && out instanceof IDBRequest) ? out.result : out);
+          };
+          t.onerror = function(){ reject(t.error); };
+          t.onabort = function(){ reject(t.error); };
+        });
+      });
+    }
+    function load(){
+      return tx([META], "readonly", function(t){
+        return t.objectStore(META).getAll();
+      }).then(function(rows){
+        index = {};
+        (rows || []).forEach(function(r){ index[r.key] = r; });
+        return index;
+      }).catch(function(){ return index; });
+    }
+    function has(query, minutes, context){ return !!index[keyOf(query, minutes, context)]; }
+    function evict(){
+      var rows = Object.keys(index).map(function(k){ return index[k]; })
+        .sort(function(a, b){ return a.at - b.at; });
+      var bytes = rows.reduce(function(n, r){ return n + (r.bytes || 0); }, 0);
+      var gone = [];
+      while(rows.length > MAX_EPISODES || bytes > MAX_BYTES){
+        var r = rows.shift();
+        bytes -= r.bytes || 0;
+        gone.push(r.key);
+        delete index[r.key];
+      }
+      if(!gone.length) return Promise.resolve();
+      return tx([META, AUDIO], "readwrite", function(t){
+        gone.forEach(function(k){ t.objectStore(META).delete(k); t.objectStore(AUDIO).delete(k); });
+      }).catch(function(){});
+    }
+    function put(query, minutes, context, title, whole){
+      if(!whole || !whole.samples || !whole.samples.length) return Promise.resolve();
+      var key = keyOf(query, minutes, context);
+      var meta = { key: key, query: query, minutes: Number(minutes) || 0,
+                   context: context || "", title: title || query,
+                   bytes: whole.samples.byteLength, at: Date.now() };
+      index[key] = meta;
+      return tx([META, AUDIO], "readwrite", function(t){
+        t.objectStore(META).put(meta);
+        t.objectStore(AUDIO).put({ key: key, rate: whole.rate, samples: whole.samples.buffer });
+      }).then(evict).catch(function(){ delete index[key]; });
+    }
+    function get(query, minutes, context){
+      var key = keyOf(query, minutes, context);
+      if(!index[key]) return Promise.resolve(null);
+      return tx([AUDIO], "readonly", function(t){
+        return t.objectStore(AUDIO).get(key);
+      }).then(function(row){
+        if(!row) return null;
+        // Played again, so it is the last to go.
+        index[key].at = Date.now();
+        tx([META], "readwrite", function(t){ t.objectStore(META).put(index[key]); }).catch(function(){});
+        return { rate: row.rate, samples: new Int16Array(row.samples) };
+      }).catch(function(){ return null; });
+    }
+    function clear(){
+      index = {};
+      return tx([META, AUDIO], "readwrite", function(t){
+        t.objectStore(META).clear(); t.objectStore(AUDIO).clear();
+      }).catch(function(){});
+    }
+    function count(){ return Object.keys(index).length; }
+    return { load: load, has: has, put: put, get: get, clear: clear, count: count };
+  })();
+
+  // Offline is the browser's word plus what a failed request says: a phone
+  // can report "online" on a network that reaches nothing.
+  var famOffline = false;
+  // Bumped by every `speakText`, so a watcher from an earlier episode knows
+  // the player has moved on.
+  var speakSeq = 0;
+  //: The one "keep this episode on the device" watcher (see `speakText`).
+  var offlineKeepWatch = null;
+  function isOffline(){ return famOffline || (typeof navigator !== "undefined" && navigator.onLine === false); }
+  function setOffline(off){
+    famOffline = !!off;
+    document.documentElement.classList.toggle("is-offline", isOffline());
+    var bar = document.getElementById("offlineBar");
+    if(bar) bar.hidden = !isOffline();
+    markOfflineCards();
+  }
+  function markOfflineCards(){
+    var off = isOffline();
+    document.querySelectorAll(".seed-card[data-topic]").forEach(function(card){
+      var t = myFamTopics[card.getAttribute("data-topic")];
+      var here = !!(t && OfflineShelf.has(t.query, BROWSE_MINUTES, ""));
+      card.classList.toggle("not-offline", off && !here);
+      card.classList.toggle("on-device", here);
+    });
+  }
+  window.addEventListener("online", function(){ setOffline(false); });
+  window.addEventListener("offline", function(){ setOffline(true); });
+  OfflineShelf.load().then(markOfflineCards);
+
+  // The last myFAM page drawn, so an offline open still shows the cards
+  // (faded, apart from the ones on this device). A per-device convenience,
+  // emptied on log-out with the shelf.
+  function rememberFeed(data){
+    try { localStorage.setItem("famLastFeed", JSON.stringify(data)); } catch(e){}
+  }
+  function rememberedFeed(){
+    try { return JSON.parse(localStorage.getItem("famLastFeed") || "null"); } catch(e){ return null; }
+  }
+  // Everything this device kept for the listener who is leaving: the
+  // offline episodes and page, which friends' stories they had watched, and
+  // the card and shelf state still in memory (found reviewing §161).
+  function forgetOfflineCopies(){
+    try {
+      localStorage.removeItem("famLastFeed");
+      localStorage.removeItem("famStoriesSeen");
+      localStorage.removeItem("famSignedIn");
+    } catch(e){}
+    OfflineShelf.clear();
+    hiddenTiles = {};
+    savedTileQueries = {};
+    shelfFolders = { saved: [], vibe: [] };
+    shelfPick = { saved: "", vibe: "" };
+    myVibes = [];
+  }
+
+  // The app shell, so FAM opens with no connection at all. Only where a
+  // service worker can exist; the preview and a file:// page carry on
+  // without one.
+  try {
+    if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)
+       && (location.protocol === "https:" || location.hostname === "localhost"
+           || location.hostname === "127.0.0.1")){
+      navigator.serviceWorker.register("/sw.js").catch(function(){});
+    }
+  } catch(e){}
+
   //: Which surface the episode playing came from (§147) - "search" is the
   //: only one whose length and voice the player offers to change.
   var currentPlaySurface = "";
@@ -5276,9 +5537,35 @@
     setTimeout(refreshSavedState, 0);
     markPlaying();
     awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
-    if(!opts.cachedOnly) trackGenSteps(title, minutes, context || "", surface,
+    var fromDevice = isOffline() && !opts.attach && OfflineShelf.has(title, minutes, context || "");
+    if(!opts.cachedOnly && !fromDevice) trackGenSteps(title, minutes, context || "", surface,
                                        episodeTopicId);
-    FamAudio.play(title, minutes, {
+    // Kept on this device once all of it has arrived, so it plays offline
+    // next time (an attachment is the listener's own document, and is not).
+    var mySeq = ++speakSeq;
+    clearInterval(offlineKeepWatch);
+    // Tied to the one stream this episode started: Explore's reels play
+    // through FamAudio directly, so "another speakText ran" is not enough to
+    // know the buffer changed hands - the stream id is. Cleared by
+    // `stopSpeech` too, so an abandoned stream leaves no timer behind.
+    function keepWhenWhole(){
+      if(opts.attach || fromDevice) return;
+      var myStream = FamAudio.stream();
+      clearInterval(offlineKeepWatch);
+      offlineKeepWatch = setInterval(function(){
+        if(mySeq !== speakSeq || FamAudio.stream() !== myStream){
+          clearInterval(offlineKeepWatch); return;
+        }
+        if(!FamAudio.isComplete()) return;
+        clearInterval(offlineKeepWatch);
+        // Null unless the server marked it keepable (a production voice).
+        var whole = FamAudio.whole();
+        if(!whole || whole.stream !== myStream) return;
+        var shown = TOPICS[currentPlayingTopicKey] ? TOPICS[currentPlayingTopicKey].title : title;
+        OfflineShelf.put(title, minutes, context || "", shown, whole).then(markOfflineCards);
+      }, 1500);
+    }
+    var audioHandlers = {
       startGate: genStepsGate,
       onFirstAudio: function(){
         awaitingFirstAudio = "";
@@ -5313,6 +5600,9 @@
         // one's.
         setTimeout(fetchEpisodeSources, 6000);
         setTimeout(fetchEpisodeSources, 20000);
+        // A stream arrived, so there is a connection whatever was said before.
+        if(!fromDevice && famOffline) setOffline(false);
+        keepWhenWhole();
       },
       onEnd: function(){
         awaitingFirstAudio = "";
@@ -5343,17 +5633,42 @@
         if(opts.nextUp !== false) maybeOfferNextUp(title, episodeTopicId);
       },
       onError: function(err){
+        // No connection, and this one is on the device: play it from here.
+        // `network` is set by FamAudio only when the request never reached
+        // the server - a bug further down is shown as the failure it is.
+        if(err && err.network && !fromDevice && !opts.attach
+           && OfflineShelf.has(title, minutes, context || "")){
+          setOffline(true);
+          playFromDevice();
+          return;
+        }
         awaitingFirstAudio = "";
         stopProgress();
         setPlayState(false);
         onGenerationFailed(err && err.message, err);
       }
-    // The voice is sent only for a search (§147): every other surface is
-    // spoken in the voice the server keeps for that episode.
-    }, context, surface === "search" ? selectedVoice : null, {
-      topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
-      attach: opts.attach || "", surface: surface
-    });
+    };
+    function playFromDevice(){
+      fromDevice = true;
+      OfflineShelf.get(title, minutes, context || "").then(function(stored){
+        if(!stored || !stored.samples.length){
+          audioHandlers.onError(new Error("That episode isn\u2019t on this device."));
+          return;
+        }
+        FamAudio.playStored(stored.samples, stored.rate, audioHandlers);
+      });
+    }
+    if(fromDevice){
+      playFromDevice();
+    } else {
+      // The voice is sent only for a search (§147): every other surface is
+      // spoken in the voice the server keeps for that episode.
+      FamAudio.play(title, minutes, audioHandlers,
+        context, surface === "search" ? selectedVoice : null, {
+        topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
+        attach: opts.attach || "", surface: surface
+      });
+    }
 
     // The brief names the episode during the wait, several seconds before the
     // first word (§127), so the player behind the loading screen stops saying
@@ -5376,6 +5691,7 @@
   }
   var famAbandonReporter = null;
   function stopSpeech(){
+    clearInterval(offlineKeepWatch);
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
     awaitingFirstAudio = "";
     audioOwner = "";
@@ -5901,7 +6217,7 @@
     for(var i = 0; i < AVAILABLE_VOICES.length; i++){
       if(AVAILABLE_VOICES[i].id === id) return AVAILABLE_VOICES[i].label;
     }
-    return AVAILABLE_VOICES.length ? AVAILABLE_VOICES[0].label : "FAM";
+    return AVAILABLE_VOICES.length ? AVAILABLE_VOICES[0].label : "Ian";
   }
 
   // The voice a search is spoken in (§147). The server keeps each listener's
@@ -6729,8 +7045,7 @@
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
       // "you have no mixes", which is a different and much worse message.
-      el.innerHTML = '<div class="mix-empty">Could not load your mixes. '
-        + 'They are safe on the server — this will fill in when it is back.</div>';
+      el.innerHTML = '<div class="mix-empty">Your mixes could not load. They\u2019re safe \u2014 try again in a moment.</div>';
     });
   }
 
@@ -6740,9 +7055,7 @@
   function renderMixesLocked(){
     showNewMixButton(false);
     document.getElementById("mixList").innerHTML =
-      '<div class="locked-note">A mix is a standing list of topics the server '
-      + 'keeps for you, so it needs an account. Signing up keeps the listening '
-      + 'you have already done \u2014 it does not start you over.'
+      '<div class="locked-note">Make mixes of the topics you want every day, with fresh episodes each morning. Free with an account.'
       + '<div class="locked-acts">'
       + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
@@ -6822,8 +7135,7 @@
     showNewMixButton(true);
     var html = "";
     if(!mixes.length){
-      html += '<div class="mix-empty">No mixes yet. A mix is a handful of topics '
-        + 'you want every day — name it after when you listen, not what it is about.</div>';
+      html += '<div class="mix-empty">No mixes yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
       if(mixStarters.length){
         html += '<div class="starter-row">' + mixStarters.map(function(st, i){
           return '<div class="starter-chip" onclick="useStarterMix(' + i + ')">'
@@ -6927,8 +7239,7 @@
           + '</div>';
       }).join("");
     } else {
-      html += '<div class="mix-empty">This mix is empty. Add the topics you want '
-        + 'to hear about every day.</div>';
+      html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want every day.</div>';
     }
     // Public mixes appear on the profile and in DailyFAM search, and a new
     // mix is public by default (at the owner's direction).
@@ -7497,8 +7808,7 @@
       })
       .catch(function(){
         if(seq !== publicSearchSeq) return;
-        el.innerHTML = '<div class="mix-empty">Could not search public mixes just now. '
-          + 'Your own mixes are fine — tap Cancel to see them.</div>';
+        el.innerHTML = '<div class="mix-empty">Search isn\u2019t working right now. Tap Cancel to see your mixes.</div>';
       });
   }
 
@@ -7539,8 +7849,7 @@
       el.innerHTML = q
         ? '<div class="mix-empty">No public mixes match “' + escapeHtml(q) + '”. '
           + 'Try a mix name, a topic, or somebody’s @handle.</div>'
-        : '<div class="mix-empty">Nobody has made a mix public yet. Make one of yours '
-          + 'public and it will show up here for everyone else.</div>';
+        : '<div class="mix-empty">No public mixes yet. Make one of yours public and others can find it here.</div>';
       return;
     }
     el.innerHTML = '<div class="dm-res-h">' + (q ? "Public mixes matching “" + escapeHtml(q) + "”"
@@ -8156,7 +8465,7 @@
       });
     }
     if(!cat.length){
-      html += '<div class="mix-empty">Could not load the topic list. Type a topic above to follow it.</div>';
+      html += '<div class="mix-empty">Topics could not load. Type one above to follow it.</div>';
     } else if(!matches.length && !hits.length){
       html += '<div class="mix-empty" style="margin-top:14px;">No topics'
         + (filterRow ? ' in ' + escapeHtml(filterRow.label) : '') + (term ? ' match that' : '')
@@ -8570,6 +8879,93 @@
   var BROWSE_MINUTES = 2;
   var myfamLengthMinutes = BROWSE_MINUTES;
 
+  // ---- "Save for later" and "Not interested" on a card (27/09 packet) ----
+  //
+  // The same two actions the player has, on the card itself, so a tile can
+  // be kept or waved off without being played first. Save is the shelf
+  // (`/api/saved`, a pointer); not interested is a `hide` event, which the
+  // server reads on every rail from then on (`topics.EventStore.hidden`).
+  // `hiddenTiles` keeps a waved-off tile off this page at once, and for a
+  // guest - whose events are not kept (§127) - for as long as the page is.
+  var hiddenTiles = {};
+  var savedTileQueries = {};
+
+  function seedActsHtml(t){
+    var on = savedTileQueries[tileSaveKey(t)] ? " saved-on" : "";
+    return '<span class="seed-acts">'
+      + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
+      + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
+      + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
+      + '<button class="seed-act tile-hide" type="button"'
+      + ' aria-label="Not interested in ' + escapeHtml(t.title) + '" title="Not interested"'
+      + ' onclick="event.stopPropagation(); notInterested(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg></button>'
+      + '</span>';
+  }
+
+  // A saved episode is its question *and* its length, as on the server; a
+  // card's episode is always `BROWSE_MINUTES` long.
+  function tileSaveKey(t){ return t.query + "|" + BROWSE_MINUTES; }
+
+  function paintTileSaves(){
+    document.querySelectorAll("[data-tile-save]").forEach(function(el){
+      var t = myFamTopics[el.getAttribute("data-tile-save")];
+      var on = !!(t && savedTileQueries[tileSaveKey(t)]);
+      el.classList.toggle("saved-on", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.setAttribute("title", on ? "Take it off Save for Later" : "Save for later");
+    });
+  }
+
+  // Which of the page's tiles are already on the shelf, so their buttons
+  // open lit. One read of the shelf per draw of the page.
+  function loadTileSaves(){
+    if(!AUTH.authenticated) return;
+    fetch("/api/saved").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        savedTileQueries = {};
+        (d.items || []).forEach(function(i){ savedTileQueries[i.query + "|" + i.minutes] = true; });
+        paintTileSaves();
+      }).catch(function(){});
+  }
+
+  function saveTile(topicId){
+    var t = myFamTopics[topicId];
+    if(!t) return;
+    if(!AUTH.authenticated){
+      showGuestGate("Create a free account to keep episodes for later.");
+      return;
+    }
+    var key = tileSaveKey(t);
+    var on = !!savedTileQueries[key];
+    var req = on
+      ? fetch("/api/saved?q=" + encodeURIComponent(t.query) + "&minutes=" + BROWSE_MINUTES,
+              { method: "DELETE" })
+      : fetch("/api/saved", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ query: t.query, minutes: BROWSE_MINUTES,
+                                 title: t.title, source: "myfam" }) });
+    req.then(function(r){
+      if(!r.ok) throw new Error();
+      if(on) delete savedTileQueries[key]; else savedTileQueries[key] = true;
+      paintTileSaves();
+      toast(on ? "Taken off Save for Later" : "Saved for later \u2713");
+      if(!on) recordFamEvent("save", topicId, t.query);
+    }).catch(function(){ toast(on ? "Could not take that off" : "Could not save that"); });
+  }
+
+  function notInterested(topicId){
+    var t = myFamTopics[topicId] || {};
+    hiddenTiles[topicId] = true;
+    recordFamEvent("hide", topicId, t.query || t.title || "");
+    document.querySelectorAll('.seed-card[data-topic]').forEach(function(card){
+      if(card.getAttribute("data-topic") !== topicId) return;
+      card.classList.add("leaving");
+      setTimeout(function(){ if(card.parentNode) card.parentNode.removeChild(card); watchRailEnds(); }, 240);
+    });
+    toast("Got it. We won\u2019t suggest that one again");
+  }
+
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
@@ -8590,11 +8986,12 @@
       }
 
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
-        + sec.topics.map(function(t){
+        + sec.topics.filter(function(t){ return !hiddenTiles[t.id]; }).map(function(t){
         myFamTopics[t.id] = t;
         var tag = seedTagText(sec.key, t);
-        return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
+        return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startBankTopic(\'' + t.id + '\')">'
           + seedThumbOpen(t)
+          + seedActsHtml(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
           // Already written, so it starts instantly and costs nothing to
           // serve. The same marker the "view more" screen uses, and the same
@@ -8632,6 +9029,8 @@
     }
     document.getElementById("myfamFeed").innerHTML = html;
     watchRailEnds();
+    markOfflineCards();
+    if(!isOffline()) loadTileSaves();
   }
 
   // Which rails have been scrolled to their end, so the chevron can stand
@@ -8697,15 +9096,17 @@
     // Says what the order means, because "ready first" is not guessable and
     // is the reason this screen exists in the shape it does.
     reason.textContent = d.ready
-      ? d.ready + " of these " + (d.ready === 1 ? "is" : "are") + " already "
-        + "written and start straight away, at " + d.minutes + " min."
-      : "Every one of these is written when you tap it, at "
-        + d.minutes + " min.";
+      ? d.ready + " of these " + (d.ready === 1 ? "plays" : "play") + " instantly."
+      : "";
     function card(t){
       sectionTopics[t.id] = t;
+      // In the feed's map too, so the card's save and "not interested"
+      // buttons find it the way the rail's do.
+      myFamTopics[t.id] = t;
+      if(hiddenTiles[t.id]) return "";
       var tag = seedTagText(d.key, t);
-      return '<div class="seed-card" onclick="startSectionTopic(\'' + t.id + '\')">'
-        + seedThumbOpen(t)
+      return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
+        + seedThumbOpen(t) + seedActsHtml(t)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
         + (t.cached ? '<span class="sec-ready">ready</span>' : '')
         + '</div>'
@@ -8733,6 +9134,7 @@
       return;
     }
     grid.innerHTML = topics.map(card).join("");
+    paintTileSaves();
   }
 
   function startSectionTopic(topicId){
@@ -8912,8 +9314,7 @@
     var list = document.getElementById("srcList");
     if (!list) return;
     if (!sourcesNow.length){
-      list.innerHTML = '<div class="src-note">This episode was written without '
-        + 'retrieved sources.</div>';
+      list.innerHTML = '<div class="src-note">No sources for this episode.</div>';
       return;
     }
     var rows = sourcesNow.map(function(item, i){
@@ -9154,19 +9555,33 @@
     // written depends on the length it would be written at - asking the cache
     // at the wrong one marks ready tiles unready and sorts the rails wrong.
     fetch(withInterests("/api/myfam?minutes=" + myfamLengthMinutes))
+      .catch(function(e){ e.network = true; throw e; })
       .then(function(r){ if(!r.ok) throw new Error("feed unavailable"); return r.json(); })
       .then(function(data){
         // Before the render, so the first rail's heading is right on the
         // first paint rather than correcting itself a frame later.
         myfamTasteSource = data.taste_source || "taste";
         myfamSampleNote = data.sample ? (data.sample_note || "") : "";
+        if(famOffline) setOffline(false);
         renderMyFamFeed(data.sections);
+        // Remembered only once it has drawn, so a page that fails to draw
+        // is never the one an offline open falls back to.
+        rememberFeed(data);
         loadGoDeeper();
       })
-      .catch(function(){
+      .catch(function(err){
+        // No connection: the last page drawn, with what is on this device
+        // at full brightness and the rest faded.
+        var last = ((err && err.network) || isOffline()) ? rememberedFeed() : null;
+        if(last && last.sections){
+          setOffline(true);
+          myfamTasteSource = last.taste_source || "taste";
+          myfamSampleNote = "";
+          renderMyFamFeed(last.sections);
+          return;
+        }
         // The feed failing must look like a failure, not like an empty app.
-        el.innerHTML = '<div class="feed-empty">Could not load your feed. '
-          + 'Search still works, and this will fill in when the server is back.</div>';
+        el.innerHTML = '<div class="feed-empty">Your feed could not load. Search still works \u2014 try again in a moment.</div>';
       });
   }
 
@@ -9178,6 +9593,10 @@
     // a GPU). When the page already knows it is not, say so now rather than
     // opening the loading screen to be refused.
     if(t.playable === false && !AUTH.authenticated){ showGuestGate(); return; }
+    if(isOffline() && !OfflineShelf.has(t.query, BROWSE_MINUTES, "")){
+      toast("You\u2019re offline, and this one isn\u2019t on your device yet");
+      return;
+    }
     var key = "bank_" + topicId + "_" + Date.now();
     TOPICS[key] = {
       title: t.title,
@@ -9355,12 +9774,26 @@
   // is exactly what stops a script walking off with someone's identity.
   var AUTH = { user_id: "", email: "", authenticated: false };
 
+  //: Whether the last `/api/auth/me` never reached the server, and whether
+  //: this device was signed in the last time it did (§161's offline open).
+  var authUnreachable = false;
+  function rememberSignedIn(on){
+    try { if(on) localStorage.setItem("famSignedIn", "1"); else localStorage.removeItem("famSignedIn"); }
+    catch(e){}
+  }
+  function wasSignedIn(){
+    try { return localStorage.getItem("famSignedIn") === "1"; } catch(e){ return false; }
+  }
+
   function refreshAuth(){
     return fetch("/api/auth/me")
+      .catch(function(e){ authUnreachable = true; throw e; })
       .then(function(r){ return r.json(); })
       .then(function(d){
         var was = AUTH.authenticated;
         AUTH = d;
+        authUnreachable = false;
+        rememberSignedIn(!!d.authenticated);
         // The Profile tab is decided entirely by this answer, so it is the
         // one screen that has to be redrawn when the answer changes under
         // it. Without this a cold open that lands on Profile before
@@ -9408,13 +9841,11 @@
         + '<button class="pf-btn" onclick="logOut()">Log out</button>'
         + '</div></div>';
     }
-    return '<div class="pf-note">This is a device profile. Everything here is '
-      + 'yours already \u2014 create an account and it keeps working, on any '
-      + 'device you sign in on. Nothing is lost either way.'
+    return '<div class="pf-note">Create an account to keep your profile on every device you use.'
       + gateActions() + '</div>';
   }
 
-  function postAuth(path, body, okMessage){
+  function postAuth(path, body, okMessage, onError){
     return fetch(path, {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
@@ -9426,7 +9857,7 @@
     }).then(function(d){
       toast(okMessage);
       return refreshAuth().then(function(){ loadProfile(); return d; });
-    }).catch(function(err){ toast(err.message); });
+    }).catch(function(err){ (onError || toast)(err.message); });
   }
 
   // `createAccount` and `signIn` are gone, not merely unused. They were two
@@ -9460,6 +9891,8 @@
         // a friends list left in a variable is the previous listener's data
         // sitting in the next one's app.
         friendsData = { following: [], followers: [], friends: [], counts: {} };
+        // And the episodes kept on this device for offline listening.
+        forgetOfflineCopies();
         newFollowers = [];
         followerPopupShown = {};
         // Including the notifications. A banner about the previous listener's
@@ -9546,10 +9979,7 @@
       '<div class="pf-gate">'
       + '<div class="pf-gate-mark">' + personSVG(46) + '</div>'
       + '<div class="pf-gate-h">Your profile needs an account</div>'
-      + '<p class="pf-gate-lede">A profile is what the server keeps for you '
-      + '\u2014 your name, your shelves, your friends. Listening never needs '
-      + 'one, and everything you have already listened to comes with you when '
-      + 'you sign up.</p>'
+      + '<p class="pf-gate-lede">Your name, your saved episodes and your friends, on every device. Listening never needs an account.</p>'
       + gateActions()
       + '</div>';
   }
@@ -9571,8 +10001,7 @@
       .then(renderProfile)
       .catch(function(){
         document.getElementById("pfTop").innerHTML = "";
-        el.innerHTML = '<div class="pf-note">Could not load your profile. '
-          + 'Nothing is lost — this fills in when the server is back.</div>';
+        el.innerHTML = '<div class="pf-note">Your profile could not load. Nothing is lost \u2014 try again in a moment.</div>';
       });
   }
 
@@ -10016,9 +10445,9 @@
       + yfCircle.map(function(person, i){
           return '<button class="yf-friend" onclick="openCircleProfile(' + i + ')" '
             + 'aria-label="View ' + escapeHtml(firstName(person)) + '\'s profile">'
-            + '<span class="yf-ring' + (person.fresh ? " fresh" : "") + '">'
+            + '<span class="yf-ring' + yfRingClass(person) + '">'
             + yfFace(person)
-            + (person.vibed ? '<span class="yf-vibe">VIBE</span>' : '')
+            + (hasStories(person) ? '<span class="yf-vibe">VIBE</span>' : '')
             + '</span><span class="yf-friend-name">' + escapeHtml(firstName(person))
             + '</span></button>';
         }).join("")
@@ -10107,7 +10536,153 @@
     if(row) openTopic(row.id, row.label);
   }
 
+  // ---- vibes as stories (27/09 packet) ----
+  //
+  // A face with the VIBE badge plays that friend's vibes of the last 24
+  // hours, one story each, oldest first - the server sends them on the
+  // circle row (`stories`) and takes them down after a day. Which ones this
+  // viewer has already watched is a per-device convenience in localStorage,
+  // so a ring goes grey once seen; losing it only means a ring stays gold.
+  var STORY_MS = 6000;
+  var storyAt = { person: -1, item: 0 };
+  var storyTimer = null;
+
+  function hasStories(person){ return !!(person && person.stories && person.stories.length); }
+  function storySeenMap(){
+    try { return JSON.parse(localStorage.getItem("famStoriesSeen") || "{}") || {}; }
+    catch(e){ return {}; }
+  }
+  function markStorySeen(person, at){
+    try {
+      var seen = storySeenMap();
+      if((seen[person.user_id] || 0) < at) seen[person.user_id] = at;
+      localStorage.setItem("famStoriesSeen", JSON.stringify(seen));
+    } catch(e){}
+  }
+  function storiesUnseen(person){
+    if(!hasStories(person)) return false;
+    var last = person.stories[person.stories.length - 1].at;
+    return (storySeenMap()[person.user_id] || 0) < last;
+  }
+  function yfRingClass(person){
+    if(hasStories(person)) return storiesUnseen(person) ? " fresh" : " seen";
+    return person.fresh ? " fresh" : "";
+  }
+
+  function openStory(i){
+    var person = yfCircle[i];
+    if(!hasStories(person)) return;
+    // Open on the first one not yet seen, like every story app.
+    var seenAt = storySeenMap()[person.user_id] || 0, start = 0;
+    for(var k = 0; k < person.stories.length; k++){
+      if(person.stories[k].at > seenAt){ start = k; break; }
+    }
+    storyAt = { person: i, item: start };
+    document.getElementById("storyOverlay").hidden = false;
+    showStory();
+  }
+
+  function showStory(){
+    clearTimeout(storyTimer);
+    var person = yfCircle[storyAt.person];
+    var v = person && person.stories[storyAt.item];
+    if(!v){ closeStory(); return; }
+    document.getElementById("storyAv").innerHTML = personAvHTML(person);
+    document.getElementById("storyName").textContent = person.name || ("@" + person.handle);
+    document.getElementById("storyAgo").textContent = storyAgo(v.at);
+    document.getElementById("storyTitle").textContent = v.title || v.query;
+    document.getElementById("storyMeta").textContent =
+      firstName(person) + " vibed this \u00b7 " + (v.minutes || BROWSE_MINUTES) + " min";
+    var bars = document.getElementById("storyBars");
+    bars.style.setProperty("--story-ms", STORY_MS + "ms");
+    bars.innerHTML = person.stories.map(function(_, k){
+      return '<span class="story-bar' + (k < storyAt.item ? " done" : "") + '"><i></i></span>';
+    }).join("");
+    // Restarted on a fresh node, so the fill animation runs again.
+    var on = bars.children[storyAt.item];
+    if(on){ void on.offsetWidth; on.classList.add("on"); }
+    markStorySeen(person, v.at);
+    storyTimer = setTimeout(function(){ storyStep(1); }, STORY_MS);
+  }
+
+  function storyAgo(at){
+    var mins = Math.max(0, Math.round((Date.now() / 1000 - at) / 60));
+    if(mins < 1) return "just now";
+    if(mins < 60) return mins + "m";
+    return Math.round(mins / 60) + "h";
+  }
+
+  function storyStep(dir){
+    var person = yfCircle[storyAt.person];
+    if(!person){ closeStory(); return; }
+    var next = storyAt.item + dir;
+    if(next < 0){
+      // Back past the first: the previous friend with stories, else stay.
+      for(var p = storyAt.person - 1; p >= 0; p--){
+        if(hasStories(yfCircle[p])){ storyAt = { person: p, item: yfCircle[p].stories.length - 1 }; showStory(); return; }
+      }
+      storyAt.item = 0; showStory(); return;
+    }
+    if(next >= person.stories.length){
+      for(var q = storyAt.person + 1; q < yfCircle.length; q++){
+        if(hasStories(yfCircle[q])){ storyAt = { person: q, item: 0 }; showStory(); return; }
+      }
+      closeStory();
+      return;
+    }
+    storyAt.item = next;
+    showStory();
+  }
+
+  // A story does not run on while the app is out of sight: hidden, it
+  // stops where it was, and it starts that story again when it is back.
+  document.addEventListener("visibilitychange", function(){
+    var open = !document.getElementById("storyOverlay").hidden;
+    if(!open) return;
+    if(document.hidden) clearTimeout(storyTimer); else showStory();
+  });
+
+  function closeStory(){
+    clearTimeout(storyTimer);
+    document.getElementById("storyOverlay").hidden = true;
+    // The rings reflect what was just watched.
+    document.querySelectorAll(".yf-friends .yf-friend").forEach(function(btn, k){
+      var ring = btn.querySelector(".yf-ring");
+      var person = yfCircle[k];
+      if(ring && person && hasStories(person)){
+        ring.classList.toggle("fresh", storiesUnseen(person));
+        ring.classList.toggle("seen", !storiesUnseen(person));
+      }
+    });
+  }
+
+  function playStory(){
+    var person = yfCircle[storyAt.person];
+    var v = person && person.stories[storyAt.item];
+    if(!v) return;
+    closeStory();
+    var key = "story_" + Date.now();
+    TOPICS[key] = { title: v.title || v.query, surface: "other",
+                    source: "vibed by " + firstName(person),
+                    caption: "", prompt: v.query,
+                    exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true };
+    generate(key);
+  }
+
+  function storyProfile(){
+    var i = storyAt.person;
+    closeStory();
+    openCircleFace(i);
+  }
+
   function openCircleProfile(i){
+    var person = yfCircle[i];
+    if(!person) return;
+    if(hasStories(person)){ openStory(i); return; }
+    openCircleFace(i);
+  }
+
+  function openCircleFace(i){
     var person = yfCircle[i];
     if(!person) return;
     if(!person.handle){ openThreadWith(person); return; }
@@ -10196,6 +10771,9 @@
           "openInterestsFromSettings()")
       // Everything heard in the last two weeks, by where it was heard (§142).
       + settingsRow("Listening history", "Last 2 weeks", "openHistory()")
+      // Both shelves, with their folders (after §161).
+      + settingsRow("My Vibes", "", "openMyVibe()")
+      + settingsRow("Save for Later", "", "openSavedAll()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
       + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
@@ -10208,10 +10786,7 @@
     if(speechRecognitionCtor()){
       html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
           "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
-        + '<div class="set-note">Opens voice search when you say \u201cHey FAM\u201d '
-        + 'or \u201cWhat\u2019s up FAM\u201d. While it is on, the microphone is open '
-        + 'whenever FAM is on screen and no episode is playing, and your browser\u2019s '
-        + 'speech service hears it.</div>';
+        + '<div class="set-note">Say \u201cHey FAM\u201d or \u201cWhat\u2019s up FAM\u201d to search by voice. While it\u2019s on, the microphone listens whenever FAM is open and nothing is playing.</div>';
     }
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
@@ -10233,15 +10808,11 @@
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
-        + '<div class="set-note">There is no password reset: it needs email '
-        + 'delivery this app has no route to. A forgotten password today is a '
-        + 'lost account — so is a deleted one, and deleting is immediate.</div>';
+        + '<div class="set-note">Password reset isn\u2019t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u2019t be undone.</div>';
     } else {
       html += settingsRow("Sign up", "", "openAuth('signup')")
         + settingsRow("Log in", "", "openAuth('login')")
-        + '<div class="set-note">Listening needs no account. What one buys is '
-        + 'durability: saved mixes, your interests and language, and Save for '
-        + 'Later. Everything you have done already comes with you.</div>';
+        + '<div class="set-note">Listening needs no account. One keeps your mixes, interests and saved episodes, and makes myFAM yours.</div>';
     }
 
     // No "Replay the first run" row, and no "This app" group left to hold it.
@@ -10376,6 +10947,7 @@
               // the app keeps working - it just does not know them any more.
               AUTH = { user_id: "", email: "", authenticated: false };
               forgetLocalPrefs();
+              forgetOfflineCopies();
               toast("Account deleted");
               goBack();
               openProfile();
@@ -10390,35 +10962,43 @@
     var el = document.getElementById("myVibeBody");
     el.innerHTML = '<div class="pf-empty">Loading…</div>';
     navigate("myvibe");
+    loadMyVibe();
+  }
+  function loadMyVibe(){
+    var el = document.getElementById("myVibeBody");
     fetch("/api/vibes")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderMyVibe)
       .catch(function(){
-        el.innerHTML = '<div class="pf-empty">Could not load your vibes. '
-          + 'Nothing is lost — this fills in when the server is back.</div>';
+        el.innerHTML = '<div class="pf-empty">Your vibes could not load. Try again in a moment.</div>';
       });
   }
 
   var myVibes = [];
   function renderMyVibe(d){
     myVibes = d.vibes || [];
+    shelfFolders.vibe = d.folders || [];
     var el = document.getElementById("myVibeBody");
     if(!myVibes.length){
-      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. The VIBE! button '
-        + 'on any player sends an episode to the people who follow you — it '
-        + 'costs nothing, because the script already exists.</div>';
+      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode to share it with your followers. It stays here, and shows on your friends\u2019 screens as a story for 24 hours.</div>';
       return;
     }
-    el.innerHTML = myVibes.map(function(v, i){
+    var shown = shelfFilter("vibe", myVibes);
+    el.innerHTML = folderChipsHtml("vibe") + (shown.length ? shown.map(function(v){
+      var i = myVibes.indexOf(v);
+      var where = folderName("vibe", v.folder_id);
       return '<div class="vibe-row" onclick="playMyVibe(' + i + ')">'
         + '<div class="vibe-row-body">'
         + '<div class="vibe-row-title">' + escapeHtml(v.title || v.query) + '</div>'
-        + '<div class="vibe-row-meta">' + v.minutes + ' min · vibed</div></div>'
+        + '<div class="vibe-row-meta">' + v.minutes + ' min · vibed'
+        + (where ? ' · ' + escapeHtml(where) : '') + '</div></div>'
+        + (AUTH.authenticated ? '<button class="vibe-row-x shelf-fold" aria-label="Choose a folder for this vibe" '
+          + 'onclick="event.stopPropagation(); chooseFolderFor(\'vibe\', ' + i + ')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></button>' : '')
         + '<button class="vibe-row-x" aria-label="Take this vibe back" '
         + 'onclick="event.stopPropagation(); unvibe(' + i + ')">'
         + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
         + '</button></div>';
-    }).join("");
+    }).join("") : '<div class="pf-empty">Nothing in this folder yet. Tap the folder on any vibe to put it here.</div>');
   }
 
   function playMyVibe(i){
@@ -10437,7 +11017,7 @@
     if(!v) return;
     fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes,
           { method: "DELETE" })
-      .then(function(){ openMyVibe(); toast("Vibe taken back"); })
+      .then(function(){ loadMyVibe(); toast("Vibe taken back"); })
       .catch(function(){ toast("Could not take that back"); });
   }
 
@@ -10636,9 +11216,7 @@
       }).join("");
     });
     if(!anything){
-      html += '<div class="pf-empty">Nobody yet. Search a handle above to find '
-        + 'someone — following is one-way, and you are friends the moment they '
-        + 'follow back.</div>';
+      html += '<div class="pf-empty">Nobody yet. Search a @handle above. When someone follows you back, you\u2019re friends.</div>';
     }
     el.innerHTML = html;
   }
@@ -10657,8 +11235,7 @@
           var el = document.getElementById("friendsBody");
           var found = d.people || [];
           if(!found.length){
-            el.innerHTML = '<div class="pf-empty">Nobody with that handle. Only '
-              + 'people who have chosen one can be found.</div>';
+            el.innerHTML = '<div class="pf-empty">No one with that handle.</div>';
             return;
           }
           el.innerHTML = found.map(function(person){
@@ -10852,7 +11429,7 @@
 
     // And their vibes, which are by definition public: a vibe *is* the act of
     // showing somebody an episode.
-    html += '<div class="yf-row"><span class="yf-label">Vibes · ' + vibes + '</span>'
+    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 ' + vibes + '</span>'
       + (theirVibes.length > 3 ? '<button class="yf-link" onclick="togglePersonMore(\'vibes\')">'
           + (personShowAll.vibes ? "Show less" : "View more") + '</button>' : '')
       + '</div>';
@@ -10871,10 +11448,7 @@
     personVibes = theirVibes;
     personMixes = mixes;
 
-    html += '<div class="pf-note">This is what they have chosen to show: '
-      + 'public mixes, vibes, and the interests they share. What somebody has '
-      + 'listened to is theirs — FAM has no endpoint that hands one '
-      + 'listener another one’s history.</div>';
+    html += '<div class="pf-note">Only what they chose to share. What someone listens to stays private.</div>';
     document.getElementById("personBody").innerHTML = html;
   }
 
@@ -11230,10 +11804,8 @@
     document.getElementById("identityHeading").textContent =
       editing ? "Edit profile" : "Who are you?";
     document.getElementById("identityLede").textContent = editing
-      ? "This is what your friends see. Nothing here is on anybody else's "
-        + "screen unless you put it there."
-      : "A name and a handle are how your friends find you, and how a vibe "
-        + "you send says who it is from. All of it can change later.";
+      ? "This is how your friends see you."
+      : "Your name and @handle are how friends find you. You can change them any time.";
 
     // Prefilled from whatever is already stored, so an editor opens on the
     // current state rather than on empty fields somebody has to retype.
@@ -11294,8 +11866,7 @@
     box.innerHTML = AUTH.authenticated
       ? settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
-      : '<div class="set-note">Create an account and your name, handle and '
-        + 'picture follow you to any device you sign in on.</div>';
+      : '<div class="set-note">With an account, your name and picture follow you to every device.</div>';
   }
 
   function saveIdentity(){
@@ -11401,9 +11972,7 @@
   var threadMessages = [];
 
   function messageGate(){
-    return '<div class="pf-empty">Messaging needs an account: a message has to '
-      + 'reach a person, and an anonymous session is not one. Everything you '
-      + 'have listened to already comes with you when you sign up.'
+    return '<div class="pf-empty">Create a free account to message friends and send them episodes.'
       + gateActions() + '</div>';
   }
 
@@ -12250,24 +12819,156 @@
   }
   function renderSaved(d){
     var items = d.items || [];
+    shelfFolders.saved = d.folders || [];
     if(!items.length){
       document.getElementById("svBody").innerHTML =
         '<div class="sv-empty">Nothing here yet.<br>Press save on the player '
         + 'and the episode lands here.</div>';
       return;
     }
-    document.getElementById("svBody").innerHTML = items.map(function(i){
+    var shown = shelfFilter("saved", items);
+    document.getElementById("svBody").innerHTML = folderChipsHtml("saved")
+      + (shown.length ? shown.map(function(i){
+      var where = folderName("saved", i.folder_id);
       return '<div class="sv-row">'
         + '<div class="sv-art" onclick="playSaved(\'' + i.id + '\')">'
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
         + '<div class="sv-main" onclick="playSaved(\'' + i.id + '\')">'
         + '<div class="sv-title">' + escapeHtml(i.title || i.query) + '</div>'
-        + '<div class="sv-meta">' + i.minutes + ' MIN</div></div>'
+        + '<div class="sv-meta">' + i.minutes + ' MIN' + (where ? ' · ' + escapeHtml(where) : '') + '</div></div>'
+        + '<div class="sv-x shelf-fold" role="button" aria-label="Choose a folder for this episode"'
+        + ' onclick="chooseFolderFor(\'saved\', \'' + i.id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>'
         + '<div class="sv-x" onclick="removeSaved(\'' + i.id + '\')">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>'
         + '</div>';
-    }).join("");
+    }).join("") : '<div class="sv-empty">Nothing in this folder yet.<br>Tap the folder on any episode to put it here.</div>');
   }
+
+  // ---- folders on both shelves (after §161, at the owner's direction) ----
+  //
+  // Save for Later and My Vibes each keep their own folders: the listener
+  // makes one, names it, and chooses the folder for each episode from the
+  // folder button on its row. The chips along the top filter the shelf; with
+  // a folder chosen, Rename and Delete appear beside them. Deleting a folder
+  // unfiles its episodes and never deletes one (`SavedStore.delete_folder`).
+  var shelfFolders = { saved: [], vibe: [] };
+  var shelfPick = { saved: "", vibe: "" };   // "" is All
+
+  function reloadShelf(kind){ if(kind === "vibe") loadMyVibe(); else loadSaved(); }
+  function folderName(kind, id){
+    var f = (shelfFolders[kind] || []).filter(function(x){ return x.id === id; })[0];
+    return f ? f.name : "";
+  }
+  function shelfFilter(kind, rows){
+    var pick = shelfPick[kind];
+    if(pick && !folderName(kind, pick)) pick = shelfPick[kind] = "";
+    return pick ? rows.filter(function(r){ return r.folder_id === pick; }) : rows;
+  }
+  function folderChipsHtml(kind){
+    if(!AUTH.authenticated) return "";
+    var pick = shelfPick[kind];
+    var chip = function(id, label, n){
+      return '<button class="shelf-chip' + (pick === id ? ' on' : '') + '" type="button"'
+        + ' onclick="pickShelfFolder(\'' + kind + '\', \'' + id + '\')">' + escapeHtml(label)
+        + (n != null ? ' <span>' + n + '</span>' : '') + '</button>';
+    };
+    var html = '<div class="shelf-chips">' + chip("", "All")
+      + (shelfFolders[kind] || []).map(function(f){ return chip(f.id, f.name, f.items); }).join("")
+      + '<button class="shelf-chip add" type="button" onclick="newShelfFolder(\'' + kind + '\')">+ New folder</button>'
+      + '</div>';
+    if(pick){
+      html += '<div class="shelf-folder-acts">'
+        + '<button type="button" onclick="renameShelfFolder(\'' + kind + '\')">Rename</button>'
+        + '<button type="button" class="danger" onclick="deleteShelfFolder(\'' + kind + '\')">Delete folder</button>'
+        + '</div>';
+    }
+    return html;
+  }
+  function pickShelfFolder(kind, id){
+    shelfPick[kind] = id;
+    if(kind === "vibe") renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
+    else renderSaved(savedCache);
+  }
+  function postJSON(path, body){
+    return fetch(path, { method: "POST", headers: {"Content-Type": "application/json"},
+                         body: JSON.stringify(body) })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){
+          if(!r.ok) throw new Error(d.error || (typeof d.detail === "string" ? d.detail : "That did not work"));
+          return d;
+        });
+      });
+  }
+  // Name a new folder; `then` receives it, so a folder made from an
+  // episode's own menu can take that episode straight away.
+  function newShelfFolder(kind, then){
+    showModal({ title: "New folder", placeholder: kind === "vibe" ? "e.g. Best of the week" : "e.g. Commute",
+                confirmLabel: "Create", onConfirm: function(name){
+      postJSON("/api/saved/folders", { name: name, kind: kind })
+        .then(function(d){
+          if(then){ then(d.folder); return; }
+          shelfPick[kind] = d.folder.id;
+          toast("Folder created");
+          reloadShelf(kind);
+        })
+        .catch(function(e){ toast(e.message); });
+    } });
+  }
+  function renameShelfFolder(kind){
+    var id = shelfPick[kind];
+    if(!id) return;
+    showModal({ title: "Rename folder", value: folderName(kind, id), confirmLabel: "Save",
+                onConfirm: function(name){
+      postJSON("/api/saved/folders/" + encodeURIComponent(id), { name: name })
+        .then(function(){ toast("Renamed"); reloadShelf(kind); })
+        .catch(function(e){ toast(e.message); });
+    } });
+  }
+  function deleteShelfFolder(kind){
+    var id = shelfPick[kind];
+    if(!id) return;
+    showActionSheet([
+      { group: "Delete \u201c" + escapeHtml(folderName(kind, id)) + "\u201d? Its episodes stay, outside any folder." },
+      { label: "Delete folder", danger: true, action: function(){
+          fetch("/api/saved/folders/" + encodeURIComponent(id), { method: "DELETE" })
+            .then(function(r){
+              if(!r.ok) throw new Error();
+              shelfPick[kind] = ""; toast("Folder deleted"); reloadShelf(kind);
+            })
+            .catch(function(){ toast("Could not delete that folder"); });
+        } }
+    ]);
+  }
+  // `ref` is a saved item's id, or an index into `myVibes`.
+  function fileInFolder(kind, ref, folderId){
+    var req = kind === "vibe"
+      ? postJSON("/api/vibes/file", { query: myVibes[ref].query, minutes: myVibes[ref].minutes,
+                                      folder_id: folderId })
+      : postJSON("/api/saved/" + encodeURIComponent(ref) + "/move", { folder_id: folderId });
+    return req.then(function(){
+      var name = folderName(kind, folderId);
+      toast(folderId ? "Moved to " + (name || "the folder") : "Taken out of the folder");
+      reloadShelf(kind);
+    }).catch(function(e){ toast(e.message); });
+  }
+  function chooseFolderFor(kind, ref){
+    var row = kind === "vibe" ? myVibes[ref] : savedItem(ref);
+    if(!row) return;
+    var items = [{ group: "Put this episode in a folder" }];
+    (shelfFolders[kind] || []).forEach(function(f){
+      items.push({ label: (row.folder_id === f.id ? "\u2713 " : "") + escapeHtml(f.name),
+                   action: function(){ fileInFolder(kind, ref, f.id); } });
+    });
+    if(row.folder_id) items.push({ label: "No folder", action: function(){ fileInFolder(kind, ref, ""); } });
+    items.push({ label: "+ New folder", action: function(){
+      newShelfFolder(kind, function(folder){
+        shelfFolders[kind] = (shelfFolders[kind] || []).concat([folder]);
+        fileInFolder(kind, ref, folder.id);
+      });
+    } });
+    showActionSheet(items);
+  }
+
   function savedItem(id){
     return (savedCache.items || []).filter(function(i){ return i.id === id; })[0];
   }
@@ -12327,8 +13028,7 @@
     var el = document.getElementById("histBody");
     if(!el) return;
     if(!AUTH.authenticated){
-      el.innerHTML = '<div class="sv-empty">Listening history is kept on an '
-        + 'account, so it follows you to any device.' + gateActions() + '</div>';
+      el.innerHTML = '<div class="sv-empty">Create an account to keep your listening history on every device.' + gateActions() + '</div>';
       return;
     }
     el.innerHTML = '<div class="sv-empty">Loading\u2026</div>';
@@ -13435,17 +14135,45 @@
       "autocomplete", mode === "login" ? "email" : "off");
     document.getElementById("authPassword").setAttribute(
       "autocomplete", mode === "login" ? "current-password" : "new-password");
-    document.getElementById("authForm").hidden = true;
+    document.getElementById("authSub").textContent = mode === "login"
+      ? "Welcome back." : "Takes ten seconds. Listening stays free either way.";
+    document.getElementById("authNote").hidden = mode === "login";
+    document.getElementById("authSwitch").innerHTML = mode === "login"
+      ? 'New to FAM? <button type="button" onclick="switchAuthMode(\'signup\')">Sign up</button>'
+      : 'Already have an account? <button type="button" onclick="switchAuthMode(\'login\')">Log in</button>';
+    clearAuthError();
     showScreen("auth");
+    showAuthForm();
   }
+  // Between the two without losing what was typed or where they came from.
+  function switchAuthMode(mode){
+    var back = authReturn;
+    openAuth(mode);
+    authReturn = back;
+  }
+  function togglePasswordShown(){
+    var input = document.getElementById("authPassword");
+    var eye = document.getElementById("authPwEye");
+    var show = input.type === "password";
+    input.type = show ? "text" : "password";
+    eye.textContent = show ? "Hide" : "Show";
+    eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+  }
+  // What went wrong, under the fields rather than only in a toast that is
+  // gone before it is read.
+  function showAuthError(message){
+    var el = document.getElementById("authError");
+    el.textContent = message;
+    el.hidden = !message;
+  }
+  function clearAuthError(){ showAuthError(""); }
   function backToWelcome(){
     if(authReturn){ showScreen(authReturn); return; }
     showScreen("welcome");
   }
   function showAuthForm(){
-    document.getElementById("authForm").hidden = false;
     fillCountryCodes("authPhoneCC");
-    document.getElementById("authEmail").focus();
+    try { document.getElementById("authEmail").focus({ preventScroll: true }); } catch(e){}
   }
 
   // --- phone numbers -------------------------------------------------------
@@ -13565,31 +14293,34 @@
     num.value = prettyPhone(raw.slice(best.length), best);
   }
 
-  // Drawn because they are the design; not connected because there is no OAuth
-  // here and no client credentials for one. Saying so is the whole point: a
-  // button that silently does nothing is the failure this project has lost the
-  // most time to.
-  function authNotConnected(provider){
-    toast("Sign in with " + provider + " is not connected yet — use email");
-    showAuthForm();
-  }
-
   function submitAuthForm(){
     var email = document.getElementById("authEmail").value.trim();
     var password = document.getElementById("authPassword").value;
     var phone = phoneValue("authPhoneCC", "authPhone");
-    if(!email || !password){ toast("Email and password, please"); return; }
-    if(authMode === "signup" && !phone){ toast("A phone number, please"); return; }
-    if(authMode === "signup" && password.length < 8){
-      toast("Use at least 8 characters"); return;
+    // Checked here, said under the fields, before a round trip. The phone is
+    // optional: the server keeps one if given and never required it.
+    if(!email){ showAuthError("Enter your email address."); return; }
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      showAuthError("That email address doesn\u2019t look right."); return;
     }
+    if(!password){ showAuthError("Enter your password."); return; }
+    if(authMode === "signup" && password.length < 8){
+      showAuthError("Use at least 8 characters for your password."); return;
+    }
+    clearAuthError();
     var path = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
     var body = { email: email, password: password };
     if(authMode === "signup" && phone) body.phone = phone;
+    var btn = document.getElementById("authSubmit");
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = authMode === "login" ? "Logging in\u2026" : "Creating account\u2026";
     postAuth(path, body, authMode === "login"
-      ? "Signed in" : "Account created — everything here is yours")
+      ? "Signed in" : "Welcome to FAM", showAuthError)
       .then(function(){
-        if(!AUTH.authenticated) return;    // postAuth toasts its own failure
+        btn.disabled = false;
+        btn.textContent = label;
+        if(!AUTH.authenticated) return;    // the error is under the fields
         document.getElementById("authPassword").value = "";
         // Anything chosen before signing up is theirs now, so it is written
         // through rather than left stranded in this browser.
@@ -13762,8 +14493,7 @@
       renderPickedSummary();
       catalogTopics = PREF_CHOICES.catalogue || [];
       if(!catalogTopics.length){
-        if(body) body.innerHTML = '<div class="cat-empty">Could not load the topic '
-          + 'list. You can still type a topic of your own above.</div>';
+        if(body) body.innerHTML = '<div class="cat-empty">Topics could not load. You can still type your own above.</div>';
         return;
       }
       renderTopicCatalog();
@@ -13987,8 +14717,7 @@
             : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')
         + '</button></div>';
     }).join("")
-      + '<div class="cat-note">Adding one tells the feed what to open on. What '
-      + 'it actually learns comes from what you play.</div>';
+      + '<div class="cat-note">Pick a few to start. myFAM learns the rest from what you play.</div>';
   }
 
   // Chosen, and not yet saved.
@@ -14335,6 +15064,14 @@
   // flash - a guess drawn confidently and corrected a moment later.
   function bootToFirstScreen(){
     hideSplash();
+    // No connection, on a device that was signed in: straight to myFAM,
+    // offline, where the last page and the episodes kept here are - not to
+    // a sign-up screen that cannot reach the server either.
+    if(!AUTH.authenticated && authUnreachable && wasSignedIn()){
+      setOffline(true);
+      openMyFamTab();
+      return;
+    }
     if(!AUTH.authenticated){
       // Not "the first run", which is a different thing and runs after
       // signing up. This is the front door, and somebody who has been here

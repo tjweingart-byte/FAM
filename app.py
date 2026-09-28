@@ -1962,6 +1962,8 @@ class SaveRequest(BaseModel):
 
 class FolderRequest(BaseModel):
     name: str = Field(..., max_length=saved_mod.MAX_NAME)
+    #: Which shelf: "saved" (Save for Later, the default) or "vibe" (My Vibes).
+    kind: str = Field("saved", max_length=8)
 
 
 class MoveRequest(BaseModel):
@@ -2115,6 +2117,9 @@ async def person_profile(request: Request,
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
+        # Every vibe, for good (the owner's direction after §161): the 24
+        # hours are how long a vibe is a *story* on somebody's face, never
+        # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
                        topic=_topic_label(e.query, e.title))
                   for e in SOCIAL.echoes_by(target, limit=12)],
@@ -2542,7 +2547,8 @@ async def saved_folder_create(req: FolderRequest, request: Request) -> dict:
     _read_limit(request)
     try:
         return {"ok": True,
-                "folder": SAVED.create_folder(_require_account(request), req.name)}
+                "folder": SAVED.create_folder(_require_account(request), req.name,
+                                              kind=req.kind)}
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -3029,7 +3035,7 @@ if _ALLOWED_ORIGINS:
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
-                    "X-FAM-Cache"],
+                    "X-FAM-Cache", "X-FAM-Keepable"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -4078,6 +4084,40 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
                                 and _audio_is_kept(tile.get("query", ""), minutes))
 
 
+import startup
+
+
+def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
+    """A startup tile that has been written is called what it turned out to
+    be about (the 27/09 packet).
+
+    A startup tile is a question asked before anything is retrieved -
+    "this week's biggest storylines in sports" - so its own title cannot name
+    a subject, and on a card that reads as vague. Once somebody's tap has
+    written the episode, the cache holds the model's `<<TITLE:>>` and
+    `<<SUMMARY:>>` for it, and those name the actual story; the card takes
+    them. Only startup tiles: a bank tile's title is its own and is never
+    replaced (§104), and a live story's was composed from the story itself.
+    Two local reads per written tile, never a model call.
+    """
+    for tile in tiles:
+        if not tile.get("cached") or not str(tile.get("id", "")).startswith(
+                startup.ID_PREFIX):
+            continue
+        try:
+            key = _episode_key(_validated_plan(tile.get("query", ""), minutes))
+            title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
+            summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
+                       if title else "")
+        except Exception:  # noqa: BLE001 - a card's name is never worth a 500
+            log.exception("could not name a written startup tile")
+            continue
+        if title:
+            tile["title"] = title
+            if summary:
+                tile["angle"] = summary
+
+
 def _audio_is_kept(query: str, minutes: int) -> bool:
     """Whether any voice's audio for this episode is kept beside its script.
     A read, and only a read - see `ScriptCache.has_any_audio`."""
@@ -4163,6 +4203,9 @@ async def myfam_section(request: Request,
     # groups. A listener on this screen is browsing, and an episode that
     # starts instantly is a better thing to put in front of them than one
     # three places higher that has to be written first.
+    _name_written_tiles(body["topics"], minutes)
+    for group in body.get("groups", ()):
+        _name_written_tiles(group["topics"], minutes)
     body["topics"].sort(key=lambda t: not t["cached"])
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
@@ -4406,6 +4449,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     for section in feed["sections"]:
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
+        _name_written_tiles(section["topics"], minutes)
     feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
@@ -4524,7 +4568,15 @@ async def post_echo(req: EchoRequest, request: Request):
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
                       minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
-    return {"ok": SOCIAL.unecho(_listener(request), q, minutes)}
+    user = _listener(request)
+    ok = SOCIAL.unecho(user, q, minutes)
+    # A vibe taken back leaves its folder too, or the folder counts a ghost.
+    if ok:
+        try:
+            SAVED.file_vibe(user, q, minutes, "")
+        except Exception:  # noqa: BLE001 - the vibe is gone either way
+            log.exception("could not unfile a vibe taken back")
+    return {"ok": ok}
 
 
 # --- vibe -----------------------------------------------------------------
@@ -4564,8 +4616,33 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
     user = _listener(request)
     person = SOCIAL.person(user)
     vibes = SOCIAL.echoes_by(user, limit=limit)
-    return {"vibes": [v.as_dict(person["name"], person["handle"]) for v in vibes],
+    # Their own folders, and which one each vibe is filed in (after §161).
+    # A guest has neither: folders are kept on an account.
+    filed = SAVED.vibe_files(user) if _has_account(request) else {}
+    return {"vibes": [dict(v.as_dict(person["name"], person["handle"]),
+                           folder_id=filed.get((v.query, int(v.minutes)), ""))
+                      for v in vibes],
+            "folders": SAVED.folders(user, "vibe") if _has_account(request) else [],
             "count": len(SOCIAL.echoes_by(user, limit=200))}
+
+
+class VibeFileRequest(BaseModel):
+    query: str = Field(..., max_length=300)
+    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    #: A vibe folder's id, or "" to take the vibe out of any folder.
+    folder_id: str = Field("", max_length=64)
+
+
+@app.post("/api/vibes/file")
+async def file_vibe(req: VibeFileRequest, request: Request) -> dict:
+    """Put one of this listener's vibes in one of their vibe folders."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        folder = SAVED.file_vibe(user, req.query, req.minutes, req.folder_id)
+    except saved_mod.SavedError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "folder_id": folder}
 
 
 @app.get("/api/profile")
@@ -4626,13 +4703,15 @@ async def profile(request: Request):
     return body
 
 
-#: How recent a friend's vibe has to be for their avatar to carry the VIBE
-#: badge on YourFAM. A week, the same window "What you missed last week" uses:
-#: a badge that stayed up for a vibe from March would stop meaning anything.
-CIRCLE_VIBE_WINDOW = 7 * 24 * 3600
-#: And the gold ring - "something new from this person" - is narrower: a vibe
-#: in the last two days, or a message you have not read yet.
-CIRCLE_FRESH_WINDOW = 2 * 24 * 3600
+#: How long a vibe is a story. A friend's avatar on YourFAM carries the VIBE
+#: badge, and tapping it plays their vibes like stories, for 24 hours after
+#: each one and not a minute longer (the 27/09 packet, at the owner's
+#: direction - it was a week, and a badge that outlives its story is a badge
+#: that opens nothing).
+CIRCLE_VIBE_WINDOW = 24 * 3600
+#: The gold ring - "something new from this person" - is the same day: a vibe
+#: still up as a story, or a message you have not read yet.
+CIRCLE_FRESH_WINDOW = CIRCLE_VIBE_WINDOW
 CIRCLE_MAX = 12
 
 
@@ -4659,6 +4738,8 @@ def _circle_row(user: str) -> list[dict]:
         return []
     now = time.time()
     latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
+    stories = SOCIAL.stories_among([p["user_id"] for p in people],
+                                   now - CIRCLE_VIBE_WINDOW)
     unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
     friends = {p["user_id"] for p in SOCIAL.friends(user)}
     out = []
@@ -4674,6 +4755,9 @@ def _circle_row(user: str) -> list[dict]:
             "vibed": bool(vibed_at) and now - vibed_at <= CIRCLE_VIBE_WINDOW,
             "fresh": (uid in unread
                       or (bool(vibed_at) and now - vibed_at <= CIRCLE_FRESH_WINDOW)),
+            # Their vibes of the last 24 hours, oldest first: what tapping
+            # the face plays, story by story.
+            "stories": stories.get(uid, []),
         })
     return out
 
@@ -5123,7 +5207,7 @@ async def interest_episodes(request: Request,
         reason = ("" if cards else
                   ("Nobody you follow has vibed anything on this yet."
                    if circle else
-                   "Follow some people and what they vibe on this shows up here."))
+                   "Follow friends to see what they vibe on this."))
     else:
         for tile in topics_mod.live_topics(now):
             if (tags & set(tile.tags)) or _on_interest(tile.query, set(), words):
@@ -5621,6 +5705,12 @@ async def audio(
             # has no steps, and holding one for ten seconds to check off work
             # nobody did would be the filler this app deletes.
             "X-FAM-Cache": stats.cache or "",
+            # Whether a device may keep this audio for offline listening
+            # (§161): the same test the server's own audio cache uses - a
+            # production voice, a real script, not an attachment - so a
+            # placeholder tone from an outage is never kept on a phone.
+            "X-FAM-Keepable": "1" if (getattr(pipeline.engine, "keeps_audio", False)
+                                      and not DEMO_MODE and not attach) else "0",
             # Measurement headers. Additive: the player reads none of them,
             # and `tools/preroll_sweep.py` reads all of them.
             "X-Preroll-Seconds": f"{PREROLL_SECONDS:g}",
@@ -5670,9 +5760,13 @@ def _admin_configured() -> bool:
 #: in to `/admin`: the dashboard asks for an admin's email and password every
 #: time, and what that mints is a session held here and nowhere else - so a
 #: phone left signed in to FAM is not a phone that can read every store.
+#:
+#: **And it never keeps you signed in** (27/09 packet, at the owner's
+#: direction). Loading `/admin` ends whatever admin session the browser was
+#: holding, so the page opens on the form every time; the cookie has no
+#: max-age, so it dies with the browser too. It lives only as long as the one
+#: open page that signed in - the page's own refreshes ride on it.
 ADMIN_COOKIE = "fam_admin"
-#: How long an admin sign-in lasts in the browser before it asks again.
-ADMIN_SESSION_SECONDS = 12 * 3600
 
 
 def _admin_listener(request: Request):
@@ -5763,9 +5857,16 @@ async def admin_page(request: Request):
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
     page = PROJECT_ROOT / "admin_ui" / "tracker.html"
-    return HTMLResponse(page.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "no-store",
-                                 "X-Robots-Tag": "noindex"})
+    response = HTMLResponse(page.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store",
+                                     "X-Robots-Tag": "noindex"})
+    # Every load asks again: an admin session the browser brought with it is
+    # ended here, not merely ignored, so it cannot be replayed either.
+    old = request.cookies.get(ADMIN_COOKIE, "")
+    if old:
+        ACCOUNTS.end_session(old)
+        response.delete_cookie(ADMIN_COOKIE, path="/")
+    return response
 
 
 class AdminLogin(BaseModel):
@@ -5799,7 +5900,8 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
         ACCOUNTS.end_session(old)
     token, _ = ACCOUNTS.new_session(listener.user_id)
     response = JSONResponse({"ok": True, "email": listener.email})
-    response.set_cookie(ADMIN_COOKIE, token, max_age=ADMIN_SESSION_SECONDS,
+    # No max_age: a browser-session cookie, never a remembered sign-in.
+    response.set_cookie(ADMIN_COOKIE, token,
                         httponly=True, samesite="strict",
                         secure=request.url.scheme == "https", path="/")
     return response

@@ -401,7 +401,7 @@ class RemoteChatterboxEngine(TTSEngine):
         # The default voice first, by the id it has always had, then every
         # voice in the bank (§147). The bank lives in the app's database and
         # the worker is sent a recording it lacks, so the list is the app's.
-        voices = [Voice(id=cls.default_voice_id(), label=voice_bank.DEFAULT_LABEL,
+        voices = [Voice(id=cls.default_voice_id(), label=voice_bank.default_label(),
                         engine=cls.name,
                         detail=f"Chatterbox via {config.transport}")]
         for v in voice_bank.catalogue():

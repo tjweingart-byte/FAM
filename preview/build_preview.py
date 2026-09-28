@@ -440,7 +440,7 @@ def load_fixtures() -> dict:
         # other surface draws one per episode, so this is the only list a
         # listener sees.
         "/api/voices": {"voices": [
-            {"id": "remote:reference_3", "label": "FAM", "engine": "remote",
+            {"id": "remote:reference_3", "label": "Ian", "engine": "remote",
              "detail": "Chatterbox via http"},
             {"id": "remote:nova", "label": "Nova", "engine": "remote",
              "detail": "Warm, unhurried"},
@@ -587,10 +587,11 @@ def load_fixtures() -> dict:
         # The shelf, with two episodes already on it. Not empty, because an
         # empty-state preview shows the empty state and nothing else.
         "/api/saved": {
-            "folders": [{"id": "fld_commute", "name": "Commute",
-                         "created": 0, "items": 1}],
+            # No folders: a listener makes their own (after §161), and a
+            # made-up one shown as theirs is what §96 took off the shelf.
+            "folders": [],
             "items": [
-                {"id": "sav_1", "folder_id": "fld_commute",
+                {"id": "sav_1", "folder_id": "",
                  "query": "why semiconductor manufacturing is concentrated",
                  "minutes": 2, "title": "Who Actually Makes the World's Chips",
                  "source": "player", "created": 0, "last_played": 0},
@@ -944,7 +945,14 @@ __WRITING_SIM__
                    avatar: p.avatar || "", friend: g.friends.some(function (f) {
                      return f.user_id === p.user_id; }),
                    vibed: p.user_id === "u_beth",
-                   fresh: p.user_id === "u_beth" || !!self.unread[p.user_id] });
+                   fresh: p.user_id === "u_beth" || !!self.unread[p.user_id],
+                   // Beth's vibes of the last 24 hours, as stories.
+                   stories: p.user_id === "u_beth" ? [
+                     { query: "why the fed held rates in september", minutes: 2, thread: "",
+                       title: "Why the Fed Held Rates", at: Date.now() / 1000 - 5 * 3600 },
+                     { query: "what the eagles changed on offense", minutes: 2, thread: "",
+                       title: "What the Eagles Changed on Offense", at: Date.now() / 1000 - 40 * 60 }
+                   ] : [] });
       });
       return out;
     },
@@ -1284,7 +1292,13 @@ __WRITING_SIM__
       return json({ ok: true, message: written });
     }
     if (path === "/api/vibes") {
-      return json({ vibes: PEOPLE.vibes, count: PEOPLE.vibes.length });
+      var vfiles = window.__famVibeFiles || {};
+      return json({ vibes: PEOPLE.vibes.map(function (v) {
+                      var o = {}; for (var k in v) o[k] = v[k];
+                      o.folder_id = vfiles[v.query + "|" + (v.minutes || 0)] || "";
+                      return o; }),
+                    folders: window.__famVibeFolders || [],
+                    count: PEOPLE.vibes.length });
     }
     if (path === "/api/vibe" || path === "/api/echo") {
       var vibeBody = method === "POST"
@@ -1438,11 +1452,47 @@ __WRITING_SIM__
       if (!already) shelf.items.unshift(item);
       return json({ ok: true, saved: true, item: item });
     }
+    // Folders on both shelves (after §161): the saved shelf's live in its
+    // fixture, the vibe shelf's here, and a vibe's folder is keyed on the
+    // episode as the server keys it.
+    if (!window.__famVibeFolders) { window.__famVibeFolders = []; window.__famVibeFiles = {}; }
+    var VFOLD = window.__famVibeFolders, VFILE = window.__famVibeFiles;
+    var recount = function () {
+      var sv = FIXTURES["/api/saved"];
+      (sv.folders || []).forEach(function (f) {
+        f.items = sv.items.filter(function (i) { return i.folder_id === f.id; }).length; });
+      VFOLD.forEach(function (f) {
+        f.items = Object.keys(VFILE).filter(function (k) { return VFILE[k] === f.id; }).length; });
+    };
+    if (path === "/api/vibes/file" && method === "POST") {
+      var vf = JSON.parse((init && init.body) || "{}");
+      if (vf.folder_id && !VFOLD.some(function (f) { return f.id === vf.folder_id; }))
+        return json({ error: "No such folder." }, 400);
+      var vkey = vf.query + "|" + (vf.minutes || 0);
+      if (vf.folder_id) VFILE[vkey] = vf.folder_id; else delete VFILE[vkey];
+      recount();
+      return json({ ok: true, folder_id: vf.folder_id || "" });
+    }
+    if (path.indexOf("/api/saved/folders/") === 0) {
+      var fid = path.split("/")[4];
+      var inSaved = FIXTURES["/api/saved"].folders;
+      var list = inSaved.some(function (f) { return f.id === fid; }) ? inSaved : VFOLD;
+      var fold = list.filter(function (f) { return f.id === fid; })[0];
+      if (method === "DELETE") {
+        if (fold) list.splice(list.indexOf(fold), 1);
+        FIXTURES["/api/saved"].items.forEach(function (i) { if (i.folder_id === fid) i.folder_id = ""; });
+        Object.keys(VFILE).forEach(function (k) { if (VFILE[k] === fid) delete VFILE[k]; });
+        recount();
+        return json({ ok: true });
+      }
+      if (fold) fold.name = JSON.parse((init && init.body) || "{}").name || fold.name;
+      return json({ ok: true, folder: fold || null });
+    }
     if (path === "/api/saved/folders" && method === "POST") {
       var named = JSON.parse((init && init.body) || "{}");
       var folder = { id: "fld_" + Math.random().toString(36).slice(2, 8),
                      name: named.name, created: Date.now() / 1000, items: 0 };
-      FIXTURES["/api/saved"].folders.push(folder);
+      (named.kind === "vibe" ? VFOLD : FIXTURES["/api/saved"].folders).push(folder);
       return json({ ok: true, folder: folder });
     }
     if (path.indexOf("/api/saved/") === 0) {
@@ -1451,6 +1501,10 @@ __WRITING_SIM__
       var verb = parts[4] || "";
       var shelf2 = FIXTURES["/api/saved"];
       var found = shelf2.items.filter(function (i) { return i.id === savedId; })[0];
+      if (verb === "move" && found) {
+        found.folder_id = JSON.parse((init && init.body) || "{}").folder_id || "";
+        recount();
+      }
       if (verb === "played" || verb === "move") {
         return json({ ok: true, item: found || null });
       }

@@ -218,3 +218,64 @@ def test_edit_profile_never_replaces_topics_with_a_list_it_never_loaded():
     body = page[start:page.index("\n  }\n", start)]
     assert "Array.isArray(PREF_CHOICES.topics)" in body
     assert "PREF_CHOICES.topics) || []" not in body
+
+
+def test_a_friends_vibes_are_stories_for_24_hours(client, monkeypatch):
+    """27/09 packet: a face with the VIBE badge plays that friend's vibes
+    like stories, oldest first, and the story comes down after 24 hours -
+    off the avatar row, never off their profile."""
+    me = signed_in(client, "ian@b.com", "Ian", "ian")
+    beth = TestClient(appmod.app)
+    with beth:
+        her = signed_in(beth, "beth@b.com", "Beth", "beth")
+        beth.post("/api/vibe", json={"query": "why bonds move", "minutes": 2, "title": "Bonds"})
+        beth.post("/api/vibe", json={"query": "what the eagles changed", "minutes": 2,
+                                     "title": "Eagles"})
+    client.post("/api/friends/follow", json={"user_id": her})
+
+    row = client.get("/api/profile").json()["circle"][0]
+    assert row["vibed"] and [s["title"] for s in row["stories"]] == ["Bonds", "Eagles"]
+    assert len(client.get("/api/person", params={"handle": "beth"}).json()["vibes"]) == 2
+
+    later = appmod.time.time() + appmod.CIRCLE_VIBE_WINDOW + 60
+    monkeypatch.setattr(appmod.time, "time", lambda: later)
+    row = client.get("/api/profile").json()["circle"][0]
+    assert not row["vibed"] and not row["fresh"] and row["stories"] == []
+    person = client.get("/api/person", params={"handle": "beth"}).json()
+    # A vibe stays on the profile for good; only the story comes down.
+    assert len(person["vibes"]) == 2 and person["vibe_count"] == 2
+
+
+def test_saved_and_vibed_episodes_can_be_filed_in_folders(client):
+    """After §161: a listener makes folders on each shelf, names them, and
+    chooses the folder for each episode. The two shelves keep their own
+    folders; deleting a folder unfiles, never deletes."""
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    client.post("/api/vibe", json={"query": "why bonds move", "minutes": 2, "title": "Bonds"})
+    client.post("/api/saved", json={"query": "how tides work", "minutes": 2, "title": "Tides"})
+
+    gym = client.post("/api/saved/folders", json={"name": "Gym", "kind": "vibe"}).json()["folder"]
+    commute = client.post("/api/saved/folders", json={"name": "Commute"}).json()["folder"]
+    assert [f["name"] for f in client.get("/api/vibes").json()["folders"]] == ["Gym"]
+    assert [f["name"] for f in client.get("/api/saved").json()["folders"]] == ["Commute"]
+
+    # A vibe goes in a vibe folder, and not in a saved one.
+    assert client.post("/api/vibes/file", json={"query": "why bonds move", "minutes": 2,
+                                                "folder_id": commute["id"]}).status_code == 400
+    assert client.post("/api/vibes/file", json={"query": "why bonds move", "minutes": 2,
+                                                "folder_id": gym["id"]}).json()["folder_id"] == gym["id"]
+    body = client.get("/api/vibes").json()
+    assert body["vibes"][0]["folder_id"] == gym["id"] and body["folders"][0]["items"] == 1
+
+    item = client.get("/api/saved").json()["items"][0]
+    assert client.post(f"/api/saved/{item['id']}/move",
+                       json={"folder_id": commute["id"]}).json()["item"]["folder_id"] == commute["id"]
+    assert client.post(f"/api/saved/{item['id']}/move",
+                       json={"folder_id": gym["id"]}).status_code == 400
+
+    # Renamed, then deleted: the vibe is still there, just unfiled.
+    client.post(f"/api/saved/folders/{gym['id']}", json={"name": "Lifting"})
+    assert client.get("/api/vibes").json()["folders"][0]["name"] == "Lifting"
+    client.delete(f"/api/saved/folders/{gym['id']}")
+    body = client.get("/api/vibes").json()
+    assert body["folders"] == [] and body["vibes"][0]["folder_id"] == ""

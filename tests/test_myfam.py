@@ -894,3 +894,70 @@ def test_the_page_is_drawn_from_what_exists_even_if_warming_is_broken(client,
     body = client.get("/api/myfam")
     assert body.status_code == 200
     assert body.json()["sections"], "a broken guess emptied the page"
+
+
+def test_not_interested_takes_a_tile_off_every_rail_for_good(store):
+    """27/09 packet: "not interested" on a myFAM card or in the player. The
+    tile is never offered again - on the page, behind View more, or in the
+    popup after an episode - and its tags count a little against the taste."""
+    play(store, "u", "golf-evolution", kind="complete")
+    feed = T.build_feed(store, "u")
+    shown = [t["id"] for s in feed["sections"] for t in s["topics"]]
+    assert shown, "nothing to wave off"
+    target = shown[0]
+    store.record(T.Event("u", T.HIDE, target, "", T.tags_for_id(target, "")))
+    # Hidden even once it has scrolled out of the events `taste` reads.
+    for i in range(450):
+        store.record(T.Event("u", "search", "", f"question {i}", ("world",)))
+    assert target in store.hidden("u")
+    feed = T.build_feed(store, "u")
+    assert target not in [t["id"] for s in feed["sections"] for t in s["topics"]]
+    for key in [s["key"] for s in feed["sections"]]:
+        section = T.build_section(store, "u", key)
+        assert target not in [t["id"] for t in section["topics"]]
+    assert target not in [t.id for t in T.rank_next_up(store, "u", after_id="space-race")]
+    assert T.EVENT_WEIGHT[T.HIDE] < 0
+
+
+def test_a_written_startup_tile_is_called_what_it_turned_out_to_be(monkeypatch):
+    """27/09 packet: "The Argument in Sport Right Now" told a listener nothing
+    about what they would hear. Once the episode exists, the card carries the
+    episode's own title and summary; a bank tile keeps its own name."""
+    import cache as cache_mod
+    import startup as startup_mod
+
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", cache_mod.MemoryScriptCache())
+    sports = next(s for s in startup_mod.STARTUP_TOPICS if s[0] == "su-sports")
+    bank = T.TOPIC_BANK[0]
+    for query in (sports[3], bank.query):
+        plan = appmod._validated_plan(query, 2)
+        appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
+                                query, "", 2, "", "", "someone",
+                                title="Eagles Win on a Late Field Goal",
+                                summary="How Philadelphia stole it at the end.")
+    tiles = [{"id": "su-sports", "query": sports[3], "title": sports[1], "cached": True},
+             {"id": "su-world", "query": "never written", "title": "World", "cached": False},
+             {"id": bank.id, "query": bank.query, "title": bank.title, "cached": True}]
+    appmod._name_written_tiles(tiles, 2)
+    assert tiles[0]["title"] == "Eagles Win on a Late Field Goal"
+    assert tiles[0]["angle"] == "How Philadelphia stole it at the end."
+    assert tiles[1]["title"] == "World"
+    assert tiles[2]["title"] == bank.title
+
+
+def test_not_interested_reaches_trending_too(store, monkeypatch):
+    """A Trending tile waved off from its card does not come back on the row
+    or behind its View more (found reviewing §161)."""
+    story = T.TOPIC_BANK[5]
+    monkeypatch.setattr(T, "world_inventory", lambda live, held, heard, now: ([story], []))
+
+    def trending(feed):
+        return [t["id"] for s in feed["sections"] if s["key"] == "world_trending"
+                for t in s["topics"]]
+
+    play(store, "u", "golf-evolution", kind="complete")
+    assert story.id in trending(T.build_feed(store, "u"))
+    store.record(T.Event("u", T.HIDE, story.id, "", story.tags))
+    assert story.id not in trending(T.build_feed(store, "u"))
+    section = T.build_section(store, "u", "world_trending")
+    assert story.id not in [t["id"] for t in section["topics"]]

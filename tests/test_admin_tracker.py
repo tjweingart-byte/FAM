@@ -264,3 +264,22 @@ def test_a_client_cannot_claim_to_be_an_admin(client, monkeypatch):
     monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "u0")
     assert c.get("/api/admin/tracker?user=u0").status_code == 404
     assert c.get("/api/admin/tracker", headers={"X-User": "u0"}).status_code == 404
+
+
+def test_loading_the_admin_page_always_asks_again(client, monkeypatch):
+    """27/09 packet: /admin never keeps anybody signed in. Loading the page
+    ends the admin session the browser brought, and the sign-in cookie is a
+    browser-session cookie with no max-age."""
+    _, c = client
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    assert c.post("/api/auth/signup", json={"email": "boss@fam.test",
+                                            "password": PASSWORD}).status_code == 200
+    ok = c.post("/api/admin/login", json={"email": "boss@fam.test", "password": PASSWORD})
+    assert ok.status_code == 200
+    assert "max-age" not in ok.headers["set-cookie"].lower()
+    assert c.get("/api/admin/tracker").status_code == 200
+    token = c.cookies.get("fam_admin")
+    assert c.get("/admin").status_code == 200
+    # The old session is ended, not just forgotten by this client.
+    c.cookies.set("fam_admin", token)
+    assert c.get("/api/admin/tracker").status_code == 404
