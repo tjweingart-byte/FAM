@@ -2341,7 +2341,7 @@ STAGE = """
    inspector added on the right. Only .toast is position:fixed in the app, and
    it is fixed to the viewport either way, so nothing here disturbs it. */
   body { background: #14111c; }
-  #famStage { min-width: 0; }
+  #famStage { min-width: 0; display: flex; flex-direction: column; align-items: center; }
   #famDb {
     display: none; min-width: 0; color: #f1eef7;
     font-family: 'Public Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -2360,6 +2360,11 @@ STAGE = """
      rather than squeezing it. */
   @media (max-width: 1039px) {
     #famDb { display: block; border-top: 1px solid #3a3348; background: #1c1926; }
+  }
+  /* On a phone the app is the whole screen and nothing else is on it. */
+  @media (max-width: 520px) {
+    #famDb { display: none !important; }
+    body { background: var(--bg); }
   }
   #famDb .fd-head { padding: 16px 18px 13px; border-bottom: 1px solid #3a3348; }
   #famDb h2 { font-family: 'Fraunces', Georgia, serif; font-size: 19px; font-weight: 600;
