@@ -13101,3 +13101,17 @@ re-running that script.**
 text; the test proves every rule *has* a line, not that each line is a
 faithful summary. Read the full text before changing anything a rule covers,
 which the core says at the top.
+
+**Audited before merge.** An independent pass read all 120 rules in full
+against their core lines and checked the code where they disagreed. It found
+three wrong lines (two still carried §127's "floors on every rail but
+friends", which §134 narrowed to Made for you alone - `topics.RAIL_MINIMUM`
+confirms it - and one named the old branch), eleven missing obligations
+(among them: the §155 floor tops up from evergreen tiles, never the live pool;
+Trending ranked by `rank_world` on popularity and country only; `/api/person`
+resolving a bare id only within follows; new stores through `data_path`), and
+five misleading compressions (e.g. `CACHE_VECTOR` is on by default, not off).
+All are fixed in the core. Six sentences in the moved text that newer rules
+supersede now carry a `> **Current (PROBLEMS.md §168):**` note at the start
+of their rule, so a reader following a citation meets the current rule
+first; the moved text itself is still unedited.

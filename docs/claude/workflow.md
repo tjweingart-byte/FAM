@@ -57,6 +57,8 @@ you tap it.
 ## Picking this up in a new session
 
 <!-- rule:branch-no-pr -->
+> **Current (PROBLEMS.md §168):** The branch named below is superseded: each session develops on the branch it is assigned.
+
 Everything is in the repo; nothing of consequence lives in a chat log. Branch:
 `claude/search-podcast-audio-generator-ed4br1` — develop and push there, and do
 not open a pull request unless asked.

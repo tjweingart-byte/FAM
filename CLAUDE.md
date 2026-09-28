@@ -8,7 +8,8 @@ does not drift or re-litigate them.
 
 This is the **core**: every rule, one or two lines each, loaded every session.
 The reasoning, history and exact wording behind each rule live in
-`docs/claude/*.md`, moved there verbatim (PROBLEMS.md §168). Every line below
+`docs/claude/*.md`, moved there verbatim (PROBLEMS.md §168); a sentence newer
+rules supersede has a `> **Current:**` note at its rule. Every line below
 ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **Read the full text before changing anything a rule covers**, and before
@@ -22,6 +23,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section with
   its line number (`python tools/problems_index.py` regenerates it; a test fails
   when it is stale). Read the section by offset rather than searching 700 KB.
+- Other files that cite "CLAUDE.md" (a rule, an open problem by number) mean
+  this core plus `docs/claude/`; the numbered open problems are in
+  `open-problems.md`.
 
 | Topic file | Holds |
 |---|---|
@@ -48,7 +52,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Decouple script generation from synthesis in time**: pre-generate scripts
   and briefs for likely taps; synthesise on tap. Cached episodes keep their
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
-- Matching happens at write time too (`CACHE_VECTOR` embeds once at store). [match-at-write-time]
+- Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
+  **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
@@ -119,7 +124,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   rail: taste → `ready_first` (a sort, never a filter) → no repeats
   (`topics.is_repeat`); a heard live story is never re-offered as itself (a
   "what's new" follow-up after 6h). Trending is a twice-daily GNews edition
-  (05:00/17:00 ET), ten stories written ahead, no fallback, never the live pool.
+  (05:00/17:00 ET), ten stories written ahead, no fallback, never the live pool;
+  it is ranked by `topics.rank_world` on popularity and country only - no
+  taste, fatigue, engagement or learned order.
   Crowd rails hold cached episodes only (§141); friends rail reads the follow
   graph and is empty rather than strangers. `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
@@ -132,11 +139,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   `tag_weight` and broad-match; `diversify` keeps declared tags; tests assert
   bounds at realistic size. [op-taste-vocab]
 - **Empty deployment**: `taste_source` is `startup` ("Start here") until one
-  play; floors top up rails except friends; the most-played row holds plays only
+  play; only Made for you is topped up to its floor; the most-played row holds plays only
   and `tools/seed_demo.py` fills it for a demo. [op-empty-deployment]
 - **Scoring** (§114, §155): subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
   story reaches Made for you **only when it names something followed** (§155
-  excludes, reversing the 0.3 damp). No length control on myFAM - non-search
+  excludes, reversing the 0.3 damp; `SUBJECT_DEPTH`, `SEMANTIC_NEAR_COSINE`) -
+  the floor tops up from evergreen tiles, **never the live pool**. No length control on myFAM - non-search
   episodes are `BROWSE_MINUTES` (2). View more shows eight at a time; Refresh
   deals the next eight of the same ranking, then starts again (§165). No language picker (field kept). No wheel
   (§142) - interests page is the searchable list; `preferences.topics` stores
@@ -151,7 +159,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
-  only what they published; new followers announced once (`social.announced`),
+  only what they published (a handle resolves for anyone, a bare id only within
+  the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
 - Social updates itself: message cursor is a **row id, never a timestamp**,
   and belongs to the client; `bootstrap` announces nothing; send draws
@@ -241,11 +250,13 @@ Caching and prefetch
   the network. [candidate-reason]
 
 Browse surfaces
-- **The evergreen bank is for a listener with no account** (`browse_inventory`);
-  four tiles a rail; Trending was live stories by outlet count and place
-  (`trending_score`, `WORLD_LOCAL_SLOTS`), and since §139 is the GNews edition
-  (see [op-myfam]); only sports/markets refresh every
-  15 min, news every 2h; floors per rail (`RAIL_MINIMUM`) except friends; a
+- **The evergreen bank is for a listener with no account**: `browse_inventory`
+  gives a guest live + bank and an account live + the startup set - a swap,
+  never a subtraction. Every rail shows four (`SECTION_SIZE`); only Made for you
+  is topped up (`RAIL_MINIMUM`) - most-played, missed, Trending and friends
+  never invent a tile. Trending is the GNews edition (§139) ranked by
+  `rank_world` (outlet count and place: `trending_score`, `WORLD_LOCAL_SLOTS`);
+  the live pool's sports/markets refresh every 15 min, news every 2h; a
   guest's page is the bank and a guest tap plays only kept audio (403 → sign-up,
   before the GPU); picker and Explore New keep the whole bank; the gate governs
   what is *offered*, not what is *reported*; `_has_account` defaults False. [bank-for-guests]
@@ -260,7 +271,8 @@ Browse surfaces
 - **What you missed last week** is a rail, not a popup (now: cached episodes
   others played 3-7 days ago that this listener never heard, no live-feed, no
   top-up, §141). [missed-rail]
-- Trending's floor is reserved before other rails choose, only when it buys the floor. [trending-floor]
+- Trending is chosen before any personal rail, from its own edition, so it never
+  competes with Made for you for tiles (the §114 `WORLD_FLOOR` reservation is history). [trending-floor]
 - **Two crowd rows, not blended**: `most_played` is FAM's plays; Trending is the
   world. Trending feeds the bank, live facts feed the evidence; one fetch serves
   everyone; `why_now` is never evidence; ids hash the subject; an empty row is
@@ -274,13 +286,14 @@ Accounts, tiers, sharing
 - **Tiers are built and switched off** (`ENFORCE_QUOTAS=0`) - no checkout means no wall. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
-- A tier is what you may spend, never what you may reach; episodes and Explore
-  replays counted separately. [tier-spend]
+- A tier is what you may spend, never what you may reach: every tier has every
+  feature (`entitlements.FEATURES`; moving one is a line plus its test); episodes
+  and Explore replays counted separately; a cache hit still counts as an episode. [tier-spend]
 - **Save for later is a pointer and a toggle**; download is gone; folders are
   the listener's own (§162), never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; no `user_id`; host from the request (`_public_base`,
+  counted by the page; no `APP_STORE_URL` → no door controls drawn; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
@@ -291,12 +304,15 @@ Accounts, tiers, sharing
 - **The intro screen is not on the navigation stack**; screens opened over it
   return by name. [intro-not-on-stack]
 - **A listener id is never accepted from the client** - take it from
-  `_listener(request)` (cookie or `Authorization: Bearer`), never a parameter. [listener-id-server]
+  `_listener(request)` (cookie or `Authorization: Bearer`), never a parameter;
+  `?user=` is ignored; a browser never requests or reads the bearer token. [listener-id-server]
 - A limit counts episodes, not requests; a request that cannot spend is not paced. [limit-episodes]
 
 Operations and honesty
-- **A wipe enumerates what is derived** from what it empties (vocabulary,
-  in-process tables); it re-applies the seed. [wipe-derived]
+- **A wipe enumerates what is derived** from what it empties: register it in
+  `demo_data._forget_what_the_log_taught` (drop cached handles like
+  `topics.category_tree`, not just rows); it re-applies the seed; accounts,
+  credentials and metering are never wiped. [wipe-derived]
 - **Failures must be visible**; announcing is not enough if the thing keeps a record. [failures-visible]
 - `/api/health` reports `build` and `search_mode_source`; anything settable in
   two places belongs there. [server-says-build]
@@ -306,10 +322,13 @@ Operations and honesty
   registers itself (host and port), direct TCP preferred behind
   `VOICE_ALLOW_PLAIN_HTTP`, contract version reported never refused, nothing
   starts/stops a pod (runs continuously), `available()` asks the ladder, refusals
-  are logged. [voice-address-discovered]
+  are logged; never substitute a port the pod does not expose; a sample-rate
+  mismatch is refused; registration exists only with `VOICE_REGISTRY_TOKEN`. [voice-address-discovered]
 - **A server says whether a redeploy erases its listeners** (`storage` in health,
   measured by `st_dev`; `_announce_storage` at boot); the data-path guard is
-  derived - **a guard whose subject is enumerated by hand is decorative**. [storage-durability]
+  derived - **a guard whose subject is enumerated by hand is decorative**. Open
+  every new store via `data_path("VAR", ...)` so the test and the Dockerfile's
+  disk list cover it. [storage-durability]
 - Per-machine state lives in `~/.fam/`; a key is never written into source. [fam-home-dir]
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (`FAM_SECRETS`, precedence env >
@@ -327,7 +346,8 @@ Operations and honesty
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
   [dec-accounts]; local vs hosted voices [dec-voices]; whether to warm scripts -
   measure hit rates first [dec-prefetch]; embeddings help the ranker, not the
-  cache [dec-embedding].
+  cache, and `learned_rank` may reorder what cleared the floor, never admit
+  below it [dec-embedding].
 
 ## How to ship a change (standing instruction)  (`workflow.md`)
 
@@ -337,17 +357,22 @@ Every change ends the same way, without being asked [ship-loop]:
 2. Rebuild and **republish the preview to the same URL**:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
-   published with `capabilities: {"db": {}, "downloads": true}`. From a new
+   published with `capabilities: {"db": {}, "downloads": true}` - both, since
+   passing `db` alone revokes `downloads`. From a new
    conversation, read that URL first, then publish with it as `url`.
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
-- The preview runs on fixtures: good for layout, useless for writing or latency. [preview-fixtures]
+- Previews - the fixture build `dev.sh check` smoke-tests (`fam-artifact.html`)
+  and the live-DB build at the bookmarked URL - are good for layout and flow,
+  useless for writing quality or latency. [preview-fixtures]
 - `./demo.sh` to show or judge the product; `tools/seed_demo.py` fills browse history. [demo-sh]
 
 ## Picking up a session  (`workflow.md`)
 
-- Develop on the branch the session assigns; do not open a PR unless asked. [branch-no-pr]
+- Develop and push on the branch the session assigns (the full text names the
+  older `claude/search-podcast-audio-generator-ed4br1`, now superseded by
+  per-session branches); do not open a PR unless asked. [branch-no-pr]
 - Reading order and the reference docs (`docs/`, `MYFAM.md`, `DATABASE.md`,
   `ACCOUNTS.md`, `SHARING.md`, `LIVE_FACTS.md`, ...) are listed in `workflow.md`;
   recent history is in `PROBLEMS_INDEX.md`. [reading-order]
@@ -355,7 +380,8 @@ Every change ends the same way, without being asked [ship-loop]:
 - Run `./dev.sh check` first; it ends `all checks passed` twice with the smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
-  runs all three. [landing-smoke]
+  runs all three; a check added to `dev.sh` must be added to
+  `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 before blaming the environment. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ between here and CI; suspect the environment on layout disagreements. [fonts-env]

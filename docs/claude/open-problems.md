@@ -255,6 +255,8 @@
    runs at production scale is inspecting rather than verifying.
 
 <!-- rule:op-empty-deployment -->
+> **Current (PROBLEMS.md §168):** Since §134 only Made for you is topped up (`RAIL_MINIMUM`); "the first two are then topped up" below is stale.
+
 5a. **What a deployment with nothing in it shows** *(§124, measured on an
    emptied database rather than reasoned about).* Signed out with an empty
    log, `taste_source` is `startup` and the first rail is §116's
@@ -520,6 +522,8 @@
    reward. A share rather than a number of seconds, because "the last thirty
    seconds" is most of a one-minute episode and nothing of a ten-minute one.
 <!-- rule:op-social-live -->
+> **Current (PROBLEMS.md §168):** New mixes are **public** by default since §153 - "Mixes are private by default" below is stale (see [op-dailyfam-mixes]).
+
 8. **The social layer generates nothing, and it updates itself now** *(§107).*
    Messages appeared only when the chat screen was opened, so two people
    talking had to leave the conversation and come back to see each other -

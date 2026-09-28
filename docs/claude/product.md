@@ -88,6 +88,8 @@ script cache (`cache.py`) is already the right place to put pre-generated
 scripts; it stores scripts, not audio, for exactly this reason.
 
 <!-- rule:match-at-write-time -->
+> **Current (PROBLEMS.md §168):** `CACHE_VECTOR` is **on** by default since §107 - "Off by default" below is stale (see [dec-embedding]).
+
 The same "do it before the listener is waiting" logic is why matching happens
 at write time too: `CACHE_VECTOR` embeds a question once when its script is
 stored and compares locally on the next lookup, instead of `CACHE_SEMANTIC_KEY`'s

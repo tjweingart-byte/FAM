@@ -526,6 +526,8 @@
   rule episode intelligence lives by.
 
 <!-- rule:card-hook-startup -->
+> **Current (PROBLEMS.md §168):** `render.yaml` now turns GDELT on, so "`GDELT=1`, which no deployment has" below is stale.
+
 - **A browse card's one line is about the episode, and a new listener's page
   is not four explanations.** *(§116, `startup.py`.)* Two halves of one
   mistake - a surface saying something true about *itself* where something
@@ -628,6 +630,8 @@
   *columns* stay, read by nothing, on the same reasoning as the language field
   - they are what a scheduled digest would read on the day there is one.
 <!-- rule:trending-floor -->
+> **Current (PROBLEMS.md §168):** Since §134/§139 Trending is chosen first from its own GNews edition and never draws on the live pool, so the reservation below is history.
+
 - **Trending keeps four tiles, and takes them before anything else chooses.**
   *(§114, `topics.WORLD_FLOOR`.)* It was filled **last**, from what the four
   personal rails had not claimed - and Made for you draws on the same live
