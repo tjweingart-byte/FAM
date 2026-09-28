@@ -181,22 +181,83 @@ def test_a_real_named_subject_waits_for_a_person(tree):
         th.pick("formula one season", ())["node"] != "formula one"
 
 
-def test_a_logo_is_painted_again_and_never_stored_live(tree, monkeypatch):
+def test_a_logo_is_painted_again_only_when_allowed_and_never_live(
+        tree, monkeypatch):
     _set(monkeypatch, thumbnails_attempts=3)
     dirty = dict(CLEAN, logo=True)
     paint = _painter([])
     _run(only=["college football"], writer=_writer(), painter=paint,
          checker=_checker([dirty, dirty, dirty]))
     row = th.store().get("college football")
-    assert row.status == th.STATUS_FAILED
+    # The last one is held for a person rather than thrown away (§169).
+    assert row.status == th.STATUS_REVIEW
     assert "logo" in row.reason
     assert len(paint.calls) == 3
-    assert th.store().image("college football", any_status=True) is None
+    assert th.store().image("college football") is None
+    assert th.pick("college football", ()) is None or \
+        th.pick("college football", ())["node"] != "college football"
 
 
-def test_a_second_attempt_can_succeed(tree):
+def test_by_default_a_failing_picture_costs_one_image(tree):
+    # §169: three paid images per failure was the complaint.
+    paint = _painter([])
+    _run(only=["college football"], writer=_writer(), painter=paint,
+         checker=_checker([dict(CLEAN, logo=True, text=True)]))
+    row = th.store().get("college football")
+    assert len(paint.calls) == 1 and row.attempts == 1
+    assert row.status == th.STATUS_REVIEW
+    assert "held for you" in row.reason
+    assert th.store().image("college football", any_status=True) is not None
+
+
+def test_a_taste_failure_is_held_without_a_second_painting(tree, monkeypatch):
+    _set(monkeypatch, thumbnails_attempts=3)
+    paint = _painter([])
+    _run(only=["college football"], writer=_writer(), painter=paint,
+         checker=_checker([dict(CLEAN, obsolete=True, matches_subject=False)]))
+    assert len(paint.calls) == 1
+    assert th.store().get("college football").status == th.STATUS_REVIEW
+
+
+def test_a_border_is_cropped_off_and_the_picture_goes_live(tree):
+    paint = _painter([])
+    _run(only=["college football"], writer=_writer(), painter=paint,
+         checker=_checker([dict(CLEAN, border=True)]))
+    row = th.store().get("college football")
+    assert len(paint.calls) == 1 and row.status == th.STATUS_APPROVED
+    data, _ = th.store().image("college football")
+    from PIL import Image
+    assert Image.open(io.BytesIO(data)).size == (th.STORED_WIDTH,
+                                                 th.STORED_HEIGHT)
+
+
+def test_a_non_subject_is_skipped_before_anything_is_paid_for(tree):
+    async def write(paths):
+        return [th.Scene(p.split(" > ")[-1], "a kitchen table", False,
+                         paintable=False) for p in paths]
+    paint, check = _painter([]), _checker([])
+    result = _run(only=["golf"], writer=write, painter=paint, checker=check)
+    row = th.store().get("golf")
+    assert paint.calls == [] and row.status == th.STATUS_FAILED
+    assert "not a subject" in row.reason and row.cost_usd == 0
+    assert result["spend_usd"] == 0
+
+
+def test_the_checker_is_given_the_path_not_the_bare_word(tree):
+    seen = []
+
+    async def check(image, mime, subject):
+        seen.append(subject)
+        return dict(CLEAN), 0.0
     _run(only=["college football"], writer=_writer(), painter=_painter([]),
-         checker=_checker([dict(CLEAN, person=True), CLEAN]))
+         checker=check)
+    assert seen and " > " in seen[0] and seen[0].endswith("college football")
+
+
+def test_a_second_attempt_can_succeed(tree, monkeypatch):
+    _set(monkeypatch, thumbnails_attempts=2)
+    _run(only=["college football"], writer=_writer(), painter=_painter([]),
+         checker=_checker([dict(CLEAN, logo=True), CLEAN]))
     row = th.store().get("college football")
     assert row.status == th.STATUS_APPROVED and row.attempts == 2
 
@@ -207,7 +268,9 @@ def test_an_unchecked_picture_is_held_rather_than_published(tree):
     assert th.store().get("college football").status == th.STATUS_REVIEW
 
 
-def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
+def test_a_filtered_result_is_retried_and_a_key_problem_is_not(
+        tree, monkeypatch):
+    _set(monkeypatch, thumbnails_attempts=2)
     paint = _painter([th.GenerationError("Imagen returned no image (filtered)")])
     _run(only=["college football"], writer=_writer(), painter=paint,
          checker=_checker([]))
@@ -414,15 +477,15 @@ def test_a_failed_repaint_keeps_the_live_picture(tree):
          checker=_checker([]))
     live = th.store().get("golf")
     url = th.pick("golf", ())["url"]
-    dirty = dict(CLEAN, logo=True)
     _run(only=["golf"], regenerate=True, writer=_writer(),
-         painter=_painter([]), checker=_checker([dirty] * 3))
+         painter=_painter([th.GenerationError("answered 400: blocked")]),
+         checker=_checker([]))
     row = th.store().get("golf")
     assert row.status == th.STATUS_APPROVED
     assert th.store().image("golf") is not None
     assert th.pick("golf", ())["url"] == url
     assert "kept the live picture" in row.reason
-    assert row.attempts == live.attempts + 3
+    assert row.attempts == live.attempts + 1
 
 
 def test_a_held_repaint_waits_beside_the_live_picture(tree):
@@ -465,8 +528,8 @@ def test_a_failed_repaint_is_counted_as_failed(tree):
     _run(only=["golf"], writer=_writer(), painter=_painter([]),
          checker=_checker([]))
     result = _run(only=["golf"], regenerate=True, writer=_writer(),
-                  painter=_painter([]),
-                  checker=_checker([dict(CLEAN, logo=True)] * 3))
+                  painter=_painter([th.GenerationError("answered 400")]),
+                  checker=_checker([]))
     assert result["failed"] == 1 and result["approved"] == 0
 
 
@@ -688,12 +751,13 @@ def test_a_missing_reference_folder_is_said_not_raised(monkeypatch, tmp_path):
 
 
 def test_the_house_style_is_the_owners_watercolour():
-    for word in ("watercolour", "mid-century", "anonymous", "wordless"):
+    for word in ("watercolour", "mid-century", "expressionless", "wordless"):
         assert word in th.HOUSE_STYLE
-    # Figures are allowed; faces, real people and team kit are not.
-    assert "anonymous figures" in th.WRITER_SYSTEM
-    assert "real or famous person" in th.WRITER_SYSTEM
-    assert "do not" in th.CHECKER_SYSTEM and "real person" in th.CHECKER_SYSTEM
+    # People are allowed, facing any way, with expressionless faces (§169);
+    # real or famous people, children and team kit are not.
+    assert "expressionless" in th.WRITER_SYSTEM
+    assert "real or" in th.WRITER_SYSTEM and "famous person" in th.WRITER_SYSTEM
+    assert "do not" in th.CHECKER_SYSTEM and "famous person" in th.CHECKER_SYSTEM
 
 
 # --- §167: full-bleed, deeper colour, modern equipment ---------------------
@@ -740,9 +804,13 @@ def test_a_border_or_obsolete_equipment_fails_the_picture():
 
 
 def test_the_look_is_full_bleed_deeper_and_modern():
-    for words in ("Full-bleed", "no border", "vignette", "deep tones",
-                  "modern"):
+    for words in ("Full-bleed", "runs off", "deep tones", "modern"):
         assert words in th.HOUSE_STYLE
+    # Positive wording only: a model with no negative prompt draws what a
+    # sentence says to leave out, so the style never names a border.
+    for words in ("border", "vignette", "margin"):
+        assert words not in th.HOUSE_STYLE.lower()
+    assert "absent" in th.WRITER_SYSTEM and "abstract" in th.WRITER_SYSTEM
     assert "pastel" in th.HOUSE_STYLE
     for words in ("TODAY", "old radios", "obsolete"):
         assert words in th.WRITER_SYSTEM
@@ -756,3 +824,33 @@ def test_the_review_page_shows_every_answer_that_fails_a_picture():
                              "thumbnails.html")).read()
     for key in th._FAILS_ON:
         assert f'"{key}"' in page, key
+
+
+def test_a_facet_is_never_skipped_as_not_a_subject(tree):
+    async def write(paths):
+        return [th.Scene(p.split(" > ")[-1], "a sunlit stadium", False,
+                         paintable=False) for p in paths]
+    paint = _painter([])
+    _run(only=["sports"], writer=write, painter=paint, checker=_checker([]))
+    assert len(paint.calls) == 1
+    assert th.store().get("sports").status == th.STATUS_APPROVED
+
+
+def test_a_paid_picture_is_kept_when_a_later_attempt_brings_nothing(
+        tree, monkeypatch):
+    # attempts=2: the first picture has a logo, the second is filtered. The
+    # first was paid for, so it is held rather than lost.
+    _set(monkeypatch, thumbnails_attempts=2)
+    paint = _painter([th.Painting(_png(), "image/png"),
+                      th.GenerationError("returned no image (filtered)")])
+    _run(only=["college football"], writer=_writer(), painter=paint,
+         checker=_checker([dict(CLEAN, logo=True)]))
+    row = th.store().get("college football")
+    assert row.status == th.STATUS_REVIEW and "logo" in row.reason
+    assert th.store().image("college football", any_status=True) is not None
+
+
+def test_health_says_how_many_paintings_a_node_may_cost(monkeypatch):
+    assert th.health()["attempts"] == 1
+    _set(monkeypatch, thumbnails_attempts=3)
+    assert th.health()["attempts"] == 3
