@@ -2525,7 +2525,10 @@ VIBE as 24-hour stories, startup cards named by the episode they became,
 and offline listening for finished episodes; and **§162**, the player's
 "not for me" removed, vibes kept on the profile for good (only the story
 lasts 24 hours), and folders the listener makes on Save for Later and My
-Vibes),
+Vibes; and **§163**, "Sunday Night Football" resolved in code as the name
+of one game (`named_slots.py`) after a recap of it was about an afternoon
+game, and the demo page reduced to the phone - full-screen on a phone, with
+the follow banner dropping inside it),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
