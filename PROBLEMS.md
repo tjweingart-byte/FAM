@@ -12317,10 +12317,144 @@ changed is what moves up behind it - eight of each are read, so a dismissed
 tile is replaced only by another that qualifies. `similar` stays in the
 response, always empty, so an older client draws nothing rather than failing.
 
-## 158. "Hey FAM" opens voice search
+## 155. Made for you offered fields, not subjects
 
-*(§155-§157 are taken by an open branch, `claude/ecstatic-allen-1zd6h1`,
-which was not merged when this was written; the numbers were left for it.)*
+The owner: "If I have listened to an episode about football in the past, I
+should not be seeing a random division II college football game on my made
+for you page." The 20/09 packet reported the same thing and its fix damped
+such a story; its test asserted only that the story no longer *led* the rail.
+
+**Reproduced before changing anything**, with the seeded tree and the real
+floors: one listen to "who won the eagles vs cowboys football game", a pool
+holding *Slippery Rock vs Shepherd*, *Wofford vs Mercer* and an Eagles
+injury report. Made for you was Wofford, Slippery Rock, Eagles - the one
+story about the team they asked about came third. Three leaks, each enough
+alone:
+
+1. **The damping was an offer.** `BROAD_MATCH_PENALTY` cut an off-subject
+   live story to 0.3 of a strong `sports` score, which still cleared
+   `RELEVANCE_FLOOR` (0.12). And §127's floor topped the rail up from the
+   whole inventory in affinity order, live pool first - so a story the
+   ranking had dropped came straight back.
+2. **`football` was "specific".** The seed puts `football` (and `american
+   football`) directly under `sports`. `_is_broad_match` counted any grown
+   category as specific, so every game with the word in it matched a
+   listener who had typed it once.
+3. **`football` was "familiar".** `_subject_is_familiar` exempted a story on
+   any shared word, and the listener had typed "football".
+
+A semantic term also exempted a story on any value over
+`taste_vectors.SEMANTIC_FLOOR`, and "who won the Eagles game" is that close
+to every football game.
+
+**The fix**, all in `topics.py`:
+
+* `BROAD_MATCH_PENALTY = 0.0` - an off-subject live story is not offered.
+  Kept as a constant because `learned_rank.hand_score` multiplies by it.
+  §114's reason for never excluding ("a rule would empty a new listener's
+  rail") expired with §127's floor.
+* `_rail_fallback` tops Made for you up from **evergreen tiles only**. What
+  the live pool has left after a ranking that looks `READY_REACH` deep is
+  what that ranking turned down.
+* `SUBJECT_DEPTH = 2` / `_names_a_subject`: a category names a subject only
+  two levels under a heading. `tag_weight` and `_is_specific` are unchanged -
+  a sport *is* narrower than a heading, it is just not a subject.
+* `_field_words`: the eight headings, every keyword list, every depth-0/1
+  category and a short list of fixture words (`game`, `match`, `score`...)
+  no longer count as familiarity. Teams, towns, companies and people do.
+* `SEMANTIC_NEAR_COSINE = 0.6`: only a near paraphrase exempts a story. A
+  judgement, not a measurement - nothing here has a real history to tune on.
+* `_off_subject` is the one definition, read by `rank_from_history` and by
+  `learned_rank.features`, so the fitted model trains on what is served.
+
+After: the same listener gets the Eagles story first, then evergreen sports
+and general tiles; somebody who has asked about college football twice is
+still offered a college football game. `tests/test_made_for_you_155.py`.
+
+**What it costs**: a listener whose history is one broad question ("sports
+news") now sees fewer live stories on Made for you and more evergreen ones,
+until they ask about something specific. Trending is untouched and still
+carries the day's biggest stories for everybody.
+
+## 156. Sports and markets every fifteen minutes, news every two hours
+
+The owner first asked for the whole story refresh to move from fifteen
+minutes to two hours, then - before it shipped - narrowed it: "we don't want
+sports data to be that outdated". So the pool keeps its fifteen-minute tick
+and the sources are split by how fast what they measure moves:
+
+| Source | Floor | Was |
+|---|---|---|
+| API-Sports | its daily budget, ~14 min on the free tier | unchanged |
+| Finnhub | 15 min (`STORIES_MARKETS_INTERVAL_SECONDS`) | 30 min |
+| GDELT news sweep | 2 h (`STORIES_NEWS_INTERVAL_SECONDS`) | 10 min |
+| Trending registry | 2 h | every tick |
+| Polymarket | 2 h | 30 min |
+
+No new mechanism: `collect` already skipped a source inside its
+`min_interval_seconds`, and `refresh` already carried every unexpired story a
+source did not mention this time (`still`). The floors became settings.
+
+**One thing the split would have broken, fixed with it.** `corroborate`
+lifts a game or a price the press is also covering. On a tick where GDELT sat
+out there is no press to corroborate against, so `_seen_again` would have
+reset that story's strength to the bare scoreboard's - the absence of a news
+sweep read as the world losing interest, for an hour and fifty minutes of
+every two hours. It now keeps the corroborated strength on a tick where no
+news source ran (`news_swept`), and takes the new reading the next time one
+does.
+
+**What it buys.** GDELT from ~3,000 requests a day to ~380; Polymarket from
+48 sweeps to 12; composer calls fall because between news sweeps only new
+games and new market moves are new. **What it costs.** A news story reaches
+Made for you up to two hours late, and a wave that rises and fades inside
+two hours is not admitted. Finnhub doubles, to one request per watchlist
+symbol every fifteen minutes - inside the free tier's 60 a minute, but
+double the metered estimate (`live_sources.py`, $0.80 per 1,000). Scores are
+as fresh as the API-Sports allowance allows, as before. **The category tree
+is unaffected**: it reads every story the pool holds, and stories are held
+for their whole shelf life.
+
+The score card also drops its "live" badge once the score is over twenty
+minutes old (`seedLiveHtml`): it already said its age, and an in-progress
+score that old - which happens when the API-Sports allowance runs low - is
+not happening now.
+
+`tests/test_story_refresh_156.py`.
+
+## 157. The vocabulary sweep every two hours, and what the placer never sees
+
+At the owner's direction `categories.SWEEP_INTERVAL` goes from one hour to
+two, matching the news sources' clock (§156). At most twelve placer calls a
+day instead of twenty-four - a ceiling of about $15 a month rather than $30
+at the repo's Sonnet 5 rate - and still far faster than the vocabulary moves:
+a listener phrase needs three people behind it, which takes days.
+
+**The owner also chose "place sports games in code rather than with the
+model", on my estimate that games were most of what the placer handles. That
+estimate was wrong, and nothing was built for it.** A game's subject is
+`"{home} vs {away}"`, and `mint` refuses any phrase with a word under three
+letters or more than four words - so `wofford vs mercer` and `kansas city
+chiefs vs buffalo bills` have never entered the tree at all, and so have
+never reached the placer. Neither have most news headlines (over four
+words) or Polymarket questions. What the placer actually receives is
+Finnhub's company names ("Nvidia"), the rare headline of four words or
+fewer, and listener phrases that cleared the threshold - a small batch, so
+the realistic cost is lower than the estimate I first gave the owner.
+
+What it also means: a game tile's tags come from its declared `sports` tag
+and whatever the tree finds in the team, sport and league words - never a
+league node like "college football" unless the league's own name contains
+it. So after §155 a game is offered on Made for you when the listener has
+named one of its teams or its town, or asked something nearly identical, and
+not because they follow the league. Tagging games with their league in code
+is the version of "place games in code" that would change anything; it was
+put to the owner rather than built, because it widens what Made for you
+offers.
+
+`tests/test_story_refresh_156.py`.
+
+## 158. "Hey FAM" opens voice search
 
 **Asked for:** saying "hey FAM" or "what's up FAM" should bring up voice
 search, so the spoken path does not start with finding the mic under the box.

@@ -298,27 +298,41 @@ SUBTAG_WEIGHT = 1.75
 #: ever appears to make them differ, it has to be written down here first.
 CATEGORY_DEPTH_WEIGHT = SUBTAG_WEIGHT
 
-#: How far a live story's score is cut when its only claim on this listener is
-#: a whole facet and they have never been near its subject.
+#: What a live story is worth to Made for you when its only claim on this
+#: listener is a whole field and they have never been near its subject.
 #:
-#: `SUBTAG_WEIGHT` sharpens every comparison; this one answers the case it
-#: cannot, because the vocabulary has no word for it. There is no `nfl` tag
-#: and no `college-football` tag - both are `sports` - so no amount of tag
-#: weighting distinguishes them and nothing should pretend it does. What can
-#: be measured without inventing a vocabulary is whether this listener has
-#: ever *said* any of the words in the tile: `familiar_words` reads their own
-#: searches and plays out of the event log, which is a fact about them rather
-#: than a guess about the subject.
+#: **Nothing, since §155, at the owner's direction.** It was 0.3 - a damping,
+#: "never an exclusion", on the reasoning that a rule would empty a new
+#: listener's rail. That reasoning expired with §127: the rail now has a
+#: floor, topped up from the evergreen bank and the startup set, so excluding
+#: an off-subject story costs a weaker tile, never an empty row. And a damping
+#: did not do the job it was for. A listener who had asked about one Eagles
+#: game was offered *Wofford vs Mercer* and a Division II fixture at the top
+#: of the rail, because a 0.3 cut on a strong `sports` score still cleared
+#: `RELEVANCE_FLOOR` comfortably - "damped" meant "offered, slightly lower".
 #:
-#: Applied to live stories only. The evergreen bank is twenty-eight standing
-#: subjects chosen to be broad, so damping a bank topic for being broad would
-#: damp the whole bank; a story is one specific thing that happened, and one
+#: Kept as a number rather than deleted because `learned_rank.hand_score`
+#: multiplies by it, and the fitted model has to be compared against the
+#: order that is actually served. See `_off_subject` for what "never been
+#: near" means now - it was the other half of the leak.
+#:
+#: **Live stories only.** The evergreen bank is twenty-eight standing
+#: subjects chosen to be broad, so a rule against breadth there would remove
+#: the whole bank; a story is one specific thing that happened, and one
 #: specific thing nobody has shown any interest in is exactly the complaint.
+BROAD_MATCH_PENALTY = 0.0
+
+#: How close, in meaning, a live story has to be to something the listener
+#: asked for before that closeness counts as having been near its subject.
 #:
-#: **It damps, it never excludes.** A listener whose history is one episode
-#: long has almost no familiar words, and a rule would empty their rail in
-#: the name of relevance.
-BROAD_MATCH_PENALTY = 0.3
+#: A cosine, on `taste_vectors`' scale, where related short questions sit at
+#: 0.45 and up. The exemption used to fire on *any* semantic term - anything
+#: over `taste_vectors.SEMANTIC_FLOOR`, 0.3 - and "who won the Eagles game"
+#: is that close to every football game ever played. 0.6 is a paraphrase-or-
+#: nearly: the same team, the same company, the same question in other words.
+#: A judgement, not a measurement; `tools/categories_report.py` and a real
+#: history are what would tune it.
+SEMANTIC_NEAR_COSINE = 0.6
 
 #: What a live story about where this listener says they are is worth.
 #:
@@ -1072,6 +1086,34 @@ def _is_specific(tag: str) -> bool:
     return tag in TAG_PARENT or category_tree().get(tag) is not None
 
 
+#: How deep a grown category has to be before matching it says this listener
+#: and this tile share a *subject* rather than a *field* (§155).
+#:
+#: Depth 1 is a node straight under one of the eight headings - `football`,
+#: `american football`, `basketball`, `markets` - and that is a sport or a
+#: genre, not a subject. The seed put `football` there, so every game with the
+#: word in it matched it, and so did every listener who had typed it once:
+#: one Eagles question made every football fixture in the world "specific".
+#: Depth 2 is where the tree starts naming things somebody follows -
+#: `college football`, `nfl`, `formula one`.
+#:
+#: Only `_is_broad_match` asks this. `tag_weight` still counts a depth-1 node
+#: as worth more than a heading, which is true - it *is* narrower - and the
+#: two questions are different: how much is a match worth, and is it a match
+#: on anything more than a field.
+SUBJECT_DEPTH = 2
+
+
+def _names_a_subject(tag: str) -> bool:
+    """Whether matching this tag is matching a subject rather than a field."""
+    if tag in TAG_LABELS:
+        return False
+    if tag in TAG_PARENT:
+        return True
+    tree = category_tree()
+    return tree.get(tag) is not None and tree.depth_of(tag) >= SUBJECT_DEPTH
+
+
 def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     """True when nothing specific about this tile matches this listener.
 
@@ -1093,7 +1135,7 @@ def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     which is exactly what this asked before.
     """
     return not any(profile.get(tag, 0.0) > 0 for tag in topic_tags(topic)
-                   if _is_specific(tag))
+                   if _names_a_subject(tag))
 
 
 def _is_local(topic: Topic, local: frozenset[str]) -> bool:
@@ -1116,12 +1158,92 @@ def _is_local(topic: Topic, local: frozenset[str]) -> bool:
 
 
 def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
-    """Whether this listener has ever been near the words on this tile."""
+    """Whether this listener has ever been near the words on this tile.
+
+    **A field's own name does not count** (§155). "football", "game",
+    "market" are words a listener uses about a whole heading, and every tile
+    under that heading carries them - so one Eagles question made every
+    football fixture in the world "familiar", which exempted all of them
+    from the broad-match rule this check exists to refine. What is left is
+    the words that name a thing: a team, a town, a company, a person.
+    """
     if not familiar:
         return False
+    generic = _field_words()
     words = {w for w in _WORD.findall(f"{topic.title} {topic.query}".lower())
-             if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS}
+             if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS
+             and w not in generic}
     return bool(words & familiar)
+
+
+#: Words that name a field rather than a subject in it: every word of the
+#: eight headings' keyword lists and subtag keyword lists, and every word of
+#: a grown category no deeper than one level under a heading. Rebuilt when
+#: the tree is.
+_FIELD_WORDS: frozenset = frozenset()
+_FIELD_WORDS_GEN = -1.0
+
+#: Generic words the keyword lists do not happen to hold but every fixture,
+#: price and headline does. Short on purpose, for `FAMILIAR_STOPWORDS`'
+#: reason: a long list starts deciding that real subjects are noise.
+FIELD_STOPWORDS = frozenset("""
+game games match matches fixture fixtures season league team teams score
+scores result results win wins won lose lost versus play plays played
+player players today tonight week weekend news latest update
+""".split())
+
+
+def _field_words() -> frozenset:
+    global _FIELD_WORDS, _FIELD_WORDS_GEN
+    tree = category_tree()
+    gen = getattr(tree, "_loaded_at", 0.0)
+    if gen == _FIELD_WORDS_GEN and _FIELD_WORDS:
+        return _FIELD_WORDS
+    words: set[str] = set(FIELD_STOPWORDS)
+    for slug in TAG_LABELS:
+        words.update(_WORD.findall(slug.lower()))
+    for keywords in TAG_WORDS.values():
+        for phrase in keywords:
+            words.update(_WORD.findall(phrase.lower()))
+    try:
+        for node_id in tree.nodes():
+            if tree.depth_of(node_id) < SUBJECT_DEPTH:
+                words.update(_WORD.findall(node_id.lower()))
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not read the category tree for field words")
+    _FIELD_WORDS, _FIELD_WORDS_GEN = frozenset(words), gen
+    return _FIELD_WORDS
+
+
+def _off_subject(topic: Topic, profile: dict[str, float],
+                 familiar: frozenset, semantic: dict[str, float]) -> bool:
+    """A live story this listener has given no sign of caring about.
+
+    Three questions, all of which have to come back "no": does anything
+    narrower than a field on the tile match their profile, have they ever
+    used a word on it that names a thing, and is it a near paraphrase of
+    something they asked for. One definition, read by `rank_from_history`
+    and by `learned_rank.features`, because a feature that fires where
+    serving does not is skew.
+    """
+    return (_is_live_story(topic)
+            and _is_broad_match(topic, profile)
+            and not _subject_is_familiar(topic, familiar)
+            and semantic.get(topic.id, 0.0) < _semantic_near())
+
+
+def _is_live_story(topic: Topic) -> bool:
+    """A tile from the live story pool. `freshness` alone misses one whose
+    push has decayed to zero in its last minutes, and the id is minted by
+    `stories.story_id` and by nothing else."""
+    return topic.freshness > 0 or topic.id.startswith("st-")
+
+
+def _semantic_near() -> float:
+    """`SEMANTIC_NEAR_COSINE` on the scale of the term the ranker is handed."""
+    return taste_vectors.SEMANTIC_WEIGHT * max(0.0, (
+        (SEMANTIC_NEAR_COSINE - taste_vectors.SEMANTIC_FLOOR)
+        / (1.0 - taste_vectors.SEMANTIC_FLOOR)))
 
 
 def facet_of(tag: str) -> str:
@@ -3056,13 +3178,10 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
         score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0))
                  * damp.get(topic.id, 1.0)
                  * (1.0 + FRESHNESS_BOOST * topic.freshness))
-        # A live story is one specific thing that happened; `freshness` is
-        # exactly what distinguishes one from a bank topic here, and it is
-        # set by `topics_from_stories` and by nothing else.
-        if (score > 0 and topic.freshness > 0
-                and _is_broad_match(topic, profile)
-                and not _subject_is_familiar(topic, familiar)
-                and not semantic.get(topic.id)):
+        # A live story is one specific thing that happened, and one this
+        # listener has given no sign of caring about is not offered (§155) -
+        # see `_off_subject` and `BROAD_MATCH_PENALTY`.
+        if score > 0 and _off_subject(topic, profile, familiar, semantic):
             score *= BROAD_MATCH_PENALTY
         # After the penalty rather than before it, so the two multiply in a
         # stated order rather than one silently cancelling the other. In
@@ -4453,7 +4572,15 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
         # episodes". Nothing calls this for Trending today - it is not in
         # `RAIL_MINIMUM` - and this answer is what makes that safe to change.
         return list(live) + list(live_held)
-    return (by_affinity(list(inventory))
+    # **No live story in a top-up** (§155). A top-up is chosen for nobody in
+    # particular, and a live story chosen for nobody in particular is exactly
+    # the Division II fixture the owner reported: every live story that could
+    # be relevant to this listener was already offered by the ranking, which
+    # looks `READY_REACH` deep, so what is left of the pool is what the
+    # ranking turned down. The evergreen tiles are broad on purpose and are
+    # the right filler.
+    standing = [t for t in inventory if not _is_live_story(t)]
+    return (by_affinity(standing)
             + by_affinity(list(STARTUP_TOPICS) + list(TOPIC_BANK)))
 
 

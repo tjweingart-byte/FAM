@@ -633,6 +633,16 @@ the rest of this list it needs taste rather than a key.
    been near, is damped. It damps and never excludes, and only live stories:
    a rule would empty a new listener's rail in the name of relevance, and the
    bank's twenty-eight subjects are broad on purpose.)*
+   *(**Reversed by §155, at the owner's direction: it excludes now.** One
+   Eagles question still put *Wofford vs Mercer* and a Division II fixture on
+   Made for you - the 0.3 cut cleared the floor, the floor's top-up put back
+   what the ranking dropped, and `football` counted as both "specific" (a
+   depth-1 seed node) and "familiar" (a word they typed). A live story is
+   offered only when it names something they follow: a subtag or a category
+   at least two levels deep (`SUBJECT_DEPTH`), a word they used that is not a
+   field's own name, their place, or a near paraphrase
+   (`SEMANTIC_NEAR_COSINE`). The floor since §127 is what makes excluding
+   safe - it tops up from evergreen tiles, never from the live pool.)*
    *(**Superseded by §147**: there is no length control on myFAM any more -
    every episode that is not a search is `BROWSE_MINUTES`, two. What follows
    is the history.)* *(Two things on the surface changed in §95. The header's right-hand slot is
@@ -1378,7 +1388,11 @@ the rest of this list it needs taste rather than a key.
   says the place, and View more is the whole of it grouped Worldwide, then
   theirs, then everywhere else (`topics.trending_groups`). The pool refreshes
   itself every fifteen minutes with nobody looking
-  (`STORIES_BACKGROUND_SECONDS`). Nothing here has made a real request from
+  (`STORIES_BACKGROUND_SECONDS`) - **but only sports and markets are asked
+  that often** *(§156, at the owner's direction)*: GDELT's news sweep, the
+  trending registry and Polymarket have a floor of two hours
+  (`STORIES_NEWS_INTERVAL_SECONDS`), and what they found is carried between
+  their sweeps. Nothing here has made a real request from
   the build container.
   **Amended by §127, at the owner's direction: every drawn rail except the
   friends one now has a floor** (`topics.RAIL_MINIMUM` - six for Made for you
@@ -2484,10 +2498,15 @@ search on searchFAM - the browser's recogniser, the words shown as heard, and
 nothing searched until send; and **§154**, the evergreen bank as a guest's
 whole myFAM page and an example DailyFAM playlist, neither able to write an
 episode or wake RunPod, and Go Deeper cut to this week's unfinished episodes
-and this week's Go Deeper prompts; and **§158**, "hey FAM"
-opening voice search, opt-in because it keeps the microphone open; and
-**§159**, voice search's send replaced by a "go now" Search now that counts
-down five seconds and an X that stops it),
+and this week's Go Deeper prompts; and **§155**, Made for you offering a
+live story only when it names something the listener follows - one Eagles
+question had been buying every football fixture in the world; and **§156**,
+the story pool's sports and markets on a fifteen-minute tick with the news
+sources on two hours; and **§157**, the vocabulary sweep every two hours,
+and the finding that a game's subject has never reached the tree at all; and **§158**, "hey FAM" opening voice search,
+opt-in because it keeps the microphone open; and **§159**, voice search's
+send replaced by a "go now" Search now that counts down five seconds and an
+X that stops it),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,

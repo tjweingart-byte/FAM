@@ -518,9 +518,12 @@ class Settings:
     stories_sources: str = field(
         default_factory=lambda: os.environ.get("STORIES_SOURCES", "").strip())
     # One sweep and one composition serve every listener for this long. This
-    # is the whole economics of the browse page: fifteen minutes is how fast a
-    # global news index actually moves, and the per-source floors in
+    # is the whole economics of the browse page, and the per-source floors in
     # `story_sources` keep the providers with daily quotas off this clock.
+    # This is the *tick*: how often the pool asks whichever sources are due.
+    # Each source keeps its own floor (§156) - sports and markets every tick,
+    # the news sweep and prediction markets every two hours below - so
+    # fifteen minutes here costs a news sweep only when one is due.
     stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
     # How often the pool refreshes itself with nobody looking (§135). It used
     # to refresh only when somebody drew myFAM and found it stale, so a quiet
@@ -529,6 +532,22 @@ class Settings:
     # current. 0 switches the loop off and leaves the page-load trigger.
     stories_background_seconds: float = _env_float(
         "STORIES_BACKGROUND_SECONDS", 900.0)
+    # **How often the slow sources are swept (§156, at the owner's
+    # direction).** GDELT's news sweep (~32 paced requests), the trending
+    # registry and Polymarket answer "what is the world talking about" and
+    # "what is the crowd betting on", which move over hours; sports scores
+    # and market prices move over minutes and stay on the tick above. Every
+    # story the slow sources found is carried between their sweeps
+    # (`refresh`'s `still`), so the pool does not thin out in between, and a
+    # game keeps the news coverage it was corroborated with (`_seen_again`).
+    # The category tree is unaffected: it reads every story the pool holds.
+    stories_news_interval_seconds: float = _env_float(
+        "STORIES_NEWS_INTERVAL_SECONDS", 7200.0)
+    # Finnhub's floor. Fifteen minutes so a market move reaches its card on
+    # the same clock as a score (§156; it was thirty). The free tier's quotes
+    # are delayed twenty minutes regardless, and the card says delayed.
+    stories_markets_interval_seconds: float = _env_float(
+        "STORIES_MARKETS_INTERVAL_SECONDS", 900.0)
     # Generous, because this never sits in front of the first word: the pool
     # refreshes in the background and myFAM renders from whatever it holds.
     stories_timeout_seconds: float = _env_float("STORIES_TIMEOUT_SECONDS", 12.0)
