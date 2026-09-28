@@ -2547,7 +2547,9 @@ game, and the demo page reduced to the phone - full-screen on a phone, with
 the follow banner dropping inside it; and **§165**, the 28/09 packet - hard
 names respelled for the voice from EI's brief, the writer's `<<SAY:>>` lines
 and /admin, voice search's heard words corrected in place, and View more
-showing eight with a Refresh that deals the next eight of the same ranking),
+showing eight with a Refresh that deals the next eight of the same ranking;
+and **§168**, Go Deeper on Explore, a suggestion and a 1-5 minute length on
+every Go Deeper, the interests list A to Z, and the mock status bar emptied),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
@@ -2574,12 +2576,14 @@ and the second one is not optional:
 
 Then run `./dev.sh check` before changing anything, so you know the baseline is
 green rather than assuming it. A complete run ends with `all checks passed`
-**twice** - once per preview build - and **eighty-four** named smoke
+**twice** - once per preview build - and **eighty-six** named smoke
 behaviours each time; anything less means something was skipped, and `dev.sh`
 now says so out loud (PROBLEMS.md §49). The number is
 `grep -c '^        check(' tools/smoke_preview.py`, so check it rather than
 trusting this sentence: it has been wrong before, because a count written in
-prose does not fail when somebody adds a behaviour. (It is 84 as of §165,
+prose does not fail when somebody adds a behaviour. (It is 86 as of §168,
+which added Go Deeper on Explore with a suggestion and a length, and the
+interests list being alphabetical. It was 84 as of §165,
 which added correcting voice search's words and View more's refresh. It was
 82 as of §162,
 which added filing episodes in folders on both shelves. It was 81 as of §161,
