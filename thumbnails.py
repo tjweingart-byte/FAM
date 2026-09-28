@@ -253,6 +253,11 @@ class ThumbnailStore:
                        cost_usd REAL NOT NULL DEFAULT 0
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS spend_at ON spend(at)")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS runs (
+                       at     REAL NOT NULL,
+                       result TEXT NOT NULL
+                   )""")
             have = {r[1] for r in conn.execute(
                 "PRAGMA table_info(thumbnails)")}
             for column, kind in (("pending_image", "BLOB"),
@@ -455,6 +460,26 @@ class ThumbnailStore:
             (since,)).fetchone()
         return int(r[0] or 0)
 
+    def remember_run(self, result: dict) -> None:
+        """Keep the last run's outcome for the review page. Never raises."""
+        kept = {k: v for k, v in result.items() if k != "nodes"}
+        try:
+            with self._conn() as conn:
+                conn.execute("DELETE FROM runs")
+                conn.execute("INSERT INTO runs (at, result) VALUES (?, ?)",
+                             (time.time(), json.dumps(kept)))
+        except Exception:  # noqa: BLE001
+            log.exception("thumbnails: could not record the run")
+
+    def last_run(self) -> Optional[dict]:
+        row = self._conn().execute(
+            "SELECT at, result FROM runs ORDER BY at DESC LIMIT 1").fetchone()
+        if row is None:
+            return None
+        out = json.loads(row[1])
+        out["at"] = float(row[0])
+        return out
+
     def report(self) -> dict:
         counts = {s: 0 for s in STATUSES}
         for status, n in self._conn().execute(
@@ -471,7 +496,7 @@ class ThumbnailStore:
         day = self.images_since(time.time() - 86400)
         return {"counts": counts, "images_generated": int(spent[0]),
                 "spend_usd": round(float(spent[1]), 4),
-                "images_last_24h": day}
+                "images_last_24h": day, "last_run": self.last_run()}
 
 
 #: How often a read checks whether another process changed the store.
@@ -1042,10 +1067,35 @@ async def backfill(limit: int, *, only: Iterable[str] = (),
     scene writer so a sweep of forty nodes is two Claude calls for scenes
     rather than forty.
     """
-    from config import settings
-
     if not _RUNNING.acquire(blocking=False):
         return {"skipped": "a run is already in progress"}
+    thumb_store = thumb_store or (store() if _exists() else None)
+    try:
+        result = await _backfill(
+            limit, only=only, regenerate=regenerate,
+            retry_failed=retry_failed, ignore_daily_cap=ignore_daily_cap,
+            writer=writer, painter=painter, checker=checker,
+            thumb_store=thumb_store, tree=tree)
+    finally:
+        _RUNNING.release()
+    # Kept, because a run that paints nothing records no node and no spend:
+    # an Imagen key without billing, or a scene writer that failed, used to
+    # leave the review page exactly as it was before Paint was pressed, with
+    # the reason only in the server log (§163).
+    target = thumb_store or (store() if _exists() else None)
+    if target is not None:
+        target.remember_run(result)
+    return result
+
+
+async def _backfill(limit: int, *, only: Iterable[str],
+                    regenerate: bool, retry_failed: bool,
+                    ignore_daily_cap: bool,
+                    writer: Optional[Writer], painter: Optional[Painter],
+                    checker: Optional[Checker],
+                    thumb_store: Optional[ThumbnailStore], tree) -> dict:
+    from config import settings
+
     try:
         writer = writer or claude_writer
         painter = painter or imagen_painter
@@ -1122,8 +1172,6 @@ async def backfill(limit: int, *, only: Iterable[str] = (),
     except Exception as exc:  # noqa: BLE001 - never worth a failed sweep
         log.exception("thumbnails: the backfill failed")
         return {"failed_run": str(exc)}
-    finally:
-        _RUNNING.release()
 
 
 def estimate(nodes: int) -> dict:

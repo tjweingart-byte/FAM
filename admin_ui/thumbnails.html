@@ -128,6 +128,20 @@
       + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
   }
 
+  // What the last run did, in words. A run stopped by the key, billing or
+  // the scene writer records no node and no spend, so without this the page
+  // looks exactly as it did before Paint was pressed (§163).
+  function lastRun(r) {
+    var when = new Date(r.at * 1000).toLocaleString();
+    var problem = r.stopped || r.failed_run || r.skipped
+      || (r.errors && r.errors.length && !(r.approved || r.review || r.failed) ? r.errors[0] : "");
+    if (problem) return ["Last run (" + when + ") stopped: " + problem, true];
+    if (!r.wanted) return ["Last run (" + when + "): nothing to paint.", false];
+    return ["Last run (" + when + "): " + (r.approved || 0) + " live, " + (r.review || 0)
+      + " waiting for you, " + (r.failed || 0) + " failed" + (r.capped ? " (stopped at today's ceiling)" : "")
+      + ", $" + (r.spend_usd || 0) + ".", false];
+  }
+
   function render() {
     var h = data.health || {}, c = h.counts || {}, est = data.estimate || {};
     $("kpis").innerHTML =
@@ -141,6 +155,7 @@
     var why = h.configured ? "" : (h.reason || "not configured");
     $("runBtn").disabled = !h.configured;
     if (why) { $("runNote").textContent = "Cannot paint: " + why + "."; $("runNote").className = "note err"; }
+    else if (h.last_run) { var lr = lastRun(h.last_run); $("runNote").textContent = lr[0]; $("runNote").className = lr[1] ? "note err" : "note"; }
 
     $("tabs").innerHTML = TABS.map(function (t) {
       var n = !t[0] ? (data.thumbnails || []).length

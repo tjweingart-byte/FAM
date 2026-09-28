@@ -75,6 +75,10 @@ These are list prices, not bills. Spend is recorded per image in
    default ceiling, so about five days for the seed), or run once with no
    ceiling from a machine with the same database:
    `python tools/thumbnails.py run --limit 200 --ignore-daily-cap`.
+   If nothing appears after a Paint, read the line under the button: it says
+   what the last run did, including the reason it stopped (a Gemini key
+   without billing, the Imagen API not enabled, a quota). A run stopped that
+   way records no node and no spend, so the counters alone cannot show it.
 8. **Review what is held.** The "Waiting for you" tab: Approve or Reject each
    picture of a real named thing. Reject also takes a live picture off tiles
    at once. **Repaint never takes a live picture away on its own**: a repaint

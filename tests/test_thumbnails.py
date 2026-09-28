@@ -221,6 +221,10 @@ def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
     assert "403" in result["stopped"]
     assert len(paint.calls) == 1
     assert th.store().get("golf") is None and th.store().get("tennis") is None
+    # ...and is kept for the review page, since it left no node and no spend
+    # to show anything happened (§163).
+    last = th.store().report()["last_run"]
+    assert "403" in last["stopped"] and last["at"] > 0
 
 
 def test_a_refused_prompt_fails_its_node_and_the_run_goes_on(tree):
@@ -504,3 +508,14 @@ def test_the_admin_decides_on_a_held_repaint(tree, client):
                     headers=headers)
     assert r.json()["kept_live"] is True
     assert client.get("/api/thumb/formula%20one").status_code == 200
+
+
+def test_a_scene_writer_failure_is_kept_for_the_review_page(tree):
+    async def broken(paths):
+        raise RuntimeError("model not found")
+    result = _run(only=["golf"], writer=broken, painter=_painter([]),
+                  checker=_checker([]))
+    assert result["wanted"] == 1 and result["approved"] == 0
+    last = th.store().report()["last_run"]
+    assert "model not found" in last["errors"][0]
+    assert "nodes" not in last

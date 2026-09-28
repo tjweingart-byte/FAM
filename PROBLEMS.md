@@ -12810,3 +12810,28 @@ three of them generated previews; the other two are the two card templates,
 where the picture (`seedThumbOpen`) and the card's buttons (`seedActsHtml`)
 simply sit together. With Main's new Pillow requirement installed the merged
 tree passes the whole check.
+
+## 163. A Paint run that stops leaves nothing on the page
+
+Reported: `/admin/thumbnails` showed 217 nodes with no picture, nothing live,
+nothing failed and $0 spent, with the Gemini key set on Render.
+
+Two separate things, and only one of them was a defect.
+
+* **Nothing paints by itself until `THUMBNAILS=1`.** `render.yaml` ships it
+  `"0"` on purpose (THUMBNAILS.md, step 9): the first pictures are meant to be
+  painted by hand from the page, looked at, and the style fixed before a
+  background sweep spends anything. With the key set and the flag off,
+  nothing happening is the documented state.
+* **A run that stopped was indistinguishable from a run that never started.**
+  Pressing Paint returns "painting in the background" at once. If Imagen then
+  answers anything but 200 or 400 - a key without billing, the API not
+  enabled on the project, a quota, a model name the key cannot see - the run
+  raises `StopRun` before any spend or node row is written, by design, so no
+  node is blamed for a deployment problem. The same is true when the batched
+  scene writer fails. Either way the page redrew with every counter at zero
+  and the reason lived only in the server log - §51's failure in a new
+  place. The last run's outcome (minus the per-node list) is now kept in a
+  `runs` table in `thumbnails.db`, returned as `last_run` in the store report
+  (so on `/api/health` too), and the page says it under the Paint button:
+  what was painted, or the sentence that stopped it.
