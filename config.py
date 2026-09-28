@@ -628,19 +628,21 @@ class Settings:
     thumbnails: bool = field(
         default_factory=lambda: os.environ.get("THUMBNAILS", "0")
         not in ("0", "false", "False", ""))
-    # Google AI Studio key for Imagen 4. `GOOGLE_API_KEY` is accepted as well
+    # Google AI Studio key for the image model. `GOOGLE_API_KEY` is accepted as well
     # because it is what Google's own tools write.
     gemini_api_key: str = field(
         default_factory=lambda: (os.environ.get("GEMINI_API_KEY", "")
                                  or os.environ.get("GOOGLE_API_KEY", "")).strip())
-    # Standard, not Fast or Ultra: Fast is less consistent across a set of
-    # pictures meant to look like one family, and Ultra costs half as much
-    # again for a picture shown at 150px.
+    # Gemini 3.1 Flash Image, the named successor to Imagen 4, which Google
+    # shut down on 2026-08-17 (§163). An `imagen-*` name still takes the old
+    # request shape; a name the key cannot call is replaced at run time by
+    # the best image model it can, and the log says which.
     thumbnails_image_model: str = field(
         default_factory=lambda: os.environ.get(
-            "THUMBNAILS_IMAGE_MODEL", "imagen-4.0-generate-001"))
+            "THUMBNAILS_IMAGE_MODEL", "gemini-3.1-flash-image"))
     # The list price of one image from that model, for the spend record.
-    thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.04)
+    # An estimate for a 1K image; set it from the pricing page.
+    thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.067)
     # The model that writes scenes and checks pictures for logos and people.
     thumbnails_model: str = field(
         default_factory=lambda: os.environ.get(

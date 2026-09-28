@@ -27,8 +27,11 @@ Three calls per attempt, and two of them are Claude:
    what makes an image model draw its logo; this is the largest single lever
    on logos and it costs a fraction of a cent. Batched, one call for many
    nodes.
-2. **Imagen 4** paints it, with `personGeneration: "dont_allow"` - the one
-   hard off switch for people any of the candidate models has.
+2. **Google's image model** paints it - Gemini 3.1 Flash Image since
+   Imagen 4 was shut down (§163). Imagen had `personGeneration:
+   "dont_allow"`, a hard off switch for people; the Gemini model has none,
+   so the house style asks for objects and places and step 3 refuses a
+   person.
 3. **Claude looks at the result** and answers four yes/no questions: a logo
    or emblem, readable text, a person or a face, an identifiable real
    product. Any yes and the picture is thrown away and painted again, up to
@@ -88,7 +91,7 @@ STORED_WIDTH, STORED_HEIGHT = 480, 360
 #: enough to miss at 480px is still a logo.
 CHECK_WIDTH = 768
 
-#: The look every picture shares. Imagen 4 takes no negative prompt and no
+#: The look every picture shares. The image model takes no negative prompt and no
 #: style reference, so this preamble is the whole of the consistency between
 #: two hundred pictures - change it and regenerate, never edit it per node.
 #: Exclusions are written as what the picture *is* ("plain unmarked
@@ -749,45 +752,133 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
             for r in rows if r.get("scene")]
 
 
-async def imagen_painter(prompt: str) -> Painting:
-    """One Imagen 4 image, people switched off at the model."""
+#: Where both Google request shapes live.
+_GOOGLE_API = "https://generativelanguage.googleapis.com/v1beta/"
+
+#: The image model a run actually uses, once a 404 has made it look one up.
+#: In-process: the next restart asks again, which costs one listing call.
+_RESOLVED_MODEL: Optional[str] = None
+
+
+def _is_imagen(model: str) -> bool:
+    return model.split("/")[-1].startswith("imagen")
+
+
+async def _google_post(model: str, prompt: str, key: str):
+    """One image request in whichever shape `model` takes: Imagen's
+    `:predict`, or a Gemini image model's `:generateContent`."""
     import httpx
 
+    from config import settings
+
+    model = model.split("/")[-1]
+    if _is_imagen(model):
+        url = f"{_GOOGLE_API}models/{model}:predict"
+        body = {"instances": [{"prompt": prompt}],
+                "parameters": {"sampleCount": 1, "aspectRatio": "4:3",
+                               "personGeneration": "dont_allow"}}
+    else:
+        # A Gemini image model has no person switch; the house style asks
+        # for objects and places only, and the checker refuses a person.
+        url = f"{_GOOGLE_API}models/{model}:generateContent"
+        body = {"contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {"aspectRatio": "4:3", "imageSize": "1K"}}}
+    async with httpx.AsyncClient(
+            timeout=settings.thumbnails_timeout_seconds) as http:
+        return await http.post(url, json=body,
+                               headers={"x-goog-api-key": key})
+
+
+async def _image_models(key: str) -> list[str]:
+    """The image models this key can call, best first. Never raises."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as http:
+            resp = await http.get(f"{_GOOGLE_API}models",
+                                  params={"pageSize": 1000},
+                                  headers={"x-goog-api-key": key})
+        rows = (resp.json() or {}).get("models") or [] \
+            if resp.status_code == 200 else []
+    except Exception:  # noqa: BLE001
+        return []
+    found = []
+    for row in rows:
+        name = str(row.get("name", "")).split("/")[-1]
+        methods = row.get("supportedGenerationMethods") or []
+        if _is_imagen(name) and "predict" in methods:
+            found.append(name)
+        elif "image" in name and "generateContent" in methods \
+                and name.startswith("gemini"):
+            found.append(name)
+
+    def rank(name: str) -> tuple:
+        # Flash before Pro (a picture shown at 150px), stable before preview,
+        # and the newest version first.
+        version = [int(x) for x in re.findall(r"\d+", name)[:2]]
+        return ("flash" not in name, "preview" in name or "exp" in name,
+                "lite" in name, [-v for v in version], name)
+
+    return sorted(set(found), key=rank)
+
+
+async def imagen_painter(prompt: str) -> Painting:
+    """One image from Google's image model.
+
+    `THUMBNAILS_IMAGE_MODEL` names it. Google retires image models by name
+    (Imagen 4 was shut down on 2026-08-17 and answered every request with a
+    404), so a 404 asks the key which image models it can call, uses the
+    best one for the rest of this process, and says so in the log."""
+    global _RESOLVED_MODEL
     from config import settings
 
     key = settings.gemini_api_key
     if not key:
         raise StopRun("GEMINI_API_KEY is not set")
-    url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{settings.thumbnails_image_model}:predict")
-    body = {"instances": [{"prompt": prompt}],
-            "parameters": {"sampleCount": 1, "aspectRatio": "4:3",
-                           "personGeneration": "dont_allow"}}
-    async with httpx.AsyncClient(
-            timeout=settings.thumbnails_timeout_seconds) as http:
-        resp = await http.post(url, json=body,
-                               headers={"x-goog-api-key": key})
+    model = _RESOLVED_MODEL or settings.thumbnails_image_model
+    resp = await _google_post(model, prompt, key)
+    if resp.status_code == 404:
+        available = [m for m in await _image_models(key) if m != model]
+        if not available:
+            raise StopRun(
+                f"the image model {model!r} is not available to this key "
+                "and it can call no other image model - set "
+                "THUMBNAILS_IMAGE_MODEL, or check the key's project")
+        log.warning("thumbnails: %r is not available to this key; using %r "
+                    "(set THUMBNAILS_IMAGE_MODEL to choose)", model,
+                    available[0])
+        model = _RESOLVED_MODEL = available[0]
+        resp = await _google_post(model, prompt, key)
     if resp.status_code != 200:
         # The body names the problem (a disabled API, a billing account, a
         # bad key) and never contains the key itself.
-        detail = f"Imagen answered {resp.status_code}: {resp.text[:300]}"
+        detail = f"{model} answered {resp.status_code}: {resp.text[:300]}"
         if resp.status_code == 400:
-            # A 400 is about this prompt - Imagen refusing it, or a field it
-            # did not like - and is recorded against the node, so one bad
+            # A 400 is about this prompt - the model refusing it, or a field
+            # it did not like - and is recorded against the node, so one bad
             # prompt cannot sit first in the queue and stop every run.
             raise GenerationError(detail)
         # A key, a billing account, a quota, an outage: about the
         # deployment, so the run stops and no node is blamed.
         raise StopRun(detail)
-    predictions = (resp.json() or {}).get("predictions") or []
-    for p in predictions:
-        data = p.get("bytesBase64Encoded")
-        if data:
-            return Painting(base64.b64decode(data),
+    data = resp.json() or {}
+    for p in data.get("predictions") or []:
+        raw = p.get("bytesBase64Encoded")
+        if raw:
+            return Painting(base64.b64decode(raw),
                             p.get("mimeType") or "image/png")
-    # Imagen returns no image, rather than an error, when its own safety
-    # filter drops the result.
-    raise GenerationError("Imagen returned no image (filtered)")
+    for cand in data.get("candidates") or []:
+        for part in (cand.get("content") or {}).get("parts") or []:
+            inline = part.get("inlineData") or part.get("inline_data") or {}
+            if inline.get("data"):
+                return Painting(base64.b64decode(inline["data"]),
+                                inline.get("mimeType")
+                                or inline.get("mime_type") or "image/png")
+    # Both shapes return no image, rather than an error, when the model's
+    # own safety filter drops the result.
+    raise GenerationError(f"{model} returned no image (filtered)")
 
 
 async def claude_checker(image: bytes, mime: str, subject: str

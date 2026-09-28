@@ -12835,3 +12835,22 @@ Two separate things, and only one of them was a defect.
   `runs` table in `thumbnails.db`, returned as `last_run` in the store report
   (so on `/api/health` too), and the page says it under the Paint button:
   what was painted, or the sentence that stopped it.
+
+**Then the reason showed up, in the Render log: Imagen 4 no longer exists.**
+The first real Paint run stopped on `models/imagen-4.0-generate-001 is not
+found for API version v1beta, or is not supported for predict` - Google shut
+down all three Imagen 4 models on 2026-08-17, a month after §160 was written
+against them, and named Gemini 3.1 Flash Image as the successor. That is
+not a new model name on the same call: it is `:generateContent` with
+`responseModalities: ["IMAGE"]`, the image comes back as `inlineData` on a
+candidate, and there is no `personGeneration` switch (the house style and
+the checker are what keep people off now).
+
+The default is `gemini-3.1-flash-image`, and so that the next retirement is
+not another dead Paint button, **a 404 no longer ends the run**: the painter asks the key which image models it can call
+(`GET v1beta/models`), takes the best (Flash before Pro, stable before
+preview, newest first), logs which one, and keeps it for the process. Only a
+key that can call no image model at all stops, with a sentence naming
+`THUMBNAILS_IMAGE_MODEL`. The price default (`THUMBNAILS_IMAGE_PRICE`,
+0.067) is an estimate, not a looked-up list price - the pricing page was not
+reachable from the build container.
