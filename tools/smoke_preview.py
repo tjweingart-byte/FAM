@@ -1606,7 +1606,7 @@ def main() -> int:
                 "the gate offered no way to sign up or log in"
             # It says what a mix is for. It used to promise that signing up
             # keeps the listening already done, which has not been true
-            # since a guest's listening stopped being recorded (§127, §160).
+            # since a guest's listening stopped being recorded (§127, §161).
             text = page.text_content("#screen-playfam .locked-note").lower()
             assert "every day" in text and "account" in text, \
                 "the gate did not say what a mix is and that it needs an account"

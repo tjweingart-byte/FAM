@@ -12546,7 +12546,7 @@ after, the count run out searches once with the words said, and pressing the
 button searches once with no second search when the count would have ended.
 Not tried on a real phone.
 
-## 160. The 27/09 packet: ten changes
+## 161. The 27/09 packet: ten changes
 
 Ten items from the owner, in the packet's order.
 
