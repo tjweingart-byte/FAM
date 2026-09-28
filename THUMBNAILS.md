@@ -14,8 +14,9 @@ category tree node        e.g. sports > american football > college football
    ├─ 1. Claude writes a scene with every team, league, company, product,
    │     person and country name taken out, and flags nodes that ARE a real
    │     named thing ("nfl", "formula one")                     (batched, ~$0.001/node)
-   ├─ 2. Gemini 3.1 Flash Image paints it (objects and places)  (~$0.067/image)
-   ├─ 3. Claude looks at the result: logo? text? person? real product?
+   ├─ 2. Gemini 3.1 Flash Image paints it, shown the reference
+   │     pictures in thumbnail_style/ as the look to match      (~$0.067/image)
+   ├─ 3. Claude looks at the result: logo? text? a face? real product?
    │     on-subject? Any failure → paint again (up to 3 times)  (~$0.004/check)
    └─ 4. Cropped to 480×360 WebP (~30 KB) and stored in thumbnails.db
          clean + generic subject      → live
@@ -35,6 +36,30 @@ restart is needed.
 Pictures are painted **only** in the background (after the two-hourly category
 sweep, when `THUMBNAILS=1`), from `/admin/thumbnails`, or from
 `tools/thumbnails.py`. Nothing on a browse page can paint anything.
+
+## The look
+
+Vintage watercolour and gouache on cream paper - sunlit, mid-century travel
+and leisure, a palette of sky blue, racing green, clay red and ochre - chosen
+by the owner from reference pictures (PROBLEMS.md §166). Two things carry it:
+
+- **The pictures in `thumbnail_style/`**, sent with every Gemini request
+  ahead of the scene, with an instruction to take their medium, palette and
+  light and not their subjects. This is the strong lever. Up to three are
+  sent (sorted by file name); `THUMBNAILS_STYLE_DIR` points elsewhere, `0`
+  sends none.
+- **`HOUSE_STYLE`** in `thumbnails.py`, the same look in words, appended to
+  every scene.
+
+**To change the look, change the pictures first.** A reference must have no
+text, sign, logo, crest, signature, recognisable product or detailed face -
+the image model copies what it is shown, and the checker then throws the
+result away at a paid attempt each. Crop them out. Use pictures you own or
+generated yourself; a reference ships in the image.
+
+Small anonymous figures, seen from behind or far off, are part of the look.
+A face drawn with features, a crowd, team kit or anybody who could be a real
+person still fails the checker.
 
 ## Cost
 
@@ -64,13 +89,14 @@ These are list prices, not bills. Spend is recorded per image in
    `true`. If it says why not, that sentence is the fix.
 5. **Look at scenes before paying for pictures** (optional, costs ~1¢):
    `python tools/thumbnails.py scenes --limit 20` prints what Claude would ask
-   the image model for. If the look is wrong, the place to change it is `HOUSE_STYLE`
-   in `thumbnails.py` - one preamble shared by every picture, since the image
-   model is given no style reference or negative prompt.
+   the image model for. If the look is wrong, change the reference pictures
+   in `thumbnail_style/` and then `HOUSE_STYLE` - see "The look" above.
 6. **Paint a sample.** On `/admin/thumbnails` (sign in with an admin account
    from `FAM_ADMIN_ACCOUNTS`), paint 10. The first eight are the facets.
-   Look at them; if the style is off, change `HOUSE_STYLE`, redeploy, and
-   press Repaint on each.
+   Look at them; if the style is off, change the references or
+   `HOUSE_STYLE`, redeploy, and press Repaint on each. **After a change of
+   look, every existing picture keeps the old one until repainted**:
+   `python tools/thumbnails.py run --regenerate --limit 200 --ignore-daily-cap`.
 7. **Paint the rest.** Either press Paint repeatedly (60 a day under the
    default ceiling, so about five days for the seed), or run once with no
    ceiling from a machine with the same database:
@@ -95,6 +121,7 @@ These are list prices, not bills. Spend is recorded per image in
 | `THUMBNAILS` | `0` | Background painting after each category sweep |
 | `GEMINI_API_KEY` | – | Google AI Studio key (`GOOGLE_API_KEY` also read) |
 | `THUMBNAILS_IMAGE_MODEL` | `gemini-3.1-flash-image` | Any Gemini image model, or an `imagen-*` name; a name the key cannot call is swapped at run time for the best one it can, and the log says which |
+| `THUMBNAILS_STYLE_DIR` | `thumbnail_style` | Reference pictures sent with every Gemini request; `0` sends none |
 | `THUMBNAILS_IMAGE_PRICE` | `0.067` | Estimated list price of one 1K image, for the spend record - check Google's pricing page |
 | `THUMBNAILS_MODEL` | `MODEL` | Scene writer and checker |
 | `THUMBNAILS_ATTEMPTS` | `3` | Paintings per node before it fails |
@@ -113,11 +140,12 @@ then answered **404 NOT_FOUND**, which is what the first real Paint run hit
 - **It is a different request.** `:generateContent` with
   `responseModalities: ["IMAGE"]` and an `imageConfig`, rather than
   `:predict`. The painter picks the shape from the model name.
-- **There is no switch for people.** Imagen's `personGeneration:
-  "dont_allow"` has no equivalent. The house style already asks for objects,
-  places and landscapes only, and the checker refuses any picture with a
-  person in it and paints again, so a person costs an extra attempt rather
-  than reaching a tile.
+- **There is no switch for people.** Imagen's `personGeneration` has no
+  equivalent. Small anonymous figures are allowed since §166; the checker
+  refuses a face, a crowd or anybody who could be a real person and paints
+  again, so one costs an extra attempt rather than reaching a tile.
+- **It takes pictures as well as words**, which Imagen never did - the
+  reason the look now comes from `thumbnail_style/` (§166).
 
 ## What is not done
 

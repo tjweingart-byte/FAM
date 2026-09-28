@@ -28,13 +28,14 @@ Three calls per attempt, and two of them are Claude:
    on logos and it costs a fraction of a cent. Batched, one call for many
    nodes.
 2. **Google's image model** paints it - Gemini 3.1 Flash Image since
-   Imagen 4 was shut down (§164). Imagen had `personGeneration:
-   "dont_allow"`, a hard off switch for people; the Gemini model has none,
-   so the house style asks for objects and places and step 3 refuses a
-   person.
+   Imagen 4 was shut down (§164) - **shown the house style's reference
+   pictures** (`thumbnail_style/`, §166) with every request. Words describe
+   a look loosely and pictures are matched closely, the same reason
+   `examples/` is the strongest lever on the scripts.
 3. **Claude looks at the result** and answers four yes/no questions: a logo
-   or emblem, readable text, a person or a face, an identifiable real
-   product. Any yes and the picture is thrown away and painted again, up to
+   or emblem, readable text, a face or a real person, an identifiable real
+   product. Small anonymous figures are part of the house style since §166
+   and pass. Any yes and the picture is thrown away and painted again, up to
    `THUMBNAILS_ATTEMPTS` times. This is the only step that *catches* a logo
    rather than making one less likely.
 
@@ -91,21 +92,35 @@ STORED_WIDTH, STORED_HEIGHT = 480, 360
 #: enough to miss at 480px is still a logo.
 CHECK_WIDTH = 768
 
-#: The look every picture shares. The image model takes no negative prompt and no
-#: style reference, so this preamble is the whole of the consistency between
-#: two hundred pictures - change it and regenerate, never edit it per node.
+#: The look every picture shares, in words (§166: vintage watercolour, from the
+#: owner's reference pictures). The pictures themselves travel with every
+#: Gemini request (`style_references`) and carry most of the look; this is
+#: what an Imagen model, which takes no reference, has to go on, and what
+#: names the look for Gemini beside the pictures. Change it and regenerate,
+#: never edit it per node.
 #: Exclusions are written as what the picture *is* ("plain unmarked
 #: surfaces") rather than what it is not, because a model with no negative
 #: prompt tends to draw the thing a sentence says to leave out.
 HOUSE_STYLE = (
-    "Editorial illustration for a podcast episode cover, in a warm, "
-    "consistent house style: soft painterly shapes with gentle grain, calm "
-    "diffuse light, a muted palette of cream (#EDE6D6), deep plum (#2A2530), "
-    "warm gold (#E0B563), coral (#E2694F) and sage (#8FAE9A). One clear "
-    "subject in the middle of the frame, seen from a slight distance, with "
-    "quiet empty space along the bottom edge. Objects, places and landscapes "
-    "only, with plain unmarked surfaces throughout: blank walls, unbranded "
-    "equipment, wordless and symbol-free."
+    "Vintage watercolour and gouache illustration on textured cream paper: "
+    "loose transparent washes with soft bleeding edges, fine sepia-ink "
+    "linework, warm late-morning sunshine and a pale turquoise sky, in a "
+    "nostalgic mid-century mood of travel and leisure. Palette of cream "
+    "paper, sky blue, grass and racing green, terracotta clay red, ochre and "
+    "sun yellow. One clear subject seen from a slight distance, with calm "
+    "open space along the bottom edge. Any figures are small and anonymous, "
+    "seen from behind or far off, in plain period clothes. Unbranded "
+    "vehicles and equipment and plain unmarked surfaces throughout, wordless "
+    "and symbol-free."
+)
+
+#: Said to Gemini between the reference pictures and the scene, so it takes
+#: the look from them and the subject from the scene - an image model shown
+#: a golf course and asked for a stock exchange otherwise paints a bit of both.
+STYLE_REFERENCE_NOTE = (
+    "The pictures above are the house style. Match their medium, brushwork, "
+    "paper texture, palette and light closely. Do not copy their subjects, "
+    "buildings or composition. Paint this scene:"
 )
 
 WRITER_SYSTEM = (
@@ -119,10 +134,16 @@ WRITER_SYSTEM = (
     "person, character or country. Describe a generic equivalent instead: "
     "'an American football stadium at dusk' rather than any team's, 'a "
     "smartphone' rather than any maker's.\n"
-    "- No people, faces, hands, silhouettes, crowds or body parts. Use the "
-    "objects and places of the topic.\n"
+    "- Build the scene from the topic's objects and places, set in a "
+    "sunlit, nostalgic mid-century world of travel and leisure (vintage "
+    "cars, clubhouses, courts, harbours, stations, cafes, studies). A modern "
+    "subject is fine, shown simply: a laptop on a wooden desk by an open "
+    "window rather than a data centre.\n"
+    "- At most a few small, anonymous figures, seen from behind or far off, "
+    "in plain period clothes. Never a face in close-up, a crowd, a real or "
+    "famous person, or anyone in a team kit.\n"
     "- No text, signs, scoreboards with writing, labels, flags, emblems, "
-    "jerseys, uniforms or logos.\n"
+    "jerseys, uniforms, numbers or logos.\n"
     "- Make sibling topics in the batch look different from one another.\n\n"
     "Set names_real_entity to true when the topic itself is a specific real "
     "organisation, brand, product, person, team or league (e.g. 'nfl', "
@@ -155,8 +176,11 @@ CHECKER_SYSTEM = (
     "You inspect generated cover illustrations before they are published. "
     "Answer strictly. Anything that could be read as a logo, crest, emblem, "
     "wordmark or trademark counts as a logo, even if distorted. Any letters, "
-    "numbers or pseudo-writing count as text. Any human figure, face, "
-    "silhouette, hand or body part counts as a person. A recognisable "
+    "numbers or pseudo-writing count as text. A face drawn with recognisable "
+    "features, a close-up of a person, a crowd, anyone in a team uniform, or "
+    "a figure that could be a specific real person counts as a person; small "
+    "anonymous figures seen from behind or far off, with no facial "
+    "features, are part of the house style and do not. A recognisable "
     "specific commercial product design (a particular phone, car model, "
     "console, shoe) counts as an identifiable product."
 )
@@ -760,6 +784,56 @@ _GOOGLE_API = "https://generativelanguage.googleapis.com/v1beta/"
 _RESOLVED_MODEL: Optional[str] = None
 
 
+_STYLE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".png": "image/png", ".webp": "image/webp"}
+#: More pictures past three buy little and every one is paid for as input on
+#: every request.
+MAX_STYLE_REFERENCES = 3
+_STYLE_CACHE: dict[str, list[tuple[str, str]]] = {}
+
+
+def style_dir() -> Optional[str]:
+    """Where the reference pictures are, or None when switched off."""
+    from config import settings
+    from paths import PROJECT_ROOT
+
+    given = settings.thumbnails_style_dir
+    if not given or given in ("0", "off", "false", "none"):
+        return None
+    return given if os.path.isabs(given) else str(PROJECT_ROOT / given)
+
+
+def style_references() -> list[tuple[str, str]]:
+    """The house style's reference pictures as (mime, base64), read once per
+    process. Never raises: a missing folder is no references, which
+    `health()` reports rather than the painter failing."""
+    folder = style_dir()
+    if folder is None:
+        return []
+    if folder not in _STYLE_CACHE:
+        found: list[tuple[str, str]] = []
+        try:
+            names = sorted(os.listdir(folder))
+        except OSError:
+            names = []
+        for name in names:
+            mime = _STYLE_TYPES.get(os.path.splitext(name)[1].lower())
+            if not mime:
+                continue
+            try:
+                with open(os.path.join(folder, name), "rb") as fh:
+                    found.append((mime, base64.b64encode(fh.read()).decode()))
+            except OSError:
+                continue
+            if len(found) == MAX_STYLE_REFERENCES:
+                break
+        if not found:
+            log.warning("thumbnails: no style reference pictures in %s; the "
+                        "house style is described in words only", folder)
+        _STYLE_CACHE[folder] = found
+    return _STYLE_CACHE[folder]
+
+
 def _is_imagen(model: str) -> bool:
     return model.split("/")[-1].startswith("imagen")
 
@@ -774,16 +848,24 @@ async def _google_post(model: str, prompt: str, key: str):
     model = model.split("/")[-1]
     if _is_imagen(model):
         url = f"{_GOOGLE_API}models/{model}:predict"
+        # Imagen takes no reference picture; HOUSE_STYLE is all it gets.
+        # Adults only, since the house style has small anonymous figures.
         body = {"instances": [{"prompt": prompt}],
                 "parameters": {"sampleCount": 1, "aspectRatio": "4:3",
-                               "personGeneration": "dont_allow"}}
+                               "personGeneration": "allow_adult"}}
     else:
-        # A Gemini image model has no person switch; the house style asks
-        # for objects and places only, and the checker refuses a person.
-        # No `imageSize`: 1K is the default, and a model the 404 fallback
-        # picks may not accept the field - a 400 would fail every node.
+        # The reference pictures first, then what to take from them, then
+        # the scene. A Gemini image model has no person switch; the checker
+        # refuses a face or a real person. No `imageSize`: 1K is the
+        # default, and a model the 404 fallback picks may not accept the
+        # field - a 400 would fail every node.
         url = f"{_GOOGLE_API}models/{model}:generateContent"
-        body = {"contents": [{"parts": [{"text": prompt}]}],
+        refs = style_references()
+        parts: list[dict] = [{"inlineData": {"mimeType": m, "data": d}}
+                             for m, d in refs]
+        text = f"{STYLE_REFERENCE_NOTE} {prompt}" if refs else prompt
+        parts.append({"text": text})
+        body = {"contents": [{"parts": parts}],
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
                     "imageConfig": {"aspectRatio": "4:3"}}}
@@ -910,8 +992,9 @@ async def claude_checker(image: bytes, mime: str, subject: str
                     "data": base64.standard_b64encode(image).decode()}},
                 {"type": "text", "text":
                     f"This is meant to be a cover for the topic '{subject}'. "
-                    "Does it contain a logo, text, a person, or an "
-                    "identifiable real product? Does it read as that topic?"},
+                    "Does it contain a logo, text, a person (as defined), or "
+                    "an identifiable real product? Does it read as that "
+                    "topic?"},
             ]}],
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
@@ -1299,7 +1382,11 @@ def health() -> dict:
     ok, why = configured()
     out = {"generation": settings.thumbnails,
            "configured": ok, "image_model": settings.thumbnails_image_model,
-           "review": settings.thumbnails_review}
+           "review": settings.thumbnails_review,
+           "style_references": len(style_references())}
+    if style_dir() is not None and not out["style_references"]:
+        out["style_warning"] = (f"no reference pictures in {style_dir()}; "
+                                "the house style is words only")
     if not ok:
         out["reason"] = why
     if _exists():
