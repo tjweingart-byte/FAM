@@ -12983,3 +12983,50 @@ it starts again from the top and says so, rather than an empty page; a rail
 with eight or fewer eligible tiles offers no Refresh at all. Only the page
 drawn is recorded as an impression - a tile nobody was shown was not passed
 over, and the old screen logged all forty.
+
+## 166. Tile pictures in the owner's look: watercolour, from reference pictures
+
+The pictures worked and looked wrong. The owner sent six images of the look
+they want - vintage watercolour of cars, clubhouses, courts and airports, and
+1930s travel posters - and chose the **watercolour** half, with **small
+anonymous figures allowed**. The house style had been a soft plum/coral/sage
+editorial look that nobody had chosen against anything.
+
+**The words were never the right lever.** `HOUSE_STYLE`'s own comment said
+the image model "takes no style reference", which was Imagen's limit and
+stopped being true when §164 moved to Gemini 3.1 Flash Image: it takes
+pictures in the same `generateContent` call. So every Gemini request now
+carries the reference pictures in `thumbnail_style/` first, then
+`STYLE_REFERENCE_NOTE` (take the medium, brushwork, palette and light; not
+the subjects, buildings or composition), then the scene and `HOUSE_STYLE`.
+Rules describe a look loosely and examples are matched closely - the reason
+`examples/` is the strongest lever on the scripts, one surface over.
+
+**The references are crops, not the images as sent.** Every one of the six
+had something the checker exists to refuse: a painted sign ("LOS ANGELES VIA
+PHOENIX"), the Masters crest, a Porsche 911, an artist's signature, detailed
+faces. An image model copies what it is shown, so a reference with a crest in
+it is a crest on a third of the tiles and an extra paid attempt each. Two
+ship, both cropped from the unsigned watercolours: the airport terminal,
+tower and plane (sign and car badge cut away) and the golf course, pines and
+cart (clubhouse crest cut away). The Geo Ham Monaco poster and the signed
+Porsche are the mood only - neither is ours to redistribute.
+
+**People, deliberately.** The writer, the prompt and the checker all banned
+any figure, hand or silhouette, and half the references are built around one.
+Now a scene may have a few small figures seen from behind or far off; the
+checker's `person` means a face drawn with features, a close-up, a crowd,
+anyone in team kit, or somebody who could be a real person, and that still
+fails the picture. Imagen's switch went from `dont_allow` to `allow_adult`
+for the same reason (Imagen is shut down; it is the fallback shape only).
+
+`THUMBNAILS_STYLE_DIR` names the folder (`0` sends none); `/api/health`
+reports `thumbnails.style_references`, and a folder set but empty is a
+`style_warning` rather than a painter that quietly reverts to words. Three
+pictures at most: each is paid as input on every request.
+
+**Unseen.** No Gemini key here; the request shape is tested with a fake.
+Every picture painted before this is in the old style and stays on tiles
+until repainted: `python tools/thumbnails.py run --regenerate --limit 200
+--ignore-daily-cap`, or Repaint on /admin/thumbnails - paint ten first and
+look before paying for the tree.

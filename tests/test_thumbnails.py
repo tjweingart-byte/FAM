@@ -283,7 +283,7 @@ def test_a_writer_failure_leaves_everything_as_it_was(tree):
     assert th.store().all() == []
 
 
-def test_the_real_painter_switches_people_off_at_the_model(monkeypatch):
+def test_imagen_is_asked_for_adults_only(monkeypatch):
     sent = {}
 
     class Resp:
@@ -316,7 +316,8 @@ def test_the_real_painter_switches_people_off_at_the_model(monkeypatch):
     monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
     got = asyncio.run(th.imagen_painter("a scene"))
     assert got.image == b"png"
-    assert sent["body"]["parameters"]["personGeneration"] == "dont_allow"
+    # The house style has small anonymous figures since §166; never children.
+    assert sent["body"]["parameters"]["personGeneration"] == "allow_adult"
     assert sent["url"].endswith("imagen-4.0-generate-001:predict")
     assert sent["headers"] == {"x-goog-api-key": "k"}
 
@@ -638,3 +639,58 @@ def test_no_image_model_at_all_stops_the_run_and_says_so(monkeypatch):
     monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
     with pytest.raises(th.StopRun, match="THUMBNAILS_IMAGE_MODEL"):
         asyncio.run(th.imagen_painter("a scene"))
+
+
+# --- the house style's reference pictures (§166) ---------------------------
+
+
+def test_the_shipped_references_are_found():
+    refs = th.style_references()
+    assert 1 <= len(refs) <= th.MAX_STYLE_REFERENCES
+    assert all(mime.startswith("image/") and data for mime, data in refs)
+
+
+def test_every_gemini_request_carries_the_references(monkeypatch):
+    import httpx
+    google = _Google({"gemini-3.1-flash-image": (200, _gemini_image())})
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="gemini-3.1-flash-image")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    asyncio.run(th.imagen_painter("a clay tennis court"))
+    parts = google.posts[0][1]["contents"][0]["parts"]
+    pictures = [p for p in parts if "inlineData" in p]
+    assert len(pictures) == len(th.style_references()) >= 1
+    # Pictures first, then what to take from them, then the scene.
+    assert parts[-1]["text"].startswith(th.STYLE_REFERENCE_NOTE)
+    assert parts[-1]["text"].endswith("a clay tennis court")
+    assert parts.index(pictures[-1]) < len(parts) - 1
+
+
+def test_references_switched_off_send_the_scene_alone(monkeypatch):
+    import httpx
+    google = _Google({"gemini-3.1-flash-image": (200, _gemini_image())})
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k", thumbnails_style_dir="0",
+         thumbnails_image_model="gemini-3.1-flash-image")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    asyncio.run(th.imagen_painter("a clay tennis court"))
+    assert google.posts[0][1]["contents"][0]["parts"] == [
+        {"text": "a clay tennis court"}]
+    assert th.health()["style_references"] == 0
+    assert "style_warning" not in th.health()
+
+
+def test_a_missing_reference_folder_is_said_not_raised(monkeypatch, tmp_path):
+    _set(monkeypatch, thumbnails_style_dir=str(tmp_path / "nowhere"))
+    assert th.style_references() == []
+    assert "no reference pictures" in th.health()["style_warning"]
+
+
+def test_the_house_style_is_the_owners_watercolour():
+    for word in ("watercolour", "mid-century", "anonymous", "wordless"):
+        assert word in th.HOUSE_STYLE
+    # Figures are allowed; faces, real people and team kit are not.
+    assert "anonymous figures" in th.WRITER_SYSTEM
+    assert "real or famous person" in th.WRITER_SYSTEM
+    assert "do not" in th.CHECKER_SYSTEM and "real person" in th.CHECKER_SYSTEM

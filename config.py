@@ -640,6 +640,13 @@ class Settings:
     thumbnails_image_model: str = field(
         default_factory=lambda: os.environ.get(
             "THUMBNAILS_IMAGE_MODEL", "gemini-3.1-flash-image"))
+    # The house style's reference pictures (§166): every JPEG/PNG/WebP in
+    # this folder is attached to each Gemini image request as the look to
+    # match. Relative paths are from the project root; `0` or empty sends
+    # none, and the painter then has the words of `HOUSE_STYLE` alone.
+    thumbnails_style_dir: str = field(
+        default_factory=lambda: os.environ.get(
+            "THUMBNAILS_STYLE_DIR", "thumbnail_style").strip())
     # The list price of one image from that model, for the spend record.
     # An estimate for a 1K image; set it from the pricing page.
     thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.067)
