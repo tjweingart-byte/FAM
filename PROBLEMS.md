@@ -13115,3 +13115,75 @@ All are fixed in the core. Six sentences in the moved text that newer rules
 supersede now carry a `> **Current (PROBLEMS.md §168):**` note at the start
 of their rule, so a reader following a citation meets the current rule
 first; the moved text itself is still unedited.
+
+## 169. A failed tile picture cost three images; now it costs one
+
+The first real Paint runs in the §167 look were good pictures and mostly
+failures. The admin page showed the pattern: `slurs`, `research`, `price`,
+`please` and `market` each **3 tries, about $0.21**, each held nothing, and
+the checker had found `border`, `person`, `text` and `off_subject` between
+them. Every failure spent three images of the sixty-a-day ceiling and three
+times the price of the picture it failed to make. The owner asked that this
+not be possible, and that people may face the viewer with expressionless
+faces rather than always turned away.
+
+Four causes, each with its own fix, and a fifth that bounds the cost whatever
+the causes turn out to be.
+
+**The prompt asked for the failures.** `HOUSE_STYLE` said "no border, no
+white margin, no vignette", and the file's own comment above it says why
+that backfires: a model with no negative prompt draws what a sentence names.
+The scene writer did the same thing ("a chalkboard-free stall"). The style
+now says only what the edges *are* - "the paint runs off all four edges,
+like a cropped detail of a larger painting" - and the writer is told to
+describe only what is present and never to mention a thing by its absence;
+a test pins that `HOUSE_STYLE` contains none of border, margin or vignette.
+
+**Text came from screens.** "A laptop open to colourful data charts" is a
+request for axis labels. The writer leaves out anything that carries writing
+(signs, chalkboards, newspapers, price tags, scoreboards) and every screen
+glows with abstract colour.
+
+**`person` failed pictures the owner wanted.** The checker counted any
+face. People are now allowed facing any way, as ordinary adults with calm,
+expressionless faces; `person` means a real or famous person, a child, or
+team kit.
+
+**`off_subject` was judged against a bare word.** The checker was told the
+topic was `price`; a market street is a fair picture of `business > price`
+and of nothing called "price". It is given the node's path now. And some
+nodes are not subjects at all - `please` and `slurs` are vocabulary noise,
+and no picture of either is right. The writer marks those `paintable: false`
+and they are recorded as skipped at **zero** cost, never painted.
+
+**And the cost is bounded regardless.** `THUMBNAILS_ATTEMPTS` defaults to
+**1**. What a failed check does now depends on what failed:
+
+- `border` is **fixed in code**: the picture is cut 8% in from every edge
+  (`BORDER_INSET`) and carries on as clean. A crop cannot add a logo.
+- `obsolete` and `off_subject` are taste, not safety: the picture is **held
+  for review**, never repainted, whatever `attempts` says.
+- `logo`, `text`, `person` and `identifiable_product` are repainted only
+  while `attempts` allows - by default never - and the last picture is then
+  **held for review** rather than thrown away.
+
+A held picture is never on a tile; it is in "Waiting for you" with what the
+checker found, so a person can overrule a wrong checker for nothing rather
+than pay for another painting. A repaint held beside a live picture leaves
+the live one on tiles, as before.
+
+What this costs, stated: more pictures wait for a person than before, and a
+logo the checker caught is kept (held, not live) where it used to be
+discarded. Both are the owner's trade - a review is free, an image is not.
+**Unseen** with a real key: whether the positive wording actually reduces
+borders and text is the thing to look at on the next Paint.
+
+**Found on the review before merging, both fixed.** The skip rule told the
+writer to skip "a word too vague to picture on its own", which reads as a
+description of the eight facets - `world`, `money` - and a facet is every
+tile's last fallback, so skipping one would leave tiles with no picture
+anywhere up their tree. The rule now judges a word *in its path* and says a
+broad subject is paintable, and code forces a facet paintable whatever the
+writer says. And with `THUMBNAILS_ATTEMPTS` above 1, a paid picture that
+failed a check was dropped if the next attempt came back filtered or
+unreadable; the last such picture is now held rather than lost.
