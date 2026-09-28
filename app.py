@@ -5100,7 +5100,7 @@ async def interest_episodes(request: Request,
         reason = ("" if cards else
                   ("Nobody you follow has vibed anything on this yet."
                    if circle else
-                   "Follow some people and what they vibe on this shows up here."))
+                   "Follow friends to see what they vibe on this."))
     else:
         for tile in topics_mod.live_topics(now):
             if (tags & set(tile.tags)) or _on_interest(tile.query, set(), words):
@@ -5647,9 +5647,13 @@ def _admin_configured() -> bool:
 #: in to `/admin`: the dashboard asks for an admin's email and password every
 #: time, and what that mints is a session held here and nowhere else - so a
 #: phone left signed in to FAM is not a phone that can read every store.
+#:
+#: **And it never keeps you signed in** (27/09 packet, at the owner's
+#: direction). Loading `/admin` ends whatever admin session the browser was
+#: holding, so the page opens on the form every time; the cookie has no
+#: max-age, so it dies with the browser too. It lives only as long as the one
+#: open page that signed in - the page's own refreshes ride on it.
 ADMIN_COOKIE = "fam_admin"
-#: How long an admin sign-in lasts in the browser before it asks again.
-ADMIN_SESSION_SECONDS = 12 * 3600
 
 
 def _admin_listener(request: Request):
@@ -5740,9 +5744,16 @@ async def admin_page(request: Request):
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
     page = PROJECT_ROOT / "admin_ui" / "tracker.html"
-    return HTMLResponse(page.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "no-store",
-                                 "X-Robots-Tag": "noindex"})
+    response = HTMLResponse(page.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store",
+                                     "X-Robots-Tag": "noindex"})
+    # Every load asks again: an admin session the browser brought with it is
+    # ended here, not merely ignored, so it cannot be replayed either.
+    old = request.cookies.get(ADMIN_COOKIE, "")
+    if old:
+        ACCOUNTS.end_session(old)
+        response.delete_cookie(ADMIN_COOKIE, path="/")
+    return response
 
 
 class AdminLogin(BaseModel):
@@ -5776,7 +5787,8 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
         ACCOUNTS.end_session(old)
     token, _ = ACCOUNTS.new_session(listener.user_id)
     response = JSONResponse({"ok": True, "email": listener.email})
-    response.set_cookie(ADMIN_COOKIE, token, max_age=ADMIN_SESSION_SECONDS,
+    # No max_age: a browser-session cookie, never a remembered sign-in.
+    response.set_cookie(ADMIN_COOKIE, token,
                         httponly=True, samesite="strict",
                         secure=request.url.scheme == "https", path="/")
     return response

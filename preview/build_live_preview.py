@@ -547,13 +547,13 @@ __MIX_ITEMS__
   // rail. Keep this list and `topics.SECTIONS` in step or the preview shows a
   // page the app does not.
   var SECTIONS = [
-    ["from_history", "Made for you", "Your first episode starts this one off."],
+    ["from_history", "Made for you", "Play an episode and this fills with picks for you."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
-    ["missed", "What you missed last week", "Nothing went past you last week."],
+    ["missed", "What you missed last week", "You\u2019re all caught up on last week."],
     ["most_played", "What FAM can't stop listening to",
-     "Nothing ready to replay has been played here yet. This fills up as people listen."],
+     "Once people start listening, the most-played episodes show up here."],
     ["followers", "What your friends are listening to",
-     "Follow some people and this fills up with what they play."]
+     "Follow friends to hear what they\u2019re listening to."]
   ];
 
   // `topics.popular_facets`, in the browser and over the same event rows.
@@ -721,7 +721,7 @@ __MIX_ITEMS__
     }
     if (filter === "friends") {
       return { label: name, episodes: [], more: false,
-               reason: "Follow some people and what they vibe on this shows up here." };
+               reason: "Follow friends to see what they vibe on this." };
     }
     var seen = {}, cards = [];
     function add(q, title, minutes, source, age) {

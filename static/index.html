@@ -249,6 +249,18 @@
      starts at once and costs nothing but the audio. Said on the tile rather
      than only in the summary, because which ones are instant is the reason
      this screen orders them the way it does. */
+  /* A card's two buttons (27/09 packet): save it for later, or say "not
+     interested" and never see it again. Top right, over the picture, where
+     the "ready" marker used to sit - so on a card that has them the marker
+     moves to the left. */
+  .seed-acts{ position:absolute; top:6px; right:6px; display:flex; gap:5px; z-index:1; }
+  .seed-act{ width:24px; height:24px; padding:0; border:none; border-radius:50%;
+    background:rgba(26,22,34,0.62); color:#F4EFE4; display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .seed-act:active{ transform:scale(0.92); }
+  .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
+  .seed-card.has-acts .sec-ready{ right:auto; left:8px; }
+  .seed-card.leaving{ opacity:0; transform:scale(0.96); transition:opacity .22s, transform .22s; }
   .sec-ready{ position:absolute; right:8px; top:8px; padding:3px 7px;
     border-radius:999px; background:var(--copper); color:var(--ink);
     font-family:'JetBrains Mono', monospace; font-size:7px; font-weight:700;
@@ -934,6 +946,8 @@
   /* Saved is green, and the green is the same on all four players. Mirrors
      `.echoed`, which is copper, so the two states are distinguishable at a
      glance rather than both being "lit". */
+  .pt-icon[hidden]{ display:none; }
+  .pt-icon.hidden-on{ opacity:0.45; }
   .pt-icon.saved-on{ background:var(--sage); color:var(--ink);
     border-color:var(--sage); }
   .pt-icon.saved-on .pt-cap{ color:var(--sage); }
@@ -2503,8 +2517,7 @@
                 <span class="yf-label">Your interests</span>
                 <span class="yf-int-count" id="identityIntCount"></span>
               </div>
-              <div class="yf-int-note">Picked from what you listen to. Tap to
-                swap, or add your own &mdash; up to <span id="identityIntMax">5</span>.</div>
+              <div class="yf-int-note">Shown on your profile. Tap one to remove it, or add your own &mdash; up to <span id="identityIntMax">5</span>.</div>
               <div class="yf-int-chips" id="identityIntChips"></div>
               <div class="yf-int-add">
                 <input id="identityIntAdd" type="text" autocomplete="off" autocorrect="off"
@@ -2540,8 +2553,7 @@
                        autocapitalize="words" spellcheck="false"
                        placeholder="Country" style="margin-bottom:0;">
               </div>
-              <div class="id-note">Optional. It is used to offer you episodes
-                about where you live, and it is never on your profile.</div>
+              <div class="id-note">Optional. For local episodes &mdash; never shown on your profile.</div>
             </div>
 
             <!-- The account, last: private, like the location above it. The
@@ -2612,9 +2624,7 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0;">
             <div class="entry-h">Where you are</div>
-            <p class="entry-lede">FAM uses this to offer you episodes about
-              where you live. It is never shown on your profile, and leaving
-              it blank changes nothing else.</p>
+            <p class="entry-lede">So we can offer you episodes about where you live. It&rsquo;s never shown on your profile.</p>
 
             <div class="auth-field">
               <div class="auth-label">City</div>
@@ -2636,7 +2646,7 @@
                      autocomplete="country-name" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="Country" style="margin-bottom:0;">
-              <div class="id-note" id="locNote">Stored for your account only.</div>
+              <div class="id-note" id="locNote">Only you can see this.</div>
             </div>
           </div>
         </div>
@@ -2771,7 +2781,7 @@
             <!-- The voice this search is spoken in (§147). Only here and under
                  Listening in Settings: every other surface draws a voice from
                  the bank per episode. -->
-            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">FAM</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
+            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">Ian</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
             <div style="display:flex; align-items:center; gap:9px;">
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -2899,8 +2909,7 @@
             <button class="dm-search-x" id="dailySearchX" onclick="closeDailySearch()" hidden>Cancel</button>
           </div>
           <div class="connect-sub" id="dailySub" style="margin:2px 0 16px;">
-            Your daily mixes. Each one is a standing list of topics — the
-            episodes are new every day.
+            Your mixes, with fresh episodes every morning.
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
@@ -2953,7 +2962,7 @@
           <div class="nm-cover-hint" id="nmCoverHint">Tap to add a cover photo</div>
           <input type="file" id="coverFile" hidden accept="image/*" onchange="coverChosen(this)">
           <h3 class="nm-h">Name your mix</h3>
-          <p class="nm-sub">Name it after when you listen. You&rsquo;ll pick the topics next.</p>
+          <p class="nm-sub">Name it after when you&rsquo;ll listen. You&rsquo;ll pick topics next.</p>
           <input class="nm-input" id="nmInput" type="text" maxlength="40" autocomplete="off" autocorrect="off" spellcheck="false"
                  placeholder="Morning commute" aria-label="Mix name"
                  oninput="onNewMixName()" onkeydown="if(event.key==='Enter') confirmNewMix()">
@@ -3053,6 +3062,7 @@
             <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
             <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
             <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
+            <span class="pt-icon" id="playerHide" onclick="notInterestedPlaying()" title="Not interested" aria-label="Not interested: never suggest this one again" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg><span class="pt-cap">not for me</span></span>
             <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span class="pt-cap">Captions</span></span>
           </div>
         </div>
@@ -3304,7 +3314,7 @@
       <div class="modal-overlay" id="mixDoneOverlay">
         <div class="nextup-card mixdone-card" role="dialog" aria-labelledby="mixDoneH">
           <div class="mixdone-h" id="mixDoneH">You have finished listening to your playlist for today</div>
-          <div class="mixdone-sub">Tomorrow it will have new episodes on the same subjects.</div>
+          <div class="mixdone-sub">Fresh episodes on the same topics tomorrow.</div>
           <button class="nextup-back" onclick="closeMixDone(true)">Back to DailyFAM</button>
         </div>
       </div>
@@ -4332,8 +4342,7 @@
       .then(function(r){ return r.json(); })
       .then(renderPlans)
       .catch(function(){
-        list.innerHTML = '<div class="plan-note">Could not reach the server, '
-          + 'so there is nothing to show here yet.</div>';
+        list.innerHTML = '<div class="plan-note">Plans could not load. Check your connection and try again.</div>';
       });
   }
   function closePlans(){
@@ -4360,9 +4369,7 @@
     // The seam where checkout goes, named as one. Nothing sets a paid plan
     // yet, so a row that looked buyable would be a promise the app cannot
     // keep - and the listener would find that out after tapping.
-    html += '<div class="plan-note">Upgrading is not switched on yet \u2014 there '
-         + 'is no checkout behind these plans, and nothing on this server '
-         + 'charges anybody. This is where it will go.</div>';
+    html += '<div class="plan-note">Upgrades aren\u2019t available yet. Everything is free for now.</div>';
     document.getElementById("plansList").innerHTML = html;
   }
 
@@ -5405,6 +5412,7 @@
       return;
     }
     currentPlayingTopicKey = key;
+    paintPlayerHide();
     document.getElementById("p-title").textContent = t.title;
     document.getElementById("p-src").textContent = "from " + t.source;
     document.getElementById("cc-text").innerHTML =
@@ -5893,7 +5901,7 @@
     for(var i = 0; i < AVAILABLE_VOICES.length; i++){
       if(AVAILABLE_VOICES[i].id === id) return AVAILABLE_VOICES[i].label;
     }
-    return AVAILABLE_VOICES.length ? AVAILABLE_VOICES[0].label : "FAM";
+    return AVAILABLE_VOICES.length ? AVAILABLE_VOICES[0].label : "Ian";
   }
 
   // The voice a search is spoken in (§147). The server keeps each listener's
@@ -6721,8 +6729,7 @@
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
       // "you have no mixes", which is a different and much worse message.
-      el.innerHTML = '<div class="mix-empty">Could not load your mixes. '
-        + 'They are safe on the server — this will fill in when it is back.</div>';
+      el.innerHTML = '<div class="mix-empty">Your mixes could not load. They\u2019re safe \u2014 try again in a moment.</div>';
     });
   }
 
@@ -6732,9 +6739,7 @@
   function renderMixesLocked(){
     showNewMixButton(false);
     document.getElementById("mixList").innerHTML =
-      '<div class="locked-note">A mix is a standing list of topics the server '
-      + 'keeps for you, so it needs an account. Signing up keeps the listening '
-      + 'you have already done \u2014 it does not start you over.'
+      '<div class="locked-note">Make mixes of the topics you want every day, with fresh episodes each morning. Free with an account.'
       + '<div class="locked-acts">'
       + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
@@ -6814,8 +6819,7 @@
     showNewMixButton(true);
     var html = "";
     if(!mixes.length){
-      html += '<div class="mix-empty">No mixes yet. A mix is a handful of topics '
-        + 'you want every day — name it after when you listen, not what it is about.</div>';
+      html += '<div class="mix-empty">No mixes yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
       if(mixStarters.length){
         html += '<div class="starter-row">' + mixStarters.map(function(st, i){
           return '<div class="starter-chip" onclick="useStarterMix(' + i + ')">'
@@ -6919,8 +6923,7 @@
           + '</div>';
       }).join("");
     } else {
-      html += '<div class="mix-empty">This mix is empty. Add the topics you want '
-        + 'to hear about every day.</div>';
+      html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want every day.</div>';
     }
     // Public mixes appear on the profile and in DailyFAM search, and a new
     // mix is public by default (at the owner's direction).
@@ -7489,8 +7492,7 @@
       })
       .catch(function(){
         if(seq !== publicSearchSeq) return;
-        el.innerHTML = '<div class="mix-empty">Could not search public mixes just now. '
-          + 'Your own mixes are fine — tap Cancel to see them.</div>';
+        el.innerHTML = '<div class="mix-empty">Search isn\u2019t working right now. Tap Cancel to see your mixes.</div>';
       });
   }
 
@@ -7531,8 +7533,7 @@
       el.innerHTML = q
         ? '<div class="mix-empty">No public mixes match “' + escapeHtml(q) + '”. '
           + 'Try a mix name, a topic, or somebody’s @handle.</div>'
-        : '<div class="mix-empty">Nobody has made a mix public yet. Make one of yours '
-          + 'public and it will show up here for everyone else.</div>';
+        : '<div class="mix-empty">No public mixes yet. Make one of yours public and others can find it here.</div>';
       return;
     }
     el.innerHTML = '<div class="dm-res-h">' + (q ? "Public mixes matching “" + escapeHtml(q) + "”"
@@ -8148,7 +8149,7 @@
       });
     }
     if(!cat.length){
-      html += '<div class="mix-empty">Could not load the topic list. Type a topic above to follow it.</div>';
+      html += '<div class="mix-empty">Topics could not load. Type one above to follow it.</div>';
     } else if(!matches.length && !hits.length){
       html += '<div class="mix-empty" style="margin-top:14px;">No topics'
         + (filterRow ? ' in ' + escapeHtml(filterRow.label) : '') + (term ? ' match that' : '')
@@ -8541,6 +8542,110 @@
   var BROWSE_MINUTES = 2;
   var myfamLengthMinutes = BROWSE_MINUTES;
 
+  // ---- "Save for later" and "Not interested" on a card (27/09 packet) ----
+  //
+  // The same two actions the player has, on the card itself, so a tile can
+  // be kept or waved off without being played first. Save is the shelf
+  // (`/api/saved`, a pointer); not interested is a `hide` event, which the
+  // server reads on every rail from then on (`topics.EventStore.hidden`).
+  // `hiddenTiles` keeps a waved-off tile off this page at once, and for a
+  // guest - whose events are not kept (§127) - for as long as the page is.
+  var hiddenTiles = {};
+  var savedTileQueries = {};
+
+  function seedActsHtml(t){
+    var on = savedTileQueries[t.query] ? " saved-on" : "";
+    return '<span class="seed-acts">'
+      + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
+      + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
+      + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
+      + '<button class="seed-act tile-hide" type="button"'
+      + ' aria-label="Not interested in ' + escapeHtml(t.title) + '" title="Not interested"'
+      + ' onclick="event.stopPropagation(); notInterested(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg></button>'
+      + '</span>';
+  }
+
+  function paintTileSaves(){
+    document.querySelectorAll("[data-tile-save]").forEach(function(el){
+      var t = myFamTopics[el.getAttribute("data-tile-save")];
+      var on = !!(t && savedTileQueries[t.query]);
+      el.classList.toggle("saved-on", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.setAttribute("title", on ? "Take it off Save for Later" : "Save for later");
+    });
+  }
+
+  // Which of the page's tiles are already on the shelf, so their buttons
+  // open lit. One read of the shelf per draw of the page.
+  function loadTileSaves(){
+    if(!AUTH.authenticated) return;
+    fetch("/api/saved").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        savedTileQueries = {};
+        (d.items || []).forEach(function(i){ savedTileQueries[i.query] = true; });
+        paintTileSaves();
+      }).catch(function(){});
+  }
+
+  function saveTile(topicId){
+    var t = myFamTopics[topicId];
+    if(!t) return;
+    if(!AUTH.authenticated){
+      showGuestGate("Create a free account to keep episodes for later.");
+      return;
+    }
+    var on = !!savedTileQueries[t.query];
+    var req = on
+      ? fetch("/api/saved?q=" + encodeURIComponent(t.query) + "&minutes=" + BROWSE_MINUTES,
+              { method: "DELETE" })
+      : fetch("/api/saved", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ query: t.query, minutes: BROWSE_MINUTES,
+                                 title: t.title, source: "myfam" }) });
+    req.then(function(r){
+      if(!r.ok) throw new Error();
+      if(on) delete savedTileQueries[t.query]; else savedTileQueries[t.query] = true;
+      paintTileSaves();
+      toast(on ? "Taken off Save for Later" : "Saved for later \u2713");
+      if(!on) recordFamEvent("save", topicId, t.query);
+    }).catch(function(){ toast(on ? "Could not take that off" : "Could not save that"); });
+  }
+
+  function notInterested(topicId){
+    var t = myFamTopics[topicId] || {};
+    hiddenTiles[topicId] = true;
+    recordFamEvent("hide", topicId, t.query || t.title || "");
+    document.querySelectorAll('.seed-card[data-topic]').forEach(function(card){
+      if(card.getAttribute("data-topic") !== topicId) return;
+      card.classList.add("leaving");
+      setTimeout(function(){ if(card.parentNode) card.parentNode.removeChild(card); watchRailEnds(); }, 240);
+    });
+    toast("Got it. We won\u2019t suggest that one again");
+  }
+
+  // The player's "Not interested" (27/09 packet): the same action, on the
+  // episode that is playing, when it came from a myFAM tile. Shown only
+  // then - a search is something the listener asked for.
+  function playingTileId(){
+    var key = currentPlayingTopicKey;
+    return (key && TOPICS[key] && TOPICS[key].bankTopicId) || "";
+  }
+  function paintPlayerHide(){
+    var el = document.getElementById("playerHide");
+    if(!el) return;
+    var id = playingTileId();
+    el.hidden = !id;
+    el.classList.toggle("hidden-on", !!(id && hiddenTiles[id]));
+  }
+  function notInterestedPlaying(){
+    var id = playingTileId();
+    if(!id) return;
+    if(hiddenTiles[id]){ toast("Already off your myFAM"); return; }
+    notInterested(id);
+    paintPlayerHide();
+  }
+
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
@@ -8561,11 +8666,12 @@
       }
 
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
-        + sec.topics.map(function(t){
+        + sec.topics.filter(function(t){ return !hiddenTiles[t.id]; }).map(function(t){
         myFamTopics[t.id] = t;
         var tag = seedTagText(sec.key, t);
-        return '<div class="seed-card" onclick="startBankTopic(\'' + t.id + '\')">'
+        return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startBankTopic(\'' + t.id + '\')">'
           + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
+          + seedActsHtml(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
           // Already written, so it starts instantly and costs nothing to
           // serve. The same marker the "view more" screen uses, and the same
@@ -8603,6 +8709,7 @@
     }
     document.getElementById("myfamFeed").innerHTML = html;
     watchRailEnds();
+    loadTileSaves();
   }
 
   // Which rails have been scrolled to their end, so the chevron can stand
@@ -8668,15 +8775,17 @@
     // Says what the order means, because "ready first" is not guessable and
     // is the reason this screen exists in the shape it does.
     reason.textContent = d.ready
-      ? d.ready + " of these " + (d.ready === 1 ? "is" : "are") + " already "
-        + "written and start straight away, at " + d.minutes + " min."
-      : "Every one of these is written when you tap it, at "
-        + d.minutes + " min.";
+      ? d.ready + " of these " + (d.ready === 1 ? "plays" : "play") + " instantly."
+      : "";
     function card(t){
       sectionTopics[t.id] = t;
+      // In the feed's map too, so the card's save and "not interested"
+      // buttons find it the way the rail's do.
+      myFamTopics[t.id] = t;
+      if(hiddenTiles[t.id]) return "";
       var tag = seedTagText(d.key, t);
-      return '<div class="seed-card" onclick="startSectionTopic(\'' + t.id + '\')">'
-        + '<div class="seed-thumb">' + seedThumbSVG(t.icon)
+      return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
+        + '<div class="seed-thumb">' + seedThumbSVG(t.icon) + seedActsHtml(t)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
         + (t.cached ? '<span class="sec-ready">ready</span>' : '')
         + '</div>'
@@ -8704,6 +8813,7 @@
       return;
     }
     grid.innerHTML = topics.map(card).join("");
+    paintTileSaves();
   }
 
   function startSectionTopic(topicId){
@@ -8883,8 +8993,7 @@
     var list = document.getElementById("srcList");
     if (!list) return;
     if (!sourcesNow.length){
-      list.innerHTML = '<div class="src-note">This episode was written without '
-        + 'retrieved sources.</div>';
+      list.innerHTML = '<div class="src-note">No sources for this episode.</div>';
       return;
     }
     var rows = sourcesNow.map(function(item, i){
@@ -9136,8 +9245,7 @@
       })
       .catch(function(){
         // The feed failing must look like a failure, not like an empty app.
-        el.innerHTML = '<div class="feed-empty">Could not load your feed. '
-          + 'Search still works, and this will fill in when the server is back.</div>';
+        el.innerHTML = '<div class="feed-empty">Your feed could not load. Search still works \u2014 try again in a moment.</div>';
       });
   }
 
@@ -9379,9 +9487,7 @@
         + '<button class="pf-btn" onclick="logOut()">Log out</button>'
         + '</div></div>';
     }
-    return '<div class="pf-note">This is a device profile. Everything here is '
-      + 'yours already \u2014 create an account and it keeps working, on any '
-      + 'device you sign in on. Nothing is lost either way.'
+    return '<div class="pf-note">Create an account to keep your profile on every device you use.'
       + gateActions() + '</div>';
   }
 
@@ -9517,10 +9623,7 @@
       '<div class="pf-gate">'
       + '<div class="pf-gate-mark">' + personSVG(46) + '</div>'
       + '<div class="pf-gate-h">Your profile needs an account</div>'
-      + '<p class="pf-gate-lede">A profile is what the server keeps for you '
-      + '\u2014 your name, your shelves, your friends. Listening never needs '
-      + 'one, and everything you have already listened to comes with you when '
-      + 'you sign up.</p>'
+      + '<p class="pf-gate-lede">Your name, your saved episodes and your friends, on every device. Listening never needs an account.</p>'
       + gateActions()
       + '</div>';
   }
@@ -9542,8 +9645,7 @@
       .then(renderProfile)
       .catch(function(){
         document.getElementById("pfTop").innerHTML = "";
-        el.innerHTML = '<div class="pf-note">Could not load your profile. '
-          + 'Nothing is lost — this fills in when the server is back.</div>';
+        el.innerHTML = '<div class="pf-note">Your profile could not load. Nothing is lost \u2014 try again in a moment.</div>';
       });
   }
 
@@ -10179,10 +10281,7 @@
     if(speechRecognitionCtor()){
       html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
           "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
-        + '<div class="set-note">Opens voice search when you say \u201cHey FAM\u201d '
-        + 'or \u201cWhat\u2019s up FAM\u201d. While it is on, the microphone is open '
-        + 'whenever FAM is on screen and no episode is playing, and your browser\u2019s '
-        + 'speech service hears it.</div>';
+        + '<div class="set-note">Say \u201cHey FAM\u201d or \u201cWhat\u2019s up FAM\u201d to search by voice. While it\u2019s on, the microphone listens whenever FAM is open and nothing is playing.</div>';
     }
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
@@ -10204,15 +10303,11 @@
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
-        + '<div class="set-note">There is no password reset: it needs email '
-        + 'delivery this app has no route to. A forgotten password today is a '
-        + 'lost account — so is a deleted one, and deleting is immediate.</div>';
+        + '<div class="set-note">Password reset isn\u2019t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u2019t be undone.</div>';
     } else {
       html += settingsRow("Sign up", "", "openAuth('signup')")
         + settingsRow("Log in", "", "openAuth('login')")
-        + '<div class="set-note">Listening needs no account. What one buys is '
-        + 'durability: saved mixes, your interests and language, and Save for '
-        + 'Later. Everything you have done already comes with you.</div>';
+        + '<div class="set-note">Listening needs no account. One keeps your mixes, interests and saved episodes, and makes myFAM yours.</div>';
     }
 
     // No "Replay the first run" row, and no "This app" group left to hold it.
@@ -10365,8 +10460,7 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderMyVibe)
       .catch(function(){
-        el.innerHTML = '<div class="pf-empty">Could not load your vibes. '
-          + 'Nothing is lost — this fills in when the server is back.</div>';
+        el.innerHTML = '<div class="pf-empty">Your vibes could not load. Try again in a moment.</div>';
       });
   }
 
@@ -10375,9 +10469,7 @@
     myVibes = d.vibes || [];
     var el = document.getElementById("myVibeBody");
     if(!myVibes.length){
-      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. The VIBE! button '
-        + 'on any player sends an episode to the people who follow you — it '
-        + 'costs nothing, because the script already exists.</div>';
+      el.innerHTML = '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode to share it with your followers for 24 hours.</div>';
       return;
     }
     el.innerHTML = myVibes.map(function(v, i){
@@ -10607,9 +10699,7 @@
       }).join("");
     });
     if(!anything){
-      html += '<div class="pf-empty">Nobody yet. Search a handle above to find '
-        + 'someone — following is one-way, and you are friends the moment they '
-        + 'follow back.</div>';
+      html += '<div class="pf-empty">Nobody yet. Search a @handle above. When someone follows you back, you\u2019re friends.</div>';
     }
     el.innerHTML = html;
   }
@@ -10628,8 +10718,7 @@
           var el = document.getElementById("friendsBody");
           var found = d.people || [];
           if(!found.length){
-            el.innerHTML = '<div class="pf-empty">Nobody with that handle. Only '
-              + 'people who have chosen one can be found.</div>';
+            el.innerHTML = '<div class="pf-empty">No one with that handle.</div>';
             return;
           }
           el.innerHTML = found.map(function(person){
@@ -10842,10 +10931,7 @@
     personVibes = theirVibes;
     personMixes = mixes;
 
-    html += '<div class="pf-note">This is what they have chosen to show: '
-      + 'public mixes, vibes, and the interests they share. What somebody has '
-      + 'listened to is theirs — FAM has no endpoint that hands one '
-      + 'listener another one’s history.</div>';
+    html += '<div class="pf-note">Only what they chose to share. What someone listens to stays private.</div>';
     document.getElementById("personBody").innerHTML = html;
   }
 
@@ -11201,10 +11287,8 @@
     document.getElementById("identityHeading").textContent =
       editing ? "Edit profile" : "Who are you?";
     document.getElementById("identityLede").textContent = editing
-      ? "This is what your friends see. Nothing here is on anybody else's "
-        + "screen unless you put it there."
-      : "A name and a handle are how your friends find you, and how a vibe "
-        + "you send says who it is from. All of it can change later.";
+      ? "This is how your friends see you."
+      : "Your name and @handle are how friends find you. You can change them any time.";
 
     // Prefilled from whatever is already stored, so an editor opens on the
     // current state rather than on empty fields somebody has to retype.
@@ -11265,8 +11349,7 @@
     box.innerHTML = AUTH.authenticated
       ? settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
-      : '<div class="set-note">Create an account and your name, handle and '
-        + 'picture follow you to any device you sign in on.</div>';
+      : '<div class="set-note">With an account, your name and picture follow you to every device.</div>';
   }
 
   function saveIdentity(){
@@ -11372,9 +11455,7 @@
   var threadMessages = [];
 
   function messageGate(){
-    return '<div class="pf-empty">Messaging needs an account: a message has to '
-      + 'reach a person, and an anonymous session is not one. Everything you '
-      + 'have listened to already comes with you when you sign up.'
+    return '<div class="pf-empty">Create a free account to message friends and send them episodes.'
       + gateActions() + '</div>';
   }
 
@@ -12298,8 +12379,7 @@
     var el = document.getElementById("histBody");
     if(!el) return;
     if(!AUTH.authenticated){
-      el.innerHTML = '<div class="sv-empty">Listening history is kept on an '
-        + 'account, so it follows you to any device.' + gateActions() + '</div>';
+      el.innerHTML = '<div class="sv-empty">Create an account to keep your listening history on every device.' + gateActions() + '</div>';
       return;
     }
     el.innerHTML = '<div class="sv-empty">Loading\u2026</div>';
@@ -13733,8 +13813,7 @@
       renderPickedSummary();
       catalogTopics = PREF_CHOICES.catalogue || [];
       if(!catalogTopics.length){
-        if(body) body.innerHTML = '<div class="cat-empty">Could not load the topic '
-          + 'list. You can still type a topic of your own above.</div>';
+        if(body) body.innerHTML = '<div class="cat-empty">Topics could not load. You can still type your own above.</div>';
         return;
       }
       renderTopicCatalog();
@@ -13958,8 +14037,7 @@
             : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')
         + '</button></div>';
     }).join("")
-      + '<div class="cat-note">Adding one tells the feed what to open on. What '
-      + 'it actually learns comes from what you play.</div>';
+      + '<div class="cat-note">Pick a few to start. myFAM learns the rest from what you play.</div>';
   }
 
   // Chosen, and not yet saved.

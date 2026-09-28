@@ -894,3 +894,26 @@ def test_the_page_is_drawn_from_what_exists_even_if_warming_is_broken(client,
     body = client.get("/api/myfam")
     assert body.status_code == 200
     assert body.json()["sections"], "a broken guess emptied the page"
+
+
+def test_not_interested_takes_a_tile_off_every_rail_for_good(store):
+    """27/09 packet: "not interested" on a myFAM card or in the player. The
+    tile is never offered again - on the page, behind View more, or in the
+    popup after an episode - and its tags count a little against the taste."""
+    play(store, "u", "golf-evolution", kind="complete")
+    feed = T.build_feed(store, "u")
+    shown = [t["id"] for s in feed["sections"] for t in s["topics"]]
+    assert shown, "nothing to wave off"
+    target = shown[0]
+    store.record(T.Event("u", T.HIDE, target, "", T.tags_for_id(target, "")))
+    # Hidden even once it has scrolled out of the events `taste` reads.
+    for i in range(450):
+        store.record(T.Event("u", "search", "", f"question {i}", ("world",)))
+    assert target in store.hidden("u")
+    feed = T.build_feed(store, "u")
+    assert target not in [t["id"] for s in feed["sections"] for t in s["topics"]]
+    for key in [s["key"] for s in feed["sections"]]:
+        section = T.build_section(store, "u", key)
+        assert target not in [t["id"] for t in section["topics"]]
+    assert target not in [t.id for t in T.rank_next_up(store, "u", after_id="space-race")]
+    assert T.EVENT_WEIGHT[T.HIDE] < 0

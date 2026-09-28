@@ -81,6 +81,10 @@
   .gate .login { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
   .gate .login input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
   .gate .login .err { color:var(--rose); margin:0; }
+  .login { display:flex; flex-direction:column; gap:8px; }
+  .login input[type=text], .login input:not([type]), .login input[type=file] { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:inherit; }
+  .login .err { color:var(--rose); margin:0; }
+  .vrow { padding:8px 0; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .section { margin-bottom:14px; }
   [hidden] { display:none !important; }
 </style>
@@ -150,6 +154,26 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="recent"></div>
     </section>
 
+    <section class="card section" id="voicesCard">
+      <h2>Voice bank</h2>
+      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded.</p>
+      <div id="voiceList"></div>
+      <details>
+        <summary>Add a voice</summary>
+        <form class="login" id="voiceForm" style="margin-top:10px">
+          <input id="vLabel" placeholder="Name listeners see, e.g. Maya" maxlength="40" required>
+          <input id="vSlug" placeholder="Id (lower-case, e.g. maya)" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" required>
+          <input id="vDesc" placeholder="One line about it (optional)" maxlength="160">
+          <input id="vFile" type="file" accept=".wav,audio/wav" required>
+          <label class="sub"><input type="checkbox" id="vConsent" required> The speaker consented to being cloned</label>
+          <label class="sub"><input type="checkbox" id="vCommercial" required> Cleared for commercial use</label>
+          <label class="sub"><input type="checkbox" id="vSynthetic" required> Cleared for a synthetic voice</label>
+          <button class="go" id="vBtn" type="submit">Add voice</button>
+          <p class="sub err" id="vErr" hidden></p>
+        </form>
+      </details>
+    </section>
+
     <section class="card section">
       <h2>Every store</h2>
       <p class="sub">Found by reading the code, so a store added later appears here on its own. Tap a table to see its newest 100 rows.</p>
@@ -169,14 +193,14 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
   }
-  function api(path, body) {
+  function api(path, body, method) {
     var headers = { "Accept": "application/json" };
     if (body) headers["Content-Type"] = "application/json";
-    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+    return fetch(path, { method: method || (body ? "POST" : "GET"), headers: headers, credentials: "same-origin",
                          body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
-          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          if (!r.ok) { var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status)); e.status = r.status; throw e; }
           return j;
         });
       });
@@ -385,6 +409,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         chipsDrawn = true;
       }
       tick();
+      loadVoices();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
     }).catch(function (e) {
       if (e.status === 404) {
@@ -423,6 +448,52 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       })
       .then(function () { $("loginBtn").disabled = false; });
   });
+  // The voice bank (§147): list, add, remove. Removing never touches an
+  // episode's kept audio; the default voice has no remove button because it
+  // is not a row - it lives on every worker.
+  function loadVoices() {
+    return api("/api/admin/voices").then(function (v) {
+      $("voiceList").innerHTML = (v.voices || []).map(function (x) {
+        return '<div class="vrow"><b>' + esc(x.label) + '</b> <code>' + esc(x.slug) + '</code> ' +
+          '<span class="sub">' + esc(x.description || "") + '</span>' +
+          (x["default"] ? ' <span class="sub">default</span>'
+                        : ' <button class="ghost" type="button" data-rm="' + esc(x.slug) + '">Remove</button>') +
+          '</div>';
+      }).join("");
+    }).catch(function () {});
+  }
+  $("voiceList").addEventListener("click", function (ev) {
+    var slug = ev.target && ev.target.getAttribute("data-rm");
+    if (!slug || !confirm("Remove the voice " + slug + " from the bank?")) return;
+    api("/api/admin/voices/" + encodeURIComponent(slug), null, "DELETE").then(loadVoices);
+  });
+  $("vLabel").addEventListener("input", function () {
+    if (!$("vSlug").dataset.touched)
+      $("vSlug").value = this.value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  });
+  $("vSlug").addEventListener("input", function () { this.dataset.touched = "1"; });
+  $("voiceForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var file = $("vFile").files[0];
+    if (!file) return;
+    $("vErr").hidden = true; $("vBtn").disabled = true;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var b64 = String(reader.result).split(",")[1] || "";
+      api("/api/admin/voices", {
+        slug: $("vSlug").value.trim(), label: $("vLabel").value.trim(),
+        description: $("vDesc").value.trim(), audio: b64,
+        rights: { consent: $("vConsent").checked ? "yes" : "no",
+                  commercial_use: $("vCommercial").checked ? "yes" : "no",
+                  synthetic_voice_cleared: $("vSynthetic").checked ? "yes" : "no" }
+      }).then(function () {
+        $("voiceForm").reset(); delete $("vSlug").dataset.touched; loadVoices();
+      }).catch(function (e) {
+        $("vErr").textContent = e.message; $("vErr").hidden = false;
+      }).then(function () { $("vBtn").disabled = false; });
+    };
+    reader.readAsDataURL(file);
+  });
   $("signOut").addEventListener("click", function () {
     stop();
     api("/api/admin/logout", {}).catch(function () {}).then(function () {
@@ -431,7 +502,19 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     });
   });
   window.addEventListener("resize", function () { drawChart(series); });
-  load().then(start);
+  // Never signed in on arrival (27/09 packet): the server has already ended
+  // any earlier admin session when it served this page, so the form is the
+  // first thing shown every time. A page restored from the back/forward
+  // cache is a load too, and is sent back to the form the same way.
+  function toGate() {
+    stop();
+    $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
+    setState(false, "sign in to continue");
+  }
+  window.addEventListener("pageshow", function (ev) {
+    if (ev.persisted) api("/api/admin/logout", {}).catch(function () {}).then(toGate);
+  });
+  toGate();
 })();
 </script>
 </body>

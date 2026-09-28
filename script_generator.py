@@ -390,8 +390,8 @@ Format, because this is spoken aloud and never read:
 - Output only the words to be said. No headings, markdown, bullets, stage \
 directions, speaker labels or emoji.
 - Flowing spoken English. Vary your sentence lengths - a short one lands a \
-point. Say numbers as a person says them: "about twelve percent", "nineteen \
-ninety-eight".
+point. Numbers in words, as said: "six hundred twelve yards", "thirty-seven \
+to fourteen".
 - No greeting, no sign-off, no naming the show, and never mention being an AI.
 
 Three lines after the script, never spoken:

@@ -440,7 +440,7 @@ def load_fixtures() -> dict:
         # other surface draws one per episode, so this is the only list a
         # listener sees.
         "/api/voices": {"voices": [
-            {"id": "remote:reference_3", "label": "FAM", "engine": "remote",
+            {"id": "remote:reference_3", "label": "Ian", "engine": "remote",
              "detail": "Chatterbox via http"},
             {"id": "remote:nova", "label": "Nova", "engine": "remote",
              "detail": "Warm, unhurried"},
