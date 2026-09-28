@@ -108,7 +108,7 @@ These are list prices, not bills. Spend is recorded per image in
 Google shut down all three Imagen 4 models on 2026-08-17 and named Gemini 3.1
 Flash Image as their successor. Every request to `imagen-4.0-generate-001`
 then answered **404 NOT_FOUND**, which is what the first real Paint run hit
-(PROBLEMS.md §163). Two differences that matter here:
+(PROBLEMS.md §164). Two differences that matter here:
 
 - **It is a different request.** `:generateContent` with
   `responseModalities: ["IMAGE"]` and an `imageConfig`, rather than

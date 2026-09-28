@@ -28,7 +28,7 @@ Three calls per attempt, and two of them are Claude:
    on logos and it costs a fraction of a cent. Batched, one call for many
    nodes.
 2. **Google's image model** paints it - Gemini 3.1 Flash Image since
-   Imagen 4 was shut down (§163). Imagen had `personGeneration:
+   Imagen 4 was shut down (§164). Imagen had `personGeneration:
    "dont_allow"`, a hard off switch for people; the Gemini model has none,
    so the house style asks for objects and places and step 3 refuses a
    person.
@@ -780,11 +780,13 @@ async def _google_post(model: str, prompt: str, key: str):
     else:
         # A Gemini image model has no person switch; the house style asks
         # for objects and places only, and the checker refuses a person.
+        # No `imageSize`: 1K is the default, and a model the 404 fallback
+        # picks may not accept the field - a 400 would fail every node.
         url = f"{_GOOGLE_API}models/{model}:generateContent"
         body = {"contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
-                    "imageConfig": {"aspectRatio": "4:3", "imageSize": "1K"}}}
+                    "imageConfig": {"aspectRatio": "4:3"}}}
     async with httpx.AsyncClient(
             timeout=settings.thumbnails_timeout_seconds) as http:
         return await http.post(url, json=body,
@@ -869,13 +871,18 @@ async def imagen_painter(prompt: str) -> Painting:
         if raw:
             return Painting(base64.b64decode(raw),
                             p.get("mimeType") or "image/png")
+    # The last image that is not a draft: a thinking image model can return
+    # interim pictures marked `thought` before the final one.
+    final = None
     for cand in data.get("candidates") or []:
         for part in (cand.get("content") or {}).get("parts") or []:
             inline = part.get("inlineData") or part.get("inline_data") or {}
-            if inline.get("data"):
-                return Painting(base64.b64decode(inline["data"]),
-                                inline.get("mimeType")
-                                or inline.get("mime_type") or "image/png")
+            if inline.get("data") and not part.get("thought"):
+                final = inline
+    if final is not None:
+        return Painting(base64.b64decode(final["data"]),
+                        final.get("mimeType") or final.get("mime_type")
+                        or "image/png")
     # Both shapes return no image, rather than an error, when the model's
     # own safety filter drops the result.
     raise GenerationError(f"{model} returned no image (filtered)")
@@ -1172,7 +1179,7 @@ async def backfill(limit: int, *, only: Iterable[str] = (),
     # Kept, because a run that paints nothing records no node and no spend:
     # an Imagen key without billing, or a scene writer that failed, used to
     # leave the review page exactly as it was before Paint was pressed, with
-    # the reason only in the server log (§163).
+    # the reason only in the server log (§164).
     target = thumb_store or (store() if _exists() else None)
     if target is not None:
         target.remember_run(result)

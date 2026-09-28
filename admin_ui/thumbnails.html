@@ -130,7 +130,7 @@
 
   // What the last run did, in words. A run stopped by the key, billing or
   // the scene writer records no node and no spend, so without this the page
-  // looks exactly as it did before Paint was pressed (§163).
+  // looks exactly as it did before Paint was pressed (§164).
   function lastRun(r) {
     var when = new Date(r.at * 1000).toLocaleString();
     var problem = r.stopped || r.failed_run || r.skipped

@@ -634,7 +634,7 @@ class Settings:
         default_factory=lambda: (os.environ.get("GEMINI_API_KEY", "")
                                  or os.environ.get("GOOGLE_API_KEY", "")).strip())
     # Gemini 3.1 Flash Image, the named successor to Imagen 4, which Google
-    # shut down on 2026-08-17 (§163). An `imagen-*` name still takes the old
+    # shut down on 2026-08-17 (§164). An `imagen-*` name still takes the old
     # request shape; a name the key cannot call is replaced at run time by
     # the best image model it can, and the log says which.
     thumbnails_image_model: str = field(
@@ -665,7 +665,7 @@ class Settings:
     # Nodes per scene-writing call.
     thumbnails_writer_batch: int = _env_int("THUMBNAILS_WRITER_BATCH", 25)
     thumbnails_timeout_seconds: float = _env_float(
-        "THUMBNAILS_TIMEOUT_SECONDS", 60.0)
+        "THUMBNAILS_TIMEOUT_SECONDS", 120.0)
     # Which clean pictures still wait for a person: `flagged` holds the ones
     # whose subject is a real named thing (a team, a company), `all` holds
     # every one, `none` publishes on the checker's word alone.

@@ -12811,7 +12811,7 @@ where the picture (`seedThumbOpen`) and the card's buttons (`seedActsHtml`)
 simply sit together. With Main's new Pillow requirement installed the merged
 tree passes the whole check.
 
-## 163. A Paint run that stops leaves nothing on the page
+## 164. A Paint run that stops leaves nothing on the page
 
 Reported: `/admin/thumbnails` showed 217 nodes with no picture, nothing live,
 nothing failed and $0 spent, with the Gemini key set on Render.
@@ -12854,3 +12854,14 @@ key that can call no image model at all stops, with a sentence naming
 `THUMBNAILS_IMAGE_MODEL`. The price default (`THUMBNAILS_IMAGE_PRICE`,
 0.067) is an estimate, not a looked-up list price - the pricing page was not
 reachable from the build container.
+
+**Found reviewing the above before merge.** The request asked for
+`imageSize: "1K"`, which is the default anyway and which an older model the
+404 fallback might pick does not accept - a 400 there is recorded against the
+node, so a whole Paint run would have marked every node failed. It is gone. A
+thinking image model can return interim pictures marked `thought` before the
+final one, and the painter took the first image it saw; it now takes the last
+one that is not a draft. And `THUMBNAILS_TIMEOUT_SECONDS` goes from 60 to 120,
+because a timeout stops the whole run and Gemini image generation is slower
+than Imagen's was. This branch's entry was written as §163 and renumbered
+§164 when Main turned out to have a §163 of its own.

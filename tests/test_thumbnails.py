@@ -223,7 +223,7 @@ def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
     assert len(paint.calls) == 1
     assert th.store().get("golf") is None and th.store().get("tennis") is None
     # ...and is kept for the review page, since it left no node and no spend
-    # to show anything happened (§163).
+    # to show anything happened (§164).
     last = th.store().report()["last_run"]
     assert "403" in last["stopped"] and last["at"] > 0
 
@@ -584,11 +584,27 @@ def test_a_gemini_image_model_is_asked_through_generate_content(monkeypatch):
     url, body = google.posts[0]
     assert url.endswith("gemini-3.1-flash-image:generateContent")
     assert body["generationConfig"]["responseModalities"] == ["IMAGE"]
-    assert body["generationConfig"]["imageConfig"]["aspectRatio"] == "4:3"
+    assert body["generationConfig"]["imageConfig"] == {"aspectRatio": "4:3"}
+
+
+def test_a_draft_image_from_thinking_is_not_the_picture(monkeypatch):
+    import httpx
+    answer = {"candidates": [{"content": {"parts": [
+        {"thought": True, "inlineData": {
+            "mimeType": "image/png",
+            "data": base64.b64encode(b"draft").decode()}},
+        {"inlineData": {"mimeType": "image/png",
+                        "data": base64.b64encode(b"final").decode()}}]}}]}
+    google = _Google({"gemini-3.1-flash-image": (200, answer)})
+    monkeypatch.setattr(httpx, "AsyncClient", google.client())
+    _set(monkeypatch, gemini_api_key="k",
+         thumbnails_image_model="gemini-3.1-flash-image")
+    monkeypatch.setattr(th, "_RESOLVED_MODEL", None)
+    assert asyncio.run(th.imagen_painter("a scene")).image == b"final"
 
 
 def test_a_retired_model_is_replaced_by_one_the_key_can_call(monkeypatch):
-    # Imagen 4 was shut down on 2026-08-17 and answered 404 (§163).
+    # Imagen 4 was shut down on 2026-08-17 and answered 404 (§164).
     import httpx
     google = _Google(
         {"gemini-3.1-flash-image-preview": (200, _gemini_image())},
