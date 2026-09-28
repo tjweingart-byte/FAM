@@ -119,20 +119,25 @@ def test_a_stopword_in_a_city_name_is_not_a_match_word():
 
 def test_a_local_story_outranks_a_comparable_one_elsewhere():
     profile = {"sports": 1.0}
-    local = _story("st-1", "Cincinnati stadium deal", "the Cincinnati stadium deal",
-                   ("sports",))
-    away = _story("st-2", "Glasgow stadium deal", "the Glasgow stadium deal",
-                  ("sports",))
+    local = _story("st-1", "Cincinnati Hartwell stadium deal",
+                   "the Cincinnati Hartwell stadium deal", ("sports",))
+    away = _story("st-2", "Glasgow Hartwell stadium deal",
+                  "the Glasgow Hartwell stadium deal", ("sports",))
+    # Both name something this listener has asked about (§155: a live story
+    # that names nothing they follow is not offered at all), and `build_feed`
+    # folds their place into `familiar` exactly like this.
     ranked = T.rank_from_history(profile, set(), candidates=[away, local],
+                                 familiar=frozenset({"hartwell", "cincinnati"}),
                                  local=frozenset({"cincinnati"}))
     assert [t.id for t in ranked] == ["st-1", "st-2"]
 
 
 def test_the_boost_never_becomes_a_filter():
     """A listener in a small town must still get a full rail."""
-    away = [_story(f"st-{i}", f"Story {i}", f"story {i} about markets", ("money",))
-            for i in range(5)]
+    away = [_story(f"st-{i}", f"Acme story {i}", f"acme story {i} about markets",
+                   ("money",)) for i in range(5)]
     ranked = T.rank_from_history({"money": 1.0}, set(), candidates=away,
+                                 familiar=frozenset({"acme", "cincinnati"}),
                                  local=frozenset({"cincinnati"}))
     # A full rail is `SECTION_SIZE` (four since §134), from five candidates.
     assert len(ranked) == T.SECTION_SIZE
