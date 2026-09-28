@@ -130,6 +130,18 @@ _SPOKEN_ABBREVIATIONS = [
 ]
 
 _DOTTED = re.compile(r"\b((?:[A-Za-z]\.){2,})")
+#: "AT&T", "S&P", "P&G": letters either side of an ampersand.
+_AMPERSAND = re.compile(r"\b([A-Z]{1,3})&([A-Z]{1,3})\b")
+#: A Roman numeral after a capitalised name: "World War II", "Super Bowl LX",
+#: "Henry VIII". Only I, V, X and L, and two or more of them, so "I" and
+#: initialisms made of C, D and M ("DC", "MD") are never read as numbers.
+_ROMAN = re.compile(r"\b([A-Z][a-z]+)\s+([IVXL]{2,6})\b(?!['’]?[a-z])")
+_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50}
+#: Names after which a numeral is counted ("World War Two", "Super Bowl
+#: Sixty"); after any other name it is a regnal number ("Henry the Eighth").
+_ROMAN_COUNTED = frozenset("""War Bowl Part Chapter Book Round Phase Title Act
+Volume Episode Season Stage Level Grade Class Category Type Apollo Rocky Mark
+Gemini Vatican Olympiad Wrestlemania WrestleMania Rule Article Section Tier""".split())
 _CAPS = re.compile(r"\b([A-Z]{2,6})(s|'s|’s)?\b")
 
 
@@ -140,6 +152,39 @@ def _spell(letters: str) -> str:
 def _dotted(m: re.Match) -> str:
     letters = m.group(1).replace(".", "")
     return _spell(letters)
+
+
+def roman_value(numeral: str) -> int:
+    """"XIV" -> 14, or 0 when it is not a well-formed numeral."""
+    total, prev = 0, 0
+    for ch in reversed(numeral):
+        v = _ROMAN_VALUES[ch]
+        total = total - v if v < prev else total + v
+        prev = max(prev, v)
+    return total if total and _to_roman(total) == numeral else 0
+
+
+def _to_roman(n: int) -> str:
+    out = ""
+    for v, sym in ((50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"),
+                   (4, "IV"), (1, "I")):
+        while n >= v:
+            out, n = out + sym, n - v
+    return out
+
+
+def _roman(m: re.Match) -> str:
+    name, numeral = m.group(1), m.group(2)
+    n = roman_value(numeral)
+    if not n:
+        return m.group(0)
+    if name in _ROMAN_COUNTED:
+        return f"{name} {cardinal(n).title()}"
+    return f"{name} the {ordinal(n).title()}"
+
+
+def _ampersand(m: re.Match) -> str:
+    return _spell(m.group(1)) + " and " + _spell(m.group(2))
 
 
 def _caps(m: re.Match) -> str:
@@ -160,16 +205,54 @@ _MONEY = re.compile(r"\$\s?(" + _NUM + r")(?:\.(\d{1,2}))?(?:\s?(" + _SCALE_WORD
 _PERCENT = re.compile(r"(" + _NUM + r")(?:\.(\d+))?\s?(?:%|percent\b)")
 _ORDINAL = re.compile(r"\b(\d+)(st|nd|rd|th)\b", re.I)
 _DECADE = re.compile(r"(?:\b(1[1-9]|20)(\d)0s\b|['’](\d)0s\b)")
-_TIME = re.compile(r"\b(\d{1,2}):(\d{2})\b(?:\s?([ap])\.?\s?m\.?(?=\W|$))?", re.I)
+_TIME = re.compile(r"\b(\d{1,2}):(\d{2})(?!\d)(?:\s?([ap])\.?\s?m\.?(?=\W|$))?", re.I)
 _HOUR_AMPM = re.compile(r"\b(\d{1,2})\s?([ap])\.?\s?m\b\.?", re.I)
-_RECORD = re.compile(r"\b(\d{1,3})" + _DASH + r"(\d{1,3})(?:" + _DASH + r"(\d{1,3}))?(?=\s+(?:\w+\s+){0,2}?(?:record|season|start|run|mark|in (?:the )?(?:division|conference|league)|on the (?:season|year)))", re.I)
+#: A record, not a score: only when the words after it say so. "Season",
+#: "run" and "start" were here and read "beat Arsenal 3-1 this season" and
+#: "a 12-5 run" as records; they only count as "on the season".
+_RECORD = re.compile(r"\b(\d{1,3})" + _DASH + r"(\d{1,3})(?:" + _DASH + r"(\d{1,3}))?(?=\s+(?:\w+\s+){0,2}?(?:record|mark|in (?:the )?(?:division|conference|league)|on the (?:season|year)))", re.I)
+#: Three numbers in a row that are not a record: "a 1-2-3 inning".
+_TRIPLE = re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{1,2})\b(?![-\d])")
+#: A phone number, read digit by digit in its three groups.
+_PHONE = re.compile(r"(?<![\d-])\(?(\d{3})\)?[-. ](\d{3})[-.](\d{4})(?![\d-])")
+#: "2019-2023", "the 2024-25 season".
+_YEAR_RANGE = re.compile(r"\b(1[1-9]\d\d|20\d\d)[-–](1[1-9]\d\d|20\d\d|\d\d)\b(?![-\d])")
+#: "9/11", "24/7", "1/2" - never a full date with a second slash.
+_SLASH = re.compile(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?![\d/])")
+_FRACTIONS = {(1, 2): "one half", (1, 3): "one third", (2, 3): "two thirds",
+              (1, 4): "one quarter", (3, 4): "three quarters"}
+#: A minus sign in front of a number, not a hyphen inside a word ("COVID-19").
+_NEGATIVE = re.compile(r"(?<![\w)\]])[-−](?=\d)")
+_SPECIAL = [(re.compile(r"\b401\(k\)", re.I), "four oh one K")]
+#: "49ers", "76ers": the number and its ending are one word.
+_NUMBER_ERS = re.compile(r"\b(\d{1,3})ers\b")
 _PAIR = re.compile(r"\b(\d{1,3})" + _DASH + r"(\d{1,3})\b(?![-–—\d])")
 _YEAR = re.compile(r"\b(1[1-9]\d\d|20\d\d)\b(?!\s*(?:,\d|\.\d))")
-_DECIMAL = re.compile(r"\b(\d+\.\d+)\b")
-_INTEGER = re.compile(r"\b(" + _NUM + r")\b")
+_DECIMAL = re.compile(r"(?<![\d.])(\d+\.\d+)(?![\d.])(?=([A-Za-z])?)")
+_INTEGER = re.compile(r"(?<![\d.A-Za-z])(" + _NUM + r")(?!\d)(?=([A-Za-z])?)")
+#: One capital letter stuck to a number: "Q3", "F1", "G7", "B12".
+_LETTER_NUMBER = re.compile(r"\b([A-Z])(\d{1,2})\b")
+#: A full date written with slashes, American order: "9/27/2026".
+_DATE = re.compile(r"(?<![\d/])(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})(?![\d/])")
+_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"]
 
-#: A word after a four-digit number that makes it a count, not a year.
-_COUNTED = re.compile(r"\s+(?:[a-z]+s\b|people|yards|feet|miles|meters|metres|points|votes|jobs|troops|homes|fans|dollars|euros|pounds)", re.I)
+#: A word after a four-digit number that makes it a count, not a year. A
+#: list rather than "any word ending in s", which took "is", "was", "his" and
+#: "results" and read "In 2024 his team" as "two thousand twenty-four".
+_COUNTED = re.compile(r"\s+(?:people|persons|yards|feet|miles|meters|metres|"
+                      r"kilometers|kilometres|acres|tons|tonnes|points|votes|"
+                      r"jobs|troops|homes|houses|fans|dollars|euros|pounds|"
+                      r"units|cars|workers|employees|students|cases|deaths|"
+                      r"calories|followers|members|residents|copies|visitors|"
+                      r"games|runs|hits|steps|words|pages|years|days|hours|"
+                      r"minutes|seconds|times|of\s+(?:them|those|these))\b", re.I)
+#: A word before one that makes it a year whatever follows.
+_YEAR_BEFORE = re.compile(r"\b(?:in|since|from|by|until|till|of|during|before|"
+                          r"after|circa|around|early|late|mid|summer|winter|"
+                          r"spring|fall|autumn|January|February|March|April|May|"
+                          r"June|July|August|September|October|November|"
+                          r"December)\s*$", re.I)
 
 
 def _money(m: re.Match) -> str:
@@ -194,13 +277,18 @@ def _ordinal(m: re.Match) -> str:
     return ordinal(int(m.group(1)))
 
 
+def _decade_word(tens: int) -> str:
+    return "tens" if tens == 1 else _TENS[tens].replace("y", "ies")
+
+
 def _decade(m: re.Match) -> str:
     if m.group(3) is not None:
-        return _TENS[int(m.group(3))].replace("y", "ies") if int(m.group(3)) >= 2 else m.group(0)
+        tens = int(m.group(3))
+        return _decade_word(tens) if tens >= 1 else m.group(0)
     century, tens = int(m.group(1)), int(m.group(2))
     if tens == 0:
-        return (cardinal(century * 100) if century == 20 else cardinal(century) + " hundreds")
-    return cardinal(century) + " " + _TENS[tens].replace("y", "ies")
+        return "two thousands" if century == 20 else cardinal(century) + " hundreds"
+    return cardinal(century) + " " + _decade_word(tens)
 
 
 def _meridiem(letter: str) -> str:
@@ -214,8 +302,11 @@ def _stop(m: re.Match) -> str:
 
 def _time(m: re.Match) -> str:
     hour, minute, ampm = int(m.group(1)), int(m.group(2)), m.group(3)
-    if hour > 24 or minute > 59:
+    if minute > 59:
         return m.group(0)
+    if hour > 24:
+        # Not a clock: a duration, "a 25:00 5K".
+        return cardinal(hour) + (" " + cardinal(minute) if minute else " minutes")
     if minute == 0:
         spoken = cardinal(hour) + ("" if ampm else " o'clock")
     elif minute < 10:
@@ -239,19 +330,61 @@ def _record(m: re.Match) -> str:
     return f"{parts[0]} and {parts[1]}"
 
 
+def _triple(m: re.Match) -> str:
+    return ", ".join(cardinal(int(g)) for g in m.groups())
+
+
+def _phone(m: re.Match) -> str:
+    return ", ".join(" ".join(_ONES[int(d)] for d in g) for g in m.groups())
+
+
+def _year_range(m: re.Match) -> str:
+    first, second = m.group(1), m.group(2)
+    tail = year(int(second)) if len(second) == 4 else cardinal(int(second))
+    return year(int(first)) + " to " + tail
+
+
+def _slash(m: re.Match) -> str:
+    a, b = int(m.group(1)), int(m.group(2))
+    return _FRACTIONS.get((a, b)) or f"{cardinal(a)} {cardinal(b)}"
+
+
 def _pair(m: re.Match) -> str:
     return cardinal(int(m.group(1))) + " to " + cardinal(int(m.group(2)))
 
 
+def _number_ers(m: re.Match) -> str:
+    words = cardinal(int(m.group(1)))
+    return words + ("rs" if words.endswith("e") else "ers")
+
+
+def _letter_number(m: re.Match) -> str:
+    return m.group(1) + " " + cardinal(int(m.group(2)))
+
+
+def _date(m: re.Match) -> str:
+    month, day, yr = int(m.group(1)), int(m.group(2)), m.group(3)
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return m.group(0)
+    full = int(yr) if len(yr) == 4 else 2000 + int(yr)
+    return f"{_MONTHS[month - 1]} {ordinal(day)}, {year(full)}"
+
+
+def _spaced(words: str, m: re.Match) -> str:
+    """A number glued to a unit ("3.5mm", "1.5x") keeps a space before it."""
+    return words + (" " if m.group(2) else "")
+
+
 def _year(m: re.Match) -> str:
     tail = m.string[m.end():m.end() + 24]
-    if _COUNTED.match(tail):
+    head = m.string[max(0, m.start() - 24):m.start()]
+    if _COUNTED.match(tail) and not _YEAR_BEFORE.search(head):
         return cardinal(int(m.group(1)))
     return year(int(m.group(1)))
 
 
 def _integer(m: re.Match) -> str:
-    return cardinal(int(m.group(1).replace(",", "")))
+    return _spaced(cardinal(int(m.group(1).replace(",", ""))), m)
 
 
 def speakable(text: str) -> str:
@@ -266,16 +399,28 @@ def speakable(text: str) -> str:
         out = text
         for pattern, words in _SPOKEN_ABBREVIATIONS:
             out = pattern.sub(words, out)
+        for pattern, words in _SPECIAL:
+            out = pattern.sub(words, out)
+        out = _AMPERSAND.sub(_ampersand, out)
+        out = _ROMAN.sub(_roman, out)
+        out = _PHONE.sub(_phone, out)
+        out = _DATE.sub(_date, out)
+        out = _NUMBER_ERS.sub(_number_ers, out)
+        out = _LETTER_NUMBER.sub(_letter_number, out)
         out = _MONEY.sub(_money, out)
         out = _PERCENT.sub(_percent, out)
         out = _ORDINAL.sub(_ordinal, out)
         out = _DECADE.sub(_decade, out)
         out = _TIME.sub(_time, out)
         out = _HOUR_AMPM.sub(_hour_ampm, out)
+        out = _YEAR_RANGE.sub(_year_range, out)
         out = _RECORD.sub(_record, out)
+        out = _TRIPLE.sub(_triple, out)
         out = _PAIR.sub(_pair, out)
+        out = _SLASH.sub(_slash, out)
         out = _YEAR.sub(_year, out)
-        out = _DECIMAL.sub(lambda m: decimal(m.group(1)), out)
+        out = _NEGATIVE.sub("minus ", out)
+        out = _DECIMAL.sub(lambda m: _spaced(decimal(m.group(1)), m), out)
         out = _INTEGER.sub(_integer, out)
         # Abbreviations last, so the "A M" and "P M" written above, and any
         # letters a number rule produced, are not re-read.

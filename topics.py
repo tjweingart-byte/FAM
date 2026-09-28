@@ -2346,9 +2346,11 @@ class EventStore:
         try:
             rows = self._conn().execute(
                 "SELECT user_id, text FROM events"
-                " WHERE kind != ? AND text != '' AND at >= ?"
+                " WHERE kind NOT IN (?, ?) AND text != '' AND at >= ?"
                 " ORDER BY at DESC LIMIT ?",
-                (IMPRESSION, float(since), int(limit)),
+                # Nor what somebody said "not interested" to: a subject
+                # waved off is not a subject to mint (§161).
+                (IMPRESSION, HIDE, float(since), int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read subject texts")
@@ -3873,6 +3875,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
     world_live, world_held = world_inventory(live, live_held, heard, now)
+    # Not interested reaches Trending too: a waved-off story is off every rail.
+    waved = store.hidden(user_id)
+    if waved:
+        world_live = [t for t in world_live if t.id not in waved]
+        world_held = [t for t in world_held if t.id not in waved]
     world_first = rank_world(world_live, country, world_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
@@ -4241,6 +4248,10 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         world_live, world_held = world_inventory(live, live_held, heard, now)
+        waved = store.hidden(user_id)
+        if waved:
+            world_live = [t for t in world_live if t.id not in waved]
+            world_held = [t for t in world_held if t.id not in waved]
         groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:

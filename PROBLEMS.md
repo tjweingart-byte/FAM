@@ -12685,3 +12685,57 @@ folder unfiles and never deletes; `forget` erases the filing with the rest.
 Nothing is pre-made: the preview fixture's "Commute" folder, the one §96
 removed the chips over, is gone, and a smoke check says no folder appears
 that the listener did not make.
+
+**Checked before merge, and what that found.** The whole branch was reviewed
+in two halves before it was readied for Main, and eleven things were wrong.
+All are fixed here with a test or a smoke assertion each:
+
+* **The number reader.** "In 2024 his team" was read as a count ("two
+  thousand twenty-four"), because a year followed by any word ending in "s"
+  counted as a quantity and "his", "was" and "results" all end in "s". It
+  also dropped "the 2010s" to "the twenty", split "7:30pm" and "3.5mm" at the
+  letters, read "World War II" as "World War I I", and turned "beat Arsenal
+  3-1 this season" into a record. The count test is now a list of nouns with
+  a preposition before the year ("in", "since", a month) always meaning a
+  year. Decades, attached am/pm and units, Roman numerals after a name
+  ("Super Bowl Sixty", "Henry the Eighth"), phone numbers, slashes and dates,
+  year ranges, negatives, "Q3", "49ers", "401(k)" and "AT&T" each have a rule
+  and a case in `tests/test_spoken_text.py`.
+* **Not interested missed Trending.** The hide reached every rail except the
+  one that is not ranked from the personal inventory, so a waved-off
+  Trending story came back on the next load. It is filtered before
+  `rank_world` and `trending_groups` now. A hide's words no longer feed the
+  vocabulary sweep either: a subject somebody waved off should not become a
+  node.
+* **Offline listening could keep the wrong audio, or a tone.** The "keep
+  it when it has all arrived" watcher only stopped when another `speakText`
+  ran, and Explore plays through `FamAudio` directly, so a reel finishing
+  after a search could be stored under the search's name. It is tied to the
+  stream id now and cleared by `stopSpeech`. And the page kept whatever
+  arrived, including a placeholder tone during an outage (§51, §132): the
+  server now says `X-FAM-Keepable` - production voice, real script, no
+  attachment - and nothing else is kept.
+* **Offline was misjudged both ways.** Any `TypeError` counted as no
+  connection, so a bug in drawing the feed was hidden behind the offline
+  page, and nothing cleared "offline" once the connection came back. Only a
+  request that never reached the server counts now (`err.network`), a
+  streamed episode clears it, and the page remembered for offline is saved
+  only after it has drawn.
+* **A signed-in listener opened offline got the sign-up screen**, because
+  `/api/auth/me` failing looked like being signed out. A device that was
+  signed in last time now opens on myFAM, offline.
+* **Log-out left the last listener's state in memory**: saved and hidden
+  cards, shelf folders, and which friends' stories they had watched. All of
+  it is cleared with the offline copies, on log-out and on deleting the
+  account.
+* Smaller: a card's save state is keyed on the question *and* the length, as
+  the server keys it; deleting a folder no longer says it worked when the
+  server refused; a missing audio row is "not on this device" rather than
+  silence; stories pause while the app is hidden; the sign-up error clears
+  when the email is edited.
+
+The trial merge with Main (the tile pictures, §160) conflicts in five files,
+three of them generated previews; the other two are the two card templates,
+where the picture (`seedThumbOpen`) and the card's buttons (`seedActsHtml`)
+simply sit together. With Main's new Pillow requirement installed the merged
+tree passes the whole check.

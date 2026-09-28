@@ -27,6 +27,28 @@ from spoken_text import cardinal, ordinal, speakable, year
     ("No. 1 vs. Texas.", "number one versus Texas."),
     ("It cost $20.", "It cost twenty dollars."),
     ("1,234 votes.", "one thousand two hundred thirty-four votes."),
+    # Found reviewing §161: each of these came out wrong before.
+    ("In 2024 his team won.", "In twenty twenty-four his team won."),
+    ("2020 was strange.", "twenty twenty was strange."),
+    ("Q3 2024 results.", "Q three twenty twenty-four results."),
+    ("The 2010s and the 2000s.", "The twenty tens and the two thousands."),
+    ("At 7:30pm, and 8:15am.", "At seven thirty P M, and eight fifteen A M."),
+    ("A 3.5mm jack at 1.5x.", "A three point five mm jack at one point five x."),
+    ("World War II and Super Bowl LX.", "World War Two and Super Bowl Sixty."),
+    ("Henry VIII and Washington DC.", "Henry the Eighth and Washington D C."),
+    ("They beat Arsenal 3-1 this season.", "They beat Arsenal three to one this season."),
+    ("A 12-5 run.", "A twelve to five run."),
+    ("Call 555-123-4567.", "Call five five five, one two three, four five six seven."),
+    ("9/11 and 24/7.", "nine eleven and twenty-four seven."),
+    ("On 9/27/2026.", "On September twenty-seventh, twenty twenty-six."),
+    ("The 2024-25 season.", "The twenty twenty-four to twenty-five season."),
+    ("It was -5 degrees.", "It was minus five degrees."),
+    ("COVID-19 and I-95.", "COVID-nineteen and I-ninety-five."),
+    ("A 401(k) at AT&T.", "A four oh one K at A T and T."),
+    ("The 49ers and the 76ers.", "The forty-niners and the seventy-sixers."),
+    ("A 1-2-3 inning.", "A one, two, three inning."),
+    ("About 2000 people.", "About two thousand people."),
+    ("In 1999 fans rioted.", "In nineteen ninety-nine fans rioted."),
 ])
 def test_speakable(written, said):
     assert speakable(written) == said
@@ -50,3 +72,16 @@ def test_the_voice_is_handed_speakable_text():
     source = inspect.getsource(pipeline)
     calls = [line for line in source.splitlines() if "self.engine.synth(" in line]
     assert calls and all("speakable(" in line for line in calls)
+
+
+def test_a_device_is_told_whether_it_may_keep_the_audio():
+    """Offline listening keeps only what the server marks keepable: a
+    production voice, never a placeholder tone (found reviewing §161)."""
+    import app as appmod
+
+    source = inspect.getsource(appmod)
+    assert '"X-FAM-Keepable"' in source
+    expose = source[source.index("expose_headers="):]
+    assert '"X-FAM-Keepable"' in expose[:240]
+    audio = open("static/fam-audio.js").read()
+    assert 'X-FAM-Keepable' in audio and "!keepable" in audio

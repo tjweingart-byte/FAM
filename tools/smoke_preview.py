@@ -3426,7 +3426,7 @@ def main() -> int:
                     var card = document.querySelector('#myfamFeed .seed-card[data-topic]');
                     var t = myFamTopics[card.getAttribute('data-topic')];
                     return OfflineShelf.put(t.query, BROWSE_MINUTES, '', t.title,
-                        { rate: 22050, samples: new Int16Array(22050) })
+                        { rate: 22050, samples: new Int16Array(22050 * 20) })
                       .then(function(){ return OfflineShelf.has(t.query, BROWSE_MINUTES, '')
                                                ? card.getAttribute('data-topic') : ''; });
                 }""")
@@ -3445,6 +3445,24 @@ def main() -> int:
                         f"#myfamFeed .seed-card[data-topic='{kept}']",
                         "e => !e.classList.contains('not-offline')"), \
                         "the card on this device was faded"
+                if kept:
+                    # And it plays from here, with no request for it (§161's
+                    # review: nothing had ever exercised this path).
+                    page.evaluate("""() => {
+                        window.__audioAsked = 0;
+                        var real = window.fetch;
+                        window.fetch = function (u, o) {
+                          if (String(u).indexOf('/api/audio') === 0) window.__audioAsked++;
+                          return real(u, o);
+                        };
+                    }""")
+                    page.click(f"#myfamFeed .seed-card[data-topic='{kept}'] .seed-card-body")
+                    page.wait_for_timeout(1500)
+                    assert page.evaluate("FamAudio.isActive()"), \
+                        "the episode on this device did not play offline"
+                    assert page.evaluate("window.__audioAsked") == 0, \
+                        "offline, the device's episode was asked of the server"
+                    page.evaluate("stopSpeech()")
             finally:
                 page.evaluate("setOffline(false); OfflineShelf.clear()")
 

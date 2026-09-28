@@ -943,3 +943,21 @@ def test_a_written_startup_tile_is_called_what_it_turned_out_to_be(monkeypatch):
     assert tiles[0]["angle"] == "How Philadelphia stole it at the end."
     assert tiles[1]["title"] == "World"
     assert tiles[2]["title"] == bank.title
+
+
+def test_not_interested_reaches_trending_too(store, monkeypatch):
+    """A Trending tile waved off from its card does not come back on the row
+    or behind its View more (found reviewing §161)."""
+    story = T.TOPIC_BANK[5]
+    monkeypatch.setattr(T, "world_inventory", lambda live, held, heard, now: ([story], []))
+
+    def trending(feed):
+        return [t["id"] for s in feed["sections"] if s["key"] == "world_trending"
+                for t in s["topics"]]
+
+    play(store, "u", "golf-evolution", kind="complete")
+    assert story.id in trending(T.build_feed(store, "u"))
+    store.record(T.Event("u", T.HIDE, story.id, "", story.tags))
+    assert story.id not in trending(T.build_feed(store, "u"))
+    section = T.build_section(store, "u", "world_trending")
+    assert story.id not in [t["id"] for t in section["topics"]]

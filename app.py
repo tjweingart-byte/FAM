@@ -3012,7 +3012,7 @@ if _ALLOWED_ORIGINS:
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
-                    "X-FAM-Cache"],
+                    "X-FAM-Cache", "X-FAM-Keepable"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -5682,6 +5682,12 @@ async def audio(
             # has no steps, and holding one for ten seconds to check off work
             # nobody did would be the filler this app deletes.
             "X-FAM-Cache": stats.cache or "",
+            # Whether a device may keep this audio for offline listening
+            # (§161): the same test the server's own audio cache uses - a
+            # production voice, a real script, not an attachment - so a
+            # placeholder tone from an outage is never kept on a phone.
+            "X-FAM-Keepable": "1" if (getattr(pipeline.engine, "keeps_audio", False)
+                                      and not DEMO_MODE and not attach) else "0",
             # Measurement headers. Additive: the player reads none of them,
             # and `tools/preroll_sweep.py` reads all of them.
             "X-Preroll-Seconds": f"{PREROLL_SECONDS:g}",

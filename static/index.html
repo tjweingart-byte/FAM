@@ -2403,7 +2403,7 @@
                 <div class="auth-label">Email</div>
                 <input class="modal-input" id="authEmail" type="email"
                        autocomplete="email" placeholder="you@example.com"
-                       style="margin-bottom:0;">
+                       style="margin-bottom:0;" oninput="clearAuthError()">
               </div>
               <div class="auth-field">
                 <div class="auth-label">Password</div>
@@ -5340,7 +5340,11 @@
         return new Promise(function(resolve, reject){
           var t = db.transaction(stores, mode);
           var out = fn(t);
-          t.oncomplete = function(){ resolve(out && out.result !== undefined ? out.result : out); };
+          // A request resolves to its result - `undefined` for a missing row -
+          // and anything else a caller returned resolves as itself.
+          t.oncomplete = function(){
+            resolve((typeof IDBRequest !== "undefined" && out instanceof IDBRequest) ? out.result : out);
+          };
           t.onerror = function(){ reject(t.error); };
           t.onabort = function(){ reject(t.error); };
         });
@@ -5413,6 +5417,8 @@
   // Bumped by every `speakText`, so a watcher from an earlier episode knows
   // the player has moved on.
   var speakSeq = 0;
+  //: The one "keep this episode on the device" watcher (see `speakText`).
+  var offlineKeepWatch = null;
   function isOffline(){ return famOffline || (typeof navigator !== "undefined" && navigator.onLine === false); }
   function setOffline(off){
     famOffline = !!off;
@@ -5443,9 +5449,21 @@
   function rememberedFeed(){
     try { return JSON.parse(localStorage.getItem("famLastFeed") || "null"); } catch(e){ return null; }
   }
+  // Everything this device kept for the listener who is leaving: the
+  // offline episodes and page, which friends' stories they had watched, and
+  // the card and shelf state still in memory (found reviewing §161).
   function forgetOfflineCopies(){
-    try { localStorage.removeItem("famLastFeed"); } catch(e){}
+    try {
+      localStorage.removeItem("famLastFeed");
+      localStorage.removeItem("famStoriesSeen");
+      localStorage.removeItem("famSignedIn");
+    } catch(e){}
     OfflineShelf.clear();
+    hiddenTiles = {};
+    savedTileQueries = {};
+    shelfFolders = { saved: [], vibe: [] };
+    shelfPick = { saved: "", vibe: "" };
+    myVibes = [];
   }
 
   // The app shell, so FAM opens with no connection at all. Only where a
@@ -5516,19 +5534,27 @@
                                        episodeTopicId);
     // Kept on this device once all of it has arrived, so it plays offline
     // next time (an attachment is the listener's own document, and is not).
-    var keepWatch = null;
     var mySeq = ++speakSeq;
+    clearInterval(offlineKeepWatch);
+    // Tied to the one stream this episode started: Explore's reels play
+    // through FamAudio directly, so "another speakText ran" is not enough to
+    // know the buffer changed hands - the stream id is. Cleared by
+    // `stopSpeech` too, so an abandoned stream leaves no timer behind.
     function keepWhenWhole(){
       if(opts.attach || fromDevice) return;
-      clearInterval(keepWatch);
-      keepWatch = setInterval(function(){
-        // Another episode has started: this buffer is not this episode's.
-        if(mySeq !== speakSeq){ clearInterval(keepWatch); return; }
+      var myStream = FamAudio.stream();
+      clearInterval(offlineKeepWatch);
+      offlineKeepWatch = setInterval(function(){
+        if(mySeq !== speakSeq || FamAudio.stream() !== myStream){
+          clearInterval(offlineKeepWatch); return;
+        }
         if(!FamAudio.isComplete()) return;
-        clearInterval(keepWatch);
+        clearInterval(offlineKeepWatch);
+        // Null unless the server marked it keepable (a production voice).
         var whole = FamAudio.whole();
+        if(!whole || whole.stream !== myStream) return;
         var shown = TOPICS[currentPlayingTopicKey] ? TOPICS[currentPlayingTopicKey].title : title;
-        if(whole) OfflineShelf.put(title, minutes, context || "", shown, whole).then(markOfflineCards);
+        OfflineShelf.put(title, minutes, context || "", shown, whole).then(markOfflineCards);
       }, 1500);
     }
     var audioHandlers = {
@@ -5566,6 +5592,8 @@
         // one's.
         setTimeout(fetchEpisodeSources, 6000);
         setTimeout(fetchEpisodeSources, 20000);
+        // A stream arrived, so there is a connection whatever was said before.
+        if(!fromDevice && famOffline) setOffline(false);
         keepWhenWhole();
       },
       onEnd: function(){
@@ -5598,7 +5626,9 @@
       },
       onError: function(err){
         // No connection, and this one is on the device: play it from here.
-        if(err && err.name === "TypeError" && !opts.attach
+        // `network` is set by FamAudio only when the request never reached
+        // the server - a bug further down is shown as the failure it is.
+        if(err && err.network && !fromDevice && !opts.attach
            && OfflineShelf.has(title, minutes, context || "")){
           setOffline(true);
           playFromDevice();
@@ -5613,7 +5643,7 @@
     function playFromDevice(){
       fromDevice = true;
       OfflineShelf.get(title, minutes, context || "").then(function(stored){
-        if(!stored){
+        if(!stored || !stored.samples.length){
           audioHandlers.onError(new Error("That episode isn\u2019t on this device."));
           return;
         }
@@ -5653,6 +5683,7 @@
   }
   var famAbandonReporter = null;
   function stopSpeech(){
+    clearInterval(offlineKeepWatch);
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
     awaitingFirstAudio = "";
     audioOwner = "";
@@ -8831,7 +8862,7 @@
   var savedTileQueries = {};
 
   function seedActsHtml(t){
-    var on = savedTileQueries[t.query] ? " saved-on" : "";
+    var on = savedTileQueries[tileSaveKey(t)] ? " saved-on" : "";
     return '<span class="seed-acts">'
       + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
       + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
@@ -8842,10 +8873,14 @@
       + '</span>';
   }
 
+  // A saved episode is its question *and* its length, as on the server; a
+  // card's episode is always `BROWSE_MINUTES` long.
+  function tileSaveKey(t){ return t.query + "|" + BROWSE_MINUTES; }
+
   function paintTileSaves(){
     document.querySelectorAll("[data-tile-save]").forEach(function(el){
       var t = myFamTopics[el.getAttribute("data-tile-save")];
-      var on = !!(t && savedTileQueries[t.query]);
+      var on = !!(t && savedTileQueries[tileSaveKey(t)]);
       el.classList.toggle("saved-on", on);
       el.setAttribute("aria-pressed", on ? "true" : "false");
       el.setAttribute("title", on ? "Take it off Save for Later" : "Save for later");
@@ -8860,7 +8895,7 @@
       .then(function(d){
         if(!d) return;
         savedTileQueries = {};
-        (d.items || []).forEach(function(i){ savedTileQueries[i.query] = true; });
+        (d.items || []).forEach(function(i){ savedTileQueries[i.query + "|" + i.minutes] = true; });
         paintTileSaves();
       }).catch(function(){});
   }
@@ -8872,7 +8907,8 @@
       showGuestGate("Create a free account to keep episodes for later.");
       return;
     }
-    var on = !!savedTileQueries[t.query];
+    var key = tileSaveKey(t);
+    var on = !!savedTileQueries[key];
     var req = on
       ? fetch("/api/saved?q=" + encodeURIComponent(t.query) + "&minutes=" + BROWSE_MINUTES,
               { method: "DELETE" })
@@ -8882,7 +8918,7 @@
                                  title: t.title, source: "myfam" }) });
     req.then(function(r){
       if(!r.ok) throw new Error();
-      if(on) delete savedTileQueries[t.query]; else savedTileQueries[t.query] = true;
+      if(on) delete savedTileQueries[key]; else savedTileQueries[key] = true;
       paintTileSaves();
       toast(on ? "Taken off Save for Later" : "Saved for later \u2713");
       if(!on) recordFamEvent("save", topicId, t.query);
@@ -9490,6 +9526,7 @@
     // written depends on the length it would be written at - asking the cache
     // at the wrong one marks ready tiles unready and sorts the rails wrong.
     fetch(withInterests("/api/myfam?minutes=" + myfamLengthMinutes))
+      .catch(function(e){ e.network = true; throw e; })
       .then(function(r){ if(!r.ok) throw new Error("feed unavailable"); return r.json(); })
       .then(function(data){
         // Before the render, so the first rail's heading is right on the
@@ -9497,14 +9534,16 @@
         myfamTasteSource = data.taste_source || "taste";
         myfamSampleNote = data.sample ? (data.sample_note || "") : "";
         if(famOffline) setOffline(false);
-        rememberFeed(data);
         renderMyFamFeed(data.sections);
+        // Remembered only once it has drawn, so a page that fails to draw
+        // is never the one an offline open falls back to.
+        rememberFeed(data);
         loadGoDeeper();
       })
       .catch(function(err){
         // No connection: the last page drawn, with what is on this device
         // at full brightness and the rest faded.
-        var last = (err && err.name === "TypeError" || isOffline()) ? rememberedFeed() : null;
+        var last = ((err && err.network) || isOffline()) ? rememberedFeed() : null;
         if(last && last.sections){
           setOffline(true);
           myfamTasteSource = last.taste_source || "taste";
@@ -9706,12 +9745,26 @@
   // is exactly what stops a script walking off with someone's identity.
   var AUTH = { user_id: "", email: "", authenticated: false };
 
+  //: Whether the last `/api/auth/me` never reached the server, and whether
+  //: this device was signed in the last time it did (§161's offline open).
+  var authUnreachable = false;
+  function rememberSignedIn(on){
+    try { if(on) localStorage.setItem("famSignedIn", "1"); else localStorage.removeItem("famSignedIn"); }
+    catch(e){}
+  }
+  function wasSignedIn(){
+    try { return localStorage.getItem("famSignedIn") === "1"; } catch(e){ return false; }
+  }
+
   function refreshAuth(){
     return fetch("/api/auth/me")
+      .catch(function(e){ authUnreachable = true; throw e; })
       .then(function(r){ return r.json(); })
       .then(function(d){
         var was = AUTH.authenticated;
         AUTH = d;
+        authUnreachable = false;
+        rememberSignedIn(!!d.authenticated);
         // The Profile tab is decided entirely by this answer, so it is the
         // one screen that has to be redrawn when the answer changes under
         // it. Without this a cold open that lands on Profile before
@@ -10551,6 +10604,14 @@
     storyAt.item = next;
     showStory();
   }
+
+  // A story does not run on while the app is out of sight: hidden, it
+  // stops where it was, and it starts that story again when it is back.
+  document.addEventListener("visibilitychange", function(){
+    var open = !document.getElementById("storyOverlay").hidden;
+    if(!open) return;
+    if(document.hidden) clearTimeout(storyTimer); else showStory();
+  });
 
   function closeStory(){
     clearTimeout(storyTimer);
@@ -12841,7 +12902,10 @@
       { group: "Delete \u201c" + escapeHtml(folderName(kind, id)) + "\u201d? Its episodes stay, outside any folder." },
       { label: "Delete folder", danger: true, action: function(){
           fetch("/api/saved/folders/" + encodeURIComponent(id), { method: "DELETE" })
-            .then(function(){ shelfPick[kind] = ""; toast("Folder deleted"); reloadShelf(kind); })
+            .then(function(r){
+              if(!r.ok) throw new Error();
+              shelfPick[kind] = ""; toast("Folder deleted"); reloadShelf(kind);
+            })
             .catch(function(){ toast("Could not delete that folder"); });
         } }
     ]);
@@ -14971,6 +15035,14 @@
   // flash - a guess drawn confidently and corrected a moment later.
   function bootToFirstScreen(){
     hideSplash();
+    // No connection, on a device that was signed in: straight to myFAM,
+    // offline, where the last page and the episodes kept here are - not to
+    // a sign-up screen that cannot reach the server either.
+    if(!AUTH.authenticated && authUnreachable && wasSignedIn()){
+      setOffline(true);
+      openMyFamTab();
+      return;
+    }
     if(!AUTH.authenticated){
       // Not "the first run", which is a different thing and runs after
       // signing up. This is the front door, and somebody who has been here
