@@ -213,7 +213,7 @@ def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
     assert th.store().get("college football").status == th.STATUS_APPROVED
     assert len(paint.calls) == 2
 
-    paint = _painter([th.GenerationError("Imagen answered 403: disabled")] * 3)
+    paint = _painter([th.StopRun("Imagen answered 403: disabled")] * 3)
     result = _run(only=["golf", "tennis"], writer=_writer(), painter=paint,
                   checker=_checker([]))
     # A key problem is about the deployment, not the picture: the run stops
@@ -221,6 +221,17 @@ def test_a_filtered_result_is_retried_and_a_key_problem_is_not(tree):
     assert "403" in result["stopped"]
     assert len(paint.calls) == 1
     assert th.store().get("golf") is None and th.store().get("tennis") is None
+
+
+def test_a_refused_prompt_fails_its_node_and_the_run_goes_on(tree):
+    # A 400 is about one prompt. Stopping the run on it would leave that node
+    # first in the queue forever and nothing after it would ever be painted.
+    paint = _painter([th.GenerationError("Imagen answered 400: blocked")])
+    result = _run(only=["golf", "tennis"], writer=_writer(), painter=paint,
+                  checker=_checker([]))
+    assert th.store().get("golf").status == th.STATUS_FAILED
+    assert th.store().get("tennis").status == th.STATUS_APPROVED
+    assert "stopped" not in result
 
 
 def test_a_scene_naming_a_flagged_subject_is_never_painted(tree):
@@ -402,3 +413,94 @@ def test_a_failed_repaint_keeps_the_live_picture(tree):
     assert th.pick("golf", ())["url"] == url
     assert "kept the live picture" in row.reason
     assert row.attempts == live.attempts + 3
+
+
+def test_a_held_repaint_waits_beside_the_live_picture(tree):
+    _run(only=["formula one"], writer=_writer(), painter=_painter([]),
+         checker=_checker([]))
+    th.store().set_status("formula one", th.STATUS_APPROVED)
+    url = th.pick("formula one season", ())["url"]
+    result = _run(only=["formula one"], regenerate=True,
+                  writer=_writer(flagged={"formula one"}),
+                  painter=_painter([th.Painting(_png((10, 200, 10)), "image/png")]),
+                  checker=_checker([]))
+    assert result["review"] == 1
+    row = th.store().get("formula one")
+    assert row.status == th.STATUS_APPROVED and row.pending
+    # Tiles keep the live picture, at the same URL, while the new one waits.
+    assert th.pick("formula one season", ())["url"] == url
+    assert th.store().image("formula one", pending=True) is not None
+    assert th.store().report()["counts"]["pending"] == 1
+
+
+def test_approving_a_held_repaint_puts_it_live(tree):
+    test_a_held_repaint_waits_beside_the_live_picture(tree)
+    before = th.store().image("formula one")[0]
+    pending = th.store().image("formula one", pending=True)[0]
+    assert th.store().promote_pending("formula one")
+    assert th.store().image("formula one")[0] == pending != before
+    assert not th.store().get("formula one").pending
+
+
+def test_rejecting_a_held_repaint_keeps_the_live_one(tree):
+    test_a_held_repaint_waits_beside_the_live_picture(tree)
+    before = th.store().image("formula one")[0]
+    assert th.store().drop_pending("formula one")
+    row = th.store().get("formula one")
+    assert row.status == th.STATUS_APPROVED and not row.pending
+    assert th.store().image("formula one")[0] == before
+
+
+def test_a_failed_repaint_is_counted_as_failed(tree):
+    _run(only=["golf"], writer=_writer(), painter=_painter([]),
+         checker=_checker([]))
+    result = _run(only=["golf"], regenerate=True, writer=_writer(),
+                  painter=_painter([]),
+                  checker=_checker([dict(CLEAN, logo=True)] * 3))
+    assert result["failed"] == 1 and result["approved"] == 0
+
+
+def test_a_picture_written_by_another_process_reaches_tiles(tree, monkeypatch):
+    held = th.store()
+    assert th.pick("golf", ()) is None
+    # A second connection - `tools/thumbnails.py` in another process.
+    other = th.ThumbnailStore(held.path)
+    other.put(th.Thumb("golf", th.STATUS_APPROVED, facet="sports",
+                       mime="image/png"), b"x")
+    monkeypatch.setattr(th, "REFRESH_SECONDS", 0.0)
+    assert th.pick("golf", ())["node"] == "golf"
+    other.set_status("golf", th.STATUS_REJECTED)
+    assert th.pick("golf", ()) is None
+
+
+def test_the_ceiling_is_checked_per_image_not_per_node(tree, monkeypatch):
+    _set(monkeypatch, thumbnails_daily_images=2, thumbnails_attempts=3)
+    dirty = dict(CLEAN, logo=True)
+    result = _run(only=["golf"], writer=_writer(), painter=_painter([]),
+                  checker=_checker([dirty] * 3))
+    assert th.store().images_since(0) == 2
+    assert result.get("capped")
+    # Stopped by the ceiling, not failed: the node is tried again tomorrow.
+    assert th.store().get("golf") is None
+
+
+def test_the_admin_run_says_when_there_is_nothing_to_paint(tree, client,
+                                                           monkeypatch):
+    monkeypatch.setattr(th, "configured", lambda: (True, ""))
+    r = client.post("/api/admin/thumbnails/run",
+                    json={"limit": 1, "nodes": ["not a node"],
+                          "regenerate": True},
+                    headers={"X-Admin-Token": "secret"})
+    assert r.status_code == 409 and "no longer in the category tree" in r.json()["error"]
+
+
+def test_the_admin_decides_on_a_held_repaint(tree, client):
+    test_a_held_repaint_waits_beside_the_live_picture(tree)
+    headers = {"X-Admin-Token": "secret"}
+    assert client.get("/api/admin/thumbnails/formula%20one/image?pending=1",
+                      headers=headers).status_code == 200
+    r = client.post("/api/admin/thumbnails/decide",
+                    json={"node": "formula one", "action": "reject"},
+                    headers=headers)
+    assert r.json()["kept_live"] is True
+    assert client.get("/api/thumb/formula%20one").status_code == 200

@@ -130,7 +130,7 @@ def cmd_status(args) -> int:
           f"{health.get('images_generated', 0)} images; "
           f"{health.get('images_last_24h', 0)} in the last 24h")
     for r in rows:
-        if r["status"] in (th.STATUS_REVIEW, th.STATUS_FAILED):
+        if r["status"] in (th.STATUS_REVIEW, th.STATUS_FAILED) or r["pending"]:
             print(f"  {r['status']:8} {r['node']}  - {r['reason']}")
     return 0
 
@@ -139,6 +139,16 @@ def cmd_decide(args, status: str) -> int:
     if not th._exists() or th.store().get(args.node) is None:
         print(f"No picture for {args.node!r}.", file=sys.stderr)
         return 1
+    row = th.store().get(args.node)
+    if row.pending:
+        # A repaint held beside a live picture.
+        if status == th.STATUS_APPROVED:
+            th.store().promote_pending(args.node)
+            print(f"{args.node}: the new picture is live")
+        else:
+            th.store().drop_pending(args.node)
+            print(f"{args.node}: new picture dropped; the live one stays")
+        return 0
     if status == th.STATUS_APPROVED and th.store().image(
             args.node, any_status=True) is None:
         print(f"{args.node!r} has no picture to approve; repaint it.",

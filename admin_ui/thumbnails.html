@@ -132,7 +132,8 @@
     var h = data.health || {}, c = h.counts || {}, est = data.estimate || {};
     $("kpis").innerHTML =
       kpi("Live", c.approved || 0) +
-      kpi("Waiting for you", c.review || 0) +
+      kpi("Waiting for you", (c.review || 0) + (c.pending || 0),
+          c.pending ? c.pending + " repaint" + (c.pending === 1 ? "" : "s") + " of live pictures" : "") +
       kpi("Failed", c.failed || 0, "after " + "every attempt") +
       kpi("No picture yet", data.missing || 0, est.total_usd != null ? "~$" + est.total_usd + " to paint" : "") +
       kpi("Spent", "$" + (h.spend_usd || 0), (h.images_generated || 0) + " images, priced") +
@@ -142,12 +143,15 @@
     if (why) { $("runNote").textContent = "Cannot paint: " + why + "."; $("runNote").className = "note err"; }
 
     $("tabs").innerHTML = TABS.map(function (t) {
-      var n = t[0] ? (c[t[0]] || 0) : (data.thumbnails || []).length;
+      var n = !t[0] ? (data.thumbnails || []).length
+        : (c[t[0]] || 0) + (t[0] === "review" ? (c.pending || 0) : 0);
       return '<button class="ghost' + (t[0] === tab ? " on" : "") + '" data-tab="' + t[0] + '">'
         + esc(t[1]) + " · " + n + '</button>';
     }).join("");
 
-    var rows = (data.thumbnails || []).filter(function (t) { return !tab || t.status === tab; });
+    var rows = (data.thumbnails || []).filter(function (t) {
+      return !tab || t.status === tab || (tab === "review" && t.pending);
+    });
     if (!rows.length) {
       $("grid").innerHTML = '<p class="note">Nothing here.</p>';
       return;
@@ -159,12 +163,17 @@
       });
       if (t.flagged) chips.push('<span class="chip flag">names a real thing</span>');
       chips.push('<span class="chip">' + t.attempts + ' tries · $' + t.cost_usd + '</span>');
-      var pic = t.bytes
-        ? '<img alt="" loading="lazy" src="/api/admin/thumbnails/' + encodeURIComponent(t.node) + '/image?v=' + Math.round(t.updated_at) + '">'
+      // A repaint held beside a live picture shows the new one; Approve puts
+      // it live and Reject drops it, leaving the live one on tiles.
+      var src = "/api/admin/thumbnails/" + encodeURIComponent(t.node) + "/image?v="
+        + Math.round(t.updated_at) + (t.pending ? "&pending=1&t=" + Date.now() : "");
+      var pic = (t.bytes || t.pending)
+        ? '<img alt="" loading="lazy" src="' + src + '">'
         : '<div class="none">No picture</div>';
+      if (t.pending) chips.unshift('<span class="chip flag">new picture · live one kept</span>');
       var acts = [];
-      if (t.bytes && t.status !== "approved") acts.push('<button class="go" data-act="approve" data-node="' + esc(t.node) + '">Approve</button>');
-      if (t.status !== "rejected") acts.push('<button class="ghost" data-act="reject" data-node="' + esc(t.node) + '">Reject</button>');
+      if (t.pending || (t.bytes && t.status !== "approved")) acts.push('<button class="go" data-act="approve" data-node="' + esc(t.node) + '">Approve</button>');
+      if (t.pending || t.status !== "rejected") acts.push('<button class="ghost" data-act="reject" data-node="' + esc(t.node) + '">Reject</button>');
       acts.push('<button class="ghost" data-act="repaint" data-node="' + esc(t.node) + '">Repaint</button>');
       return '<div class="card"><div class="pic">' + pic
         + (t.facet ? '<span class="facet">' + esc(t.facet) + '</span>' : '') + '</div>'

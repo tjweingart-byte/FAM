@@ -12597,3 +12597,22 @@ an error) is retried. Spend is recorded per image requested.
 **Not verified.** No Gemini key here, so no picture has been painted or seen.
 The request follows Google's published `:predict` shape, and every branch of
 the loop is tested with fakes (`tests/test_thumbnails.py`).
+
+**Found in review before merging, and fixed.** Three things the first commit
+got wrong. (1) A Repaint of a live picture replaced it outright: a repaint
+that failed stored no image, and one that needed approval stored the new
+picture as the row's only picture - either way tiles fell back to the parent
+until somebody acted, and a rejected repaint lost the old picture for good.
+A repaint now either goes live, waits *beside* the live picture
+(`pending_image`, approved or dropped from `/admin/thumbnails`), or only
+counts its attempts. (2) The approved map was reloaded only by the process
+that wrote, so pictures painted or approved from `tools/thumbnails.py` - the
+documented way to seed the tree - never reached a running server until it
+restarted; reads now check `PRAGMA data_version` at most every 30 seconds.
+(3) Any non-filtered Imagen error stopped the run without recording the
+node, so one prompt Imagen refused with a 400 sat first in a deterministic
+queue and stopped every run after it. A 400 now fails its own node; only a
+key, billing, quota or outage stops a run. Smaller: the daily ceiling is
+checked per image rather than per node, image resizing runs off the event
+loop, and the admin Paint button says when there is nothing to paint instead
+of reporting a run that never happens.

@@ -5965,13 +5965,15 @@ async def admin_thumbnails(request: Request, status: str = "") -> dict:
 
 
 @app.get("/api/admin/thumbnails/{node_id:path}/image", include_in_schema=False)
-async def admin_thumbnail_image(node_id: str, request: Request) -> Response:
-    """Any picture, whatever its status, for the review page."""
+async def admin_thumbnail_image(node_id: str, request: Request,
+                                pending: bool = False) -> Response:
+    """Any picture, whatever its status, for the review page - or, with
+    `?pending=1`, a repaint held beside the live one."""
     _require_admin(request)
     if not thumbnails_mod._exists():
         raise HTTPException(status_code=404, detail="Not found")
     found = await asyncio.to_thread(thumbnails_mod.store().image, node_id,
-                                    any_status=True)
+                                    any_status=True, pending=pending)
     if not found:
         raise HTTPException(status_code=404, detail="Not found")
     return Response(content=found[0], media_type=found[1],
@@ -5994,6 +5996,14 @@ async def admin_thumbnail_decide(req: ThumbnailDecision, request: Request) -> di
     row = held.get(req.node)
     if row is None:
         raise HTTPException(status_code=404, detail="No picture for that node")
+    if row.pending:
+        # A repaint held beside a live picture: approving puts it live,
+        # rejecting drops it and the live one stays exactly as it was.
+        if req.action == "approve":
+            held.promote_pending(req.node)
+            return {"node": req.node, "status": thumbnails_mod.STATUS_APPROVED}
+        held.drop_pending(req.node)
+        return {"node": req.node, "status": row.status, "kept_live": True}
     if req.action == "approve" and held.image(req.node, any_status=True) is None:
         raise HTTPException(status_code=409,
                             detail="That node has no picture to approve; paint it again.")
@@ -6019,6 +6029,23 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
     ok, why = thumbnails_mod.configured()
     if not ok:
         raise HTTPException(status_code=409, detail=f"Cannot paint: {why}.")
+    held = thumbnails_mod.store()
+    todo = thumbnails_mod.wanted(topics_mod.category_tree(), held,
+                                 regenerate=req.regenerate,
+                                 retry_failed=req.retry_failed,
+                                 only=req.nodes)
+    if not todo:
+        # Said rather than "started": a Repaint of a node the tree has since
+        # pruned, or a Paint with nothing left, would otherwise report work
+        # that never happens.
+        raise HTTPException(status_code=409, detail=(
+            "Nothing to paint: that node is no longer in the category tree."
+            if req.nodes else "Nothing to paint: every node has a picture."))
+    room = thumbnails_mod.daily_room(held)
+    if room <= 0:
+        raise HTTPException(status_code=409, detail=(
+            "Today's image ceiling (THUMBNAILS_DAILY_IMAGES) is used up; "
+            "try again tomorrow or raise it."))
 
     async def _run() -> None:
         result = await thumbnails_mod.backfill(
@@ -6028,8 +6055,8 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
                  {k: v for k, v in result.items() if k != "nodes"})
 
     _BACKGROUND.add(asyncio.create_task(_run()))
-    return {"started": True, "limit": req.limit,
-            "room_today": thumbnails_mod.daily_room(thumbnails_mod.store())}
+    return {"started": True, "limit": req.limit, "wanted": len(todo),
+            "room_today": room}
 
 
 @app.exception_handler(HTTPException)

@@ -28,6 +28,10 @@ a live picture. A node still waiting for review falls back to its parent, and
 so on up to the facet; with no picture anywhere the tile draws the old line
 icon, exactly as before.
 
+A running server picks up pictures painted or approved from
+`tools/thumbnails.py` against the same database within 30 seconds; no
+restart is needed.
+
 Pictures are painted **only** in the background (after the two-hourly category
 sweep, when `THUMBNAILS=1`), from `/admin/thumbnails`, or from
 `tools/thumbnails.py`. Nothing on a browse page can paint anything.
@@ -73,7 +77,9 @@ These are list prices, not bills. Spend is recorded per image in
    `python tools/thumbnails.py run --limit 200 --ignore-daily-cap`.
 8. **Review what is held.** The "Waiting for you" tab: Approve or Reject each
    picture of a real named thing. Reject also takes a live picture off tiles
-   at once.
+   at once. **Repaint never takes a live picture away on its own**: a repaint
+   that needs approval waits beside the live one (tiles keep the old picture
+   until you approve the new), and a repaint that fails keeps the old one.
 9. **Turn on painting for new branches.** Set `THUMBNAILS=1`. Every sweep
    then paints up to `THUMBNAILS_PER_SWEEP` new nodes inside the daily
    ceiling, and they appear on tiles as they are approved.
