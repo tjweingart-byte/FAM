@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM Tile Pictures</title>
+<style>
+  /* The tracker's palette, so the two admin pages read as one tool. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --amber-dk:#8A6A22; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); }
+  button, input { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:1200px; margin:0 auto; padding:22px 16px 60px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .kpi { background:var(--panel); padding:12px 14px; }
+  .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .kpi b { display:block; font-family:var(--serif); font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:14px; }
+  .bar input[type=number] { width:80px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+  .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
+  .go:disabled { opacity:.5; cursor:default; }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .ghost.on { color:var(--ink); border-color:var(--amber); }
+  .note { font-size:12.5px; color:var(--muted); }
+  .note.err { color:var(--rose); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+  .pic { aspect-ratio:4/3; background:#EDE6D6; position:relative; }
+  .pic img { width:100%; height:100%; object-fit:cover; display:block; }
+  .pic .none { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#5a5347; font:12px var(--mono); padding:12px; text-align:center; }
+  .pic .facet { position:absolute; left:9px; bottom:8px; background:rgba(237,230,214,.92); color:#2A2530; padding:3px 6px 2px; border-radius:4px; font:9px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+  .body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .node { font-family:var(--serif); font-size:16px; font-weight:600; }
+  .scene { font-size:12px; color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .chip { font:10px var(--mono); border-radius:999px; padding:2px 7px; background:var(--surface); color:var(--muted); }
+  .chip.bad { background:var(--rose-bg); color:var(--rose); }
+  .chip.ok { background:var(--green-bg); color:var(--green); }
+  .chip.flag { color:var(--amber); }
+  .reason { font-size:12px; color:var(--rose); }
+  .acts { display:flex; gap:6px; margin-top:auto; padding-top:4px; }
+  .acts button { flex:1; }
+  .gate { max-width:360px; margin:12vh auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .gate form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate" hidden>
+  <div class="eyebrow">FAM admin</div>
+  <h1>Tile pictures</h1>
+  <p class="sub">Sign in with an admin account.</p>
+  <form id="loginForm" autocomplete="on">
+    <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="go" id="loginBtn" type="submit">Sign in</button>
+    <p class="note err" id="loginErr" hidden></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="eyebrow"><a href="/admin" style="color:inherit">FAM admin</a> · tile pictures</div>
+  <h1>Tile pictures</h1>
+  <p class="sub">One picture per branch of the category tree. Imagen 4 paints it with people switched
+    off; Claude writes the scene without names and checks the result for logos, text, people and real
+    products. Pictures of real named things wait here for you.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="bar">
+    <span class="note">Paint the next</span>
+    <input type="number" id="limit" value="10" min="1" max="500" aria-label="How many nodes to paint">
+    <span class="note">nodes</span>
+    <label class="note"><input type="checkbox" id="retry"> retry failed</label>
+    <button class="go" id="runBtn">Paint</button>
+    <span class="note" id="runNote"></span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var TABS = [["review", "Waiting for you"], ["approved", "Live"], ["failed", "Failed"],
+              ["rejected", "Rejected"], ["", "All"]];
+  var tab = "review", data = null, timer = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function kpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
+      + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
+  }
+
+  function render() {
+    var h = data.health || {}, c = h.counts || {}, est = data.estimate || {};
+    $("kpis").innerHTML =
+      kpi("Live", c.approved || 0) +
+      kpi("Waiting for you", (c.review || 0) + (c.pending || 0),
+          c.pending ? c.pending + " repaint" + (c.pending === 1 ? "" : "s") + " of live pictures" : "") +
+      kpi("Failed", c.failed || 0, "after " + "every attempt") +
+      kpi("No picture yet", data.missing || 0, est.total_usd != null ? "~$" + est.total_usd + " to paint" : "") +
+      kpi("Spent", "$" + (h.spend_usd || 0), (h.images_generated || 0) + " images, priced") +
+      kpi("Today", (h.images_last_24h || 0), "images in the last 24h");
+    var why = h.configured ? "" : (h.reason || "not configured");
+    $("runBtn").disabled = !h.configured;
+    if (why) { $("runNote").textContent = "Cannot paint: " + why + "."; $("runNote").className = "note err"; }
+
+    $("tabs").innerHTML = TABS.map(function (t) {
+      var n = !t[0] ? (data.thumbnails || []).length
+        : (c[t[0]] || 0) + (t[0] === "review" ? (c.pending || 0) : 0);
+      return '<button class="ghost' + (t[0] === tab ? " on" : "") + '" data-tab="' + t[0] + '">'
+        + esc(t[1]) + " · " + n + '</button>';
+    }).join("");
+
+    var rows = (data.thumbnails || []).filter(function (t) {
+      return !tab || t.status === tab || (tab === "review" && t.pending);
+    });
+    if (!rows.length) {
+      $("grid").innerHTML = '<p class="note">Nothing here.</p>';
+      return;
+    }
+    $("grid").innerHTML = rows.map(function (t) {
+      var ck = t.check || {}, chips = [];
+      ["logo", "text", "person", "identifiable_product"].forEach(function (k) {
+        if (k in ck) chips.push('<span class="chip ' + (ck[k] ? "bad" : "ok") + '">' + (ck[k] ? "" : "no ") + k.replace("_", " ") + '</span>');
+      });
+      if (t.flagged) chips.push('<span class="chip flag">names a real thing</span>');
+      chips.push('<span class="chip">' + t.attempts + ' tries · $' + t.cost_usd + '</span>');
+      // A repaint held beside a live picture shows the new one; Approve puts
+      // it live and Reject drops it, leaving the live one on tiles.
+      var src = "/api/admin/thumbnails/" + encodeURIComponent(t.node) + "/image?v="
+        + Math.round(t.updated_at) + (t.pending ? "&pending=1&t=" + Date.now() : "");
+      var pic = (t.bytes || t.pending)
+        ? '<img alt="" loading="lazy" src="' + src + '">'
+        : '<div class="none">No picture</div>';
+      if (t.pending) chips.unshift('<span class="chip flag">new picture · live one kept</span>');
+      var acts = [];
+      if (t.pending || (t.bytes && t.status !== "approved")) acts.push('<button class="go" data-act="approve" data-node="' + esc(t.node) + '">Approve</button>');
+      if (t.pending || t.status !== "rejected") acts.push('<button class="ghost" data-act="reject" data-node="' + esc(t.node) + '">Reject</button>');
+      acts.push('<button class="ghost" data-act="repaint" data-node="' + esc(t.node) + '">Repaint</button>');
+      return '<div class="card"><div class="pic">' + pic
+        + (t.facet ? '<span class="facet">' + esc(t.facet) + '</span>' : '') + '</div>'
+        + '<div class="body"><div class="node">' + esc(t.node) + '</div>'
+        + '<div class="scene">' + esc(t.scene) + '</div>'
+        + '<div class="chips">' + chips.join("") + '</div>'
+        + (t.reason ? '<div class="reason">' + esc(t.reason) + '</div>' : '')
+        + '<div class="acts">' + acts.join("") + '</div></div></div>';
+    }).join("");
+  }
+
+  function load() {
+    return api("/api/admin/thumbnails").then(function (d) {
+      data = d;
+      $("gate").hidden = true; $("app").hidden = false;
+      render();
+    }).catch(function (e) {
+      if (e.status === 404 || e.status === 401) { $("app").hidden = true; $("gate").hidden = false; }
+    });
+  }
+
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    if (b.dataset.tab != null) { tab = b.dataset.tab; render(); return; }
+    var node = b.dataset.node, act = b.dataset.act;
+    if (!node) return;
+    b.disabled = true;
+    var done = act === "repaint"
+      ? api("/api/admin/thumbnails/run", { limit: 1, nodes: [node], regenerate: true })
+      : api("/api/admin/thumbnails/decide", { node: node, action: act });
+    done.then(load).catch(function (e) { alert(e.message); b.disabled = false; });
+  });
+
+  $("runBtn").addEventListener("click", function () {
+    var limit = Math.max(1, Math.min(500, parseInt($("limit").value, 10) || 10));
+    $("runBtn").disabled = true;
+    api("/api/admin/thumbnails/run", { limit: limit, retry_failed: $("retry").checked })
+      .then(function (r) {
+        $("runNote").className = "note";
+        $("runNote").textContent = "Painting in the background (" + r.room_today
+          + " images left under today's ceiling). This page refreshes as they arrive.";
+      })
+      .catch(function (e) { $("runNote").className = "note err"; $("runNote").textContent = e.message; })
+      .then(function () { $("runBtn").disabled = false; });
+  });
+
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
+      .then(load)
+      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+
+  load();
+  timer = setInterval(function () { if (!document.hidden && data) load(); }, 10000);
+})();
+</script>
+</body>
+</html>

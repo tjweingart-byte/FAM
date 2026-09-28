@@ -30,6 +30,14 @@ services:
       # is an admin by account and /admin 404s unless FAM_ADMIN_TOKEN is set.
       - key: FAM_ADMIN_ACCOUNTS
         sync: false
+      # Tile pictures (THUMBNAILS.md, §160): the Google AI Studio key Imagen 4
+      # is billed on. Unset, nothing is painted and every tile draws its old
+      # icon; /api/health says which. THUMBNAILS=1 then paints new branches of
+      # the category tree in the background, inside a daily ceiling.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: THUMBNAILS
+        value: "0"
       - key: MODEL
         value: claude-sonnet-5
       # --- The voice ----------------------------------------------------
