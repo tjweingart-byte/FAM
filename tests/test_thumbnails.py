@@ -386,3 +386,19 @@ def test_health_reports_pictures_without_creating_a_store(client):
     assert body["thumbnails"]["counts"]["approved"] == 0
     assert body["thumbnails"]["generation"] is False
     assert not os.path.exists(os.environ["THUMBNAILS_DB"])
+
+
+def test_a_failed_repaint_keeps_the_live_picture(tree):
+    _run(only=["golf"], writer=_writer(), painter=_painter([]),
+         checker=_checker([]))
+    live = th.store().get("golf")
+    url = th.pick("golf", ())["url"]
+    dirty = dict(CLEAN, logo=True)
+    _run(only=["golf"], regenerate=True, writer=_writer(),
+         painter=_painter([]), checker=_checker([dirty] * 3))
+    row = th.store().get("golf")
+    assert row.status == th.STATUS_APPROVED
+    assert th.store().image("golf") is not None
+    assert th.pick("golf", ())["url"] == url
+    assert "kept the live picture" in row.reason
+    assert row.attempts == live.attempts + 3

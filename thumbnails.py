@@ -353,6 +353,15 @@ class ThumbnailStore:
         self.reload()
         return cur.rowcount > 0
 
+    def note_failed_repaint(self, node_id: str, attempts: int,
+                            cost_usd: float, reason: str) -> None:
+        """Count a repaint that produced nothing, and leave the picture, its
+        status and its version (so its URL) exactly as they were."""
+        self._conn().execute(
+            "UPDATE thumbnails SET attempts = attempts + ?,"
+            " cost_usd = cost_usd + ?, reason = ? WHERE node_id = ?",
+            (attempts, cost_usd, reason, node_id))
+
     def record_spend(self, node_id: str, images: int, cost_usd: float,
                      at: Optional[float] = None) -> None:
         self._conn().execute(
@@ -739,14 +748,10 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
     tries = 0
     last_reason = ""
     last_check: dict = {}
-    if names_leak(node_id, scene.scene, scene.flagged):
-        thumb = Thumb(node_id, STATUS_FAILED, facet=facet, scene=scene.scene,
-                      prompt=prompt, flagged=scene.flagged,
-                      reason="the scene named the subject; not painted",
-                      updated_at=time.time())
-        thumb_store.put(thumb, None)
-        return thumb
-    for _ in range(max(1, attempts)):
+    leaked = names_leak(node_id, scene.scene, scene.flagged)
+    if leaked:
+        last_reason = "the scene named the subject; not painted"
+    for _ in range(0 if leaked else max(1, attempts)):
         tries += 1
         image_cost = settings.thumbnails_image_price
         try:
@@ -799,10 +804,20 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
                       updated_at=time.time())
         thumb_store.put(thumb, stored)
         return thumb
+    reason = last_reason or "no clean picture"
+    previous = thumb_store.get(node_id)
+    if (previous is not None and previous.status == STATUS_APPROVED
+            and thumb_store.image(node_id) is not None):
+        # **A failed repaint keeps the picture that was live.** Repainting is
+        # asking for a better one; getting none must not take the one that
+        # was already on tiles away and drop them back to the parent's.
+        thumb_store.note_failed_repaint(node_id, tries, spent,
+                                        "repaint failed, kept the live "
+                                        "picture: " + reason)
+        return thumb_store.get(node_id)
     thumb = Thumb(node_id, STATUS_FAILED, facet=facet, scene=scene.scene,
                   prompt=prompt, check=last_check, attempts=tries,
-                  cost_usd=spent, flagged=scene.flagged,
-                  reason=last_reason or "no clean picture",
+                  cost_usd=spent, flagged=scene.flagged, reason=reason,
                   updated_at=time.time())
     thumb_store.put(thumb, None)
     return thumb
