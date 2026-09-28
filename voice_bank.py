@@ -75,8 +75,19 @@ SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 #: and it would be sent to a worker whole.
 MAX_REFERENCE_BYTES = 8 * 1024 * 1024
 
-#: The label the default voice has always had in the picker.
+#: What a listener sees for a reference recording, by its file's name. The
+#: default voice is `reference_3.wav`, and on screen it is a person - "Ian" -
+#: rather than the product's own name (the 27/09 packet). A recording not
+#: listed here is shown as `DEFAULT_LABEL`.
+REFERENCE_LABELS = {"reference_3": "Ian"}
+
+#: The label for a default recording `REFERENCE_LABELS` does not name.
 DEFAULT_LABEL = "FAM"
+
+
+def default_label() -> str:
+    """The default voice's name on screen: "Ian" for reference_3."""
+    return REFERENCE_LABELS.get(default_slug(), DEFAULT_LABEL)
 
 
 class VoiceBankError(ValueError):
@@ -304,7 +315,7 @@ def reset(store: Optional[VoiceBank] = None) -> None:
 # ---------------------------------------------------------------------------
 def catalogue() -> list[BankVoice]:
     """Every voice in the bank, the default first. Never raises."""
-    voices = [BankVoice(default_slug(), DEFAULT_LABEL, "The FAM voice",
+    voices = [BankVoice(default_slug(), default_label(), "The FAM voice",
                         default=True)]
     try:
         voices.extend(bank().voices())

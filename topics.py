@@ -1646,7 +1646,18 @@ UNSHELVED = ("might_like",)
 #: it is a statement about wanting more of this, made to nobody, and it is the
 #: one of the three that can be pressed before the episode has said anything.
 EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
-                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5}
+                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5,
+                "hide": -1.0}
+
+#: **Not interested** (the 27/09 packet): a tile the listener waved off, from
+#: its card on myFAM or from the player. Two things, like an impression's two
+#: halves but with the opposite licence, because this one is a statement the
+#: listener made. The tile itself is never offered on any rail again
+#: (`EventStore.hidden`, read in every feed builder), and its tags take a
+#: small negative weight in `taste` - smaller than a skip, since saying "not
+#: this one" about a single episode is weaker evidence about a whole subject
+#: than walking out of one halfway through.
+HIDE = "hide"
 
 #: The three above, as a set. Nothing in the ranker branches on it; it is here
 #: so a report can ask "how many endorsements does this listener give" without
@@ -2127,6 +2138,25 @@ class EventStore:
             return []
         return [(r[0] or "", r[1] or "", float(r[2])) for r in rows]
 
+    def hidden(self, user_id: str, limit: int = 5000) -> set[str]:
+        """Every tile id this listener has said "not interested" to.
+
+        Its own read, like `heard`, because it is a statement about their whole
+        history: a tile waved off in March must not come back in May just
+        because it scrolled out of the 400 events `taste` reads.
+        """
+        if not user_id:
+            return set()
+        try:
+            rows = self._conn().execute(
+                "SELECT topic_id FROM events WHERE user_id = ? AND kind = ?"
+                " AND topic_id != '' ORDER BY at DESC LIMIT ?",
+                (user_id, HIDE, limit)).fetchall()
+        except Exception:
+            log.exception("could not read hidden tiles")
+            return set()
+        return {r[0] for r in rows if r[0]}
+
     def listens_between(self, since: float, until: Optional[float] = None
                         ) -> list[tuple[str, str, str, float, str]]:
         """(user_id, topic_id, question, at, kind) for every play and
@@ -2329,9 +2359,11 @@ class EventStore:
         try:
             rows = self._conn().execute(
                 "SELECT user_id, text FROM events"
-                " WHERE kind != ? AND text != '' AND at >= ?"
+                " WHERE kind NOT IN (?, ?) AND text != '' AND at >= ?"
                 " ORDER BY at DESC LIMIT ?",
-                (IMPRESSION, float(since), int(limit)),
+                # Nor what somebody said "not interested" to: a subject
+                # waved off is not a subject to mint (§161).
+                (IMPRESSION, HIDE, float(since), int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read subject texts")
@@ -3804,6 +3836,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
+    # And every tile they said "not interested" to, on every rail, for good.
+    mine = set(mine) | store.hidden(user_id)
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
@@ -3854,6 +3888,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
     world_live, world_held = world_inventory(live, live_held, heard, now)
+    # Not interested reaches Trending too: a waved-off story is off every rail.
+    waved = store.hidden(user_id)
+    if waved:
+        world_live = [t for t in world_live if t.id not in waved]
+        world_held = [t for t in world_held if t.id not in waved]
     world_first = rank_world(world_live, country, world_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
@@ -4177,6 +4216,8 @@ def build_section(store: EventStore, user_id: str, key: str,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
+    # And every tile they said "not interested" to, on every rail, for good.
+    mine = set(mine) | store.hidden(user_id)
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -4220,6 +4261,10 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         world_live, world_held = world_inventory(live, live_held, heard, now)
+        waved = store.hidden(user_id)
+        if waved:
+            world_live = [t for t in world_live if t.id not in waved]
+            world_held = [t for t in world_held if t.id not in waved]
         groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
@@ -4925,7 +4970,7 @@ def _empty_reason(key: str, has_circle: bool = False) -> str:
     if key == "followers" and has_circle:
         # They follow people; nothing those people played or made is cached
         # at this length. Telling them to follow somebody would be wrong.
-        return "Nothing your friends have played is ready to replay yet."
+        return "Nothing from your friends yet. Check back soon."
     return {
         # Reachable now that this row has no filler behind it, and worded for
         # the only state it means: nobody has played anything in FAM's
@@ -4935,8 +4980,7 @@ def _empty_reason(key: str, has_circle: bool = False) -> str:
         # Cached episodes only since the owner's rule, so an empty row is
         # either nobody listening or nothing they listened to still being
         # ready to replay - and the sentence is true of both.
-        "most_played": "Nothing ready to replay has been played here yet. "
-                       "This fills up as people listen.",
+        "most_played": "Once people start listening, the most-played episodes show up here.",
         # Deliberately not "nothing is trending". An empty row here is a fact
         # about this deployment, never a claim about the world - the browse
         # surface's version of PROBLEMS.md §89. The live text comes from
@@ -4947,16 +4991,16 @@ def _empty_reason(key: str, has_circle: bool = False) -> str:
         # reason - they follow nobody - and a row that said "nobody has
         # listened yet" would be blaming the app for a state the listener can
         # fix in two taps.
-        "followers": "Follow some people and this fills up with what they play.",
-        "from_history": "Your first episode starts this one off.",
+        "followers": "Follow friends to hear what they\u2019re listening to.",
+        "from_history": "Play an episode and this fills with picks for you.",
         # Several nothings - nobody listened last week, this listener heard
         # all of it, or none of it is still cached - and the rail cannot tell
         # them apart from here, so the sentence claims none of them.
-        "missed": "Nothing went past you last week.",
+        "missed": "You\u2019re all caught up on last week.",
         # Never actually empty in practice - with no profile at all this falls
         # back to the whole bank - but a reason has to exist for the day the
         # bank is smaller than the sections that draw from it.
-        "might_like": "Listen to a few episodes and this fills in.",
+        "might_like": "Listen to a few episodes to fill this in.",
     }.get(key, "")
 
 
@@ -5041,7 +5085,8 @@ def rank_next_up(
     )
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
-    exclude = set(mine) | ({after_id} if after_id else set())
+    hidden = store.hidden(user_id)
+    exclude = set(mine) | hidden | ({after_id} if after_id else set())
 
     picks: list[Topic] = []
     taken = set(exclude)
@@ -5082,7 +5127,8 @@ def rank_next_up(
     # A grid of three is the honest shortfall; a fourth tile from an
     # inventory this listener is not shown is not.
     if len(picks) < size:
-        taken = {t.id for t in picks} | ({after_id} if after_id else set())
+        taken = ({t.id for t in picks} | hidden
+                 | ({after_id} if after_id else set()))
         add(inventory)
     return picks[:size]
 

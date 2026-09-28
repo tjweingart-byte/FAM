@@ -12617,7 +12617,201 @@ checked per image rather than per node, image resizing runs off the event
 loop, and the admin Paint button says when there is nothing to paint instead
 of reporting a run that never happens.
 
-## 161. "Sunday Night Football" is a name, and the demo is the phone
+## 161. The 27/09 packet: ten changes
+
+Ten items from the owner, in the packet's order.
+
+**1-2. The bank of voices, and "Ian".** The bank itself was built in §147;
+what was missing was a way to manage it without a terminal. `/admin` now has
+a **Voice bank** card that lists every voice, adds one (a WAV, a label, an
+id, and the three rights boxes the server already checks) and removes one.
+The default recording, `reference_3`, is shown as **Ian** everywhere a
+listener sees a voice name (`voice_bank.REFERENCE_LABELS`), because the
+voice is a person and "FAM" is the product. A default recording not named
+there still reads "FAM".
+
+**3. Not interested, and save, on a myFAM card.** Every card on a rail and
+on View more carries two buttons over its picture: save for later (the same
+`/api/saved` pointer the player saves) and **not interested**. The second is
+a new event kind, `hide`: the tile is never offered again on any rail, View
+more, or the post-episode popup (`EventStore.hidden`, read in `build_feed`,
+`build_section` and `rank_next_up`, and read over the listener's whole
+history rather than `taste`'s last 400 events), and its tags take a small
+negative weight (`EVENT_WEIGHT["hide"] = -1.0`, below a skip - "not this
+one" is weaker evidence about a subject than walking out halfway). The
+player shows **not for me** while a myFAM episode plays; a search is
+something the listener asked for, so it does not. A guest's hide is not
+kept (§127), so the page remembers it for as long as it is open.
+
+**4. Numbers and abbreviations as they are said.** The voice read "612
+yards" digit by digit, a 10:00 kickoff as "one, zero, zero, zero", a 62-41
+record and a 37-14 final the same way, and pronounced abbreviations as
+words. The prompt already asked for numbers as a person says them; a model
+mostly obeys that, and a rule a model mostly obeys is not a rule. Chatterbox
+has no text normaliser, so **the fix is in code, not in Claude**:
+`spoken_text.speakable` rewrites the text handed to the voice - scores ("to"),
+records ("and", or "ten, six and one"), times ("ten o'clock", "seven thirty
+P M"), years, decades, money, percentages, ordinals, every other number as a
+cardinal, dotted and all-capital initialisms as letters ("N F L") unless
+people say them as a word ("NASA"). It is applied at the pipeline's two
+`engine.synth` calls and nowhere else, so the script, the captions, the
+title and the cache keep their digits and no cache key changes. It never
+raises: on a surprise the voice gets the text as it was. The prompt line was
+tightened in the same breath, inside `test_the_prompt_stays_lean`'s bound.
+**Unheard** - no voice here - and audio already kept (§132) keeps the old
+reading until its episode is re-voiced.
+
+**5. /admin asks every time.** Loading `/admin` ends whatever admin session
+the browser brought and deletes its cookie, and the sign-in cookie has no
+max-age, so the page always opens on the email and password form. A page
+restored from the back/forward cache signs out and shows the form too.
+
+**6. Every automated description, read again.** The circled sentences were
+written to be true about the system - "it costs nothing, because the script
+already exists", "a standing list of topics the server keeps for you",
+"nothing ready to replay has been played here yet" - and read as engineering
+notes. About forty were rewritten to say one thing to a listener, shortly.
+Three were not only wordy but **wrong since §127**: "signing up keeps the
+listening you have already done" and its two cousins, when a guest's
+listening has not been recorded since then.
+
+**7. Sign-up.** The screen opened on Google and Apple buttons that the web
+app cannot complete (they are the iOS app's) and hid the one working form
+behind a third button; it required a phone number the server has always
+treated as optional; and it ended on two warnings that a forgotten password
+is a lost account. Now: the form is the screen, the phone is marked
+optional, the password has Show/Hide, errors appear under the fields instead
+of only in a toast, the button says what it is doing, Enter submits, and
+"Already have an account? Log in" / "New to FAM? Sign up" switch between the
+two without losing where the listener came from. The password-reset caveat
+is one calm line. The welcome and identity copy was rewritten with it.
+
+**8. VIBE is a story, for 24 hours.** A friend's face on YourFAM carried the
+VIBE badge for a week and opened their profile. The badge and the gold ring
+now mean a vibe in the last 24 hours (`CIRCLE_VIBE_WINDOW`), the circle row
+carries each friend's vibes of that day (`SocialStore.stories_among`), and
+tapping the face plays them as stories: progress bars, tap right for the
+next and left for the previous, six seconds each, on to the next friend's
+when one runs out, **Play episode** and **View profile** on each. A ring goes
+grey once watched (per device, in localStorage). A person's public profile
+lists only the last day's vibes; the count is still the total.
+
+**9. Titles that say what the episode is.** "Why Everyone Is Watching This"
+and "The Argument in Sport Right Now" are startup tiles (§116) - questions
+asked before anything is retrieved, so they cannot name a subject. Two
+changes: their fallback titles now describe what the episode covers ("This
+Week's Biggest Storylines in Sports"), and **once the episode has been
+written, the card takes the episode's own `<<TITLE:>>` and `<<SUMMARY:>>`**
+from the cache (`app._name_written_tiles`), so after the first tap anybody
+makes, everybody sees what it turned out to be about. Only startup tiles: a
+bank tile's title is its own (§104) and a live story's was composed from the
+story.
+
+**10. Offline listening.** Possible, and built for the web app, **reversing
+"downloads are removed" at the owner's direction** - in a different shape
+from the download that was removed. Nothing is pressed: an episode heard
+until its whole stream has arrived is kept on the device (`OfflineShelf`,
+IndexedDB, the raw PCM the player already holds - still no audio file,
+still no MP3), up to forty episodes or 250 MB, least recently played out
+first, and emptied on log-out and on account deletion. A service worker
+(`static/sw.js`) keeps the app shell - `/`, `fam-audio.js` - network first,
+so the app opens with no connection; it never touches `/api/`. Offline, myFAM
+draws the last page it had, the cards whose episode is on the device at full
+brightness and the rest faded, with a line saying so; a faded card says it is
+not on the device when tapped. A play whose request fails for want of a
+network and whose episode is on the device plays from the device. **The
+iOS app is where this matters most and it is not built there**; the same
+shape (keep the whole PCM of a finished stream, key it on question, length
+and context) is what it should do. Not tried on a real phone or with the
+network actually cut.
+
+## 162. Three follow-ups to §161: no "not for me", vibes kept, folders
+
+**The player's "not for me" is gone**, at the owner's direction. Not
+interested stays on the myFAM cards (card and View more), where it was asked
+for; on the player it was a fifth icon on a row designed for four, beside an
+episode somebody had chosen to play. The smoke check on the player's labels
+is back to exactly share, vibe, save and captions.
+
+**A vibe is on the profile for good.** §161 cut a public profile's vibes to
+the last 24 hours, which read the packet's "24 hours" too widely: the day is
+how long a vibe is a **story** - the VIBE badge and gold ring on a friend's
+face, and what tapping it plays - never how long it stays on anybody's
+profile. `/api/person` lists every vibe again. The listener's own vibes live
+on My Vibes, reachable from the YourFAM hub as before and now from Settings
+too (**My Vibes** and **Save for Later** under Listening).
+
+**Folders on both shelves.** A listener can make folders on Save for Later
+and on My Vibes, name and rename them, delete them, and choose the folder for
+each episode from a folder button on its row; chips along the top filter the
+shelf, and a chosen folder shows Rename and Delete folder. One folder system,
+two shelves: `folders.kind` (`saved` or `vibe`, a column added to the table
+§96's folders already lived in), so a vibe folder is never offered on the
+saved shelf or the other way round and the server refuses a cross-shelf move.
+A saved episode's folder is its row's `folder_id`, as it always was; a vibe's
+is `vibe_files`, keyed on the episode (question, length) beside the shelf,
+because the vibe itself is the public row in `social.py` and the folder is
+private tidying. Taking a vibe back takes it out of its folder; deleting a
+folder unfiles and never deletes; `forget` erases the filing with the rest.
+Nothing is pre-made: the preview fixture's "Commute" folder, the one §96
+removed the chips over, is gone, and a smoke check says no folder appears
+that the listener did not make.
+
+**Checked before merge, and what that found.** The whole branch was reviewed
+in two halves before it was readied for Main, and eleven things were wrong.
+All are fixed here with a test or a smoke assertion each:
+
+* **The number reader.** "In 2024 his team" was read as a count ("two
+  thousand twenty-four"), because a year followed by any word ending in "s"
+  counted as a quantity and "his", "was" and "results" all end in "s". It
+  also dropped "the 2010s" to "the twenty", split "7:30pm" and "3.5mm" at the
+  letters, read "World War II" as "World War I I", and turned "beat Arsenal
+  3-1 this season" into a record. The count test is now a list of nouns with
+  a preposition before the year ("in", "since", a month) always meaning a
+  year. Decades, attached am/pm and units, Roman numerals after a name
+  ("Super Bowl Sixty", "Henry the Eighth"), phone numbers, slashes and dates,
+  year ranges, negatives, "Q3", "49ers", "401(k)" and "AT&T" each have a rule
+  and a case in `tests/test_spoken_text.py`.
+* **Not interested missed Trending.** The hide reached every rail except the
+  one that is not ranked from the personal inventory, so a waved-off
+  Trending story came back on the next load. It is filtered before
+  `rank_world` and `trending_groups` now. A hide's words no longer feed the
+  vocabulary sweep either: a subject somebody waved off should not become a
+  node.
+* **Offline listening could keep the wrong audio, or a tone.** The "keep
+  it when it has all arrived" watcher only stopped when another `speakText`
+  ran, and Explore plays through `FamAudio` directly, so a reel finishing
+  after a search could be stored under the search's name. It is tied to the
+  stream id now and cleared by `stopSpeech`. And the page kept whatever
+  arrived, including a placeholder tone during an outage (§51, §132): the
+  server now says `X-FAM-Keepable` - production voice, real script, no
+  attachment - and nothing else is kept.
+* **Offline was misjudged both ways.** Any `TypeError` counted as no
+  connection, so a bug in drawing the feed was hidden behind the offline
+  page, and nothing cleared "offline" once the connection came back. Only a
+  request that never reached the server counts now (`err.network`), a
+  streamed episode clears it, and the page remembered for offline is saved
+  only after it has drawn.
+* **A signed-in listener opened offline got the sign-up screen**, because
+  `/api/auth/me` failing looked like being signed out. A device that was
+  signed in last time now opens on myFAM, offline.
+* **Log-out left the last listener's state in memory**: saved and hidden
+  cards, shelf folders, and which friends' stories they had watched. All of
+  it is cleared with the offline copies, on log-out and on deleting the
+  account.
+* Smaller: a card's save state is keyed on the question *and* the length, as
+  the server keys it; deleting a folder no longer says it worked when the
+  server refused; a missing audio row is "not on this device" rather than
+  silence; stories pause while the app is hidden; the sign-up error clears
+  when the email is edited.
+
+The trial merge with Main (the tile pictures, §160) conflicts in five files,
+three of them generated previews; the other two are the two card templates,
+where the picture (`seedThumbOpen`) and the card's buttons (`seedActsHtml`)
+simply sit together. With Main's new Pillow requirement installed the merged
+tree passes the whole check.
+
+## 163. "Sunday Night Football" is a name, and the demo is the phone
 
 **Reported.** `sunday night football recap` produced an episode about Bengals
 v Steelers - an afternoon kick-off - instead of that night's NBC game.

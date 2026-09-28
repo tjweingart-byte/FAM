@@ -41,6 +41,7 @@ window.FamAudio = (function () {
 
   var pcm = null;          // Int16Array, grown as the stream arrives
   var totalSamples = 0;    // how much of `pcm` is real audio
+  var keepable = false;    // the server said this audio may be kept (§161)
   var sampleRate = 22050;
   var cursor = 0;          // next sample to schedule
   var playHead = 0;        // ctx time at which `cursor` will be heard
@@ -393,8 +394,14 @@ window.FamAudio = (function () {
               // its voice and length, and only a search goes on Explore.
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "");
 
+    keepable = false;
     ctx.resume().then(function () {
-      return fetch(url, { signal: controller.signal });
+      // A request that never reached the server is marked, so the caller can
+      // tell "no connection" from a bug further down (§161's offline play).
+      return fetch(url, { signal: controller.signal }).catch(function (e) {
+        if (e && e.name !== "AbortError") e.network = true;
+        throw e;
+      });
     }).then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () {
@@ -413,6 +420,7 @@ window.FamAudio = (function () {
       }
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
       var cacheState = res.headers.get("X-FAM-Cache") || "";
+      keepable = res.headers.get("X-FAM-Keepable") === "1";
 
       var reader = res.body.getReader();
       var leftover = new Uint8Array(0);
@@ -488,6 +496,7 @@ window.FamAudio = (function () {
     timer = setInterval(tick, 80);
     resetStretch(0);
     sampleRate = Number(rate) || 22050;
+    keepable = false;       // already on the device; nothing to keep again
     pcm = samples;
     totalSamples = samples.length;
     streamDone = true;   // there is no more coming; it is all already here
@@ -611,5 +620,18 @@ window.FamAudio = (function () {
     isActive: function () { return active; },
     // True once the whole episode has been received.
     isComplete: function () { return streamDone; },
+    // The whole episode as received, once it has all arrived - what the
+    // offline shelf keeps on this device (27/09 packet). A copy, so the
+    // stored samples cannot change under the player or the other way round.
+    // Null until the stream is done: half an episode is never kept.
+    // Only when the server marked the stream keepable: a production voice,
+    // never a placeholder tone. `stream` says which play it was, so a caller
+    // watching one episode never keeps another's audio.
+    whole: function () {
+      if (!streamDone || !pcm || !totalSamples || !keepable) return null;
+      return { rate: sampleRate, samples: pcm.slice(0, totalSamples), stream: token };
+    },
+    // Which play is current; bumped by every play, playStored and stop.
+    stream: function () { return token; },
   };
 })();

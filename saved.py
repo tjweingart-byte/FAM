@@ -71,6 +71,16 @@ class SavedError(ValueError):
     """Something the listener can fix, phrased so it can be shown to them."""
 
 
+#: The two shelves a folder can belong to.
+FOLDER_KINDS = ("saved", "vibe")
+
+
+def folder_kind(kind: str) -> str:
+    """ "saved" or "vibe"; anything else is the saved shelf, which is what
+    every folder was before vibes had any."""
+    return kind if kind in FOLDER_KINDS else "saved"
+
+
 def clean_name(name: str) -> str:
     name = " ".join(str(name or "").split())[:MAX_NAME]
     if not name:
@@ -113,6 +123,28 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS folders_user"
                          " ON folders(user_id, created)")
+            # Which shelf a folder belongs to (after §161, at the owner's
+            # direction): "saved" or "vibe". One folder system, two shelves -
+            # a folder on My Vibes is not offered on Save for Later, because
+            # the two lists hold different things for different reasons.
+            try:
+                conn.execute("ALTER TABLE folders ADD COLUMN kind"
+                             " TEXT NOT NULL DEFAULT 'saved'")
+            except sqlite3.OperationalError:
+                pass  # already there
+            # Where each vibe is filed. A vibe itself lives in `social.py`'s
+            # echoes table, which is the public act; the folder is this
+            # listener's own tidying and is kept here beside the shelf's.
+            # Keyed on the episode (question, length), the vibe's identity.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS vibe_files (
+                       user_id   TEXT NOT NULL,
+                       query     TEXT NOT NULL,
+                       minutes   INTEGER NOT NULL,
+                       folder_id TEXT NOT NULL,
+                       PRIMARY KEY (user_id, query, minutes)
+                   )"""
+            )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS items (
                        id            TEXT PRIMARY KEY,
@@ -217,7 +249,7 @@ class SavedStore:
 
     # --- folders ----------------------------------------------------------
 
-    def folders(self, user_id: str) -> list[dict]:
+    def folders(self, user_id: str, kind: str = "saved") -> list[dict]:
         """The listener's folders, with a count each.
 
         There is no "All" row and no implicit default folder in the table: an
@@ -226,21 +258,27 @@ class SavedStore:
         use, which is a write on a read path and a row for people who never
         make a folder at all.
         """
+        kind = folder_kind(kind)
+        filed = ("SELECT folder_id FROM items WHERE user_id = ?" if kind == "saved"
+                 else "SELECT folder_id FROM vibe_files WHERE user_id = ?")
         try:
             rows = self._conn().execute(
-                "SELECT f.id, f.name, f.created, COUNT(i.id)"
-                " FROM folders f LEFT JOIN items i ON i.folder_id = f.id"
-                " WHERE f.user_id = ? GROUP BY f.id ORDER BY f.created",
-                (user_id,)).fetchall()
+                "SELECT f.id, f.name, f.created,"
+                f" (SELECT COUNT(*) FROM ({filed}) x WHERE x.folder_id = f.id)"
+                " FROM folders f WHERE f.user_id = ? AND f.kind = ?"
+                " ORDER BY f.created",
+                (user_id, user_id, kind)).fetchall()
         except Exception:
             log.exception("could not read folders")
             return []
         return [{"id": r[0], "name": r[1], "created": r[2], "items": int(r[3])}
                 for r in rows]
 
-    def create_folder(self, user_id: str, name: str, at: float = 0.0) -> dict:
+    def create_folder(self, user_id: str, name: str, at: float = 0.0,
+                      kind: str = "saved") -> dict:
         name = clean_name(name)
-        existing = self.folders(user_id)
+        kind = folder_kind(kind)
+        existing = self.folders(user_id, kind)
         if len(existing) >= MAX_FOLDERS:
             raise SavedError(f"That is the most folders one listener can have "
                              f"({MAX_FOLDERS}). Rename or remove one first.")
@@ -249,8 +287,9 @@ class SavedStore:
         folder_id = "fld_" + secrets.token_urlsafe(8)
         now = at or time.time()
         self._conn().execute(
-            "INSERT INTO folders (id, user_id, name, created) VALUES (?, ?, ?, ?)",
-            (folder_id, user_id, name, now))
+            "INSERT INTO folders (id, user_id, name, created, kind)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (folder_id, user_id, name, now, kind))
         return {"id": folder_id, "name": name, "created": now, "items": 0}
 
     def rename_folder(self, user_id: str, folder_id: str, name: str) -> dict:
@@ -270,6 +309,9 @@ class SavedStore:
         """
         moved = self._conn().execute(
             "UPDATE items SET folder_id = '' WHERE folder_id = ? AND user_id = ?",
+            (folder_id, user_id)).rowcount or 0
+        moved += self._conn().execute(
+            "DELETE FROM vibe_files WHERE folder_id = ? AND user_id = ?",
             (folder_id, user_id)).rowcount or 0
         self._conn().execute("DELETE FROM folders WHERE id = ? AND user_id = ?",
                              (folder_id, user_id))
@@ -309,12 +351,13 @@ class SavedStore:
             (item_id, user_id, folder_id, query, minutes, title, source[:40], now))
         return self.item(user_id, item_id)
 
-    def _checked_folder(self, user_id: str, folder_id: str) -> str:
+    def _checked_folder(self, user_id: str, folder_id: str,
+                        kind: str = "saved") -> str:
         if not folder_id:
             return ""
         row = self._conn().execute(
-            "SELECT 1 FROM folders WHERE id = ? AND user_id = ?",
-            (folder_id, user_id)).fetchone()
+            "SELECT 1 FROM folders WHERE id = ? AND user_id = ? AND kind = ?",
+            (folder_id, user_id, folder_kind(kind))).fetchone()
         if not row:
             raise SavedError("No such folder.")
         return folder_id
@@ -384,6 +427,39 @@ class SavedStore:
             "UPDATE items SET folder_id = ? WHERE id = ? AND user_id = ?",
             (folder_id, item_id, user_id))
         return self.item(user_id, item_id)
+
+    # --- filing vibes -----------------------------------------------------
+
+    def file_vibe(self, user_id: str, query: str, minutes: int,
+                  folder_id: str) -> str:
+        """Put one of this listener's vibes in a folder, or ("") take it out.
+
+        Returns the folder it is in now. The folder must be one of their
+        vibe folders; a saved-shelf folder is refused like a missing one.
+        """
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        minutes = max(0, int(minutes or 0))
+        folder_id = self._checked_folder(user_id, folder_id, "vibe")
+        if not folder_id:
+            self._conn().execute(
+                "DELETE FROM vibe_files WHERE user_id = ? AND query = ? AND minutes = ?",
+                (user_id, query, minutes))
+            return ""
+        self._conn().execute(
+            "INSERT OR REPLACE INTO vibe_files (user_id, query, minutes, folder_id)"
+            " VALUES (?, ?, ?, ?)", (user_id, query, minutes, folder_id))
+        return folder_id
+
+    def vibe_files(self, user_id: str) -> dict:
+        """(query, minutes) -> folder id, for every vibe this listener filed."""
+        try:
+            rows = self._conn().execute(
+                "SELECT query, minutes, folder_id FROM vibe_files WHERE user_id = ?",
+                (user_id,)).fetchall()
+        except Exception:
+            log.exception("could not read vibe folders")
+            return {}
+        return {(q, int(m)): f for q, m, f in rows}
 
     def played(self, user_id: str, item_id: str, at: float = 0.0) -> None:
         """Note that a saved episode was played, so the "what to clear" list
@@ -576,7 +652,8 @@ class SavedStore:
 
     def forget(self, user_id: str) -> int:
         removed = 0
-        for table in ("items", "folders", "progress", "history", "dismissed"):
+        for table in ("items", "folders", "progress", "history", "dismissed",
+                      "vibe_files"):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

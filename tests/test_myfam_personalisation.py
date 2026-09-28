@@ -422,7 +422,7 @@ def test_the_friends_rail_is_empty_rather_than_filled_with_strangers(store):
     feed = T.build_feed(store, "me", floors={})
     row = [s for s in feed["sections"] if s["key"] == "followers"][0]
     assert row["topics"] == []
-    assert "Follow some people" in row["empty_reason"]
+    assert "Follow friends" in row["empty_reason"]
 
 
 def test_the_friends_rail_holds_cached_episodes_only(store):
