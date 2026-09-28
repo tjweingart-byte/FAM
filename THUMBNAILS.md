@@ -17,6 +17,7 @@ category tree node        e.g. sports > american football > college football
    ├─ 2. Gemini 3.1 Flash Image paints it, shown the reference
    │     pictures in thumbnail_style/ as the look to match      (~$0.067/image)
    ├─ 3. Claude looks at the result: logo? text? a face? real product?
+   │     pale border? obsolete equipment?
    │     on-subject? Any failure → paint again (up to 3 times)  (~$0.004/check)
    └─ 4. Cropped to 480×360 WebP (~30 KB) and stored in thumbnails.db
          clean + generic subject      → live

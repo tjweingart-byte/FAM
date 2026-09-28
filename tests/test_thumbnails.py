@@ -747,3 +747,12 @@ def test_the_look_is_full_bleed_deeper_and_modern():
     for words in ("TODAY", "old radios", "obsolete"):
         assert words in th.WRITER_SYSTEM
     assert "today's equipment" in th.STYLE_REFERENCE_NOTE
+
+
+def test_the_review_page_shows_every_answer_that_fails_a_picture():
+    # The admin page lists the checker's answers by hand; one it leaves out
+    # is a reason a picture failed that nobody reviewing it can see.
+    page = open(os.path.join(os.path.dirname(th.__file__), "admin_ui",
+                             "thumbnails.html")).read()
+    for key in th._FAILS_ON:
+        assert f'"{key}"' in page, key

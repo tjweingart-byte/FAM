@@ -32,10 +32,11 @@ Three calls per attempt, and two of them are Claude:
    pictures** (`thumbnail_style/`, §166) with every request. Words describe
    a look loosely and pictures are matched closely, the same reason
    `examples/` is the strongest lever on the scripts.
-3. **Claude looks at the result** and answers four yes/no questions: a logo
+3. **Claude looks at the result** and answers six yes/no questions: a logo
    or emblem, readable text, a face or a real person, an identifiable real
-   product. Small anonymous figures are part of the house style since §166
-   and pass. Any yes and the picture is thrown away and painted again, up to
+   product, a pale border or faded edges, obsolete equipment (§167).
+   Small anonymous figures are part of the house style since §166 and
+   pass. Any yes and the picture is thrown away and painted again, up to
    `THUMBNAILS_ATTEMPTS` times. This is the only step that *catches* a logo
    rather than making one less likely.
 
@@ -988,7 +989,7 @@ async def imagen_painter(prompt: str) -> Painting:
 
 async def claude_checker(image: bytes, mime: str, subject: str
                          ) -> tuple[dict, float]:
-    """Claude's four yes/no answers about a picture, and what it cost."""
+    """Claude's yes/no answers about a picture, and what it cost."""
     import credentials
     from anthropic_client import build_async_client
     from config import settings
