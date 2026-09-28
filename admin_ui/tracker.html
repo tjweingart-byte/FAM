@@ -174,6 +174,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       </details>
     </section>
 
+    <section class="card section" id="sayCard">
+      <h2>How names are said</h2>
+      <p class="sub">The voice reads spelling and nothing else, so a name like Sagapolutele is respelled before it is spoken. Episode intelligence and the writer add names as they meet them; yours are never replaced by theirs. Only the voice hears these - captions and titles keep the real spelling.</p>
+      <form class="login" id="sayForm" style="margin-top:6px">
+        <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
+        <input id="saySay" placeholder="As said, e.g. sah-gah-poh-loo-TEH-leh" maxlength="120" required>
+        <button class="go" id="sayBtn" type="submit">Save</button>
+        <p class="sub err" id="sayErr" hidden></p>
+      </form>
+      <div id="sayList"></div>
+    </section>
+
     <section class="card section">
       <h2>Every store</h2>
       <p class="sub">Found by reading the code, so a store added later appears here on its own. Tap a table to see its newest 100 rows.</p>
@@ -410,6 +422,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }
       tick();
       loadVoices();
+      loadSay();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
     }).catch(function (e) {
       if (e.status === 404) {
@@ -493,6 +506,35 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }).then(function () { $("vBtn").disabled = false; });
     };
     reader.readAsDataURL(file);
+  });
+  // How names are said (§165): the voice's lexicon. Editing one here is an
+  // admin's respelling, which no model's replaces.
+  function loadSay() {
+    return api("/api/admin/pronunciations").then(function (v) {
+      var rows = v.pronunciations || [];
+      $("sayList").innerHTML = rows.length ? rows.map(function (x) {
+        return '<div class="vrow"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
+          '<span class="sub">' + esc(x.source === "admin" ? "yours" : "from the " + x.source) + '</span>' +
+          ' <button class="ghost" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
+          ' <button class="ghost" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div>';
+      }).join("") : '<p class="sub">No names on file yet.</p>';
+    }).catch(function () {});
+  }
+  $("sayList").addEventListener("click", function (ev) {
+    var t = ev.target;
+    var edit = t && t.getAttribute("data-say-edit");
+    if (edit) { $("sayName").value = edit; $("saySay").value = t.getAttribute("data-say") || ""; $("saySay").focus(); return; }
+    var name = t && t.getAttribute("data-say-rm");
+    if (!name || !confirm("Let the voice read " + name + " as spelled again?")) return;
+    api("/api/admin/pronunciations/" + encodeURIComponent(name), null, "DELETE").then(loadSay);
+  });
+  $("sayForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("sayErr").hidden = true; $("sayBtn").disabled = true;
+    api("/api/admin/pronunciations", { name: $("sayName").value.trim(), say: $("saySay").value.trim() })
+      .then(function () { $("sayForm").reset(); loadSay(); })
+      .catch(function (e) { $("sayErr").textContent = e.message; $("sayErr").hidden = false; })
+      .then(function () { $("sayBtn").disabled = false; });
   });
   $("signOut").addEventListener("click", function () {
     stop();

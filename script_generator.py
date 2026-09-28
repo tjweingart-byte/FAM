@@ -24,6 +24,7 @@ from typing import AsyncIterator
 
 import credentials
 import episode_intelligence
+import pronunciation
 import live_facts
 import metering
 import prefetch
@@ -499,6 +500,10 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
+    #: The `(name, respelling)` pairs the writer put on `<<SAY:>>` lines
+    #: (§165). Already in the shared lexicon by the time this is read;
+    #: carried here so `write.py` can print them beside the script.
+    pronunciations: tuple = ()
     #: The episode's `EpisodeMarks`, when the pipeline is timing it, so the
     #: steps *before* the writing call - the brief, the live lookup, the
     #: retrieval - are marked on the same clock as everything after it. They
@@ -910,6 +915,30 @@ one none of those were about; if it is news, lead with what is new since
 them. Never retell an earlier edition, and never mention that there were any.
 """
 
+    # How the voice should say the hard names (§165, `pronunciation.py`).
+    # Asked for *before* the script, because the first sentence is spoken
+    # before the rest exists and is the likeliest place a name first appears;
+    # names already on file are listed so they are not written again.
+    on_file = pronunciation.known_in(
+        " ".join([plan.query, getattr(plan.brief, "subject", "") or "",
+                  plan.evidence or ""]))
+    pronounce = """Before the script, and only if it names a person, place, team or company
+whose spelling does not tell an English reader how to say it, write one line
+per hard word, exactly as it is spelled, respelled in plain English syllables
+with the stressed one in capitals:
+
+<<SAY: Sagapolutele = sah-gah-poh-loo-TEH-leh>>
+
+The voice reads spelling and nothing else, so this is the only way it says
+the name right. Never for a name any English speaker already says right,
+never a guess you are unsure of, and nothing else on those lines. They are
+never spoken.
+"""
+    if on_file:
+        pronounce += ("These already have a pronunciation on file, so leave them "
+                      "out: " + ", ".join(on_file) + ".\n")
+    pronounce += "\n"
+
     return f"""Someone just asked FAM this:
 
 <request>{plan.query}</request>
@@ -934,7 +963,7 @@ Finish when the answer is finished. Land on the most concrete thing you have
 and stop. Do not tease what you are not covering, do not end on a question, and
 do not summarise what they just heard.
 
-Then three lines after the script. Name the episode by what it turned out to be
+{pronounce}Then three lines after the script. Name the episode by what it turned out to be
 about, never by the question you were asked - three to eight words, no colon and
 no question mark. Clear first, curious second: name the actual subject plainly
 (the person, team, company, place or event), so nobody reading it cold wonders
@@ -981,10 +1010,25 @@ have not started yet.
 Begin."""
 
 
+def _take_pronunciations(buffer: str, notes: "ScriptNotes | None") -> str:
+    """Keep every complete `<<SAY:>>` line in `buffer` and return it without them."""
+    pairs = pronunciation.parse_markers(buffer)
+    if not pronunciation.SAY_MARKER.search(buffer):
+        return buffer
+    if pairs:
+        pronunciation.learn(pairs, "writer")
+        if notes is not None:
+            notes.pronunciations = tuple(notes.pronunciations) + tuple(pairs)
+    # Only complete lines go; a half-written one stays until it is whole.
+    return pronunciation.strip_markers(buffer).lstrip() if buffer.lstrip().startswith("<<") \
+        else pronunciation.strip_markers(buffer)
+
+
 def clean_for_speech(text: str) -> str:
     """Strip anything the model may have added that should not be spoken."""
     # The go-deeper marker, and any half-written one: everything from an
     # unmatched "<<" onwards is metadata, never speech.
+    text = pronunciation.strip_markers(text)
     text = _NEXT_MARKER.sub("", text)
     text = _TITLE_MARKER.sub("", text)
     text = _SUMMARY_MARKER.sub("", text)
@@ -1390,6 +1434,13 @@ class ScriptGenerator:
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
             async for event in stream.text_stream:
                 buffer += event
+                # The writer's pronunciations (§165), written before the
+                # script: kept the moment each line is complete - before the
+                # sentence that names them reaches the voice - and taken out
+                # of the text, so the "<<" below never holds the episode
+                # back behind one.
+                if "<<" in buffer:
+                    buffer = _take_pronunciations(buffer, notes)
                 # Everything from "<<" onwards is the go-deeper marker rather
                 # than speech, and it can arrive split across events. Hold it
                 # back instead of letting the sentence splitter reach it.
@@ -1409,6 +1460,7 @@ class ScriptGenerator:
                 if emitted_words > plan.max_words * 1.35:
                     break
 
+            buffer = _take_pronunciations(buffer, notes)
             tail = clean_for_speech(buffer)
             if tail and guard.allow(tail):
                 yield tail

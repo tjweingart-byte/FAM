@@ -192,6 +192,16 @@ class VoiceBank:
                        voice   TEXT NOT NULL,
                        updated REAL NOT NULL
                    )""")
+            # How the voice says hard names (§165, `pronunciation.py`). Here
+            # rather than in a store of its own because it is a fact about the
+            # voice, and every worker already opens this database.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS pronunciations (
+                       name    TEXT PRIMARY KEY,
+                       say     TEXT NOT NULL,
+                       source  TEXT NOT NULL,
+                       updated REAL NOT NULL
+                   )""")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -283,6 +293,39 @@ class VoiceBank:
         cur = self._conn().execute("DELETE FROM choices WHERE user_id = ?",
                                    (user_id,))
         return cur.rowcount or 0
+
+    # -- how hard names are said (§165) -------------------------------------
+
+    def pronunciations(self) -> list[dict]:
+        rows = self._conn().execute(
+            "SELECT name, say, source, updated FROM pronunciations"
+            " ORDER BY name COLLATE NOCASE").fetchall()
+        return [{"name": r[0], "say": r[1], "source": r[2], "updated": r[3]}
+                for r in rows]
+
+    def learn_pronunciation(self, name: str, say: str, source: str) -> bool:
+        """Keep one respelling. A model's never replaces an admin's; returns
+        whether anything changed."""
+        conn = self._conn()
+        row = conn.execute("SELECT say, source FROM pronunciations WHERE name = ?",
+                           (name,)).fetchone()
+        if row and row[0] == say and row[1] == source:
+            return False
+        # A lower-precedence source never replaces a higher one: an admin's
+        # respelling stands until an admin changes it, and a brief's guess
+        # (made before anything was read) never replaces a writer's.
+        rank = {"admin": 0, "writer": 1, "brief": 2}
+        if row and rank.get(source, 3) > rank.get(row[1], 3):
+            return False
+        conn.execute(
+            "INSERT OR REPLACE INTO pronunciations (name, say, source, updated)"
+            " VALUES (?, ?, ?, ?)", (name[:60], say[:120], source, time.time()))
+        return True
+
+    def forget_pronunciation(self, name: str) -> bool:
+        cur = self._conn().execute("DELETE FROM pronunciations WHERE name = ?",
+                                   (name,))
+        return bool(cur.rowcount)
 
 
 _BANK: Optional[VoiceBank] = None

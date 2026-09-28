@@ -85,6 +85,7 @@ from tts import (
     production_engines,
     warm_up,
 )
+import pronunciation
 import voice_bank
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -2971,6 +2972,39 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     return {"ok": voice_bank.bank().remove(slug)}
 
 
+class PronunciationRequest(BaseModel):
+    name: str = Field(..., max_length=60)
+    say: str = Field(..., max_length=120)
+
+
+@app.get("/api/admin/pronunciations")
+async def admin_pronunciations(request: Request) -> dict:
+    """How the voice says hard names (§165): every respelling on file, and
+    who said it - the brief, the writer, or an admin. Admin only."""
+    _require_admin(request)
+    return {"pronunciations": voice_bank.bank().pronunciations()}
+
+
+@app.post("/api/admin/pronunciations")
+async def admin_set_pronunciation(req: PronunciationRequest,
+                                  request: Request) -> dict:
+    """Fix how the voice says one name. An admin's respelling is never
+    replaced by a model's, and applies from the next sentence spoken."""
+    _require_admin(request)
+    try:
+        name, say = pronunciation.lexicon().set(req.name, req.say)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "name": name, "say": say}
+
+
+@app.delete("/api/admin/pronunciations/{name}")
+async def admin_remove_pronunciation(name: str, request: Request) -> dict:
+    """Forget one respelling; the voice reads that name as spelled again."""
+    _require_admin(request)
+    return {"ok": pronunciation.lexicon().remove(name)}
+
+
 @app.post("/api/script")
 async def script(req: ScriptRequest, request: Request) -> dict:
     _rate_limit(request)
@@ -4140,12 +4174,24 @@ def _guest_play_gated(request: Request, where: str, topic_id: str) -> bool:
     return where in BROWSE_SURFACES or topic_id in topics_mod.BANK_BY_ID
 
 
+def _seen_ids(seen: str) -> set:
+    """The comma-separated tile ids a "View more" screen has already shown."""
+    return {s.strip() for s in (seen or "").split(",") if s.strip()}
+
+
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
                         minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
-                        interests: str = Query("", max_length=200)):
+                        interests: str = Query("", max_length=200),
+                        page_size: int = Query(0, ge=0, le=40),
+                        seen: str = Query("", max_length=6000)):
     """One myFAM rail, at full length, for the screen behind its "View more".
+
+    With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, eight) it is one
+    page of that length: the first tiles of the ranking not in `seen`, which
+    is how the screen's refresh deals eight new ones (§165). Without it, the
+    whole list, as before.
 
     Costs no model call and cannot cause one: this reorders the same fixed
     bank `build_feed` does. Which is the answer to "how do we fill a whole
@@ -4173,7 +4219,7 @@ async def myfam_section(request: Request,
         body["ready"] = sum(1 for t in body["topics"] if t["cached"])
         body["minutes"] = minutes
         body["algo"] = EVENTS.algo_stamp()
-        return body
+        return topics_mod.page_section(body, _seen_ids(seen), page_size)
     written = _written_probe(minutes)
     try:
         place = _place_for(request)
@@ -4209,6 +4255,9 @@ async def myfam_section(request: Request,
     body["topics"].sort(key=lambda t: not t["cached"])
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
+    # One page of it, when the screen asks for one - and only that page is an
+    # impression below: a tile nobody was shown was not passed over.
+    topics_mod.page_section(body, _seen_ids(seen), page_size)
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])

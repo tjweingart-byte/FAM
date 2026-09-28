@@ -54,6 +54,7 @@ import credentials
 import live_facts
 import metering
 import named_slots
+import pronunciation
 from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
 
@@ -263,6 +264,12 @@ class Brief:
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
     #: Night Football" is one game, and a scoreboard picks it by kick-off.
     named_slot: str = ""
+    #: Names in the request or its resolved subject that the voice is likely
+    #: to get wrong, each `{"name", "say"}` with a plain-letters respelling
+    #: (§165). Kept in `pronunciation`'s shared lexicon and applied only to
+    #: the text handed to the voice. Empty when there are none, and on a
+    #: degraded brief.
+    pronounce: list = field(default_factory=list)
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -625,11 +632,27 @@ BRIEF_SCHEMA = {
         # first frame. It names a subject and an angle and never a result, for
         # the same reason nothing else here may: nothing has been looked up.
         "title": {"type": "string"},
+        # **How to say the hard names, decided while the subject is being
+        # resolved** (§165). The voice reads English spelling and has no
+        # lexicon, so "Sagapolutele" is a guess unless somebody respells it.
+        # This call already names the subject, so a handful of output tokens
+        # respells it too - and it runs before the first word, which is the
+        # only mention a pronunciation arriving later could miss.
+        "pronounce": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"},
+                               "say": {"type": "string"}},
+                "required": ["name", "say"],
+                "additionalProperties": False,
+            },
+        },
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
                  "search_query", "search_fallback", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
-                 "outcome_dependent", "title"],
+                 "outcome_dependent", "title", "pronounce"],
     "additionalProperties": False,
 }
 
@@ -775,7 +798,30 @@ Work out:
   happened with the fed yesterday" is not a title, "The Fed's Rate Call and
   Who It Hurts" is, and "A Pause With Consequences" is too vague to tap. No question
   mark, no colon, and never a result, a score or a winner: you have not
-  looked anything up."""
+  looked anything up.
+- **pronounce** - the names in the request or in your resolved subject that a
+  voice reading English spelling would probably say wrong: people, places,
+  teams, companies whose spelling does not tell an English reader how to say
+  them ("Sagapolutele", "Keawe", "Szczesny", "Nguyen", "Worcestershire",
+  "Hermes"). Each is `name` exactly as it is spelled and `say` as plain
+  English syllables joined by hyphens, one word per word of the name, with
+  the stressed syllable in capitals: "sah-gah-poh-loo-TEH-leh". List each
+  hard word on its own as well as the full name, because an episode names
+  somebody in full once and by surname after that. Only names you actually
+  know how to say - a confident wrong respelling is worse than none - and
+  nothing an English speaker already says right. Empty for most requests."""
+
+
+def _pronounce_pairs(raw) -> list:
+    """The model's `pronounce` list, cleaned to what `pronunciation` accepts."""
+    out = []
+    for item in list(raw or [])[:pronunciation.MAX_PER_EPISODE]:
+        if not isinstance(item, dict):
+            continue
+        pair = pronunciation.clean(str(item.get("name", "")), str(item.get("say", "")))
+        if pair:
+            out.append({"name": pair[0], "say": pair[1]})
+    return out
 
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
@@ -854,8 +900,13 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         live_domain=str(data.get("live_domain", "")),
         outcome_dependent=bool(data.get("outcome_dependent", False)),
         title=clean_title(str(data.get("title", "")), query),
+        pronounce=_pronounce_pairs(data.get("pronounce")),
     )
     brief = gate(brief, query)
+    # Kept at once, before retrieval or the writer: the first sentence is
+    # spoken before the rest exists, and it is the likeliest to name them.
+    if brief.pronounce:
+        pronunciation.learn(brief.pronounce, "brief")
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
              "why_now=%s(%s) search=%r fallback=%r", query, brief.intent,
              brief.structure, brief.recency_days,

@@ -4146,6 +4146,57 @@ GUEST_SAMPLE_MIX = ("Example: Morning commute",
 FULL_SECTION_SIZE = 40
 
 
+#: How many tiles "View more" shows at once (§165, the 28/09 packet): the
+#: rail's four and the four after them, with a refresh that deals the next
+#: eight of the same ranking.
+VIEW_MORE_PAGE = 8
+
+
+def page_section(body: dict, seen: Iterable[str] = (),
+                 size: int = VIEW_MORE_PAGE) -> dict:
+    """One page of a full section: the first `size` tiles not in `seen`.
+
+    The 28/09 packet: "View more" should show the eight episodes available
+    and a button that replaces them with eight new ones eligible for the
+    same rail. **New ones, of the same ranking** - the refresh is a second
+    page of one list rather than a second list, so a rail and the screen
+    behind it still cannot disagree about what is best, and "new" means "not
+    already shown on this screen" rather than whatever a re-rank happens to
+    move up.
+
+    When everything eligible has been shown it **starts again from the top**
+    and says so (`wrapped`), rather than returning an empty screen - an
+    empty page is the one answer to "show me something else" that reads as
+    broken. `more` says whether the next refresh has anything new to deal.
+
+    `size` 0 returns the whole list, as the screen did before this existed.
+    """
+    topics = list(body.get("topics") or [])
+    body["total"] = len(topics)
+    if size <= 0:
+        body.update(page_size=0, more=False, wrapped=False)
+        return body
+    seen = {s for s in seen if s}
+    fresh = [t for t in topics if t.get("id") not in seen]
+    wrapped = bool(topics) and not fresh
+    if wrapped:
+        fresh = topics
+    page = fresh[:size]
+    body["topics"] = page
+    body["page_size"] = size
+    body["more"] = len(fresh) > len(page)
+    body["wrapped"] = wrapped
+    if "groups" in body:
+        shown = {t.get("id") for t in page}
+        body["groups"] = [
+            dict(g, topics=[t for t in g["topics"] if t.get("id") in shown])
+            for g in body["groups"]
+            if any(t.get("id") in shown for t in g["topics"])]
+    if "ready" in body:
+        body["ready"] = sum(1 for t in page if t.get("cached"))
+    return body
+
+
 def build_section(store: EventStore, user_id: str, key: str,
                   now: Optional[float] = None,
                   interests: Iterable[str] = (), circle: Iterable[str] = (),

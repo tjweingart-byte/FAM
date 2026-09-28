@@ -790,6 +790,36 @@ __MIX_ITEMS__
     return { url: link, public: false, card: "/api/mixes/" + m.id + "/card", targets: made };
   }
 
+  // "View more" pages (§165): the first `page_size` tiles not in `seen`,
+  // starting again from the top once everything has been shown - the same
+  // rule as `topics.page_section`, so Refresh behaves here as it does live.
+  function pageSection(body, qs) {
+    var size = Number(qs.get("page_size") || 0);
+    var all = body.topics || [];
+    body.total = all.length;
+    if (!size) { body.page_size = 0; body.more = false; body.wrapped = false; return body; }
+    var seen = {};
+    (qs.get("seen") || "").split(",").forEach(function (x) { if (x) seen[x] = true; });
+    var fresh = all.filter(function (t) { return !seen[t.id]; });
+    var wrapped = all.length > 0 && !fresh.length;
+    if (wrapped) fresh = all;
+    var page = fresh.slice(0, size);
+    var shown = {};
+    page.forEach(function (t) { shown[t.id] = true; });
+    body.topics = page;
+    body.page_size = size;
+    body.more = fresh.length > page.length;
+    body.wrapped = wrapped;
+    if (body.groups) {
+      body.groups = body.groups.map(function (g) {
+        var copy = {}; for (var k in g) copy[k] = g[k];
+        copy.topics = g.topics.filter(function (t) { return shown[t.id]; });
+        return copy;
+      }).filter(function (g) { return g.topics.length; });
+    }
+    if ("ready" in body) body.ready = page.filter(function (t) { return t.cached; }).length;
+    return body;
+  }
   function json(body, status, extraHeaders) {
     var headers = { "Content-Type": "application/json" };
     Object.keys(extraHeaders || {}).forEach(function (k) {
@@ -1326,7 +1356,7 @@ __WRITING_SIM__
       if (grouped) {
         var copy = JSON.parse(JSON.stringify(grouped));
         copy.minutes = Number(qs.get("minutes") || 3);
-        return json(copy);
+        return json(pageSection(copy, qs));
       }
       var section = FIXTURES["/api/myfam"].sections.filter(function (s) {
         return s.key === wantKey; })[0];
@@ -1341,13 +1371,13 @@ __WRITING_SIM__
         return copy;
       });
       all.sort(function (a, b) { return (a.cached === b.cached) ? 0 : (a.cached ? -1 : 1); });
-      return json({
+      return json(pageSection({
         key: wantKey, title: section.title, topics: all,
         ready: all.filter(function (t) { return t.cached; }).length,
         minutes: Number(qs.get("minutes") || 3),
         empty_reason: "", personalised: true,
         algo: "preview"
-      });
+      }, qs));
     }
     if (path === "/api/mixes" && method === "GET") return json(mixes);
     if (path === "/api/mixes" && method === "POST") {
