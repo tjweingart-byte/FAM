@@ -68,6 +68,7 @@ import attachments as attachments_mod
 import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
+import thumbnails as thumbnails_mod
 import accounts as accounts_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
@@ -299,6 +300,16 @@ async def _grow_categories() -> None:
         )
         if result.get("minted") or result.get("pruned"):
             log.info("categories: %s", result)
+        # Pictures for whatever the vocabulary now holds that has none
+        # (§160). After the sweep rather than beside it, so a node minted
+        # this pass is painted this pass; inside the daily ceiling; and
+        # awaited here because this whole function is already a background
+        # task no request waits on.
+        if settings.thumbnails and thumbnails_mod.configured()[0]:
+            painted = await thumbnails_mod.backfill(settings.thumbnails_per_sweep)
+            if painted.get("wanted") or painted.get("skipped") or painted.get("errors"):
+                log.info("thumbnails: %s", {k: v for k, v in painted.items()
+                                            if k != "nodes"})
     except Exception:  # noqa: BLE001 - a vocabulary is never worth a failed boot
         log.exception("categories: the growth sweep failed; ranking continues "
                       "on the vocabulary already in the tree")
@@ -811,6 +822,15 @@ def _database_report() -> list[dict]:
     held_bank = voice_bank.opened()
     if held_bank is not None:
         stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
+    # Tile pictures (§160). Reported once the first picture has been painted,
+    # like the trending bank: a health page must not be what creates the
+    # database on a machine that never made one.
+    if thumbnails_mod._exists():
+        try:
+            stores.append(("thumbnails", "THUMBNAILS_DB",
+                           thumbnails_mod.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -1440,6 +1460,9 @@ async def health(request: Request) -> dict:
         # because the composer was unavailable.
         "stories": stories_mod.report(),
         "trending_bank": _trending_bank_report(),
+        # Tile pictures (§160): whether the sweep paints, whether it could,
+        # and how many pictures are live, waiting for a person, or failed.
+        "thumbnails": thumbnails_mod.health(),
         "daily_edition": _daily_edition_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
@@ -5882,6 +5905,131 @@ async def admin_wipe(req: WipeRequest, request: Request) -> dict:
         # is a question somebody will ask later.
         log.warning("ADMIN: wiped %s - %s", req.scope, report)
     return report
+
+
+# ---------------------------------------------------------------- thumbnails
+#
+# One picture per branch of the category tree (`thumbnails.py`, §160). The
+# public endpoint serves approved pictures only and does nothing else: no
+# model call, no generation, one indexed read. Everything that paints or
+# judges a picture is behind `_require_admin`.
+
+
+@app.get("/api/thumb/{node_id:path}", include_in_schema=False)
+async def thumb_image(node_id: str) -> Response:
+    """An approved tile picture. 404 for anything else, including a picture
+    waiting for review - a tile only ever asks for one `pick` said was live.
+
+    Cached for a year: the URL carries the picture's version (`?v=`), so a
+    repainted picture is a different URL rather than a stale cache entry."""
+    if not thumbnails_mod._exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    found = await asyncio.to_thread(thumbnails_mod.store().image, node_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Not found")
+    data, mime = found
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@app.get("/admin/thumbnails", include_in_schema=False)
+async def admin_thumbnails_page(request: Request):
+    """The review page. A shell, like `/admin`; every row on it is fetched
+    from the endpoints below, which are what check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "thumbnails.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/thumbnails")
+async def admin_thumbnails(request: Request, status: str = "") -> dict:
+    """Every picture's row (without the bytes), the tree nodes still without
+    one, what painting them should cost, and what has been spent."""
+    _require_admin(request)
+    tree = topics_mod.category_tree()
+    have = []
+    if thumbnails_mod._exists():
+        have = [t.as_dict() for t in
+                await asyncio.to_thread(thumbnails_mod.store().all, status)]
+    missing_count = 0
+    if thumbnails_mod._exists():
+        missing_count = len(thumbnails_mod.wanted(tree, thumbnails_mod.store()))
+    else:
+        missing_count = len(thumbnails_mod._facets()) + len(tree.nodes())
+    return {"health": thumbnails_mod.health(), "thumbnails": have,
+            "missing": missing_count,
+            "estimate": thumbnails_mod.estimate(missing_count)}
+
+
+@app.get("/api/admin/thumbnails/{node_id:path}/image", include_in_schema=False)
+async def admin_thumbnail_image(node_id: str, request: Request) -> Response:
+    """Any picture, whatever its status, for the review page."""
+    _require_admin(request)
+    if not thumbnails_mod._exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    found = await asyncio.to_thread(thumbnails_mod.store().image, node_id,
+                                    any_status=True)
+    if not found:
+        raise HTTPException(status_code=404, detail="Not found")
+    return Response(content=found[0], media_type=found[1],
+                    headers={"Cache-Control": "no-store"})
+
+
+class ThumbnailDecision(BaseModel):
+    node: str = Field(..., min_length=1, max_length=200)
+    action: str = Field(..., pattern="^(approve|reject)$")
+
+
+@app.post("/api/admin/thumbnails/decide")
+async def admin_thumbnail_decide(req: ThumbnailDecision, request: Request) -> dict:
+    """A person's verdict on one picture. Approving is what puts a held
+    picture on tiles; rejecting takes a live one off them at once."""
+    _require_admin(request)
+    if not thumbnails_mod._exists():
+        raise HTTPException(status_code=404, detail="No pictures yet")
+    held = thumbnails_mod.store()
+    row = held.get(req.node)
+    if row is None:
+        raise HTTPException(status_code=404, detail="No picture for that node")
+    if req.action == "approve" and held.image(req.node, any_status=True) is None:
+        raise HTTPException(status_code=409,
+                            detail="That node has no picture to approve; paint it again.")
+    status = (thumbnails_mod.STATUS_APPROVED if req.action == "approve"
+              else thumbnails_mod.STATUS_REJECTED)
+    held.set_status(req.node, status,
+                    "" if req.action == "approve" else "rejected by a person")
+    return {"node": req.node, "status": status}
+
+
+class ThumbnailRun(BaseModel):
+    limit: int = Field(10, ge=1, le=500)
+    nodes: list[str] = Field(default_factory=list, max_length=500)
+    regenerate: bool = False
+    retry_failed: bool = False
+
+
+@app.post("/api/admin/thumbnails/run")
+async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
+    """Paint pictures now, in the background, inside the daily ceiling.
+    Returns at once; the review page polls the list to watch them arrive."""
+    _require_admin(request)
+    ok, why = thumbnails_mod.configured()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot paint: {why}.")
+
+    async def _run() -> None:
+        result = await thumbnails_mod.backfill(
+            req.limit, only=req.nodes, regenerate=req.regenerate,
+            retry_failed=req.retry_failed)
+        log.info("thumbnails (admin run): %s",
+                 {k: v for k, v in result.items() if k != "nodes"})
+
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True, "limit": req.limit,
+            "room_today": thumbnails_mod.daily_room(thumbnails_mod.store())}
 
 
 @app.exception_handler(HTTPException)

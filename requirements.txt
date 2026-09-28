@@ -57,3 +57,10 @@ tzdata>=2024.1
 # same way pypdf is: without it every word passes through unchanged and
 # `/api/spell` says `available: false`.
 pyspellchecker>=0.8
+
+# Tile pictures (§160, `thumbnails.py`): crops and scales a painted picture to
+# a 480x360 WebP (~30 KB) before it is stored, and a larger JPEG for the
+# checker. Optional in the pypdf sense: without it the original PNG is kept
+# as it came (larger, still correct) and a warning says so. Only the machine
+# that paints pictures needs it; serving them needs nothing.
+Pillow>=10.0

@@ -460,7 +460,20 @@ class Topic:
             "live_line": self.live_line,
             "live_status": self.live_status,
             "live_as_of": round(self.live_as_of, 1),
+            **self._thumb(),
         }
+
+    def _thumb(self) -> dict:
+        """The tile's picture, from the deepest branch of the category tree
+        that has one (§160), and the facet word to print on it. Empty when no
+        picture fits, and the interface draws what it always drew. An
+        in-process lookup - never a database open, never a model call."""
+        import thumbnails
+
+        found = thumbnails.pick(self.query, self.tags)
+        if not found:
+            return {"thumb": "", "thumb_facet": ""}
+        return {"thumb": found["url"], "thumb_facet": found["facet"]}
 
 
 # Keywords that map a free-text search onto the same facets the bank uses.

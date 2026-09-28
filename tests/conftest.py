@@ -72,6 +72,15 @@ FAM_ENVIRONMENT = (
     "CATEGORIES", "CATEGORIES_PLACE", "CATEGORIES_MODEL", "CATEGORIES_EFFORT",
     "CATEGORIES_MAX_TOKENS", "CATEGORIES_PLACE_TIMEOUT_SECONDS",
     "CATEGORIES_WINDOW_DAYS",
+    # Tile pictures (§160). A developer with GEMINI_API_KEY in their shell
+    # must not run a suite that could paint a real picture.
+    "THUMBNAILS", "GEMINI_API_KEY", "GOOGLE_API_KEY", "THUMBNAILS_IMAGE_MODEL",
+    "THUMBNAILS_IMAGE_PRICE", "THUMBNAILS_MODEL",
+    "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK",
+    "THUMBNAILS_ATTEMPTS", "THUMBNAILS_EXPECTED_ATTEMPTS",
+    "THUMBNAILS_DAILY_IMAGES", "THUMBNAILS_PER_SWEEP",
+    "THUMBNAILS_WRITER_BATCH", "THUMBNAILS_TIMEOUT_SECONDS",
+    "THUMBNAILS_REVIEW",
     # World trending. Same reasoning: a developer with TRENDING_SOURCE=fake
     # set must not run a suite that quietly has a news feed in it.
     "TRENDING", "TRENDING_SOURCE", "TRENDING_TTL_SECONDS",
@@ -389,6 +398,20 @@ def isolated_categories(tmp_path, monkeypatch):
     yield
     topics_mod.reset_category_tree()
     categories_mod.reset_sweep()
+
+
+@pytest.fixture(autouse=True)
+def isolated_thumbnails(tmp_path, monkeypatch):
+    """Tile pictures (§160) get their own store per test, for the reason the
+    tree above does: `thumbnails._STORE` is a process-global, and a picture
+    one test painted must not decorate the next test's tiles."""
+    import thumbnails as thumbnails_mod
+
+    monkeypatch.setenv("THUMBNAILS_DB",
+                       str(tmp_path / "stores" / "thumbnails.db"))
+    thumbnails_mod.reset()
+    yield
+    thumbnails_mod.reset()
 
 
 @pytest.fixture(autouse=True)

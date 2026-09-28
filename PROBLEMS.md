@@ -12545,3 +12545,55 @@ it": centred, at the bottom, filling, the X stops it and nothing searches
 after, the count run out searches once with the words said, and pressing the
 button searches once with no second search when the count would have ended.
 Not tried on a real phone.
+
+## 160. Tile pictures, one per branch of the category tree
+
+**What was asked.** Replace the line icons on episode covers with generated
+pictures - one per branch of the category tree, applied to every episode
+under it - with the broad category (SPORTS, TECH, MONEY) as the one word on
+the picture. Imagen 4 was chosen after comparing it with GPT Image 2,
+Ideogram 3, Recraft and Flux, and the deciding factor was keeping logos and
+people out.
+
+**Why a branch and not an episode.** The cost is then the size of the
+vocabulary (188 nodes at seed, ~$12.70 to paint once) rather than the number
+of episodes, and two listeners looking at the same subject see the same
+picture - the script cache's shared-inventory argument, applied to pictures.
+
+**How logos and people are kept out, in the order the levers work.** No model
+has a logo switch, and logos appear because a prompt names a brand. So (1)
+Claude rewrites each node's path into a scene with every team, league,
+company, product, person and country name removed, and a code-side check
+refuses to paint a flagged subject's scene that repeats its name; (2) Imagen
+runs with `personGeneration: "dont_allow"`, the one hard off switch for
+people among the candidates; (3) Claude inspects every result for a logo,
+text, a person or an identifiable product, and anything flagged is painted
+again, up to three times, and never stored as live. A picture whose subject
+is itself a real named thing waits for a person at `/admin/thumbnails`
+(`THUMBNAILS_REVIEW=flagged`), and a picture the checker could not inspect
+waits too - unchecked is not clean.
+
+**Imagen 4's cost in prompt work, paid once.** It takes no negative prompt
+and no style reference, so `HOUSE_STYLE` is the whole of the consistency
+across two hundred pictures and describes exclusions as what the picture *is*
+("plain unmarked surfaces") rather than what it is not.
+
+**The read path.** `Topic.as_dict` asks `thumbnails.pick`, which reads an
+in-process map of approved nodes and the tree's `match` - no database open,
+no model call, memoised on the tree's and the store's generation. The deepest
+node with a live picture wins; `match` already returns ancestors, so a node
+in review falls back to its parent without a second rule. With no store on
+disk it returns nothing and the tile draws the old icon underneath, which is
+also what shows if the image fails to load. The label on a tile with a
+picture is the picture's own facet, so word and image agree.
+
+**The write path.** Background only: after the two-hourly category sweep when
+`THUMBNAILS=1`, from `/admin/thumbnails`, or `tools/thumbnails.py`. Broadest
+first, inside a rolling daily image ceiling, one run at a time per process,
+never raising. A key or billing problem stops at the first attempt rather
+than spending three; a filtered result (Imagen returns no image rather than
+an error) is retried. Spend is recorded per image requested.
+
+**Not verified.** No Gemini key here, so no picture has been painted or seen.
+The request follows Google's published `:predict` shape, and every branch of
+the loop is tested with fakes (`tests/test_thumbnails.py`).

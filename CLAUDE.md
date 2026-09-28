@@ -2506,7 +2506,9 @@ sources on two hours; and **§157**, the vocabulary sweep every two hours,
 and the finding that a game's subject has never reached the tree at all; and **§158**, "hey FAM" opening voice search,
 opt-in because it keeps the microphone open; and **§159**, voice search's
 send replaced by a "go now" Search now that counts down five seconds and an
-X that stops it),
+X that stops it; and **§160**, tile pictures - one Imagen 4 picture per
+branch of the category tree, scenes written with no names in them and every
+result checked by Claude for logos and people, `THUMBNAILS.md` for setup),
 `docs/` for the official reference set - `FINANCIAL.md` (unit costs,
 scaling, every provider's limits), `BACKEND.md` (latency, where each section
 comes from, every external call site) and `DATA.md` (stores, retention,
