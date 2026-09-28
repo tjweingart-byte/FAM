@@ -36,9 +36,11 @@ Three calls per attempt, and two of them are Claude:
    or emblem, readable text, a face or a real person, an identifiable real
    product, a pale border or faded edges, obsolete equipment (§167).
    Small anonymous figures are part of the house style since §166 and
-   pass. Any yes and the picture is thrown away and painted again, up to
-   `THUMBNAILS_ATTEMPTS` times. This is the only step that *catches* a logo
-   rather than making one less likely.
+   pass. Since §169 a failure costs no second image by default: a border
+   is cropped off in code, and anything else holds the picture for a person
+   in `/admin/thumbnails` - never live. `THUMBNAILS_ATTEMPTS` above 1 buys a
+   repaint on a logo, text, a real person or a real product. This is the
+   only step that *catches* a logo rather than making one less likely.
 
 A node whose subject is a real named thing (a team, a company) is also held
 for a person to approve in `/admin/thumbnails` rather than going live on the
@@ -108,13 +110,13 @@ HOUSE_STYLE = (
     "equipment and materials in it are modern. Rich, fairly saturated colour "
     "in mid and deep tones - racing green, deep sky blue, terracotta clay "
     "red, ochre, warm grey asphalt - with firm shadows under strong "
-    "sunlight; nothing washed out or pastel. Full-bleed: the painting fills "
-    "the whole frame to every edge, with no border, no white margin, no "
-    "unpainted paper and no fading or vignette at the edges. One clear "
-    "subject seen from a slight distance. Any figures are small and "
-    "anonymous, seen from behind or far off, in plain present-day clothes. "
-    "Unbranded vehicles and equipment and plain unmarked surfaces "
-    "throughout, wordless and symbol-free."
+    "sunlight; nothing washed out or pastel. Full-bleed: the paint runs off "
+    "all four edges of the frame at full strength, like a cropped detail of "
+    "a larger painting. One clear subject seen from a slight distance. "
+    "People may appear, facing any way, as ordinary present-day adults with "
+    "calm, neutral, expressionless faces. Screens glow with abstract colour "
+    "and light. Unbranded vehicles and equipment and plain unmarked "
+    "surfaces throughout, wordless and symbol-free."
 )
 
 #: Said to Gemini between the reference pictures and the scene, so it takes
@@ -148,12 +150,22 @@ WRITER_SYSTEM = (
     "cars.\n"
     "- Sunlit and warm, with a sense of place (a stadium, a court, a "
     "harbour, a street, a desk by a window).\n"
-    "- At most a few small, anonymous figures, seen from behind or far off, "
-    "in plain present-day clothes. Never a face in close-up, a crowd, a real "
-    "or famous person, or anyone in a team kit.\n"
-    "- No text, signs, scoreboards with writing, labels, flags, emblems, "
-    "jerseys, uniforms, numbers or logos.\n"
+    "- People may appear, facing any way, as ordinary present-day adults in "
+    "plain clothes with calm, neutral, expressionless faces. Never a real or "
+    "famous person, a child, or anyone in a team kit or uniform.\n"
+    "- Describe only what IS in the picture. Never mention a thing by "
+    "saying it is absent ('chalkboard-free', 'no signs', 'without logos'): "
+    "the image model draws every object a scene names.\n"
+    "- Leave out anything that carries writing: signs, chalkboards, "
+    "newspapers, book spines, price tags, scoreboards, jerseys, flags, "
+    "labels. Screens, monitors and phones show only abstract glowing colour, "
+    "never charts, numbers or words.\n"
     "- Make sibling topics in the batch look different from one another.\n\n"
+    "Set paintable to false, and still write a short scene, when the last "
+    "part of the path is not a subject someone would listen to an episode "
+    "about: a filler or function word ('please', 'things'), a fragment, a "
+    "slur or other offensive term, or a word too vague to picture on its "
+    "own. It is then skipped and costs nothing; everything else is true.\n\n"
     "Set names_real_entity to true when the topic itself is a specific real "
     "organisation, brand, product, person, team or league (e.g. 'nfl', "
     "'formula one', 'cincinnati bengals'), false for a generic subject "
@@ -171,8 +183,10 @@ WRITER_SCHEMA = {
                     "node": {"type": "string"},
                     "scene": {"type": "string"},
                     "names_real_entity": {"type": "boolean"},
+                    "paintable": {"type": "boolean"},
                 },
-                "required": ["node", "scene", "names_real_entity"],
+                "required": ["node", "scene", "names_real_entity",
+                             "paintable"],
                 "additionalProperties": False,
             },
         },
@@ -185,11 +199,10 @@ CHECKER_SYSTEM = (
     "You inspect generated cover illustrations before they are published. "
     "Answer strictly. Anything that could be read as a logo, crest, emblem, "
     "wordmark or trademark counts as a logo, even if distorted. Any letters, "
-    "numbers or pseudo-writing count as text. A face drawn with recognisable "
-    "features, a close-up of a person, a crowd, anyone in a team uniform, or "
-    "a figure that could be a specific real person counts as a person; small "
-    "anonymous figures seen from behind or far off, with no facial "
-    "features, are part of the house style and do not. A recognisable "
+    "numbers or pseudo-writing count as text. Only a figure that looks like "
+    "a specific real or famous person, a child, or anyone in a team kit or "
+    "uniform counts as a person; ordinary adults, facing any way and with "
+    "faces shown, are part of the house style and do not. A recognisable "
     "specific commercial product design (a particular phone, car model, "
     "console, shoe) counts as an identifiable product. A white or pale "
     "border, a margin of unpainted paper, or colour that fades out towards "
@@ -221,6 +234,18 @@ CHECKER_SCHEMA = {
 #: replaces.
 _FAILS_ON = ("logo", "text", "person", "identifiable_product", "border",
              "obsolete")
+
+#: §169: what each failure costs. A **fixable** one is mended in code and
+#: the picture goes on as clean - a border is cropped off, which cannot add
+#: anything a check would object to. A **soft** one is a judgement about
+#: taste, never safety, so the picture is held for a person rather than
+#: painted again. Only a **hard** one (logo, text, a real person, a real
+#: product) is worth another paid attempt, and only if THUMBNAILS_ATTEMPTS
+#: allows one - by default it does not.
+_FIXABLE = ("border",)
+_SOFT = ("obsolete", "off_subject")
+#: How far in from each edge a picture the checker saw a border on is cut.
+BORDER_INSET = 0.08
 
 
 # --------------------------------------------------------------------------
@@ -684,6 +709,9 @@ class Scene:
     node: str
     scene: str
     flagged: bool
+    #: False for a node that is not a subject (a filler word, a slur): it is
+    #: recorded as skipped and never painted (§169).
+    paintable: bool = True
 
 
 @dataclass
@@ -789,7 +817,8 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
     rows = (json.loads(text) or {}).get("scenes") or []
     return [Scene(str(r.get("node", "")).strip().lower(),
                   str(r.get("scene", "")).strip(),
-                  bool(r.get("names_real_entity")))
+                  bool(r.get("names_real_entity")),
+                  r.get("paintable") is not False)
             for r in rows if r.get("scene")]
 
 
@@ -1008,7 +1037,8 @@ async def claude_checker(image: bytes, mime: str, subject: str
                     "type": "base64", "media_type": mime,
                     "data": base64.standard_b64encode(image).decode()}},
                 {"type": "text", "text":
-                    f"This is meant to be a cover for the topic '{subject}'. "
+                    f"This is meant to be a cover for the topic '{subject}' "
+                    "(read broad to specific). "
                     "Does it contain a logo, text, a person (as defined), "
                     "an identifiable real product, a pale border or faded "
                     "edges, or obsolete equipment? Does it read as that "
@@ -1060,8 +1090,8 @@ def _trim_pale_edges(im):
     return im.crop((left, top, right, bottom))
 
 
-def _resize(image: bytes, width: int, height: Optional[int], fmt: str
-            ) -> tuple[bytes, str]:
+def _resize(image: bytes, width: int, height: Optional[int], fmt: str,
+            inset: float = 0.0) -> tuple[bytes, str]:
     """Crop to 4:3 and scale. Without Pillow the original is returned as it
     came, which is larger and still correct."""
     try:
@@ -1072,6 +1102,10 @@ def _resize(image: bytes, width: int, height: Optional[int], fmt: str
         return image, "image/png"
     with Image.open(io.BytesIO(image)) as im:
         im = _trim_pale_edges(im.convert("RGB"))
+        if inset > 0:
+            w, h = im.size
+            dx, dy = int(w * inset), int(h * inset)
+            im = im.crop((dx, dy, w - dx, h - dy))
         w, h = im.size
         target = 4 / 3
         if w / h > target:
@@ -1123,10 +1157,19 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
                    painter: Painter, checker: Checker,
                    attempts: int, review: str,
                    thumb_store: ThumbnailStore,
-                   room: Optional[Callable[[], bool]] = None) -> Thumb:
-    """Paint, check, and repaint until clean or out of attempts, and store
-    the outcome. Raises only `StopRun` - a problem with the deployment, or
-    the daily ceiling reached before an attempt - and then stores nothing.
+                   room: Optional[Callable[[], bool]] = None,
+                   subject: Optional[str] = None) -> Thumb:
+    """Paint, check, and store the outcome. Raises only `StopRun` - a problem
+    with the deployment, or the daily ceiling reached before an attempt - and
+    then stores nothing.
+
+    **One paid image per run by default** (§169): a border is cropped off in
+    code, a taste failure is held for a person, and only a hard failure
+    (logo, text, a real person, a real product) is painted again - and only
+    while `attempts` allows, which by default is once. A picture that still
+    fails is held for review, never live and never thrown away, so a person
+    can overrule the checker without paying for another. `subject` is the
+    node's path, which is what the checker judges "on subject" against.
 
     **A node that already has a live picture keeps it** unless the new one
     goes straight to live: a repaint waiting for a person is held beside it
@@ -1137,8 +1180,22 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
     previous = thumb_store.get(node_id)
     live = (previous is not None and previous.status == STATUS_APPROVED
             and thumb_store.image(node_id) is not None)
-    subject = node_id
+    subject = subject or node_id
     prompt = build_prompt(scene.scene)
+    if not scene.paintable:
+        # Not a subject at all ("please", a slur): skipped before a single
+        # image is paid for, and not retried unless somebody asks.
+        reason = "not a subject worth a picture; skipped, nothing painted"
+        if live:
+            thumb_store.note_failed_repaint(node_id, 0, 0.0, reason)
+        else:
+            thumb_store.put(Thumb(node_id, STATUS_FAILED, facet=facet,
+                                  scene=scene.scene, flagged=scene.flagged,
+                                  reason=reason, updated_at=time.time()),
+                            None)
+        return Thumb(node_id, STATUS_FAILED, facet=facet, scene=scene.scene,
+                     flagged=scene.flagged, reason=reason,
+                     updated_at=time.time())
     spent = 0.0
     tries = 0
     last_reason = ""
@@ -1192,9 +1249,26 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
                          f"not checked ({exc}); needs a person")
         last_check = check
         bad = failed_checks(check)
-        if bad:
+        fixed = [b for b in bad if b in _FIXABLE]
+        if fixed:
+            # A pale edge is the one fault code can mend for free: cut it off
+            # rather than pay for another painting.
+            try:
+                stored, stored_mime = await asyncio.to_thread(
+                    _resize, painting.image, STORED_WIDTH, STORED_HEIGHT,
+                    "webp", BORDER_INSET)
+                bad = [b for b in bad if b not in _FIXABLE]
+            except Exception:  # noqa: BLE001 - left as a failure below
+                pass
+        hard = [b for b in bad if b not in _SOFT]
+        if hard and tries < max(1, attempts):
             last_reason = "checker found: " + ", ".join(bad)
             continue
+        if bad:
+            return _hold(thumb_store, live, node_id, facet, scene, prompt,
+                         stored, stored_mime, check, tries, spent,
+                         "checker found: " + ", ".join(bad)
+                         + "; held for you rather than painted again")
         hold = review == "all" or (review == "flagged" and scene.flagged)
         if hold:
             return _hold(thumb_store, live, node_id, facet, scene, prompt,
@@ -1347,8 +1421,8 @@ async def _backfill(limit: int, *, only: Iterable[str],
             tree = topics.category_tree()
         room = limit
         if not ignore_daily_cap:
-            # Each node can cost up to `attempts` images; budget for the
-            # expected one and a half, and let the ceiling stop the rest.
+            # Each node costs one image by default and up to `attempts`;
+            # the ceiling stops the rest.
             room = min(limit, daily_room(thumb_store))
         todo = wanted(tree, thumb_store, regenerate=regenerate,
                       retry_failed=retry_failed, only=only)[:max(0, room)]
@@ -1387,6 +1461,7 @@ async def _backfill(limit: int, *, only: Iterable[str],
                         attempts=settings.thumbnails_attempts,
                         review=settings.thumbnails_review,
                         thumb_store=thumb_store,
+                        subject=paths.get(node_id),
                         room=None if ignore_daily_cap
                         else (lambda: daily_room(thumb_store) > 0))
                 except StopRun as exc:

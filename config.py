@@ -660,10 +660,13 @@ class Settings:
     thumbnails_claude_output_per_mtok: float = _env_float(
         "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 10.0)
     # How many paintings a node gets before it is marked failed.
-    thumbnails_attempts: int = _env_int("THUMBNAILS_ATTEMPTS", 3)
+    # One by default (§169): a picture that fails a check is held for a
+    # person rather than paid for again. Raise it to repaint on a logo, text,
+    # a real person or a real product.
+    thumbnails_attempts: int = _env_int("THUMBNAILS_ATTEMPTS", 1)
     # What `tools/thumbnails.py plan` budgets per node.
     thumbnails_expected_attempts: float = _env_float(
-        "THUMBNAILS_EXPECTED_ATTEMPTS", 1.5)
+        "THUMBNAILS_EXPECTED_ATTEMPTS", 1.0)
     # The ceiling on images requested per rolling day, across the deployment.
     # A new node waits for tomorrow rather than a runaway spending tonight.
     thumbnails_daily_images: int = _env_int("THUMBNAILS_DAILY_IMAGES", 60)

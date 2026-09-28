@@ -14,15 +14,31 @@ category tree node        e.g. sports > american football > college football
    ├─ 1. Claude writes a scene with every team, league, company, product,
    │     person and country name taken out, and flags nodes that ARE a real
    │     named thing ("nfl", "formula one")                     (batched, ~$0.001/node)
+   │     A node that is not a subject ("please", a slur) → skipped, $0
    ├─ 2. Gemini 3.1 Flash Image paints it, shown the reference
    │     pictures in thumbnail_style/ as the look to match      (~$0.067/image)
-   ├─ 3. Claude looks at the result: logo? text? a face? real product?
-   │     pale border? obsolete equipment?
-   │     on-subject? Any failure → paint again (up to 3 times)  (~$0.004/check)
+   ├─ 3. Claude looks at the result: logo? text? a real person? real
+   │     product? pale border? obsolete equipment? on-subject?  (~$0.004/check)
+   │     Pale border → cropped off in code, carries on as clean
+   │     Anything else → held for you; NOT painted again by default
    └─ 4. Cropped to 480×360 WebP (~30 KB) and stored in thumbnails.db
          clean + generic subject      → live
          clean + real named subject   → waits for a person (/admin/thumbnails)
-         never clean / key problem    → failed, with the reason
+         failed a check               → waits for a person, with what it found
+         no image / key problem       → failed, with the reason
+```
+
+**One paid image per node by default** (§169). A failed check used to throw
+the picture away and paint again up to three times, so every failure cost
+three images of the daily ceiling and three times the price. Now the prompt
+is written to avoid the failures in the first place (see "The look"), a pale
+border is cropped off rather than repainted, and any other failure keeps the
+one picture for you to Approve (the checker was wrong) or Repaint. A held
+picture is never on a tile until you approve it. `THUMBNAILS_ATTEMPTS=2` or
+more brings back automatic repaints, for a logo, text, a real person or a
+real product only.
+
+```
 ```
 
 A tile asks for the **deepest** node the tree finds in its question that has
@@ -72,16 +88,30 @@ result away at a paid attempt each. A light or pastel reference makes light
 pictures, and one with paper showing at its edges invites a border. Use
 pictures you own or generated yourself; a reference ships in the image.
 
-Small anonymous figures, seen from behind or far off, are part of the look.
-A face drawn with features, a crowd, team kit or anybody who could be a real
-person still fails the checker.
+People are part of the look, facing any way, as ordinary adults with calm,
+expressionless faces (§169). A real or famous person, a child, or anyone in
+team kit still fails the checker.
+
+**How the prompt avoids failures rather than catching them** (§169):
+
+- The style describes the edges positively ("the paint runs off all four
+  edges, like a cropped detail") - naming a border, even to forbid it, is
+  how an image model with no negative prompt comes to draw one.
+- The scene writer describes only what is there. "A chalkboard-free stall"
+  names a chalkboard, and the model paints it with writing on it.
+- Nothing that carries writing is put in a scene (signs, chalkboards,
+  newspapers, price tags, scoreboards), and every screen shows only abstract
+  colour - a laptop "open to colourful data charts" was the commonest source
+  of text failures.
+- The checker judges "on subject" against the node's whole path
+  (`business > price`), not the bare word, which on its own fits nothing.
 
 ## Cost
 
 | | |
 |---|---|
 | The 188 seed nodes, once | about **$12.70** (`tools/thumbnails.py plan` prints it) |
-| Each new node the vocabulary grows | about $0.07 including retries |
+| Each new node the vocabulary grows | about $0.07 - one image, no retries by default |
 | Serving | nothing: one indexed read, cached for a year per device |
 | Ceiling | `THUMBNAILS_DAILY_IMAGES` images a day (60 by default, about $2.40) |
 
@@ -121,7 +151,9 @@ These are list prices, not bills. Spend is recorded per image in
    without billing, the Gemini API not enabled, a quota). A run stopped that
    way records no node and no spend, so the counters alone cannot show it.
 8. **Review what is held.** The "Waiting for you" tab: Approve or Reject each
-   picture of a real named thing. Reject also takes a live picture off tiles
+   picture of a real named thing, and each picture that failed a check (its
+   reason says what the checker found - approve it if the checker was wrong,
+   Repaint if not). Reject also takes a live picture off tiles
    at once. **Repaint never takes a live picture away on its own**: a repaint
    that needs approval waits beside the live one (tiles keep the old picture
    until you approve the new), and a repaint that fails keeps the old one.
@@ -139,7 +171,7 @@ These are list prices, not bills. Spend is recorded per image in
 | `THUMBNAILS_STYLE_DIR` | `thumbnail_style` | Reference pictures sent with every Gemini request; `0` sends none |
 | `THUMBNAILS_IMAGE_PRICE` | `0.067` | Estimated list price of one 1K image, for the spend record - check Google's pricing page |
 | `THUMBNAILS_MODEL` | `MODEL` | Scene writer and checker |
-| `THUMBNAILS_ATTEMPTS` | `3` | Paintings per node before it fails |
+| `THUMBNAILS_ATTEMPTS` | `1` | Paid paintings per node. 1 holds a failing picture for review; more repaints on a logo, text, a real person or product |
 | `THUMBNAILS_DAILY_IMAGES` | `60` | Images per rolling 24h, whole deployment |
 | `THUMBNAILS_PER_SWEEP` | `20` | Nodes one background sweep paints |
 | `THUMBNAILS_REVIEW` | `flagged` | `flagged` / `all` / `none` - which clean pictures wait for a person |
@@ -156,9 +188,9 @@ then answered **404 NOT_FOUND**, which is what the first real Paint run hit
   `responseModalities: ["IMAGE"]` and an `imageConfig`, rather than
   `:predict`. The painter picks the shape from the model name.
 - **There is no switch for people.** Imagen's `personGeneration` has no
-  equivalent. Small anonymous figures are allowed since §166; the checker
-  refuses a face, a crowd or anybody who could be a real person and paints
-  again, so one costs an extra attempt rather than reaching a tile.
+  equivalent. People with expressionless faces are allowed since §169; the
+  checker refuses a real or famous person, a child or team kit, and the
+  picture waits for review rather than reaching a tile.
 - **It takes pictures as well as words**, which Imagen never did - the
   reason the look now comes from `thumbnail_style/` (§166).
 
