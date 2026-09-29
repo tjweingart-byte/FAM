@@ -203,9 +203,9 @@ class SavedStore:
                 pass  # already there
             # Recent listening history (§142): every episode this account
             # started, on which surface, for two weeks. A pointer like
-            # everything else here - the question, the length, the title -
-            # so replaying one is an ordinary episode and, while the script
-            # is still cached, a cache hit. One row per episode per surface:
+            # everything else here - the question, the length, the title,
+            # and since §173 the heard episode's id, which the cache keeps
+            # for as long as the row is shown. One row per episode per surface:
             # hearing the same thing twice moves it to the top rather than
             # listing it twice.
             conn.execute(
@@ -226,6 +226,15 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS history_user"
                          " ON history(user_id, at)")
+            # §173: *which* episode was heard (`cache.episode_id`), so a row
+            # replays that episode and not whatever its question is answered
+            # with today. '' on rows from before it, which replay what is
+            # kept under their question's key.
+            try:
+                conn.execute("ALTER TABLE history ADD COLUMN episode"
+                             " TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Go Deeper tiles the listener closed with their X. Keyed on the
             # question alone, not the length: "not shown again" is about the
             # subject, and the same question offered back at another length
@@ -571,7 +580,7 @@ class SavedStore:
 
     def note_listen(self, user_id: str, query: str, minutes: int,
                     surface: str, title: str = "", context: str = "",
-                    at: float = 0.0) -> bool:
+                    at: float = 0.0, episode: str = "") -> bool:
         """Put an episode at the top of this listener's history.
 
         `surface` must be one of `HISTORY_SURFACES`; anything else - Explore
@@ -590,13 +599,16 @@ class SavedStore:
         try:
             self._conn().execute(
                 "INSERT INTO history (user_id, query, minutes, surface, title,"
-                " context, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " context, at, episode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(user_id, query, minutes, context, surface) DO UPDATE SET"
                 "  at = excluded.at,"
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
-                "               ELSE history.title END",
+                "               ELSE history.title END,"
+                # The episode heard *now* is the one the row replays (§173).
+                "  episode = CASE WHEN excluded.episode != '' THEN excluded.episode"
+                "                 ELSE history.episode END",
                 (user_id, query, minutes, surface, title,
-                 str(context or "")[:300], now))
+                 str(context or "")[:300], now, str(episode or "")[:80]))
             # Kept for two weeks and no longer, pruned on write so the table
             # never needs a job of its own to stay that size.
             self._conn().execute(
@@ -629,7 +641,8 @@ class SavedStore:
         if not user_id:
             return []
         since = (now or time.time()) - HISTORY_SECONDS
-        sql = ("SELECT query, minutes, surface, title, context, at FROM history"
+        sql = ("SELECT query, minutes, surface, title, context, at, episode"
+               " FROM history"
                " WHERE user_id = ? AND at >= ?")
         args: list = [user_id, since]
         if surface:
@@ -645,7 +658,8 @@ class SavedStore:
             log.exception("could not read history for %r", user_id)
             return []
         return [{"query": r[0], "minutes": int(r[1]), "surface": r[2],
-                 "title": r[3] or "", "context": r[4] or "", "at": r[5]}
+                 "title": r[3] or "", "context": r[4] or "", "at": r[5],
+                 "episode": r[6] or ""}
                 for r in rows]
 
     # --- housekeeping -----------------------------------------------------

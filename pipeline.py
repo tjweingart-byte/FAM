@@ -26,7 +26,8 @@ import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import prefetch
-from cache import (ScriptCache, build_cache, cache_key, canonical_key, is_shareable,
+from cache import (ScriptCache, build_cache, cache_key, canonical_key, episode_id,
+                   is_shareable, parse_episode_id,
                    key_bucket, ttl_for)
 import metering
 from episode_marks import EpisodeMarks, TimedClient
@@ -249,6 +250,30 @@ class GenerationStats:
     #: finishes, because `stats` is the object that reaches the endpoint and
     #: the endpoint is the only place that knows *whose* episode this was.
     usage: metering.Usage = field(default_factory=metering.Usage)
+    #: §173: the key the episode being heard is stored under, and the notes
+    #: whose `sourced_at` will stamp it - together, `episode`. Set on every
+    #: path that serves a keyed episode; "" for an attachment.
+    episode_key: str = ""
+    episode_sourced: float = 0.0
+    episode_notes: object = field(default=None, repr=False)
+    #: Wall clock when this play began: the sourced stamp of an episode whose
+    #: writer recorded none, fixed here so the id sent at the first byte and
+    #: the row written at the last agree.
+    began_at: float = field(default_factory=time.time)
+
+    @property
+    def sourced_stamp(self) -> float:
+        return (self.episode_sourced
+                or float(getattr(self.episode_notes, "sourced_at", 0.0) or 0.0)
+                or self.began_at)
+
+    @property
+    def episode(self) -> str:
+        """This heard episode's identity (`cache.episode_id`), or "" (§173).
+
+        What the listening history keeps, so a row replays *this* episode
+        rather than whatever its question is answered with today."""
+        return episode_id(self.episode_key, self.sourced_stamp) if self.episode_key else ""
 
     @property
     def voiced_seconds(self) -> float:
@@ -1122,6 +1147,11 @@ class PodcastPipeline:
         model call when the key needs one. Since §134 a near match counts: see
         below.
         """
+        if plan.episode and self._keeps_audio() and self.cache:
+            # A heard episode, replayed by its identity (§173).
+            key = self.cache.resolve_episode(plan.episode)
+            return bool(key) and self.cache.has_audio(
+                key, self._audio_voice(), self.engine.sample_rate)
         if (not self._keeps_audio() or settings.cache_semantic_key
                 or not is_shareable(plan.query) or plan.attachments):
             return False
@@ -1259,7 +1289,15 @@ class PodcastPipeline:
             # A replay surface replays anything still kept, stamped with when
             # it was sourced; every other request is served only a script
             # that is still current, and otherwise writes a new one (§143).
-            cached = self.cache.get(key, current=not plan.cached_only)
+            if plan.episode:
+                # The listening history (§173): *this* heard episode, from the
+                # key or the archive copy made when its question was written
+                # again. Kept, not current, and never a neighbour - a replay
+                # of something already heard, which never writes.
+                key = self.cache.resolve_episode(plan.episode)
+                cached = self.cache.get(key, current=False) if key else None
+            else:
+                cached = self.cache.get(key, current=not plan.cached_only)
             if cached:
                 stats.match = "exact"
             elif bucket and not plan.cached_only:
@@ -1281,6 +1319,11 @@ class PodcastPipeline:
                         log.info("near cache hit %.3f for %r", near[1], plan.query)
             if cached:
                 stats.cache = "hit"
+                if plan.episode:
+                    stats.episode_key = parse_episode_id(plan.episode)[0]
+                else:
+                    stats.episode_key = key
+                stats.episode_sourced = self.cache.sourced_at(key) or 0.0
                 live_captions.mark_cached(stats.caption_key)
                 # Counted here, where an episode is about to be *played*, and
                 # nowhere that merely looks: `get` also runs for the pacing
@@ -1332,9 +1375,11 @@ class PodcastPipeline:
                 async for chunk in self._finish(pace, stats):
                     yield chunk
                 return
-        if plan.cached_only:
+        if plan.cached_only or plan.episode:
             # Nothing to replay, and generating is exactly what this request
             # promised not to do.
+            if plan.episode:
+                raise NotCached("That episode is no longer kept.")
             raise NotCached(
                 "That episode is no longer in the cache. Explore only replays "
                 "episodes other listeners have already generated."
@@ -1363,6 +1408,10 @@ class PodcastPipeline:
         # Nothing is spoken until the real script arrives. The opener that used
         # to cover this wait is gone: see PROBLEMS.md 55.
         notes = ScriptNotes()
+        # §173: what the history will call this episode, once `prepare` has
+        # stamped when its information was sourced.
+        if key:
+            stats.episode_key, stats.episode_notes = key, notes
         # So the generator can publish sources the moment retrieval produces
         # them, rather than leaving the panel waiting for the cache write at
         # the end of the episode. Same key as the captions beside them.
@@ -1461,9 +1510,10 @@ class PodcastPipeline:
                     and (notes.live_status or "") not in ("in_progress",
                                                           "scheduled")):
                 extra["slide"] = True
-            # When its information was sourced (§143), on the same terms.
-            if notes.sourced_at:
-                extra["sourced_at"] = notes.sourced_at
+            # When its information was sourced (§143), on the same terms -
+            # always the stamp `stats.episode` already told the listener's
+            # history (§173), so the id and the row agree.
+            extra["sourced_at"] = stats.sourced_stamp
             # Where it was asked for, and the voice it was first spoken in
             # (§147), so Explore can hold searches only and every later play
             # of a browse episode is the same voice - and hits its kept audio.
