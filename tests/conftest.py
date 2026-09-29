@@ -99,7 +99,7 @@ FAM_ENVIRONMENT = (
     # The trending bank and GNews (§139). A developer with GNEWS_KEY set must
     # not run a suite that reaches gnews.io and spends their plan.
     "TRENDING_BANK", "TRENDING_BANK_SIZE", "TRENDING_BANK_TIMEZONE",
-    "TRENDING_BANK_HOURS", "TRENDING_BANK_WRITE",
+    "TRENDING_BANK_HOURS", "TRENDING_BANK_WRITE", "STARTUP_WRITE_AHEAD",
     "TRENDING_BANK_RETRY_SECONDS", "TRENDING_BANK_MAX_AGE_HOURS",
     # The DailyFAM edition (§143): a suite must never start writing every
     # mix's episodes because a developer's shell turned it on.
