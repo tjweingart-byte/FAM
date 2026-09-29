@@ -193,13 +193,13 @@ def identity() -> dict:
                    or os.environ.get("RENDER_GIT_COMMIT") or "").strip() or "unknown",
         "host": socket.gethostname(),
         "engine": "chatterbox",
-        # Which recording this worker clones (§174). Two workers holding
+        # Which recording this worker clones (§176). Two workers holding
         # different files used to be two voices behind one address, and the
         # app could not tell; with this it refuses the one that differs from
         # VOICE_REFERENCE_FINGERPRINT.
         "reference_sha256": _reference_sha(),
         # Which Chatterbox weights are on this card, and which package spoke
-        # them (§174): neither can be read off a pod from outside otherwise.
+        # them (§176): neither can be read off a pod from outside otherwise.
         "weights_revision": _weights_revision(),
         "chatterbox_version": _chatterbox_version(),
     }

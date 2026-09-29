@@ -13395,12 +13395,137 @@ checked by a test, but no service was created), and branch protection on
 `Main`, which only a person can set. Creating the `staging` branch is a command
 in STAGING.md, because this session may push only to its own branch.
 
-## 173. Instant feedback, a bare link for iMessage, Join FAM, and why the voice drifts
+## 173. The same question twice was two episodes, and history played a third
 
-The 29/09 packet, four items.
+At the owner's direction, from a phone: "upcoming dodgers game" searched at
+11:56 gave a good episode; searched again (history says 12:24) it gave a
+different one with older information; tapping the first row of Recent
+listening history gave a third. "The first two episodes should be the exact
+same... all episodes in recent listening history should be cached, there are
+no exceptions to this."
+
+**Why the second search wrote again.** The key was the same - `key_for` is
+deterministic on the words, length, context and research flag - but a row is
+served to a new request only while *current* (§143), and an upcoming game is
+`scheduled` (thirty minutes) or `outcome_dependent` (`CACHE_TTL_VOLATILE`,
+fifteen). Twenty-eight minutes later it was neither, so the tap wrote a new
+episode and the re-write replaced the old row and deleted its audio. Why the
+second read as older is not established - no logs from the phone's session -
+but it no longer matters for this question: it would have been a hit.
+
+**Why history played a third.** A history row was a question, replayed by
+asking it again (`playHistory` sent the query), so it got whatever a new
+request gets: past the window, a new episode. And there was no way to get
+the heard one back even in principle, because the re-write overwrote it.
+
+**What changed.**
+
+* `CACHE_TTL_VOLATILE` is two hours (was 900s), and `scheduled` uses it
+  rather than its own 1800s. `in_progress` stays 0 - a live score is never
+  served to somebody asking now. `.env.example` agrees.
+* Every served episode has an identity: `cache.episode_id(key, sourced)`,
+  sent as `X-FAM-Episode` (exposed to CORS). The pipeline fixes the sourced
+  stamp before the first byte (`GenerationStats.sourced_stamp`) and writes the
+  row with the same one, so the id the phone keeps and the row agree.
+* A key written again with *different* words moves the old row and its audio
+  to `archive_key(key, sourced)`: `fresh_until` 1 (never current), no bucket
+  or vector (no near match), `ttl` 0 (never slides), `origin = "archive"`
+  (`recent` and `authored_by` skip it, so no feed or rail shows it). The same
+  words again archive nothing, as before.
+* History stores the id (`history.episode`), `FamAudio.episode()` hands it to
+  `noteListen`, and `playHistory` sends `episode=` to `/api/audio`, which
+  resolves it (`resolve_episode`: the key while it holds that episode, else
+  its archive copy), plays it current or not, and **never writes** - a 409 if
+  it is gone. Not paced, like any replay.
+* `/api/history` pins what a row names (`keep_until`, two weeks - the cache
+  keeps a row one), so the second week of history is not a re-write.
+* Rows from before this carry no id; `/api/history` gives them the bare key
+  when something is still kept under their question, which replays (and
+  pins) that; otherwise they play as they did.
+
+**Still true.** Kept audio is under `AUDIO_CACHE_MAX_MB`, LRU. Past it, a
+heard episode replays its same script in its same voice, synthesised once
+more - the same episode, one GPU call. `/api/next` on an archived replay still
+reads the key's current row for the thread; the title is the row's own
+(`titleOverridden`). Not measured against a real model or voice here.
+
+## 174. The 9.29 packet: six changes
+
+Six items from the owner, in the packet's order.
+
+**1. "Find new friends" is a button.** It was a line of gold monospace beside
+the Your friends heading and read as a caption. It is a gold pill with a plus
+now (`.yf-find`), which opens Friends as before.
+
+**2. Your own interests are off your own page.** The pills under Edit profile
+made YourFAM crowded, and Edit profile ("Your interests - N of 5") already
+shows and changes them. `renderProfile` draws none. Nothing on the server
+changed: `interests_shown` is still what the profile *shares*, and a
+friend's page (`renderFriendProfile`) still shows theirs, at the owner's direction.
+The smoke checks that tapped the hub's chips now check that there are none,
+check the pill, and reach the Topic screen the way a friend's chip does.
+
+**3. Choppy audio with the app in the background.** The player queued 0.35 s
+of audio at a time and topped it up from an 80 ms timer. A page out of sight
+has its timers slowed to about once a second (on a phone, often less), so
+the queue ran dry between ticks several times a second: speech, silence,
+speech. Hidden, `fam-audio.js` now queues everything that has arrived, up to
+30 s ahead (`LOOKAHEAD_HIDDEN`), in 1 s slices, tops up from each slice's
+`onended` event as well as the timer, and switches the moment
+`visibilitychange` fires. Visible, nothing changed: short queue, instant
+seek. A seek or speed change still rebuilds the queue from scratch.
+**Not tried on a phone here.** iOS may still suspend a page's audio when
+Safari itself goes to the background. That limit is in the browser, and the
+native app is where it goes away.
+
+**4. "A Big Company's Newest Bet".** That is a startup tile (§116): a
+question asked before anything is retrieved, so it cannot name a company.
+§161 made a written tile take its episode's own `<<TITLE:>>`, but only after
+somebody's tap had written it, so on a quiet deployment nobody ever saw a
+name. The owner wants the name up front. `trending_bank.write_startup` now
+writes the eight questions at every edition slot (05:00 and 17:00 Eastern),
+from the same loop, into the shared cache under the key a tap computes,
+current until the next slot plus an hour. It is claimed per slot in the
+edition table (`startup:<slot>`, read by nothing that shows an edition), so
+one worker writes them. It needs no GNews key, and `STARTUP_WRITE_AHEAD=0`
+switches it off. They are **rewritten** each slot rather than kept, because
+each asks about *this week*. The same two rules as the edition hold: an
+outcome-dependent brief is left for the tap, and a live score is never kept.
+The ninth, local question is not written, because it is personal. Cost:
+sixteen episodes a day at the browse length. **Unheard, and the titles
+unseen:** there is no key here, so whether the writer's title names the
+company is a claim about the prompt, not an observation.
+
+**5. Pick up where you left off.** An episode more than 60% heard is not
+offered (`SavedStore.RESUME_MAX_FRACTION`). The position is deleted when it
+is written past that point and filtered when it is read, which covers rows
+written before the rule. The fraction uses the real length when the player
+has the whole episode (`/api/progress` takes an optional `duration`, kept in
+a new column), because the requested minutes are a ceiling and an episode
+that ran short would otherwise never reach 60%. The card's bar and "left"
+use the same length. Both sources now come from the last 24 hours rather
+than the week (`GO_DEEPER_WINDOW_SECONDS`), so a tile is there for at most a
+day after it was last listened to, and the next one that qualifies takes its
+place.
+
+**6. No country on Trending's cards; View more by continent.** The card
+shows its subject, like every other rail. View more groups by continent
+(`geography.continent_for`): a story whose outlets are mostly (60%) on one
+continent is that continent's, otherwise it is Worldwide. The order is
+Worldwide, then the listener's own continent, then the rest, busiest first.
+There are six continents and no Antarctica. Central America and the
+Caribbean are North America, Egypt is Africa, and the Middle East is Asia.
+The `geo` field stays in the API, because the kept web release still reads
+it. The owner's aim of **at least four episodes per continent** needs GNews
+at scale and is not enforced: an edition is ten stories, so a continent with
+nothing trending is absent rather than padded.
+
+## 175. Instant feedback, a bare link for iMessage, Join FAM, and why the voice drifts
+
+The 29/09 implementations packet (the second, after §174's), four items.
 
 **1. "The voice ... sometimes has a noticeable southern twang."** (Fixed in
-§174, below.) Investigated, not yet changed - nothing here can play audio, and every candidate fix changes
+§176, below.) Investigated, not yet changed - nothing here can play audio, and every candidate fix changes
 what the production voice sounds like, so each wants a listening test first.
 What the code shows, most likely first:
 
@@ -13462,9 +13587,9 @@ owner's direction, and without breaking the reason for it: the front door is a
 real page on the host that served the link. The waitlist wording was the
 alternative offered; there is no waitlist, and sign-up exists, so it says join.
 
-## 174. The voice fixes: seeded chunks, one recording, pinned code, a fingerprint
+## 176. The voice fixes: seeded chunks, one recording, pinned code, a fingerprint
 
-The owner, on §173's findings: "Make the fixes." All five, and none of them is
+The owner, on §175's findings: "Make the fixes." All five, and none of them is
 a generation setting - the six numbers in `tts.CHATTERBOX_GENERATION` are the
 voice and did not move.
 

@@ -1,4 +1,4 @@
-"""The 29/09 packet (PROBLEMS.md §173): instant feedback, iMessage, Join FAM.
+"""The 29/09 packet (PROBLEMS.md §175): instant feedback, iMessage, Join FAM.
 
 * **Instant feedback.** A button under the phone on the demo page files a bug
   report; `/admin` is the inbox, where each is resolved or opened again.

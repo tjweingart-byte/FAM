@@ -27,6 +27,22 @@ window.FamAudio = (function () {
   // schedule at once. Short slices keep seek and rate changes responsive.
   var LOOKAHEAD = 0.35;
   var SLICE = 0.25;
+  // **Out of sight, the queue is long** (9.29 packet). A page in the
+  // background has its timers slowed to about once a second - on a phone,
+  // less often than that - so a third of a second of audio queued on an 80ms
+  // timer ran dry between ticks and the episode came out in pieces the
+  // moment the listener switched apps. Hidden, everything that has arrived is
+  // queued, up to this far ahead, in longer slices; responsiveness is what
+  // the short queue buys, and nobody can seek a page they are not looking
+  // at. Every seek and speed change still rebuilds the queue from scratch.
+  var LOOKAHEAD_HIDDEN = 30;
+  var SLICE_HIDDEN = 1.0;
+
+  function hidden() {
+    try { return document.visibilityState === "hidden"; } catch (e) { return false; }
+  }
+  function lookahead() { return hidden() ? LOOKAHEAD_HIDDEN : LOOKAHEAD; }
+  function slice() { return hidden() ? SLICE_HIDDEN : SLICE; }
   // While the episode is still being written, never seek closer than this to
   // the end of what has arrived. Landing exactly on the edge starves the
   // player: nothing is left to schedule, playback stops dead, and further
@@ -42,6 +58,7 @@ window.FamAudio = (function () {
   var pcm = null;          // Int16Array, grown as the stream arrives
   var totalSamples = 0;    // how much of `pcm` is real audio
   var keepable = false;    // the server said this audio may be kept (§161)
+  var episodeId = "";      // which episode this stream is (X-FAM-Episode, §173)
   var sampleRate = 22050;
   var cursor = 0;          // next sample to schedule
   var playHead = 0;        // ctx time at which `cursor` will be heard
@@ -176,7 +193,7 @@ window.FamAudio = (function () {
      source to make one yet. Advances `cursor` by the source it consumed, so
      everything above this function keeps counting in source samples. */
   function stretchedBlock() {
-    var frames = Math.max(1, Math.round(SLICE * sampleRate / HOP));
+    var frames = Math.max(1, Math.round(slice() * sampleRate / HOP));
     var out = new Float32Array(frames * HOP);
     var step = HOP * rate;          // source consumed per synthesis hop
     var wrote = 0;
@@ -220,7 +237,7 @@ window.FamAudio = (function () {
   /* One block of plain output: the samples as they are, played by the node at
      `rate`. What this did before the stretcher existed. */
   function plainBlock() {
-    var end = Math.min(cursor + Math.floor(SLICE * sampleRate), totalSamples);
+    var end = Math.min(cursor + Math.floor(slice() * sampleRate), totalSamples);
     var length = end - cursor;
     if (length <= 0) return null;
     var buf = ctx.createBuffer(1, length, sampleRate);
@@ -235,7 +252,8 @@ window.FamAudio = (function () {
   function tick() {
     if (!ctx || !active || held) return;
 
-    while (playHead - ctx.currentTime < LOOKAHEAD && cursor < totalSamples) {
+    var ahead = lookahead();
+    while (playHead - ctx.currentTime < ahead && cursor < totalSamples) {
       var stretch = stretching();
       var buf = stretch ? stretchedBlock() : plainBlock();
       if (!buf) break;
@@ -254,6 +272,9 @@ window.FamAudio = (function () {
         return function () {
           var idx = sources.indexOf(node);
           if (idx >= 0) sources.splice(idx, 1);
+          // An ended slice is an event, not a timer, so it still arrives
+          // promptly in the background: top the queue up from here too.
+          if (hidden()) tick();
         };
       })(src);
 
@@ -352,6 +373,13 @@ window.FamAudio = (function () {
     try { if (mediaEl) mediaEl.pause(); } catch (e) {}
   }
 
+  // Going out of sight: queue the long way at once rather than on the next
+  // (now throttled) tick. Coming back needs nothing - the queue already
+  // scheduled keeps playing, and the short one resumes as it drains.
+  try {
+    document.addEventListener("visibilitychange", function () { tick(); });
+  } catch (e) {}
+
   // The session type is harmless to set early and costs nothing, so the first
   // touch anywhere sets it - which covers a play started a beat after a tap.
   try {
@@ -392,9 +420,13 @@ window.FamAudio = (function () {
               (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "") +
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
-              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "");
+              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
+              // One heard episode, replayed exactly (§173): the listening
+              // history. Never generates - a 409 if it is no longer kept.
+              (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "");
 
     keepable = false;
+    episodeId = "";
     ctx.resume().then(function () {
       // A request that never reached the server is marked, so the caller can
       // tell "no connection" from a bug further down (§161's offline play).
@@ -421,6 +453,7 @@ window.FamAudio = (function () {
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
       var cacheState = res.headers.get("X-FAM-Cache") || "";
       keepable = res.headers.get("X-FAM-Keepable") === "1";
+      episodeId = res.headers.get("X-FAM-Episode") || "";
 
       var reader = res.body.getReader();
       var leftover = new Uint8Array(0);
@@ -497,6 +530,7 @@ window.FamAudio = (function () {
     resetStretch(0);
     sampleRate = Number(rate) || 22050;
     keepable = false;       // already on the device; nothing to keep again
+    episodeId = "";
     pcm = samples;
     totalSamples = samples.length;
     streamDone = true;   // there is no more coming; it is all already here
@@ -633,5 +667,9 @@ window.FamAudio = (function () {
     },
     // Which play is current; bumped by every play, playStored and stop.
     stream: function () { return token; },
+    // Which episode the current stream is (§173), as the server named it -
+    // what the listening history keeps so a row replays exactly this one.
+    // "" before the response, for an attachment, and for a device replay.
+    episode: function () { return episodeId; },
   };
 })();

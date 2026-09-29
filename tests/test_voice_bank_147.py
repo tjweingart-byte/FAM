@@ -44,7 +44,7 @@ def wav(seconds: float = 4.0, rate: int = 24000) -> bytes:
         out.setsampwidth(2)
         out.setframerate(rate)
         # A 220 Hz tone at about -20 dBFS from the first sample: what the
-        # bank's §174 check wants of a recording (no lead silence, speech-level).
+        # bank's §176 check wants of a recording (no lead silence, speech-level).
         out.writeframes(b"".join(
             int(3200 * math.sin(2 * math.pi * 220 * i / rate)).to_bytes(
                 2, "little", signed=True)
@@ -309,8 +309,14 @@ def test_background_editions_stamp_their_origin_and_a_bank_voice():
                          ("prefetch.py", "prefetch")):
         source = open(os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), path)).read()
-        assert f'"origin"] = "{origin}"' in source, path
+        # The trending bank passes its origin in, because the same writer
+        # also writes the "Start here" questions (§174) as `startup`.
+        assert (f'"origin"] = "{origin}"' in source
+                or (f'origin: str = "{origin}"' in source
+                    and 'extra["origin"] = origin' in source)), path
         assert "voice_bank.random_slug()" in source, path
+    assert 'origin="startup"' in open(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "trending_bank.py")).read()
 
 
 def test_browse_lengths_are_fixed_in_code():

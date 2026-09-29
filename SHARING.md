@@ -411,7 +411,7 @@ buttons are the whole of what it does. The wordmark, "Ask your own question",
 delegated listener, so a control added later is a door by default rather than
 by somebody remembering to wire it.
 
-"Want to hear more? Join FAM for free" (PROBLEMS.md §173) is the one door drawn
+"Want to hear more? Join FAM for free" (PROBLEMS.md §175) is the one door drawn
 with no `APP_STORE_URL`: it then goes to the front door, `/`, which opens on
 sign-up for a newcomer. The iMessage share is the link alone, so Messages
 draws this page's preview card and leaves the typing line for the sender.

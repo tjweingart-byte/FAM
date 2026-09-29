@@ -140,7 +140,7 @@ episode.
 image, the same weights and the same `reference_3.wav`; a candidate whose
 `/health` reports a sample rate this app has not already written into the
 stream header is *refused* rather than used. The same recording is no longer assumed
-(PROBLEMS.md §174): each worker reports the `reference_sha256` it clones, its
+(PROBLEMS.md §176): each worker reports the `reference_sha256` it clones, its
 `weights_revision` and its `chatterbox_version`, and with
 `VOICE_REFERENCE_FINGERPRINT` set (the value `tools/pack_for_pod.py` prints) a worker
 holding any other recording is refused too - set it on the pod as well and the

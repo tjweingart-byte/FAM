@@ -18,7 +18,7 @@
 # comment before moving one; `tools/diagnose_chatterbox.py` prints the real
 # error behind the misleading one in each case.
 
-# Pinned exactly (PROBLEMS.md §174). Unpinned, a pod rebuilt from scratch
+# Pinned exactly (PROBLEMS.md §176). Unpinned, a pod rebuilt from scratch
 # took whatever chatterbox-tts was newest that day, and a new release can
 # change the model code behind the same six generation settings - a different
 # voice with nothing in this repo having moved. 0.1.7 is the release every

@@ -36,7 +36,7 @@ DELIBERATELY_OPTIONAL = {
     "chatterbox": "requirements-chatterbox.txt",
     "torch": "requirements-chatterbox.txt",
     # Chatterbox's own dependency, asked only where its cache lives so the
-    # worker can say which weights it holds (§174); tts.weights_revision()
+    # worker can say which weights it holds (§176); tts.weights_revision()
     # falls back to the default cache path when it is missing.
     "huggingface_hub": "requirements-chatterbox.txt",
     # Chatterbox's resampler, used by `verify_voice.py --fingerprint`, which

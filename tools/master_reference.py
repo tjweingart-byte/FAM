@@ -4,7 +4,7 @@
     python tools/master_reference.py in.wav --out out.wav
 
 Chatterbox learns a voice's accent and prosody from the **first six seconds**
-of its reference (PROBLEMS.md §174). The default recording opened with 1.3s of
+of its reference (PROBLEMS.md §176). The default recording opened with 1.3s of
 silence - a fifth of that window spent on nothing - and was quiet, which leaves
 more of the voice to the model's own prior. This:
 

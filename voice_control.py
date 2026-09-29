@@ -145,7 +145,7 @@ class Verdict:
     image: str = ""
     commit: str = ""
     latency: float = 0.0
-    #: The recording the worker clones, when it says (§174).
+    #: The recording the worker clones, when it says (§176).
     reference_sha256: str = ""
 
     def as_dict(self) -> dict:
@@ -761,7 +761,7 @@ async def verify(endpoint: Endpoint) -> Verdict:
         # Refused rather than used, like the sample rate above: a worker
         # cloning a different recording is a different voice, and a pod swap
         # used to change what every listener heard with nothing saying so
-        # (§174). A worker too old to report its recording is not refused -
+        # (§176). A worker too old to report its recording is not refused -
         # that would be this check subtracting availability - and the health
         # page shows it as unchecked.
         return Verdict(False,
@@ -1124,7 +1124,7 @@ def report() -> dict:
         # find a worker (§117). Named for the state, not the variable.
         "plain_http": "allowed" if allow_plain_http() else "refused",
         "held": _state.held.as_dict() if _state.held else None,
-        # Which recording the voice must be (§174): `pinned` when
+        # Which recording the voice must be (§176): `pinned` when
         # VOICE_REFERENCE_FINGERPRINT is set and workers are refused on it,
         # `unpinned` when a pod swap could still change the voice unseen.
         "reference": {

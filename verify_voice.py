@@ -40,7 +40,7 @@ REALTIME_FLOOR = 1.0
 
 # ---------------------------------------------------------------- fingerprint
 #
-# §174: "sometimes it sounds good, and sometimes it has a southern twang" was a
+# §176: "sometimes it sounds good, and sometimes it has a southern twang" was a
 # judgement made by ear, one episode at a time, which is how a drifting voice
 # goes unnoticed until a listener says so. `--fingerprint` turns it into two
 # numbers. Each sentence below is spoken as its own chunk - which is how an

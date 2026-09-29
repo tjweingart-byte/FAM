@@ -806,6 +806,14 @@ class Settings:
     trending_bank_write: bool = field(
         default_factory=lambda: os.environ.get("TRENDING_BANK_WRITE", "1")
         not in ("0", "false", "False", ""))
+    # Whether each edition slot also writes the eight "Start here" questions
+    # (`startup.STARTUP_TOPICS`) ahead of the tap, so their cards carry the
+    # episode's own title - the company, the film, the finding - instead of
+    # "A Big Company's Newest Bet" (9.29 packet). Off, a card is named only
+    # after somebody's tap has written it (§161). Needs no GNews key.
+    startup_write_ahead: bool = field(
+        default_factory=lambda: os.environ.get("STARTUP_WRITE_AHEAD", "1")
+        not in ("0", "false", "False", ""))
     # How long to wait before trying a failed edition again.
     trending_bank_retry_seconds: float = _env_float(
         "TRENDING_BANK_RETRY_SECONDS", 1800.0)
@@ -994,9 +1002,13 @@ class Settings:
     # evergreen episode is current for as long as it is kept.
     cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 7 * 86400)
     # How long an episode about something time-sensitive stays current
-    # ("latest", "today", a one-day evidence window, a result). Still kept
-    # for `cache_life_seconds`, stamped with when it was sourced.
-    cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 900)
+    # ("latest", "today", a one-day evidence window, a result, a fixture
+    # still to come). Still kept for `cache_life_seconds`, stamped with when
+    # it was sourced. Two hours since §173 (it was fifteen minutes, thirty for
+    # a scheduled game): the owner asked "upcoming dodgers game" twice
+    # twenty-eight minutes apart and paid for two different episodes. A game
+    # *in progress* is still never current - `ttl_for` returns 0 for it.
+    cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 7200)
     # How long an evergreen episode may be kept alive by being played (§134).
     # A play of an entry written at the ordinary ceiling pushes its expiry a
     # full `cache_ttl_seconds` forward, up to this age from when it was
@@ -1256,14 +1268,14 @@ class Settings:
     # commercial use and synthetic voice, or the engine reports unavailable.
     chatterbox_reference: str = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_REFERENCE", ""))
-    # Each chunk's sampling is seeded from the voice and the words (§174), so
+    # Each chunk's sampling is seeded from the voice and the words (§176), so
     # the same sentence in the same voice comes out the same every time, and
     # an episode is not a fresh roll of the accent on every chunk. `0` returns
-    # to unseeded sampling, which is what every judgement before §174 heard.
+    # to unseeded sampling, which is what every judgement before §176 heard.
     chatterbox_seeded: bool = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEEDED", "1")
         not in ("0", "false", "False"))
-    # The fingerprint of the recording every voice worker must clone (§174):
+    # The fingerprint of the recording every voice worker must clone (§176):
     # the sha256 `tools/pack_for_pod.py` prints. Set, a worker reporting a
     # different recording is refused rather than used - a swapped pod used to
     # change the voice in silence. Blank checks nothing and reports it.

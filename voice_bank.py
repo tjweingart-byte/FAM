@@ -145,7 +145,7 @@ def check_rights(record: dict) -> None:
                 "consent, commercial use and synthetic voice all cleared")
 
 
-#: What a reference recording must be to clone well (§174). Chatterbox takes
+#: What a reference recording must be to clone well (§176). Chatterbox takes
 #: the accent and prosody from the *first six seconds*, so silence at the
 #: start is conditioning spent on nothing - the default recording opened with
 #: 1.3s of it, a fifth of that window - and a quiet or low-rate file gives it

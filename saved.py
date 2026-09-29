@@ -201,11 +201,19 @@ class SavedStore:
                              " TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # The episode's real length, once the player has all of it (9.29
+            # packet). The requested minutes are a ceiling, not the length,
+            # so "how far through" is measured against this when it is known.
+            try:
+                conn.execute("ALTER TABLE progress ADD COLUMN duration"
+                             " REAL NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Recent listening history (§142): every episode this account
             # started, on which surface, for two weeks. A pointer like
-            # everything else here - the question, the length, the title -
-            # so replaying one is an ordinary episode and, while the script
-            # is still cached, a cache hit. One row per episode per surface:
+            # everything else here - the question, the length, the title,
+            # and since §173 the heard episode's id, which the cache keeps
+            # for as long as the row is shown. One row per episode per surface:
             # hearing the same thing twice moves it to the top rather than
             # listing it twice.
             conn.execute(
@@ -226,6 +234,15 @@ class SavedStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS history_user"
                          " ON history(user_id, at)")
+            # §173: *which* episode was heard (`cache.episode_id`), so a row
+            # replays that episode and not whatever its question is answered
+            # with today. '' on rows from before it, which replay what is
+            # kept under their question's key.
+            try:
+                conn.execute("ALTER TABLE history ADD COLUMN episode"
+                             " TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Go Deeper tiles the listener closed with their X. Keyed on the
             # question alone, not the length: "not shown again" is about the
             # subject, and the same question offered back at another length
@@ -475,39 +492,55 @@ class SavedStore:
     #: card offering the last four seconds of something is clutter.
     RESUME_HEAD = 20.0
     RESUME_TAIL = 30.0
+    #: **More than this far through and it is not offered back** (9.29 packet,
+    #: at the owner's direction): somebody who heard most of an episode got
+    #: what they came for, and a card offering its last minute is clutter.
+    RESUME_MAX_FRACTION = 0.6
+
+    @staticmethod
+    def _length(minutes: int, duration: float) -> float:
+        """The episode's length in seconds: the real one when the player has
+        reported it, else the requested minutes, which are a ceiling."""
+        duration = float(duration or 0)
+        return duration if duration > 0 else minutes * 60.0
 
     def note_progress(self, user_id: str, query: str, minutes: int,
                       seconds: float, title: str = "", at: float = 0.0,
-                      context: str = "") -> bool:
+                      context: str = "", duration: float = 0.0) -> bool:
         """Record how far through an episode this listener is.
 
         Returns True when a position is being kept and False when the episode
         counts as not started or finished - in which case any old position is
         removed, so a finished episode stops being offered as unfinished.
+        More than `RESUME_MAX_FRACTION` through counts as finished.
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         minutes = int(minutes or 0)
         if not user_id or not query or minutes <= 0:
             return False
-        total = minutes * 60.0
+        duration = max(0.0, float(duration or 0))
+        total = self._length(minutes, duration)
         seconds = max(0.0, float(seconds or 0))
         try:
-            if seconds < self.RESUME_HEAD or seconds > total - self.RESUME_TAIL:
+            if (seconds < self.RESUME_HEAD or seconds > total - self.RESUME_TAIL
+                    or seconds > total * self.RESUME_MAX_FRACTION):
                 self._conn().execute(
                     "DELETE FROM progress WHERE user_id = ? AND query = ?"
                     " AND minutes = ?", (user_id, query, minutes))
                 return False
             self._conn().execute(
                 "INSERT INTO progress (user_id, query, minutes, seconds, title,"
-                " updated, context) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " updated, context, duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
                 "  seconds = excluded.seconds, updated = excluded.updated,"
                 "  context = excluded.context,"
+                "  duration = CASE WHEN excluded.duration > 0"
+                "                  THEN excluded.duration ELSE progress.duration END,"
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
                 "               ELSE progress.title END",
                 (user_id, query, minutes, seconds,
                  " ".join(str(title or "").split())[:MAX_TITLE],
-                 at or time.time(), str(context or "")[:300]))
+                 at or time.time(), str(context or "")[:300], duration))
             return True
         except Exception:
             log.exception("could not record progress for %r", user_id)
@@ -518,24 +551,34 @@ class SavedStore:
         """Part-heard episodes, most recently listened to first.
 
         `since` drops anything last listened to before it - Go Deeper asks
-        for the last week only, because an episode left half-heard a month
-        ago is not something anybody is about to pick back up.
+        for the last day only (9.29 packet), because an episode left
+        half-heard days ago is not something anybody is about to pick back up.
+        A row more than `RESUME_MAX_FRACTION` through is never returned, which
+        covers positions written before that rule existed.
         """
         if not user_id:
             return []
         try:
             rows = self._conn().execute(
-                "SELECT query, minutes, seconds, title, updated, context"
+                "SELECT query, minutes, seconds, title, updated, context, duration"
                 " FROM progress"
                 " WHERE user_id = ? AND updated >= ?"
-                " ORDER BY updated DESC LIMIT ?",
-                (user_id, float(since or 0.0), int(limit))).fetchall()
+                " ORDER BY updated DESC",
+                (user_id, float(since or 0.0))).fetchall()
         except Exception:
             log.exception("could not read progress for %r", user_id)
             return []
-        return [{"query": r[0], "minutes": int(r[1]), "seconds": float(r[2]),
-                 "title": r[3] or "", "at": r[4], "context": r[5] or ""}
-                for r in rows]
+        out = []
+        for r in rows:
+            length = self._length(int(r[1]), r[6])
+            if float(r[2]) > length * self.RESUME_MAX_FRACTION:
+                continue
+            out.append({"query": r[0], "minutes": int(r[1]), "seconds": float(r[2]),
+                        "title": r[3] or "", "at": r[4], "context": r[5] or "",
+                        "duration": float(r[6] or 0)})
+            if len(out) >= int(limit):
+                break
+        return out
 
     # --- Go Deeper tiles closed with their X ---------------------------------
 
@@ -571,7 +614,7 @@ class SavedStore:
 
     def note_listen(self, user_id: str, query: str, minutes: int,
                     surface: str, title: str = "", context: str = "",
-                    at: float = 0.0) -> bool:
+                    at: float = 0.0, episode: str = "") -> bool:
         """Put an episode at the top of this listener's history.
 
         `surface` must be one of `HISTORY_SURFACES`; anything else - Explore
@@ -590,13 +633,16 @@ class SavedStore:
         try:
             self._conn().execute(
                 "INSERT INTO history (user_id, query, minutes, surface, title,"
-                " context, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " context, at, episode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(user_id, query, minutes, context, surface) DO UPDATE SET"
                 "  at = excluded.at,"
                 "  title = CASE WHEN excluded.title != '' THEN excluded.title"
-                "               ELSE history.title END",
+                "               ELSE history.title END,"
+                # The episode heard *now* is the one the row replays (§173).
+                "  episode = CASE WHEN excluded.episode != '' THEN excluded.episode"
+                "                 ELSE history.episode END",
                 (user_id, query, minutes, surface, title,
-                 str(context or "")[:300], now))
+                 str(context or "")[:300], now, str(episode or "")[:80]))
             # Kept for two weeks and no longer, pruned on write so the table
             # never needs a job of its own to stay that size.
             self._conn().execute(
@@ -629,7 +675,8 @@ class SavedStore:
         if not user_id:
             return []
         since = (now or time.time()) - HISTORY_SECONDS
-        sql = ("SELECT query, minutes, surface, title, context, at FROM history"
+        sql = ("SELECT query, minutes, surface, title, context, at, episode"
+               " FROM history"
                " WHERE user_id = ? AND at >= ?")
         args: list = [user_id, since]
         if surface:
@@ -645,7 +692,8 @@ class SavedStore:
             log.exception("could not read history for %r", user_id)
             return []
         return [{"query": r[0], "minutes": int(r[1]), "surface": r[2],
-                 "title": r[3] or "", "context": r[4] or "", "at": r[5]}
+                 "title": r[3] or "", "context": r[4] or "", "at": r[5],
+                 "episode": r[6] or ""}
                 for r in rows]
 
     # --- housekeeping -----------------------------------------------------

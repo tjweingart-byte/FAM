@@ -403,6 +403,8 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:bank-for-guests -->
+> **Current (PROBLEMS.md §174):** Trending cards no longer say the place (the card shows its subject like every rail), and View more is grouped by **continent** - Worldwide, the listener's own, then the rest busiest first; no Antarctica (`geography.continent_for`). "Each card says the place" below is history.
+
 - **The evergreen bank is for a listener with no account, and the crowd row
   claims only what it can back.** *(§125, `topics.browse_inventory`,
   `MYFAM.md`.)* Two rules from one instruction, both reversing something this
@@ -547,6 +549,8 @@
   rule episode intelligence lives by.
 
 <!-- rule:card-hook-startup -->
+> **Current (PROBLEMS.md §174):** the eight startup questions are written ahead at every Trending edition slot (`trending_bank.write_startup`, `STARTUP_WRITE_AHEAD`, needs no GNews key), rewritten each slot because they ask about *this week*, so a card carries the episode's own title (§161's `_name_written_tiles`) before anybody taps. The ninth, local question is never written ahead: it is personal. An outcome-dependent brief is still left for the tap.
+
 > **Current (PROBLEMS.md §168):** `render.yaml` now turns GDELT on, so "`GDELT=1`, which no deployment has" below is stale.
 
 - **A browse card's one line is about the episode, and a new listener's page
@@ -713,6 +717,23 @@
   whole week. A shared link or a tile past its window is written again, as
   it was when the row simply expired. `CACHE_LIFE_SECONDS=0` with
   `CACHE_TTL_SECONDS=86400` restores the old cache exactly.
+<!-- rule:heard-is-kept -->
+- **A heard episode is kept, and the same question is the same episode.**
+  *(§173, at the owner's direction: "all episodes in recent listening history
+  should be cached, there are no exceptions".)* Every served episode has an
+  identity, `cache.episode_id` = its key plus when it was sourced, sent as
+  `X-FAM-Episode`; the listening history stores it and replays with
+  `/api/audio?episode=`, which plays that episode current or not and
+  **never writes** (409 if gone). A key written again with different words
+  moves the old row and its audio to `archive_key(key, sourced)` - never
+  current, no vector, `origin = "archive"`, off every feed and rail - rather
+  than overwriting it. A history row pins what it names (`keep_until`) for
+  the history's two weeks. And the volatile window (`CACHE_TTL_VOLATILE`,
+  also the scheduled-game window) is two hours, not fifteen and thirty
+  minutes: "upcoming dodgers game" asked twice in an afternoon is one
+  episode. `in_progress` is still never current. Kept audio is still under
+  `AUDIO_CACHE_MAX_MB`; past it a heard episode replays its same script in
+  its same voice, synthesised once more.
 <!-- rule:ttl-from-evidence -->
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
@@ -958,7 +979,7 @@
   `APP_STORE_URL` unset draws **no** non-listening control at all - not one
   that 404s, not one rerouted into the app - and `/api/health` says which
   state a deploy is in.
-  > **Current:** one door is drawn either way *(§173, at the owner's
+  > **Current:** one door is drawn either way *(§175, at the owner's
   > direction)*: "Want to hear more? Join FAM for free" goes to the App Store
   > when `APP_STORE_URL` is set and otherwise to this server's own front door
   > (`sharing.JOIN_PATH`), which opens on sign-up for a newcomer - a real page

@@ -349,7 +349,7 @@ def file_sha256(path) -> str:
 def chunk_seed(reference_sha: str, text: str) -> int:
     """The sampling seed for one chunk: the voice and the words, nothing else.
 
-    §174. Every chunk used to be a fresh random draw at temperature 0.8, so
+    §176. Every chunk used to be a fresh random draw at temperature 0.8, so
     the accent was re-rolled sentence by sentence and a regenerated episode
     never sounded like the first one. Seeded from what is being said and whose
     voice says it, the same sentence in the same voice is the same audio on
@@ -413,7 +413,7 @@ class ChatterboxEngine(TTSEngine):
     #: (device, recording sha) -> the model's prepared conditionals. Chatterbox
     #: re-read and re-embedded the recording on every chunk when handed a
     #: path; the result was identical each time, so it is computed once per
-    #: recording (§174). Keyed on the fingerprint, not the path, so a file
+    #: recording (§176). Keyed on the fingerprint, not the path, so a file
     #: replaced on disk is a new voice rather than a stale cache.
     _conds: dict = {}
     #: path -> (mtime, size, sha): hashing a recording once, not per chunk.
@@ -433,7 +433,7 @@ class ChatterboxEngine(TTSEngine):
     def reference_sha256(cls, reference: pathlib.Path | None = None) -> str:
         """The fingerprint of the recording being cloned, or "" if it is missing.
 
-        What a worker reports in its identity (§174), so the app can tell two
+        What a worker reports in its identity (§176), so the app can tell two
         workers holding different recordings apart before a listener can.
         """
         path = pathlib.Path(reference or cls.reference_path())
@@ -458,7 +458,7 @@ class ChatterboxEngine(TTSEngine):
         """The commit of the weights this machine holds, or "" if unknown.
 
         Read from the Hugging Face cache's `refs/main`, which records what
-        `main` resolved to when the files were downloaded (§174). Reported by
+        `main` resolved to when the files were downloaded (§176). Reported by
         the worker so two pods on different weights can be told apart - the
         weights are not pinned, and this is how the revision to pin is found.
         """
@@ -547,7 +547,7 @@ class ChatterboxEngine(TTSEngine):
             return False, detail
         pinned = settings.voice_reference_sha256
         if pinned and cls.reference_sha256(reference) != pinned:
-            # §174: the wrong recording is a different voice. Refused here as
+            # §176: the wrong recording is a different voice. Refused here as
             # well as by the app's ladder, so a worker told the fingerprint
             # fails its own boot check instead of speaking in someone else's.
             return False, (f"{reference.name} is not the pinned recording "
@@ -627,7 +627,7 @@ class ChatterboxEngine(TTSEngine):
 
         Clones `self._reference` - the voice `synth` resolved (§147) - or the
         default recording when nothing resolved one. Two things changed in
-        §174 and neither is a generation setting: the recording is prepared
+        §176 and neither is a generation setting: the recording is prepared
         once rather than per chunk, and the chunk's sampling is seeded from
         the voice and its words (`CHATTERBOX_SEEDED=0` removes the seed)."""
         import numpy as np
