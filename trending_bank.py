@@ -310,6 +310,13 @@ class BankStore:
                        (READY, edition.built_at, edition.source, edition.detail,
                         edition.to_json(), edition.slot))
 
+    def done(self, slot: str, now: float, detail: str) -> None:
+        """A slot with no edition to show finished: the startup questions'
+        (`write_startup`). `latest` never reads it - it has no payload."""
+        with self._lock, self._connect() as db:
+            db.execute("UPDATE editions SET status = ?, built_at = ?, detail = ?"
+                       " WHERE slot = ?", (READY, now, detail[:500], slot))
+
     def fail(self, slot: str, detail: str) -> None:
         """Record a failed build. A slot that already has an edition keeps it:
         a forced rebuild that failed (`tools/trending_bank.py --build`) must
@@ -713,8 +720,13 @@ async def collect(now: float, size: int, client=None) -> tuple:
 # Writing the episodes
 # --------------------------------------------------------------------------
 async def write_episode(story, generator, cache, minutes: int,
-                        expires_at: float) -> dict:
-    """Write one story's episode into the shared cache. Never raises."""
+                        expires_at: float, origin: str = "trending",
+                        rewrite: bool = False) -> dict:
+    """Write one story's episode into the shared cache. Never raises.
+
+    `rewrite` writes it even when the key is already current - the "Start
+    here" questions ask about *this week*, so each slot asks them again
+    rather than keeping the answer the last slot found."""
     import prefetch
     import research
     from pipeline import bucket_for, key_for
@@ -725,7 +737,7 @@ async def write_episode(story, generator, cache, minutes: int,
         key = await key_for(plan, getattr(generator, "client", None))
         if not key:
             return {"status": "failed", "key": "", "detail": "no cache key"}
-        if cache.get(key):
+        if not rewrite and cache.get(key):
             return {"status": "cached", "key": key}
         notes = ScriptNotes()
         plan = await generator.understand(plan, notes)
@@ -751,7 +763,7 @@ async def write_episode(story, generator, cache, minutes: int,
         # A voice drawn from the bank (§147), kept so every tap hears it.
         import voice_bank
 
-        extra["origin"] = "trending"
+        extra["origin"] = origin
         extra["voice"] = voice_bank.random_slug()
         cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
                   bucket_for(plan), sources, "", notes.title, **extra)
@@ -864,6 +876,101 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
         _BUILDING = False
 
 
+# --------------------------------------------------------------------------
+# The "Start here" questions, written at the same slots (9.29 packet)
+# --------------------------------------------------------------------------
+#: A startup tile is a question asked before anything is retrieved - "a major
+#: strategic move a large company has made recently" - so until an episode
+#: has been written its card can only say "A Big Company's Newest Bet". Once
+#: one is written the card takes the episode's own `<<TITLE:>>` (§161,
+#: `app._name_written_tiles`), and the owner asked for that name - the
+#: company - from the start. So the eight questions are written here, at
+#: every edition slot, into the shared cache under the key a tap computes.
+#: Not the ninth, local one: it is about each listener's own place, and
+#: nothing personal is written ahead. Claimed in the same table as the
+#: edition, under its own slot id, so one worker writes them.
+STARTUP_SLOT_PREFIX = "startup:"
+
+
+def startup_slot_id(slot: datetime) -> str:
+    return STARTUP_SLOT_PREFIX + slot_id(slot)
+
+
+def startup_due(now: Optional[float] = None) -> bool:
+    """Whether this slot's startup episodes still want writing."""
+    if not settings.startup_write_ahead:
+        return False
+    now = time.time() if now is None else now
+    row = store().status(startup_slot_id(last_slot(now)))
+    if row is None:
+        return True
+    if row["status"] == READY:
+        return False
+    quiet = now - float(row["claimed_at"] or 0)
+    if row["status"] == FAILED:
+        return quiet >= settings.trending_bank_retry_seconds
+    return quiet >= STALE_CLAIM_SECONDS
+
+
+async def write_startup(now: Optional[float] = None, generator=None,
+                        cache=None, force: bool = False) -> Optional[dict]:
+    """Write every "Start here" question for the current slot, if this caller
+    wins the claim. `{topic_id: result}`, or None. Never raises.
+
+    Each episode stays current until the next slot, plus the hour the
+    edition's own episodes get, so a card never loses its name between the
+    slot and its rewrite.
+    """
+    import startup
+
+    now = time.time() if now is None else now
+    if not settings.startup_write_ahead or generator is None or cache is None:
+        return None
+    slot = last_slot(now)
+    sid = startup_slot_id(slot)
+    try:
+        if not store().claim(sid, now, force=force):
+            return None
+    except Exception as exc:  # noqa: BLE001
+        log.error("startup episodes: could not claim %s: %s", sid, exc)
+        return None
+    started = time.monotonic()
+    results: dict = {}
+    try:
+        expires_at = next_slot(now).timestamp() + EPISODE_GRACE_SECONDS
+        for spec in startup.STARTUP_TOPICS:
+            topic_id, query = spec[0], spec[3]
+            store().touch(sid, now + (time.monotonic() - started))
+            results[topic_id] = await write_episode(
+                _Question(query), generator, cache, config.BROWSE_MINUTES,
+                expires_at, origin="startup", rewrite=True)
+        written = sum(1 for r in results.values() if r.get("status") == "written")
+        store().done(sid, now, f"{written} of {len(results)} written")
+        log.info("startup episodes: %s - %d of %d written, $%.4f", sid, written,
+                 len(results), sum(float(r.get("dollars") or 0)
+                                   for r in results.values()))
+        return results
+    except asyncio.CancelledError:
+        try:
+            store().fail(sid, INTERRUPTED)
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+    except Exception as exc:  # noqa: BLE001 - never takes the server down
+        log.exception("startup episodes: %s failed", sid)
+        try:
+            store().fail(sid, f"{type(exc).__name__}: {exc}")
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+
+@dataclass(frozen=True)
+class _Question:
+    """What `write_episode` reads off a story: its question."""
+    query: str
+
+
 def _placed(story):
     """Where the story is trending, from its publishers' countries."""
     import geography
@@ -916,7 +1023,7 @@ async def run_forever(generator=None, cache=None,
     Wakes at least once a minute, so a slot is never missed by more than that
     and a clock change is noticed. Never raises.
     """
-    if not settings.trending_bank:
+    if not settings.trending_bank and not settings.startup_write_ahead:
         log.info("trending bank: off (TRENDING_BANK=0)")
         return
     log.info("trending bank: editions at %s %s; next at %s",
@@ -928,12 +1035,17 @@ async def run_forever(generator=None, cache=None,
         await asyncio.sleep(initial_delay)
     while True:
         try:
-            if due():
+            if settings.trending_bank and due():
                 row = store().status(slot_id(last_slot()))
                 await build(generator=generator, cache=cache,
                             force=_retry_at_once(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
+        try:
+            if generator is not None and startup_due():
+                await write_startup(generator=generator, cache=cache)
+        except Exception:  # noqa: BLE001
+            log.exception("startup episodes: the scheduler tick failed")
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))
 
 
@@ -961,6 +1073,10 @@ def report(now: Optional[float] = None) -> dict:
         # From the database rather than this process, so a failure another
         # worker (or the last boot) hit is still visible here.
         "current_slot_status": (store().status(slot_id(last_slot(now)))
+                                if _exists() else None),
+        # The "Start here" questions written at the same slots (9.29 packet).
+        "startup_write_ahead": bool(settings.startup_write_ahead),
+        "startup_slot_status": (store().status(startup_slot_id(last_slot(now)))
                                 if _exists() else None),
     }
     return out

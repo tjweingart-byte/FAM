@@ -403,6 +403,8 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:bank-for-guests -->
+> **Current (PROBLEMS.md §174):** Trending cards no longer say the place (the card shows its subject like every rail), and View more is grouped by **continent** - Worldwide, the listener's own, then the rest busiest first; no Antarctica (`geography.continent_for`). "Each card says the place" below is history.
+
 - **The evergreen bank is for a listener with no account, and the crowd row
   claims only what it can back.** *(§125, `topics.browse_inventory`,
   `MYFAM.md`.)* Two rules from one instruction, both reversing something this
@@ -547,6 +549,8 @@
   rule episode intelligence lives by.
 
 <!-- rule:card-hook-startup -->
+> **Current (PROBLEMS.md §174):** the eight startup questions are written ahead at every Trending edition slot (`trending_bank.write_startup`, `STARTUP_WRITE_AHEAD`, needs no GNews key), rewritten each slot because they ask about *this week*, so a card carries the episode's own title (§161's `_name_written_tiles`) before anybody taps. The ninth, local question is never written ahead: it is personal. An outcome-dependent brief is still left for the tap.
+
 > **Current (PROBLEMS.md §168):** `render.yaml` now turns GDELT on, so "`GDELT=1`, which no deployment has" below is stale.
 
 - **A browse card's one line is about the episode, and a new listener's page

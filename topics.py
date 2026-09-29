@@ -4573,13 +4573,20 @@ def rank_world(live: list, country: str = "", held: Iterable = (),
 
 def trending_groups(live: list, country: str = "", held: Iterable = (),
                     limit: int = 0) -> list:
-    """Every trending story, by where it is trending. "View more" (§135).
+    """Every trending story, by the continent it is trending on. "View more"
+    (§135; by continent since the 9.29 packet).
 
-    `[{"key", "label", "topics"}]`: **Worldwide** first, then the listener's
-    own region, then every other region with something trending, busiest
-    first. Within a group, `trending_score` order. A country-scoped story is
-    grouped under its region and keeps its own label on the card, so a
-    listener in Ohio sees "United States" stories under North America.
+    `[{"key", "label", "topics"}]`: **Worldwide** first - a story whose
+    coverage no one continent owns - then the listener's own continent, then
+    every other continent with something trending, busiest first. Within a
+    group, `trending_score` order. No Antarctica. The card itself no longer
+    says where (the 9.29 packet took the country pill off), so the heading
+    is the only place a listener reads it.
+
+    The owner's aim, not yet reachable and so not enforced: once GNews is
+    used at scale, at least four episodes on every continent. An edition is
+    ten stories twice a day, so today a continent with nothing trending is
+    simply absent rather than padded.
     """
     import geography
 
@@ -4589,17 +4596,13 @@ def trending_groups(live: list, country: str = "", held: Iterable = (),
                default=0)
     groups: dict = {}
     for tile in _ranked_trending(everything, country, peak):
-        scope = getattr(tile, "geo_scope", "") or geography.WORLD
-        key = getattr(tile, "geo_key", "") or geography.WORLD
-        if scope == geography.WORLD:
-            group = geography.WORLD
-        elif scope == "country":
-            group = geography.REGION_OF.get(key, geography.WORLD)
-        else:
-            group = key
+        group = geography.continent_for(
+            getattr(tile, "geo_scope", "") or geography.WORLD,
+            getattr(tile, "geo_key", "") or geography.WORLD,
+            getattr(tile, "countries", ()) or ())
         groups.setdefault(group, []).append(tile)
 
-    mine = geography.region_of(country) if country else ""
+    mine = geography.listener_continent(country)
 
     def order(key: str) -> tuple:
         if key == geography.WORLD:
@@ -4612,7 +4615,7 @@ def trending_groups(live: list, country: str = "", held: Iterable = (),
     out = []
     for key in sorted(groups, key=order):
         tiles = groups[key][:limit] if limit else groups[key]
-        out.append({"key": key, "label": geography.label_for(key),
+        out.append({"key": key, "label": geography.CONTINENT_LABELS.get(key, key),
                     "yours": key == mine and key != geography.WORLD,
                     "topics": tiles})
     return out

@@ -278,6 +278,22 @@
    unplayed row is empty and says so, and `tools/seed_demo.py` is what fills
    it for a demo - the same bargain Explore already makes.
 
+<!-- rule:pick-up-rail -->
+- **"Pick up where you left off" is a day, and under 60%** *(PROBLEMS.md
+  §174, the 9.29 packet, at the owner's direction: "If more than 60% of the
+  episode is finished, then don't display it in Pick up where you left off.
+  Additionally, only display an episode there for no more than 24 hours.")*
+  Its two sources are unchanged - episodes started and not finished, and the
+  Go Deeper prompt of an episode finished - but both now come from the last
+  24 hours (`app.GO_DEEPER_WINDOW_SECONDS`, a week before), and a part-heard
+  episode more than `SavedStore.RESUME_MAX_FRACTION` through is finished: its
+  position is deleted on write and never returned on read, which covers rows
+  written before the rule. "Through" is measured against the episode's real
+  length when the player has all of it (`/api/progress` `duration`), because
+  the requested minutes are a ceiling and an episode that ran short would
+  otherwise never reach 60%. A tile leaves after a day and the next one that
+  qualifies takes its place; nothing tops the section up.
+
 <!-- rule:no-not-interested -->
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
@@ -578,6 +594,8 @@
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 <!-- rule:op-profile-hub -->
+> **Current (PROBLEMS.md §174):** your own YourFAM page no longer draws the interest pills - the owner found them clutter, and Edit profile ("Your interests - N of 5") is where they are seen and changed. `interests_shown` is still what the profile *shares*: a friend's page shows it. "Find new friends" is a gold pill with a plus rather than a text link. Where the text below says the hub shows five pills, read "the profile shares five".
+
 9. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
    **And it is called YourFAM** *(§133, the owner's handoff).* The last tab is
    one social hub - identity, story-style friend avatars, Messages as one

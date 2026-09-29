@@ -13448,3 +13448,74 @@ heard episode replays its same script in its same voice, synthesised once
 more - the same episode, one GPU call. `/api/next` on an archived replay still
 reads the key's current row for the thread; the title is the row's own
 (`titleOverridden`). Not measured against a real model or voice here.
+
+## 174. The 9.29 packet: six changes
+
+Six items from the owner, in the packet's order.
+
+**1. "Find new friends" is a button.** It was a line of gold monospace beside
+the Your friends heading and read as a caption. It is a gold pill with a plus
+now (`.yf-find`), which opens Friends as before.
+
+**2. Your own interests are off your own page.** The pills under Edit profile
+made YourFAM crowded, and Edit profile ("Your interests - N of 5") already
+shows and changes them. `renderProfile` draws none. Nothing on the server
+changed: `interests_shown` is still what the profile *shares*, and a
+friend's page (`renderFriendProfile`) still shows theirs, at the owner's direction.
+The smoke checks that tapped the hub's chips now check that there are none,
+check the pill, and reach the Topic screen the way a friend's chip does.
+
+**3. Choppy audio with the app in the background.** The player queued 0.35 s
+of audio at a time and topped it up from an 80 ms timer. A page out of sight
+has its timers slowed to about once a second (on a phone, often less), so
+the queue ran dry between ticks several times a second: speech, silence,
+speech. Hidden, `fam-audio.js` now queues everything that has arrived, up to
+30 s ahead (`LOOKAHEAD_HIDDEN`), in 1 s slices, tops up from each slice's
+`onended` event as well as the timer, and switches the moment
+`visibilitychange` fires. Visible, nothing changed: short queue, instant
+seek. A seek or speed change still rebuilds the queue from scratch.
+**Not tried on a phone here.** iOS may still suspend a page's audio when
+Safari itself goes to the background. That limit is in the browser, and the
+native app is where it goes away.
+
+**4. "A Big Company's Newest Bet".** That is a startup tile (§116): a
+question asked before anything is retrieved, so it cannot name a company.
+§161 made a written tile take its episode's own `<<TITLE:>>`, but only after
+somebody's tap had written it, so on a quiet deployment nobody ever saw a
+name. The owner wants the name up front. `trending_bank.write_startup` now
+writes the eight questions at every edition slot (05:00 and 17:00 Eastern),
+from the same loop, into the shared cache under the key a tap computes,
+current until the next slot plus an hour. It is claimed per slot in the
+edition table (`startup:<slot>`, read by nothing that shows an edition), so
+one worker writes them. It needs no GNews key, and `STARTUP_WRITE_AHEAD=0`
+switches it off. They are **rewritten** each slot rather than kept, because
+each asks about *this week*. The same two rules as the edition hold: an
+outcome-dependent brief is left for the tap, and a live score is never kept.
+The ninth, local question is not written, because it is personal. Cost:
+sixteen episodes a day at the browse length. **Unheard, and the titles
+unseen:** there is no key here, so whether the writer's title names the
+company is a claim about the prompt, not an observation.
+
+**5. Pick up where you left off.** An episode more than 60% heard is not
+offered (`SavedStore.RESUME_MAX_FRACTION`). The position is deleted when it
+is written past that point and filtered when it is read, which covers rows
+written before the rule. The fraction uses the real length when the player
+has the whole episode (`/api/progress` takes an optional `duration`, kept in
+a new column), because the requested minutes are a ceiling and an episode
+that ran short would otherwise never reach 60%. The card's bar and "left"
+use the same length. Both sources now come from the last 24 hours rather
+than the week (`GO_DEEPER_WINDOW_SECONDS`), so a tile is there for at most a
+day after it was last listened to, and the next one that qualifies takes its
+place.
+
+**6. No country on Trending's cards; View more by continent.** The card
+shows its subject, like every other rail. View more groups by continent
+(`geography.continent_for`): a story whose outlets are mostly (60%) on one
+continent is that continent's, otherwise it is Worldwide. The order is
+Worldwide, then the listener's own continent, then the rest, busiest first.
+There are six continents and no Antarctica. Central America and the
+Caribbean are North America, Egypt is Africa, and the Middle East is Asia.
+The `geo` field stays in the API, because the kept web release still reads
+it. The owner's aim of **at least four episodes per continent** needs GNews
+at scale and is not enforced: an edition is ten stories, so a continent with
+nothing trending is absent rather than padded.
