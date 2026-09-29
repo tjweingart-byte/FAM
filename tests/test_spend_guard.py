@@ -253,3 +253,12 @@ def test_the_staging_blueprint_is_zero_spend_and_shares_nothing_with_production(
     assert not handed_money, f"fam-staging is given {sorted(handed_money)}"
     disk = re.search(r"disk:\n\s+name: (\S+)", staging).group(1)
     assert disk != re.search(r"disk:\n\s+name: (\S+)", production).group(1)
+
+
+def test_loopback_in_every_spelling_is_local():
+    for address in (("127.0.0.1", 80), ("::1", 80, 0, 0), ("::ffff:127.0.0.1", 80, 0, 0),
+                    ("localhost", 80), "/tmp/fam.sock"):
+        assert spend_guard._is_local(address), address
+    for address in (("203.0.113.9", 443), ("::ffff:203.0.113.9", 443, 0, 0),
+                    ("2001:db8::1", 443, 0, 0), ("api.anthropic.com", 443)):
+        assert not spend_guard._is_local(address), address

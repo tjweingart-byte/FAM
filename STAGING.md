@@ -25,9 +25,13 @@ feature branch --PR--> staging --(batched PR)--> Main
    Blueprint Instance → this repo. It reads `render.yaml` and creates
    `fam-staging` (following `staging`) next to `fam` (following `Main`), each
    with its own disk. A service created by hand in the dashboard gets **no
-   disk**, and every deploy then erases its accounts (DEPLOY.md). If `fam`
-   already exists, syncing the blueprint adds `fam-staging` and leaves `fam`'s
-   dashboard secrets alone.
+   disk**, and every deploy then erases its accounts (DEPLOY.md).
+   **Read Render's preview before applying.** Render matches services by
+   name. The preview must show `fam-staging` as new and must not propose a
+   second production service. That can happen if the existing `fam` was made
+   by hand rather than from this file. The blueprint also pins `fam` to
+   `branch: Main` and sets `FAM_ENV=production` on it. If production follows a
+   different branch today, applying the blueprint moves it to `Main`.
 
 3. **Give staging its own admin credentials**, when Render asks:
    `FAM_ADMIN_ACCOUNTS` and `FAM_ADMIN_TOKEN`. Use different values from

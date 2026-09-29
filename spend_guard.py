@@ -155,7 +155,10 @@ def _is_local(address) -> bool:
         ip = ipaddress.ip_address(str(host).split("%", 1)[0])
     except ValueError:
         return False
-    return ip.is_loopback or ip.is_unspecified
+    # `::ffff:127.0.0.1` is loopback reached over an IPv6 socket, and
+    # `ipaddress` does not call it loopback by itself.
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return ip.is_loopback or ip.is_unspecified or bool(mapped and mapped.is_loopback)
 
 
 def _describe(address) -> str:

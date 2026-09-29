@@ -36,6 +36,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -120,7 +121,7 @@ def cut(platform: str, version: str, status: str, source: Path | None,
         raise SystemExit(f"{platform} {version} is already in releases/registry.json.")
     endpoints = rc.endpoints_in(rc.client_sources(platform, source))
     recorded = rc.record_in_subprocess(endpoints)
-    patterns = [(p, __import__("re").compile(_regex(p))) for p in recorded["routes"]]
+    patterns = [(p, re.compile(_regex(p))) for p in recorded["routes"]]
     routed = [e for e in endpoints if rc.routes(e, patterns)]
     unrouted = [e for e in endpoints if e not in routed]
     contract = {
@@ -156,7 +157,6 @@ def cut(platform: str, version: str, status: str, source: Path | None,
 
 def _regex(path: str) -> str:
     """A route path as a regex, the way Starlette compiles it."""
-    import re
     out = re.sub(r"\{[^}:]+:path\}", ".*", path)
     out = re.sub(r"\{[^}]+\}", "[^/]+", out)
     return "^" + out + "$"
