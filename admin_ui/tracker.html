@@ -86,6 +86,13 @@
   .login .err { color:var(--rose); margin:0; }
   .vrow { padding:8px 0; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .section { margin-bottom:14px; }
+  .chip.on { border-color:var(--amber-dk); color:var(--ink); }
+  .report { border-top:1px solid var(--line); padding:10px 0; display:flex; gap:12px; align-items:flex-start; }
+  .report:first-child { border-top:0; }
+  .report .body { flex:1; min-width:0; }
+  .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
+  .report .ctx { font:11px var(--mono); color:var(--muted); }
+  .report.done .text { color:var(--muted); }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -148,6 +155,17 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         </section>
       </div>
     </div>
+
+    <section class="card section" id="inboxCard">
+      <h2>Feedback inbox <small id="inboxCount"></small></h2>
+      <p class="sub">Bug reports typed into <b>Instant feedback</b> under the phone on the demo page, newest first, with the screen that was showing. Resolve one once it is fixed; resolved reports are kept with the date.</p>
+      <div class="chips" id="inboxTabs">
+        <button class="chip on" type="button" data-inbox="open">Open</button>
+        <button class="chip" type="button" data-inbox="resolved">Resolved</button>
+        <button class="chip" type="button" data-inbox="all">All</button>
+      </div>
+      <div id="inboxList"></div>
+    </section>
 
     <section class="card section">
       <h2>Newest accounts</h2>
@@ -421,6 +439,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         chipsDrawn = true;
       }
       tick();
+      loadInbox();
       loadVoices();
       loadSay();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
@@ -460,6 +479,42 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         $("loginErr").hidden = false;
       })
       .then(function () { $("loginBtn").disabled = false; });
+  });
+  // The feedback inbox: reports from the demo's Instant feedback button.
+  // Resolving is a toggle - the report stays, with when it was resolved.
+  var inboxState = "open";
+  function loadInbox() {
+    return api("/api/admin/feedback?state=" + inboxState).then(function (v) {
+      var c = v.counts || {};
+      $("inboxCount").textContent = (c.open || 0) + " open · " + (c.resolved || 0) + " resolved";
+      var rows = v.reports || [];
+      $("inboxList").innerHTML = rows.length ? rows.map(function (r) {
+        var done = r.state === "resolved";
+        var ctx = [when(r.created), r.screen && ("screen " + r.screen), r.build && ("build " + r.build),
+                   r.viewport, r.user_id ? "account " + r.user_id : "guest",
+                   done ? "resolved " + when(r.resolved_at) : ""].filter(Boolean).join(" · ");
+        return '<div class="report' + (done ? " done" : "") + '"><div class="body">' +
+          '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div></div>' +
+          '<button class="' + (done ? "ghost" : "go") + '" type="button" style="padding:6px 12px" data-resolve="' + esc(r.id) +
+          '" data-to="' + (done ? "0" : "1") + '">' + (done ? "Reopen" : "Resolve") + '</button></div>';
+      }).join("") : '<p class="sub">' + (inboxState === "open" ? "Nothing open." : "No reports here.") + '</p>';
+    }).catch(function (e) {
+      $("inboxList").innerHTML = '<p class="sub err">Could not load the inbox: ' + esc(e.message) + '</p>';
+    });
+  }
+  $("inboxTabs").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-inbox]"); if (!b) return;
+    inboxState = b.getAttribute("data-inbox");
+    Array.prototype.forEach.call($("inboxTabs").children, function (x) { x.classList.toggle("on", x === b); });
+    loadInbox();
+  });
+  $("inboxList").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-resolve]"); if (!b) return;
+    b.disabled = true;
+    api("/api/admin/feedback/" + encodeURIComponent(b.getAttribute("data-resolve")) + "/resolve",
+        { resolved: b.getAttribute("data-to") === "1" })
+      .then(loadInbox)
+      .catch(function (e) { b.disabled = false; alert("Could not update the report: " + e.message); });
   });
   // The voice bank (§147): list, add, remove. Removing never touches an
   // episode's kept audio; the default voice has no remove button because it

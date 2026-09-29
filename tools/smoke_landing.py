@@ -88,6 +88,12 @@ def main() -> int:
         check("Every control that is not play is a door", len(doors) >= 4,
               f"{len(doors)} doors")
 
+        # "Want to hear more? Join FAM for free" (9.29 packet): the door
+        # a recipient is offered, drawn under the player.
+        check("The page offers to join FAM for free",
+              "Join FAM for free" in page.inner_text("[data-door='join']")
+              and "Want to hear more?" in page.inner_text("#doors"))
+
         page.click("#play")
         page.wait_for_timeout(1800)
         check("Pressing play starts the episode",
@@ -110,7 +116,7 @@ def main() -> int:
         tried: list[str] = []
         page.route("**/*", lambda route: (tried.append(route.request.url),
                                           route.abort()))
-        page.click("[data-door='get']")
+        page.click("[data-door='join']")
         page.wait_for_timeout(600)
         check("A door goes to the App Store", any(APP_STORE in u for u in tried),
               str(tried[:3]))

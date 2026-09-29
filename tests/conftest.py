@@ -170,7 +170,7 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
-    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB",
+    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -375,6 +375,11 @@ def isolated_stores(tmp_path, monkeypatch):
                         saved_mod.SavedStore(str(here / "saved.db")))
     monkeypatch.setattr(appmod, "SHARES",
                         sharing_mod.ShareStore(str(here / "shares.db")))
+
+    import feedback as feedback_mod
+
+    monkeypatch.setattr(appmod, "FEEDBACK",
+                        feedback_mod.FeedbackStore(str(here / "feedback.db")))
 
 
 @pytest.fixture(autouse=True)

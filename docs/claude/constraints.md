@@ -957,7 +957,13 @@
   which is the shape §76 settled against.
   `APP_STORE_URL` unset draws **no** non-listening control at all - not one
   that 404s, not one rerouted into the app - and `/api/health` says which
-  state a deploy is in. The payload carries no `user_id`: this is the one
+  state a deploy is in.
+  > **Current:** one door is drawn either way *(§173, at the owner's
+  > direction)*: "Want to hear more? Join FAM for free" goes to the App Store
+  > when `APP_STORE_URL` is set and otherwise to this server's own front door
+  > (`sharing.JOIN_PATH`), which opens on sign-up for a newcomer - a real page
+  > on the host that served the link, so still never a control with nothing
+  > behind it. Every other door still needs the App Store link. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
   **The link names a host now, and nobody has to set one** *(§114).* It read
   `PUBLIC_BASE_URL` and nothing anywhere prompts for it, so no deployment had

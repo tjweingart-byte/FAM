@@ -84,6 +84,7 @@ ENV CACHE_PATH=/data/scripts.db \
     MESSAGES_DB=/data/messages.db \
     SAVED_DB=/data/saved.db \
     SHARES_DB=/data/shares.db \
+    FEEDBACK_DB=/data/feedback.db \
     QUOTAS_DB=/data/quotas.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \
     VOICE_BANK_DB=/data/voice_bank.db \

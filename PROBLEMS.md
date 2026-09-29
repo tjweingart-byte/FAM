@@ -13394,3 +13394,70 @@ keeps them), and the registry records their build numbers.
 checked by a test, but no service was created), and branch protection on
 `Main`, which only a person can set. Creating the `staging` branch is a command
 in STAGING.md, because this session may push only to its own branch.
+
+## 173. Instant feedback, a bare link for iMessage, Join FAM, and why the voice drifts
+
+The 29/09 packet, four items.
+
+**1. "The voice ... sometimes has a noticeable southern twang."** Investigated,
+not yet changed - nothing here can play audio, and every candidate fix changes
+what the production voice sounds like, so each wants a listening test first.
+What the code shows, most likely first:
+
+* *Different episodes use different voices.* Outside search, every episode
+  draws `voice_bank.random_slug()` (app.py's surface draw, `prefetch.py`,
+  `daily_edition.py`, `trending_bank.py`) from the default plus every bank
+  voice added on /admin, and keeps it in `scripts.voice`. One bank voice with
+  an accent makes myFAM, DailyFAM and Trending sound like that some of the
+  time while search keeps the listener's pick. Check `scripts.voice` for the
+  episodes that sounded off before anything else.
+* *Each chunk is a fresh random sample.* `speech_assembly` cuts 18-45 word
+  chunks; each is its own `model.generate` at temperature 0.8 with no seed set
+  anywhere, so accent and prosody can wander sentence to sentence.
+  Candidate: seed per chunk from (cache key, chunk index); then try a lower
+  temperature / higher `cfg_weight` by ear.
+* *Two different "reference_3" recordings.* `reference_3.wav` and
+  `reference_3wav.wav` are the same length and format but different audio
+  (-26.7 vs -20.1 dBFS, uncorrelated samples, the second ~7 dB brighter at
+  3-8 kHz). The default voice carries no fingerprint (`wire_fields` returns
+  `{}`), the worker reports no reference hash, and failover assumes every rung
+  holds the same file - so a pod swap or a different scp changes the voice in
+  silence. Candidate: report `reference_sha256` in the worker's health and
+  registration and refuse a rung that differs; delete the non-canonical file.
+* *Nothing is pinned.* `chatterbox-tts` and `torch` are unpinned and the
+  weights are fetched with no revision, so a rebuild can pull different code
+  or weights.
+* *The reference is a weak prompt.* Chatterbox conditions accent on the first
+  6 s; the file opens with 1.3 s of silence and is quiet. Candidate: trim,
+  normalise, and have `check_recording` refuse long leading silence.
+
+Before more voices go in, a fingerprint check (fixed sentences, fixed seed,
+speaker-embedding cosine against the reference) turns "sounds off" into a
+number a pod can fail at boot.
+
+**2. Instant feedback.** A button under the phone on the demo page
+(`static/index.html`, `.demo-feedback`; not drawn at phone width, where the
+app is the whole screen) opens a form. The report goes to `POST
+/api/feedback` with the active screen, the client, the viewport and the page;
+the server adds which code answered and, for an account only, who sent it
+(a guest is a device - `app._remembers`). `feedback.py` keeps them in
+`FEEDBACK_DB`; `/admin` has a **Feedback inbox** (open / resolved / all) with
+Resolve and Reopen. Resolving is a toggle, never a delete, so a fixed bug
+keeps its date. Account deletion blanks the id and keeps the report, like the
+ledger. The published preview answers the same route into its own `feedback`
+collection, and the Live database panel resolves rows there.
+
+**3. iMessage.** The body was "Listen to this - {title}. About {minutes}
+minutes: {url}", which Messages shows as one run of text with the cursor
+after the link (the packet's screenshot). It is now the link alone: Messages
+draws the preview card - title, length and picture, from `landing_head` - and
+leaves the typing line empty for the sender's words. The share-sheet fallback
+passes a link-only target as `{url}` for the same reason.
+
+**4. Join FAM.** The landing page draws "Want to hear more? Join FAM for free"
+whether or not the app is out: to the App Store when `APP_STORE_URL` is set,
+otherwise to the front door (`sharing.JOIN_PATH`), which opens on sign-up.
+This narrows the §106 rule that no `APP_STORE_URL` draws no door - at the
+owner's direction, and without breaking the reason for it: the front door is a
+real page on the host that served the link. The waitlist wording was the
+alternative offered; there is no waitlist, and sign-up exists, so it says join.

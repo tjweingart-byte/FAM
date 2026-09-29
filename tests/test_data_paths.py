@@ -29,6 +29,7 @@ import paths  # noqa: E402
 import preferences as P  # noqa: E402
 import categories as CAT  # noqa: E402
 import quotas as Q  # noqa: E402
+import feedback as FB  # noqa: E402
 import saved as SV  # noqa: E402
 import sharing as SH  # noqa: E402
 import social as S  # noqa: E402
@@ -54,6 +55,7 @@ STORES = [
     ("MESSAGES_DB", "messages.db", MSG.MessageStore),
     ("SAVED_DB", "saved.db", SV.SavedStore),
     ("SHARES_DB", "shares.db", SH.ShareStore),
+    ("FEEDBACK_DB", "feedback.db", FB.FeedbackStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
     ("VOICE_BANK_DB", "voice_bank.db", VB.VoiceBank),

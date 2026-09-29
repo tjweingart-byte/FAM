@@ -47,6 +47,7 @@ import typing_indicator as typing_mod
 import metering
 import oauth
 import quotas
+import feedback as feedback_mod
 import saved as saved_mod
 import sharing
 from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
@@ -791,6 +792,7 @@ def _database_report() -> list[dict]:
         ("shares", "SHARES_DB", SHARES.path),
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
+        ("feedback", "FEEDBACK_DB", FEEDBACK.path),
         # The grown ranking vocabulary. Reported like the rest rather than
         # lazily like the voice registry below: `category_tree()` opens it on
         # the first feed, every deployment has one, and a tree silently living
@@ -1211,6 +1213,13 @@ def erase_listener(user_id: str) -> dict:
         except Exception:
             log.exception("could not erase %s for %r", name, user_id)
             removed[name] = -1
+    # Bug reports outlive the account that filed them, like the ledger: the
+    # link to the person goes and the report stays (`feedback.py`).
+    try:
+        removed["feedback_anonymised"] = FEEDBACK.forget(user_id)
+    except Exception:
+        log.exception("could not anonymise feedback for %r", user_id)
+        removed["feedback_anonymised"] = -1
     try:
         removed["usage_rows_anonymised"] = METER.anonymise(user_id)
     except Exception:
@@ -3016,6 +3025,75 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
     return {"ok": pronunciation.lexicon().remove(name)}
 
 
+# ---------------------------------------------------------------- feedback
+#
+# Instant feedback (`feedback.py`): the button under the phone on the demo
+# page files a bug report here, and `/admin` is the inbox that resolves them.
+# Anybody may file one - a demo is mostly people without accounts - and only
+# an admin may read them.
+
+
+class FeedbackRequest(BaseModel):
+    text: str = Field("", max_length=feedback_mod.MAX_TEXT + 500)
+    screen: str = Field("", max_length=500)
+    build: str = Field("", max_length=500)
+    page: str = Field("", max_length=2000)
+    viewport: str = Field("", max_length=500)
+
+
+@app.post("/api/feedback")
+async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
+    """Keep one bug report. The listener comes from the session, never the
+    body, and is recorded only for an account; a guest is paced by session
+    and kept anonymous."""
+    listener = _listener(request)
+    try:
+        report = FEEDBACK.add(
+            req.text, user_id=listener if _has_account(request) else "",
+            screen=req.screen,
+            # The page says which client it is; the server adds which code
+            # answered, so a report can be matched to the deploy it was on.
+            build=" @ ".join(x for x in (req.build.strip(),
+                                         _build_report()["short"]) if x),
+            page=req.page,
+            viewport=req.viewport,
+            agent=request.headers.get("user-agent", ""),
+            throttle_key=listener)
+    except feedback_mod.FeedbackError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": report["id"]}
+
+
+class FeedbackResolve(BaseModel):
+    resolved: bool = True
+    note: Optional[str] = Field(None, max_length=feedback_mod.MAX_TEXT)
+
+
+@app.get("/api/admin/feedback")
+async def admin_feedback(request: Request,
+                         state: str = Query("open"),
+                         limit: int = Query(200, ge=1, le=1000)) -> dict:
+    """The inbox: reports newest first, open by default, with both counts."""
+    _require_admin(request)
+    try:
+        reports = FEEDBACK.list(state, limit)
+    except feedback_mod.FeedbackError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"reports": reports, "counts": FEEDBACK.counts()}
+
+
+@app.post("/api/admin/feedback/{report_id}/resolve")
+async def admin_resolve_feedback(report_id: str, req: FeedbackResolve,
+                                 request: Request) -> dict:
+    """Mark a report resolved (or `resolved: false` to open it again). The
+    report is kept either way, with the date it was resolved."""
+    _require_admin(request)
+    report = FEEDBACK.resolve(report_id, req.resolved, note=req.note)
+    if report is None:
+        raise HTTPException(status_code=404, detail="No report with that id.")
+    return {"ok": True, "report": report, "counts": FEEDBACK.counts()}
+
+
 @app.post("/api/script")
 async def script(req: ScriptRequest, request: Request) -> dict:
     _rate_limit(request)
@@ -3095,6 +3173,7 @@ QUOTAS = quotas.QuotaStore()
 MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
+FEEDBACK = feedback_mod.FeedbackStore()
 
 
 @app.middleware("http")
