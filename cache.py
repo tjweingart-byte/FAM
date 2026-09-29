@@ -50,6 +50,7 @@ import threading
 import time
 from typing import Optional, Protocol
 
+import content_filter
 import embeddings
 from config import settings
 from paths import data_path
@@ -453,6 +454,15 @@ class StoredAudio:
 AUDIO_COMPRESSION = 1
 
 
+def _explicit_json(sentences_json) -> bool:
+    """Whether a stored script swears (§171). False for anything unreadable:
+    an E is a claim about the episode, and nothing is claimed off a guess."""
+    try:
+        return content_filter.is_explicit(json.loads(sentences_json or "[]"))
+    except (TypeError, ValueError):
+        return False
+
+
 def pack_audio(pcm: bytes) -> bytes:
     return zlib.compress(pcm, AUDIO_COMPRESSION)
 
@@ -705,6 +715,10 @@ class MemoryScriptCache:
     def voice_of(self, key: str) -> str:
         return self._voices.get(key, "") if key in self._data else ""
 
+    def explicit(self, key: str) -> bool:
+        """See `SqliteScriptCache.explicit`."""
+        return self._live(key) and content_filter.is_explicit(self._data[key][1])
+
     def set_voice(self, key: str, voice: str) -> str:
         """See `SqliteScriptCache.set_voice`."""
         if not key or not voice or key not in self._data:
@@ -728,7 +742,8 @@ class MemoryScriptCache:
              "sourced_at": self.sourced_at(k) or 0.0,
              "current": self._current(k),
              "origin": self._origins.get(k, ""),
-             "voice": self._voices.get(k, "")}
+             "voice": self._voices.get(k, ""),
+             "explicit": content_filter.is_explicit(v[1])}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and not (exclude_author and self._authors.get(k) == exclude_author)
@@ -1019,7 +1034,10 @@ class SqliteScriptCache:
             if current and (row[2] or row[1]) < now:
                 return None
             conn.execute("UPDATE scripts SET hits = hits + 1 WHERE key = ?", (key,))
-            return json.loads(row[0])
+            # Scrubbed on the way out too (§171): a row written before the
+            # filter existed is kept a week, and must not say what a new
+            # episode could not.
+            return content_filter.scrub_all(json.loads(row[0]))
         except Exception:
             # A cache is an optimisation. If it breaks, the episode is still
             # generated the slow way rather than failing.
@@ -1277,6 +1295,12 @@ class SqliteScriptCache:
             ).fetchone()
             if not row or int(row[1]) != int(sample_rate):
                 return None
+            # Audio voiced before the slur filter (§171) cannot be scrubbed:
+            # it is dropped, and the episode is voiced again from the
+            # scrubbed script - and kept again, clean.
+            if content_filter.has_slur(json.loads(row[2])):
+                conn.execute("DELETE FROM episode_audio WHERE key = ?", (key,))
+                return None
             conn.execute(
                 "UPDATE episode_audio SET played = ? WHERE key = ? AND voice = ?",
                 (time.time(), key, voice))
@@ -1398,7 +1422,7 @@ class SqliteScriptCache:
             ).fetchone()
             if not row or row[1] < time.time():
                 return ""
-            return row[0] or ""
+            return content_filter.scrub(row[0] or "")
         except Exception:
             log.exception("script cache thread read failed")
             return ""
@@ -1412,7 +1436,7 @@ class SqliteScriptCache:
             ).fetchone()
             if not row or row[1] < time.time():
                 return ""
-            return row[0] or ""
+            return content_filter.scrub(row[0] or "")
         except Exception:
             log.exception("script cache title read failed")
             return ""
@@ -1425,10 +1449,28 @@ class SqliteScriptCache:
             ).fetchone()
             if not row or row[1] < time.time():
                 return ""
-            return row[0] or ""
+            return content_filter.scrub(row[0] or "")
         except Exception:
             log.exception("script cache summary read failed")
             return ""
+
+    def explicit(self, key: str) -> bool:
+        """Whether the kept episode swears (§171) - the E on its title.
+
+        Read off the sentences it would play rather than stored beside them,
+        so a row written before the mark existed answers too. Counts no hit:
+        the player asks this every couple of seconds while an episode plays.
+        """
+        try:
+            row = self._conn().execute(
+                "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+        except Exception:
+            log.exception("script cache explicit read failed")
+            return False
+        if not row or row[1] < time.time():
+            return False
+        return _explicit_json(row[0])
 
     def voice_of(self, key: str) -> str:
         """The voice this episode is spoken in when nobody chose one (§147)."""
@@ -1490,7 +1532,8 @@ class SqliteScriptCache:
         try:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, plays, thread, title,"
-                f" author, {_SOURCED}, {_CURRENT_UNTIL}, origin, voice FROM scripts"
+                f" author, {_SOURCED}, {_CURRENT_UNTIL}, origin, voice,"
+                " sentences FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 "   AND (? = '' OR author != ?)"
                 "   AND (? = '' OR origin = ?)"
@@ -1509,8 +1552,12 @@ class SqliteScriptCache:
             # the key or the bucket reads it, and a listener id one field away
             # from the key is one refactor away from being in it.
             {"key": r[0], "query": r[1], "minutes": r[2], "created": r[3],
-             "plays": r[4], "thread": r[5] or "", "title": r[6] or "",
+             "plays": r[4], "thread": content_filter.scrub(r[5] or ""),
+             "title": content_filter.scrub(r[6] or ""),
              "author": r[7] or "",
+             # Whether it swears (§171), read off the script it would play,
+             # so every card naming it can draw the E.
+             "explicit": _explicit_json(r[12]),
              # §143: when its information was sourced, and whether a new
              # request would still be served it. Replay surfaces show the
              # first; nothing here hides an entry that is kept but not current.

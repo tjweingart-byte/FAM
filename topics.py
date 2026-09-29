@@ -1646,17 +1646,20 @@ UNSHELVED = ("might_like",)
 #: it is a statement about wanting more of this, made to nobody, and it is the
 #: one of the three that can be pressed before the episode has said anything.
 EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
-                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5,
-                "hide": -1.0}
+                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5}
 
-#: **Not interested** (the 27/09 packet): a tile the listener waved off, from
-#: its card on myFAM or from the player. Two things, like an impression's two
-#: halves but with the opposite licence, because this one is a statement the
-#: listener made. The tile itself is never offered on any rail again
-#: (`EventStore.hidden`, read in every feed builder), and its tags take a
-#: small negative weight in `taste` - smaller than a skip, since saying "not
-#: this one" about a single episode is weaker evidence about a whole subject
-#: than walking out of one halfway through.
+#: **Not interested is gone** (§171, at the owner's direction: "This button
+#: and function should not be a feature. The algorithm should work naturally
+#: to put episodes the user is interested in"). It was a tile waved off from
+#: its card (the 27/09 packet): the tile left every rail for good and its tags
+#: took a small negative weight. Neither survives. The kind is no longer in
+#: `EVENT_KINDS`, so a new one is refused like any unknown kind, and the rows
+#: already written are kept but read by nothing that ranks: `for_user` skips
+#: them, so they carry no weight, exclude no tile and teach no familiar word,
+#: and the subject sweep still skips them, because a subject somebody waved
+#: off is not one to mint. What a listener does not want now shows the way
+#: everything else does - they skip it, or never play it, and impressions
+#: damp it (`FATIGUE_WEIGHT`).
 HIDE = "hide"
 
 #: The three above, as a set. Nothing in the ranker branches on it; it is here
@@ -2065,8 +2068,10 @@ class EventStore:
         try:
             rows = self._conn().execute(
                 "SELECT kind, topic_id, text, tags, at, thread FROM events"
-                " WHERE user_id = ? AND kind != ? ORDER BY at DESC LIMIT ?",
-                (user_id, IMPRESSION, limit),
+                " WHERE user_id = ? AND kind NOT IN (?, ?)"
+                " ORDER BY at DESC LIMIT ?",
+                # Nor a retired "not interested" row (§171): see `HIDE`.
+                (user_id, IMPRESSION, HIDE, limit),
             ).fetchall()
         except Exception:
             log.exception("could not read interactions")
@@ -2137,25 +2142,6 @@ class EventStore:
             log.exception("could not read listening history")
             return []
         return [(r[0] or "", r[1] or "", float(r[2])) for r in rows]
-
-    def hidden(self, user_id: str, limit: int = 5000) -> set[str]:
-        """Every tile id this listener has said "not interested" to.
-
-        Its own read, like `heard`, because it is a statement about their whole
-        history: a tile waved off in March must not come back in May just
-        because it scrolled out of the 400 events `taste` reads.
-        """
-        if not user_id:
-            return set()
-        try:
-            rows = self._conn().execute(
-                "SELECT topic_id FROM events WHERE user_id = ? AND kind = ?"
-                " AND topic_id != '' ORDER BY at DESC LIMIT ?",
-                (user_id, HIDE, limit)).fetchall()
-        except Exception:
-            log.exception("could not read hidden tiles")
-            return set()
-        return {r[0] for r in rows if r[0]}
 
     def listens_between(self, since: float, until: Optional[float] = None
                         ) -> list[tuple[str, str, str, float, str]]:
@@ -3836,8 +3822,6 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
-    # And every tile they said "not interested" to, on every rail, for good.
-    mine = set(mine) | store.hidden(user_id)
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
@@ -3888,11 +3872,6 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
     world_live, world_held = world_inventory(live, live_held, heard, now)
-    # Not interested reaches Trending too: a waved-off story is off every rail.
-    waved = store.hidden(user_id)
-    if waved:
-        world_live = [t for t in world_live if t.id not in waved]
-        world_held = [t for t in world_held if t.id not in waved]
     world_first = rank_world(world_live, country, world_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
@@ -4267,8 +4246,6 @@ def build_section(store: EventStore, user_id: str, key: str,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
-    # And every tile they said "not interested" to, on every rail, for good.
-    mine = set(mine) | store.hidden(user_id)
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -4312,10 +4289,6 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         world_live, world_held = world_inventory(live, live_held, heard, now)
-        waved = store.hidden(user_id)
-        if waved:
-            world_live = [t for t in world_live if t.id not in waved]
-            world_held = [t for t in world_held if t.id not in waved]
         groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
@@ -5136,8 +5109,7 @@ def rank_next_up(
     )
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
-    hidden = store.hidden(user_id)
-    exclude = set(mine) | hidden | ({after_id} if after_id else set())
+    exclude = set(mine) | ({after_id} if after_id else set())
 
     picks: list[Topic] = []
     taken = set(exclude)
@@ -5178,8 +5150,7 @@ def rank_next_up(
     # A grid of three is the honest shortfall; a fourth tile from an
     # inventory this listener is not shown is not.
     if len(picks) < size:
-        taken = ({t.id for t in picks} | hidden
-                 | ({after_id} if after_id else set()))
+        taken = {t.id for t in picks} | ({after_id} if after_id else set())
         add(inventory)
     return picks[:size]
 

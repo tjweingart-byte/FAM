@@ -13235,3 +13235,72 @@ gets the real clock from iOS; nothing here draws one.
 
 Two smoke behaviours: Explore's Go Deeper (suggestion, box, five lengths,
 the chosen one asked for) and the list being alphabetical.
+
+## 171. Slurs out, an E for swearing, and no "not interested"
+
+Two requests from the owner, in their words.
+
+> Right now, the app doesn't filter out any words from the audio. For the
+> most part, we don't want any censorship from any media sources or speech
+> options. The only thing we want to filter out are any words that could be
+> considered slurs, or were made to be hateful to a specific group of people.
+> ... Cuss words are ok to be in the episodes, but if they are in an episode,
+> there should be an explicit symbol.
+
+> Get rid of the not interested button on myFAM (and everywhere in the app if
+> it's outside of myFAM). This button and function should not be a feature.
+> The algorithm should work naturally to put episodes the user is interested in.
+
+**Slurs.** `content_filter.py` is new and holds two lists with opposite
+consequences. `SLURS` are replaced with "a slur" (or "slurs"), tidying the
+article before them so "called him a X" reads "called him a slur" and "used
+the word X" reads "used a slur" - the fact a news story is about survives,
+the word does not. The replacement happens in `clean_for_speech`, which every
+writer's sentences already pass through (search, prefetch, DailyFAM,
+Trending, top-ups) before the voice, the captions or the cache see them, and
+in `extract_title`/`extract_summary`/`extract_thread` and the brief's
+provisional title. It is code, not a line in the writer's prompt: a draft
+line put the prompt over `test_the_prompt_stays_lean`'s guard, and a prompt
+change is a writing change nobody here can hear without an API key - the
+filter covers every writer's output whatever the model does. Rows kept before the filter (a week's worth) are scrubbed on the way
+out of `SqliteScriptCache` - text, title, thread, summary, Explore's list -
+and their kept audio, which cannot be scrubbed, is dropped by `get_audio` so
+the episode is voiced again from the clean script and kept clean.
+
+**Not overfiltering** was the explicit ask, so: whole words only, never
+substrings (Scunthorpe, Dickens, cocktail, assessment, Spicer, Pakistan all
+pass untouched and are tested). A word is listed only when its dominant use is
+contempt for a group. Words that are slurs in one sense and ordinary in most
+sentences are left off on purpose and listed in `DELIBERATELY_ABSENT` with
+the reason - a surname (Coon, Van Dyke), a sport (sambo), a food, a clinical
+term (spastic), a team's former name history episodes must say (Redskins), an
+institution (the United Negro College Fund). Idioms that contain a listed
+word are excepted (`EXCEPTIONS`: "a chink in the armour", "honky-tonk",
+"flame retardant", "to retard combustion"). A test pins that every word in
+`DELIBERATELY_ABSENT` really is absent.
+
+**The E.** `PROFANITY` is only detected, never removed. `is_explicit` reads the
+script: the live track while an episode is being written, the kept script
+after. `/api/next` carries `explicit`, and the player and the mini bar draw an
+E before the title (`.is-explicit::before` - a class, because every one of
+those titles is rewritten with `textContent` when the writer's own title
+lands). `/api/explore` carries it per card and the reel draws it. Mild words -
+damn, hell, crap, ass - carry no E; an E on every episode about Hell's Kitchen
+would mean nothing. Not yet on myFAM tiles: a tile is scripted on tap, so
+most have no script to read until they are played.
+
+**Not interested, removed.** The card's button, `notInterested()`,
+`hiddenTiles`, `EventStore.hidden` and every feed builder's use of it are
+gone, and `hide` is out of `EVENT_WEIGHT` and so out of `EVENT_KINDS`: a new
+one is refused like any unknown kind. Rows written in the two days it existed
+stay in the table and are read by nothing that ranks - `for_user` skips them,
+so they exclude no tile, weigh nothing in `taste` and teach no familiar word;
+the subject sweep still skips them. What a listener does not want is now shown
+only the way it was before 27/09: skips, plays never made, and impression
+fatigue. Go Deeper's X, which closes one suggested follow-up in "Pick up where
+you left off", is a different control and stays.
+
+Tests: `tests/test_content_filter.py` (what is removed, what is not, the E,
+the cache scrub and dropped audio, `/api/next`), the rewritten not-interested
+test in `test_myfam.py`, and two smoke behaviours (the card has Save and no
+Not interested; the player's E comes and goes with the episode).

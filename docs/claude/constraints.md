@@ -108,6 +108,27 @@
   briefing does. The interface says what it is waiting for and how long it has
   been waiting; a wait you were warned about is a different experience from the
   same wait unexplained.
+<!-- rule:slurs-only -->
+- **Slurs are the one thing taken out; swearing stays and earns an E**
+  *(PROBLEMS.md §171, at the owner's direction: "we don't want any censorship
+  from any media sources or speech options. The only thing we want to filter
+  out are any words that could be considered slurs, or were made to be
+  hateful to a specific group of people ... Cuss words are ok to be in the
+  episodes, but if they are in an episode, there should be an explicit
+  symbol").* `content_filter.py` holds both lists. A slur becomes "a slur"
+  in `clean_for_speech` (the one door every writer's sentences pass through),
+  in the title, summary and `<<NEXT:>>` lines, and on the way out of the
+  cache for rows written before the filter - whose kept audio is dropped and
+  voiced again, since audio cannot be scrubbed. It is code, not a prompt
+  rule: the prompt is at its size guard and the writing is unchanged. Swearing is never touched; `is_explicit` reads it off the script, and
+  the player, the mini bar and Explore draw an E before the title
+  (`explicit` on `/api/next` and `/api/explore`). **Overfiltering is the
+  failure to guard against**: whole words only, never substrings; a word is
+  listed only when its dominant use is contempt for a group; one that is
+  also a surname, food, sport, clinical term or history goes in
+  `DELIBERATELY_ABSENT` with why, and an idiom that contains a listed word
+  goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
+  the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
 - **Every episode is researched. (Reversed — this used to say the opposite.)**
   *(PROBLEMS.md §76.)* `SEARCH_MODE=always` is the production default and the

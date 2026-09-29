@@ -5134,6 +5134,8 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             "sourced_age_seconds": max(
                 0.0, now - (entry.get("sourced_at") or entry["created"])),
             "current": bool(entry.get("current", True)),
+            # It swears (§171): the card draws the E beside its title.
+            "explicit": bool(entry.get("explicit")),
             "vibed": bool(pair in anyone or by),
         }
         # The counts on the card's buttons: vibes, likes, dislikes, and this
@@ -5456,7 +5458,8 @@ async def next_thread(
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return {"thread": "", "title": "", "title_final": False, "summary": ""}
+        return {"thread": "", "title": "", "title_final": False, "summary": "",
+                "explicit": False}
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.

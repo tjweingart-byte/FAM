@@ -896,27 +896,30 @@ def test_the_page_is_drawn_from_what_exists_even_if_warming_is_broken(client,
     assert body.json()["sections"], "a broken guess emptied the page"
 
 
-def test_not_interested_takes_a_tile_off_every_rail_for_good(store):
-    """27/09 packet: "not interested" on a myFAM card or in the player. The
-    tile is never offered again - on the page, behind View more, or in the
-    popup after an episode - and its tags count a little against the taste."""
+def test_not_interested_is_gone_and_old_rows_change_nothing(store):
+    """§171, at the owner's direction: "not interested" is not a feature. A
+    new one is refused like any unknown kind, and a row written while it was
+    one excludes no tile, weighs nothing and teaches the taste nothing."""
+    assert T.HIDE not in T.EVENT_KINDS
+    assert T.HIDE not in T.EVENT_WEIGHT
+    assert not hasattr(T.EventStore, "hidden")
     play(store, "u", "golf-evolution", kind="complete")
-    feed = T.build_feed(store, "u")
-    shown = [t["id"] for s in feed["sections"] for t in s["topics"]]
-    assert shown, "nothing to wave off"
+    before = T.build_feed(store, "u")
+    shown = [t["id"] for s in before["sections"] for t in s["topics"]]
+    assert shown
     target = shown[0]
+    # Refused on the way in...
     store.record(T.Event("u", T.HIDE, target, "", T.tags_for_id(target, "")))
-    # Hidden even once it has scrolled out of the events `taste` reads.
-    for i in range(450):
-        store.record(T.Event("u", "search", "", f"question {i}", ("world",)))
-    assert target in store.hidden("u")
-    feed = T.build_feed(store, "u")
-    assert target not in [t["id"] for s in feed["sections"] for t in s["topics"]]
-    for key in [s["key"] for s in feed["sections"]]:
-        section = T.build_section(store, "u", key)
-        assert target not in [t["id"] for t in section["topics"]]
-    assert target not in [t.id for t in T.rank_next_up(store, "u", after_id="space-race")]
-    assert T.EVENT_WEIGHT[T.HIDE] < 0
+    assert all(e.kind != T.HIDE for e in store.for_user("u"))
+    # ...and a row from before the removal, written straight to the table,
+    # is read by nothing that ranks.
+    store._conn().execute(
+        "INSERT INTO events (user_id, kind, topic_id, text, tags, at, thread,"
+        " section, algo) VALUES (?, ?, ?, ?, ?, ?, '', '', '')",
+        ("u", T.HIDE, target, "", ",".join(T.tags_for_id(target, "")), time.time()))
+    assert all(e.kind != T.HIDE for e in store.for_user("u"))
+    after = T.build_feed(store, "u")
+    assert target in [t["id"] for s in after["sections"] for t in s["topics"]]
 
 
 def test_a_written_startup_tile_is_called_what_it_turned_out_to_be(monkeypatch):
@@ -943,21 +946,3 @@ def test_a_written_startup_tile_is_called_what_it_turned_out_to_be(monkeypatch):
     assert tiles[0]["angle"] == "How Philadelphia stole it at the end."
     assert tiles[1]["title"] == "World"
     assert tiles[2]["title"] == bank.title
-
-
-def test_not_interested_reaches_trending_too(store, monkeypatch):
-    """A Trending tile waved off from its card does not come back on the row
-    or behind its View more (found reviewing §161)."""
-    story = T.TOPIC_BANK[5]
-    monkeypatch.setattr(T, "world_inventory", lambda live, held, heard, now: ([story], []))
-
-    def trending(feed):
-        return [t["id"] for s in feed["sections"] if s["key"] == "world_trending"
-                for t in s["topics"]]
-
-    play(store, "u", "golf-evolution", kind="complete")
-    assert story.id in trending(T.build_feed(store, "u"))
-    store.record(T.Event("u", T.HIDE, story.id, "", story.tags))
-    assert story.id not in trending(T.build_feed(store, "u"))
-    section = T.build_section(store, "u", "world_trending")
-    assert story.id not in [t["id"] for t in section["topics"]]
