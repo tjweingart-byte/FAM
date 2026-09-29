@@ -1,0 +1,637 @@
+/*
+ * FamAudio - streaming speech with transport controls.
+ *
+ * The first version scheduled each incoming chunk and forgot it, which is the
+ * cheapest way to play a live stream but makes seeking impossible: there is
+ * nothing behind you to go back to. This version keeps every sample it has
+ * received in a growing buffer and drives playback from a position cursor, so
+ * skip, scrub and speed changes all work on audio that is still arriving.
+ *
+ * Samples are kept as Int16 (about 2.6 MB per minute) and converted to float
+ * only for the short slice being scheduled, which halves the memory a long
+ * episode would otherwise hold.
+ *
+ * Public surface:
+ *   FamAudio.play(query, minutes, handlers)
+ *   FamAudio.pause() / resume() / stop() / isPaused()
+ *   FamAudio.skip(seconds)          - relative, negative to go back
+ *   FamAudio.seek(seconds)          - absolute
+ *   FamAudio.setRate(multiplier)    - 1 = normal, 1.5 = half again as fast
+ *   FamAudio.setPitchLock(bool)     - keep the voice's pitch when speed changes
+ *   FamAudio.position() / duration() / isActive()
+ */
+window.FamAudio = (function () {
+  "use strict";
+
+  // How far ahead of the clock to keep audio scheduled, and how much to
+  // schedule at once. Short slices keep seek and rate changes responsive.
+  var LOOKAHEAD = 0.35;
+  var SLICE = 0.25;
+  // While the episode is still being written, never seek closer than this to
+  // the end of what has arrived. Landing exactly on the edge starves the
+  // player: nothing is left to schedule, playback stops dead, and further
+  // skips appear to do nothing because the cursor is already pinned there.
+  var TAIL_MARGIN = 2.0;
+
+  var ctx = null;
+  var controller = null;
+  var timer = null;
+  var handlers = {};
+  var token = 0;
+
+  var pcm = null;          // Int16Array, grown as the stream arrives
+  var totalSamples = 0;    // how much of `pcm` is real audio
+  var keepable = false;    // the server said this audio may be kept (§161)
+  var sampleRate = 22050;
+  var cursor = 0;          // next sample to schedule
+  var playHead = 0;        // ctx time at which `cursor` will be heard
+  var rate = 1;
+  var sources = [];
+  var streamDone = false;
+  var ended = false;
+  var active = false;
+  /* True while audio has arrived and the caller has asked to start it later
+     (`handlers.startGate`). The stream keeps filling the buffer; nothing is
+     scheduled, so nothing is heard. The loading screen uses it to finish
+     checking off its steps before the first word (§148). */
+  var held = false;
+
+  /* ---- Speed without pitch -------------------------------------------
+   *
+   * `playbackRate` on a buffer source resamples: 1.5x speech comes back a
+   * fifth higher, which on a voice this app spent a year choosing is the
+   * wrong trade. So above 1x and below it, the samples are time-stretched
+   * instead - WSOLA, the standard overlap-add with the next frame nudged to
+   * wherever it correlates best, which is what keeps a vowel from doubling
+   * and a consonant from stuttering.
+   *
+   * It is switchable, and 1x costs nothing: at exactly normal speed the
+   * stretcher is bypassed and the samples are scheduled as they always were.
+   *
+   * The accounting below is unchanged and that is the point. One second of
+   * wall clock still consumes `rate * sampleRate` source samples - WSOLA
+   * advances its read pointer by exactly that - so `positionSamples`, seek,
+   * the scrub bar and TAIL_MARGIN all keep working without knowing this
+   * exists. The only difference is that the buffer handed to Web Audio is
+   * already the right length, so the node itself plays at 1.
+   */
+  var pitchLock = true;
+  //: Analysis/synthesis frame, about 46ms at 22.05kHz. Long enough to hold a
+  //: pitch period of any adult voice, short enough not to smear a plosive.
+  var FRAME = 1024;
+  var HOP = FRAME >> 1;
+  //: How far WSOLA may slide a frame to find the best splice, and how coarse
+  //: the search is. Both are a deliberate quality-for-CPU trade: a full
+  //: sample-by-sample search over the whole overlap is ~20x this work for a
+  //: difference nobody has reported hearing, and this runs on a phone on the
+  //: main thread while an episode is still downloading.
+  var SEEK_RADIUS = 160;
+  var SEEK_STEP = 4;
+  var CORR_STEP = 4;
+  //: Hann window, built once. Rebuilt never: FRAME is a constant.
+  var WINDOW = (function () {
+    var w = new Float32Array(FRAME);
+    for (var i = 0; i < FRAME; i++) {
+      w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FRAME);
+    }
+    return w;
+  })();
+  //: The half-frame carried from the last overlap-add, the fractional read
+  //: position, and where the previous frame was actually taken from. Cleared
+  //: on every seek and every rate change, because both invalidate the splice.
+  var olaTail = null;
+  var olaRead = 0;
+  var olaPrev = 0;
+
+  function resetStretch(fromSample) {
+    olaTail = null;
+    olaRead = fromSample;
+    olaPrev = fromSample;
+  }
+
+  function reset() {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (controller) { try { controller.abort(); } catch (e) {} controller = null; }
+    stopSources();
+    if (ctx) { var c = ctx; ctx = null; c.close().catch(function () {}); }
+    pcm = null; totalSamples = 0; cursor = 0; playHead = 0;
+    streamDone = false; ended = false; active = false; rate = 1; held = false;
+    resetStretch(0);
+  }
+
+  function stopSources() {
+    for (var i = 0; i < sources.length; i++) {
+      try { sources[i].onended = null; sources[i].stop(); } catch (e) {}
+    }
+    sources = [];
+  }
+
+  function append(int16) {
+    if (!pcm) pcm = new Int16Array(sampleRate * 60);
+    if (totalSamples + int16.length > pcm.length) {
+      var bigger = new Int16Array(Math.max(pcm.length * 2, totalSamples + int16.length));
+      bigger.set(pcm.subarray(0, totalSamples), 0);
+      pcm = bigger;
+    }
+    pcm.set(int16, totalSamples);
+    totalSamples += int16.length;
+  }
+
+  /* Current playback position in samples, derived from the audio clock so it
+     stays correct across pauses (a suspended context stops advancing). */
+  function positionSamples() {
+    if (!ctx) return 0;
+    var aheadSeconds = Math.max(0, playHead - ctx.currentTime);
+    return Math.max(0, cursor - aheadSeconds * rate * sampleRate);
+  }
+
+  /* Whether the stretcher is doing anything. At 1x it is not, and the old
+     path runs exactly as it did - which is also what makes this safe to
+     switch off. */
+  function stretching() {
+    return pitchLock && Math.abs(rate - 1) > 0.01;
+  }
+
+  /* Where the next frame reads best from, within SEEK_RADIUS of where the
+     clock says it should. The template is the source that would have followed
+     the previous frame had we not skipped ahead, so the splice is chosen to
+     continue the waveform rather than to land on a grid. */
+  function bestOffset(want) {
+    var template = olaPrev + HOP;
+    var best = want, bestScore = -Infinity;
+    var lo = Math.max(0, want - SEEK_RADIUS);
+    var hi = Math.min(totalSamples - FRAME, want + SEEK_RADIUS);
+    if (template + HOP > totalSamples || hi < lo) return Math.max(0, Math.min(want, hi));
+    for (var at = lo; at <= hi; at += SEEK_STEP) {
+      var score = 0;
+      for (var i = 0; i < HOP; i += CORR_STEP) {
+        score += pcm[template + i] * pcm[at + i];
+      }
+      if (score > bestScore) { bestScore = score; best = at; }
+    }
+    return best;
+  }
+
+  /* One block of time-stretched output, or null when there is not enough
+     source to make one yet. Advances `cursor` by the source it consumed, so
+     everything above this function keeps counting in source samples. */
+  function stretchedBlock() {
+    var frames = Math.max(1, Math.round(SLICE * sampleRate / HOP));
+    var out = new Float32Array(frames * HOP);
+    var step = HOP * rate;          // source consumed per synthesis hop
+    var wrote = 0;
+
+    for (var f = 0; f < frames; f++) {
+      var want = Math.round(olaRead);
+      var take = want, pad = false;
+      if (want + FRAME > totalSamples) {
+        // Not enough source for a whole frame. Mid-stream that means wait;
+        // at the end of the episode it means finish on what is left, zero
+        // padded, rather than clipping the last word.
+        if (!streamDone) break;
+        if (want >= totalSamples) break;
+        pad = true;
+      } else {
+        take = bestOffset(want);
+      }
+
+      var head = olaTail || new Float32Array(HOP);
+      var tail = new Float32Array(HOP);
+      for (var i = 0; i < FRAME; i++) {
+        var at = take + i;
+        var sample = at < totalSamples ? (pcm[at] / 32768) * WINDOW[i] : 0;
+        if (i < HOP) { head[i] += sample; } else { tail[i - HOP] = sample; }
+      }
+      out.set(head, wrote);
+      wrote += HOP;
+      olaTail = tail;
+      olaPrev = take;
+      olaRead += step;
+      if (pad) { olaRead = totalSamples; break; }
+    }
+
+    if (!wrote) return null;
+    var buf = ctx.createBuffer(1, wrote, sampleRate);
+    buf.getChannelData(0).set(out.subarray(0, wrote));
+    cursor = Math.max(cursor, Math.min(totalSamples, Math.round(olaRead)));
+    return buf;
+  }
+
+  /* One block of plain output: the samples as they are, played by the node at
+     `rate`. What this did before the stretcher existed. */
+  function plainBlock() {
+    var end = Math.min(cursor + Math.floor(SLICE * sampleRate), totalSamples);
+    var length = end - cursor;
+    if (length <= 0) return null;
+    var buf = ctx.createBuffer(1, length, sampleRate);
+    var out = buf.getChannelData(0);
+    for (var i = 0; i < length; i++) out[i] = pcm[cursor + i] / 32768;
+    cursor = end;
+    return buf;
+  }
+
+  /* Keep the clock fed. Runs on a timer so it also picks up newly arrived
+     audio after the buffer has run dry. */
+  function tick() {
+    if (!ctx || !active || held) return;
+
+    while (playHead - ctx.currentTime < LOOKAHEAD && cursor < totalSamples) {
+      var stretch = stretching();
+      var buf = stretch ? stretchedBlock() : plainBlock();
+      if (!buf) break;
+
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      // Already the right length when stretched, so the node plays it
+      // straight; resampled by the node otherwise.
+      src.playbackRate.value = stretch ? 1 : rate;
+      src.connect(ctx.destination);
+
+      var when = Math.max(playHead, ctx.currentTime + 0.02);
+      src.start(when);
+      sources.push(src);
+      src.onended = (function (node) {
+        return function () {
+          var idx = sources.indexOf(node);
+          if (idx >= 0) sources.splice(idx, 1);
+        };
+      })(src);
+
+      playHead = when + buf.duration / (stretch ? 1 : rate);
+    }
+
+    if (!ended && streamDone && cursor >= totalSamples && ctx.currentTime >= playHead - 0.05) {
+      ended = true;
+      active = false;
+      releaseMediaChannel();
+      if (handlers.onEnd) handlers.onEnd();
+    }
+  }
+
+  /* Restart scheduling from `sample`, discarding anything already queued.
+     Used by seek and by rate changes, which both invalidate the queue. */
+  function rescheduleFrom(sample) {
+    if (!ctx) return;
+    stopSources();
+    cursor = Math.max(0, Math.min(Math.floor(sample), totalSamples));
+    // The carried half-frame belongs to audio that is no longer going to be
+    // heard. Keeping it would overlap-add the old position onto the new one,
+    // which is a click on every seek and every speed change.
+    resetStretch(cursor);
+    playHead = ctx.currentTime;
+    ended = false;
+    tick();
+  }
+
+  /* ---- Playing with the ringer switch off ------------------------------
+   *
+   * On an iPhone, Web Audio is "ambient" sound by default: it obeys the
+   * silent switch, so a listener with the ringer off heard nothing at all
+   * (PROBLEMS.md §127). Media - a podcast, a video - ignores the switch, and
+   * the page has to say that this is media. Two ways, because iOS has had
+   * two:
+   *
+   *  - `navigator.audioSession.type = "playback"`, the proper answer, on
+   *    Safari 16.4 and later.
+   *  - For older iOS, a looping silent <audio> element playing alongside:
+   *    while an HTML media element plays, iOS moves the page's whole audio
+   *    session - Web Audio included - onto the media channel. It is silence,
+   *    so it is heard by nobody; it is paused whenever the episode is, so the
+   *    lock screen never claims something is playing when it is not.
+   *
+   * Started from inside `play`, which runs in the tap that asked for the
+   * episode - the one moment iOS lets a page start a media element.
+   */
+  var mediaEl = null;
+
+  function silentWavUri() {
+    // Half a second of 8 kHz 8-bit mono silence, built here rather than
+    // shipped as a file: a 44-byte header and 4,000 samples at the midpoint.
+    var n = 4000, bytes = new Uint8Array(44 + n), v = new DataView(bytes.buffer);
+    function str(at, s) { for (var i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i); }
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE");
+    str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, "data"); v.setUint32(40, n, true);
+    for (var i = 44; i < bytes.length; i++) bytes[i] = 128;
+    var bin = "";
+    for (var j = 0; j < bytes.length; j++) bin += String.fromCharCode(bytes[j]);
+    return "data:audio/wav;base64," + btoa(bin);
+  }
+
+  function preferPlaybackSession() {
+    try {
+      if (navigator.audioSession && navigator.audioSession.type !== "playback") {
+        navigator.audioSession.type = "playback";
+      }
+    } catch (e) { /* not supported here; the media element below covers it */ }
+  }
+
+  function holdMediaChannel() {
+    preferPlaybackSession();
+    // Where the session type exists it is the whole answer, and the silent
+    // element would only add a lock-screen "Now Playing" entry with nothing
+    // behind it - one whose pause button pauses the silence, not the episode.
+    if (typeof navigator !== "undefined" && navigator.audioSession) return;
+    try {
+      if (!mediaEl) {
+        mediaEl = document.createElement("audio");
+        mediaEl.setAttribute("playsinline", "");
+        mediaEl.setAttribute("x-webkit-airplay", "deny");
+        mediaEl.preload = "auto";
+        mediaEl.loop = true;
+        mediaEl.src = silentWavUri();
+      }
+      var started = mediaEl.play();
+      if (started && started.catch) started.catch(function () {});
+    } catch (e) { /* never let this be the reason an episode does not play */ }
+  }
+
+  function releaseMediaChannel() {
+    try { if (mediaEl) mediaEl.pause(); } catch (e) {}
+  }
+
+  // The session type is harmless to set early and costs nothing, so the first
+  // touch anywhere sets it - which covers a play started a beat after a tap.
+  try {
+    ["touchend", "click"].forEach(function (type) {
+      document.addEventListener(type, preferPlaybackSession, { once: true, capture: true });
+    });
+  } catch (e) {}
+
+  function play(query, minutes, h, context, voice, listener) {
+    handlers = h || {};
+    stop();
+    var myToken = ++token;
+    active = true;
+    holdMediaChannel();
+
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    controller = new AbortController();
+    timer = setInterval(tick, 80);
+    resetStretch(0);
+
+    var url = "/api/audio?q=" + encodeURIComponent(query) +
+              "&minutes=" + encodeURIComponent(minutes) + "&fmt=pcm" +
+              (context ? "&context=" + encodeURIComponent(context) : "") +
+              (voice ? "&voice=" + encodeURIComponent(voice) : "") +
+              // What they tapped, so myFAM can rank. *Who* is listening is no
+              // longer sent: it comes from the session cookie, which rides
+              // along automatically and cannot be set by this script.
+              // The play is still recorded from the audio request rather than
+              // a separate call, because a play that reached the server is a
+              // fact and a client-side report of one is a claim.
+              (listener && listener.topicId ? "&topic_id=" + encodeURIComponent(listener.topicId) : "") +
+              // Explore replays only. The server refuses to generate on a miss,
+              // so a stale card costs a 409 rather than a model call.
+              (listener && listener.cachedOnly ? "&cached_only=true" : "") +
+              // Documents, photos and links the listener attached. Sent as ids
+              // because the text was extracted when they were added - the
+              // generation path never parses a file or fetches a page.
+              (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "") +
+              // Which surface the tap came from (§147): only a search picks
+              // its voice and length, and only a search goes on Explore.
+              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "");
+
+    keepable = false;
+    ctx.resume().then(function () {
+      // A request that never reached the server is marked, so the caller can
+      // tell "no connection" from a bug further down (§161's offline play).
+      return fetch(url, { signal: controller.signal }).catch(function (e) {
+        if (e && e.name !== "AbortError") e.network = true;
+        throw e;
+      });
+    }).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () {
+          return { error: "Request failed (" + res.status + ")" };
+        }).then(function (body) {
+          var err = new Error(body.error || "Request failed");
+          // A refusal is not all the same kind of "no". The server says which
+          // limit said it and, for an allowance, what the limit was and when
+          // it comes back - so the interface can raise the limit screen
+          // instead of flashing a toast the listener cannot act on.
+          err.status = res.status;
+          err.refusedBy = body.refused_by || "";
+          err.quota = body.quota || null;
+          throw err;
+        });
+      }
+      sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      var cacheState = res.headers.get("X-FAM-Cache") || "";
+      keepable = res.headers.get("X-FAM-Keepable") === "1";
+
+      var reader = res.body.getReader();
+      var leftover = new Uint8Array(0);
+      var received = 0;
+      var first = true;
+
+      function pump() {
+        return reader.read().then(function (r) {
+          if (myToken !== token) return;
+          if (r.done) {
+            streamDone = true;
+            if (received === 0) throw new Error("The server sent an empty briefing.");
+            return;
+          }
+          received += r.value.length;
+
+          // A 16-bit sample can straddle a chunk boundary; carry the odd byte.
+          var bytes = r.value;
+          if (leftover.length) {
+            var merged = new Uint8Array(leftover.length + bytes.length);
+            merged.set(leftover, 0); merged.set(bytes, leftover.length);
+            bytes = merged;
+          }
+          var usable = bytes.length - (bytes.length % 2);
+          leftover = bytes.slice(usable);
+          if (usable) {
+            append(new Int16Array(
+              bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
+            if (first) {
+              first = false;
+              var begin = function () {
+                if (myToken !== token || !ctx) return;
+                held = false;
+                playHead = ctx.currentTime;
+                tick();
+                if (handlers.onFirstAudio) handlers.onFirstAudio();
+              };
+              if (handlers.startGate) {
+                // The caller starts it. Told whether this was a replay,
+                // because a replay has no steps to finish first.
+                held = true;
+                handlers.startGate(begin, { cache: cacheState });
+              } else {
+                begin();
+              }
+            }
+          }
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      if (err && err.name === "AbortError") return;
+      if (myToken !== token) return;
+      active = false;
+      if (handlers.onError) handlers.onError(err);
+    });
+  }
+
+  /* Play from samples this device already holds, rather than from the network.
+     What a downloaded episode is: the same Int16 buffer the streaming path
+     builds, handed over whole instead of arriving in pieces. Everything below
+     the buffer - the cursor, the scheduler, seek, rate - is untouched, which is
+     why offline playback cannot drift from online playback. */
+  function playStored(samples, rate, h) {
+    handlers = h || {};
+    stop();
+    var myToken = ++token;
+    active = true;
+    holdMediaChannel();
+
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    timer = setInterval(tick, 80);
+    resetStretch(0);
+    sampleRate = Number(rate) || 22050;
+    keepable = false;       // already on the device; nothing to keep again
+    pcm = samples;
+    totalSamples = samples.length;
+    streamDone = true;   // there is no more coming; it is all already here
+
+    ctx.resume().then(function () {
+      if (myToken !== token) return;
+      playHead = ctx.currentTime;
+      tick();
+      if (handlers.onFirstAudio) handlers.onFirstAudio();
+    }).catch(function (err) {
+      if (myToken !== token) return;
+      active = false;
+      if (handlers.onError) handlers.onError(err);
+    });
+  }
+
+  /* Stream an episode and hand back everything that arrived, for storing.
+     Deliberately a separate entry point from `play`: downloading and
+     listening are different acts, and a listener who taps download is not
+     asking to hear it now. */
+  function fetchAll(url, onProgress) {
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("Could not fetch that episode.");
+      var rate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      var reader = res.body.getReader();
+      var chunks = [];
+      var total = 0;
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) return;
+          chunks.push(r.value);
+          total += r.value.length;
+          if (onProgress) onProgress(total);
+          return pump();
+        });
+      }
+      return pump().then(function () {
+        var bytes = new Uint8Array(total);
+        var at = 0;
+        chunks.forEach(function (c) { bytes.set(c, at); at += c.length; });
+        // Trim an odd trailing byte: a 16-bit sample cannot be half stored.
+        var usable = bytes.length - (bytes.length % 2);
+        return { rate: rate, samples: new Int16Array(
+          bytes.buffer.slice(0, usable)) };
+      });
+    });
+  }
+
+  function pause() {
+    if (ctx && ctx.state === "running") ctx.suspend();
+    releaseMediaChannel();
+  }
+  function resume() {
+    if (ctx && ctx.state === "suspended") { holdMediaChannel(); ctx.resume(); }
+  }
+  function isPaused() { return !!ctx && ctx.state === "suspended"; }
+
+  function stop() { token++; reset(); releaseMediaChannel(); }
+
+  /* The furthest point that can be played right now. Once the whole episode
+     has arrived that is its end; while it is still streaming, stop short so
+     there is always audio left to keep playing. */
+  function seekLimit() {
+    var have = totalSamples / sampleRate;
+    return streamDone ? have : Math.max(0, have - TAIL_MARGIN);
+  }
+
+  function seek(seconds) {
+    if (!ctx || !totalSamples) return 0;
+    var target = Math.max(0, Math.min(seconds, seekLimit()));
+    rescheduleFrom(target * sampleRate);
+    return cursor / sampleRate;
+  }
+
+  function skip(seconds) {
+    if (!ctx || !totalSamples) return 0;
+    return seek(positionSamples() / sampleRate + seconds);
+  }
+
+  function setRate(multiplier) {
+    multiplier = Math.max(0.5, Math.min(3, Number(multiplier) || 1));
+    if (!ctx) { rate = multiplier; return; }
+    var here = positionSamples();
+    rate = multiplier;
+    rescheduleFrom(here);
+  }
+
+  /* Speed with the voice left alone, or speed the cheap way. On by default.
+     Kept switchable rather than assumed: WSOLA is a very good approximation
+     and not a free one, and a listener who prefers the resampled sound - or a
+     device that cannot keep up with it - has somewhere to go. */
+  function setPitchLock(on) {
+    var want = !!on;
+    if (want === pitchLock) return;
+    pitchLock = want;
+    if (!ctx) return;
+    rescheduleFrom(positionSamples());
+  }
+
+  return {
+    play: play,
+    // Offline playback, from samples already on this device.
+    playStored: playStored,
+    fetchAll: fetchAll,
+    pause: pause,
+    resume: resume,
+    isPaused: isPaused,
+    stop: stop,
+    skip: skip,
+    seek: seek,
+    setRate: setRate,
+    // Speed without changing the pitch of the voice. On by default.
+    setPitchLock: setPitchLock,
+    isPitchLocked: function () { return pitchLock; },
+    // How far the listener may currently skip to, in seconds.
+    seekLimit: seekLimit,
+    getRate: function () { return rate; },
+    position: function () { return positionSamples() / sampleRate; },
+    // Seconds of audio received so far. Grows while the episode streams.
+    duration: function () { return totalSamples / sampleRate; },
+    isActive: function () { return active; },
+    // True once the whole episode has been received.
+    isComplete: function () { return streamDone; },
+    // The whole episode as received, once it has all arrived - what the
+    // offline shelf keeps on this device (27/09 packet). A copy, so the
+    // stored samples cannot change under the player or the other way round.
+    // Null until the stream is done: half an episode is never kept.
+    // Only when the server marked the stream keepable: a production voice,
+    // never a placeholder tone. `stream` says which play it was, so a caller
+    // watching one episode never keeps another's audio.
+    whole: function () {
+      if (!streamDone || !pcm || !totalSamples || !keepable) return null;
+      return { rate: sampleRate, samples: pcm.slice(0, totalSamples), stream: token };
+    },
+    // Which play is current; bumped by every play, playStored and stop.
+    stream: function () { return token; },
+  };
+})();
