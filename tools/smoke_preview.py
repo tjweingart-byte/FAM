@@ -3450,6 +3450,47 @@ def main() -> int:
             page.wait_for_timeout(1500)
             assert page.text_content("#reelTitle") != first, "swipe did not advance"
 
+        def explore_goes_deeper_with_a_suggestion_and_a_length():
+            """28/09: Explore has Go Deeper; every Go Deeper offers a
+            follow-up on the thread beside the box for typing one, and a
+            length of 1-5 minutes that the follow-up is asked at."""
+            page.evaluate("openExplore()")
+            page.wait_for_function("reelCurrent && !!reelCurrent.query", timeout=5000)
+            assert page.is_visible("#reelDeeper"), "no Go Deeper on the Explore card"
+            page.click("#reelDeeper")
+            assert page.eval_on_selector(
+                "#goDeeperOverlay", "e => e.classList.contains('active')"), \
+                "Go Deeper did not open from Explore"
+            chip = page.text_content("#goDeeperSuggestion") or ""
+            assert page.is_visible("#goDeeperSuggestion") and chip.strip(), \
+                "no suggested follow-up on Explore's Go Deeper"
+            assert page.is_visible("#goDeeperInput"), "no box to type a follow-up"
+            lengths = page.eval_on_selector_all(
+                "#goDeeperLengths .deeper-len", "e => e.map(b => b.textContent.trim())")
+            assert lengths == [f"{m} min" for m in range(1, 6)], lengths
+            page.click('#goDeeperLengths .deeper-len[data-min="4"]')
+            page.fill("#goDeeperInput", "what happens next")
+            page.evaluate("confirmGoDeeper()")
+            got = page.evaluate("""() => {
+              var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
+              return k ? { minutes: TOPICS[k].exploreMinutes,
+                           parent: TOPICS[k].parentTopic } : null; }""")
+            assert got and got["minutes"] == 4, f"the length chosen was not asked for: {got}"
+            assert got["parent"], "the follow-up lost the episode it follows"
+            page.wait_for_timeout(600)
+            page.evaluate("stopSpeech(); showScreen('home')")
+
+        def the_interests_list_is_alphabetical():
+            """28/09: the interests list, first run and Settings, is A to Z."""
+            page.evaluate("introMode = 'settings'; showScreen('intro'); renderIntro()")
+            page.wait_for_selector("#catalogBody .cat-row", timeout=5000)
+            names = page.eval_on_selector_all(
+                "#catalogBody .cat-name", "e => e.map(n => n.textContent.trim())")
+            assert len(names) > 5, names
+            assert names == sorted(names, key=str.casefold), \
+                f"not alphabetical: {names[:8]}"
+            page.evaluate("cancelIntroFromSettings()")
+
         print(f"smoke test: {target.name}")
         def a_myfam_card_is_saved_or_waved_off():
             """27/09 packet: every myFAM card carries Save for later and Not
@@ -3681,6 +3722,9 @@ def main() -> int:
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
+        check("Explore goes deeper, with a suggestion and a length",
+              explore_goes_deeper_with_a_suggestion_and_a_length)
+        check("The interests list is alphabetical", the_interests_list_is_alphabetical)
         check("Messages opens and closes", messages_sheet)
         check("YourFAM renders identity, friends, messages and shelf", profile)
         check("The player's X minimises into the mini bar",

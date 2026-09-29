@@ -87,7 +87,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   bank tile's title (`titleOverridden`) is never replaced; cached in its own column. [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
-  gestures at it. [next-is-prediction]
+  gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
+  line, else one built from the title - a box, and a 1-5 minute length (§170). [next-is-prediction]
 - After an episode: four recommendations, first auto-starts in **15s**; order is
   album next → `<<NEXT:>>` → ranking's pick; tiles are `topics.rank_next_up`
   over both inventories; not on Explore / Explore New. [post-episode-grid]
@@ -145,9 +146,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   story reaches Made for you **only when it names something followed** (§155
   excludes, reversing the 0.3 damp; `SUBJECT_DEPTH`, `SEMANTIC_NEAR_COSINE`) -
   the floor tops up from evergreen tiles, **never the live pool**. No length control on myFAM - non-search
-  episodes are `BROWSE_MINUTES` (2). View more shows eight at a time; Refresh
+  episodes are `BROWSE_MINUTES` (2), except a Go Deeper follow-up's own 1-5 (§170). View more shows eight at a time; Refresh
   deals the next eight of the same ranking, then starts again (§165). No language picker (field kept). No wheel
-  (§142) - interests page is the searchable list; `preferences.topics` stores
+  (§142) - interests page is the searchable list, A to Z (§170); `preferences.topics` stores
   choices; no interest cap. Impressions only ever damp (`FATIGUE_WEIGHT`), never
   become taste; Trending exempt. `UNSHELVED` rankings must be skipped when
   iterating `FILL_ORDER`. One bank for everyone - personalise the order, not

@@ -978,6 +978,16 @@
     font-weight:600; line-height:1.35; cursor:pointer;
   }
   .deeper-chip:active{ transform:scale(0.98); }
+  /* Go Deeper's length, 1-5 minutes: five equal pills on one row. */
+  .deeper-lengths{ display:flex; gap:6px; }
+  .deeper-len{ flex:1; padding:8px 0; border-radius:999px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text-muted);
+    font-family:'JetBrains Mono', monospace; font-size:9.5px; cursor:pointer; }
+  .deeper-len.on{ background:var(--copper); border-color:var(--copper); color:var(--ink);
+    font-weight:700; }
+  /* Explore's Go Deeper sits under the card's words, the same pill as the
+     player's; a sixth round action would overflow the row (§134's note). */
+  .reel-body .go-deeper-pill{ margin:18px 0 0; }
   .deeper-chip .chip-label{
     display:block; font-family:'JetBrains Mono', monospace; font-size:8px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted);
@@ -2346,7 +2356,10 @@
 
   <div class="phone">
     <div class="frame">
-      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <!-- Space for the phone's own status bar, and nothing in it: the clock
+           and signal dots that used to be drawn here were a mock-up's, led
+           nowhere, and the real ones belong to iOS. -->
+      <div class="statusbar" aria-hidden="true"></div>
 
       <div class="splash" id="splashScreen">
         <div class="fam-logo" style="padding:0;" aria-label="FAM">
@@ -3219,6 +3232,7 @@
             <div class="reel-kicker" id="reelKicker">Someone asked</div>
             <div class="reel-title" id="reelTitle">Loading…</div>
             <div class="reel-sub" id="reelSub"></div>
+            <button class="go-deeper-pill" id="reelDeeper" onclick="openGoDeeperOnReel()">Go Deeper</button>
           </div>
 
           <!-- Two groups, not one row of five.
@@ -3469,7 +3483,19 @@
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
-          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="e.g. &quot;explain the market impact&quot;">
+          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Or type your own follow-up">
+          <!-- How long the follow-up runs. Chosen here rather than inherited
+               from the search length, because a follow-up is asked from every
+               surface and only search has a length control of its own. The
+               suggestion above and the typed prompt both use it. -->
+          <div class="gc-label" style="margin:12px 0 6px;">Length</div>
+          <div class="deeper-lengths" id="goDeeperLengths" role="radiogroup" aria-label="Episode length">
+            <button class="deeper-len" data-min="1" role="radio" onclick="setGoDeeperMinutes(1)">1 min</button>
+            <button class="deeper-len" data-min="2" role="radio" onclick="setGoDeeperMinutes(2)">2 min</button>
+            <button class="deeper-len" data-min="3" role="radio" onclick="setGoDeeperMinutes(3)">3 min</button>
+            <button class="deeper-len" data-min="4" role="radio" onclick="setGoDeeperMinutes(4)">4 min</button>
+            <button class="deeper-len" data-min="5" role="radio" onclick="setGoDeeperMinutes(5)">5 min</button>
+          </div>
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeGoDeeper()">Cancel</button>
             <button class="modal-btn primary" onclick="confirmGoDeeper()">Continue</button>
@@ -5161,17 +5187,38 @@
     } catch(e){ failed(); }
   }
 
+  // Every Go Deeper offers a follow-up that picks up the thread, beside the
+  // box for typing one. The episode's own predicted `<<NEXT:>>` line when it
+  // is known; until it lands (or for an episode that never wrote one) a
+  // follow-up built from the episode's title, so the chip is never missing.
+  //: The thread of the episode a Go Deeper was opened *on*, when that is not
+  //: the player's - an Explore card or a shared card.
+  var goDeeperThreadOverride = "";
+  function goDeeperThread(){
+    return goDeeperBaseOverride ? goDeeperThreadOverride : episodeThread;
+  }
+  function goDeeperFallback(){
+    var key = getGoDeeperBaseKey(goDeeperContext);
+    var title = key && TOPICS[key] ? TOPICS[key].title : "";
+    return title ? "What's the bigger story behind " + title + "?" : "";
+  }
+  function goDeeperSuggestionText(){
+    return goDeeperThread() || goDeeperFallback();
+  }
   function showThreadSuggestion(){
     var chip = document.getElementById("goDeeperSuggestion");
     if(!chip) return;
-    if(!episodeThread){ chip.style.display = "none"; return; }
-    chip.innerHTML = '<span class="chip-label">Pick up the thread</span>' +
-                     escapeHtml(episodeThread);
+    var text = goDeeperSuggestionText();
+    if(!text){ chip.style.display = "none"; return; }
+    chip.innerHTML = '<span class="chip-label">'
+                   + (goDeeperThread() ? "Pick up the thread" : "Follow the thread")
+                   + '</span>' + escapeHtml(text);
     chip.style.display = "block";
   }
   function useThreadSuggestion(){
-    if(!episodeThread) return;
-    document.getElementById("goDeeperInput").value = episodeThread;
+    var text = goDeeperSuggestionText();
+    if(!text) return;
+    document.getElementById("goDeeperInput").value = text;
     confirmGoDeeper();
   }
   function escapeHtml(text){
@@ -6804,26 +6851,74 @@
 
   // ---------------- Go deeper (follow-up / steer the next episode) ----------------
   var goDeeperContext = null;
+  //: How long the follow-up runs, 1-5 minutes, chosen in the modal.
+  var goDeeperMinutes = 2;
   function getGoDeeperBaseKey(context){
-    if(context === "thread" && goDeeperBaseOverride) return goDeeperBaseOverride;
+    if(goDeeperBaseOverride) return goDeeperBaseOverride;
     if(context === "playall") return BRANCHES[paAlbumKey] ? BRANCHES[paAlbumKey].topics[paIndex] : null;
     return currentPlayingTopicKey;
   }
-  function openGoDeeper(context){
-    goDeeperContext = context;
-    stopSpeech();
+  function setGoDeeperMinutes(minutes){
+    goDeeperMinutes = Math.max(1, Math.min(5, Math.round(minutes) || 2));
+    document.querySelectorAll("#goDeeperLengths .deeper-len").forEach(function(el){
+      var on = Number(el.dataset.min) === goDeeperMinutes;
+      el.classList.toggle("on", on);
+      el.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+  // Opens on the length of the episode it follows, held to the 1-5 on offer.
+  function showGoDeeperModal(baseMinutes){
+    setGoDeeperMinutes(baseMinutes || currentPlayMinutes || selectedLengthMinutes);
     document.getElementById("goDeeperInput").value = "";
     showThreadSuggestion();
+    document.getElementById("goDeeperOverlay").classList.add("active");
+  }
+  function openGoDeeper(context){
+    goDeeperContext = context;
+    goDeeperBaseOverride = null;
+    goDeeperThreadOverride = "";
+    stopSpeech();
+    showGoDeeperModal(0);
     fetchEpisodeThread();   // still generating? fill the chip when it lands
     fetchEpisodeSources();  // and say what it was built on, once it exists
-    document.getElementById("goDeeperOverlay").classList.add("active");
-    setTimeout(function(){ document.getElementById("goDeeperInput").focus(); }, 60);
+  }
+  // Go Deeper on an episode that is not the player's - an Explore card or a
+  // shared one. It becomes the base the follow-up is asked about, and its own
+  // thread is the suggestion: Explore's feed carries it, and anything else is
+  // read from the cache (`cached_only`, so asking never writes an episode).
+  function openGoDeeperOn(ep, source, context, thread){
+    var key = "deeperbase_" + Date.now();
+    TOPICS[key] = { title: ep.title || ep.query, surface: "other", source: source,
+                    caption: "Live captions will appear here as this plays\u2014",
+                    prompt: ep.query, exploreMinutes: ep.minutes, titleOverridden: true };
+    goDeeperContext = context;
+    goDeeperBaseOverride = key;
+    goDeeperThreadOverride = thread || "";
+    showGoDeeperModal(ep.minutes);
+    if(goDeeperThreadOverride) return;
+    fetch("/api/next?q=" + encodeURIComponent(ep.query)
+          + "&minutes=" + encodeURIComponent(ep.minutes || 2) + "&cached_only=true")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        // Still the Go Deeper this was asked for, and still open.
+        if(!d || !d.thread || goDeeperBaseOverride !== key) return;
+        goDeeperThreadOverride = d.thread;
+        showThreadSuggestion();
+      })
+      .catch(function(){ /* the title-built suggestion stands */ });
+  }
+  function openGoDeeperOnReel(){
+    var ep = reelCurrent;
+    if(!ep){ toast("Nothing is playing"); return; }
+    stopSpeech();
+    stopReelProgress();
+    openGoDeeperOn(ep, "exploreFAM", "explore", ep.thread || "");
   }
   function closeGoDeeper(){
     document.getElementById("goDeeperOverlay").classList.remove("active");
-    // A shared card's base only ever applies to the one Go Deeper it opened.
+    // A card's base only ever applies to the one Go Deeper it opened.
     // Cleared after the confirm has read it (`closeGoDeeper` runs inside it).
-    setTimeout(function(){ goDeeperBaseOverride = null; }, 0);
+    setTimeout(function(){ goDeeperBaseOverride = null; goDeeperThreadOverride = ""; }, 0);
   }
   function confirmGoDeeper(){
     var val = document.getElementById("goDeeperInput").value.trim();
@@ -6843,6 +6938,11 @@
       // What the listener already heard. Sent separately so the follow-up can
       // be told not to repeat it, instead of being one long run-on query.
       parentTopic: (baseTitle && baseTitle !== "this") ? baseTitle : "",
+      // The length chosen in the modal. Named, and on a surface the server
+      // does not hold to two minutes - from myFAM or DailyFAM it would
+      // otherwise be a browse tap and ignore the choice (§147).
+      exploreMinutes: goDeeperMinutes,
+      surface: (stack[0] === "home") ? "search" : "other",
       titleOverridden: false
     };
     generate(newKey);
@@ -12749,21 +12849,8 @@
   function goDeeperOnShared(i){
     var m = threadMessages[i];
     if(!m || !m.query) return;
-    var key = "msgdeep_" + i + "_" + Date.now();
-    TOPICS[key] = { title: m.title || m.query, surface: "other",
-                    source: "Sent to you by " + firstName(currentThread),
-                    caption: "Live captions will appear here as this plays—",
-                    prompt: m.query, exploreMinutes: m.minutes, titleOverridden: true };
-    goDeeperBaseOverride = key;
-    // Opened by hand rather than through `openGoDeeper`, which also fills
-    // the suggestion chip from the *player's* episode - a follow-up offered
-    // for something else, under a card about this one.
-    goDeeperContext = "thread";
-    document.getElementById("goDeeperInput").value = "";
-    var chip = document.getElementById("goDeeperSuggestion");
-    if(chip) chip.style.display = "none";
-    document.getElementById("goDeeperOverlay").classList.add("active");
-    setTimeout(function(){ document.getElementById("goDeeperInput").focus(); }, 60);
+    openGoDeeperOn({ query: m.query, title: m.title, minutes: m.minutes },
+                   "Sent to you by " + firstName(currentThread), "thread", "");
   }
 
   function playSharedEpisode(i){
@@ -13869,11 +13956,14 @@
     var vibeTag = document.getElementById("reelVibe");
     if(vibeTag) vibeTag.hidden = true;
     document.getElementById("reelCount").textContent = "";
+    // A message in place of a card has no episode to go deeper on.
+    document.getElementById("reelDeeper").style.display = "none";
   }
 
   function renderReel(){
     if(!reelCurrent) return;
     var ep = reelCurrent;
+    document.getElementById("reelDeeper").style.display = "";
     // A friend both generated this and vibed it. `vibed_by` is only ever
     // present when both hold - the server decides that, so the card cannot
     // claim a friendship the graph does not have.
@@ -14676,7 +14766,8 @@
     (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
       .forEach(function(i){ labels[i.id] = i.label; });
     el.hidden = !introSelection.length;
-    el.innerHTML = introSelection.map(function(tag){
+    el.innerHTML = sortByLabel(introSelection, function(tag){ return labels[tag] || tag; })
+      .map(function(tag){
       return '<button class="intro-facet" onclick="removeIntroFacet(\'' + tag + '\')"'
         + ' aria-label="Remove ' + escapeHtml(labels[tag] || tag) + '">'
         + escapeHtml(labels[tag] || tag)
@@ -14831,6 +14922,15 @@
       + 'aria-hidden="true">' + (CAT_ICONS[name] || CAT_ICONS.news) + '</svg>';
   }
 
+  // Alphabetical by what the listener reads, ignoring case; a copy, so the
+  // order the catalogue arrived in is untouched for anything else reading it.
+  function sortByLabel(list, labelOf){
+    return list.slice().sort(function(a, b){
+      return String(labelOf(a) || "").localeCompare(String(labelOf(b) || ""),
+                                                    undefined, { sensitivity: "base" });
+    });
+  }
+
   function renderTopicCatalog(){
     var body = document.getElementById("catalogBody");
     if(!body) return;
@@ -14840,6 +14940,10 @@
       if(!term) return true;
       return String(t.label || "").toLowerCase().indexOf(term) !== -1;
     });
+    // A to Z, on the first run and from Settings alike - a long list read
+    // top to bottom is found by its first letter, not by the order the
+    // catalogue happened to be written in.
+    shown = sortByLabel(shown, function(t){ return t.label; });
 
     // "Add <what they typed>", when what they typed is not already on the
     // list or already chosen.

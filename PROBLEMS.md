@@ -13187,3 +13187,51 @@ broad subject is paintable, and code forces a facet paintable whatever the
 writer says. And with `THUMBNAILS_ATTEMPTS` above 1, a paid picture that
 failed a check was dropped if the next attempt came back filtered or
 unreadable; the last such picture is now held rather than lost.
+
+## 170. Go Deeper everywhere, with a length; A-Z interests; no mock status bar
+
+Five asks from one message.
+
+**Explore had no Go Deeper.** It replays other listeners' episodes and every
+other player offered a follow-up. The card now carries the same pill as the
+player, under its words rather than as a sixth round action (the note on
+`.reel-actions` is why: five is what fits the narrowest phone). The follow-up
+is asked about *that card* - it becomes the base the modal builds on, the way
+a shared card's already did - so it writes an ordinary new episode and
+Explore itself still generates nothing.
+
+**Every Go Deeper offers a suggestion and a box.** The chip used to exist
+only when the episode's `<<NEXT:>>` line had arrived, so it was missing on a
+shared card (hidden on purpose, since the player's thread was the wrong
+episode's), on a script still being written, and on anything without one.
+It is now one path, `openGoDeeperOn`, for anything that is not the player's
+episode: Explore's feed already carries each card's `thread`, anything else
+asks `/api/next` with `cached_only` (a read, never a write). Until a thread
+lands - or for an episode that never had one - the chip offers a follow-up
+built from the episode's title and says "Follow the thread" rather than
+"Pick up the thread", so it never claims to be the writer's own prediction.
+
+**A length, 1-5 minutes, on every Go Deeper.** It opens on the length of the
+episode it follows, clamped to that range. The follow-up is named at that
+length (`exploreMinutes`) and on the `other` surface - from myFAM or
+DailyFAM it would otherwise have been a browse tap, which the server holds
+to `BROWSE_MINUTES` (§147) whatever the modal said. From search it is still
+`search`. Two consequences, both deliberate: a guest's Go Deeper from the
+myFAM sample page is no longer caught by the sample-page gate (§154), because
+a typed follow-up is a new question like a search, which a guest may already
+ask; and the modal no longer focuses the box on opening, since on a phone the
+keyboard would cover the suggestion and the lengths - the suggestion is the
+one-tap path and typing is the second.
+
+**Interests A to Z.** The list on the first run and in Settings (one screen
+since §142) is sorted by label, case-insensitive, as are the old facet pills
+above it. A sorted copy: `PREF_CHOICES.catalogue` keeps its order for the
+DailyFAM picker, which ranks by interest.
+
+**The three dots and 9:41.** Both were the desktop mock-up's fake status
+bar; on a phone the bar was already emptied (the real one is above it). The
+bar stays as spacing under the drawn notch and holds nothing. The native app
+gets the real clock from iOS; nothing here draws one.
+
+Two smoke behaviours: Explore's Go Deeper (suggestion, box, five lengths,
+the chosen one asked for) and the list being alphabetical.
