@@ -295,22 +295,21 @@
      starts at once and costs nothing but the audio. Said on the tile rather
      than only in the summary, because which ones are instant is the reason
      this screen orders them the way it does. */
-  /* A card's two buttons (27/09 packet): save it for later, or say "not
-     interested" and never see it again. Top right, over the picture, where
-     the "ready" marker used to sit - so on a card that has them the marker
-     moves to the left. */
+  /* A card's button (27/09 packet): save it for later. Top right, over the
+     picture, where the "ready" marker used to sit - so on a card that has it
+     the marker moves to the left. It had a "not interested" beside it until
+     §171 took that out: what a listener does not want is the ranking's job. */
   .seed-acts{ position:absolute; top:6px; right:6px; display:flex; gap:5px; z-index:1; }
   .seed-act{ width:24px; height:24px; padding:0; border:none; border-radius:50%;
     background:rgba(26,22,34,0.62); color:#F4EFE4; display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
   .seed-act:active{ transform:scale(0.92); }
-  .tile-save, .tile-hide{ flex:none; }
+  .tile-save{ flex:none; }
   /* The thumbnail's artwork rule (.seed-thumb svg) stretches every svg
-     inside the picture; these two icons are not artwork. */
+     inside the picture; this icon is not artwork. */
   .seed-thumb .seed-act svg{ position:static; inset:auto; width:13px; height:13px; }
   .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
   .seed-card.has-acts .sec-ready{ right:auto; left:8px; }
-  .seed-card.leaving{ opacity:0; transform:scale(0.96); transition:opacity .22s, transform .22s; }
   .sec-ready{ position:absolute; right:8px; top:8px; padding:3px 7px;
     border-radius:999px; background:var(--copper); color:var(--ink);
     font-family:'JetBrains Mono', monospace; font-size:7px; font-weight:700;
@@ -1403,6 +1402,16 @@
   .nowbar-thumb{ flex:0 0 38px; height:38px; border-radius:9px; background:var(--paper);
     color:var(--ink); display:flex; align-items:center; justify-content:center; }
   .nowbar-body{ flex:1; min-width:0; }
+  /* The explicit mark (§171): an episode that swears carries an E before its
+     title, wherever that title is drawn - the player, the bar, Explore.
+     Before the title rather than after it, so an ellipsis never cuts it off,
+     and drawn by a class rather than an element because every one of those
+     titles is rewritten with textContent when the writer's own name lands. */
+  .is-explicit::before{ content:"E"; display:inline-flex; align-items:center;
+    justify-content:center; width:1.25em; height:1.25em; margin-right:0.45em;
+    border-radius:3px; background:var(--text-muted); color:var(--ink);
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size:0.62em;
+    line-height:1; vertical-align:0.18em; }
   .nowbar-title{ font-family:'Fraunces', serif; font-weight:500; font-size:12px;
     color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .nowbar-meta{ font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:0.07em;
@@ -4847,12 +4856,34 @@
   //: told about whatever the cache keeps; anything else only about what is
   //: current, or the player would take a superseded episode's title (§143).
   var episodeReplay = false;
+  //: Whether the episode playing swears (§171) - the E before its title.
+  //: Only ever turns on while an episode is written: the server reads it off
+  //: what has been said so far, and a word said is not unsaid.
+  var episodeExplicit = false;
   function rememberEpisode(query, minutes, context, replay){
     episodeReplay = !!replay;
     episodeStamp = query + "|" + minutes + "|" + (context || "");
     episodeThread = "";
     episodeTitle = "";
     episodeTitleFinal = false;
+    episodeExplicit = false;
+    paintExplicit();
+  }
+  // The E on the player's title and on the bar's, when the bar is showing
+  // this episode. A class, not an element: see `.is-explicit`.
+  function paintExplicit(){
+    var shown = document.getElementById("p-title");
+    if(shown){
+      shown.classList.toggle("is-explicit", episodeExplicit);
+      if(episodeExplicit) shown.setAttribute("aria-description", "Explicit");
+      else shown.removeAttribute("aria-description");
+    }
+    var bar = document.getElementById("nowTitle");
+    if(bar){
+      var mine = !!(nowBarState && episodeStamp
+                    && nowBarState.query === episodeStamp.split("|")[0]);
+      bar.classList.toggle("is-explicit", episodeExplicit && mine);
+    }
   }
   function fetchEpisodeThread(){
     if(!episodeStamp) return;
@@ -4881,6 +4912,10 @@
           episodeTitleFinal = !!data.title_final;
         }
         if(data.sourced_at) applySourcedStamp(data.sourced_at);
+        if(data.explicit && !episodeExplicit){
+          episodeExplicit = true;
+          paintExplicit();
+        }
       })
       .catch(function(){ /* a missing suggestion is not an error */ });
   }
@@ -5241,6 +5276,7 @@
     document.getElementById("nowThumb").innerHTML =
       '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 12a8 8 0 0116 0v5a2 2 0 01-2 2h-2v-6h4"/><path d="M4 12v5a2 2 0 002 2h2v-6H4"/></svg>';
     document.getElementById("nowTitle").textContent = title;
+    paintExplicit();
     setNowBarPlaying(true);
     startNowBarTicker();
   }
@@ -5559,7 +5595,6 @@
       localStorage.removeItem("famSignedIn");
     } catch(e){}
     OfflineShelf.clear();
-    hiddenTiles = {};
     savedTileQueries = {};
     shelfFolders = { saved: [], vibe: [] };
     shelfPick = { saved: "", vibe: "" };
@@ -9093,15 +9128,13 @@
   var BROWSE_MINUTES = 2;
   var myfamLengthMinutes = BROWSE_MINUTES;
 
-  // ---- "Save for later" and "Not interested" on a card (27/09 packet) ----
+  // ---- "Save for later" on a card (27/09 packet) ----
   //
-  // The same two actions the player has, on the card itself, so a tile can
-  // be kept or waved off without being played first. Save is the shelf
-  // (`/api/saved`, a pointer); not interested is a `hide` event, which the
-  // server reads on every rail from then on (`topics.EventStore.hidden`).
-  // `hiddenTiles` keeps a waved-off tile off this page at once, and for a
-  // guest - whose events are not kept (§127) - for as long as the page is.
-  var hiddenTiles = {};
+  // The player's save, on the card itself, so a tile can be kept without
+  // being played first. Save is the shelf (`/api/saved`, a pointer). There is
+  // no "not interested" beside it (§171, at the owner's direction): the
+  // ranking puts what a listener wants in front of them from what they play,
+  // finish and skip, and a button to wave tiles off is not a feature.
   var savedTileQueries = {};
 
   function seedActsHtml(t){
@@ -9110,9 +9143,6 @@
       + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
       + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
       + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
-      + '<button class="seed-act tile-hide" type="button"'
-      + ' aria-label="Not interested in ' + escapeHtml(t.title) + '" title="Not interested"'
-      + ' onclick="event.stopPropagation(); notInterested(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg></button>'
       + '</span>';
   }
 
@@ -9168,18 +9198,6 @@
     }).catch(function(){ toast(on ? "Could not take that off" : "Could not save that"); });
   }
 
-  function notInterested(topicId){
-    var t = myFamTopics[topicId] || {};
-    hiddenTiles[topicId] = true;
-    recordFamEvent("hide", topicId, t.query || t.title || "");
-    document.querySelectorAll('.seed-card[data-topic]').forEach(function(card){
-      if(card.getAttribute("data-topic") !== topicId) return;
-      card.classList.add("leaving");
-      setTimeout(function(){ if(card.parentNode) card.parentNode.removeChild(card); watchRailEnds(); }, 240);
-    });
-    toast("Got it. We won\u2019t suggest that one again");
-  }
-
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
@@ -9200,7 +9218,7 @@
       }
 
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
-        + sec.topics.filter(function(t){ return !hiddenTiles[t.id]; }).map(function(t){
+        + sec.topics.map(function(t){
         myFamTopics[t.id] = t;
         var tag = seedTagText(sec.key, t);
         return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startBankTopic(\'' + t.id + '\')">'
@@ -9366,10 +9384,9 @@
     }
     function card(t){
       sectionTopics[t.id] = t;
-      // In the feed's map too, so the card's save and "not interested"
-      // buttons find it the way the rail's do.
+      // In the feed's map too, so the card's save button finds it the way
+      // the rail's does.
       myFamTopics[t.id] = t;
-      if(hiddenTiles[t.id]) return "";
       var tag = seedTagText(d.key, t);
       return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
         + seedThumbOpen(t) + seedActsHtml(t)
@@ -13951,6 +13968,7 @@
 
   function setReelText(title, sub, kicker){
     document.getElementById("reelTitle").textContent = title;
+    document.getElementById("reelTitle").classList.remove("is-explicit");
     document.getElementById("reelSub").textContent = sub || "";
     document.getElementById("reelKicker").textContent = kicker || "";
     var vibeTag = document.getElementById("reelVibe");
@@ -13982,6 +14000,8 @@
     document.getElementById("reelKicker").textContent =
       ep.vibed_by ? "From a friend" : "Someone asked";
     document.getElementById("reelTitle").textContent = ep.title;
+    // The E (§171), off the script the card would play.
+    document.getElementById("reelTitle").classList.toggle("is-explicit", !!ep.explicit);
     // When its information was sourced, not when its row was written
     // (§143): an episode is kept a week, and that is the age that decides
     // whether what it says is still true.

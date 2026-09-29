@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import AsyncIterator
 
+import content_filter
 import credentials
 import episode_intelligence
 import pronunciation
@@ -526,7 +527,7 @@ def extract_thread(text: str) -> str:
     if not match:
         return ""
     thread = re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")
-    return thread[:160]
+    return content_filter.scrub(thread[:160])
 
 
 def extract_title(text: str) -> str:
@@ -549,7 +550,7 @@ def extract_title(text: str) -> str:
     title = re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")
     # A model asked for a title occasionally writes a sentence. Trimmed rather
     # than rejected: most of a good title is still better than the question.
-    return title[:80]
+    return content_filter.scrub(title[:80])
 
 
 def extract_summary(text: str) -> str:
@@ -565,7 +566,7 @@ def extract_summary(text: str) -> str:
     summary = re.sub(r"\s+", " ", match.group(1)).strip(" \"'")
     if summary and summary[-1] not in ".!?":
         summary += "."
-    return summary[:200]
+    return content_filter.scrub(summary[:200])
 
 
 @dataclass
@@ -1061,7 +1062,11 @@ def clean_for_speech(text: str) -> str:
     text = _MARKDOWN.sub("", text)
     text = re.sub(r"^\s*(?:host|narrator|intro|outro)\s*:\s*", "", text, flags=re.I | re.M)
     text = re.sub(r"[ \t]+", " ", text)
-    return text.strip()
+    # The one thing FAM will not say (§171): a slur becomes "a slur". Here,
+    # because every sentence any writer yields - search, prefetch, DailyFAM,
+    # Trending, a top-up - passes through this function before the voice,
+    # the captions or the cache see it. Swearing is left exactly as written.
+    return content_filter.scrub(text.strip())
 
 
 def count_words(text: str) -> int:
@@ -1584,7 +1589,8 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
     try:
         title = getattr(brief, "title", "") if brief is not None else ""
         if notes is not None and notes.caption_key and title:
-            live_captions.publish_title(notes.caption_key, title)
+            live_captions.publish_title(notes.caption_key,
+                                        content_filter.scrub(title))
     except Exception:
         log.exception("could not publish a title; the episode is unaffected")
 

@@ -3492,16 +3492,14 @@ def main() -> int:
             page.evaluate("cancelIntroFromSettings()")
 
         print(f"smoke test: {target.name}")
-        def a_myfam_card_is_saved_or_waved_off():
-            """27/09 packet: every myFAM card carries Save for later and Not
-            interested. Pressing either does its job and does not play the
-            card; not interested takes the card off the page."""
+        def a_myfam_card_is_saved_and_never_waved_off():
+            """27/09 packet: every myFAM card carries Save for later, and
+            pressing it saves without playing the card. §171: there is no
+            "not interested" button beside it, on any card."""
             ensure_account()
             page.evaluate("openMyFamTab(); loadMyFamFeed()")
-            page.wait_for_selector("#myfamFeed .seed-card[data-topic] .tile-hide",
+            page.wait_for_selector("#myfamFeed .seed-card[data-topic] .tile-save",
                                    timeout=10000)
-            first = page.eval_on_selector(
-                "#myfamFeed .seed-card[data-topic]", "e => e.getAttribute('data-topic')")
             page.click("#myfamFeed .seed-card[data-topic] .tile-save")
             page.wait_for_timeout(500)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
@@ -3509,15 +3507,24 @@ def main() -> int:
             assert page.eval_on_selector(
                 "#myfamFeed .seed-card[data-topic] .tile-save",
                 "e => e.classList.contains('saved-on')"), "the save button did not light"
-            page.click("#myfamFeed .seed-card[data-topic] .tile-hide")
-            page.wait_for_timeout(600)
-            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
-                "waving a card off played it"
-            left = page.eval_on_selector_all(
-                "#myfamFeed .seed-card[data-topic]",
-                "(els, id) => els.filter(e => e.getAttribute('data-topic') === id).length",
-                first)
-            assert left == 0, "the card waved off is still on the page"
+            assert page.eval_on_selector_all(
+                ".tile-hide, [aria-label^='Not interested']", "e => e.length") == 0, \
+                "a not interested button is back"
+            assert page.evaluate("typeof notInterested") == "undefined", \
+                "notInterested() is back"
+
+        def an_explicit_episode_carries_the_e():
+            """§171: an episode that swears draws an E before its title on the
+            player, and a new episode starts without one."""
+            page.evaluate("rememberEpisode('why the tunnel flooded', 2, '', false);"
+                          " episodeExplicit = true; paintExplicit()")
+            assert page.eval_on_selector(
+                "#p-title", "e => e.classList.contains('is-explicit')"), \
+                "an explicit episode's title has no E"
+            page.evaluate("rememberEpisode('what the fed did', 2, '', false)")
+            assert not page.eval_on_selector(
+                "#p-title", "e => e.classList.contains('is-explicit')"), \
+                "the next episode kept the last one's E"
 
         def a_friends_vibes_play_as_stories():
             """27/09 packet: a face with the VIBE badge plays that friend's
@@ -3762,8 +3769,9 @@ def main() -> int:
         check("The mini bar offers no VIBE", the_mini_bar_offers_no_vibe)
         check("One transport for one episode", one_transport_for_one_episode)
         check("VIBE! state reaches every player", echo_state_reaches_every_player)
-        check("A myFAM card can be saved or waved off",
-              a_myfam_card_is_saved_or_waved_off)
+        check("A myFAM card can be saved, never waved off",
+              a_myfam_card_is_saved_and_never_waved_off)
+        check("An explicit episode carries the E", an_explicit_episode_carries_the_e)
         check("A friend's vibes play as stories", a_friends_vibes_play_as_stories)
         check("Offline fades what is not on the device",
               offline_fades_what_is_not_on_the_device)

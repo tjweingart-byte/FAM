@@ -31,6 +31,7 @@ from cache import (ScriptCache, build_cache, cache_key, canonical_key, is_sharea
 import metering
 from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
+import content_filter
 import live_captions
 from pronunciation import respell
 from spoken_text import speakable
@@ -904,11 +905,21 @@ class PodcastPipeline:
         episode (`_episode_blurb`) wants the kept row and does not pass it.
         """
         empty = {"thread": "", "title": "", "title_final": False, "summary": "",
-                 "sourced_at": 0.0}
+                 "sourced_at": 0.0, "explicit": False}
         if not is_shareable(plan.query):
             return empty
         key = await self._cache_key(plan) if self.cache else ""
         out = dict(empty)
+        # Whether it swears (§171), from what this generation has said so far
+        # when one is in flight, else from the kept script - the same order
+        # captions read in. It can only turn on as an episode is written, so
+        # the player keeps its E once it has drawn it.
+        live = live_captions.read(key)
+        if live is not None:
+            out["explicit"] = content_filter.is_explicit(live[0])
+        elif self.cache and not (current_only and not self._is_current(key)):
+            out["explicit"] = bool(
+                getattr(self.cache, "explicit", lambda _k: False)(key))
         if self.cache and current_only and not self._is_current(key):
             out["title"], out["title_final"] = live_captions.read_title(key)
             return out

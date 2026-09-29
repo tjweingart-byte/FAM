@@ -278,6 +278,19 @@
    unplayed row is empty and says so, and `tools/seed_demo.py` is what fills
    it for a demo - the same bargain Explore already makes.
 
+<!-- rule:no-not-interested -->
+- **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
+  direction: "This button and function should not be a feature. The
+  algorithm should work naturally to put episodes the user is interested
+  in").* The card button, `notInterested()` and `EventStore.hidden` are gone;
+  `hide` is no longer an event kind, so a new one is refused. Rows written
+  while it was one stay in the table and are read by nothing that ranks
+  (`for_user` skips them). What a listener does not want is shown the way
+  everything else is: skips, plays never made, and impression fatigue. Do
+  not add a dismiss-a-tile control back to any surface without asking. (Go
+  Deeper's X, which closes a suggested follow-up, is a different thing and
+  stays.)
+
 <!-- rule:op-taste-scoring -->
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.

@@ -158,6 +158,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   **public by default**, copies start private; `tools/check_js.py` fails on
   duplicate top-level names; `loadMixes` takes the bank before the 401 branch;
   the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
+- **No "not interested"** anywhere (§171): the ranking learns from plays,
+  skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published (a handle resolves for anyone, a bare id only within
@@ -197,6 +199,9 @@ Audio and the opening
   on the speaking call; EI on every episode. Only work *before* the tap may be
   spent on latency. [nothing-before-material]
 - **No filler, ever, and no setting for it.** [no-filler]
+- **Slurs are the only words removed** ("a slur", `content_filter.py`, §171);
+  swearing stays and puts an E before the title. Whole words only;
+  `DELIBERATELY_ABSENT` says why a word is not listed. [slurs-only]
 - **Situate, never orient**, in the first two sentences: who, what, when. [situate]
 - **The opening is decided last**: the writer decides the whole piece before
   opening; first two sentences must answer what was typed. Where something
