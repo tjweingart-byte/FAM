@@ -1439,32 +1439,37 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def an_interest_chip_opens_its_topic():
-            """YourFAM's chips are doors, not labels: each opens the Topic
-            screen for that interest, every episode on it two minutes (§147
-            took the length pill away). There is no inline Edit - interests are changed in
-            Edit profile - and the page generates nothing to fill itself."""
+            """Your own YourFAM page carries no interest pills (9.29 packet:
+            they cluttered it; Edit profile is where they live) and says
+            "Find new friends" as a pill with a plus, which opens Friends.
+            An interest is still a door - on a friend's page - to the Topic
+            screen, every episode on it two minutes (§147 took the length
+            pill away), and the page generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-chips .yf-chip",
-                                   timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
             page.wait_for_timeout(600)
+            assert not page.query_selector("#screen-profile .yf-chips"), \
+                "your own interests came back onto your own page"
             assert not page.query_selector("#screen-profile .pf-tags-edit"), \
                 "the inline interests Edit came back"
-            # A listener with no interests yet gets one muted chip that opens
-            # Edit profile instead; give this one something to tap.
-            if not page.query_selector("#screen-profile .yf-chips .yf-chip:not(.muted)"):
-                page.evaluate("""() => savePreferences({ interests: ['tech'] })
-                    .then(function(){ loadProfile(); })""")
-                page.wait_for_selector(
-                    "#screen-profile .yf-chips .yf-chip:not(.muted)", timeout=10000)
-            chip = "#screen-profile .yf-chips .yf-chip:not(.muted)"
-            label = page.text_content(chip).strip()
-            page.evaluate(f"document.querySelector('{chip}').click()")
+            find = page.query_selector("#screen-profile .yf-find")
+            assert find and "Find new friends" in find.text_content(), \
+                "Find new friends is not a button"
+            assert find.query_selector("svg"), "Find new friends lost its plus"
+            page.evaluate("document.querySelector('#screen-profile .yf-find').click()")
+            page.wait_for_selector("#screen-friends.active", timeout=8000)
+            page.evaluate("goBack()")
+            page.wait_for_selector("#screen-profile.active", timeout=8000)
+            page.wait_for_timeout(300)
+            # The Topic screen, as a friend's interest chip opens it.
+            page.evaluate("openTopic('tech', 'Tech')")
+            label = "Tech"
             page.wait_for_selector("#screen-topic.active .yf-topic-h", timeout=10000)
             page.wait_for_timeout(900)
             heading = page.text_content("#screen-topic .yf-topic-h").strip()
             assert heading.lower() == label.lower(), \
-                f"the topic screen ({heading!r}) is not about the chip that opened it ({label!r})"
+                f"the topic screen ({heading!r}) is not about the interest that opened it ({label!r})"
             page.wait_for_timeout(900)
             # No length control (§147): only searchFAM offers one, and every
             # card here is the browse length.
@@ -1681,7 +1686,7 @@ def main() -> int:
             """"Tap to swap, or add your own - up to 5." Selected chips are
             gold; at five the rest dim and a tap on one does nothing; a typed
             topic becomes a chip and is chosen if there is room; and what was
-            chosen is what the hub shows after Save."""
+            chosen is what the profile shares after Save."""
             ensure_account()
             page.evaluate("""() => fetch('/api/me', { method: 'POST',
               headers: {'Content-Type': 'application/json'},
@@ -1689,11 +1694,10 @@ def main() -> int:
                                      handle: 'smoketester' }) })""")
             page.wait_for_timeout(500)
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile .yf-chips", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
             page.wait_for_timeout(500)
-            shown = page.eval_on_selector_all(
-                "#screen-profile .yf-chips .yf-chip:not(.muted)", "e => e.length")
-            assert shown <= 5, f"the hub drew {shown} interests"
+            shown = page.evaluate("(profileNow.interests_shown || []).length")
+            assert shown <= 5, f"the profile shares {shown} interests"
             page.evaluate("editIdentity()")
             page.wait_for_selector("#screen-identity.active #identityIntChips .yf-int",
                                    timeout=10000)
@@ -1722,11 +1726,12 @@ def main() -> int:
                 "e => e.map(x => x.textContent.trim())")
             assert "Surfing" in typed, f"a typed topic was not chosen: {typed}"
             page.evaluate("saveIdentity()")
-            page.wait_for_selector("#screen-profile.active .yf-chips", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
             page.wait_for_timeout(900)
-            hub = page.eval_on_selector_all("#screen-profile .yf-chips .yf-chip",
-                                            "e => e.map(x => x.textContent.trim())")
-            assert "Surfing" in hub, f"the hub did not show what was chosen: {hub}"
+            # Not drawn on your own page (9.29 packet), but it is what the
+            # profile shares - what a friend's view of it shows.
+            hub = page.evaluate("(profileNow.interests_shown || []).map(r => r.label)")
+            assert "Surfing" in hub, f"the profile did not share what was chosen: {hub}"
             # Put it back: a typed topic is a real interest (it joins
             # `topics`), and a check further down asserts the catalogue starts
             # with nothing chosen.

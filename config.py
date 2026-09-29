@@ -806,6 +806,14 @@ class Settings:
     trending_bank_write: bool = field(
         default_factory=lambda: os.environ.get("TRENDING_BANK_WRITE", "1")
         not in ("0", "false", "False", ""))
+    # Whether each edition slot also writes the eight "Start here" questions
+    # (`startup.STARTUP_TOPICS`) ahead of the tap, so their cards carry the
+    # episode's own title - the company, the film, the finding - instead of
+    # "A Big Company's Newest Bet" (9.29 packet). Off, a card is named only
+    # after somebody's tap has written it (§161). Needs no GNews key.
+    startup_write_ahead: bool = field(
+        default_factory=lambda: os.environ.get("STARTUP_WRITE_AHEAD", "1")
+        not in ("0", "false", "False", ""))
     # How long to wait before trying a failed edition again.
     trending_bank_retry_seconds: float = _env_float(
         "TRENDING_BANK_RETRY_SECONDS", 1800.0)

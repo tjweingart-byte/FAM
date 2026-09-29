@@ -295,9 +295,9 @@ def test_a_trending_card_says_where_it_is_trending_and_carries_the_score():
 
 
 def test_view_more_is_trending_by_place(store):
-    """Worldwide first, then where the listener is, then everywhere else -
-    the same tiles as the flat list, in the same popularity order inside
-    each place."""
+    """Worldwide first, then the listener's continent, then every other
+    continent - the same tiles as the flat list, in the same popularity
+    order inside each place (continents since the 9.29 packet)."""
     stories.seed([
         story("the big one", coverage=40,
               countries=(("united states", 0.4), ("united kingdom", 0.3),
@@ -312,7 +312,7 @@ def test_view_more_is_trending_by_place(store):
     assert groups[1]["yours"] and groups[1]["label"] == "North America"
     assert [t["id"] for g in groups for t in g["topics"]] == \
         [t["id"] for t in section["topics"]]
-    assert {g["label"] for g in groups} >= {"South Asia", "Europe"}
+    assert {g["label"] for g in groups} >= {"Asia", "Europe"}
 
 
 def test_the_trending_row_never_takes_the_bank_even_by_geography(store):
@@ -420,10 +420,12 @@ def test_the_pool_refreshes_with_nobody_looking(monkeypatch):
 # --------------------------------------------------------------------------
 # the interface
 # --------------------------------------------------------------------------
-def test_the_card_draws_the_score_beside_the_title_and_the_place_on_trending():
+def test_the_card_draws_the_score_beside_the_title_and_no_place_on_trending():
+    """The 9.29 packet took the country pill off Trending's cards: where a
+    story is trending is the View more heading, never the card."""
     assert "function seedLiveHtml(topic)" in INDEX
     assert "function seedTagText(sectionKey, topic)" in INDEX
-    assert 'sectionKey === "world_trending" && topic && topic.geo' in INDEX
+    assert "topic.geo" not in INDEX
     assert "if(d.groups && d.groups.length)" in INDEX
     # Both surfaces that draw a card draw the score the same way.
     assert INDEX.count("+ seedLiveHtml(t)") == 2

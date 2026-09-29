@@ -2130,6 +2130,11 @@
     letter-spacing:0.16em; text-transform:uppercase; color:var(--copper); }
   .yf-link{ font-family:'JetBrains Mono', monospace; font-size:10px;
     color:var(--copper); background:none; border:none; padding:6px 0; cursor:pointer; }
+  .yf-find{ height:30px; border-radius:15px; padding:0 13px 0 10px; display:flex;
+    align-items:center; gap:5px; font-family:inherit; font-size:12px;
+    font-weight:700; color:var(--ink); background:var(--copper);
+    border:1px solid var(--copper); cursor:pointer; white-space:nowrap; }
+  .yf-find:active{ transform:scale(0.97); }
   .yf-friends{ display:flex; gap:12px; margin-top:10px; overflow-x:auto;
     scrollbar-width:none; padding:2px 2px 4px; }
   .yf-friends::-webkit-scrollbar{ display:none; }
@@ -9138,12 +9143,11 @@
     return "Playing across FAM now";
   }
 
-  // **What sits on a card's picture: its heading, or - on Trending - where
-  // it is trending.** Trending is organised by geography (PROBLEMS.md §135),
-  // so its cards say "Worldwide", "Europe", "United States" where every other
-  // rail says the subject. A tile with no geography falls back to the subject.
+  // **What sits on a card's picture: its subject, on every rail.** Trending
+  // cards used to say where they were trending ("Worldwide", "Canada",
+  // §135); the 9.29 packet took that pill off. Where is now the heading on
+  // Trending's View more, which is grouped by continent.
   function seedTagText(sectionKey, topic){
-    if(sectionKey === "world_trending" && topic && topic.geo) return topic.geo;
     // A tile with a picture is labelled with the picture's own facet, so the
     // word and the image always agree about what the episode is (§160).
     if(topic && topic.thumb && topic.thumb_facet) return topic.thumb_facet;
@@ -9455,9 +9459,9 @@
         + '<div class="seed-why">' + seedHook(d.key, t) + '</div>'
         + '</div></div>';
     }
-    // **Trending, by where it is trending** (§135): Worldwide, then the
-    // listener's own part of the world, then everywhere else with something
-    // trending. The same tiles as `topics`, in popularity order inside each
+    // **Trending, by the continent it is trending on** (§135; continents
+    // since the 9.29 packet): Worldwide, then the listener's own continent,
+    // then every other continent with something trending. The same tiles as `topics`, in popularity order inside each
     // place; a server that sends no groups gets the flat grid it always did.
     if(d.groups && d.groups.length){
       grid.innerHTML = d.groups.map(function(g){
@@ -9537,11 +9541,19 @@
     var parts = (episodeStamp || "").split("|");
     var context = (parts[0] === query && String(parts[1]) === String(minutes))
       ? (parts[2] || "") : "";
+    // The real length once the whole episode is here, so "more than 60%
+    // heard" (9.29 packet) is measured against it and not the requested
+    // minutes, which are a ceiling.
+    var onPlayer = nowBarState && nowBarState.query === query
+      && String(nowBarState.minutes) === String(minutes);
+    var duration = (onPlayer && FamAudio.isComplete())
+      ? Math.round(FamAudio.duration()) : 0;
     fetch("/api/progress", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: query, minutes: minutes,
                              seconds: Math.max(0, Math.round(seconds || 0)),
-                             title: title || "", context: context })
+                             title: title || "", context: context,
+                             duration: duration })
     }).catch(function(){ /* a lost position costs a card, never playback */ });
   }
 
@@ -9768,17 +9780,17 @@
         summary: r.summary || "",
         context: r.context || "",
         at: r.seconds,
-        left: Math.max(0, r.minutes * 60 - r.seconds),
-        progress: Math.min(1, r.seconds / (r.minutes * 60))
+        left: Math.max(0, (r.duration || r.minutes * 60) - r.seconds),
+        progress: Math.min(1, r.seconds / (r.duration || r.minutes * 60))
       };
     });
     var threads = (d.threads || []).map(function(t){
       return { kind: "thread", query: t.thread, minutes: myfamLengthMinutes,
                title: t.title, summary: t.summary || "" };
     });
-    // Only these two (at the owner's direction): something started this
-    // week and not finished, and the Go Deeper prompt of something finished
-    // this week. The "similar" episodes that used to fill the gaps were
+    // Only these two (at the owner's direction): something started in the
+    // last day and under 60% heard, and the Go Deeper prompt of something
+    // finished in the last day (9.29 packet). The "similar" episodes that used to fill the gaps were
     // adjacent rather than deeper, so fewer than four is the honest answer
     // when fewer than four qualify. Alternated rather than grouped: four
     // part-heard episodes in a block reads as a backlog.
@@ -10711,9 +10723,6 @@
     return n.split(/\s+/)[0] || "Someone";
   }
 
-  //: The interests the hub's chips were drawn from, so a tap can open the
-  //: Topic screen for the right one without putting free text in an onclick.
-  var yfInterests = [];
   //: The avatar row, for the same reason.
   var yfCircle = [];
 
@@ -10758,24 +10767,19 @@
       + yfIcon("bookmark", 14) + 'Saved for Later</button>'
       + '</div>';
 
-    // Up to five, wrapping, each one a door to that interest's episodes. No
-    // inline Edit: interests are changed in Edit profile, next to the other
-    // things on show.
-    yfInterests = (p.interests_shown || []).slice(0, p.interests_max || 5);
-    html += '<div class="yf-chips">' + (yfInterests.length
-      ? yfInterests.map(function(row, i){
-          return '<button class="yf-chip" onclick="openInterestAt(' + i + ')">'
-            + escapeHtml(row.label) + '</button>';
-        }).join("")
-      : '<button class="yf-chip muted" onclick="editIdentity()">Add interests in Edit profile</button>')
-      + '</div>';
+    // **No interest pills on your own page** (9.29 packet, at the owner's
+    // direction): they cluttered it, and Edit profile is where they are seen
+    // and changed. A friend's page still shows theirs.
 
     // Friends as stories. A gold ring is something new from them - a vibe in
     // the last two days or a message you have not read - and the VIBE badge
     // is a vibe this week. Tapping a face opens their profile, not the chat.
     yfCircle = p.circle || [];
     html += '<div class="yf-row"><span class="yf-label">Your friends</span>'
-      + '<button class="yf-link" onclick="openFriends()">Find new friends</button></div>'
+      // A pill with a plus, so it reads as the way to add somebody rather
+      // than as a caption beside the heading (9.29 packet).
+      + '<button class="yf-find" onclick="openFriends()">' + yfIcon("plus", 12)
+      + 'Find new friends</button></div>'
       + '<div class="yf-friends">'
       + yfCircle.map(function(person, i){
           return '<button class="yf-friend" onclick="openCircleProfile(' + i + ')" '
@@ -10864,11 +10868,6 @@
     } else {
       sub.textContent = "Share an episode, or say hello";
     }
-  }
-
-  function openInterestAt(i){
-    var row = yfInterests[i];
-    if(row) openTopic(row.id, row.label);
   }
 
   // ---- vibes as stories (27/09 packet) ----

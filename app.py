@@ -539,7 +539,9 @@ async def lifespan(_: FastAPI):
     # anybody taps (§139). On boot it catches up - a slot with no edition is
     # built at once - so a new deployment does not wait for 5pm. Never
     # awaited; until the first edition lands the row is empty and says so.
-    if settings.trending_bank:
+    # The same loop writes the eight "Start here" questions at each slot, so
+    # their cards name what they are about before anybody taps (9.29 packet).
+    if settings.trending_bank or settings.startup_write_ahead:
         _BACKGROUND.add(asyncio.create_task(trending_bank.run_forever(
             generator=None if DEMO_MODE else ScriptGenerator(),
             cache=SCRIPT_CACHE,
@@ -4906,6 +4908,9 @@ class ProgressRequest(BaseModel):
     #: The topic a follow-up was asked from. Part of the episode's cache key,
     #: so without it a resumed follow-up would be a different episode.
     context: str = Field("", max_length=300)
+    #: The episode's real length in seconds, once the player holds all of it;
+    #: 0 when it does not know yet. Optional, so older clients still send.
+    duration: float = Field(0, ge=0, le=3600)
 
 
 @app.post("/api/progress")
@@ -4922,7 +4927,8 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     if not _remembers(request):
         return {"ok": True, "remembered": False}
     kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
-                               req.seconds, title=req.title, context=req.context)
+                               req.seconds, title=req.title, context=req.context,
+                               duration=req.duration)
     return {"ok": True, "remembered": True, "resumable": kept}
 
 
@@ -4996,8 +5002,10 @@ async def _episode_blurb(pipeline, query: str, minutes: int,
 #: How far back "Pick up where you left off" looks. Both of its sources -
 #: episodes started and not finished, and the follow-up the player's Go Deeper
 #: button would offer on an episode heard - must come from listening inside
-#: this window, at the owner's direction.
-GO_DEEPER_WINDOW_SECONDS = 7 * 24 * 3600
+#: this window, at the owner's direction. A day since the 9.29 packet (it was
+#: a week): a tile is on the section for at most 24 hours after it was last
+#: listened to, and the next one that qualifies takes its place.
+GO_DEEPER_WINDOW_SECONDS = 24 * 3600
 #: How many of each source are read. The section shows four, and the rest wait
 #: behind them so a tile closed with its X is replaced - but only ever by
 #: another tile that qualifies.
@@ -5008,8 +5016,8 @@ GO_DEEPER_DEPTH = 8
 async def go_deeper(request: Request, interests: str = Query("", max_length=200)):
     """"Pick up where you left off": two things, and nothing else.
 
-    1. **Episodes started in the last week and not finished** (`resume`).
-    2. **The Go Deeper prompt of an episode finished in the last week**
+    1. **Episodes started in the last day and under 60% heard** (`resume`).
+    2. **The Go Deeper prompt of an episode finished in the last day**
        (`threads`) - exactly the follow-up the player's Go Deeper button
        would have offered on it, so the tile is that episode.
 

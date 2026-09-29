@@ -210,6 +210,97 @@ def scope_for(countries: Iterable, fallback_region: str = "") -> tuple:
     return "region", top_region, REGION_LABELS[top_region]
 
 
+# --------------------------------------------------------------------------
+# Continents: how "View more" on Trending is organised (9.29 packet)
+# --------------------------------------------------------------------------
+#: Continent keys, in the order the "View more" screen lists them after
+#: Worldwide and the listener's own. No Antarctica, at the owner's direction.
+CONTINENTS = (
+    "north-america", "south-america", "europe", "asia", "africa", "oceania",
+)
+
+CONTINENT_LABELS = {
+    WORLD: "Worldwide",
+    "north-america": "North America",
+    "south-america": "South America",
+    "europe": "Europe",
+    "asia": "Asia",
+    "africa": "Africa",
+    "oceania": "Oceania",
+}
+
+#: The countries of South America, in `normalise_country`'s spelling. Every
+#: other member of `latin-america` - Central America and the Caribbean - is
+#: North America, which is the continent they are on.
+_SOUTH_AMERICA = frozenset((
+    "argentina", "bolivia", "brazil", "chile", "colombia", "ecuador",
+    "guyana", "paraguay", "peru", "suriname", "uruguay", "venezuela",
+))
+
+#: Region -> continent, where the whole region is on one.
+_REGION_CONTINENT = {
+    "north-america": "north-america",
+    "europe": "europe",
+    "middle-east": "asia",
+    "africa": "africa",
+    "south-asia": "asia",
+    "east-asia": "asia",
+    "southeast-asia": "asia",
+    "oceania": "oceania",
+}
+
+#: A region's press filed under a continent when nothing finer is known.
+#: Latin America's output is mostly South America's.
+_REGION_FALLBACK = dict(_REGION_CONTINENT, **{"latin-america": "south-america"})
+
+
+def continent_of_country(country: str) -> str:
+    """The continent a country (in `normalise_country`'s spelling) is on, or
+    "" for one the tables do not know. Egypt is filed with the Middle East's
+    press everywhere else here and is on Africa here, because this is a map,
+    not a newsroom."""
+    if not country:
+        return ""
+    if country in _SOUTH_AMERICA:
+        return "south-america"
+    if country == "egypt":
+        return "africa"
+    region = REGION_OF.get(country, "")
+    if region == "latin-america":
+        return "north-america"
+    return _REGION_CONTINENT.get(region, "")
+
+
+def continent_for(scope: str, key: str, countries: Iterable = ()) -> str:
+    """Which continent a trending story belongs under, or `WORLD`.
+
+    From where it is being covered, like every other geography here: a story
+    whose outlets are mostly (`REGION_OWNS`) on one continent is that
+    continent's; a country- or region-scoped story with no country shares is
+    its country's or region's continent; anything spread wider is Worldwide.
+    """
+    shares: dict = {}
+    for name, share in countries or ():
+        continent = continent_of_country(name)
+        if continent:
+            shares[continent] = shares.get(continent, 0.0) + float(share)
+    if shares:
+        top, share = max(shares.items(), key=lambda kv: (kv[1], kv[0]))
+        return top if share >= REGION_OWNS else WORLD
+    if scope == "country":
+        return continent_of_country(key) or WORLD
+    if scope == "region":
+        return _REGION_FALLBACK.get(key, WORLD)
+    return WORLD
+
+
+def listener_continent(country: str) -> str:
+    """The listener's own continent, from their country, or ""."""
+    import stories
+
+    return continent_of_country(stories.normalise_country(country)) if country else ""
+
+
 def matches(scope: str, key: str, listener_country: str) -> bool:
     """Whether a story's geography is the listener's own part of the world."""
     import stories
