@@ -1463,8 +1463,8 @@ def main() -> int:
             page.wait_for_selector("#screen-profile.active", timeout=8000)
             page.wait_for_timeout(300)
             # The Topic screen, as a friend's interest chip opens it.
-            page.evaluate("openTopic('tech', 'Tech')")
-            label = "Tech"
+            page.evaluate("openTopic('tech', 'Technology')")
+            label = "Technology"
             page.wait_for_selector("#screen-topic.active .yf-topic-h", timeout=10000)
             page.wait_for_timeout(900)
             heading = page.text_content("#screen-topic .yf-topic-h").strip()
