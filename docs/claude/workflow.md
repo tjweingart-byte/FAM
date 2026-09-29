@@ -39,6 +39,16 @@ being asked:
    not a wall of files.
 4. If something genuinely cannot be automated, say the exact command to run.
 
+<!-- rule:staging-flow -->
+**Staging before production** *(§172, STAGING.md).* Feature branches merge
+into `staging`, which Render deploys to `fam-staging` (zero spend). Production
+(`fam`) follows `Main` and gets `staging` in batched PRs. Both services come
+from `render.yaml` and share nothing: not a disk, a key, an admin token or a
+voice worker. Back up production's `/data` before any batch that changes a
+database. Once the app is in the App Store, production's `autoDeploy` goes off.
+Each App Store submission is cut with `tools/cut_release.py` from the commit it
+was built from.
+
 <!-- rule:preview-fixtures -->
 `DEVELOPMENT.md` documents the whole loop. The preview is the interface running
 on fixtures - good for layout, flow and interaction on a real phone, useless

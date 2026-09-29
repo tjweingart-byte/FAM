@@ -335,6 +335,13 @@ Operations and honesty
   derived - **a guard whose subject is enumerated by hand is decorative**. Open
   every new store via `data_path("VAR", ...)` so the test and the Dockerfile's
   disk list cover it. [storage-durability]
+- **Staging spends nothing and cannot be configured to** (`FAM_ENV=staging`,
+  `spend_guard.py`): paid keys removed, GDELT/Polymarket off, `FAM_SECRETS`
+  unread, no connection leaves the machine; real content only by replay. [zero-spend-staging]
+- **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
+  (supported / deprecated / retired → 426), a contract per release replayed in
+  CI; fix a break by keeping the old field, never by editing the contract;
+  web releases kept at `/v/<version>/`. [old-clients]
 - Per-machine state lives in `~/.fam/`; a key is never written into source. [fam-home-dir]
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (`FAM_SECRETS`, precedence env >
@@ -373,6 +380,8 @@ Every change ends the same way, without being asked [ship-loop]:
   and the live-DB build at the bookmarked URL - are good for layout and flow,
   useless for writing quality or latency. [preview-fixtures]
 - `./demo.sh` to show or judge the product; `tools/seed_demo.py` fills browse history. [demo-sh]
+- Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
+  `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]
 
 ## Picking up a session  (`workflow.md`)
 

@@ -2,15 +2,73 @@
 # and it reads this file). Chosen because it deploys from a Dockerfile, gives
 # a persistent disk on the paid tier, and redeploys on every push - which is
 # the part that matters for a fast loop.
+#
+# Two services from one blueprint (STAGING.md, PROBLEMS.md §172):
+#
+#   fam           production. Follows `Main`. What listeners - and, once it
+#                 ships, the App Store build - talk to.
+#   fam-staging   staging. Follows `staging`. Every merge lands here first and
+#                 is tried before `staging` is merged into `Main` in a batch.
+#                 **Zero spend**: it is given no paid key at all, and
+#                 `FAM_ENV=staging` removes any that reach it anyway and stops
+#                 every outbound connection (spend_guard.py). Episodes are the
+#                 built-in sample script in a placeholder tone; real ones are
+#                 replayed from production with tools/replay_episodes.py.
+#
+# Both must be created *from this file* (Blueprints -> New, or `render
+# blueprint launch`): a service made by hand in the dashboard gets no disk, and
+# every deploy then erases its accounts (DEPLOY.md). Nothing is shared between
+# them - not a disk, not a key, not an admin token, not a voice worker.
 services:
+  - type: web
+    name: fam-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    branch: staging
+    plan: starter
+    autoDeploy: true       # every merge into `staging` is on it within minutes
+    healthCheckPath: /api/health
+    envVars:
+      # The whole of zero spend is this line. It cannot be switched off by
+      # another variable, and it ignores FAM_SECRETS: a secrets manager is
+      # where the paid keys live.
+      - key: FAM_ENV
+        value: staging
+      # The network guard patches Python's socket, and uvloop - which uvicorn
+      # picks by itself when installed - connects round it. Health reports
+      # `network_guard: false` if this is ever missing.
+      - key: UVICORN_LOOP
+        value: asyncio
+      # Its own admins and its own token: staging's admin page reads staging's
+      # stores, and a token that opened both would open production from a
+      # page people test on. Needed for tools/replay_episodes.py --to.
+      - key: FAM_ADMIN_ACCOUNTS
+        sync: false
+      - key: FAM_ADMIN_TOKEN
+        sync: false
+      # Deliberately absent: ANTHROPIC_API_KEY, EXA_API_KEY, GNEWS_KEY,
+      # API_SPORTS_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
+      # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
+      # nothing (spend_guard removes it and health lists it under
+      # `credentials_removed`), so do not.
+    disk:
+      name: fam-staging-data
+      mountPath: /data
+      sizeGB: 1
+
   - type: web
     name: fam
     runtime: docker
     dockerfilePath: ./Dockerfile
+    branch: Main
     plan: starter          # free tier sleeps; starter stays warm
-    autoDeploy: true       # every push to the branch redeploys
+    # Every merge into `Main` redeploys. Turn this off once the app is in the
+    # App Store and deploy production deliberately (STAGING.md).
+    autoDeploy: true
     healthCheckPath: /api/health
     envVars:
+      - key: FAM_ENV
+        value: production
       # Two ways to do this, and the second one scales past this service.
       #
       # `sync: false` means Render asks for the value once in the dashboard and

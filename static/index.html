@@ -1584,6 +1584,16 @@
   }
   body.demo-mode .demo-badge{ display:inline-flex; }
 
+  /* A staging deployment (§172) says so on every screen: a page that looks
+     exactly like the app people use is the one someone tests on by mistake. */
+  .env-ribbon{
+    position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:9999;
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.1em;
+    text-transform:uppercase; font-weight:700; color:var(--ink);
+    background:var(--copper); border-radius:0 0 6px 6px; padding:2px 10px;
+    pointer-events:none; white-space:nowrap;
+  }
+
   .gen-text{
     font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-muted);
     line-height:1.5; max-width:250px;
@@ -3733,6 +3743,29 @@
 
 <script src="/fam-audio.js"></script>
 <script>
+  //: Which client this page is (§172, client_versions.py). "web/live" is the
+  //: page the server serves today; `tools/cut_release.py` stamps a kept copy
+  //: with its own version, so the server can tell an old page from this one.
+  var FAM_CLIENT = "web/live";
+  // Every call to this server's API names the client, so a release the
+  // registry retires can be told so, and /api/health can count who is still
+  // on an old version before anything is retired.
+  (function(){
+    var raw = window.fetch;
+    if(!raw) return;
+    window.fetch = function(input, init){
+      try {
+        var url = typeof input === "string" ? input : (input && input.url) || "";
+        if(/^\/api\//.test(url) || url.indexOf(location.origin + "/api/") === 0){
+          init = init || {};
+          var headers = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+          if(!headers.has("X-FAM-Client")) headers.set("X-FAM-Client", FAM_CLIENT);
+          init.headers = headers;
+        }
+      } catch(e){}
+      return raw.call(this, input, init);
+    };
+  })();
   var TOPICS = {
     spacex:{title:"SpaceX Starship: This Week's Test Flight", source:"Market Watch", caption:'…and this time, the heat shield tiles held through <mark>re-entry</mark>, which is the milestone engineers were watching for—'},
     tesla:{title:"Tesla Q2 Delivery Numbers", source:"Market Watch", caption:'…deliveries came in ahead of estimates, even as <mark>price cuts</mark> kept squeezing margin—'},
@@ -3928,9 +3961,28 @@
   // Tell the viewer whether briefings are coming from Claude or from the
   // built-in sample script, so demo output is never mistaken for the real thing.
   fetch("/api/health").then(function(r){ return r.json(); }).then(function(h){
+    var env = h.environment || {};
+    if(env.name === "staging" || env.zero_spend){
+      document.body.classList.add("staging");
+      if(!document.querySelector(".env-ribbon")){
+        var ribbon = document.createElement("div");
+        ribbon.className = "env-ribbon";
+        ribbon.textContent = (env.name === "staging" ? "Staging" : "Zero spend")
+                           + (FAM_CLIENT !== "web/live" ? " · " + FAM_CLIENT : "");
+        document.body.appendChild(ribbon);
+      }
+    }
     var el = document.getElementById("audioMode");
     if(!el) return;
-    if(h.mode === "demo"){
+    if(h.mode === "demo" && env.zero_spend){
+      // Expected here, not a fault to fix: this deployment holds no paid key.
+      document.body.classList.add("demo-mode");
+      el.style.color = "var(--copper)";
+      el.textContent = "STAGING — zero spend. Every episode is the built-in sample script and the "
+                     + "voice is a placeholder tone; nothing here calls a paid service. Kept episodes "
+                     + "replay as they were written.";
+      genStatusNote = "Staging: playing the built-in sample script…";
+    } else if(h.mode === "demo"){
       document.body.classList.add("demo-mode");
       el.style.color = "var(--copper)";
       el.textContent = "DEMO MODE — the server has no ANTHROPIC_API_KEY, so every briefing you hear is "

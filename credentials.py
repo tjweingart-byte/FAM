@@ -315,6 +315,13 @@ def load(force: bool = False) -> dict[str, str]:
     """
     specs = provider_specs()
     _STATE["configured"] = bool(specs)
+    # A zero-spend deployment (staging, §172) never asks a secrets manager:
+    # that is where the paid keys are. Checked here as well as in config.py so
+    # a later `refresh()` cannot fetch them either.
+    import spend_guard
+    if spend_guard.enabled() or spend_guard.wanted()[0]:
+        _STATE.update(state="unset", detail="zero spend: not consulted", names=[])
+        return {}
     if not specs:
         _STATE.update(state="unset", detail="", names=[])
         return {}

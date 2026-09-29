@@ -13314,3 +13314,83 @@ Tests: `tests/test_content_filter.py` (what is removed, what is not, the E,
 the cache scrub and dropped audio, `/api/next`), the rewritten not-interested
 test in `test_myfam.py`, and two smoke behaviours (the card has Save and no
 Not interested; the player's E comes and goes with the episode).
+
+## 172. Staging that cannot spend, and a server held to every installed app
+
+The owner's request, in their words:
+
+> We need to create a second "deployment page" that deploys the updates before
+> making changes to the main FAM page. ... Once the app is in the app store,
+> this is where we will work out tweaks and changes before deploying them into
+> the active model in larger batches.
+
+and then, on the conditions:
+
+> I want to emphasize the infrastructure is compatible with older app
+> versions, and that it won't use any tokens for any part of the pipeline.
+
+> GDELT and Polymarket will cost money at scale, so they should be off too.
+> ... Make sure to build the proper infrastructure to store older versions of
+> the app that are still usable.
+
+**Staging** is a second service in `render.yaml`, `fam-staging`, following a
+`staging` branch with its own disk and its own admin credentials. Production
+now names `branch: Main` and `FAM_ENV=production` explicitly. `STAGING.md` has
+the flow: feature → `staging` → batched PR into `Main`.
+
+**Zero spend** is `spend_guard.py`, switched on by `FAM_ENV=staging` (and by
+`ZERO_SPEND=1` elsewhere). No other setting can switch it off on staging. It
+has two layers, because a hand-written list alone is decorative (the §107
+lesson). First, every paid credential is removed and every paid switch forced
+off in `config._load_dotenv`, after the `.env` files are applied and before
+`Settings` exists. `FAM_SECRETS` is not consulted, either there or in
+`credentials.load` (so a later `refresh()` cannot fetch keys). Second,
+`socket.socket.connect` refuses every non-loopback address, which catches
+whatever the list misses. One trap found while building it: **uvloop connects
+inside libuv and goes around a patched socket**, and uvicorn picks uvloop by
+itself before the app is imported. So the staging service sets
+`UVICORN_LOOP=asyncio`, and the app checks the running loop at startup
+(`check_loop`), reporting `network_guard: false` if it is anything else. The
+credential list is held to the code: `test_spend_guard.py` derives every
+`*_KEY`/`*_TOKEN` name read by the code and fails on one that is neither in
+`PAID_CREDENTIALS` nor in `NOT_SPEND`. It also boots the whole app as staging
+with every key and switch set to spend and asserts that it holds no key,
+reports the guard, and still streams an episode.
+
+**What staging tests without tokens.** Everything but the content: the demo
+writer runs the real sentence pipeline, pacing, streaming, cache, player and
+captions, and everything around an episode is real. Real content arrives by
+**replay**. `/api/admin/episodes` lists, exports and imports kept episodes, and
+`tools/replay_episodes.py` moves them from production to staging, script and
+kept audio together. `author` never travels. Column lists are read from the
+table, so a future column travels too. An import is refused (409) unless the
+target is zero spend. `sourced_at` and `fresh_until` travel unchanged, and only
+`expires` is extended, so a replayed answer is never presented as newer than
+it is. Writing quality still needs `write.py` on a machine with a key.
+
+**Old clients.** `client_versions.py` reads `releases/registry.json`, where each
+shipped release is `supported`, `deprecated` (served, with
+`X-FAM-Client-Status`) or `retired` (426 with a sentence and the store link,
+except `/api/health` and `/api/client-status`). An unknown version or no header
+is always served, because TestFlight and simulator builds are what staging
+tests. The web page wraps `fetch` to send `X-FAM-Client: web/live` on every
+`/api/` call. `release_contracts.py` plus `tools/cut_release.py` record, per
+release, every `/api/` literal in the client's code that routes, and the JSON
+shape of each bare GET. Shapes are recorded in a fresh process on empty
+databases in zero spend, and `tests/test_client_contracts.py` records the
+current side the same way. The first attempt compared against the suite's
+shared databases, where a key that only appears when a list is empty would
+have failed on whatever an earlier test had left behind. The check is a
+superset check: adding passes; removing, renaming or changing a type fails,
+naming the release and the key. Web releases are kept whole
+(`releases/web/<version>/`, checksummed, stamped with their `FAM_CLIENT`, their
+script pointed into the archive, no service worker registered) and served at
+`/v/<version>/` against the same server, so an old version can actually be
+opened and used on staging. The first kept release is `web 2026.09.29`, cut
+from this branch's client. iOS binaries stay out of git (App Store Connect
+keeps them), and the registry records their build numbers.
+
+**Not verified here:** a real Render deploy of `fam-staging` (the blueprint is
+checked by a test, but no service was created), and branch protection on
+`Main`, which only a person can set. Creating the `staging` branch is a command
+in STAGING.md, because this session may push only to its own branch.
