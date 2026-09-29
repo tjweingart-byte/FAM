@@ -5751,6 +5751,8 @@
         // Heard, so it goes in the listening history (§142) - only now, so a
         // tap that failed before a word was spoken is not listed as heard.
         if(historyPending && historyPending.query === title){
+          // Which episode was heard (§173), so the row replays this one.
+          historyPending.episode = FamAudio.episode() || historyPending.episode || "";
           historyNow = historyPending;
           noteListen(historyNow, TOPICS[currentPlayingTopicKey]
                                  ? TOPICS[currentPlayingTopicKey].title : "");
@@ -5845,7 +5847,7 @@
       FamAudio.play(title, minutes, audioHandlers,
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
-        attach: opts.attach || "", surface: surface
+        attach: opts.attach || "", surface: surface, episode: opts.episode || ""
       });
     }
 
@@ -5926,7 +5928,8 @@
     var where = playSurface(t);
     var playOpts = { cachedOnly: !!t.cachedOnly,
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
-                     attach: t.attach || "", surface: where };
+                     attach: t.attach || "", surface: where,
+                     episode: t.episode || "" };
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the
     // listener went and chose something, and a queue that resumed behind
@@ -13405,8 +13408,10 @@
     }).join("");
   }
 
-  // Played again from the same question and length, so while the script is
-  // still in the shared cache this is a cache hit and costs nothing.
+  // Played again as *the episode that was heard* (§173): the row carries its
+  // id, the server kept it for as long as the history shows it, and the
+  // replay never writes a new one - not the question asked again, which
+  // once its answer stopped being current was a different episode.
   function playHistory(i){
     var item = historyItems[i];
     if(!item) return;
@@ -13416,6 +13421,7 @@
                     caption: "Live captions will appear here as this plays\u2014",
                     prompt: item.query, parentTopic: item.context || "",
                     exploreMinutes: item.minutes, titleOverridden: !!item.title,
+                    episode: item.episode || "",
                     // Heard again, it stays under the tab it was first heard on.
                     surface: item.surface };
     generate(key);
@@ -13458,7 +13464,8 @@
                                minutes: entry.minutes,
                                surface: entry.surface,
                                title: String(title || "").slice(0, 200),
-                               context: String(entry.context || "").slice(0, 300) })
+                               context: String(entry.context || "").slice(0, 300),
+                               episode: String(entry.episode || "").slice(0, 80) })
       }).catch(function(){});
     } catch(e){}
   }

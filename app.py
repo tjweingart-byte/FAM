@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
 import hmac
 import os
 import json
@@ -33,7 +34,7 @@ from pydantic import BaseModel, Field
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
-                   is_shareable, research_words)
+                   is_shareable, parse_episode_id, research_words)
 import embeddings
 import learned_rank
 import taste_vectors
@@ -3080,7 +3081,8 @@ if _ALLOWED_ORIGINS:
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
-                    "X-FAM-Cache", "X-FAM-Keepable", "X-FAM-Client-Status"],
+                    "X-FAM-Cache", "X-FAM-Keepable", "X-FAM-Client-Status",
+                    "X-FAM-Episode"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -4935,6 +4937,45 @@ class HistoryRequest(BaseModel):
     #: True when this only carries the writer's title for an episode already
     #: in the history, so it must not move the row to the top.
     retitle: bool = False
+    #: Which episode was heard - the `X-FAM-Episode` its audio arrived with
+    #: (§173). '' from an older client, whose row replays by its question.
+    episode: str = Field("", max_length=80)
+
+
+def _kept_under_question(item: dict) -> str:
+    """A bare-key episode id for a history row from before §173, when its
+    question's key still holds a kept episode - so the row replays that
+    rather than writing a new one. '' when nothing is kept (the row then
+    plays as it always did)."""
+    if SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(item["query"], int(item["minutes"]),
+                                           item.get("context") or ""))
+        # Pinned as a new row would be, so it stays kept while it is shown.
+        return _pin_heard(key) if key else ""
+    except Exception:  # noqa: BLE001 - a hint on an old row, never a failure
+        return ""
+
+
+def _pin_heard(episode: str) -> str:
+    """Keep a heard episode for as long as the listening history shows it
+    (§173). Returns the id when it names a kept episode, else ''.
+
+    The cache keeps a row a week and history is two weeks, so without this
+    the second week of history could only be written again - a different
+    episode under the same title."""
+    if not episode or SCRIPT_CACHE is None or parse_episode_id(episode) is None:
+        return ""
+    try:
+        key = SCRIPT_CACHE.resolve_episode(episode)
+        if not key:
+            return ""
+        SCRIPT_CACHE.keep_until(key, time.time() + saved_mod.HISTORY_SECONDS)
+        return episode
+    except Exception:
+        log.exception("could not keep a heard episode; continuing")
+        return ""
 
 
 @app.post("/api/history")
@@ -4955,7 +4996,8 @@ async def history_write(req: HistoryRequest, request: Request) -> dict:
         SAVED.retitle(user, req.query, req.minutes, req.title, context=req.context)
         return {"ok": True, "remembered": True}
     kept = SAVED.note_listen(user, req.query, req.minutes, req.surface,
-                             title=req.title, context=req.context)
+                             title=req.title, context=req.context,
+                             episode=_pin_heard(req.episode))
     return {"ok": True, "remembered": kept}
 
 
@@ -4965,7 +5007,11 @@ async def history_read(request: Request,
     """Two weeks of listening, newest first, optionally one surface only."""
     _read_limit(request)
     user = _require_account(request)
-    return {"items": SAVED.history(user, surface=surface),
+    items = SAVED.history(user, surface=surface)
+    for item in items:
+        if not item.get("episode"):
+            item["episode"] = _kept_under_question(item)
+    return {"items": items,
             "surfaces": list(saved_mod.HISTORY_SURFACES),
             "days": saved_mod.HISTORY_SECONDS // 86400}
 
@@ -5575,6 +5621,9 @@ async def audio(
     surface: str = Query("", max_length=16,
                          description="Where the tap came from: search, myfam, "
                                      "dailyfam, explore, share or other"),
+    episode: str = Query("", max_length=80,
+                         description="A heard episode's id (X-FAM-Episode) to "
+                                     "replay exactly; never generates (§173)"),
 ):
     """Stream the episode.
 
@@ -5596,6 +5645,12 @@ async def audio(
                                                     settings.max_minutes))
     plan = _validated_plan(q, minutes, context, search, cached_only,
                            _attachments_for(user, attach))
+    if episode:
+        # The listening history replaying what was heard (§173): that
+        # episode, current or not, or a 409 - never a new one.
+        if parse_episode_id(episode) is None or attach:
+            raise HTTPException(status_code=400, detail="Unknown episode.")
+        plan = dataclasses.replace(plan, episode=episode)
 
     # A replay-only request - Explore, and any card played from it - provably
     # cannot spend a model call, so pacing it only stops someone swiping a feed
@@ -5604,7 +5659,7 @@ async def audio(
     # sentences. That second case is the ordinary one the old code got wrong -
     # tapping the episode you are listening to, or switching voice, which
     # reuses the script *by design* (PROBLEMS.md 70).
-    if not (cached_only or _already_written(plan)):
+    if not (cached_only or episode or _already_written(plan)):
         _rate_limit(request)
 
     # After validation, so a malformed request never costs an allowance, and
@@ -5844,6 +5899,9 @@ async def audio(
             # has no steps, and holding one for ten seconds to check off work
             # nobody did would be the filler this app deletes.
             "X-FAM-Cache": stats.cache or "",
+            # Which episode this is (§173): the listening history keeps it,
+            # so a row replays this episode rather than re-asking.
+            "X-FAM-Episode": stats.episode,
             # Whether a device may keep this audio for offline listening
             # (§161): the same test the server's own audio cache uses - a
             # production voice, a real script, not an attachment - so a
