@@ -97,6 +97,18 @@ def test_an_archived_episode_is_never_served_to_a_new_request(store):
     assert near is None or near[0] != old
 
 
+def test_a_failed_archive_never_costs_the_new_episode(tmp_path, monkeypatch):
+    store = SqliteScriptCache(str(tmp_path / "f.db"))
+    key = "9" * 64
+    _write(store, key, ["Old."], time.time() - 60)
+
+    def broken(*_a, **_k):
+        raise RuntimeError("disk said no")
+    monkeypatch.setattr(store, "_archive", broken)
+    _write(store, key, ["New."], time.time())
+    assert store.get(key) == ["New."]
+
+
 def test_the_same_words_again_archive_nothing(store):
     key = "c" * 64
     _write(store, key, ["Same."], time.time() - 60)

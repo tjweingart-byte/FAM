@@ -1295,7 +1295,13 @@ class SqliteScriptCache:
             # heard it and their history points at it.
             if (before is not None and before[0] != json.dumps(sentences)
                     and before[2] >= now):
-                self._archive(key, float(before[1] or 0.0))
+                try:
+                    self._archive(key, float(before[1] or 0.0))
+                except Exception:
+                    # Never at the cost of the new episode: a failed archive
+                    # loses the old one (as before §173), not both.
+                    log.exception("could not archive the episode under a"
+                                  " re-written key; writing the new one")
             # `COALESCE` on the existing author rather than the new one:
             # a re-write of a live entry (a longer TTL, fresher sources) must
             # not hand authorship to whoever happened to trigger it. Only a
