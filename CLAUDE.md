@@ -128,7 +128,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   (05:00/17:00 ET), ten stories written ahead, no fallback, never the live pool;
   it is ranked by `topics.rank_world` on popularity and country only - no
   taste, fatigue, engagement or learned order. Its cards carry no place; its
-  View more is grouped by continent, Worldwide first, no Antarctica (§173).
+  View more is grouped by continent, Worldwide first, no Antarctica (§174).
   Crowd rails hold cached episodes only (§141); friends rail reads the follow
   graph and is empty rather than strangers. `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
@@ -161,7 +161,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
-- **Pick up where you left off** (§173): episodes under **60% heard** (the real
+- **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
@@ -177,7 +177,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **YourFAM** (profile) reads only real data; Settings gathers everything
   changeable; identity step after sign-up only; `identityMode`/`introMode` decide
   X, button label and return target; a settings row is an editor, never the
-  first run again; **your own page draws no interests** (§173) - Edit profile
+  first run again; **your own page draws no interests** (§174) - Edit profile
   holds the five, ranked by `taste`; "Find new friends" is a pill; showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
@@ -245,6 +245,10 @@ Research and truth
 Caching and prefetch
 - **Kept a week** (`CACHE_LIFE_SECONDS`, from `sourced_at`); **current** per
   `ttl_for`; replay surfaces play anything kept, writers ask `get(key)`. [cache-week]
+- **A heard episode is kept** (§173): history stores `episode_id` (key +
+  sourced, `X-FAM-Episode`) and replays it with `?episode=`, never writing; a
+  re-written key archives the old row and audio; history pins for two weeks;
+  the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
 - **TTL comes from what the script was built on, never from the question's
   words** - live status → `outcome_dependent` → window → keyword floor;
   `in_progress` = never current. Do not fix by adding keywords. Prefetch never
@@ -278,7 +282,7 @@ Browse surfaces
 - A card's one line is the episode's hook, drawn by one function, budgeted in
   Python (`MAX_HOOK`); `STARTUP_TOPICS` is one time-anchored question per facet
   under **Start here**, written ahead at every Trending slot so a card names
-  its subject (`STARTUP_WRITE_AHEAD`, §173); `cold` is derived; startup plays never feed
+  its subject (`STARTUP_WRITE_AHEAD`, §174); `cold` is derived; startup plays never feed
   `popular_facets`; tiles claim no results or digits. [card-hook-startup]
 - **What you missed last week** is a rail, not a popup (now: cached episodes
   others played 3-7 days ago that this listener never heard, no live-feed, no

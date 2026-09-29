@@ -629,6 +629,12 @@ class EpisodePlan:
     #: the cache key**: it describes yesterday, not what today's episode is,
     #: and `key_for` reads named fields only, so it is invisible there.
     covered: tuple = ()
+    #: A heard episode to replay by its identity (`cache.episode_id`, §173) -
+    #: the listening history. Implies replay-only: the pipeline plays exactly
+    #: that episode, current or not, or refuses; it never writes one. **Never
+    #: in the cache key**: it names a stored episode, it does not change what
+    #: an episode is.
+    episode: str = ""
 
     @property
     def images(self) -> list:

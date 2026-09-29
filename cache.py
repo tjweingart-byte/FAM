@@ -211,10 +211,6 @@ def needs_fresh_information(query: str) -> bool:
     return bool(research_reason(query))
 
 
-#: What a scheduled event's episode is good for. Shorter than the ordinary
-#: ceiling because the thing is coming: a preview written this morning is
-#: honest this afternoon and wrong once it kicks off.
-SCHEDULED_TTL_SECONDS = 1800
 
 
 def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = False,
@@ -275,7 +271,11 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
     if status == "in_progress":
         return 0
     if status == "scheduled":
-        return min(keyword_ttl, SCHEDULED_TTL_SECONDS)
+        # A preview is honest until the thing kicks off, and a game that has
+        # started reads `in_progress` above. Its own thirty minutes until
+        # §173; now the volatile window, so one afternoon's "upcoming game"
+        # is one episode rather than one per half hour.
+        return min(keyword_ttl, settings.cache_ttl_volatile)
     if status == "final":
         # Settled by evidence and it does not move again. The ordinary ceiling
         # is right, and shortening it here would throw away the shared-cache
@@ -530,6 +530,10 @@ class ScriptCache(Protocol):
     #: The closest *near* match in the same bucket, or None. Only consulted
     #: after an exact lookup has already missed.
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
+    #: §173: the key holding one heard episode (`episode_id`), current or not.
+    def resolve_episode(self, episode: str) -> str: ...
+    #: §173: keep a heard episode at least this long; never makes it current.
+    def keep_until(self, key: str, until: float) -> bool: ...
 
 
 #: SQL for "until when a new request may be served this row" (§143). Rows
@@ -539,6 +543,44 @@ _CURRENT_UNTIL = "(CASE WHEN fresh_until > 0 THEN fresh_until ELSE expires END)"
 #: SQL for "when this row's information was sourced". Pre-§143 rows recorded
 #: only when they were written, which is the closest thing they have.
 _SOURCED = "(CASE WHEN sourced_at > 0 THEN sourced_at ELSE created END)"
+
+
+#: The `origin` of a row that is an earlier episode under a re-written key
+#: (§173). Never current, never near-matched, never on Explore or a rail - it
+#: exists so the listener who heard it can hear it again from their history.
+ARCHIVE_ORIGIN = "archive"
+
+_EPISODE_ID = re.compile(r"^([0-9a-f]{64})(?:\.(\d{1,12}))?$")
+
+
+def archive_key(key: str, sourced: float) -> str:
+    """Where the episode `key` held when it was sourced at `sourced` goes when
+    the key is written again (§173). Derived, so nothing has to be looked up
+    to find it: a history row naming (key, sourced) can always compute it."""
+    return hashlib.sha256(
+        f"archive|{key}|{int(sourced or 0)}".encode("utf-8")).hexdigest()
+
+
+def episode_id(key: str, sourced: Optional[float]) -> str:
+    """One heard episode's identity, for the listening history (§173).
+
+    The cache key alone is not one: a key is a *question*, and a question
+    asked again once its answer stopped being current is written again under
+    the same key. The key plus when that episode's information was sourced
+    is. "" for an episode with no key (an attachment is never cached)."""
+    if not key:
+        return ""
+    return f"{key}.{int(sourced or 0)}"
+
+
+def parse_episode_id(value: str) -> Optional[tuple[str, int]]:
+    """`(key, sourced)` from `episode_id`, or None for anything malformed.
+    A bare key (no sourced part) parses with sourced 0 - "whatever is kept
+    under this key" - which is how history rows from before §173 replay."""
+    m = _EPISODE_ID.match((value or "").strip())
+    if not m:
+        return None
+    return m.group(1), int(m.group(2) or 0)
 
 
 def _clocks(ttl: int, sourced_at: Optional[float], now: float) -> tuple:
@@ -688,6 +730,10 @@ class MemoryScriptCache:
         if voice and not self._voices.get(key):
             self._voices[key] = voice
         now = time.time()
+        # A different, still-kept episode under this key moves aside (§173).
+        if (before is not None and before[0] >= now
+                and list(before[1]) != list(sentences)):
+            self._archive(key, self.sourced_at(key) or 0.0)
         sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
         self._data[key] = (expires, list(sentences), thread, query, int(minutes))
         self._created[key] = now
@@ -709,6 +755,44 @@ class MemoryScriptCache:
         self._authors.setdefault(key, author or "")
         if bucket and query:
             self._vectors[key] = (bucket, embeddings.pack(embeddings.embed(normalize_query(query))))
+
+    def _archive(self, key: str, sourced: float) -> str:
+        """See `SqliteScriptCache._archive`."""
+        target = archive_key(key, sourced)
+        self._data[target] = self._data[key]
+        self._created[target] = self._created.get(key, 0.0)
+        self._clocks[target] = (sourced, 1.0)
+        self._origins[target] = ARCHIVE_ORIGIN
+        for table in (self._authors, self._voices, self._sources, self._titles,
+                      self._summaries, self._plays):
+            if key in table:
+                table[target] = table[key]
+        self._drop_audio(target)
+        for pair in [p for p in self._audio if p[0] == key]:
+            self._audio[(target, pair[1])] = self._audio.pop(pair)
+        return target
+
+    def resolve_episode(self, episode: str) -> str:
+        """See `SqliteScriptCache.resolve_episode`."""
+        parsed = parse_episode_id(episode)
+        if parsed is None:
+            return ""
+        key, sourced = parsed
+        if self._live(key) and (not sourced
+                                or int(self.sourced_at(key) or 0) == sourced):
+            return key
+        if not sourced:
+            return ""
+        target = archive_key(key, sourced)
+        return target if self._live(target) else ""
+
+    def keep_until(self, key: str, until: float) -> bool:
+        """See `SqliteScriptCache.keep_until`."""
+        if not self._live(key):
+            return False
+        entry = self._data[key]
+        self._data[key] = (max(entry[0], float(until)),) + tuple(entry[1:])
+        return True
 
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]:
         if not settings.cache_vector or not bucket:
@@ -755,6 +839,7 @@ class MemoryScriptCache:
              "explicit": content_filter.is_explicit(v[1])}
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
+            and self._origins.get(k, "") != ARCHIVE_ORIGIN
             and not (exclude_author and self._authors.get(k) == exclude_author)
             and not (origin and self._origins.get(k, "") != origin)
         ]
@@ -774,6 +859,7 @@ class MemoryScriptCache:
              "sourced_at": self.sourced_at(k) or 0.0}
             for k, v in self._data.items()
             if v[0] >= now and v[3] and v[4] > 0
+            and self._origins.get(k, "") != ARCHIVE_ORIGIN
             and self._authors.get(k, "") in wanted
             and self._created.get(k, 0.0) >= since
         ]
@@ -1202,7 +1288,20 @@ class SqliteScriptCache:
             # What the key held before, so kept audio survives a re-write
             # that said the same thing (below).
             before = self._conn().execute(
-                "SELECT sentences FROM scripts WHERE key = ?", (key,)).fetchone()
+                f"SELECT sentences, {_SOURCED}, expires FROM scripts WHERE key = ?",
+                (key,)).fetchone()
+            # A different episode under the same key: the one it replaces
+            # moves aside rather than being lost (§173), because somebody
+            # heard it and their history points at it.
+            if (before is not None and before[0] != json.dumps(sentences)
+                    and before[2] >= now):
+                try:
+                    self._archive(key, float(before[1] or 0.0))
+                except Exception:
+                    # Never at the cost of the new episode: a failed archive
+                    # loses the old one (as before §173), not both.
+                    log.exception("could not archive the episode under a"
+                                  " re-written key; writing the new one")
             # `COALESCE` on the existing author rather than the new one:
             # a re-write of a live entry (a longer TTL, fresher sources) must
             # not hand authorship to whoever happened to trigger it. Only a
@@ -1259,6 +1358,71 @@ class SqliteScriptCache:
             log.exception("script cache write failed; continuing")
 
     # -- audio (§132) -------------------------------------------------------
+
+    def _archive(self, key: str, sourced: float) -> str:
+        """Copy the row under `key` to its archive key, with its audio (§173).
+
+        The copy is never current (`fresh_until` 1), has no bucket or vector
+        (so no near match finds it), never slides (`ttl` 0) and is marked
+        `ARCHIVE_ORIGIN` (so no feed or rail shows it). It keeps how long it
+        is kept, and its author, so `forget_author` still reaches it. The
+        audio is *moved*: it belongs to these words, not the new ones.
+        """
+        target = archive_key(key, sourced)
+        conn = self._conn()
+        columns = [r[1] for r in conn.execute("PRAGMA table_info(scripts)")]
+        fixed = {"key": "?", "fresh_until": "1.0", "bucket": "''",
+                 "vector": "NULL", "ttl": "0", "hits": "0",
+                 "origin": f"'{ARCHIVE_ORIGIN}'"}
+        picks = ", ".join(fixed.get(c, c) for c in columns)
+        conn.execute(
+            f"INSERT OR REPLACE INTO scripts ({', '.join(columns)})"
+            f" SELECT {picks} FROM scripts WHERE key = ?", (target, key))
+        conn.execute("DELETE FROM episode_audio WHERE key = ?", (target,))
+        conn.execute("UPDATE episode_audio SET key = ? WHERE key = ?", (target, key))
+        return target
+
+    def resolve_episode(self, episode: str) -> str:
+        """The key holding the heard episode `episode` names, or "" (§173).
+
+        The key itself while it still holds that episode, else the archive
+        copy made when the key was written again. Kept, not current: this is
+        a replay of something already heard."""
+        parsed = parse_episode_id(episode)
+        if parsed is None:
+            return ""
+        key, sourced = parsed
+        now = time.time()
+        try:
+            conn = self._conn()
+            row = conn.execute(
+                f"SELECT {_SOURCED}, expires FROM scripts WHERE key = ?",
+                (key,)).fetchone()
+            if row and row[1] >= now and (not sourced or int(row[0] or 0) == sourced):
+                return key
+            if not sourced:
+                return ""
+            target = archive_key(key, sourced)
+            row = conn.execute("SELECT expires FROM scripts WHERE key = ?",
+                               (target,)).fetchone()
+            return target if row and row[0] >= now else ""
+        except Exception:
+            log.exception("could not resolve a heard episode")
+            return ""
+
+    def keep_until(self, key: str, until: float) -> bool:
+        """Keep the row under `key` (and so its audio) at least until `until`
+        (§173). Never makes it current: a listening-history row pins the
+        episode it names for as long as the history shows it."""
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET expires = MAX(expires, ?)"
+                " WHERE key = ? AND expires >= ?",
+                (float(until), key, time.time()))
+            return bool(cur.rowcount)
+        except Exception:
+            log.exception("could not keep a heard episode; continuing")
+            return False
 
     def has_audio(self, key: str, voice: str, sample_rate: int) -> bool:
         try:
@@ -1548,6 +1712,7 @@ class SqliteScriptCache:
                 f" author, {_SOURCED}, {_CURRENT_UNTIL}, origin, voice,"
                 " sentences FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
+                f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 "   AND (? = '' OR author != ?)"
                 "   AND (? = '' OR origin = ?)"
                 " ORDER BY created DESC LIMIT ?",
@@ -1598,6 +1763,7 @@ class SqliteScriptCache:
                 "SELECT key, query, minutes, created, title, author,"
                 f" {_SOURCED} FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
+                f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 f"   AND author IN ({marks}) AND created >= ?"
                 " ORDER BY created DESC LIMIT ?",
                 (time.time(), *wanted, float(since), int(limit)),

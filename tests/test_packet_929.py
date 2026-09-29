@@ -1,4 +1,4 @@
-"""The 9.29 packet (PROBLEMS.md §173): six changes from the owner.
+"""The 9.29 packet (PROBLEMS.md §174): six changes from the owner.
 
 1. "Find new friends" is a pill with a plus.
 2. Your own YourFAM page shows no interests; a friend's still does.

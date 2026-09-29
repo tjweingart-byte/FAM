@@ -190,7 +190,11 @@ def test_a_rewritten_script_drops_the_audio_it_no_longer_matches(store):
     key = next(iter(store._data)) if isinstance(store, MemoryScriptCache) else \
         sqlite3.connect(store.path).execute("SELECT key FROM scripts").fetchone()[0]
     store.put(key, ["Different words entirely."], ttl=60, query="how rainbows form")
-    assert store.stats()["audio_entries"] == 0
+    # Not under the key any more: those words are gone from it. Since §173
+    # the audio moves with the old episode to its archive copy rather than
+    # being thrown away, because somebody heard it and may replay it.
+    assert not store.has_any_audio(key)
+    assert store.stats()["audio_entries"] == 1
 
 
 def test_audio_is_only_readable_while_its_script_is(tmp_path, kept_only_while_current):

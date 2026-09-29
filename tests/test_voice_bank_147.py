@@ -304,7 +304,7 @@ def test_background_editions_stamp_their_origin_and_a_bank_voice():
         source = open(os.path.join(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))), path)).read()
         # The trending bank passes its origin in, because the same writer
-        # also writes the "Start here" questions (§173) as `startup`.
+        # also writes the "Start here" questions (§174) as `startup`.
         assert (f'"origin"] = "{origin}"' in source
                 or (f'origin: str = "{origin}"' in source
                     and 'extra["origin"] = origin' in source)), path

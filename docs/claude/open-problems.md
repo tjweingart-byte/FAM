@@ -280,7 +280,7 @@
 
 <!-- rule:pick-up-rail -->
 - **"Pick up where you left off" is a day, and under 60%** *(PROBLEMS.md
-  §173, the 9.29 packet, at the owner's direction: "If more than 60% of the
+  §174, the 9.29 packet, at the owner's direction: "If more than 60% of the
   episode is finished, then don't display it in Pick up where you left off.
   Additionally, only display an episode there for no more than 24 hours.")*
   Its two sources are unchanged - episodes started and not finished, and the
@@ -594,7 +594,7 @@
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 <!-- rule:op-profile-hub -->
-> **Current (PROBLEMS.md §173):** your own YourFAM page no longer draws the interest pills - the owner found them clutter, and Edit profile ("Your interests - N of 5") is where they are seen and changed. `interests_shown` is still what the profile *shares*: a friend's page shows it. "Find new friends" is a gold pill with a plus rather than a text link. Where the text below says the hub shows five pills, read "the profile shares five".
+> **Current (PROBLEMS.md §174):** your own YourFAM page no longer draws the interest pills - the owner found them clutter, and Edit profile ("Your interests - N of 5") is where they are seen and changed. `interests_shown` is still what the profile *shares*: a friend's page shows it. "Find new friends" is a gold pill with a plus rather than a text link. Where the text below says the hub shows five pills, read "the profile shares five".
 
 9. **Profile is the personal hub now, and still invents nothing.** *(§95.)*
    **And it is called YourFAM** *(§133, the owner's handoff).* The last tab is

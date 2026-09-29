@@ -13395,7 +13395,61 @@ checked by a test, but no service was created), and branch protection on
 `Main`, which only a person can set. Creating the `staging` branch is a command
 in STAGING.md, because this session may push only to its own branch.
 
-## 173. The 9.29 packet: six changes
+## 173. The same question twice was two episodes, and history played a third
+
+At the owner's direction, from a phone: "upcoming dodgers game" searched at
+11:56 gave a good episode; searched again (history says 12:24) it gave a
+different one with older information; tapping the first row of Recent
+listening history gave a third. "The first two episodes should be the exact
+same... all episodes in recent listening history should be cached, there are
+no exceptions to this."
+
+**Why the second search wrote again.** The key was the same - `key_for` is
+deterministic on the words, length, context and research flag - but a row is
+served to a new request only while *current* (§143), and an upcoming game is
+`scheduled` (thirty minutes) or `outcome_dependent` (`CACHE_TTL_VOLATILE`,
+fifteen). Twenty-eight minutes later it was neither, so the tap wrote a new
+episode and the re-write replaced the old row and deleted its audio. Why the
+second read as older is not established - no logs from the phone's session -
+but it no longer matters for this question: it would have been a hit.
+
+**Why history played a third.** A history row was a question, replayed by
+asking it again (`playHistory` sent the query), so it got whatever a new
+request gets: past the window, a new episode. And there was no way to get
+the heard one back even in principle, because the re-write overwrote it.
+
+**What changed.**
+
+* `CACHE_TTL_VOLATILE` is two hours (was 900s), and `scheduled` uses it
+  rather than its own 1800s. `in_progress` stays 0 - a live score is never
+  served to somebody asking now. `.env.example` agrees.
+* Every served episode has an identity: `cache.episode_id(key, sourced)`,
+  sent as `X-FAM-Episode` (exposed to CORS). The pipeline fixes the sourced
+  stamp before the first byte (`GenerationStats.sourced_stamp`) and writes the
+  row with the same one, so the id the phone keeps and the row agree.
+* A key written again with *different* words moves the old row and its audio
+  to `archive_key(key, sourced)`: `fresh_until` 1 (never current), no bucket
+  or vector (no near match), `ttl` 0 (never slides), `origin = "archive"`
+  (`recent` and `authored_by` skip it, so no feed or rail shows it). The same
+  words again archive nothing, as before.
+* History stores the id (`history.episode`), `FamAudio.episode()` hands it to
+  `noteListen`, and `playHistory` sends `episode=` to `/api/audio`, which
+  resolves it (`resolve_episode`: the key while it holds that episode, else
+  its archive copy), plays it current or not, and **never writes** - a 409 if
+  it is gone. Not paced, like any replay.
+* `/api/history` pins what a row names (`keep_until`, two weeks - the cache
+  keeps a row one), so the second week of history is not a re-write.
+* Rows from before this carry no id; `/api/history` gives them the bare key
+  when something is still kept under their question, which replays (and
+  pins) that; otherwise they play as they did.
+
+**Still true.** Kept audio is under `AUDIO_CACHE_MAX_MB`, LRU. Past it, a
+heard episode replays its same script in its same voice, synthesised once
+more - the same episode, one GPU call. `/api/next` on an archived replay still
+reads the key's current row for the thread; the title is the row's own
+(`titleOverridden`). Not measured against a real model or voice here.
+
+## 174. The 9.29 packet: six changes
 
 Six items from the owner, in the packet's order.
 

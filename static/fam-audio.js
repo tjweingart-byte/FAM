@@ -58,6 +58,7 @@ window.FamAudio = (function () {
   var pcm = null;          // Int16Array, grown as the stream arrives
   var totalSamples = 0;    // how much of `pcm` is real audio
   var keepable = false;    // the server said this audio may be kept (§161)
+  var episodeId = "";      // which episode this stream is (X-FAM-Episode, §173)
   var sampleRate = 22050;
   var cursor = 0;          // next sample to schedule
   var playHead = 0;        // ctx time at which `cursor` will be heard
@@ -419,9 +420,13 @@ window.FamAudio = (function () {
               (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "") +
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
-              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "");
+              (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
+              // One heard episode, replayed exactly (§173): the listening
+              // history. Never generates - a 409 if it is no longer kept.
+              (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "");
 
     keepable = false;
+    episodeId = "";
     ctx.resume().then(function () {
       // A request that never reached the server is marked, so the caller can
       // tell "no connection" from a bug further down (§161's offline play).
@@ -448,6 +453,7 @@ window.FamAudio = (function () {
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
       var cacheState = res.headers.get("X-FAM-Cache") || "";
       keepable = res.headers.get("X-FAM-Keepable") === "1";
+      episodeId = res.headers.get("X-FAM-Episode") || "";
 
       var reader = res.body.getReader();
       var leftover = new Uint8Array(0);
@@ -524,6 +530,7 @@ window.FamAudio = (function () {
     resetStretch(0);
     sampleRate = Number(rate) || 22050;
     keepable = false;       // already on the device; nothing to keep again
+    episodeId = "";
     pcm = samples;
     totalSamples = samples.length;
     streamDone = true;   // there is no more coming; it is all already here
@@ -660,5 +667,9 @@ window.FamAudio = (function () {
     },
     // Which play is current; bumped by every play, playStored and stop.
     stream: function () { return token; },
+    // Which episode the current stream is (§173), as the server named it -
+    // what the listening history keeps so a row replays exactly this one.
+    // "" before the response, for an attachment, and for a device replay.
+    episode: function () { return episodeId; },
   };
 })();

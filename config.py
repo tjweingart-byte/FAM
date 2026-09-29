@@ -1002,9 +1002,13 @@ class Settings:
     # evergreen episode is current for as long as it is kept.
     cache_ttl_seconds: int = _env_int("CACHE_TTL_SECONDS", 7 * 86400)
     # How long an episode about something time-sensitive stays current
-    # ("latest", "today", a one-day evidence window, a result). Still kept
-    # for `cache_life_seconds`, stamped with when it was sourced.
-    cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 900)
+    # ("latest", "today", a one-day evidence window, a result, a fixture
+    # still to come). Still kept for `cache_life_seconds`, stamped with when
+    # it was sourced. Two hours since §173 (it was fifteen minutes, thirty for
+    # a scheduled game): the owner asked "upcoming dodgers game" twice
+    # twenty-eight minutes apart and paid for two different episodes. A game
+    # *in progress* is still never current - `ttl_for` returns 0 for it.
+    cache_ttl_volatile: int = _env_int("CACHE_TTL_VOLATILE", 7200)
     # How long an evergreen episode may be kept alive by being played (§134).
     # A play of an entry written at the ordinary ceiling pushes its expiry a
     # full `cache_ttl_seconds` forward, up to this age from when it was
