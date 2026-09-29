@@ -39,7 +39,9 @@ import learned_rank
 import taste_vectors
 from demo_script import DemoGenerator
 import credentials
+import client_versions
 import entitlements
+import spend_guard
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
@@ -460,6 +462,9 @@ def _trending_bank_report() -> dict:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Whether zero spend's network guard can see this loop's connections
+    # (§172) - uvloop goes round it, so staging runs UVICORN_LOOP=asyncio.
+    spend_guard.check_loop(asyncio.get_running_loop())
     # Pay the voice model's load cost now rather than on the first listener.
     await warm_up()
     # The autocorrect word list, likewise (§142) - in a thread and not
@@ -1415,6 +1420,12 @@ async def health(request: Request) -> dict:
         # Which commit is serving this request. Without it, "the fix is
         # pushed" and "the fix is live" are the same sentence from outside.
         "build": _build_report(),
+        # Which deployment this is and whether it can spend (§172). The web
+        # client draws the STAGING banner from this.
+        "environment": spend_guard.report(),
+        # The client releases this server still serves, and which versions
+        # have called it since boot (`client_versions.py`).
+        "clients": client_versions.report(),
         "mode": "demo" if DEMO_MODE else "live",
         "model": settings.model,
         "web_search_default": settings.enable_web_search,
@@ -3065,11 +3076,11 @@ if _ALLOWED_ORIGINS:
         allow_origins=_ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-FAM-Client"],
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
-                    "X-FAM-Cache", "X-FAM-Keepable"],
+                    "X-FAM-Cache", "X-FAM-Keepable", "X-FAM-Client-Status"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -3175,6 +3186,82 @@ async def version_prefix(request: Request, call_next):
     if path.startswith(API_PREFIX + "/") or path == API_PREFIX:
         request.scope["path"] = "/api" + path[len(API_PREFIX):]
     return await call_next(request)
+
+
+@app.middleware("http")
+async def client_version(request: Request, call_next):
+    """Keep the promise made to every installed client (§172, client_versions.py).
+
+    A client names itself in `X-FAM-Client`. A release the registry marks
+    `retired` gets a 426 with a sentence and the store link on everything but
+    the two paths that let it say so; a `deprecated` one is served normally
+    with `X-FAM-Client-Status: deprecated` on the response, so the app can
+    suggest an update without being stopped. Anything unknown - no header, a
+    TestFlight build, a simulator - is served exactly as before.
+    """
+    path = request.scope.get("path", "")
+    if not path.startswith("/api/"):
+        return await call_next(request)
+    header = request.headers.get(client_versions.HEADER, "")
+    client_versions.record(header)
+    verdict = client_versions.status_for(header) if header else None
+    plain = ("/api" + path[len(API_PREFIX):]) if path.startswith(API_PREFIX + "/") else path
+    if verdict and verdict["update_required"] and plain not in client_versions.RETIRED_MAY_REACH:
+        return JSONResponse(
+            {"error": verdict["message"], "client": verdict,
+             "update_url": os.environ.get("APP_STORE_URL", "").strip() or None},
+            status_code=426,
+            headers={client_versions.STATUS_HEADER: verdict["status"]})
+    response = await call_next(request)
+    if verdict and verdict["known"]:
+        response.headers[client_versions.STATUS_HEADER] = verdict["status"]
+    return response
+
+
+@app.get("/api/client-status")
+async def client_status(request: Request) -> dict:
+    """What the server makes of the calling client: supported, deprecated
+    (works, suggest an update) or retired (update required). A native app asks
+    this at launch; the answer comes from `releases/registry.json`."""
+    return client_versions.status_for(request.headers.get(client_versions.HEADER, ""))
+
+
+_ARCHIVE_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                  ".css": "text/css; charset=utf-8", ".json": "application/json"}
+
+
+@app.get("/v/{version}")
+async def web_release_root(version: str):
+    return RedirectResponse(f"/v/{quote(version)}/", status_code=307)
+
+
+@app.get("/v/{version}/{name:path}")
+async def web_release(version: str, name: str = ""):
+    """A kept web release, served whole against this server (§172).
+
+    Only files the release's manifest lists, and nothing from a retired
+    release: a retired version is one whose API calls are refused, so serving
+    its page would only show a screen that cannot work.
+    """
+    release = client_versions.find("web", version)
+    if release is None or client_versions.archive_dir(version) is None:
+        raise HTTPException(status_code=404, detail=f"No kept web release {version!r}.")
+    if release.status == "retired":
+        return HTMLResponse(
+            f"<!doctype html><meta charset=utf-8><title>FAM {version}</title>"
+            f"<p>FAM web {version} is retired: its API calls are refused by this "
+            "server. It is kept in the repository, not served.</p>", status_code=410)
+    name = name or "index.html"
+    files = client_versions.manifest(version).get("files", {})
+    if name not in files:
+        raise HTTPException(status_code=404, detail=f"{name} is not part of web {version}.")
+    path = client_versions.archive_dir(version) / name
+    suffix = path.suffix.lower()
+    return Response(path.read_bytes(),
+                    media_type=_ARCHIVE_TYPES.get(suffix, "application/octet-stream"),
+                    # An archive never changes, and a stale shell must not be
+                    # mistaken for it either: revalidate, then trust.
+                    headers={"Cache-Control": "no-cache"})
 
 
 def _session_token(request: Request) -> str:
@@ -5890,6 +5977,63 @@ async def usage(
     if flagged:
         report["flagged"] = metering.suspects(METER)
     return report
+
+
+# ---------------------------------------------------------------- replay
+#
+# Staging spends nothing, so it cannot write a real episode (§172). It can
+# replay one: `tools/replay_episodes.py` reads kept episodes out of one
+# deployment and writes them into a zero-spend one, script and audio together,
+# without `author`. Admin-only at both ends, like every endpoint that reads
+# the stores whole.
+
+
+def _replay_cache():
+    if not hasattr(SCRIPT_CACHE, "export_episode"):
+        raise HTTPException(status_code=501, detail=(
+            "This deployment's script cache is not the SQLite one, so it has no "
+            "kept episodes to move."))
+    return SCRIPT_CACHE
+
+
+@app.get("/api/admin/episodes")
+async def admin_episodes(request: Request,
+                         limit: int = Query(50, ge=1, le=500)) -> dict:
+    """The most-played kept episodes, for choosing what to replay."""
+    _require_admin(request)
+    return {"episodes": _replay_cache().export_keys(limit)}
+
+
+@app.get("/api/admin/episodes/{key}")
+async def admin_episode_export(key: str, request: Request) -> dict:
+    """One kept episode, whole: its script row and every voiced copy."""
+    _require_admin(request)
+    data = _replay_cache().export_episode(key)
+    if data is None:
+        raise HTTPException(status_code=404, detail="No kept episode with that key.")
+    return data
+
+
+@app.post("/api/admin/episodes")
+async def admin_episode_import(request: Request) -> dict:
+    """Write an exported episode into this deployment's cache.
+
+    **Only on a zero-spend deployment.** Production's cache is what listeners
+    are served, and an imported episode skips everything that decides what
+    belongs there; staging's cache exists to be filled for testing.
+    """
+    _require_admin(request)
+    if not spend_guard.enabled():
+        raise HTTPException(status_code=409, detail=(
+            "Episodes are imported only into a zero-spend deployment (staging). "
+            "This one can spend, so its cache is written by listening, not by import."))
+    data = await request.json()
+    if not isinstance(data, dict) or not isinstance(data.get("script"), dict) \
+            or not data["script"].get("key"):
+        raise HTTPException(status_code=400, detail="Expected an exported episode.")
+    key = _replay_cache().import_episode(
+        data, keep_until=time.time() + settings.cache_life_seconds)
+    return {"imported": key, "audio": len(data.get("audio") or [])}
 
 
 # ---------------------------------------------------------------- tracker

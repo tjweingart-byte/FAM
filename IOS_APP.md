@@ -186,3 +186,11 @@ API key — CREDENTIALS.md already says so.
 5. **Everything in "Constraints that are settled" still applies.** The app does
    not get to reopen no-MP3, no-filler, duration-as-ceiling, or the listener-id
    rule. Compression is the one thing that looked like an exception and is not.
+6. **Every shipped build is a promise the server keeps** (STAGING.md, §172).
+   The app sends `X-FAM-Client: ios/<version>+<build>` on every request and
+   calls `/api/v1/...`, never bare `/api/...`. Version 1.0 must ask
+   `/api/client-status` at launch and handle a `426` with an update screen.
+   That screen cannot be added to builds that have already shipped. Each App
+   Store submission is recorded with `tools/cut_release.py --platform ios`
+   from the commit it was built from. The API base URL is a build setting:
+   `fam-staging` for TestFlight, `fam` for the App Store.

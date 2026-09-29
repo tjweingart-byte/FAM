@@ -1651,6 +1651,71 @@ class SqliteScriptCache:
             log.exception("could not drop scripts authored by %r", author)
             return 0
 
+    # --- Replaying kept episodes on staging (§172) -------------------------
+    #
+    # Staging spends nothing, so it cannot write a real episode. What it can do
+    # is replay one: an episode production already wrote and voiced plays on
+    # staging for nothing, exactly as it played the first time. These three
+    # move an episode from one deployment's cache to another's, whole, with
+    # the one field that points at a person - `author` - left behind.
+    # Column lists are read from the table, not typed here, so a column added
+    # next month travels too.
+
+    #: Never exported: who wrote it first is provenance about a listener.
+    PRIVATE_COLUMNS = ("author",)
+
+    def export_keys(self, limit: int = 50) -> list[dict]:
+        """The most-played episodes still kept, with whether each has audio."""
+        rows = self._conn().execute(
+            "SELECT s.key, s.title, s.query, s.plays,"
+            " EXISTS(SELECT 1 FROM episode_audio a WHERE a.key = s.key)"
+            " FROM scripts s WHERE s.expires >= ?"
+            " ORDER BY s.plays DESC, s.created DESC LIMIT ?",
+            (time.time(), max(1, int(limit)))).fetchall()
+        return [{"key": r[0], "title": r[1] or r[2] or "", "plays": r[3],
+                 "audio": bool(r[4])} for r in rows]
+
+    def export_episode(self, key: str) -> Optional[dict]:
+        """One kept episode - its script row and every voiced copy - as JSON-safe
+        data. None when there is no such episode."""
+        conn = self._conn()
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute("SELECT * FROM scripts WHERE key = ?", (key,)).fetchone()
+            if row is None:
+                return None
+            audio = conn.execute("SELECT * FROM episode_audio WHERE key = ?", (key,)).fetchall()
+        finally:
+            conn.row_factory = None
+        return {"script": {k: _portable(row[k]) for k in row.keys()
+                           if k not in self.PRIVATE_COLUMNS},
+                "audio": [{k: _portable(a[k]) for k in a.keys()} for a in audio]}
+
+    def import_episode(self, data: dict, keep_until: float) -> str:
+        """Write an exported episode into this cache. Kept until at least
+        `keep_until` so a replay set does not evaporate a week after import;
+        `sourced_at` and `fresh_until` travel unchanged, so an old answer is
+        never served as a current one. Returns the key."""
+        conn = self._conn()
+        script = dict(data["script"])
+        for private in self.PRIVATE_COLUMNS:
+            script.pop(private, None)
+        script["expires"] = max(float(script.get("expires") or 0), keep_until)
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(scripts)")}
+        names = [k for k in script if k in columns]
+        conn.execute(
+            f"INSERT OR REPLACE INTO scripts ({', '.join(names)})"
+            f" VALUES ({', '.join('?' for _ in names)})",
+            [_restored(script[k]) for k in names])
+        audio_columns = {r[1] for r in conn.execute("PRAGMA table_info(episode_audio)")}
+        for audio in data.get("audio", []):
+            names = [k for k in audio if k in audio_columns]
+            conn.execute(
+                f"INSERT OR REPLACE INTO episode_audio ({', '.join(names)})"
+                f" VALUES ({', '.join('?' for _ in names)})",
+                [_restored(audio[k]) for k in names])
+        return script["key"]
+
     def clear(self) -> int:
         """Empty the whole cache. Every entry, expired or not.
 
@@ -1738,3 +1803,18 @@ def build_cache() -> Optional[ScriptCache]:
     if settings.cache_backend == "memory":
         return MemoryScriptCache()
     return SqliteScriptCache()
+
+
+def _portable(value):
+    """A column value as JSON: bytes (zlib PCM, a vector) as tagged base64."""
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        import base64
+        return {"b64": base64.b64encode(bytes(value)).decode("ascii")}
+    return value
+
+
+def _restored(value):
+    if isinstance(value, dict) and set(value) == {"b64"}:
+        import base64
+        return base64.b64decode(value["b64"])
+    return value

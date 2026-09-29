@@ -1315,3 +1315,39 @@
   deliberately does *not* buy: Anthropic's rate limits are per organisation, so
   a pool of keys is failover and not headroom, and the real ceiling on
   concurrency is the GPU, not the credential.
+<!-- rule:zero-spend-staging -->
+- **Staging spends nothing, and cannot be configured to** *(§172, at the
+  owner's direction).* `FAM_ENV=staging` turns on `spend_guard.py` and no
+  other variable turns it off. Every paid credential is removed before
+  `Settings` is built (`PAID_CREDENTIALS`, plus each one's plural pool form),
+  and every paid switch is forced off (`FORCED`). That includes the keyless
+  sources - GDELT and Polymarket cost money at scale, which was the owner's
+  ruling. `FAM_SECRETS` is not consulted, in `config.py` or in a later
+  `credentials.refresh()`. And **nothing leaves the machine**:
+  `socket.socket.connect` refuses every non-loopback address, which is the
+  layer that is not a list and so the real guarantee. uvloop connects around
+  it, so staging runs `UVICORN_LOOP=asyncio` and `check_loop` reports
+  `network_guard: false` if that ever lapses.
+  `tests/test_spend_guard.py` derives every credential-shaped name from the
+  code and fails on one that is neither scrubbed nor in `NOT_SPEND`, and it
+  boots the whole app as staging with every key set and asserts an episode is
+  still made. An episode on staging is the sample script in a placeholder
+  tone. Real content arrives only by replay (`/api/admin/episodes`,
+  `tools/replay_episodes.py`): an import is refused unless the target is zero
+  spend, `author` never travels, and `sourced_at`/`fresh_until` travel
+  unchanged, so a replayed answer is never presented as newer than it is.
+<!-- rule:old-clients -->
+- **Every installed client keeps working** *(§172).* Clients send
+  `X-FAM-Client: <platform>/<version>`. `releases/registry.json` gives each
+  shipped release a status: `supported`, `deprecated` (served, with
+  `X-FAM-Client-Status`), or `retired` (426 with a sentence, except
+  `/api/health` and `/api/client-status`). An unknown version or a missing
+  header is always served - never refuse what the registry does not list.
+  Each release has a contract cut by `tools/cut_release.py`: the `/api/`
+  routes read out of its code, and the JSON shape of each bare GET, recorded
+  in a fresh process on empty databases. `tests/test_client_contracts.py`
+  replays every non-retired contract as a superset check. A failure there is
+  fixed by keeping the old field or route (or by moving a new shape to
+  `/api/v2`), **never by editing the contract**. Web releases are kept whole
+  and checksummed in `releases/web/<version>/` and served at `/v/<version>/`
+  (manifest files only, no service worker). iOS binaries are not kept in git.

@@ -1,0 +1,501 @@
+{
+  "commit": "2367e2fe16bdefe89ab580f2feceaab31610559e",
+  "cut": "2026-09-29",
+  "platform": "web",
+  "routes": [
+    "/api/account",
+    "/api/attach",
+    "/api/audio",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/me",
+    "/api/auth/password",
+    "/api/auth/signup",
+    "/api/echo",
+    "/api/episode/stats",
+    "/api/event",
+    "/api/explore",
+    "/api/explorenew",
+    "/api/friends",
+    "/api/friends/announced",
+    "/api/friends/follow",
+    "/api/friends/seen",
+    "/api/godeeper",
+    "/api/godeeper/dismiss",
+    "/api/health",
+    "/api/history",
+    "/api/interest",
+    "/api/me",
+    "/api/messages",
+    "/api/messages/thread",
+    "/api/messages/typing",
+    "/api/mixes",
+    "/api/mixes/",
+    "/api/mixes/public",
+    "/api/mixes/public/",
+    "/api/mixes/sample",
+    "/api/myfam",
+    "/api/myfam/section",
+    "/api/next",
+    "/api/nextup",
+    "/api/notifications",
+    "/api/people",
+    "/api/person",
+    "/api/plans",
+    "/api/preferences",
+    "/api/profile",
+    "/api/progress",
+    "/api/rate",
+    "/api/saved",
+    "/api/saved/",
+    "/api/saved/folders",
+    "/api/saved/folders/",
+    "/api/share",
+    "/api/sources",
+    "/api/spell",
+    "/api/topics",
+    "/api/transcript",
+    "/api/vibe",
+    "/api/vibes",
+    "/api/vibes/file",
+    "/api/voices",
+    "/api/voices/choice"
+  ],
+  "shapes": {
+    "/api/auth/me": {
+      "authenticated": "boolean",
+      "display_name": "string",
+      "email": "string",
+      "has_account": "boolean",
+      "phone": "string",
+      "tier": "string",
+      "user_id": "string"
+    },
+    "/api/explore": {
+      "episodes": []
+    },
+    "/api/explorenew": {
+      "algo": "string",
+      "personalised": "boolean",
+      "reason": "string",
+      "topics": [
+        {
+          "angle": "string",
+          "coverage": "number",
+          "freshness": "number",
+          "geo": "string",
+          "geo_key": "string",
+          "geo_scope": "string",
+          "icon": "string",
+          "id": "string",
+          "live_as_of": "number",
+          "live_line": "string",
+          "live_status": "string",
+          "query": "string",
+          "source": "string",
+          "subtitle": "string",
+          "tags": [
+            "string"
+          ],
+          "thumb": "string",
+          "thumb_facet": "string",
+          "title": "string"
+        }
+      ]
+    },
+    "/api/godeeper": {
+      "resume": [],
+      "similar": [],
+      "threads": []
+    },
+    "/api/health": {
+      "api": "any",
+      "api_key_configured": "any",
+      "build": "any",
+      "cache": "any",
+      "categories": "any",
+      "clients": "any",
+      "credentials": "any",
+      "daily_edition": "any",
+      "databases": "any",
+      "environment": "any",
+      "episode_intelligence": "any",
+      "gdelt": "any",
+      "http": "any",
+      "live_facts": "any",
+      "live_sources": "any",
+      "max_minutes": "any",
+      "min_minutes": "any",
+      "mode": "any",
+      "model": "any",
+      "oauth": "any",
+      "prefetch": "any",
+      "prefetch_sources": "any",
+      "quotas": "any",
+      "ranking": "any",
+      "research": "any",
+      "research_words": "any",
+      "sample_rate": "any",
+      "search_mode": "any",
+      "search_mode_source": "any",
+      "sharing": "any",
+      "status": "any",
+      "storage": "any",
+      "stories": "any",
+      "streaming_pipeline": "any",
+      "streaming_pipeline_default": "any",
+      "thumbnails": "any",
+      "tiers": "any",
+      "trending": "any",
+      "trending_bank": "any",
+      "tts": "any",
+      "voice_store": "any",
+      "web_search_default": "any",
+      "writer_effort": "any",
+      "writer_effort_source": "any"
+    },
+    "/api/interest": {
+      "episodes": [],
+      "label": "string",
+      "more": "boolean",
+      "reason": "string"
+    },
+    "/api/mixes/public": {
+      "mixes": [],
+      "query": "string"
+    },
+    "/api/mixes/sample": {
+      "mix": {
+        "cover": "string",
+        "created_at": "number",
+        "custom_count": "number",
+        "id": "string",
+        "items": [
+          {
+            "cached": "boolean",
+            "custom": "boolean",
+            "daily_prompt": "string",
+            "icon": "string",
+            "id": "string",
+            "minutes": "number",
+            "playable": "boolean",
+            "prompt": "string",
+            "query": "string",
+            "subtitle": "string",
+            "title": "string"
+          }
+        ],
+        "name": "string",
+        "public": "boolean",
+        "sample": "boolean",
+        "source_id": "string",
+        "topic_ids": [
+          "string"
+        ],
+        "topics": [
+          {
+            "cached": "boolean",
+            "custom": "boolean",
+            "daily_prompt": "string",
+            "icon": "string",
+            "id": "string",
+            "minutes": "number",
+            "playable": "boolean",
+            "prompt": "string",
+            "query": "string",
+            "subtitle": "string",
+            "title": "string"
+          }
+        ],
+        "updated_at": "number"
+      },
+      "note": "string"
+    },
+    "/api/myfam": {
+      "algo": "string",
+      "live_stories": "number",
+      "minutes": "number",
+      "personalised": "boolean",
+      "sample": "boolean",
+      "sample_note": "string",
+      "sections": [
+        {
+          "empty_reason": "string",
+          "key": "string",
+          "title": "string",
+          "topics": [
+            {
+              "angle": "string",
+              "cached": "boolean",
+              "coverage": "number",
+              "freshness": "number",
+              "geo": "string",
+              "geo_key": "string",
+              "geo_scope": "string",
+              "icon": "string",
+              "id": "string",
+              "live_as_of": "number",
+              "live_line": "string",
+              "live_status": "string",
+              "playable": "boolean",
+              "query": "string",
+              "source": "string",
+              "subtitle": "string",
+              "tags": [
+                "string"
+              ],
+              "thumb": "string",
+              "thumb_facet": "string",
+              "title": "string"
+            }
+          ]
+        }
+      ],
+      "startup_order": "string",
+      "taste_source": "string"
+    },
+    "/api/nextup": {
+      "algo": "string",
+      "topics": [
+        {
+          "angle": "string",
+          "coverage": "number",
+          "freshness": "number",
+          "geo": "string",
+          "geo_key": "string",
+          "geo_scope": "string",
+          "icon": "string",
+          "id": "string",
+          "live_as_of": "number",
+          "live_line": "string",
+          "live_status": "string",
+          "query": "string",
+          "source": "string",
+          "subtitle": "string",
+          "tags": [
+            "string"
+          ],
+          "thumb": "string",
+          "thumb_facet": "string",
+          "title": "string"
+        }
+      ]
+    },
+    "/api/notifications": {
+      "follows": [],
+      "head": "number",
+      "messages": [],
+      "unread": "number"
+    },
+    "/api/plans": {
+      "current": "string",
+      "features": [
+        {
+          "key": "string",
+          "label": "string",
+          "min_tier": "string"
+        }
+      ],
+      "tiers": [
+        {
+          "blurb": "string",
+          "features": [
+            "string"
+          ],
+          "label": "string",
+          "limits": [
+            {
+              "count": "number",
+              "resource": "string",
+              "unlimited": "boolean",
+              "window": "string"
+            }
+          ],
+          "max_minutes": "number",
+          "name": "string"
+        }
+      ]
+    },
+    "/api/preferences": {
+      "account": "boolean",
+      "account_required": "string",
+      "catalogue": [
+        {
+          "focus_noun": "string",
+          "focus_picks": [
+            "string"
+          ],
+          "icon": "string",
+          "id": "string",
+          "label": "string",
+          "tags": [
+            "string"
+          ]
+        }
+      ],
+      "hidden_interests": [],
+      "interests": [],
+      "interests_all": [
+        {
+          "id": "string",
+          "label": "string"
+        }
+      ],
+      "interests_available": [
+        {
+          "id": "string",
+          "label": "string",
+          "short": "string"
+        }
+      ],
+      "interests_source": "string",
+      "interests_yours": [
+        {
+          "id": "string",
+          "label": "string",
+          "short": "string"
+        }
+      ],
+      "interests_yours_source": "string",
+      "intro_done": "boolean",
+      "language": "string",
+      "language_active": "boolean",
+      "languages": [
+        {
+          "code": "string",
+          "endonym": "string",
+          "label": "string"
+        }
+      ],
+      "location": {
+        "city": "string",
+        "country": "string",
+        "label": "string",
+        "region": "string"
+      },
+      "profile_interests": [],
+      "public_interests": [],
+      "recap_week": "string",
+      "saved": "boolean",
+      "tag_labels": {
+        "business": "string",
+        "culture": "string",
+        "health": "string",
+        "money": "string",
+        "science": "string",
+        "sports": "string",
+        "tech": "string",
+        "world": "string"
+      },
+      "tag_parent": {
+        "ai": "string",
+        "body-science": "string",
+        "chips": "string",
+        "cities": "string",
+        "commodities": "string",
+        "consumer-prices": "string",
+        "elections": "string",
+        "energy": "string",
+        "film-tv": "string",
+        "fitness": "string",
+        "food": "string",
+        "founders": "string",
+        "geopolitics": "string",
+        "habits": "string",
+        "housing": "string",
+        "internet-culture": "string",
+        "longevity": "string",
+        "macro": "string",
+        "media-business": "string",
+        "mind": "string",
+        "music": "string",
+        "platforms": "string",
+        "sleep": "string",
+        "space": "string",
+        "sports-business": "string",
+        "sports-drama": "string",
+        "sports-performance": "string",
+        "strategy": "string",
+        "supply-chain": "string"
+      },
+      "topics": [],
+      "topics_chosen": [],
+      "weekly_recap": "boolean"
+    },
+    "/api/profile": {
+      "avatar": "string",
+      "circle": [],
+      "echo_count": "number",
+      "echoes": [],
+      "finished": "number",
+      "follows": {
+        "followers": "number",
+        "following": "number",
+        "friends": "number"
+      },
+      "handle": "string",
+      "interests_max": "number",
+      "interests_pinned": [],
+      "interests_ranked": [],
+      "interests_shown": [],
+      "interests_source": "string",
+      "joined": "number",
+      "known": "boolean",
+      "last_seen": "number",
+      "listener": "string",
+      "mixes": [],
+      "name": "string",
+      "open_threads": "number",
+      "played": "number",
+      "searched": "number",
+      "since": "number",
+      "subjects": []
+    },
+    "/api/topics": {
+      "topics": [
+        {
+          "angle": "string",
+          "coverage": "number",
+          "freshness": "number",
+          "geo": "string",
+          "geo_key": "string",
+          "geo_scope": "string",
+          "icon": "string",
+          "id": "string",
+          "live_as_of": "number",
+          "live_line": "string",
+          "live_status": "string",
+          "query": "string",
+          "source": "string",
+          "subtitle": "string",
+          "tags": [
+            "string"
+          ],
+          "thumb": "string",
+          "thumb_facet": "string",
+          "title": "string"
+        }
+      ]
+    },
+    "/api/vibes": {
+      "count": "number",
+      "folders": [],
+      "vibes": []
+    },
+    "/api/voices": {
+      "default": "string",
+      "selected": "string",
+      "store": "string",
+      "voices": [
+        {
+          "detail": "string",
+          "engine": "string",
+          "id": "string",
+          "label": "string"
+        }
+      ]
+    }
+  },
+  "unrouted_at_cut": [],
+  "version": "2026.09.29"
+}

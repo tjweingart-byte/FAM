@@ -10,6 +10,7 @@ import pathlib
 from dataclasses import dataclass, field
 
 import credentials
+import spend_guard
 import voice_store
 from paths import data_path
 
@@ -131,7 +132,12 @@ def _load_dotenv() -> None:
     # an app that refuses to start has answered a question nobody asked. Loud,
     # because the alternative is falling through to the canned script with no
     # reason given - the silent success this project has lost the most time to.
-    if not os.environ.get("FAM_IGNORE_DOTENV"):
+    #
+    # Zero spend (staging, §172) is decided first and asks the provider
+    # nothing: a secrets manager is where the paid keys live, so the one
+    # deployment that must not hold them does not fetch them.
+    zero_spend = spend_guard.wanted()[0]
+    if not os.environ.get("FAM_IGNORE_DOTENV") and not zero_spend:
         try:
             credentials.load()
         except credentials.SecretsUnavailable:
@@ -139,6 +145,9 @@ def _load_dotenv() -> None:
     for name, value in values.items():
         if name not in os.environ:
             os.environ[name] = value
+    # After every source has been applied, so a key in a .env is removed too,
+    # and before the pool is primed or `Settings` reads anything.
+    spend_guard.apply()
     # Everything is now resolved, so the pool has its final contents. Publish
     # its head: `ANTHROPIC_API_KEYS` is a form only `credentials` reads, and a
     # deployment that set only that would otherwise have keys and send none.

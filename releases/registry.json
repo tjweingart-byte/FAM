@@ -1,0 +1,14 @@
+{
+  "releases": [
+    {
+      "platform": "web",
+      "version": "2026.09.29",
+      "status": "supported",
+      "released": "2026-09-29",
+      "commit": "2367e2fe16bdefe89ab580f2feceaab31610559e",
+      "contract": "releases/contracts/web-2026.09.29.json",
+      "notes": "The first kept release: the web client as it stood when staging was built (\u00a7172).",
+      "archive": "releases/web/2026.09.29"
+    }
+  ]
+}

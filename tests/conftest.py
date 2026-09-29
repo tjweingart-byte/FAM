@@ -208,7 +208,11 @@ NO_EMBED_MODEL = str(pathlib.Path(__file__).resolve().parent / "no-embed-model-h
 #: EXA_API_KEY is read by research.py, and a developer who has one must not run
 #: a different suite from CI - a real retrieval in a test would cost money and
 #: reach the network.
-VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY")
+#: FAM_ENV and ZERO_SPEND are read by spend_guard.py (§172): a developer with
+#: either in their shell would run a suite with every key removed and the
+#: network guard on - a different suite from CI's.
+VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY",
+                     "FAM_ENV", "ZERO_SPEND")
 
 #: Everything the suite clears, in one name so a new group cannot be added to
 #: the list above and forgotten at the two places that use it.
