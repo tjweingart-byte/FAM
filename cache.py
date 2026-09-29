@@ -463,6 +463,15 @@ def _explicit_json(sentences_json) -> bool:
         return False
 
 
+def _voiced_a_slur(sentences_json) -> bool:
+    """Whether kept audio was voiced from a script with a slur in it - one
+    written before the filter (§171). Unreadable is not a slur."""
+    try:
+        return content_filter.has_slur(json.loads(sentences_json or "[]"))
+    except (TypeError, ValueError):
+        return False
+
+
 def pack_audio(pcm: bytes) -> bytes:
     return zlib.compress(pcm, AUDIO_COMPRESSION)
 
@@ -1254,12 +1263,15 @@ class SqliteScriptCache:
     def has_audio(self, key: str, voice: str, sample_rate: int) -> bool:
         try:
             row = self._conn().execute(
-                "SELECT 1 FROM episode_audio a JOIN scripts s ON s.key = a.key"
+                "SELECT a.sentences FROM episode_audio a JOIN scripts s ON s.key = a.key"
                 " WHERE a.key = ? AND a.voice = ? AND a.sample_rate = ?"
                 " AND s.expires >= ?",
                 (key, voice, int(sample_rate), time.time()),
             ).fetchone()
-            return row is not None
+            # Audio `get_audio` would drop (§171) is not audio anybody may be
+            # promised: a guest's tap is let through on this answer, and must
+            # never reach the voice engine because of it.
+            return row is not None and not _voiced_a_slur(row[0])
         except Exception:
             log.exception("audio cache check failed")
             return False
@@ -1268,12 +1280,13 @@ class SqliteScriptCache:
         """Whether any voice's audio is kept for this episode, while its
         script is still readable. See the memory backend's twin."""
         try:
-            row = self._conn().execute(
-                "SELECT 1 FROM episode_audio a JOIN scripts s ON s.key = a.key"
-                " WHERE a.key = ? AND s.expires >= ? LIMIT 1",
+            rows = self._conn().execute(
+                "SELECT a.sentences FROM episode_audio a JOIN scripts s ON s.key = a.key"
+                " WHERE a.key = ? AND s.expires >= ?",
                 (key, time.time()),
-            ).fetchone()
-            return row is not None
+            ).fetchall()
+            # See `has_audio`: audio voiced with a slur in it is not kept audio.
+            return any(not _voiced_a_slur(r[0]) for r in rows)
         except Exception:
             log.exception("audio cache check failed")
             return False
@@ -1298,7 +1311,7 @@ class SqliteScriptCache:
             # Audio voiced before the slur filter (§171) cannot be scrubbed:
             # it is dropped, and the episode is voiced again from the
             # scrubbed script - and kept again, clean.
-            if content_filter.has_slur(json.loads(row[2])):
+            if _voiced_a_slur(row[2]):
                 conn.execute("DELETE FROM episode_audio WHERE key = ?", (key,))
                 return None
             conn.execute(

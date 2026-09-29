@@ -141,6 +141,30 @@ def test_a_go_deeper_tile_closed_with_its_x_is_never_offered_again(client):
         "how tariffs work"]
 
 
+def test_a_go_deeper_x_is_not_not_interested(client):
+    """§171 removed "not interested", and Go Deeper's X must not be it by
+    another door: it closes one suggested follow-up in "Pick up where you
+    left off" and nothing else. No event is logged, so it carries no weight
+    in `taste`, excludes no tile from any myFAM rail, and damps nothing."""
+    user = signed_in(client, "not-a-signal@b.com")
+    client.post("/api/progress", json={"query": "why bonds move", "minutes": 3,
+                                       "seconds": 90})
+    before = appmod.EVENTS.for_user(user)
+    feed_before = client.get("/api/myfam").json()["sections"]
+    assert client.post("/api/godeeper/dismiss",
+                       json={"query": "why bonds move"}).status_code == 200
+    assert appmod.EVENTS.for_user(user) == before, "the X logged a taste event"
+    feed_after = client.get("/api/myfam").json()["sections"]
+    ids = lambda sections: [[t["id"] for t in s["topics"]] for s in sections]
+    assert ids(feed_after) == ids(feed_before), "the X changed the myFAM feed"
+    # And the client sends nothing but the dismiss itself.
+    with open(os.path.join(os.path.dirname(__file__), "..", "static", "index.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    body = html.split("function dismissGoDeeper(", 1)[1].split("\n  }\n", 1)[0]
+    assert "recordFamEvent" not in body and "/api/event" not in body
+
+
 def test_dismissing_a_go_deeper_tile_needs_an_account(client):
     assert client.post("/api/godeeper/dismiss", json={"query": "x"}).status_code == 401
 

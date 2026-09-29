@@ -136,6 +136,10 @@ def test_a_row_written_before_the_filter_is_scrubbed_on_the_way_out(tmp_path):
     # dropped, and the episode is voiced again from the clean script.
     store.put_audio("k", "v", 24000, b"\x00\x00" * 2400,
                     ["He called them a kike.", "It went badly."], [0.0, 0.05])
+    # Not promised to anybody either: a guest's tap is let through on these,
+    # and must never reach the voice engine because of them.
+    assert not store.has_audio("k", "v", 24000)
+    assert not store.has_any_audio("k")
     assert store.get_audio("k", "v", 24000) is None
     assert not store.has_audio("k", "v", 24000)
 
@@ -144,6 +148,7 @@ def test_a_clean_rows_audio_is_still_kept(tmp_path):
     store = SqliteScriptCache(str(tmp_path / "scripts.db"))
     store.put("k", ["It went badly."], 600, "the remark", "", 1, "", "", "someone")
     store.put_audio("k", "v", 24000, b"\x00\x00" * 2400, ["It went badly."], [0.0])
+    assert store.has_audio("k", "v", 24000) and store.has_any_audio("k")
     assert store.get_audio("k", "v", 24000) is not None
 
 

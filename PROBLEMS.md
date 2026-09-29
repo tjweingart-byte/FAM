@@ -13298,7 +13298,17 @@ so they exclude no tile, weigh nothing in `taste` and teach no familiar word;
 the subject sweep still skips them. What a listener does not want is now shown
 only the way it was before 27/09: skips, plays never made, and impression
 fatigue. Go Deeper's X, which closes one suggested follow-up in "Pick up where
-you left off", is a different control and stays.
+you left off", is a different control and stays - and checked in review so it
+is not "not interested" by another door: it writes only the `dismissed` table
+in `saved.py`, which nothing but `/api/godeeper` reads, logs no event, weighs
+nothing in `taste` and changes no myFAM rail
+(`test_a_go_deeper_x_is_not_not_interested` pins all of that).
+
+Found in review: `has_audio`/`has_any_audio` still said yes to audio that
+`get_audio` now drops, and a guest's tap is let through on that answer - so a
+guest could have reached the voice engine. Both now answer no for audio voiced
+from a script with a slur in it. The card's `.leaving` rule, used only by
+`notInterested()`, is gone with it.
 
 Tests: `tests/test_content_filter.py` (what is removed, what is not, the E,
 the cache scrub and dropped audio, `/api/next`), the rewritten not-interested

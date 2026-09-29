@@ -174,4 +174,4 @@ and `limit` = Lines.
 | 13071 | 48 | 168. CLAUDE.md was 186 KB, loaded into every session and every subagent |
 | 13119 | 72 | 169. A failed tile picture cost three images; now it costs one |
 | 13191 | 48 | 170. Go Deeper everywhere, with a length; A-Z interests; no mock status bar |
-| 13239 | 69 | 171. Slurs out, an E for swearing, and no "not interested" |
+| 13239 | 79 | 171. Slurs out, an E for swearing, and no "not interested" |
