@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import math
 import json
 import os
 import sys
@@ -42,7 +43,12 @@ def wav(seconds: float = 4.0, rate: int = 24000) -> bytes:
         out.setnchannels(1)
         out.setsampwidth(2)
         out.setframerate(rate)
-        out.writeframes(b"\x00\x01" * int(seconds * rate))
+        # A 220 Hz tone at about -20 dBFS from the first sample: what the
+        # bank's §174 check wants of a recording (no lead silence, speech-level).
+        out.writeframes(b"".join(
+            int(3200 * math.sin(2 * math.pi * 220 * i / rate)).to_bytes(
+                2, "little", signed=True)
+            for i in range(int(seconds * rate))))
     return buf.getvalue()
 
 

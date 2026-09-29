@@ -80,6 +80,9 @@ def build_chatterbox(monkeypatch, tmp_path) -> tuple:
         sr = 24000
         device = "cuda"
 
+        def prepare_conditionals(self, path, exaggeration=0.5):
+            self.conds = ("conds", path)
+
         def generate(self, text, **kwargs):
             ran.threads.append(threading.current_thread().name)
             return FakeWav()
@@ -90,6 +93,7 @@ def build_chatterbox(monkeypatch, tmp_path) -> tuple:
 
     torch = types.ModuleType("torch")
     torch.inference_mode = contextlib.nullcontext
+    torch.manual_seed = lambda seed: None
     module = types.ModuleType("chatterbox.tts")
     module.ChatterboxTTS = type("T", (), {
         "from_pretrained": staticmethod(from_pretrained)})

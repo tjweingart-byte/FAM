@@ -13399,8 +13399,8 @@ in STAGING.md, because this session may push only to its own branch.
 
 The 29/09 packet, four items.
 
-**1. "The voice ... sometimes has a noticeable southern twang."** Investigated,
-not yet changed - nothing here can play audio, and every candidate fix changes
+**1. "The voice ... sometimes has a noticeable southern twang."** (Fixed in
+§174, below.) Investigated, not yet changed - nothing here can play audio, and every candidate fix changes
 what the production voice sounds like, so each wants a listening test first.
 What the code shows, most likely first:
 
@@ -13461,3 +13461,51 @@ This narrows the §106 rule that no `APP_STORE_URL` draws no door - at the
 owner's direction, and without breaking the reason for it: the front door is a
 real page on the host that served the link. The waitlist wording was the
 alternative offered; there is no waitlist, and sign-up exists, so it says join.
+
+## 174. The voice fixes: seeded chunks, one recording, pinned code, a fingerprint
+
+The owner, on §173's findings: "Make the fixes." All five, and none of them is
+a generation setting - the six numbers in `tts.CHATTERBOX_GENERATION` are the
+voice and did not move.
+
+* **Seeded chunks.** `tts.chunk_seed(reference sha, text)` seeds torch before
+  each `generate`, so a sentence in a voice is the same audio on every run and
+  every card, and the accent is no longer a fresh draw per chunk.
+  `CHATTERBOX_SEEDED=0` restores unseeded sampling. Seeding makes a take
+  reproducible; it does not by itself make two different sentences sound
+  alike - if `--fingerprint` still shows low consistency, a lower temperature
+  is the next lever, and that one needs a listening test.
+* **Prepared once.** `generate(audio_prompt_path=...)` re-read and re-embedded
+  the recording on every chunk. `ChatterboxEngine._condition` prepares it once
+  per (device, recording sha) and sets `model.conds`; a file replaced on disk
+  has a new sha, so it is a new voice rather than a stale cache.
+* **One recording, checked.** Workers put `reference_sha256`,
+  `weights_revision` (from the Hugging Face cache's `refs/main`) and
+  `chatterbox_version` in their identity - `/health` and every registration.
+  `VOICE_REFERENCE_FINGERPRINT` (printed in full by `pack_for_pod.py` now) makes
+  `voice_control.verify` refuse a worker cloning anything else, and makes
+  `ChatterboxEngine.diagnose` refuse at boot on a machine that holds the wrong
+  file. Unset, nothing is refused and `/api/health` says `unpinned`; a worker
+  too old to report is warned about, never refused.
+* **Pinned code.** `chatterbox-tts==0.1.7`, which pins torch and torchaudio
+  2.6.0 itself. The weights are *not* pinned yet: Hugging Face was unreachable
+  from the build container, so the revision to pin is whatever the live pod's
+  `weights_revision` reports.
+* **The recording.** Chatterbox takes the accent from the first six seconds;
+  both `reference_3*.wav` open with ~1.3s of silence and the first is quiet
+  (-25 dBFS speech). The bank now refuses an upload with more than 0.5s of
+  lead silence, speech under -32 dBFS or a rate under 16 kHz
+  (`voice_bank.recording_stats` is the one measurement).
+  `tools/master_reference.py` trims to 0.1s and levels to -20 dBFS into a new
+  file, never the original. The two repo files are still two different takes;
+  which one is canonical is the owner's call, and neither was replaced here.
+* **The fingerprint.** `python verify_voice.py --fingerprint` (on the card)
+  speaks five fixed sentences as separate chunks, embeds each and the
+  recording with Chatterbox's own speaker encoder, and fails on a chunk below
+  0.80 from the recording or two chunks below 0.85 from each other. Those
+  floors are first estimates - calibrate on the first run of a voice that
+  sounds right.
+
+To run on the pod, in order: `python verify_voice.py --fingerprint` (read the
+numbers and the reported sha and weights revision); set
+`VOICE_REFERENCE_FINGERPRINT` on the app and the pod; then listen to an episode.

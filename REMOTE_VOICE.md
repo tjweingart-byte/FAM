@@ -139,7 +139,12 @@ episode.
 **Failing over is not falling back.** Every rung is the same `Dockerfile.voice`
 image, the same weights and the same `reference_3.wav`; a candidate whose
 `/health` reports a sample rate this app has not already written into the
-stream header is *refused* rather than used. What moves is the address. When no
+stream header is *refused* rather than used. The same recording is no longer assumed
+(PROBLEMS.md §174): each worker reports the `reference_sha256` it clones, its
+`weights_revision` and its `chatterbox_version`, and with
+`VOICE_REFERENCE_FINGERPRINT` set (the value `tools/pack_for_pod.py` prints) a worker
+holding any other recording is refused too - set it on the pod as well and the
+worker fails its own boot check instead of speaking in another voice. What moves is the address. When no
 rung can speak the episode fails with the reason attached, exactly as before -
 and every switch is recorded, on `/api/health` and in the log, because §109's
 rule holds here too: never fall back silently.

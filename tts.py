@@ -12,6 +12,7 @@ below are subprocess-based, which is why the abstraction has both shapes.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import pathlib
@@ -336,6 +337,30 @@ CHATTERBOX_GENERATION = {
 }
 
 
+def file_sha256(path) -> str:
+    """The sha256 of a recording, the fingerprint `voice_bank` already uses."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def chunk_seed(reference_sha: str, text: str) -> int:
+    """The sampling seed for one chunk: the voice and the words, nothing else.
+
+    §174. Every chunk used to be a fresh random draw at temperature 0.8, so
+    the accent was re-rolled sentence by sentence and a regenerated episode
+    never sounded like the first one. Seeded from what is being said and whose
+    voice says it, the same sentence in the same voice is the same audio on
+    every card and every run - a take that sounds right stays right, and one
+    that does not can be named and reproduced. Neither the episode nor the
+    chunk's position is in it, so a sentence two episodes share sounds alike.
+    """
+    digest = hashlib.sha256(f"{reference_sha}\n{text}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
+
+
 def pcm_from_float(samples) -> bytes:
     """Float waveform in [-1, 1] to 16-bit little-endian PCM."""
     import numpy as np
@@ -385,6 +410,14 @@ class ChatterboxEngine(TTSEngine):
     _gate: "asyncio.Semaphore | None" = None
     #: Memoised availability, so /api/health does not re-import torch.
     _available: bool | None = None
+    #: (device, recording sha) -> the model's prepared conditionals. Chatterbox
+    #: re-read and re-embedded the recording on every chunk when handed a
+    #: path; the result was identical each time, so it is computed once per
+    #: recording (§174). Keyed on the fingerprint, not the path, so a file
+    #: replaced on disk is a new voice rather than a stale cache.
+    _conds: dict = {}
+    #: path -> (mtime, size, sha): hashing a recording once, not per chunk.
+    _shas: dict = {}
 
     # -- configuration -----------------------------------------------------
 
@@ -395,6 +428,61 @@ class ChatterboxEngine(TTSEngine):
         if configured:
             return pathlib.Path(configured).expanduser()
         return voice_store.voices_dir() / "reference_3.wav"
+
+    @classmethod
+    def reference_sha256(cls, reference: pathlib.Path | None = None) -> str:
+        """The fingerprint of the recording being cloned, or "" if it is missing.
+
+        What a worker reports in its identity (§174), so the app can tell two
+        workers holding different recordings apart before a listener can.
+        """
+        path = pathlib.Path(reference or cls.reference_path())
+        try:
+            stat = path.stat()
+        except OSError:
+            return ""
+        held = cls._shas.get(str(path))
+        if held and held[0] == stat.st_mtime and held[1] == stat.st_size:
+            return held[2]
+        sha = file_sha256(path)
+        cls._shas[str(path)] = (stat.st_mtime, stat.st_size, sha)
+        return sha
+
+    #: Where Chatterbox's weights come from. `from_pretrained` downloads them
+    #: with no revision, so "which weights" is whatever `main` was on the day
+    #: this machine first fetched them.
+    WEIGHTS_REPO = "ResembleAI/chatterbox"
+
+    @classmethod
+    def weights_revision(cls) -> str:
+        """The commit of the weights this machine holds, or "" if unknown.
+
+        Read from the Hugging Face cache's `refs/main`, which records what
+        `main` resolved to when the files were downloaded (§174). Reported by
+        the worker so two pods on different weights can be told apart - the
+        weights are not pinned, and this is how the revision to pin is found.
+        """
+        import os
+
+        roots = []
+        try:
+            from huggingface_hub import constants
+
+            roots.append(pathlib.Path(constants.HF_HUB_CACHE))
+        except Exception:
+            pass
+        home = os.environ.get("HF_HOME")
+        if home:
+            roots.append(pathlib.Path(home) / "hub")
+        roots.append(pathlib.Path.home() / ".cache" / "huggingface" / "hub")
+        folder = "models--" + cls.WEIGHTS_REPO.replace("/", "--")
+        for root in roots:
+            ref = root / folder / "refs" / "main"
+            try:
+                return ref.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+        return ""
 
     @staticmethod
     def rights_path(reference: pathlib.Path) -> pathlib.Path:
@@ -457,6 +545,13 @@ class ChatterboxEngine(TTSEngine):
         cleared, detail = cls.rights_cleared(reference)
         if not cleared:
             return False, detail
+        pinned = settings.voice_reference_sha256
+        if pinned and cls.reference_sha256(reference) != pinned:
+            # §174: the wrong recording is a different voice. Refused here as
+            # well as by the app's ladder, so a worker told the fingerprint
+            # fails its own boot check instead of speaking in someone else's.
+            return False, (f"{reference.name} is not the pinned recording "
+                           f"(VOICE_REFERENCE_FINGERPRINT={pinned[:12]}…)")
         return True, f"{device}, cloning {reference.name}"
 
     @classmethod
@@ -528,22 +623,44 @@ class ChatterboxEngine(TTSEngine):
         return cls._loaded[device]
 
     def _synth_blocking(self, text: str) -> tuple[bytes, int]:
-        """The validated call, unchanged, plus the tensor-to-PCM conversion.
+        """The validated call and settings, plus the tensor-to-PCM conversion.
 
         Clones `self._reference` - the voice `synth` resolved (§147) - or the
-        default recording when nothing resolved one."""
+        default recording when nothing resolved one. Two things changed in
+        §174 and neither is a generation setting: the recording is prepared
+        once rather than per chunk, and the chunk's sampling is seeded from
+        the voice and its words (`CHATTERBOX_SEEDED=0` removes the seed)."""
         import numpy as np
         import torch
 
         reference = getattr(self, "_reference", None) or self.reference_path()
+        sha = self.reference_sha256(reference)
         model = self._model()
         with torch.inference_mode():
-            wav = model.generate(text,
-                                 audio_prompt_path=str(reference),
-                                 **CHATTERBOX_GENERATION)
+            self._condition(model, reference, sha)
+            if settings.chatterbox_seeded:
+                torch.manual_seed(chunk_seed(sha, text))
+            wav = model.generate(text, **CHATTERBOX_GENERATION)
         samples = wav.squeeze(0).detach().cpu().numpy()
         del wav
         return pcm_from_float(samples), int(getattr(model, "sr", self.SAMPLE_RATE))
+
+    @classmethod
+    def _condition(cls, model, reference: pathlib.Path, sha: str) -> None:
+        """Point the model at `reference`'s conditionals, preparing them once.
+
+        The same call `generate(audio_prompt_path=...)` made on every chunk,
+        made once per recording instead; `generate` with no path then uses
+        `model.conds`. Only ever called under the one-generation gate.
+        """
+        key = (str(getattr(model, "device", "")), sha or str(reference))
+        held = cls._conds.get(key)
+        if held is None:
+            model.prepare_conditionals(
+                str(reference), exaggeration=CHATTERBOX_GENERATION["exaggeration"])
+            cls._conds[key] = model.conds
+        else:
+            model.conds = held
 
     async def synth(self, text: str, wpm: float, voice: str | None = None,
                     voice_sha: str = "") -> bytes:

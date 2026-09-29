@@ -116,7 +116,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   respelled for the voice (§165, `pronunciation.py`): EI's brief and the
   writer's `<<SAY: Name = respelling>>` lines feed one lexicon; an admin fix on
   /admin is never overridden; only the text handed to the voice changes -
-  captions, cache and titles keep the real spelling. [op-voice]
+  captions, cache and titles keep the real spelling. Chunks are seeded from
+  voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
+  `verify_voice.py --fingerprint` measures drift (§174). [op-voice]
 - **Voice bank** (§147): only searchFAM picks a voice; other surfaces draw one
   per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]

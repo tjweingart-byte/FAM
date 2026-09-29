@@ -1256,6 +1256,20 @@ class Settings:
     # commercial use and synthetic voice, or the engine reports unavailable.
     chatterbox_reference: str = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_REFERENCE", ""))
+    # Each chunk's sampling is seeded from the voice and the words (§174), so
+    # the same sentence in the same voice comes out the same every time, and
+    # an episode is not a fresh roll of the accent on every chunk. `0` returns
+    # to unseeded sampling, which is what every judgement before §174 heard.
+    chatterbox_seeded: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_SEEDED", "1")
+        not in ("0", "false", "False"))
+    # The fingerprint of the recording every voice worker must clone (§174):
+    # the sha256 `tools/pack_for_pod.py` prints. Set, a worker reporting a
+    # different recording is refused rather than used - a swapped pod used to
+    # change the voice in silence. Blank checks nothing and reports it.
+    voice_reference_sha256: str = field(
+        default_factory=lambda: os.environ.get("VOICE_REFERENCE_FINGERPRINT", "")
+        .strip().lower())
     # Per-machine voice state lives in one shared per-user folder
     # (~/.fam/voices by default), NOT inside the project, so a new version of
     # the app finds it already there instead of fetching it again. This is
