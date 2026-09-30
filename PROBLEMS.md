@@ -13655,3 +13655,57 @@ numbers and the reported sha and weights revision); set
 * Noted, not changed: the bank's stricter upload check would refuse today's
   default `reference_3.wav` (1.3s lead silence) if it were uploaded - stored
   voices and worker materialisation are unaffected, since only `add` checks.
+
+## 177. Tile pictures: a pale edge on every one, and every one the same picture
+
+The owner's review page showed four facet pictures - science, culture,
+health, business - each marked `border` in red and **2 tries**, and read it
+as every picture being painted twice because of the border. It also showed
+the same picture four times: a sunlit room by a big window, a laptop or
+tablet glowing, a person, a plane in the sky and palm trees outside.
+
+**What "2 tries" is.** The count is every painting the subject has had, summed
+across runs and Repaints (`ThumbnailStore.put` adds to it), not attempts in
+one run. Since §169 a border alone never buys a second painting: it is
+cropped off in code (`BORDER_INSET`). A second painting in one run happens
+only for logo, text, person or product, and only with `THUMBNAILS_ATTEMPTS`
+above 1 (the default is 1). The page now says "N paintings in all" with a
+tooltip, and a border that was cropped shows as a green "border cropped"
+(the check records `cropped`), since it cost nothing.
+
+**Why every picture had a pale edge.** The one reference picture fades to
+paper down its right side and in its corners, and the model copies what it is
+shown more closely than what it is told - the note even said "painted edge to
+edge like them" about a picture that is not. `style_references` now cuts the
+reference in by `REFERENCE_INSET` (8%) on every side after trimming paper
+(`_edge_to_edge`), so the model is shown only painted middle. The style asks
+for sky, ground, water or wall painted to every edge.
+
+**Why every picture was the same.** Three things said the same nouns on
+every request. `HOUSE_STYLE` said "strong sunlight", "screens glow" and
+"people may appear" - and a noun in every prompt is in every picture, the
+§169 lesson applied to props. The writer was told to build scenes from
+"today's cars, phones, laptops, headphones and screens" and to make them
+"sunlit and warm" with "a desk by a window" as the example. And the
+reference note said to take the reference's *light*, so every picture got
+its midday sun, and did not say to take nothing else, so the plane and palms
+came too. Now:
+
+- `HOUSE_STYLE` carries the medium, colour depth, full-bleed edges and the
+  wordless surfaces, and says the light and weather are the scene's own. It
+  names no person, screen or sunlight; "calm, expressionless faces on anyone
+  shown" stays for the §169 faces.
+- The writer paints what the topic is about: a person only when the topic is
+  people doing something, a device only when it is about that technology,
+  "never as a default prop"; many topics are a place, nature, food, an animal
+  or one object. It chooses setting, viewpoint and light per topic (close-up
+  or wide, from above, dusk, night, overcast, rain, snow), never a sunlit
+  desk by a window, and no two in a batch share them where that can be
+  helped. Today's equipment is kept for whatever equipment does appear.
+- The reference note takes the medium, brushwork, colour and linework only,
+  and says the reference's subject, objects, setting, sky, light and
+  composition are its own.
+
+**Unseen** with a real key, like §166-§169. Repaint a few facets first and
+look before repainting the tree.
+

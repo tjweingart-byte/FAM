@@ -174,10 +174,18 @@
     $("grid").innerHTML = rows.map(function (t) {
       var ck = t.check || {}, chips = [];
       ["logo", "text", "person", "identifiable_product", "border", "obsolete"].forEach(function (k) {
-        if (k in ck) chips.push('<span class="chip ' + (ck[k] ? "bad" : "ok") + '">' + (ck[k] ? "" : "no ") + k.replace("_", " ") + '</span>');
+        if (!(k in ck)) return;
+        // A fault mended in code (a pale edge cropped off, §169) cost no
+        // second picture and is not a failure.
+        if (ck[k] && (ck.cropped || []).indexOf(k) >= 0) {
+          chips.push('<span class="chip ok">' + k + ' cropped</span>');
+          return;
+        }
+        chips.push('<span class="chip ' + (ck[k] ? "bad" : "ok") + '">' + (ck[k] ? "" : "no ") + k.replace("_", " ") + '</span>');
       });
       if (t.flagged) chips.push('<span class="chip flag">names a real thing</span>');
-      chips.push('<span class="chip">' + t.attempts + ' tries · $' + t.cost_usd + '</span>');
+      // Every painting this subject has ever had, across runs and Repaints.
+      chips.push('<span class="chip" title="Pictures painted for this subject across every run and Repaint">' + t.attempts + (t.attempts === 1 ? ' painting' : ' paintings') + ' in all · $' + t.cost_usd + '</span>');
       // A repaint held beside a live picture shows the new one; Approve puts
       // it live and Reject drops it, leaving the live one on tiles.
       var src = "/api/admin/thumbnails/" + encodeURIComponent(t.node) + "/image?v="

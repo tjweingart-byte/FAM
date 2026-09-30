@@ -105,29 +105,28 @@ CHECK_WIDTH = 768
 #: surfaces") rather than what it is not, because a model with no negative
 #: prompt tends to draw the thing a sentence says to leave out.
 HOUSE_STYLE = (
-    "Vintage-style watercolour and gouache painting of a present-day scene: "
-    "the brushwork, ink linework and light are mid-century, the objects, "
-    "equipment and materials in it are modern. Rich, fairly saturated colour "
-    "in mid and deep tones - racing green, deep sky blue, terracotta clay "
-    "red, ochre, warm grey asphalt - with firm shadows under strong "
-    "sunlight; nothing washed out or pastel. Full-bleed: the paint runs off "
-    "all four edges of the frame at full strength, like a cropped detail of "
-    "a larger painting. One clear subject seen from a slight distance. "
-    "People may appear, facing any way, as ordinary present-day adults with "
-    "calm, neutral, expressionless faces. Screens glow with abstract colour "
-    "and light. Unbranded vehicles and equipment and plain unmarked "
-    "surfaces throughout, wordless and symbol-free."
+    "Vintage-style watercolour and gouache painting: the brushwork, ink "
+    "linework and light are mid-century, and anything made by people in it "
+    "is modern. Rich, fairly saturated colour in mid and deep tones with "
+    "firm shadows; nothing washed out or pastel. The light, weather and "
+    "time of day are the scene's own. Full-bleed: the painted scene fills "
+    "the whole frame and runs off all four edges at full strength, like a "
+    "cropped detail of a larger painting, with sky, ground, water or wall "
+    "painted right to every edge. One clear subject. Plain unmarked "
+    "surfaces throughout, wordless and symbol-free, with calm, "
+    "expressionless faces on anyone shown."
 )
 
 #: Said to Gemini between the reference pictures and the scene, so it takes
 #: the look from them and the subject from the scene - an image model shown
 #: a golf course and asked for a stock exchange otherwise paints a bit of both.
 STYLE_REFERENCE_NOTE = (
-    "The pictures above are the house style. Match their medium, brushwork, "
-    "colour depth, palette and light closely, painted edge to edge like "
-    "them. Do not copy their subjects, vehicles, buildings or composition, "
-    "and draw today's equipment rather than their period objects. Paint "
-    "this scene:"
+    "The pictures above show the house style only: take their medium, "
+    "brushwork, colour depth and ink linework, painted right to every edge "
+    "of the frame. Take nothing else from them - their subject, objects, "
+    "setting, sky, light and composition belong to them. Paint only what "
+    "this scene describes, with today's equipment wherever equipment "
+    "appears:"
 )
 
 WRITER_SYSTEM = (
@@ -141,17 +140,25 @@ WRITER_SYSTEM = (
     "person, character or country. Describe a generic equivalent instead: "
     "'an American football stadium at dusk' rather than any team's, 'a "
     "smartphone' rather than any maker's.\n"
-    "- Build the scene from the topic's objects and places as they are "
+    "- Paint what the topic is actually about, and only that. Many topics "
+    "are best as a place, a landscape, a building, nature, food, an animal "
+    "or a single object, with no people and no devices in them. Put a "
+    "person in the scene only when the topic is about people doing "
+    "something, and a phone, laptop or screen only when the topic is about "
+    "that technology - never as a default prop.\n"
+    "- Whatever equipment, vehicles or technology do appear are as they are "
     "TODAY: current sports equipment, modern stadiums and courts, today's "
-    "cars, phones, laptops, headphones and screens. The painting style is "
-    "vintage; the contents are not. Never an obsolete object standing in "
-    "for the topic - no old radios, rotary phones, typewriters, film "
-    "cameras, wooden rackets, leather footballs, ticker tape or classic "
-    "cars.\n"
-    "- Sunlit and warm, with a sense of place (a stadium, a court, a "
-    "harbour, a street, a desk by a window).\n"
-    "- People may appear, facing any way, as ordinary present-day adults in "
-    "plain clothes with calm, neutral, expressionless faces. Never a real or "
+    "cars and aircraft. The painting style is vintage; the contents are "
+    "not. Never an obsolete object standing in for the topic - no old "
+    "radios, rotary phones, typewriters, film cameras, wooden rackets, "
+    "leather footballs, ticker tape or classic cars.\n"
+    "- Vary the pictures. Choose a setting, viewpoint and light that suit "
+    "each topic rather than a formula: indoors or outdoors, close-up detail "
+    "or wide view, street level or from above; morning, noon, golden hour, "
+    "dusk, night under lamps, overcast, rain or snow. Never default to a "
+    "sunlit desk or table by a window.\n"
+    "- Any people are ordinary present-day adults in plain clothes with "
+    "calm, neutral, expressionless faces, facing any way. Never a real or "
     "famous person, a child, or anyone in a team kit or uniform.\n"
     "- Describe only what IS in the picture. Never mention a thing by "
     "saying it is absent ('chalkboard-free', 'no signs', 'without logos'): "
@@ -160,7 +167,9 @@ WRITER_SYSTEM = (
     "newspapers, book spines, price tags, scoreboards, jerseys, flags, "
     "labels. Screens, monitors and phones show only abstract glowing colour, "
     "never charts, numbers or words.\n"
-    "- Make sibling topics in the batch look different from one another.\n\n"
+    "- Make every topic in the batch look different from the others: no "
+    "two share a setting, viewpoint or time of day where it can be "
+    "helped.\n\n"
     "Set paintable to false, and still write a short scene, only when the "
     "last part of the path, read together with the path before it, is not a "
     "subject someone would listen to an episode about: a filler or function "
@@ -851,6 +860,35 @@ def style_dir() -> Optional[str]:
     return given if os.path.isabs(given) else str(PROJECT_ROOT / given)
 
 
+#: How far in from each edge a reference picture is cut before it is sent.
+REFERENCE_INSET = 0.08
+
+
+def _edge_to_edge(data: bytes, mime: str) -> tuple[bytes, str]:
+    """A reference picture with its edges cut away (§177).
+
+    Watercolours fade to paper at their edges, and an image model copies
+    what it is shown more closely than what it is told: the shipped
+    reference's faded right side and corners were a pale edge on nearly
+    every picture, whatever the prompt said. Shown only painted middle, the
+    model paints to the edge. Without Pillow the picture goes as it is."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return data, mime
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im = _trim_pale_edges(im.convert("RGB"))
+            w, h = im.size
+            dx, dy = int(w * REFERENCE_INSET), int(h * REFERENCE_INSET)
+            im = im.crop((dx, dy, w - dx, h - dy))
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=90)
+            return out.getvalue(), "image/jpeg"
+    except Exception:  # noqa: BLE001 - an unreadable file goes as it is
+        return data, mime
+
+
 def style_references() -> list[tuple[str, str]]:
     """The house style's reference pictures as (mime, base64), read once per
     process. Never raises: a missing folder is no references, which
@@ -870,7 +908,8 @@ def style_references() -> list[tuple[str, str]]:
                 continue
             try:
                 with open(os.path.join(folder, name), "rb") as fh:
-                    found.append((mime, base64.b64encode(fh.read()).decode()))
+                    data, mime = _edge_to_edge(fh.read(), mime)
+                    found.append((mime, base64.b64encode(data).decode()))
             except OSError:
                 continue
             if len(found) == MAX_STYLE_REFERENCES:
@@ -1263,6 +1302,9 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
                     _resize, painting.image, STORED_WIDTH, STORED_HEIGHT,
                     "webp", BORDER_INSET)
                 bad = [b for b in bad if b not in _FIXABLE]
+                # Said on the review page as mended, not as a failure: it
+                # cost no second picture.
+                check = dict(check, cropped=fixed)
             except Exception:  # noqa: BLE001 - left as a failure below
                 pass
         hard = [b for b in bad if b not in _SOFT]

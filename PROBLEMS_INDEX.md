@@ -180,3 +180,4 @@ and `limit` = Lines.
 | 13452 | 71 | 174. The 9.29 packet: six changes |
 | 13523 | 67 | 175. Instant feedback, a bare link for iMessage, Join FAM, and why the voice drifts |
 | 13590 | 69 | 176. The voice fixes: seeded chunks, one recording, pinned code, a fingerprint |
+| 13659 | 54 | 177. Tile pictures: a pale edge on every one, and every one the same picture |

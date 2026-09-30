@@ -225,6 +225,9 @@ def test_a_border_is_cropped_off_and_the_picture_goes_live(tree):
          checker=_checker([dict(CLEAN, border=True)]))
     row = th.store().get("college football")
     assert len(paint.calls) == 1 and row.status == th.STATUS_APPROVED
+    assert row.attempts == 1
+    # Recorded as mended, so the review page does not show it as a failure.
+    assert row.check["cropped"] == ["border"]
     data, _ = th.store().image("college football")
     from PIL import Image
     assert Image.open(io.BytesIO(data)).size == (th.STORED_WIDTH,
@@ -854,3 +857,46 @@ def test_health_says_how_many_paintings_a_node_may_cost(monkeypatch):
     assert th.health()["attempts"] == 1
     _set(monkeypatch, thumbnails_attempts=3)
     assert th.health()["attempts"] == 3
+
+
+# --- §177: no pale edge from the reference; people and devices on merit ----
+
+
+def test_the_reference_is_sent_without_its_faded_edges():
+    pytest.importorskip("PIL")
+    from PIL import Image
+    ref = _bordered((800, 600), (40, 110, 70), border=40)
+    data, mime = th._edge_to_edge(ref, "image/png")
+    im = _open(data)
+    assert mime == "image/jpeg"
+    for xy in ((0, 0), (im.width - 1, 0), (0, im.height - 1),
+               (im.width - 1, im.height - 1)):
+        r, g, b = im.getpixel(xy)
+        assert g < 170 and r < 120, (xy, im.getpixel(xy))
+    # Even with no uniform strip of paper, the edges are cut away.
+    plain = io.BytesIO()
+    Image.new("RGB", (1000, 800), (40, 110, 70)).save(plain, "PNG")
+    data, _ = th._edge_to_edge(plain.getvalue(), "image/png")
+    assert _open(data).size == (1000 - 2 * int(1000 * th.REFERENCE_INSET),
+                                800 - 2 * int(800 * th.REFERENCE_INSET))
+
+
+def test_an_unreadable_reference_goes_as_it_is():
+    assert th._edge_to_edge(b"not a picture", "image/png") == (
+        b"not a picture", "image/png")
+
+
+def test_people_and_devices_only_when_the_topic_is_about_them():
+    # The style sent with every painting names no screen or device and does
+    # not invite people: a noun in every prompt is in every picture.
+    for words in ("screen", "laptop", "phone", "people may appear",
+                  "sunlight", "sunlit"):
+        assert words not in th.HOUSE_STYLE.lower()
+    for words in ("no people and no devices", "only when the topic is about",
+                  "never as a default prop"):
+        assert words in th.WRITER_SYSTEM
+    # And the pictures vary: light and viewpoint are chosen per topic.
+    assert "Sunlit and warm" not in th.WRITER_SYSTEM
+    for words in ("viewpoint", "dusk", "overcast", "close-up"):
+        assert words in th.WRITER_SYSTEM
+    assert "Take nothing else from them" in th.STYLE_REFERENCE_NOTE
