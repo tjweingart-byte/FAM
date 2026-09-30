@@ -47,7 +47,9 @@ FAM_ENVIRONMENT = (
     "CACHE_VECTOR_OVERLAP", "CACHE_VECTOR_SCAN", "CACHE_VECTOR_THRESHOLD",
     "AUDIO_CACHE", "AUDIO_CACHE_MAX_MB",
     "CANONICAL_KEY_MODEL",
-    "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "DURATION_TOLERANCE",
+    "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "CHATTERBOX_SEEDED",
+    "CHATTERBOX_SEED_SALT",
+    "VOICE_REFERENCE_FINGERPRINT", "DURATION_TOLERANCE",
     "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN",
     "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
     "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
@@ -170,7 +172,7 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
-    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB",
+    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -375,6 +377,11 @@ def isolated_stores(tmp_path, monkeypatch):
                         saved_mod.SavedStore(str(here / "saved.db")))
     monkeypatch.setattr(appmod, "SHARES",
                         sharing_mod.ShareStore(str(here / "shares.db")))
+
+    import feedback as feedback_mod
+
+    monkeypatch.setattr(appmod, "FEEDBACK",
+                        feedback_mod.FeedbackStore(str(here / "feedback.db")))
 
 
 @pytest.fixture(autouse=True)

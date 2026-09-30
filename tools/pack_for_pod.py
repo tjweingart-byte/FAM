@@ -154,6 +154,9 @@ def check_reference(reference: pathlib.Path) -> dict:
     shown = f"{size} bytes" if size < 1024 else f"{size / 1024:.0f} KB"
     print(f"voice      {reference.name}  {shown}")
     print(f"  sha256   {digest[:16]}  <- must match on the pod")
+    # The whole fingerprint, in the form the app enforces (§176): set it on
+    # the app and on the pod, and a worker cloning any other file is refused.
+    print(f"           VOICE_REFERENCE_FINGERPRINT={digest}")
     print(f"  rights   {rights.name}: consent, commercial use and synthetic "
           "voice all cleared")
     print("           the full record stays here; the pod gets three booleans")

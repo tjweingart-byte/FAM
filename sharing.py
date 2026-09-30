@@ -128,8 +128,17 @@ TARGETS: tuple[Target, ...] = (
     # `sms:` with a body is what opens Messages - iMessage on an iPhone, the
     # SMS app anywhere else. The `&` after the empty recipient is not a typo:
     # iOS only parses the body parameter in that form.
+    #
+    # **The link and nothing else** (9.29 packet, at the owner's direction).
+    # It used to be a sentence ending in the URL, which Messages shows as one
+    # long run of text with the cursor parked after the link - so adding a
+    # word of your own meant scrolling back through it. A message that is only
+    # a link is drawn by Messages as the preview card (title, length and
+    # picture, from `landing_head`) with the typing line left empty, which is
+    # where the sender's own words belong. The card says what the sentence
+    # said, so nothing is lost.
     Target("sms", "iMessage", "message", 0, False,
-           "Listen to this - {title}. About {minutes} minutes: {url}",
+           "{url}",
            destination="sms:&body={text}"),
     # `mailto:` rather than a Gmail web URL. It reaches whichever mail app the
     # person actually uses - Gmail included - where mail.google.com/compose
@@ -548,6 +557,13 @@ HEAD_MARKER = "<!--FAM_SHARE_HEAD-->"
 DATA_MARKER = "<!--FAM_SHARE_DATA-->"
 
 
+#: Where "Join FAM for free" goes when there is no App Store link: the web
+#: app's front door, which opens on sign-up for a newcomer (`bootToFirstScreen`).
+#: Relative, so it names the host that served the landing page and nothing
+#: else - the same reason `_public_base` reads the request.
+JOIN_PATH = "/"
+
+
 def landing_payload(share: dict, *, url: str, card_url: str = "",
                     app_store: str = "") -> dict:
     """Everything the landing page is allowed to know.
@@ -570,9 +586,16 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "url": url or "",
         "card": card_url or "",
         "app_store": app_store or "",
-        # Whether there is anywhere to send somebody who presses something
-        # that is not play. False means the page draws no such control at all.
+        # Whether the App Store is where the doors go. False means there is
+        # no app to send anybody to - see `join` for where they go instead.
         "has_app": bool(app_store),
+        # "Want to hear more? Join FAM for free" (9.29 packet, at the owner's
+        # direction): the one door drawn whether or not the app is out. With
+        # an App Store link it goes there; without one it goes to this
+        # server's own front door, which opens on sign-up for anybody not
+        # signed in - a real page on the host that served this one, so it is
+        # never a control with nothing behind it.
+        "join": app_store or JOIN_PATH,
     }
 
 

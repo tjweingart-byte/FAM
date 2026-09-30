@@ -125,6 +125,11 @@
     background:none; border:1px solid var(--line); color:var(--paper);
     font-weight:500; font-size:14px;
   }
+  .doors .join-lede{
+    font-family:'Fraunces', Georgia, serif; font-size:19px; font-weight:500;
+    color:var(--paper); margin:0 0 12px;
+  }
+  .door.join{ background:var(--copper); }
   .footnote{
     margin:18px 0 0; font-size:12px; line-height:1.5; color:var(--muted);
   }
@@ -157,7 +162,7 @@
     <section class="doors" id="doors" hidden></section>
   </main>
 
-<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true};</script>
+<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "https://apps.apple.com/app/fam/id0000000000"};</script>
 <script>
 /*
  * FamAudio - streaming speech with transport controls.
@@ -889,19 +894,23 @@ window.FamAudio = (function () {
   // Everything that is not play. Drawn only when there is somewhere for them
   // to go: with no APP_STORE_URL this page is the player and nothing else,
   // because a control with nothing behind it is worse than no control.
+  // "Want to hear more? Join FAM for free" is drawn either way (9.29
+  // packet): to the App Store when there is one, otherwise to this server's
+  // front door, which opens on sign-up. The other doors still need the app.
   var doors = $("doors");
+  var join =
+    '<p class="join-lede">Want to hear more?</p>' +
+    '<button class="door join" data-door="join" type="button">Join FAM for free &rarr;</button>';
+  doors.hidden = false;
   if (share.has_app) {
-    doors.hidden = false;
-    doors.innerHTML =
+    doors.innerHTML = join +
       '<p>This is one episode. FAM makes them about anything you ask.</p>' +
-      '<button class="door" data-door="get" type="button">Get FAM</button>' +
       '<button class="door quiet" data-door="ask" type="button">Ask your own question</button>' +
       '<button class="door quiet" data-door="browse" type="button">Browse episodes</button>';
   } else {
-    doors.hidden = false;
-    doors.innerHTML =
+    doors.innerHTML = join +
       '<p class="footnote">FAM makes an episode about anything you ask. ' +
-      'The app is not out yet - this link plays the episode you were sent.</p>';
+      'Joining is free and opens FAM in your browser.</p>';
   }
 
   // One delegated handler, so a control added later is a door by default
@@ -910,8 +919,9 @@ window.FamAudio = (function () {
     var el = event.target.closest ? event.target.closest("[data-door]") : null;
     if (!el) return;
     event.preventDefault();
-    if (!share.app_store) return;   // cannot happen while has_app draws them
-    window.location.href = share.app_store;
+    var to = share.has_app ? share.app_store : share.join;
+    if (!to) return;
+    window.location.href = to;
   });
 
   // --- listening ----------------------------------------------------------

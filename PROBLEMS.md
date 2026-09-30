@@ -13519,3 +13519,139 @@ The `geo` field stays in the API, because the kept web release still reads
 it. The owner's aim of **at least four episodes per continent** needs GNews
 at scale and is not enforced: an edition is ten stories, so a continent with
 nothing trending is absent rather than padded.
+
+## 175. Instant feedback, a bare link for iMessage, Join FAM, and why the voice drifts
+
+The 29/09 implementations packet (the second, after §174's), four items.
+
+**1. "The voice ... sometimes has a noticeable southern twang."** (Fixed in
+§176, below.) Investigated, not yet changed - nothing here can play audio, and every candidate fix changes
+what the production voice sounds like, so each wants a listening test first.
+What the code shows, most likely first:
+
+* *Different episodes use different voices.* Outside search, every episode
+  draws `voice_bank.random_slug()` (app.py's surface draw, `prefetch.py`,
+  `daily_edition.py`, `trending_bank.py`) from the default plus every bank
+  voice added on /admin, and keeps it in `scripts.voice`. One bank voice with
+  an accent makes myFAM, DailyFAM and Trending sound like that some of the
+  time while search keeps the listener's pick. Check `scripts.voice` for the
+  episodes that sounded off before anything else.
+* *Each chunk is a fresh random sample.* `speech_assembly` cuts 18-45 word
+  chunks; each is its own `model.generate` at temperature 0.8 with no seed set
+  anywhere, so accent and prosody can wander sentence to sentence.
+  Candidate: seed per chunk from (cache key, chunk index); then try a lower
+  temperature / higher `cfg_weight` by ear.
+* *Two different "reference_3" recordings.* `reference_3.wav` and
+  `reference_3wav.wav` are the same length and format but different audio
+  (-26.7 vs -20.1 dBFS, uncorrelated samples, the second ~7 dB brighter at
+  3-8 kHz). The default voice carries no fingerprint (`wire_fields` returns
+  `{}`), the worker reports no reference hash, and failover assumes every rung
+  holds the same file - so a pod swap or a different scp changes the voice in
+  silence. Candidate: report `reference_sha256` in the worker's health and
+  registration and refuse a rung that differs; delete the non-canonical file.
+* *Nothing is pinned.* `chatterbox-tts` and `torch` are unpinned and the
+  weights are fetched with no revision, so a rebuild can pull different code
+  or weights.
+* *The reference is a weak prompt.* Chatterbox conditions accent on the first
+  6 s; the file opens with 1.3 s of silence and is quiet. Candidate: trim,
+  normalise, and have `check_recording` refuse long leading silence.
+
+Before more voices go in, a fingerprint check (fixed sentences, fixed seed,
+speaker-embedding cosine against the reference) turns "sounds off" into a
+number a pod can fail at boot.
+
+**2. Instant feedback.** A button under the phone on the demo page
+(`static/index.html`, `.demo-feedback`; not drawn at phone width, where the
+app is the whole screen) opens a form. The report goes to `POST
+/api/feedback` with the active screen, the client, the viewport and the page;
+the server adds which code answered and, for an account only, who sent it
+(a guest is a device - `app._remembers`). `feedback.py` keeps them in
+`FEEDBACK_DB`; `/admin` has a **Feedback inbox** (open / resolved / all) with
+Resolve and Reopen. Resolving is a toggle, never a delete, so a fixed bug
+keeps its date. Account deletion blanks the id and keeps the report, like the
+ledger. The published preview answers the same route into its own `feedback`
+collection, and the Live database panel resolves rows there.
+
+**3. iMessage.** The body was "Listen to this - {title}. About {minutes}
+minutes: {url}", which Messages shows as one run of text with the cursor
+after the link (the packet's screenshot). It is now the link alone: Messages
+draws the preview card - title, length and picture, from `landing_head` - and
+leaves the typing line empty for the sender's words. The share-sheet fallback
+passes a link-only target as `{url}` for the same reason.
+
+**4. Join FAM.** The landing page draws "Want to hear more? Join FAM for free"
+whether or not the app is out: to the App Store when `APP_STORE_URL` is set,
+otherwise to the front door (`sharing.JOIN_PATH`), which opens on sign-up.
+This narrows the §106 rule that no `APP_STORE_URL` draws no door - at the
+owner's direction, and without breaking the reason for it: the front door is a
+real page on the host that served the link. The waitlist wording was the
+alternative offered; there is no waitlist, and sign-up exists, so it says join.
+
+## 176. The voice fixes: seeded chunks, one recording, pinned code, a fingerprint
+
+The owner, on §175's findings: "Make the fixes." All five, and none of them is
+a generation setting - the six numbers in `tts.CHATTERBOX_GENERATION` are the
+voice and did not move.
+
+* **Seeded chunks.** `tts.chunk_seed(reference sha, text)` seeds torch before
+  each `generate`, so a sentence in a voice is the same audio on every run and
+  every card, and the accent is no longer a fresh draw per chunk.
+  `CHATTERBOX_SEEDED=0` restores unseeded sampling. Seeding makes a take
+  reproducible; it does not by itself make two different sentences sound
+  alike - if `--fingerprint` still shows low consistency, a lower temperature
+  is the next lever, and that one needs a listening test.
+* **Prepared once.** `generate(audio_prompt_path=...)` re-read and re-embedded
+  the recording on every chunk. `ChatterboxEngine._condition` prepares it once
+  per (device, recording sha) and sets `model.conds`; a file replaced on disk
+  has a new sha, so it is a new voice rather than a stale cache.
+* **One recording, checked.** Workers put `reference_sha256`,
+  `weights_revision` (from the Hugging Face cache's `refs/main`) and
+  `chatterbox_version` in their identity - `/health` and every registration.
+  `VOICE_REFERENCE_FINGERPRINT` (printed in full by `pack_for_pod.py` now) makes
+  `voice_control.verify` refuse a worker cloning anything else, and makes
+  `ChatterboxEngine.diagnose` refuse at boot on a machine that holds the wrong
+  file. Unset, nothing is refused and `/api/health` says `unpinned`; a worker
+  too old to report is warned about, never refused.
+* **Pinned code.** `chatterbox-tts==0.1.7`, which pins torch and torchaudio
+  2.6.0 itself. The weights are *not* pinned yet: Hugging Face was unreachable
+  from the build container, so the revision to pin is whatever the live pod's
+  `weights_revision` reports.
+* **The recording.** Chatterbox takes the accent from the first six seconds;
+  both `reference_3*.wav` open with ~1.3s of silence and the first is quiet
+  (-25 dBFS speech). The bank now refuses an upload with more than 0.5s of
+  lead silence, speech under -32 dBFS or a rate under 16 kHz
+  (`voice_bank.recording_stats` is the one measurement).
+  `tools/master_reference.py` trims to 0.1s and levels to -20 dBFS into a new
+  file, never the original. The two repo files are still two different takes;
+  which one is canonical is the owner's call, and neither was replaced here.
+* **The fingerprint.** `python verify_voice.py --fingerprint` (on the card)
+  speaks five fixed sentences as separate chunks, embeds each and the
+  recording with Chatterbox's own speaker encoder, and fails on a chunk below
+  0.80 from the recording or two chunks below 0.85 from each other. Those
+  floors are first estimates - calibrate on the first run of a voice that
+  sounds right.
+
+To run on the pod, in order: `python verify_voice.py --fingerprint` (read the
+numbers and the reported sha and weights revision); set
+`VOICE_REFERENCE_FINGERPRINT` on the app and the pod; then listen to an episode.
+
+**Review, before merging into Main.** Two independent passes over the diff:
+
+* *Feedback pacing (§175).* The per-session pace is keyed on a cookie a
+  script can drop, and its ledger was a class attribute that only ever grew.
+  It is per store and pruned now, and `feedback.GLOBAL_PER_WINDOW` (500 an
+  hour, counted from the table) is the bound that holds - the address is no
+  key behind the router (`app._limit_key`). A 422's list-shaped `detail` no
+  longer reaches the dialog as "[object Object]".
+* *Seeding makes a bad take permanent (§176).* `CHATTERBOX_SEED_SALT` is
+  mixed into every chunk's seed; changing it re-rolls every sentence at once.
+  The prepared-conditionals cache is keyed on exaggeration too, because
+  `generate` rewrites `conds.t3` in place when asked for a different one. A
+  worker that cannot report its recording (RunPod serverless) is warned about
+  once per address, not on every verification.
+* Confirmed against the chatterbox-tts 0.1.7 wheel itself: `prepare_conditionals`,
+  path-less `generate`, `ve.embeds_from_wavs`; `torch.manual_seed` reaches
+  both random sources (T3 sampling and the flow-matching noise).
+* Noted, not changed: the bank's stricter upload check would refuse today's
+  default `reference_3.wav` (1.3s lead silence) if it were uploaded - stored
+  voices and worker materialisation are unaffected, since only `add` checks.

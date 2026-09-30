@@ -145,6 +145,57 @@ def check_rights(record: dict) -> None:
                 "consent, commercial use and synthetic voice all cleared")
 
 
+#: What a reference recording must be to clone well (§176). Chatterbox takes
+#: the accent and prosody from the *first six seconds*, so silence at the
+#: start is conditioning spent on nothing - the default recording opened with
+#: 1.3s of it, a fifth of that window - and a quiet or low-rate file gives it
+#: less of the voice to hold on to, leaving more to the model's own prior.
+MAX_LEAD_SILENCE = 0.5          # seconds before the first speech
+MIN_LOUDNESS_DBFS = -32.0       # RMS of the speech, not of the whole file
+MIN_SAMPLE_RATE = 16000
+#: A frame is speech when it is this far above digital silence.
+SILENCE_DBFS = -45.0
+_FRAME_SECONDS = 0.02
+
+
+def recording_stats(audio: bytes) -> dict:
+    """Length, rate, leading silence, loudness and peak of a 16-bit WAV.
+
+    Shared by the upload check below and `tools/master_reference.py`, so what
+    the bank refuses and what the mastering tool fixes are the same numbers.
+    Loudness and silence are None for anything but 16-bit PCM.
+    """
+    import numpy as np
+
+    with wave.open(io.BytesIO(audio)) as wav:
+        frames, rate = wav.getnframes(), wav.getframerate()
+        width, channels = wav.getsampwidth(), wav.getnchannels()
+        raw = wav.readframes(frames)
+    stats = {"seconds": frames / float(rate or 1), "sample_rate": rate,
+             "channels": channels, "lead_silence": None, "loudness_dbfs": None,
+             "peak_dbfs": None}
+    if width != 2 or not raw:
+        return stats
+    samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    hop = max(1, int(rate * _FRAME_SECONDS))
+    usable = len(samples) // hop * hop
+    if not usable:
+        return stats
+    frames_rms = np.sqrt(np.mean(samples[:usable].reshape(-1, hop) ** 2, axis=1))
+    loud = frames_rms > 10 ** (SILENCE_DBFS / 20)
+    first = int(np.argmax(loud)) if loud.any() else len(frames_rms)
+    stats["lead_silence"] = first * hop / float(rate)
+    speech = frames_rms[loud]
+    if speech.size:
+        rms = float(np.sqrt(np.mean(speech ** 2)))
+        stats["loudness_dbfs"] = float(20 * np.log10(max(rms, 1e-9)))
+    peak = float(np.max(np.abs(samples)))
+    stats["peak_dbfs"] = float(20 * np.log10(max(peak, 1e-9)))
+    return stats
+
+
 def check_recording(audio: bytes) -> float:
     """Refuse anything that is not a usable WAV. Returns its length in seconds."""
     if not audio:
@@ -163,6 +214,22 @@ def check_recording(audio: bytes) -> float:
         raise VoiceBankError(
             f"the recording is {seconds:.1f}s; Chatterbox needs at least a few "
             "seconds of clean speech to clone a voice")
+    if rate < MIN_SAMPLE_RATE:
+        raise VoiceBankError(
+            f"the recording is {rate} Hz; record at {MIN_SAMPLE_RATE} Hz or "
+            "more (24 or 48 kHz is best) so there is a voice to clone")
+    stats = recording_stats(audio)
+    lead = stats["lead_silence"]
+    if lead is not None and lead > MAX_LEAD_SILENCE:
+        raise VoiceBankError(
+            f"the recording starts with {lead:.1f}s of silence; Chatterbox "
+            "learns the accent from the first six seconds, so trim it to start "
+            "on the first word (python tools/master_reference.py does this)")
+    level = stats["loudness_dbfs"]
+    if level is not None and level < MIN_LOUDNESS_DBFS:
+        raise VoiceBankError(
+            f"the speech is quiet ({level:.0f} dBFS); level it to around "
+            "-20 dBFS (python tools/master_reference.py does this)")
     return seconds
 
 

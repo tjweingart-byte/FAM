@@ -116,7 +116,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   respelled for the voice (§165, `pronunciation.py`): EI's brief and the
   writer's `<<SAY: Name = respelling>>` lines feed one lexicon; an admin fix on
   /admin is never overridden; only the text handed to the voice changes -
-  captions, cache and titles keep the real spelling. [op-voice]
+  captions, cache and titles keep the real spelling. Chunks are seeded from
+  voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
+  `verify_voice.py --fingerprint` measures drift (§176). [op-voice]
 - **Voice bank** (§147): only searchFAM picks a voice; other surfaces draw one
   per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
@@ -309,7 +311,8 @@ Accounts, tiers, sharing
   the listener's own (§162), never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; no `APP_STORE_URL` → no door controls drawn; no `user_id`; host from the request (`_public_base`,
+  counted by the page; "Join FAM for free" always drawn - App Store, else the
+  front door (§175) - other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]

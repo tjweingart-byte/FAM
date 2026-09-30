@@ -35,6 +35,13 @@ DELIBERATELY_OPTIONAL = {
     # what it cannot do rather than failing to import.
     "chatterbox": "requirements-chatterbox.txt",
     "torch": "requirements-chatterbox.txt",
+    # Chatterbox's own dependency, asked only where its cache lives so the
+    # worker can say which weights it holds (§176); tts.weights_revision()
+    # falls back to the default cache path when it is missing.
+    "huggingface_hub": "requirements-chatterbox.txt",
+    # Chatterbox's resampler, used by `verify_voice.py --fingerprint`, which
+    # runs only on the card and imports it after checking Chatterbox can run.
+    "librosa": "requirements-chatterbox.txt",
     # A local sentence embedder, if anyone installs one. embeddings.py logs
     # loudly and falls back to the lexical backend when they are missing, so
     # near matching degrades rather than breaking. PROBLEMS.md 68.

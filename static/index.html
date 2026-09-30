@@ -48,6 +48,40 @@
      below were for a desktop visitor and said nothing the app does not. */
   .top, .footnote{ display:none; }
 
+  /* Instant feedback: demo chrome under the phone, never inside it. */
+  .demo-feedback{ margin-top:18px; text-align:center; }
+  .demo-feedback-btn{
+    background:var(--copper); color:var(--ink); border:0; border-radius:22px;
+    padding:10px 20px; font-family:'Space Grotesk', sans-serif; font-size:13.5px;
+    font-weight:600; cursor:pointer;
+  }
+  .demo-feedback-btn:hover{ filter:brightness(1.06); }
+  .demo-feedback-note{ margin:8px 0 0; font-size:12px; color:var(--muted); }
+  .fb-overlay{
+    position:fixed; inset:0; z-index:2000; background:rgba(10,9,18,0.66);
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .fb-overlay[hidden]{ display:none; }
+  .fb-card{
+    width:100%; max-width:440px; background:var(--bg); color:var(--text);
+    border:1px solid var(--border-strong); border-radius:18px; padding:20px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,0.7);
+  }
+  .fb-card h2{ font-family:'Fraunces', serif; font-weight:500; font-size:22px;
+    margin:0 0 6px; color:var(--copper); }
+  .fb-sub{ margin:0 0 14px; font-size:13px; line-height:1.45; color:var(--text-muted); }
+  .fb-text{ resize:vertical; min-height:120px; margin-bottom:8px; line-height:1.45; }
+  .fb-ctx{ margin:0 0 12px; font-family:'JetBrains Mono', monospace; font-size:10.5px;
+    color:var(--text-faint); }
+  .fb-error{ margin:0 0 12px; font-size:12.5px; color:var(--coral); }
+  .fb-btns{ display:flex; gap:8px; justify-content:flex-end; }
+  .fb-cancel, .fb-send{ border-radius:10px; padding:9px 16px; font:600 13px 'Space Grotesk', sans-serif;
+    cursor:pointer; }
+  .fb-cancel{ background:none; border:1px solid var(--border-strong); color:var(--text); }
+  .fb-send{ background:var(--copper); border:0; color:var(--ink); }
+  .fb-send:disabled{ opacity:.55; cursor:default; }
+  @media (max-width:520px){ .demo-feedback{ display:none; } }
+
   .phone::before{
     content:""; position:absolute; top:14px; left:50%; transform:translateX(-50%);
     width:126px; height:26px; background:#0A0912; border-radius:0 0 16px 16px; z-index:20;
@@ -3742,6 +3776,29 @@
     </div>
   </div>
 
+  <!-- Instant feedback (feedback.py): demo chrome, not part of the app. It
+       sits under the phone for whoever is trying the demo, files a bug report
+       with the screen that was showing, and lands in the /admin inbox. On a
+       phone-sized screen the app is the whole screen and this is not drawn. -->
+  <div class="demo-feedback">
+    <button class="demo-feedback-btn" id="feedbackOpen" type="button">Instant feedback</button>
+    <p class="demo-feedback-note">Found a bug? Tell us while it is on screen.</p>
+  </div>
+  <div class="fb-overlay" id="feedbackOverlay" hidden>
+    <form class="fb-card" id="feedbackForm" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+      <h2 id="feedbackTitle">Report a bug</h2>
+      <p class="fb-sub">What happened, and what did you expect? The screen you are on is sent with it.</p>
+      <textarea class="modal-input fb-text" id="feedbackText" maxlength="4000" rows="6"
+                placeholder="e.g. I tapped Refresh on myFAM and the same four tiles came back."></textarea>
+      <p class="fb-ctx" id="feedbackCtx"></p>
+      <p class="fb-error" id="feedbackError" hidden></p>
+      <div class="fb-btns">
+        <button class="fb-cancel" id="feedbackCancel" type="button">Cancel</button>
+        <button class="fb-send" id="feedbackSend" type="submit">Send report</button>
+      </div>
+    </form>
+  </div>
+
   <div class="footnote">Prototype scope: episodes are generated live and streamed as raw audio — no file is created and nothing is converted to MP3 — and myFAM here refers to the renamed Branches feature — the separate social layer (posts, friends, comments) isn't wired up since it isn't part of the initial rollout.</div>
 
 
@@ -3961,6 +4018,70 @@
     clearTimeout(t._timer);
     t._timer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
   }
+
+  // ---------------- Instant feedback ----------------
+  // The demo's bug button (feedback.py). Sends what was typed plus where the
+  // app was - the active screen, the client, the viewport - so a report can
+  // be found again. Who sent it is the server's to say, never the page's.
+  (function(){
+    var overlay = document.getElementById("feedbackOverlay");
+    var openBtn = document.getElementById("feedbackOpen");
+    if(!overlay || !openBtn) return;
+    var text = document.getElementById("feedbackText");
+    var err = document.getElementById("feedbackError");
+    var send = document.getElementById("feedbackSend");
+    function context(){
+      var active = document.querySelector(".screen.active");
+      return {
+        screen: active ? active.id.replace(/^screen-/, "") : "",
+        build: FAM_CLIENT,
+        page: location.pathname + location.search,
+        viewport: window.innerWidth + "x" + window.innerHeight
+      };
+    }
+    function close(){ overlay.hidden = true; openBtn.focus(); }
+    openBtn.addEventListener("click", function(){
+      var c = context();
+      document.getElementById("feedbackCtx").textContent =
+        "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport;
+      err.hidden = true;
+      overlay.hidden = false;
+      text.focus();
+    });
+    document.getElementById("feedbackCancel").addEventListener("click", close);
+    overlay.addEventListener("click", function(e){ if(e.target === overlay) close(); });
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && !overlay.hidden) close();
+    });
+    document.getElementById("feedbackForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      var body = context();
+      body.text = text.value.trim();
+      if(!body.text){
+        err.textContent = "Say what went wrong first.";
+        err.hidden = false; text.focus(); return;
+      }
+      send.disabled = true; err.hidden = true;
+      fetch("/api/feedback", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }).then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if(!r.ok) throw new Error(j.error || (typeof j.detail === "string" && j.detail) || ("The report was not saved (" + r.status + ")."));
+          return j;
+        });
+      }).then(function(){
+        text.value = "";
+        close();
+        toast("Thanks \u2014 your report is in");
+      }).catch(function(ex){
+        // Failures are visible: the words stay in the box to send again.
+        err.textContent = (ex && ex.message) || "The report was not saved. Try again.";
+        err.hidden = false;
+      }).then(function(){ send.disabled = false; });
+    });
+  })();
 
   var pendingFromSearch = false;
   // Tell the viewer whether briefings are coming from Claude or from the
@@ -13709,6 +13830,12 @@
       // share sheet rather than pretending it worked.
     }
     var payload = { title: t.subject || undefined, text: t.text };
+    // A target whose wording is only the link (iMessage) goes to the share
+    // sheet as a link, so the receiving app draws its preview card and leaves
+    // the typing line empty for the sender's own words.
+    if(/^https?:\/\/\S+$/.test(String(t.text || "").trim())){
+      payload = { url: String(t.text).trim() };
+    }
     if(navigator.share){
       navigator.share(payload).catch(function(){});
       return;

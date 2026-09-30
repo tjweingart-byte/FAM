@@ -145,12 +145,15 @@ class Verdict:
     image: str = ""
     commit: str = ""
     latency: float = 0.0
+    #: The recording the worker clones, when it says (§176).
+    reference_sha256: str = ""
 
     def as_dict(self) -> dict:
         out: dict = {"ok": self.ok, "detail": self.detail}
         for name, value in (("contract", self.contract),
                             ("sample_rate", self.sample_rate),
-                            ("image", self.image), ("commit", self.commit)):
+                            ("image", self.image), ("commit", self.commit),
+                            ("reference_sha256", self.reference_sha256)):
             if value:
                 out[name] = value
         if self.latency:
@@ -713,6 +716,10 @@ def _ports(values) -> str:
 
 # -- verifying -------------------------------------------------------------
 
+#: Addresses already warned about for not reporting their recording (§176).
+_UNCHECKED: set = set()
+
+
 async def verify(endpoint: Endpoint) -> Verdict:
     """A real, cheap call, and what it proved. Never raises.
 
@@ -752,6 +759,30 @@ async def verify(endpoint: Endpoint) -> Verdict:
                        contract=verdict.contract,
                        sample_rate=verdict.sample_rate,
                        latency=verdict.latency)
+    pinned = settings.voice_reference_sha256
+    held = verdict.reference_sha256
+    if pinned and held and held != pinned:
+        # Refused rather than used, like the sample rate above: a worker
+        # cloning a different recording is a different voice, and a pod swap
+        # used to change what every listener heard with nothing saying so
+        # (§176). A worker too old to report its recording is not refused -
+        # that would be this check subtracting availability - and the health
+        # page shows it as unchecked.
+        return Verdict(False,
+                       f"the worker clones a different recording (sha256 "
+                       f"{held[:12]}…) from the one this app expects "
+                       f"({pinned[:12]}…); copy the right reference_3.wav to "
+                       "the pod or set VOICE_REFERENCE_FINGERPRINT to the new one",
+                       contract=verdict.contract,
+                       sample_rate=verdict.sample_rate,
+                       reference_sha256=held,
+                       latency=verdict.latency)
+    if pinned and not held and endpoint.key() not in _UNCHECKED:
+        # Once per address: RunPod's serverless health has no identity to
+        # read, and a warning on every verification would bury the log.
+        _UNCHECKED.add(endpoint.key())
+        log.warning("voice worker at %s does not report its recording; "
+                    "VOICE_REFERENCE_FINGERPRINT cannot be checked there", endpoint.url)
     if verdict.contract and verdict.contract != CONTRACT_VERSION:
         # Reported, never refused: an older worker that still serves /synth is
         # a working voice, and taking it away over a version number would be
@@ -760,7 +791,7 @@ async def verify(endpoint: Endpoint) -> Verdict:
                     endpoint.url, verdict.contract, CONTRACT_VERSION)
     return Verdict(True, verdict.detail or "ready", contract=verdict.contract,
                    sample_rate=verdict.sample_rate, image=verdict.image,
-                   commit=verdict.commit,
+                   commit=verdict.commit, reference_sha256=held,
                    latency=verdict.latency or (time.monotonic() - started))
 
 
@@ -808,6 +839,7 @@ async def _verify_http(client, endpoint: Endpoint) -> Verdict:
                    sample_rate=_int(body.get("sample_rate")),
                    image=str(body.get("image") or ""),
                    commit=str(body.get("commit") or ""),
+                   reference_sha256=str(body.get("reference_sha256") or "").lower(),
                    latency=latency)
 
 
@@ -1099,6 +1131,13 @@ def report() -> dict:
         # find a worker (§117). Named for the state, not the variable.
         "plain_http": "allowed" if allow_plain_http() else "refused",
         "held": _state.held.as_dict() if _state.held else None,
+        # Which recording the voice must be (§176): `pinned` when
+        # VOICE_REFERENCE_FINGERPRINT is set and workers are refused on it,
+        # `unpinned` when a pod swap could still change the voice unseen.
+        "reference": {
+            "expected": settings.voice_reference_sha256 or None,
+            "state": "pinned" if settings.voice_reference_sha256 else "unpinned",
+        },
         "verified": _state.verdict.as_dict() if _state.verdict else None,
         "verified_age_seconds": (round(time.time() - _state.verified_at, 1)
                                  if _state.verified_at else None),

@@ -193,7 +193,43 @@ def identity() -> dict:
                    or os.environ.get("RENDER_GIT_COMMIT") or "").strip() or "unknown",
         "host": socket.gethostname(),
         "engine": "chatterbox",
+        # Which recording this worker clones (§176). Two workers holding
+        # different files used to be two voices behind one address, and the
+        # app could not tell; with this it refuses the one that differs from
+        # VOICE_REFERENCE_FINGERPRINT.
+        "reference_sha256": _reference_sha(),
+        # Which Chatterbox weights are on this card, and which package spoke
+        # them (§176): neither can be read off a pod from outside otherwise.
+        "weights_revision": _weights_revision(),
+        "chatterbox_version": _chatterbox_version(),
     }
+
+
+def _weights_revision() -> str:
+    try:
+        from tts import ChatterboxEngine
+
+        return ChatterboxEngine.weights_revision()
+    except Exception:  # pragma: no cover - identity is never load-bearing
+        return ""
+
+
+def _chatterbox_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("chatterbox-tts")
+    except Exception:
+        return ""
+
+
+def _reference_sha() -> str:
+    try:
+        from tts import ChatterboxEngine
+
+        return ChatterboxEngine.reference_sha256()
+    except Exception:  # pragma: no cover - identity is never load-bearing
+        return ""
 
 
 def payload(ready: bool, detail: str, sample_rate: int = 0) -> dict:

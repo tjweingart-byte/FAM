@@ -29,6 +29,8 @@ def _forget_availability():
     yield
     ChatterboxEngine._available = None
     ChatterboxEngine._loaded.clear()
+    ChatterboxEngine._conds.clear()
+    ChatterboxEngine._shas.clear()
 
 
 def voice_with_rights(tmp_path, **overrides):
@@ -271,12 +273,16 @@ def test_warm_up_loads_the_model_so_no_request_pays_for_it(monkeypatch):
         sr = 24000
         device = "cuda"
 
+        def prepare_conditionals(self, path, exaggeration=0.5):
+            self.conds = ("conds", path)
+
         def generate(self, text, **kwargs):
             spoken.append(text)
             return FakeWav()
 
     torch = type(sys)("torch")
     torch.inference_mode = contextlib.nullcontext
+    torch.manual_seed = lambda seed: None
     module = type(sys)("chatterbox.tts")
     module.ChatterboxTTS = type("T", (), {
         "from_pretrained": staticmethod(lambda device: FakeModel())})

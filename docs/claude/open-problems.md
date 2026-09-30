@@ -36,6 +36,14 @@
    GPU, so `RUNPOD_PRODUCTION.md` is the procedure that closes that gap and
    `python verify_voice.py` is the check that says whether a given machine can
    speak at all. **That listening test is the next move.**
+   > **Current:** the voice drifted between episodes and between sentences
+   > *(§175, §176)*. Each chunk is now seeded from the voice and its words
+   > (`CHATTERBOX_SEEDED`), the recording is prepared once per fingerprint,
+   > workers report and are refused on `VOICE_REFERENCE_FINGERPRINT`,
+   > `chatterbox-tts` is pinned, the bank refuses a recording that opens in
+   > silence or is quiet (`tools/master_reference.py` fixes one), and
+   > `python verify_voice.py --fingerprint` measures whether every chunk
+   > sounds like the recording and like each other.
    **Hard names are respelled for the voice** *(§165, `pronunciation.py`)*:
    EI's brief and the writer's `<<SAY: Name = respelling>>` lines (written
    *before* the script) feed one lexicon in the voice bank's database, an

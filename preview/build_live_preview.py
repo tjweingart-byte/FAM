@@ -98,7 +98,7 @@ __MIX_ITEMS__
   // ------------------------------------------------------------ db plumbing
   var db = null, MEM = {}, COLS =
     ["sessions", "accounts", "people", "events", "scripts", "mixes", "echoes",
-     "prefs"];
+     "prefs", "feedback"];
   var cache = {}; COLS.forEach(function (c) { cache[c] = []; });
   var UID = "", EMAIL = "", TOKEN = "";
   //: Conversations, for the life of the page only - see the note on
@@ -1278,6 +1278,21 @@ __WRITING_SIM__
                     summary: (FIXTURES["/api/next"] || {}).summary || "" });
     }
 
+    // Instant feedback (feedback.py): the button under the phone. Kept in the
+    // artifact db, so the panel's `feedback` tab is this demo's inbox and a
+    // report can be resolved there, as /admin does on the server.
+    if (path === "/api/feedback") {
+      var fbText = String(body.text || "").trim();
+      if (!fbText) return json({ error: "Say what went wrong - the report is empty." }, 400);
+      if (fbText.length > 4000) return json({ error: "That is longer than a report can be (4000 characters). Trim it and send it again." }, 400);
+      var fbId = rid();
+      return put("feedback", fbId, {
+        user_id: EMAIL ? UID : "", text: fbText, screen: body.screen || "",
+        build: body.build || "", page: body.page || "", viewport: body.viewport || "",
+        created: now(), resolved_at: 0, state: "open"
+      }).then(function () { paint(); return json({ ok: true, id: fbId }); });
+    }
+
     if (path === "/api/event") {
       if (!EMAIL) return json({ ok: true, remembered: false });
       var tags = body.topic_id && BY_ID[body.topic_id]
@@ -2047,12 +2062,14 @@ __WRITING_SIM__
     sessions: ["id", "user_id", "expires", "last_used"],
     accounts: ["id", "email", "created", "last_login"],
     mixes:    ["name", "user_id", "items", "public"],
-    echoes:   ["user_id", "query", "minutes", "at"]
+    echoes:   ["user_id", "query", "minutes", "at"],
+    prefs:    ["id", "interests", "city", "country"],
+    feedback: ["state", "text", "screen", "created"]
   };
   var FILE = {
     events: "myfam.db", scripts: "scripts.db", people: "social.db",
     sessions: "accounts.db", accounts: "accounts.db", mixes: "mixes.db",
-    echoes: "social.db"
+    echoes: "social.db", prefs: "preferences.db", feedback: "feedback.db"
   };
   var fresh = {}, lastSeenIds = {};
 
@@ -2129,7 +2146,11 @@ __WRITING_SIM__
         return '<tr class="fd-row' + (isNew ? ' new' : '') + (open ? ' open' : '') +
           '" data-row="' + esc(r.id) + '">' + fields.map(function (f) {
             return '<td>' + fmt(COLTAB, r, f) + '</td>';
-          }).join("") + '</tr>' + (open ? document_(r, fields.length) : '');
+          }).join("") + '</tr>' + (open ? document_(r, fields.length) : '') +
+          (open && COLTAB === "feedback"
+            ? '<tr class="fd-doc"><td colspan="' + fields.length + '"><button class="fd-btn" data-fb="' +
+              esc(r.id) + '">' + (r.resolved_at ? "Reopen" : "Resolve") + '</button></td></tr>'
+            : '');
       }).join("") :
         '<tr><td colspan="' + fields.length + '" class="fd-empty">No rows yet in <b>' +
         COLTAB + '</b> &mdash; it lives in <b>' + FILE[COLTAB] + '</b>.</td></tr>') + '</tbody>';
@@ -2231,6 +2252,18 @@ __WRITING_SIM__
       COLTAB = b.getAttribute("data-col"); paint();
     });
     panel.querySelector(".fd-scroll").addEventListener("click", function (e) {
+      // Resolving a report is a toggle on the row, never a delete - the
+      // server's inbox keeps the same shape (feedback.resolve).
+      var fb = e.target.closest("[data-fb]");
+      if (fb) {
+        var rep = rows("feedback").filter(function (x) { return x.id === fb.getAttribute("data-fb"); })[0];
+        if (!rep) return;
+        var next = {}; for (var k in rep) if (k !== "id") next[k] = rep[k];
+        next.resolved_at = rep.resolved_at ? 0 : now();
+        next.state = next.resolved_at ? "resolved" : "open";
+        put("feedback", rep.id, next).then(paint);
+        return;
+      }
       var tr = e.target.closest(".fd-row"); if (!tr) return;
       var id = tr.getAttribute("data-row");
       if (OPEN[id]) delete OPEN[id]; else OPEN[id] = 1;
