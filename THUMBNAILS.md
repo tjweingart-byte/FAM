@@ -68,13 +68,17 @@ What carries it:
   lever. Up to three are sent (sorted by file name); `THUMBNAILS_STYLE_DIR`
   points elsewhere, `0` sends none. Today it is one: the owner's airport
   watercolour, cropped to the terminal, tarmac and car, with the sign cut
-  away and the bonnet crest painted out.
+  away and the bonnet crest painted out. **Its edges are cut away in code
+  before it is sent** (`REFERENCE_INSET`, §177): the watercolour fades to
+  paper on its right side and corners, and the model copied that fade onto
+  nearly every picture.
 - **`HOUSE_STYLE`** in `thumbnails.py`, the same look in words, appended to
   every scene.
 - **The scene writer** is told contents are modern and given a list of
   obsolete stand-ins it may not use.
-- **The checker** fails a picture with a pale border or faded edges, or
-  with obsolete equipment as its subject, and it is painted again.
+- **The checker** flags a pale border or faded edges, which is cropped off
+  in code at no second painting (§169), or obsolete equipment as the
+  subject, which holds the picture for review.
 - **The resize trims unpainted paper** off any edge before the 4:3 crop -
   a strip that is bright *and* grey, so a pale blue sky is kept.
 
@@ -85,8 +89,14 @@ result away at a paid attempt each. A light or pastel reference makes light
 pictures, and one with paper showing at its edges invites a border. Use
 pictures you own or generated yourself; a reference ships in the image.
 
-People are part of the look, facing any way, as ordinary adults with calm,
-expressionless faces (§169). A real or famous person, a child, or anyone in
+People may be part of a picture, facing any way, as ordinary adults with
+calm, expressionless faces (§169) - **only when the topic is about people
+doing something** (§177). A phone, laptop or screen likewise appears only
+when the topic is about that technology, and many pictures are a place,
+nature, food or one object with neither. The style sent with every
+painting names no people, screens or sunlight, because a noun in every
+prompt is in every picture; the writer chooses a setting, viewpoint and
+light per topic and varies them across a batch. A real or famous person, a child, or anyone in
 team kit still fails the checker.
 
 **How the prompt avoids failures rather than catching them** (§169):
