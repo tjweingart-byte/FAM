@@ -35,8 +35,8 @@ Three calls per attempt, and two of them are Claude:
 3. **Claude looks at the result** and answers six yes/no questions: a logo
    or emblem, readable text, a face or a real person, an identifiable real
    product, a pale border or faded edges, obsolete equipment (§167).
-   Small anonymous figures are part of the house style since §166 and
-   pass. Since §169 a failure costs no second image by default: a border
+   Ordinary adults pass (§166, §169), and since §177 a scene has a person
+   or a device in it only when its topic is about one. Since §169 a failure costs no second image by default: a border
    is cropped off in code, and anything else holds the picture for a person
    in `/admin/thumbnails` - never live. `THUMBNAILS_ATTEMPTS` above 1 buys a
    repaint on a logo, text, a real person or a real product. This is the
@@ -105,9 +105,9 @@ CHECK_WIDTH = 768
 #: surfaces") rather than what it is not, because a model with no negative
 #: prompt tends to draw the thing a sentence says to leave out.
 HOUSE_STYLE = (
-    "Vintage-style watercolour and gouache painting: the brushwork, ink "
-    "linework and light are mid-century, and anything made by people in it "
-    "is modern. Rich, fairly saturated colour in mid and deep tones with "
+    "Vintage-style watercolour and gouache painting: the brushwork and ink "
+    "linework are mid-century, and anything made by people in it is "
+    "modern. Rich, fairly saturated colour in mid and deep tones with "
     "firm shadows; nothing washed out or pastel. The light, weather and "
     "time of day are the scene's own. Full-bleed: the painted scene fills "
     "the whole frame and runs off all four edges at full strength, like a "
