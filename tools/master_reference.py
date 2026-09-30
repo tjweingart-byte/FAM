@@ -71,9 +71,14 @@ def master(audio: bytes) -> bytes:
 
 def describe(label: str, audio: bytes) -> None:
     s = voice_bank.recording_stats(audio)
+
+    def num(value, fmt):
+        return "n/a" if value is None else format(value, fmt)
+
     print(f"{label:7s} {s['seconds']:5.2f}s  {s['sample_rate']} Hz  "
-          f"lead silence {s['lead_silence']:.2f}s  "
-          f"speech {s['loudness_dbfs']:.1f} dBFS  peak {s['peak_dbfs']:.1f} dBFS")
+          f"lead silence {num(s['lead_silence'], '.2f')}s  "
+          f"speech {num(s['loudness_dbfs'], '.1f')} dBFS  "
+          f"peak {num(s['peak_dbfs'], '.1f')} dBFS")
 
 
 def main(argv: list[str] | None = None) -> int:

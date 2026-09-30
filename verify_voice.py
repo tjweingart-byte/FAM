@@ -112,7 +112,10 @@ def judge(result: dict, match_floor: float = MATCH_FLOOR,
 def _floor(flag: str, default: float) -> float:
     args = sys.argv[1:]
     if flag in args:
-        return float(args[args.index(flag) + 1])
+        try:
+            return float(args[args.index(flag) + 1])
+        except (IndexError, ValueError):
+            raise SystemExit(f"{flag} needs a number, e.g. {flag} {default}")
     return default
 
 

@@ -66,6 +66,24 @@ def test_a_chunk_seed_is_the_voice_and_the_words_and_nothing_else():
     assert 0 <= a < 2 ** 31
 
 
+def test_a_salt_rerolls_every_sentence(monkeypatch, tmp_path):
+    """Seeding makes a bad take permanent; the salt is the way out of one."""
+    assert tts.chunk_seed("sha", "Same words.", "take-2") != \
+        tts.chunk_seed("sha", "Same words.")
+    calls, reference = _fake_card(monkeypatch, tmp_path)
+    _settings(monkeypatch, tts, chatterbox_seed_salt="take-2")
+    ChatterboxEngine()._synth_blocking("Same words.")
+    sha = ChatterboxEngine.reference_sha256(reference)
+    assert calls.seeds == [tts.chunk_seed(sha, "Same words.", "take-2")]
+
+
+def test_mastering_describes_a_silent_file_without_crashing(capsys):
+    from tools import master_reference
+
+    master_reference.describe("before", tone(amplitude=0))
+    assert "n/a" in capsys.readouterr().out
+
+
 def _fake_card(monkeypatch, tmp_path):
     """A model that records what it was asked, and a torch that records seeds."""
     import numpy as np

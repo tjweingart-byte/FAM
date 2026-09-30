@@ -29,6 +29,8 @@ def _forget_availability():
     yield
     ChatterboxEngine._available = None
     ChatterboxEngine._loaded.clear()
+    ChatterboxEngine._conds.clear()
+    ChatterboxEngine._shas.clear()
 
 
 def voice_with_rights(tmp_path, **overrides):

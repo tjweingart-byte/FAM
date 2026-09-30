@@ -716,6 +716,10 @@ def _ports(values) -> str:
 
 # -- verifying -------------------------------------------------------------
 
+#: Addresses already warned about for not reporting their recording (§176).
+_UNCHECKED: set = set()
+
+
 async def verify(endpoint: Endpoint) -> Verdict:
     """A real, cheap call, and what it proved. Never raises.
 
@@ -773,7 +777,10 @@ async def verify(endpoint: Endpoint) -> Verdict:
                        sample_rate=verdict.sample_rate,
                        reference_sha256=held,
                        latency=verdict.latency)
-    if pinned and not held:
+    if pinned and not held and endpoint.key() not in _UNCHECKED:
+        # Once per address: RunPod's serverless health has no identity to
+        # read, and a warning on every verification would bury the log.
+        _UNCHECKED.add(endpoint.key())
         log.warning("voice worker at %s does not report its recording; "
                     "VOICE_REFERENCE_FINGERPRINT cannot be checked there", endpoint.url)
     if verdict.contract and verdict.contract != CONTRACT_VERSION:

@@ -346,7 +346,7 @@ def file_sha256(path) -> str:
     return digest.hexdigest()
 
 
-def chunk_seed(reference_sha: str, text: str) -> int:
+def chunk_seed(reference_sha: str, text: str, salt: str = "") -> int:
     """The sampling seed for one chunk: the voice and the words, nothing else.
 
     §176. Every chunk used to be a fresh random draw at temperature 0.8, so
@@ -356,8 +356,13 @@ def chunk_seed(reference_sha: str, text: str) -> int:
     every card and every run - a take that sounds right stays right, and one
     that does not can be named and reproduced. Neither the episode nor the
     chunk's position is in it, so a sentence two episodes share sounds alike.
+
+    `salt` (`CHATTERBOX_SEED_SALT`) is the way out of a bad take: a seeded
+    sentence that came out wrong comes out wrong every time, so changing the
+    salt re-rolls every sentence at once while keeping them reproducible.
     """
-    digest = hashlib.sha256(f"{reference_sha}\n{text}".encode("utf-8")).digest()
+    digest = hashlib.sha256(
+        f"{reference_sha}\n{salt}\n{text}".encode("utf-8")).digest()
     return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
 
 
@@ -639,7 +644,7 @@ class ChatterboxEngine(TTSEngine):
         with torch.inference_mode():
             self._condition(model, reference, sha)
             if settings.chatterbox_seeded:
-                torch.manual_seed(chunk_seed(sha, text))
+                torch.manual_seed(chunk_seed(sha, text, settings.chatterbox_seed_salt))
             wav = model.generate(text, **CHATTERBOX_GENERATION)
         samples = wav.squeeze(0).detach().cpu().numpy()
         del wav
@@ -653,11 +658,14 @@ class ChatterboxEngine(TTSEngine):
         made once per recording instead; `generate` with no path then uses
         `model.conds`. Only ever called under the one-generation gate.
         """
-        key = (str(getattr(model, "device", "")), sha or str(reference))
+        exaggeration = CHATTERBOX_GENERATION["exaggeration"]
+        # Exaggeration is in the key because `generate` rewrites `conds.t3` in
+        # place when asked for a different one - a shared cache entry must
+        # never be one call's edit of another's.
+        key = (str(getattr(model, "device", "")), sha or str(reference), exaggeration)
         held = cls._conds.get(key)
         if held is None:
-            model.prepare_conditionals(
-                str(reference), exaggeration=CHATTERBOX_GENERATION["exaggeration"])
+            model.prepare_conditionals(str(reference), exaggeration=exaggeration)
             cls._conds[key] = model.conds
         else:
             model.conds = held

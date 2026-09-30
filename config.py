@@ -1274,7 +1274,12 @@ class Settings:
     # to unseeded sampling, which is what every judgement before §176 heard.
     chatterbox_seeded: bool = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEEDED", "1")
-        not in ("0", "false", "False"))
+        .strip().lower() not in ("0", "false", "no", "off"))
+    # Mixed into every chunk's seed. Seeding makes a bad take permanent -
+    # the same sentence comes out the same way every time - so changing this
+    # re-rolls every sentence at once. Blank is the default roll.
+    chatterbox_seed_salt: str = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_SEED_SALT", "").strip())
     # The fingerprint of the recording every voice worker must clone (§176):
     # the sha256 `tools/pack_for_pod.py` prints. Set, a worker reporting a
     # different recording is refused rather than used - a swapped pod used to

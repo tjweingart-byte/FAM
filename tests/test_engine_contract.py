@@ -105,6 +105,8 @@ def build_chatterbox(monkeypatch, tmp_path) -> tuple:
                         staticmethod(lambda: tmp_path / "reference_3.wav"))
     monkeypatch.setattr(ChatterboxEngine, "_available", True)
     ChatterboxEngine._loaded.clear()
+    ChatterboxEngine._conds.clear()
+    ChatterboxEngine._shas.clear()
     ChatterboxEngine._gate = None
     return ChatterboxEngine(), ran
 

@@ -13634,3 +13634,24 @@ voice and did not move.
 To run on the pod, in order: `python verify_voice.py --fingerprint` (read the
 numbers and the reported sha and weights revision); set
 `VOICE_REFERENCE_FINGERPRINT` on the app and the pod; then listen to an episode.
+
+**Review, before merging into Main.** Two independent passes over the diff:
+
+* *Feedback pacing (§175).* The per-session pace is keyed on a cookie a
+  script can drop, and its ledger was a class attribute that only ever grew.
+  It is per store and pruned now, and `feedback.GLOBAL_PER_WINDOW` (500 an
+  hour, counted from the table) is the bound that holds - the address is no
+  key behind the router (`app._limit_key`). A 422's list-shaped `detail` no
+  longer reaches the dialog as "[object Object]".
+* *Seeding makes a bad take permanent (§176).* `CHATTERBOX_SEED_SALT` is
+  mixed into every chunk's seed; changing it re-rolls every sentence at once.
+  The prepared-conditionals cache is keyed on exaggeration too, because
+  `generate` rewrites `conds.t3` in place when asked for a different one. A
+  worker that cannot report its recording (RunPod serverless) is warned about
+  once per address, not on every verification.
+* Confirmed against the chatterbox-tts 0.1.7 wheel itself: `prepare_conditionals`,
+  path-less `generate`, `ve.embeds_from_wavs`; `torch.manual_seed` reaches
+  both random sources (T3 sampling and the flow-matching noise).
+* Noted, not changed: the bank's stricter upload check would refuse today's
+  default `reference_3.wav` (1.3s lead silence) if it were uploaded - stored
+  voices and worker materialisation are unaffected, since only `add` checks.
