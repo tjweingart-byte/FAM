@@ -55,10 +55,10 @@ def test_find_new_friends_is_a_pill_with_a_plus():
     assert "border-radius" in rule and "background" in rule
 
 
-def test_your_own_page_draws_no_interests_but_a_friends_does():
+def test_your_own_page_draws_interests_as_one_line_like_a_friends():
+    # Reversed by the 9.30 packet (#4): both pages draw the one-line row.
     own = _function("renderProfile")
-    assert "yf-chip" not in own and "interests_shown" not in own
-    # A friend's profile keeps its chips.
+    assert "interestLineHTML(" in own and "interests_shown" in own
     assert "interestChipsHTML(personInterests" in INDEX
 
 

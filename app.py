@@ -30,7 +30,7 @@ from fastapi import Response
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
@@ -3036,12 +3036,70 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
 # an admin may read them.
 
 
+class FeedbackEpisode(BaseModel):
+    """The episode on the player when a report was typed there: the words it
+    was asked for, keyed the way `/api/next` keys them.
+
+    Nothing here can refuse the report it rides on: over-long words are cut
+    (a key that no longer matches finds nothing, and the report is kept), and
+    minutes are whatever the page said, checked when the key is built.
+    `title` is accepted from older pages and ignored - what the inbox shows is
+    read from the cache, never taken from the page."""
+    q: str = ""
+    minutes: int = 0
+    context: str = ""
+    title: str = ""
+
+    @field_validator("q", "context", "title", mode="before")
+    @classmethod
+    def _cut(cls, value):
+        return str(value or "")[:500]
+
+    @field_validator("minutes", mode="before")
+    @classmethod
+    def _whole(cls, value):
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+
 class FeedbackRequest(BaseModel):
     text: str = Field("", max_length=feedback_mod.MAX_TEXT + 500)
     screen: str = Field("", max_length=500)
     build: str = Field("", max_length=500)
     page: str = Field("", max_length=2000)
     viewport: str = Field("", max_length=500)
+    episode: Optional[FeedbackEpisode] = None
+
+
+async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
+    """Title, sources and transcript of the episode a report was filed on
+    (9.30 #6), read from the cache and the live track under the episode's own
+    key - the same lookups as `/api/next`, `/api/sources` and
+    `/api/transcript`, so the inbox shows what the listener was hearing.
+
+    **Never generates** and never raises: a report is kept whether or not its
+    episode can be found. The page names only the question; everything kept
+    is read here, so a report cannot plant a transcript of its own.
+    """
+    if ep is None or not ep.q.strip():
+        return None
+    minutes = ep.minutes or DEFAULT_MINUTES
+    title, sources, sentences = "", {}, []
+    try:
+        plan = _validated_plan(ep.q, minutes, ep.context)
+        pipeline = _make_pipeline()
+        meta = await pipeline.episode_meta(plan)
+        title = meta.get("title") or title
+        sources = provenance_mod.Provenance.from_json(
+            await pipeline.sources_for(plan)).as_dict()
+        sentences, _live, _done = await pipeline.captions_for(plan)
+    except HTTPException:
+        pass
+    except Exception:  # noqa: BLE001 - the report matters more than its attachment
+        log.exception("could not read the episode for a feedback report")
+    return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences)
 
 
 @app.post("/api/feedback")
@@ -3050,6 +3108,16 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
     body, and is recorded only for an account; a guest is paced by session
     and kept anonymous."""
     listener = _listener(request)
+    episode = None
+    if req.episode is not None and req.text.strip():
+        # The same pace as the lookups it repeats (`/api/next` and friends) -
+        # but a listener past it loses the episode's details, never the
+        # report they typed.
+        try:
+            _read_limit(request)
+            episode = await _feedback_episode(req.episode)
+        except HTTPException:
+            log.info("feedback: over the read pace; kept without its episode")
     try:
         report = FEEDBACK.add(
             req.text, user_id=listener if _has_account(request) else "",
@@ -3061,7 +3129,7 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
             page=req.page,
             viewport=req.viewport,
             agent=request.headers.get("user-agent", ""),
-            throttle_key=listener)
+            throttle_key=listener, episode=episode)
     except feedback_mod.FeedbackError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"]}

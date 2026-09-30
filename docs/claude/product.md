@@ -299,6 +299,8 @@ earn the next tap on their own, which is what the predicted follow-up and the
 prefetch plan are for.
 
 <!-- rule:post-episode-grid -->
+> **Current (PROBLEMS.md §178):** the lead tile - the one the countdown is on - is always Go Deeper's own suggestion (the `<<NEXT:>>` line, else the title-built follow-up) and plays as a Go Deeper follow-up at the episode's length; the album's next episode, when there is one, is second; the ranking fills the rest. A search box sits above "Back to myFAM": touching it stops the countdown for that card, and what is typed plays as a follow-up on the episode that ended.
+
 **Part of that is now paid back after the episode rather than inside it**
 (PROBLEMS.md §70). When one finishes on the player, four recommendations appear
 in a grid and the first starts itself in fifteen seconds - it was five, which

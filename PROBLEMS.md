@@ -13709,3 +13709,140 @@ came too. Now:
 **Unseen** with a real key, like §166-§169. Repaint a few facets first and
 look before repainting the tree.
 
+
+## 178. The 9.30 packet: seven changes, and the Commanders episode
+
+The 9.30 implementations packet, in its order.
+
+**1. The logo on a shared episode's page.** The landing page (`static/listen.html`)
+wrote "FAM" in spaced monospace capitals. It draws the app's own mark now - the
+F, the two chevrons and the M, the same three paths as `index.html`'s
+`.fam-logo`, copied because the page loads no other stylesheet. It is still a
+`data-door`.
+
+**2. What's next leads with Go Deeper's suggestion, and has a search box.** The
+lead tile - the one the fifteen-second countdown is on - is now exactly what
+Go Deeper would offer: the episode's `<<NEXT:>>` line, else the follow-up built
+from its title (`nextUpFallback`, the same sentence as `goDeeperFallback`), and
+it plays the way Go Deeper does (`startFollowUp`, factored out of
+`confirmGoDeeper`): a follow-up on the episode that ended, at its length. The
+album's next episode is second when there is one - it used to take the lead,
+which the owner's rule now puts behind the follow-up. A search box sits above
+"Back to myFAM"; focusing, tapping or typing in it stops the countdown for that
+card (`pauseNextUp` freezes the bar and says "Paused"), and what is typed plays
+as a follow-up on the episode that ended, so "and what about the defence" means
+something.
+
+**3 and 5. Sports numbers, and the worst episode in a while.** The episode
+quoted in the packet argued with its own sources for a paragraph - a CBS
+gametracker, a Yahoo odds piece and "a third item" - before landing on a
+record. The third item was a Madden online league's write-up
+(`2kolf.com/...commanders-top-colts-45-31-in-week-4`), a simulated result for
+a game not yet played. Three causes, three fixes:
+
+* *The live lookup knew one thing.* API-Sports answered a game's score and
+  status and nothing else, and only for a game on today's card (`live=all`) -
+  so a question on Tuesday about Sunday's game found nothing, and every number
+  about the teams came from articles. Now, for the NFL (`Sport.team_league`),
+  a game not on the card is found on the teams' own season schedules
+  (`/teams` for the league, cached a day; `/games?team=&season=`, cached ten
+  minutes and re-read whenever it holds a game that may have moved), by the
+  provider's catalogue and never a model's guess. Beside the game's state the
+  writer gets each team's **record, counted in code** from regular-season
+  finals (pre-season never counts), its last result and its next game with
+  kick-off and venue (`season_facts`). A game that has not started never has
+  a score - a pre-game tracker's nought-nought was being read as "level".
+  Cost: about two extra requests per lookup when the schedules are cold.
+* *The writer was told to argue.* "If sources disagree, say so ... disagreement
+  is usually the most interesting part" and the live block's "say so in
+  passing" produced exactly that paragraph. A disagreement about a view or a
+  forecast is still worth saying; one about a fact - a score, a record, a
+  date, who played whom - is now resolved silently: say the better-supported
+  reading, never the argument, never a source. The live block says every
+  number comes from it.
+* *Nothing kept a sim league out.* `research.screen_results` runs before the
+  packet is built, on every retriever: a page marked as a simulated or
+  video-game league (`SIMULATION_MARKERS`, `SIMULATION_HOSTS`) is dropped
+  unless the question is about one, and on a sports question an unknown
+  outlet is dropped once two known ones answered - the unknown ones are where
+  stray results live. The league sites (nfl.com and the rest) are graded
+  primary, and the main sports outlets and reference sites established.
+  Dropped pages are logged with their hosts.
+
+*Is API-Sports enough?* For what this episode got wrong - scores, schedules,
+records, results - yes: they are the provider's own data, counted in code.
+What it does not give FAM is the news layer around a team: who is injured,
+who starts at quarterback, trades. Those still come from articles, now
+screened. If that layer has to be exact too, the options, none verified from
+here: **SportsDataIO** (adapter already in `live_sources.py`; injuries, depth
+charts, player stats; sales-gated, and its trial key returns scrambled data),
+**MySportsFeeds** (self-serve, cheap, injuries and lineups for the four US
+leagues), and **Sportradar** (the NFL's official data partner; enterprise
+pricing). ESPN's public JSON is free but unlicensed and undocumented, and is
+not recommended. **Unverified here:** the container blocks API-Sports, so the
+team path is pinned against recorded shapes; run `python tools/verify_live.py
+--domain sports --query "Colts Commanders"` with the key before trusting it,
+and listen to one NFL episode.
+
+**4. Interests as one line on a profile.** Reverses §174's first item at the
+owner's direction: your own YourFAM page draws its interests again, but as one
+line under Edit profile and Saved for Later - "Interests", then the pills in a
+row that scrolls left to right (`interestLineHTML`, `.yf-chips-line`) rather
+than a wrapping block. A friend's page draws theirs the same way. Each pill
+still opens the Topic screen; they are still changed in Edit profile.
+
+**6. A report from the player carries its episode.** Instant feedback typed
+on the player (`player`, `playall`) sends the words that key the episode
+playing; the server reads its title, sources and transcript from the cache
+and the live track under that key - the same lookups as `/api/next`,
+`/api/sources` and `/api/transcript` - and keeps a copy in the report
+(`feedback.episode_snapshot`, a new `episode` column added by migration),
+because the cache keeps an episode a week and a report outlives it. The page
+names only the question, so a report cannot plant a title or a transcript. It never
+generates and never costs the report: an episode that cannot be read leaves
+an empty snapshot. The /admin inbox and the preview's Live database panel
+have an **Episode** button that opens title, sources (linked) and transcript.
+
+**7. Every node its own picture.** A tile showed the deepest node the tree
+found *that had a picture*, so while a node waited for its painting the tile
+wore its parent's - and every tile under a branch wore the facet's one
+picture. `thumbnails.pick` now shows the tile's own node's picture (its
+deepest match, else its declared facet) or the line drawing, never an
+ancestor's; a node asked for without one is remembered (`asked_for`) and the
+sweep paints those first. And a new painting within `DUPLICATE_BITS` (6 of
+64) of another node's stored picture, by difference hash, is held for review
+as "same picture as X" rather than put live. Expect more line drawings until
+the tree is painted: that is the price of no picture being shared.
+
+**Review, before merging into Main.** An independent pass over the diff found
+seven real faults, all fixed with a test each:
+
+* *A report could be lost.* The episode lookup was paced by the read limit
+  outside any guard, so a listener whose player had been polling got a 429
+  and lost what they typed; and an over-long title or query was a 422. The
+  pace now costs only the episode's details, and the episode's words are cut,
+  never refused. The page's own title is no longer stored at all - the inbox
+  shows only what the server read.
+* *The team path could cost the lookup.* Its requests were uncaught and
+  unbounded, so a slow or refused `/teams` failed the whole resolve before
+  today's live games were tried. It now has `TEAM_PATH_SHARE` of the time and
+  falls through; the teams' seasons have what is left of the fetch's time,
+  and never cost the game its own facts.
+* *Days were UTC days.* Sunday Night Football kicks off on Monday in UTC, so
+  every prime-time game had the wrong day in the one block the writer is told
+  to take every date from. Days and kick-offs are said in the league's zone
+  (`Sport.local_zone`: "Sunday 11 October at 8:20 pm Eastern").
+* *A record from absence.* An empty or unreadable schedule said a team had
+  "not finished a regular-season game yet". It now says nothing unless the
+  schedule shows the regular season still ahead of them.
+* *The sim screen caught real pages.* `cfm` matched every ColdFusion URL, and
+  "madden" matched John Madden. Markers are the game's own phrasings, over
+  title and passages only, never the URL.
+* Also: a postponed game no longer makes a schedule re-read on every lookup
+  (`UNSETTLED_HOURS`); a live game refreshes its own row inside the cached
+  schedules instead of costing two more requests; a city followed by another
+  team's name ("Houston Rockets") and the AFC/NFC all-star sides no longer
+  match; the countdown bar cannot keep emptying when paused before it
+  started; the tile-picture queue remembers asked-for nodes before anything
+  is approved; and a duplicate is judged only against pictures that are, or
+  may become, live.

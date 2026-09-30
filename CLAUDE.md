@@ -89,9 +89,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
   line, else one built from the title - a box, and a 1-5 minute length (§170). [next-is-prediction]
-- After an episode: four recommendations, first auto-starts in **15s**; order is
-  album next → `<<NEXT:>>` → ranking's pick; tiles are `topics.rank_next_up`
-  over both inventories; not on Explore / Explore New. [post-episode-grid]
+- After an episode: four recommendations, first auto-starts in **15s**; the lead
+  is Go Deeper's own suggestion, played as its follow-up (§178), then album next,
+  then `topics.rank_next_up` over both inventories; a search box above Back
+  stops the countdown; not on Explore / Explore New. [post-episode-grid]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
 ## The writing problem  (`product.md`)
@@ -179,7 +180,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **YourFAM** (profile) reads only real data; Settings gathers everything
   changeable; identity step after sign-up only; `identityMode`/`introMode` decide
   X, button label and return target; a settings row is an editor, never the
-  first run again; **your own page draws no interests** (§174) - Edit profile
+  first run again; interests are **one sideways-scrolling line** under Edit
+  profile / Saved for Later on yours and a friend's page (§178) - Edit profile
   holds the five, ranked by `taste`; "Find new friends" is a pill; showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
@@ -219,7 +221,8 @@ Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
   ladder - backend, backend without window, GDELT - defined once in
   `research.ladder()`; **no model web search** (deleted §135); no rung raises;
-  every fallback recorded; `NoEvidence` refuses only current-dependent questions,
+  every fallback recorded; sim-league pages and (on sports) unknown outlets
+  are screened out (§178); `NoEvidence` refuses only current-dependent questions,
   refunds, never refuses evergreen or attachments; EI writes `Brief.broader`. [always-researched]
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
@@ -237,7 +240,8 @@ Research and truth
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
   catalogue, never a model; seven lookup outcomes; freshness enforced in code,
-  stale data withheld. Don't claim live scores until a provider returns them. [live-facts]
+  stale data withheld; NFL records, last and next games are counted from the
+  provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured

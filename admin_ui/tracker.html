@@ -93,6 +93,13 @@
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
   .report.done .text { color:var(--muted); }
+  /* The episode a report was typed on (9.30 #6), behind its button. */
+  .report .acts { display:flex; flex-direction:column; gap:6px; flex:none; }
+  .report .ep { margin:8px 0 2px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; }
+  .report .ep h3 { margin:0 0 4px; font-size:14px; }
+  .report .ep h4 { margin:10px 0 4px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
+  .report .ep ol { margin:0; padding-left:18px; font-size:12.5px; }
+  .report .ep .transcript { white-space:pre-wrap; font-size:12.5px; line-height:1.5; margin:0; max-height:320px; overflow:auto; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -494,9 +501,14 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
                    r.viewport, r.user_id ? "account " + r.user_id : "guest",
                    done ? "resolved " + when(r.resolved_at) : ""].filter(Boolean).join(" · ");
         return '<div class="report' + (done ? " done" : "") + '"><div class="body">' +
-          '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div></div>' +
+          '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
+          (r.episode ? '<div class="ep" id="ep-' + esc(r.id) + '" hidden>' + episodeHTML(r.episode) + '</div>' : '') +
+          '</div><div class="acts">' +
           '<button class="' + (done ? "ghost" : "go") + '" type="button" style="padding:6px 12px" data-resolve="' + esc(r.id) +
-          '" data-to="' + (done ? "0" : "1") + '">' + (done ? "Reopen" : "Resolve") + '</button></div>';
+          '" data-to="' + (done ? "0" : "1") + '">' + (done ? "Reopen" : "Resolve") + '</button>' +
+          (r.episode ? '<button class="ghost" type="button" style="padding:6px 12px" data-episode="' + esc(r.id) +
+                       '">Episode</button>' : '') +
+          '</div></div>';
       }).join("") : '<p class="sub">' + (inboxState === "open" ? "Nothing open." : "No reports here.") + '</p>';
     }).catch(function (e) {
       $("inboxList").innerHTML = '<p class="sub err">Could not load the inbox: ' + esc(e.message) + '</p>';
@@ -508,7 +520,32 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     Array.prototype.forEach.call($("inboxTabs").children, function (x) { x.classList.toggle("on", x === b); });
     loadInbox();
   });
+  // Title, sources and transcript, as kept when the report was filed on the
+  // audio player - a copy, so it is still here after the cache lets it go.
+  function episodeHTML(e) {
+    var sources = e.sources || [];
+    var lines = e.transcript || [];
+    return '<h3>' + esc(e.title || e.query || "Untitled episode") + '</h3>' +
+      '<div class="ctx">asked: ' + esc(e.query || "") + (e.minutes ? ' · ' + e.minutes + ' min' : '') + '</div>' +
+      '<h4>Sources · ' + sources.length + '</h4>' +
+      (sources.length ? '<ol>' + sources.map(function (x) {
+        var name = esc(x.label || "") + (x.title ? ' — ' + esc(x.title) : '');
+        var meta = [x.at, x.tier].filter(Boolean).map(esc).join(' · ');
+        var link = /^https?:\/\//i.test(x.url || "") ? x.url : "";
+        return '<li>' + (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + name + '</a>' : name) +
+          (meta ? ' <span class="ctx">' + meta + '</span>' : '') + '</li>';
+      }).join("") + '</ol>' : '<p class="sub">No sources were recorded for this episode.</p>') +
+      '<h4>Transcript</h4>' +
+      (lines.length ? '<p class="transcript">' + esc(lines.join(" ")) + (e.transcript_cut ? ' […]' : '') + '</p>'
+                    : '<p class="sub">No transcript was found - it may not have been written yet.</p>');
+  }
   $("inboxList").addEventListener("click", function (ev) {
+    var ep = ev.target.closest("[data-episode]");
+    if (ep) {
+      var box = $("ep-" + ep.getAttribute("data-episode"));
+      if (box) { box.hidden = !box.hidden; ep.textContent = box.hidden ? "Episode" : "Hide episode"; }
+      return;
+    }
     var b = ev.target.closest("[data-resolve]"); if (!b) return;
     b.disabled = true;
     api("/api/admin/feedback/" + encodeURIComponent(b.getAttribute("data-resolve")) + "/resolve",

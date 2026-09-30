@@ -254,7 +254,15 @@ _FAILS_ON = ("logo", "text", "person", "identifiable_product", "border",
 #: product) is worth another paid attempt, and only if THUMBNAILS_ATTEMPTS
 #: allows one - by default it does not.
 _FIXABLE = ("border",)
-_SOFT = ("obsolete", "off_subject")
+_SOFT = ("obsolete", "off_subject", "duplicate")
+
+#: 9.30 #7: every node has its own picture, and no two nodes show the same
+#: one. A new painting whose difference hash is within this many of 64 bits
+#: of another node's stored picture is the same picture - the same scene
+#: painted twice, or the model copying its reference - and is held for a
+#: person rather than put live. Six bits is a near-copy (a re-encode or a
+#: small crop moves ~0-4); two unrelated watercolours sit around 25-35.
+DUPLICATE_BITS = 6
 #: How far in from each edge a picture the checker saw a border on is cut.
 BORDER_INSET = 0.08
 
@@ -598,6 +606,8 @@ def reset(thumb_store: Optional[ThumbnailStore] = None) -> None:
     """Forget the handle (tests), or install one."""
     global _STORE
     _STORE = thumb_store
+    _ASKED.clear()
+    _PRINTS.clear()
     _bump_generation()
 
 
@@ -647,11 +657,14 @@ def _facet_of_node(tree, node_id: str, facets: frozenset) -> str:
 def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
     """The picture for a tile about `text`, or None to keep the drawing.
 
-    The deepest node the tree finds in the text that has an approved
-    picture; failing that, the tile's own declared facet. `tree.match`
-    already returns every ancestor of what it matched, so "the deepest one
-    with a picture" *is* the walk up the branch - a node whose picture is
-    still in review falls back to its parent's without a second rule.
+    **The tile's own node's picture, and nobody else's** (9.30 #7). The
+    tile's node is the deepest one the tree finds in its text - or, when the
+    tree finds nothing, its declared facet - and it shows that node's
+    approved picture or the line drawing. It never borrows an ancestor's:
+    that walk up the branch put the facet's one picture on every tile under
+    it whose own node was still unpainted, so different subjects wore the
+    same picture. A node asked for without a picture is remembered
+    (`asked_for`), and the background sweep paints those first.
 
     Never raises and never creates a database: with no store on disk it
     returns None, and the tile draws what it always drew. When one exists,
@@ -665,9 +678,9 @@ def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
             return None
         held = store()
         held.refresh_if_changed()
+        # Read on even with nothing approved, so the nodes tiles ask for are
+        # remembered from the first page drawn on a new deployment.
         approved = held.approved()
-        if not approved:
-            return None
         import topics
 
         tree = topics.category_tree()
@@ -681,13 +694,14 @@ def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
         hit = _MEMO.get(key)
         if hit is None:
             facets = topics.FACETS
-            candidates = [n for n in (tree.match(text or "") if text else ())
-                          if n in approved]
+            candidates = list(tree.match(text or "") if text else ())
             candidates.sort(key=lambda n: (-_depth(tree, n, facets), n))
-            node = candidates[0] if candidates else ""
-            if not node:
-                declared = topics.facet_of(tags[0]) if tags else ""
-                node = declared if declared in approved else ""
+            own = candidates[0] if candidates else ""
+            if not own:
+                own = topics.facet_of(tags[0]) if tags else ""
+            node = own if own in approved else ""
+            if own and not node:
+                _note_asked(own)
             facet = ""
             if node:
                 facet = approved[node][1] or _facet_of_node(tree, node, facets)
@@ -700,6 +714,23 @@ def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
     except Exception:  # noqa: BLE001 - a picture is never worth a tile
         log.exception("thumbnails: could not pick a picture")
         return None
+
+
+#: Nodes a tile asked for that have no live picture yet, most recent last.
+#: In-process and bounded: it only orders the sweep in this server, and a
+#: restart forgetting it costs a sweep in the default order.
+_ASKED: dict[str, float] = {}
+MAX_ASKED = 2000
+
+
+def _note_asked(node_id: str) -> None:
+    if node_id in _ASKED or len(_ASKED) < MAX_ASKED:
+        _ASKED[node_id] = time.time()
+
+
+def asked_for() -> frozenset:
+    """Nodes tiles wanted a picture for and found none - painted first."""
+    return frozenset(_ASKED)
 
 
 def _depth(tree, node_id: str, facets: frozenset) -> int:
@@ -1165,10 +1196,72 @@ def _resize(image: bytes, width: int, height: Optional[int], fmt: str,
         return out.getvalue(), "image/jpeg"
 
 
+def fingerprint(image: bytes) -> Optional[int]:
+    """A 64-bit difference hash of a picture, or None without Pillow or for
+    an unreadable image. Two paintings of the same scene land a few bits
+    apart; two different scenes, dozens."""
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(image)) as im:
+            small = im.convert("L").resize((9, 8), Image.LANCZOS)
+            px = list(small.tobytes())
+    except Exception:  # noqa: BLE001 - no fingerprint, no duplicate check
+        return None
+    bits = 0
+    for row in range(8):
+        for col in range(8):
+            left, right = px[row * 9 + col], px[row * 9 + col + 1]
+            bits = (bits << 1) | (1 if left > right else 0)
+    return bits
+
+
+#: Fingerprints of stored pictures, keyed on the row's `updated_at` so a
+#: repaint is a new entry rather than a stale one.
+_PRINTS: dict[tuple, Optional[int]] = {}
+MAX_PRINTS = 8000
+
+
+def duplicate_of(thumb_store: "ThumbnailStore", node_id: str,
+                 image: bytes) -> str:
+    """Another node whose stored picture is this one, or "".
+
+    Compared against every other node's picture, live or waiting, and any
+    repaint held beside one, so a picture cannot go live as a copy of one
+    already on tiles or about to be."""
+    mine = fingerprint(image)
+    if mine is None:
+        return ""
+    for other in thumb_store.all():
+        # Only pictures that are, or may become, live: a rejected or failed
+        # one is on no tile and never will be.
+        if other.node_id == node_id or (
+                other.status not in (STATUS_APPROVED, STATUS_REVIEW)
+                and not other.pending):
+            continue
+        for pending in (False, True):
+            memo = (thumb_store.path, other.node_id, pending, other.updated_at)
+            if memo in _PRINTS:
+                theirs = _PRINTS[memo]
+            else:
+                held = thumb_store.image(other.node_id, any_status=True,
+                                         pending=pending)
+                theirs = fingerprint(held[0]) if held else None
+                # A held repaint carries no version of its own, so only the
+                # live picture's print is kept.
+                if not pending and len(_PRINTS) < MAX_PRINTS:
+                    _PRINTS[memo] = theirs
+            if theirs is not None and bin(mine ^ theirs).count("1") <= DUPLICATE_BITS:
+                return other.node_id
+    return ""
+
+
 def failed_checks(check: dict) -> list[str]:
     bad = [k for k in _FAILS_ON if check.get(k)]
     if not check.get("matches_subject", True):
         bad.append("off_subject")
+    if check.get("duplicate_of"):
+        bad.append("duplicate")
     return bad
 
 
@@ -1291,6 +1384,11 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             return _hold(thumb_store, live, node_id, facet, scene, prompt,
                          stored, stored_mime, {}, tries, spent,
                          f"not checked ({exc}); needs a person")
+        # Its own picture, not another node's (9.30 #7).
+        twin = await asyncio.to_thread(duplicate_of, thumb_store, node_id,
+                                       stored)
+        if twin:
+            check = dict(check, duplicate_of=twin)
         last_check = check
         bad = failed_checks(check)
         fixed = [b for b in bad if b in _FIXABLE]
@@ -1313,10 +1411,12 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             candidate = (stored, stored_mime, check, last_reason)
             continue
         if bad:
+            found = "checker found: " + ", ".join(bad)
+            if twin:
+                found += f" (the same picture as {twin!r})"
             return _hold(thumb_store, live, node_id, facet, scene, prompt,
                          stored, stored_mime, check, tries, spent,
-                         "checker found: " + ", ".join(bad)
-                         + "; held for you rather than painted again")
+                         found + "; held for you rather than painted again")
         hold = review == "all" or (review == "flagged" and scene.flagged)
         if hold:
             return _hold(thumb_store, live, node_id, facet, scene, prompt,
@@ -1361,9 +1461,8 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
     would spend the daily ceiling on one subject). `retry_failed` takes those
     back; `regenerate` repaints whatever is named, or everything.
 
-    Facets first, then depth, then most listeners: a broad picture covers
-    every tile under it while its children wait, so painting top-down is the
-    order that covers the most tiles soonest.
+    Facets first, then nodes a tile has asked for, then depth, then most
+    listeners.
     """
     only = [o.strip().lower() for o in only if o and o.strip()]
     facets = _facets()
@@ -1381,11 +1480,17 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
         elif status == STATUS_FAILED and (retry_failed or only):
             out.append(node_id)
 
+    # Then nodes a tile has actually asked for (`asked_for`): since a tile
+    # never borrows its parent's picture, an unpainted node on a page is a
+    # tile drawing the line icon today.
+    asked = asked_for()
+
     def order(n: str):
         if n in facets:
-            return (-1, 0, n)
+            return (-1, 0, 0, n)
         node = nodes.get(n)
-        return (node.depth if node else 0, -(node.listeners if node else 0), n)
+        return (0 if n in asked else 1, node.depth if node else 0,
+                -(node.listeners if node else 0), n)
 
     return sorted(dict.fromkeys(out), key=order)
 

@@ -963,9 +963,9 @@ def main() -> int:
             assert page.eval_on_selector_all("#personBody .yf-vrow",
                                              "e => e.length") >= 1, \
                 "their vibes are not listed"
-            assert page.eval_on_selector_all("#personBody .yf-chip",
+            assert page.eval_on_selector_all("#personBody .yf-interests .yf-chips-line .yf-chip",
                                              "e => e.length") >= 1, \
-                "no interest chips on a friend's profile"
+                "no interest line on a friend's profile"
             assert "public mixes" in body.lower(), "no public mixes on their profile"
             # Message is the primary action and opens the chat with them.
             page.evaluate("document.querySelector('#personBody .yf-btn.gold').click()")
@@ -1439,18 +1439,28 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def an_interest_chip_opens_its_topic():
-            """Your own YourFAM page carries no interest pills (9.29 packet:
-            they cluttered it; Edit profile is where they live) and says
+            """Your own YourFAM page shows its interests as one line under
+            Edit profile and Saved for Later (9.30 #4): "Interests", then
+            pills in a row that scrolls sideways rather than wrapping. It says
             "Find new friends" as a pill with a plus, which opens Friends.
-            An interest is still a door - on a friend's page - to the Topic
-            screen, every episode on it two minutes (§147 took the length
-            pill away), and the page generates nothing to fill itself."""
+            An interest is a door to the Topic screen, every episode on it
+            two minutes (§147 took the length pill away), and the page
+            generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
             page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
             page.wait_for_timeout(600)
-            assert not page.query_selector("#screen-profile .yf-chips"), \
-                "your own interests came back onto your own page"
+            line = page.query_selector("#screen-profile .yf-interests")
+            assert line, "your interests are not on your own page"
+            assert "Interests" in line.query_selector(".yf-label").text_content()
+            assert page.evaluate(
+                "getComputedStyle(document.querySelector('#screen-profile .yf-chips-line'))"
+                ".flexWrap") == "nowrap", "the interests wrap instead of scrolling"
+            assert page.evaluate(
+                "document.querySelector('#screen-profile .yf-acts').compareDocumentPosition("
+                "document.querySelector('#screen-profile .yf-interests'))"
+                " & Node.DOCUMENT_POSITION_FOLLOWING"), \
+                "the interests are not under Edit profile and Saved for Later"
             assert not page.query_selector("#screen-profile .pf-tags-edit"), \
                 "the inline interests Edit came back"
             find = page.query_selector("#screen-profile .yf-find")
@@ -1551,6 +1561,9 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("showScreen('player')")
+            # The lead is Go Deeper's own suggestion (9.30 #2): the episode's
+            # `<<NEXT:>>` line when it has one.
+            page.evaluate("episodeThread = 'What does the Fed do next?'")
             page.evaluate("maybeOfferNextUp('what the fed did to interest rates', '')")
             page.wait_for_selector("#nextUpOverlay.active .nextup-tile",
                                    timeout=10000)
@@ -1559,14 +1572,25 @@ def main() -> int:
             assert page.query_selector(".nextup-tile.lead .nextup-timer"), \
                 "the first tile has no countdown"
             assert "starts in" in page.text_content("#nextUpSub").lower()
-            # The countdown tile is the most likely next listen, and says so.
-            # With no album and no predicted follow-up it is the ranking's own
-            # first pick, and the four tiles are all from that one ranking -
-            # the popup is the feed's opinion arrived at one tap earlier,
-            # never a second recommender.
+            # The countdown tile is what Go Deeper would offer, and says so.
             lead = page.text_content(".nextup-tile.lead .nextup-tile-sub").strip()
-            assert lead and lead.lower() != "recommended", \
+            assert lead.lower() == "go deeper", \
                 f"the countdown tile does not say why it is first: {lead!r}"
+            lead_title = page.text_content(".nextup-tile.lead .nextup-tile-title")
+            assert "Fed do next" in lead_title, \
+                f"the lead is not Go Deeper's suggestion: {lead_title!r}"
+            # Touching the search box stops the countdown, so nothing starts
+            # under somebody's typing; the box sits above Back to myFAM.
+            page.click("#nextUpSearchInput")
+            page.wait_for_timeout(1300)
+            assert page.evaluate("nextUpTimer === null"), \
+                "the countdown kept running while the search box had focus"
+            assert "paused" in page.text_content("#nextUpSub").lower()
+            assert page.evaluate(
+                "document.getElementById('nextUpSearch').compareDocumentPosition("
+                "document.getElementById('nextUpBack')) & Node.DOCUMENT_POSITION_FOLLOWING"), \
+                "the search box is not above Back to myFAM"
+            page.evaluate("episodeThread = ''")
             # Tapping anything else cancels the countdown rather than racing it.
             page.evaluate("closeNextUp()")
             page.wait_for_timeout(300)

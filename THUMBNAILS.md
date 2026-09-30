@@ -38,10 +38,15 @@ picture is never on a tile until you approve it. `THUMBNAILS_ATTEMPTS=2` or
 more brings back automatic repaints, for a logo, text, a real person or a
 real product only.
 
-A tile asks for the **deepest** node the tree finds in its question that has
-a live picture. A node still waiting for review falls back to its parent, and
-so on up to the facet; with no picture anywhere the tile draws the old line
-icon, exactly as before.
+**Every node shows its own picture and nobody else's** (PROBLEMS.md §178). A
+tile's node is the deepest one the tree finds in its question, or its
+declared facet when the tree finds none; the tile shows that node's live
+picture or the old line icon - never a parent's or the facet's, which used to
+put one picture on every subject under a branch. A node a tile asked for
+without a picture is painted first by the next sweep. A new painting that is
+the same picture as another node's (a difference hash within
+`DUPLICATE_BITS` of 64) is held for review as "same picture as X", never put
+live.
 
 A running server picks up pictures painted or approved from
 `tools/thumbnails.py` against the same database within 30 seconds; no

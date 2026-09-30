@@ -20,6 +20,7 @@ found it the first time.
 """
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -50,6 +51,41 @@ GLOBAL_PER_WINDOW = 500
 
 STATES = ("open", "resolved")
 
+#: What a report filed on the audio player keeps of the episode (9.30 #6):
+#: its title, who it was built on, and what it said, copied at filing time -
+#: the cache keeps an episode a week, and a report outlives that. Bounded so
+#: `GLOBAL_PER_WINDOW` still bounds the disk: a ten-minute script is ~10 KB.
+MAX_EPISODE_TRANSCRIPT = 30000
+MAX_EPISODE_SOURCES = 30
+
+
+def episode_snapshot(query: str, minutes: int, title: str = "",
+                     sources: Optional[dict] = None,
+                     sentences: Optional[list] = None) -> dict:
+    """The episode half of a report, in the shape the inbox draws.
+
+    `sources` is `Provenance.as_dict()`; only what the sources panel shows is
+    kept (publisher, headline, date, grade, link). `sentences` is the
+    transcript, trimmed to `MAX_EPISODE_TRANSCRIPT` characters and said so.
+    """
+    items = []
+    for item in ((sources or {}).get("items") or [])[:MAX_EPISODE_SOURCES]:
+        if not isinstance(item, dict):
+            continue
+        items.append({k: str(item.get(k) or "")[:MAX_FIELD * 2]
+                      for k in ("label", "title", "at", "tier", "kind", "url")})
+    kept, used, cut = [], 0, False
+    for sentence in sentences or []:
+        sentence = str(sentence)
+        if used + len(sentence) > MAX_EPISODE_TRANSCRIPT:
+            cut = True
+            break
+        kept.append(sentence)
+        used += len(sentence) + 1
+    return {"query": (query or "")[:500], "minutes": int(minutes or 0),
+            "title": (title or "")[:MAX_FIELD], "sources": items,
+            "transcript": kept, "transcript_cut": cut}
+
 
 class FeedbackError(ValueError):
     """A report that cannot be kept, with the sentence that says why."""
@@ -77,9 +113,14 @@ class FeedbackStore:
                        agent       TEXT NOT NULL DEFAULT '',
                        created     REAL NOT NULL,
                        resolved_at REAL NOT NULL DEFAULT 0,
-                       note        TEXT NOT NULL DEFAULT ''
+                       note        TEXT NOT NULL DEFAULT '',
+                       episode     TEXT NOT NULL DEFAULT ''
                    )"""
             )
+            # Reports filed before 9.30 have no episode column.
+            columns = {r[1] for r in conn.execute("PRAGMA table_info(reports)")}
+            if "episode" not in columns:
+                conn.execute("ALTER TABLE reports ADD COLUMN episode TEXT NOT NULL DEFAULT ''")
             conn.execute("CREATE INDEX IF NOT EXISTS reports_created"
                          " ON reports(resolved_at, created)")
 
@@ -93,20 +134,26 @@ class FeedbackStore:
 
     @staticmethod
     def _row(r) -> dict:
+        try:
+            episode = json.loads(r[11]) if r[11] else None
+        except ValueError:
+            episode = None
         return {
             "id": r[0], "user_id": r[1], "text": r[2], "screen": r[3],
             "build": r[4], "page": r[5], "viewport": r[6], "agent": r[7],
             "created": r[8], "resolved_at": r[9], "note": r[10],
             "state": "resolved" if r[9] else "open",
+            # The episode on the player when it was filed, or None.
+            "episode": episode if isinstance(episode, dict) else None,
         }
 
     _COLUMNS = ("id, user_id, text, screen, build, page, viewport, agent,"
-                " created, resolved_at, note")
+                " created, resolved_at, note, episode")
 
     def add(self, text: str, *, user_id: str = "", screen: str = "",
             build: str = "", page: str = "", viewport: str = "",
             agent: str = "", now: Optional[float] = None,
-            throttle_key: str = "") -> dict:
+            throttle_key: str = "", episode: Optional[dict] = None) -> dict:
         """File one report. Raises `FeedbackError` with a sentence on refusal.
 
         `throttle_key` is who is counted against `PER_LISTENER` - the listener
@@ -133,11 +180,13 @@ class FeedbackStore:
         row = (uuid.uuid4().hex[:12], (user_id or "")[:MAX_FIELD], body,
                (screen or "")[:MAX_FIELD], (build or "")[:MAX_FIELD],
                (page or "")[:MAX_FIELD], (viewport or "")[:MAX_FIELD],
-               (agent or "")[:MAX_FIELD * 2], at)
+               (agent or "")[:MAX_FIELD * 2], at,
+               json.dumps(episode) if episode else "")
         conn = self._conn()
         conn.execute(
             "INSERT INTO reports (id, user_id, text, screen, build, page,"
-            " viewport, agent, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+            " viewport, agent, created, episode)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
         return self.get(row[0])
 
     def _admit(self, key: str, at: float) -> bool:

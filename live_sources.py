@@ -352,6 +352,15 @@ class Sport:
     words: tuple
     #: Provider short code -> FAM status. Anything unlisted becomes `unknown`.
     statuses: dict
+    #: The league whose teams' seasons are read off the provider's own
+    #: schedule (9.30 #3): records, last and next games, computed in code.
+    #: Empty for a sport this is not built for yet.
+    team_league: str = ""
+    #: Where the league's days are counted, and what that zone is called out
+    #: loud. A Sunday night game kicks off on Monday in UTC, so a day said
+    #: from UTC is the wrong day for every prime-time game.
+    local_zone: str = ""
+    zone_said: str = ""
 
 
 #: The four with the clearest demand. Adding one is a row here plus its status
@@ -369,7 +378,9 @@ SPORTS = {
             "Q3": live_facts.IN_PROGRESS, "Q4": live_facts.IN_PROGRESS,
             "OT": live_facts.IN_PROGRESS, "HT": live_facts.IN_PROGRESS,
             "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
-        }),
+        },
+        # API-Sports' NFL.
+        team_league="1", local_zone="America/New_York", zone_said="Eastern"),
     "football": Sport(
         key="football",
         host="https://v3.football.api-sports.io",
@@ -606,6 +617,305 @@ def sport_for(subject: str) -> Sport:
     return SPORTS.get(settings.api_sports_sport, SPORTS["american-football"])
 
 
+# --------------------------------------------------------------------------
+# Team seasons (9.30 #3): the numbers an episode gets wrong
+# --------------------------------------------------------------------------
+#
+# The live lookup used to know one thing about a game: its score and whether
+# it had started. Everything else an episode said about the teams - their
+# record, who they beat last week, when they play next - came from articles,
+# and articles disagree: a preview written before last week's game, a recap
+# of the wrong week, a Madden sim league's "result" for a game not yet
+# played (the 9.30 packet's worst episode). So the numbers now come from the
+# provider's own season schedule, counted in code: a record is the finals in
+# the regular season, never a figure a model read or remembered.
+
+#: The league's teams, per sport: (fetched at, rows). A roster changes once a
+#: year; a day is generous.
+TEAMS: dict = {}
+TEAMS_SECONDS = 86400.0
+#: Each team's season schedule: (sport, team id) -> (fetched at, rows).
+SCHEDULES: dict = {}
+#: How long a schedule serves before it is asked again - unless it holds a
+#: game whose state may have moved (`_unsettled`), which is asked every time.
+SCHEDULE_SECONDS = 600.0
+#: Which stage counts toward a record. Pre-season games never do.
+REGULAR_SEASON = "regular season"
+#: The share of a resolve's time the team path may take, leaving the rest
+#: for today's live games if it finds nothing.
+TEAM_PATH_SHARE = 0.6
+
+
+def _row_block(row: dict, name: str) -> dict:
+    for holder in ("game", "fixture"):
+        block = (row or {}).get(holder) or {}
+        if block.get(name) is not None:
+            return {name: block.get(name)}
+    return {name: (row or {}).get(name)}
+
+
+async def league_teams(sport: Sport, now: Optional[float] = None) -> list:
+    """Every team in the sport's `team_league` this season, from the
+    provider's own catalogue - never a list a model wrote."""
+    now = time.time() if now is None else now
+    held = TEAMS.get(sport.key)
+    if held and now - held[0] < TEAMS_SECONDS:
+        return held[1]
+    data = await api_sports_json(f"{sport.host}/teams",
+                                 {"league": sport.team_league,
+                                  "season": _nfl_season()},
+                                 settings.live_timeout_seconds)
+    rows = [r for r in ((data or {}).get("response") or [])
+            if isinstance(r, dict) and r.get("id") is not None and r.get("name")]
+    TEAMS[sport.key] = (now, rows)
+    return rows
+
+
+_TEAM_WORD = re.compile(r"[a-z0-9]+")
+
+
+def teams_named(teams: list, text: str) -> list:
+    """The teams `text` names, in the order it names them.
+
+    By full name or nickname ("Commanders", "49ers"), and by city only where
+    one team has it - "New York" is two teams and names neither."""
+    words = _TEAM_WORD.findall((text or "").lower())
+    joined = " " + " ".join(words) + " "
+    # The words as typed, to tell "Houston game" (the Texans) from "Houston
+    # Rockets" (somebody else's team): a city followed by a capitalised
+    # name names that name's team, not this league's.
+    typed = re.findall(r"[A-Za-z0-9]+", text or "")
+    cities: dict = {}
+    for team in teams:
+        city = " ".join(_TEAM_WORD.findall(str(team.get("city") or "").lower()))
+        if city:
+            cities[city] = cities.get(city, 0) + 1
+    found = []
+    for team in teams:
+        name = _TEAM_WORD.findall(str(team.get("name") or "").lower())
+        # One-word "teams" are conference all-star sides (AFC, NFC), which
+        # no question about a team means.
+        if len(name) < 2:
+            continue
+        city = " ".join(_TEAM_WORD.findall(str(team.get("city") or "").lower()))
+        keys = [" ".join(name), name[-1]]
+        at = [joined.find(" " + k + " ") for k in keys if k]
+        if city and cities.get(city) == 1 and _city_alone(typed, city):
+            at.append(joined.find(" " + city + " "))
+        at = [a for a in at if a >= 0]
+        if at:
+            found.append((min(at), team))
+    return [team for _, team in sorted(found, key=lambda x: x[0])]
+
+
+def _city_alone(typed: list, city: str) -> bool:
+    """Whether `city` appears in the typed words without a capitalised name
+    straight after it ("Houston game", not "Houston Rockets")."""
+    parts = city.split()
+    lowered = [w.lower() for w in typed]
+    for i in range(len(lowered) - len(parts) + 1):
+        if lowered[i:i + len(parts)] == parts:
+            after = typed[i + len(parts)] if i + len(parts) < len(typed) else ""
+            if not (after[:1].isupper() and after.lower() not in _NOT_NAMES):
+                return True
+    return False
+
+
+#: Capitalised words that may follow a city without being a team's name.
+_NOT_NAMES = frozenset({"game", "games", "football", "nfl", "score", "vs",
+                        "v", "at", "and", "this", "last", "next", "week",
+                        "tonight", "today", "sunday", "monday", "thursday",
+                        "saturday", "record", "season"})
+
+#: How long after its kick-off a game that is not final may still be under
+#: way. Past it, a game that never went final (postponed, cancelled) is not a
+#: reason to read the schedule again on every lookup.
+UNSETTLED_HOURS = 6.0
+
+
+def _unsettled(rows: list, sport: Sport, now: float, skip: str = "") -> bool:
+    """Whether a schedule holds a game whose state may have moved since it
+    was read: one under way, or one kicked off in the last few hours and not
+    yet final. `skip` is a game the caller already holds fresh."""
+    for row in rows:
+        if skip and ApiSportsSource._game_id(row) == skip:
+            continue
+        status = sport.statuses.get(
+            str(ApiSportsSource._status_block(row).get("short") or "").upper(),
+            live_facts.UNKNOWN)
+        if status == live_facts.IN_PROGRESS:
+            return True
+        kick = ApiSportsSource._kickoff(row)
+        if (status != live_facts.FINAL and kick is not None
+                and now - UNSETTLED_HOURS * 3600 <= kick.timestamp() <= now):
+            return True
+    return False
+
+
+async def team_schedule(sport: Sport, team_id, now: Optional[float] = None,
+                        fresh: Optional[dict] = None) -> list:
+    """One team's games this season, oldest first.
+
+    `fresh` is a game row the caller has just fetched: it replaces that game
+    in the schedule, and does not by itself make the schedule worth asking
+    for again - so a live game costs one request per lookup, not three."""
+    now = time.time() if now is None else now
+    key = (sport.key, str(team_id))
+    held = SCHEDULES.get(key)
+    skip = ApiSportsSource._game_id(fresh) if fresh else ""
+    if held and now - held[0] < SCHEDULE_SECONDS and not _unsettled(
+            held[1], sport, now, skip):
+        return _with_fresh(held[1], fresh, skip)
+    params = {"team": str(team_id), "season": _nfl_season()}
+    if sport.team_league:
+        params["league"] = sport.team_league
+    data = await api_sports_json(f"{sport.host}/{sport.path}", params,
+                                 settings.live_timeout_seconds)
+    rows = [r for r in ((data or {}).get("response") or []) if isinstance(r, dict)]
+    rows.sort(key=lambda r: (ApiSportsSource._kickoff(r)
+                             or datetime.max.replace(tzinfo=timezone.utc)))
+    SCHEDULES[key] = (now, rows)
+    return _with_fresh(rows, fresh, skip)
+
+
+def _with_fresh(rows: list, fresh: Optional[dict], game_id: str) -> list:
+    if not fresh or not game_id:
+        return rows
+    return [fresh if ApiSportsSource._game_id(r) == game_id else r for r in rows]
+
+
+def _side(row: dict, team_id) -> Optional[str]:
+    teams = (row or {}).get("teams") or {}
+    for side in ("home", "away"):
+        if str((teams.get(side) or {}).get("id")) == str(team_id):
+            return side
+    return None
+
+
+def _local(at: datetime, sport: Optional[Sport]) -> tuple:
+    """`at` in the league's own zone, and that zone's spoken name."""
+    if sport is not None and sport.local_zone:
+        try:
+            from zoneinfo import ZoneInfo
+
+            return at.astimezone(ZoneInfo(sport.local_zone)), sport.zone_said
+        except Exception:  # noqa: BLE001 - no tz database: say UTC, never guess
+            pass
+    return at.astimezone(timezone.utc), "UTC"
+
+
+def _when_said(at: Optional[datetime], sport: Optional[Sport] = None) -> str:
+    """The day a game is on, counted where its league counts days."""
+    if at is None:
+        return ""
+    local, _ = _local(at, sport)
+    return f"{local:%A} {local.day} {local:%B}"
+
+
+def _kickoff_said(at: Optional[datetime], sport: Optional[Sport] = None) -> str:
+    """'Sunday 4 October at 1:00 pm Eastern', or '' with no time."""
+    if at is None:
+        return ""
+    local, zone = _local(at, sport)
+    if zone == "UTC":
+        clock = f"{local:%H:%M}"
+    else:
+        clock = f"{local.hour % 12 or 12}:{local:%M} {'am' if local.hour < 12 else 'pm'}"
+    return f"{_when_said(at, sport)} at {clock} {zone}"
+
+
+def season_facts(sport: Sport, team: dict, rows: list,
+                 now: Optional[datetime] = None) -> list:
+    """What is settled about one team's season, as spoken sentences.
+
+    Its record over the finished regular-season games, its last result and
+    its next game - each read off the provider's rows and counted here, so a
+    number in these sentences is the scoreboard's and nobody's recollection.
+    """
+    now = now or datetime.now(timezone.utc)
+    name = str(team.get("name") or "").strip()
+    team_id = team.get("id")
+    if not name or team_id is None:
+        return []
+    wins = losses = ties = 0
+    finals, upcoming = [], []
+    for row in rows:
+        side = _side(row, team_id)
+        if side is None:
+            continue
+        status = sport.statuses.get(
+            str(ApiSportsSource._status_block(row).get("short") or "").upper(),
+            live_facts.UNKNOWN)
+        if status == live_facts.FINAL:
+            finals.append((row, side))
+            home, away = ApiSportsSource._score(row)
+            if home is None or away is None:
+                continue
+            stage = str(_row_block(row, "stage")["stage"] or "").strip().lower()
+            if stage and stage != REGULAR_SEASON:
+                continue
+            mine, theirs = (home, away) if side == "home" else (away, home)
+            if mine > theirs:
+                wins += 1
+            elif mine < theirs:
+                losses += 1
+            else:
+                ties += 1
+        elif status == live_facts.SCHEDULED:
+            kick = ApiSportsSource._kickoff(row)
+            if kick is None or kick >= now - timedelta(hours=6):
+                upcoming.append((row, side))
+    said = []
+    if wins or losses or ties:
+        record = (f"The {name} have won {wins} and lost {losses}"
+                  + (f", with {ties} tied" if ties else "")
+                  + " in the regular season so far.")
+        said.append(record)
+    elif upcoming and not finals and any(
+            str(_row_block(r, "stage")["stage"] or "").strip().lower()
+            == REGULAR_SEASON for r, _ in upcoming):
+        # Only when the schedule shows the regular season still ahead of
+        # them. An empty or unreadable schedule says nothing: absence of
+        # results is never a record of none.
+        said.append(f"The {name} have not finished a regular-season game "
+                    "yet this season.")
+    if finals:
+        row, side = finals[-1]
+        home_name, away_name = ApiSportsSource._team_names(row)
+        other = away_name if side == "home" else home_name
+        hs, as_ = ApiSportsSource._score(row)
+        if hs is not None and as_ is not None and other:
+            mine, theirs = (hs, as_) if side == "home" else (as_, hs)
+            when = _when_said(ApiSportsSource._kickoff(row), sport)
+            on = f" on {when}" if when else ""
+            if mine > theirs:
+                said.append(f"Their last game: the {name} beat the {other} "
+                            f"{mine} to {theirs}{on}.")
+            elif mine < theirs:
+                said.append(f"Their last game: the {name} lost to the {other} "
+                            f"{theirs} to {mine}{on}.")
+            else:
+                said.append(f"Their last game: the {name} and the {other} "
+                            f"tied {mine} each{on}.")
+    if upcoming:
+        row, side = upcoming[0]
+        home_name, away_name = ApiSportsSource._team_names(row)
+        other = away_name if side == "home" else home_name
+        kick = ApiSportsSource._kickoff(row)
+        venue = (_row_block(row, "venue")["venue"] or {})
+        where = ""
+        if isinstance(venue, dict):
+            place = ", ".join(x for x in (str(venue.get("name") or "").strip(),
+                                          str(venue.get("city") or "").strip()) if x)
+            where = f" at {place}" if place else ""
+        if other:
+            when = _kickoff_said(kick, sport)
+            said.append(
+                f"Their next game has not been played yet: the {name} play the "
+                f"{other}" + (f" on {when}" if when else "") + f"{where}.")
+    return said
+
+
 class ApiSportsSource(LiveSource):
     """API-Sports. Self-serve, transparently priced, one product per sport.
 
@@ -668,6 +978,25 @@ class ApiSportsSource(LiveSource):
         # see `fetch`.
         rows = card_rows(sport.key, max_age=6 * 3600.0)
         wanted = {w for w in subject.lower().split() if len(w) > 3}
+        on_card = rows is not None and any(
+            wanted and any(w in " ".join(self._team_names(r)).lower()
+                           for w in wanted) for r in rows)
+        if not on_card and sport.team_league:
+            # The teams' own schedules first: they hold a game under way as
+            # well as last week's and next week's, so `live=all` would be a
+            # request spent before the one that answers - and the whole
+            # resolve has LIVE_TIMEOUT_SECONDS.
+            try:
+                found = await asyncio.wait_for(
+                    self._resolve_by_team(brief, sport, subject),
+                    timeout=settings.live_timeout_seconds * TEAM_PATH_SHARE)
+            except Exception as exc:  # noqa: BLE001 - the card path still runs
+                log.info("live facts: team schedules did not resolve %r (%s); "
+                         "trying today's live games", subject,
+                         type(exc).__name__)
+                found = None
+            if found is not None:
+                return found
         if rows is None or not any(
                 wanted and any(w in " ".join(self._team_names(r)).lower()
                                for w in wanted) for r in rows):
@@ -688,6 +1017,62 @@ class ApiSportsSource(LiveSource):
                     id=f"{sport.key}:{self._game_id(row)}",
                     label=f"{home} v {away}")
         return None
+
+    async def _resolve_by_team(self, brief, sport: Sport,
+                               subject: str) -> Optional[Entity]:
+        """The game a question about one or two teams is about (9.30 #3):
+        a game later this week, last week's, or a team rather than a game
+        ("how are the Commanders doing"), from the provider's catalogue.
+
+        Two teams: their meeting this season - the one under way, else the
+        next one, else the last. One team: its game under way, else one
+        finished in the last day and a half, else its next, else its last.
+        """
+        teams = await league_teams(sport)
+        text = " ".join((subject, getattr(brief, "query", "") or ""))
+        named = teams_named(teams, text)
+        if not named:
+            return None
+        rows = await team_schedule(sport, named[0]["id"])
+        if len(named) > 1:
+            other = named[1]["id"]
+            rows = [r for r in rows if _side(r, other) is not None]
+        row = self._pick_game(rows, sport, two_teams=len(named) > 1)
+        if row is None:
+            return None
+        home, away = self._team_names(row)
+        return Entity(domain="sports", provider=self.name,
+                      id=f"{sport.key}:{self._game_id(row)}",
+                      label=f"{home} v {away}")
+
+    @classmethod
+    def _pick_game(cls, rows: list, sport: Sport, *, two_teams: bool,
+                   now: Optional[datetime] = None) -> Optional[dict]:
+        now = now or datetime.now(timezone.utc)
+        live, finals, upcoming = [], [], []
+        for row in rows:
+            status = sport.statuses.get(
+                str(cls._status_block(row).get("short") or "").upper(),
+                live_facts.UNKNOWN)
+            kick = cls._kickoff(row)
+            if status == live_facts.IN_PROGRESS:
+                live.append(row)
+            elif status == live_facts.FINAL:
+                finals.append(row)
+            elif kick is not None and kick >= now - timedelta(hours=6):
+                upcoming.append(row)
+        if live:
+            return live[0]
+        epoch = datetime.min.replace(tzinfo=timezone.utc)
+        finals.sort(key=lambda r: cls._kickoff(r) or epoch)
+        upcoming.sort(key=lambda r: cls._kickoff(r) or epoch)
+        recent = finals[-1] if finals else None
+        if (not two_teams and recent is not None
+                and (cls._kickoff(recent) or epoch) >= now - timedelta(hours=36)):
+            return recent
+        if upcoming:
+            return upcoming[0]
+        return recent
 
     async def _resolve_slot(self, brief, slot) -> Optional[Entity]:
         """The one game a named slot names, picked by its kick-off time.
@@ -733,6 +1118,7 @@ class ApiSportsSource(LiveSource):
         # free. Anything older is fetched: a score is withheld past
         # `MAX_AGE_SECONDS`, and a fact about to be withheld is not worth
         # having saved a request on.
+        started = time.monotonic()
         fresh = card_rows(sport.key, max_age=live_facts.MAX_AGE_SECONDS["sports"] / 2)
         rows = [r for r in (fresh or []) if self._game_id(r) == game_id]
         swept_at = CARD[sport.key][0] if rows else None
@@ -744,6 +1130,11 @@ class ApiSportsSource(LiveSource):
         if not rows:
             return None
         facts = self.to_facts(rows[0], entity, sport)
+        if facts is not None and sport.team_league:
+            # Inside what is left of this fetch's own time, so a slow schedule
+            # can never cost the game the facts already in hand.
+            left = settings.live_timeout_seconds * 0.9 - (time.monotonic() - started)
+            facts = await self._with_seasons(facts, rows[0], sport, left)
         if facts is not None and swept_at is not None:
             # Read off the sweep, so it is as old as the sweep - never stamped
             # with this moment, which would make the freshness check that
@@ -751,6 +1142,34 @@ class ApiSportsSource(LiveSource):
             facts = replace(facts, as_of=datetime.fromtimestamp(
                 swept_at, tz=timezone.utc))
         return facts
+
+    async def _with_seasons(self, facts: LiveFacts, row: dict,
+                            sport: Sport, budget: float = 1.0) -> LiveFacts:
+        """Both teams' records, last results and next games beside the game
+        (9.30 #3). Never costs the game its facts: a schedule that cannot be
+        read leaves the game's own sentences as they were, and says so in
+        the log."""
+        teams = (row or {}).get("teams") or {}
+        sides = [teams.get(side) or {} for side in ("home", "away")]
+        sides = [t for t in sides if t.get("id") is not None and t.get("name")]
+        if budget <= 0:
+            log.info("live facts: no time left for the teams' seasons")
+            return facts
+        try:
+            schedules = await asyncio.wait_for(asyncio.gather(
+                *(team_schedule(sport, t["id"], fresh=row) for t in sides)),
+                timeout=budget)
+        except Exception as exc:  # noqa: BLE001 - the game's facts stand
+            log.warning("live facts: could not read the teams' seasons: %s", exc)
+            return facts
+        extra = []
+        for team, schedule in zip(sides, schedules):
+            extra.extend(season_facts(sport, team, schedule))
+        # Their meeting is in both schedules; say its sentence once.
+        extra = list(dict.fromkeys(extra))
+        if not extra:
+            return facts
+        return replace(facts, facts=list(facts.facts) + extra)
 
     # --- shape readers ----------------------------------------------------
     # Small and separate because this is where the sports genuinely differ,
@@ -858,7 +1277,9 @@ class ApiSportsSource(LiveSource):
         hs, as_ = self._score(row)
 
         said: list = []
-        if hs is not None and as_ is not None:
+        # A game that has not started has no score, whatever the row holds: a
+        # pre-game tracker's nought-nought is not "level" (9.30 #5).
+        if hs is not None and as_ is not None and status != live_facts.SCHEDULED:
             first, second, lead, trail = home, away, hs, as_
             if as_ > hs:
                 first, second, lead, trail = away, home, as_, hs
@@ -876,7 +1297,10 @@ class ApiSportsSource(LiveSource):
                 said.append(f"They are in {where}." if isinstance(where, str)
                             else f"About {where} minutes have been played.")
         elif status == live_facts.SCHEDULED:
-            said.append(f"{home} and {away} have not started yet.")
+            kick = self._kickoff(row)
+            when = _kickoff_said(kick, sport)
+            said.append(f"{home} and {away} have not started yet."
+                        + (f" Kick-off is {when}." if when else ""))
 
         if not said:
             return None
