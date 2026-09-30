@@ -401,17 +401,20 @@ async def _runpod_pods() -> list[Endpoint]:
     of reading the answer is defensive. A provider that changes its schema must
     cost a rung and a log line, not the voice.
 
-    REST first and GraphQL second, which is a fact about RunPod rather than a
-    FAM policy: `rest.runpod.io/v1` is the current API and the one this
-    project's key has been used against. The older GraphQL endpoint answers
-    the same question and is tried when REST does not.
+    REST v2 first, then REST v1, then GraphQL, which is a fact about RunPod
+    rather than a FAM policy (§179): v2 is the API RunPod supports long term,
+    v1 answers 410 Gone from 2026-11-15, and GraphQL is rate limited from
+    2026-10-27 and retired in January 2027. Each older one is tried only when
+    the newer did not answer or did not list the pod, so a v2 reshaping costs
+    a rung and a log line, and the older two can be deleted once their dates
+    pass without touching the order of the rest.
     """
     selector = _pod_selector()
     key = _runpod_key()
     if not selector or not key:
         return []
     _state.pod_notes = []
-    for describe in (_pods_over_rest, _pods_over_graphql):
+    for describe in (_pods_over_rest_v2, _pods_over_rest, _pods_over_graphql):
         body = await describe(key)
         if body is None:
             continue
@@ -421,8 +424,39 @@ async def _runpod_pods() -> list[Endpoint]:
     return []
 
 
+#: Pages of `GET /v2/pods` read before giving up. An account with more pods
+#: than this is not one this app was written for, and a loop bounded by a
+#: cursor the provider controls must be bounded by us as well.
+MAX_POD_PAGES = 5
+
+
+async def _pods_over_rest_v2(key: str):
+    """`GET /v2/pods`, following the cursor, as one `{"pods": [...]}`.
+
+    v2 wraps the list as `{"pods": [...], "pagination": {"hasNextPage",
+    "nextCursor"}}`; the pods themselves carry `status`, `publicIp`,
+    `portMappings` and `runtime.ports`, all of which `_pods_from` already
+    reads. `None` when the first page did not answer, so the next rung is
+    tried; a later page that fails keeps what the earlier ones found.
+    """
+    url = f"{settings.runpod_api_url.rstrip('/')}/pods"
+    found: list = []
+    cursor = ""
+    for page in range(MAX_POD_PAGES):
+        body = await _ask_runpod("GET", url, key,
+                                 params={"cursor": cursor} if cursor else None)
+        if body is None:
+            return None if page == 0 else {"pods": found}
+        found.extend(_pod_list(body))
+        pagination = body.get("pagination") if isinstance(body, dict) else None
+        cursor = str((pagination or {}).get("nextCursor") or "")
+        if not (pagination or {}).get("hasNextPage") or not cursor:
+            break
+    return {"pods": found}
+
+
 async def _pods_over_rest(key: str):
-    """`GET /v1/pods`, the API the schedule workflow already uses."""
+    """`GET /v1/pods`. Retired by RunPod on 2026-11-15; kept as a rung until then."""
     return await _ask_runpod("GET", f"{settings.runpod_rest_url.rstrip('/')}/pods",
                              key)
 
@@ -432,14 +466,15 @@ async def _pods_over_graphql(key: str):
                              json={"query": _POD_QUERY})
 
 
-async def _ask_runpod(method: str, url: str, key: str, json: dict | None = None):
+async def _ask_runpod(method: str, url: str, key: str, json: dict | None = None,
+                      params: dict | None = None):
     """One call to RunPod, or `None` with a line in the log saying why not."""
     try:
         import httpx
 
         async with httpx.AsyncClient(timeout=settings.voice_probe_timeout) as client:
             response = await client.request(
-                method, url, json=json,
+                method, url, json=json, params=params,
                 headers={"Authorization": f"Bearer {key}",
                          "Content-Type": "application/json"})
         if response.status_code >= 400:

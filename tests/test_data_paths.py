@@ -38,6 +38,7 @@ import voice_bank as VB  # noqa: E402
 import voice_registry as VR  # noqa: E402
 import trending_bank as TB  # noqa: E402
 import thumbnails as TH  # noqa: E402
+import provider_usage as PU  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -62,6 +63,7 @@ STORES = [
     ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),
     ("TRENDING_BANK_DB", "trending_bank.db", TB.BankStore),
     ("THUMBNAILS_DB", "thumbnails.db", TH.ThumbnailStore),
+    ("PROVIDER_USAGE_DB", "provider_usage.db", PU.UsageStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -107,8 +109,11 @@ ALL_VARS = sorted(DECLARED)
 #: voice to use, and reported from then on - the registry's rule again.
 #: `THUMBNAILS_DB` (§160) is the trending bank's case exactly: the first
 #: painted picture creates it, and every tile asks about it without opening it.
+#: `PROVIDER_USAGE_DB` (§179) is created by the first request to an outside
+#: service, and the admin page reads it without opening it - the trending
+#: bank's case again.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
-               "THUMBNAILS_DB"}
+               "THUMBNAILS_DB", "PROVIDER_USAGE_DB"}
 
 
 @pytest.fixture(autouse=True)

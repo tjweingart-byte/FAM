@@ -837,6 +837,25 @@
   Sources are **forbidden to call a model or the network** - one that costs
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
+<!-- rule:writer-savings -->
+- **Savings on the writer never change what is written, and never cost an
+  episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the
+  writer's instructions (house rules plus style example, ~3,500 tokens) are
+  sent as one cacheable block (`PROMPT_CACHE=1`, `writer_system()`), so the
+  prefix is byte-identical from call to call and everything that varies stays
+  in the user turn; and the two editions - Trending and DailyFAM, which write
+  before anybody taps - send their writer calls through the Message Batches
+  API at half price (`EDITION_BATCH=1`, `claude_batch.py`). An edition
+  prepares each episode exactly as before (brief, evidence, the refusal of a
+  current question with none), sends the writers as **one** batch, and reads
+  each answer with the **same `_ScriptReader`** a stream feeds - so a batched
+  episode is parsed, guarded and budgeted as a streamed one is. A batch that
+  cannot be created, errors a request, or has not ended by
+  `EDITION_BATCH_WAIT_SECONDS` is cancelled and the rest are written live from
+  the brief and evidence already paid for (`stream_prepared`), never prepared
+  twice. The brief stays a live call (its 8 s timeout decides the research),
+  and nothing a listener is waiting on is ever batched. `metering` records the
+  discount beside the tokens (`Usage.batch_discount`).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   Saved mixes, chosen interests and language, and Save for Later need an

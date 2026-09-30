@@ -287,8 +287,18 @@ class ProviderHTTPError(RuntimeError):
 
 
 async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
+    import provider_usage
+
+    # Whose allowance this request spends, for the admin page (§179). Every
+    # live and story provider comes through here, so the count is taken once.
+    provider = provider_usage.provider_for_host(httpx.URL(url).host)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(url, headers=headers, params=params)
+        try:
+            response = await client.get(url, headers=headers, params=params)
+        except Exception:
+            provider_usage.record(provider, ok=False)
+            raise
+        provider_usage.record(provider, ok=response.is_success)
         if not response.is_success:
             where = f"{response.url.host}{response.url.path}"
             body = log_redaction.redact(response.text[:160].strip())

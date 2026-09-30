@@ -321,7 +321,7 @@ a crutch. The diagram after it shows what happens when a service fails.
 | | `story_sources.PolymarketSignals` | `STORIES_POLYMARKET=1` | Prediction-market tiles | Other pool sources |
 | **RunPod** | `remote_voice.RemoteChatterboxEngine` via `voice_control` | `VOICE_BACKEND=remote` | Hosting the voice | Next rung of the address ladder, then a placeholder tone (announced) |
 | | `_wake_remote_voice` (`app.py:638`) | No kept audio for this episode | Warming a sleeping serverless worker | n/a |
-| | `voice_control` pod discovery (REST/GraphQL) | `RUNPOD_API_KEY`, `RUNPOD_POD` | Finding a moved pod by name | Registered / serverless rungs |
+| | `voice_control` pod discovery (REST v2, then v1 until 2026-11-15, then GraphQL until January 2027; §179) | `RUNPOD_API_KEY`, `RUNPOD_POD`, `RUNPOD_API_URL` | Finding a moved pod by name | Registered / serverless rungs |
 | **Chatterbox** | `voice_worker/synth.py` on RunPod; `tts.ChatterboxEngine` in-process on a GPU host | A worker is reachable | Every first voicing | **Placeholder tone**, never a lesser voice. `/api/health` says `interim: true`. |
 | **Render** | Not called; it is the host | n/a | `RENDER_GIT_COMMIT` feeds `/api/health`'s `build`. `X-Forwarded-Proto` builds share links. The `/data` disk holds every database. | n/a |
 

@@ -321,6 +321,19 @@ class Settings:
     # force (`writer_effort_source`), because a dashboard value left at `high`
     # would silently undo this change on every push.
     effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
+    # Prompt caching on the writer's instructions (§179). The system prompt -
+    # the house rules and the style example, ~3,500 tokens - is identical on
+    # every writer call, so it is marked cacheable: a call inside the TTL of
+    # the last one reads it at a tenth of the input price and starts sooner.
+    # The words sent and the words written are unchanged. `PROMPT_CACHE=0`
+    # sends the plain string, exactly as before. `PROMPT_CACHE_TTL` is `5m`
+    # (a write costs 1.25x, pays for itself on the second call inside five
+    # minutes) or `1h` (2x, needs three calls an hour).
+    prompt_cache: bool = field(
+        default_factory=lambda: os.environ.get("PROMPT_CACHE", "1")
+        not in ("0", "false", "False"))
+    prompt_cache_ttl: str = field(
+        default_factory=lambda: os.environ.get("PROMPT_CACHE_TTL", "5m"))
     # Padding a short script back to length reintroduces the filler the opener
     # was removed for. Off by default: a briefing that ends when it runs out of
     # substance is better than one stretched to fill the slider.
@@ -775,6 +788,21 @@ class Settings:
     # Ceilings on one edition. Subjects followed by the most mixes are
     # written first; anything past a ceiling is written on the tap instead,
     # and the edition's report says how many.
+    # Both editions write before anybody taps, so their writer calls go
+    # through the Message Batches API at half price (§179): each edition
+    # prepares every episode (brief, evidence) as before, then sends the
+    # writers as one batch and reads each answer with the same reader a
+    # stream uses. A batch that fails, or has not ended within
+    # `EDITION_BATCH_WAIT_SECONDS`, is cancelled and what it did not answer
+    # is written live - a saving never costs an episode. `EDITION_BATCH=0`
+    # writes every episode live, as before.
+    edition_batch: bool = field(
+        default_factory=lambda: os.environ.get("EDITION_BATCH", "1")
+        not in ("0", "false", "False"))
+    edition_batch_wait_seconds: float = _env_float(
+        "EDITION_BATCH_WAIT_SECONDS", 3600.0)
+    edition_batch_poll_seconds: float = _env_float(
+        "EDITION_BATCH_POLL_SECONDS", 30.0)
     daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 300)
     daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 15.0)
     # How long to wait before trying a failed edition again.
@@ -1207,6 +1235,14 @@ class Settings:
     runpod_pod: str = field(
         default_factory=lambda: (os.environ.get("RUNPOD_POD")
                                  or os.environ.get("RUNPOD_POD_ID", "")))
+    # RunPod's API, asked in this order (§179): REST v2, the one with long-term
+    # support; REST v1, which RunPod retires on 2026-11-15 (410 Gone after);
+    # GraphQL, rate limited from 2026-10-27 and retired in January 2027. The
+    # older two stay as later rungs until their dates pass, so a v2 change
+    # costs a rung rather than the voice.
+    runpod_api_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "RUNPOD_API_URL", "https://api.runpod.io/v2"))
     runpod_rest_url: str = field(
         default_factory=lambda: os.environ.get(
             "RUNPOD_REST_URL", "https://rest.runpod.io/v1"))

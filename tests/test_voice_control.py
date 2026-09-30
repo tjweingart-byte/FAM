@@ -542,8 +542,8 @@ def test_the_same_fact_from_two_apis_is_recorded_once(monkeypatch):
 
 
 def test_rest_and_graphql_shapes_are_both_understood(monkeypatch):
-    """REST first because the schedule workflow already uses it with this
-    project's key; GraphQL second because it answers the same question."""
+    """Every shape RunPod has answered in: v2's `{"pods": [...]}`, v1's bare
+    list and GraphQL's `data.myself.pods`."""
     configure(monkeypatch)
     as_rest = [pod()]
     as_graphql = pods(pod())
@@ -763,3 +763,81 @@ def test_an_unconfigured_port_still_takes_the_only_http_one(monkeypatch):
     configure(monkeypatch, voice_worker_port=0)
     found = voice_control._pods_from(pods(pod(ports=(8003,))), "fam-voice")
     assert [c.url for c in found] == ["https://abc123-8003.proxy.runpod.net"]
+
+
+# --- REST v2 first (§179) ---------------------------------------------------
+#
+# RunPod retires REST v1 on 2026-11-15 and GraphQL in January 2027, and rate
+# limits GraphQL from 2026-10-27. v2 is asked first; the older two stay as
+# later rungs until their dates pass.
+
+def _v2_pod(pod_id="abc123", name="fam-voice", status="RUNNING"):
+    return {"id": pod_id, "name": name, "status": status,
+            "publicIp": "203.0.113.7", "portMappings": {"8001": 41001},
+            "runtime": {"ports": [{"privatePort": 8001, "publicPort": 41001,
+                                   "type": "http", "isIpPublic": True}]}}
+
+
+def _record_asks(monkeypatch, answers):
+    asked = []
+
+    async def fake(method, url, key, json=None, params=None):
+        asked.append((method, url, params))
+        return answers(url, params)
+
+    monkeypatch.setattr(voice_control, "_ask_runpod", fake)
+    return asked
+
+
+def test_rest_v2_is_asked_first_and_the_older_apis_are_not_asked(monkeypatch):
+    configure(monkeypatch, runpod_pod="fam-voice", runpod_api_key="k",
+              runpod_api_url="https://api.runpod.io/v2")
+    asked = _record_asks(monkeypatch, lambda url, params: {
+        "pods": [_v2_pod()], "pagination": {"hasNextPage": False}})
+    found = run(voice_control._runpod_pods())
+    assert [url for _, url, _ in asked] == ["https://api.runpod.io/v2/pods"]
+    assert "https://abc123-8001.proxy.runpod.net" in [c.url for c in found]
+
+
+def test_rest_v2_follows_the_cursor(monkeypatch):
+    configure(monkeypatch, runpod_pod="fam-voice", runpod_api_key="k",
+              runpod_api_url="https://api.runpod.io/v2")
+
+    def answers(url, params):
+        if not params:
+            return {"pods": [_v2_pod(pod_id="other", name="something-else")],
+                    "pagination": {"hasNextPage": True, "nextCursor": "c2"}}
+        assert params == {"cursor": "c2"}
+        return {"pods": [_v2_pod()], "pagination": {"hasNextPage": False}}
+
+    asked = _record_asks(monkeypatch, answers)
+    found = run(voice_control._runpod_pods())
+    assert len(asked) == 2
+    assert [c.url for c in found] == ["https://abc123-8001.proxy.runpod.net"]
+
+
+def test_a_v2_pod_that_is_not_running_says_so(monkeypatch):
+    """v2 names the field `status` where v1 said `desiredStatus`."""
+    configure(monkeypatch)
+    assert voice_control._pods_from(
+        {"pods": [_v2_pod(status="EXITED")]}, "fam-voice") == []
+    assert any("EXITED" in note for note in voice_control.report()["pods"])
+
+
+def test_v1_then_graphql_are_asked_when_v2_does_not_answer(monkeypatch):
+    configure(monkeypatch, runpod_pod="fam-voice", runpod_api_key="k",
+              runpod_api_url="https://api.runpod.io/v2",
+              runpod_rest_url="https://rest.runpod.io/v1",
+              runpod_graphql_url="https://api.runpod.io/graphql")
+
+    def answers(url, params):
+        if url.endswith("/graphql"):
+            return pods(pod())
+        return None      # v2 and v1 both refused: a 410, a 429, a timeout
+
+    asked = _record_asks(monkeypatch, answers)
+    found = run(voice_control._runpod_pods())
+    assert [url for _, url, _ in asked] == [
+        "https://api.runpod.io/v2/pods", "https://rest.runpod.io/v1/pods",
+        "https://api.runpod.io/graphql"]
+    assert [c.url for c in found] == ["https://abc123-8001.proxy.runpod.net"]

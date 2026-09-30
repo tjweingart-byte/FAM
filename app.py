@@ -842,6 +842,16 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
+    # Requests per outside service per day (§179). Created by the first
+    # request that goes out, and reported once it exists, like the bank above.
+    try:
+        import provider_usage
+
+        if provider_usage.exists():
+            stores.append(("provider usage", "PROVIDER_USAGE_DB",
+                           provider_usage.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:

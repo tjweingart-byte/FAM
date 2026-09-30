@@ -438,9 +438,14 @@ def snapshot(now: Optional[float] = None) -> dict:
 
     stores = [{"alias": s.alias, "file": s.filename, "exists": s.exists,
                "bytes": s.size()} for s in all_stores]
+    # Requests per outside service per day, beside each one's limit and the
+    # plan that would raise it (§179). Its own store, read without creating it.
+    import provider_usage
+
     return {"at": now, "metrics": metrics, "errors": errors,
             "signups": series, "recent_accounts": recent,
-            "top_searches": top_searches, "stores": stores}
+            "top_searches": top_searches, "stores": stores,
+            "providers": provider_usage.report(now)}
 
 
 # ----------------------------------------------------------------- recipes

@@ -6,6 +6,7 @@ works, and what data is stored.
 | Document | Answers |
 |---|---|
 | [**FINANCIAL.md**](FINANCIAL.md) | What each part of the process costs per episode and per listener. How the bill changes from 100 to 100,000 listeners. At what point each provider (RunPod, Render, API-Sports, Finnhub, Polymarket, GNews, GDELT, Exa, Claude, Chatterbox) hits a rate limit, and what the next step costs. |
+| [**SCALING_TIMELINE.md**](SCALING_TIMELINE.md) | When to change each outside service - RunPod, Claude, Exa, Render, the database, API-Sports, GNews, Finnhub, GDELT, Polymarket, the image model - by stage (now, before launch, launch, growing, scale), by a number you can see on `/admin`, or by a provider's date. What to change it to, and what it costs. The launch checklist. |
 | [**BACKEND.md**](BACKEND.md) | Episode latency, stage by stage, for search and for the background browse path. Where every section (Trending, Made for You, Go Deeper, What FAM Can't Stop Listening To, Friends, What You Missed, SearchFAM, DailyFAM, ExploreFAM) is sourced from, the path FAM takes to produce it, and its fallbacks. Every call site of every external service. |
 | [**DATA.md**](DATA.md) | What is stored and where (Render disk, RunPod volume, process memory, the phone). How much. The guardrails and size caps. How long each thing is kept. The database-to-tile wiring of the ranking algorithm, including the numpy matrix similarity step and the learned re-order. |
 

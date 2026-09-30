@@ -594,7 +594,14 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     started = time.perf_counter()
-    reply = client.search_and_contents(query, **kwargs)
+    import provider_usage
+
+    try:
+        reply = client.search_and_contents(query, **kwargs)
+    except Exception:
+        provider_usage.record("exa", ok=False)
+        raise
+    provider_usage.record("exa")
     elapsed = time.perf_counter() - started
 
     returned = list(getattr(reply, "results", []) or [])
