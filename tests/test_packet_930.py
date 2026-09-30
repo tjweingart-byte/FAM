@@ -260,8 +260,11 @@ def test_a_game_later_this_week_is_found_on_the_teams_schedule(monkeypatch):
     _fake_api(monkeypatch)
     brief = SimpleNamespace(subject="Colts Commanders London game",
                             query="colts commanders london", named_slot="")
+    calls = _fake_api(monkeypatch)
     entity = asyncio.run(LS.ApiSportsSource().resolve(brief))
     assert entity is not None and entity.id == "american-football:14"
+    # The schedules answered, so no `live=all` request was spent first.
+    assert not any(p.get("live") for _, p in calls)
 
 
 def test_the_game_carries_both_teams_seasons(monkeypatch):

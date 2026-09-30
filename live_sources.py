@@ -892,6 +892,17 @@ class ApiSportsSource(LiveSource):
         # see `fetch`.
         rows = card_rows(sport.key, max_age=6 * 3600.0)
         wanted = {w for w in subject.lower().split() if len(w) > 3}
+        on_card = rows is not None and any(
+            wanted and any(w in " ".join(self._team_names(r)).lower()
+                           for w in wanted) for r in rows)
+        if not on_card and sport.team_league:
+            # The teams' own schedules first: they hold a game under way as
+            # well as last week's and next week's, so `live=all` would be a
+            # request spent before the one that answers - and the whole
+            # resolve has LIVE_TIMEOUT_SECONDS.
+            found = await self._resolve_by_team(brief, sport, subject)
+            if found is not None:
+                return found
         if rows is None or not any(
                 wanted and any(w in " ".join(self._team_names(r)).lower()
                                for w in wanted) for r in rows):
@@ -911,16 +922,13 @@ class ApiSportsSource(LiveSource):
                     # `fetch` gets only the entity.
                     id=f"{sport.key}:{self._game_id(row)}",
                     label=f"{home} v {away}")
-        # Not on today's card: a game later this week, or last week's, or a
-        # team rather than a game ("how are the Commanders doing"). Found on
-        # the team's own season schedule (9.30 #3), by the provider's catalogue.
-        if sport.team_league:
-            return await self._resolve_by_team(brief, sport, subject)
         return None
 
     async def _resolve_by_team(self, brief, sport: Sport,
                                subject: str) -> Optional[Entity]:
-        """The game a question about one or two teams is about.
+        """The game a question about one or two teams is about (9.30 #3):
+        a game later this week, last week's, or a team rather than a game
+        ("how are the Commanders doing"), from the provider's catalogue.
 
         Two teams: their meeting this season - the one under way, else the
         next one, else the last. One team: its game under way, else one
