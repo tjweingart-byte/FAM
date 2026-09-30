@@ -40,6 +40,13 @@ MAX_FIELD = 200
 #: working through a demo, and a stop for a loop that is not a person.
 PER_LISTENER = 30
 WINDOW_SECONDS = 3600
+#: Reports kept from everybody together in `WINDOW_SECONDS`. The per-listener
+#: pace is keyed on the session, and a script that drops its cookie gets a new
+#: session every request (the address is no key either - behind the router
+#: every request comes from the proxy, `app._limit_key`). So this is the
+#: bound that holds: counted from the table, it survives restarts, and it
+#: caps the disk a loop can fill at this many 4 KB rows an hour.
+GLOBAL_PER_WINDOW = 500
 
 STATES = ("open", "resolved")
 
@@ -52,6 +59,11 @@ class FeedbackStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("FEEDBACK_DB", "feedback.db", path)
         self._local = threading.local()
+        # The pacing ledger lives in memory, per store: it guards a demo
+        # button against a runaway loop, and a restart forgetting it costs
+        # nothing - `GLOBAL_PER_WINDOW` is the bound that is kept on disk.
+        self._stamps: dict[str, list[float]] = {}
+        self._stamps_lock = threading.Lock()
         with self._conn() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS reports (
@@ -109,9 +121,15 @@ class FeedbackStore:
                 f"That is longer than a report can be ({MAX_TEXT} characters). "
                 "Trim it and send it again.")
         at = time.time() if now is None else now
-        if throttle_key and self._recent(throttle_key, at) >= PER_LISTENER:
+        if throttle_key and not self._admit(throttle_key, at):
             raise FeedbackError(
                 "That is a lot of reports in an hour - try again shortly.")
+        recent = self._conn().execute(
+            "SELECT count(*) FROM reports WHERE created > ?",
+            (at - WINDOW_SECONDS,)).fetchone()[0]
+        if recent >= GLOBAL_PER_WINDOW:
+            raise FeedbackError(
+                "The inbox is taking no more reports this hour - try again later.")
         row = (uuid.uuid4().hex[:12], (user_id or "")[:MAX_FIELD], body,
                (screen or "")[:MAX_FIELD], (build or "")[:MAX_FIELD],
                (page or "")[:MAX_FIELD], (viewport or "")[:MAX_FIELD],
@@ -120,24 +138,25 @@ class FeedbackStore:
         conn.execute(
             "INSERT INTO reports (id, user_id, text, screen, build, page,"
             " viewport, agent, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
-        if throttle_key:
-            self._stamp(throttle_key, at)
         return self.get(row[0])
 
-    # The pacing ledger lives in memory: it guards a demo button against a
-    # runaway loop, and a restart forgetting it costs nothing.
-    _stamps: dict[str, list[float]] = {}
-    _stamps_lock = threading.Lock()
-
-    def _recent(self, key: str, at: float) -> int:
+    def _admit(self, key: str, at: float) -> bool:
+        """Count one report against `key`, or refuse it. One lock, so two
+        requests at once cannot both take the last slot."""
         with self._stamps_lock:
+            if len(self._stamps) >= 512:
+                # Forget sessions whose every report has aged out, so a
+                # cookieless loop cannot grow this without bound.
+                for stale in [k for k, v in self._stamps.items()
+                              if not v or at - v[-1] >= WINDOW_SECONDS]:
+                    del self._stamps[stale]
             kept = [t for t in self._stamps.get(key, []) if at - t < WINDOW_SECONDS]
+            if len(kept) >= PER_LISTENER:
+                self._stamps[key] = kept
+                return False
+            kept.append(at)
             self._stamps[key] = kept
-            return len(kept)
-
-    def _stamp(self, key: str, at: float) -> None:
-        with self._stamps_lock:
-            self._stamps.setdefault(key, []).append(at)
+            return True
 
     def get(self, report_id: str) -> Optional[dict]:
         r = self._conn().execute(

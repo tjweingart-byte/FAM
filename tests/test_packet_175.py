@@ -31,7 +31,6 @@ ADMIN = {"X-Admin-Token": "secret"}
 def client(monkeypatch):
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
     monkeypatch.setattr(appmod, "ADMIN_TOKEN", "secret")
-    feedback.FeedbackStore._stamps.clear()
     return TestClient(appmod.app)
 
 
@@ -64,7 +63,6 @@ def test_an_empty_or_huge_report_is_refused_with_a_sentence(tmp_path):
 
 def test_one_listener_is_paced(tmp_path):
     store = feedback.FeedbackStore(str(tmp_path / "f.db"))
-    store._stamps.clear()
     for i in range(feedback.PER_LISTENER):
         store.add(f"bug {i}", throttle_key="anon_x", now=1000.0 + i)
     with pytest.raises(feedback.FeedbackError, match="a lot of reports"):
@@ -73,6 +71,27 @@ def test_one_listener_is_paced(tmp_path):
     store.add("theirs", throttle_key="anon_y", now=1100.0)
     store.add("later", throttle_key="anon_x",
               now=1000.0 + feedback.WINDOW_SECONDS + 60)
+
+
+def test_everybody_together_is_capped_on_disk(tmp_path, monkeypatch):
+    """The per-session pace is keyed on a cookie a script can drop; the
+    ceiling counted from the table is the bound that holds."""
+    monkeypatch.setattr(feedback, "GLOBAL_PER_WINDOW", 3)
+    store = feedback.FeedbackStore(str(tmp_path / "f.db"))
+    for i in range(3):
+        store.add(f"bug {i}", throttle_key=f"anon_{i}", now=1000.0 + i)
+    with pytest.raises(feedback.FeedbackError, match="no more reports this hour"):
+        store.add("fourth", throttle_key="anon_new", now=1010.0)
+    store.add("next hour", throttle_key="anon_new",
+              now=1000.0 + feedback.WINDOW_SECONDS + 5)
+
+
+def test_forgotten_sessions_do_not_pile_up_in_memory(tmp_path):
+    store = feedback.FeedbackStore(str(tmp_path / "f.db"))
+    for i in range(600):
+        store._admit(f"anon_{i}", 1000.0)
+    store._admit("late", 1000.0 + feedback.WINDOW_SECONDS + 1)
+    assert len(store._stamps) < 600
 
 
 def test_deleting_an_account_keeps_its_reports_without_the_id(tmp_path):

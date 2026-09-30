@@ -4068,7 +4068,7 @@
         body: JSON.stringify(body)
       }).then(function(r){
         return r.json().catch(function(){ return {}; }).then(function(j){
-          if(!r.ok) throw new Error(j.error || j.detail || ("The report was not saved (" + r.status + ")."));
+          if(!r.ok) throw new Error(j.error || (typeof j.detail === "string" && j.detail) || ("The report was not saved (" + r.status + ")."));
           return j;
         });
       }).then(function(){
