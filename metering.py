@@ -94,6 +94,25 @@ PRICES: dict[str, tuple[float, float]] = {
 #: costs a premium over it. Published multipliers, not measured here.
 CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
+#: A write under the one-hour TTL (`PROMPT_CACHE_TTL=1h`, §179) costs twice
+#: the input rate rather than 1.25x.
+CACHE_WRITE_1H_MULTIPLIER = 2.0
+
+
+def cache_write_multiplier() -> float:
+    """What a cache write costs here, by the TTL the writer asks for.
+
+    Only the writer marks anything cacheable, so the TTL in force is the one
+    every write in the ledger was made under.
+    """
+    try:
+        from config import settings
+
+        if str(getattr(settings, "prompt_cache_ttl", "") or "").strip() == "1h":
+            return CACHE_WRITE_1H_MULTIPLIER
+    except Exception:  # noqa: BLE001 - pricing never fails on a setting
+        pass
+    return CACHE_WRITE_MULTIPLIER
 
 #: What the Message Batches API takes off every token of a batched call,
 #: cache reads and writes included (§179). Published, not measured here.
@@ -268,7 +287,7 @@ def price_of(usage: Usage) -> Cost:
         cost.cache_read = (usage.cache_read_tokens / 1_000_000
                            * per_in * CACHE_READ_MULTIPLIER)
         cost.cache_write = (usage.cache_write_tokens / 1_000_000
-                            * per_in * CACHE_WRITE_MULTIPLIER)
+                            * per_in * cache_write_multiplier())
         cost.batch_discount = float(usage.batch_discount or 0.0)
     cost.exa = float(usage.exa_cost or 0.0)
     # Billed, like Exa: the provider's own figure, recorded when it was spent.
@@ -285,7 +304,7 @@ def _claude_list_cost(usage: Usage) -> float:
     per_in, per_out = rate
     return (usage.input_tokens * per_in + usage.output_tokens * per_out
             + usage.cache_read_tokens * per_in * CACHE_READ_MULTIPLIER
-            + usage.cache_write_tokens * per_in * CACHE_WRITE_MULTIPLIER
+            + usage.cache_write_tokens * per_in * cache_write_multiplier()
             ) / 1_000_000
 
 

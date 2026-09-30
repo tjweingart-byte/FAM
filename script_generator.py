@@ -432,7 +432,7 @@ def writer_system():
     brief, the evidence, the question - is in the user message after it, so
     the cached prefix is byte-identical from call to call, which is the only
     condition a cache read has. Nothing about what is written changes; only
-    what the ~3,500 identical tokens cost and how soon the first one is read.
+    what the ~2,500 identical tokens cost and how soon the first one is read.
     """
     text = system_prompt()
     if not settings.prompt_cache:

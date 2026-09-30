@@ -858,6 +858,15 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     for cid, (story, plan, key, notes, prepared, _) in waiting.items():
         message = answers.get(cid)
         try:
+            if cache.get(key):
+                # A tap wrote this story while the batch was out (§179). Keep
+                # the tap's episode and its audio; the answer arriving now
+                # would archive it and draw it a different voice.
+                result = {"status": "cached", "key": key,
+                          "dollars": prefetch._dollars(notes),
+                          "detail": "a tap wrote it while the batch was out"}
+                results[story.id] = result
+                continue
             if message is not None:
                 sentences = generator.sentences_from_message(prepared, notes,
                                                              message)
@@ -1144,6 +1153,15 @@ async def run_forever(generator=None, cache=None,
                  "in the same second as the story sweep", initial_delay)
         await asyncio.sleep(initial_delay)
     while True:
+        # "Start here" first (§179): its eight episodes are written live and
+        # their cards lose their names an hour after the slot, while a batched
+        # edition can take up to `EDITION_BATCH_WAIT_SECONDS` - so the short,
+        # deadline-bound job does not wait behind the long one.
+        try:
+            if generator is not None and startup_due():
+                await write_startup(generator=generator, cache=cache)
+        except Exception:  # noqa: BLE001
+            log.exception("startup episodes: the scheduler tick failed")
         try:
             if settings.trending_bank and due():
                 row = store().status(slot_id(last_slot()))
@@ -1151,11 +1169,6 @@ async def run_forever(generator=None, cache=None,
                             force=_retry_at_once(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
-        try:
-            if generator is not None and startup_due():
-                await write_startup(generator=generator, cache=cache)
-        except Exception:  # noqa: BLE001
-            log.exception("startup episodes: the scheduler tick failed")
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))
 
 

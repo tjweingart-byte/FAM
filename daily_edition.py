@@ -89,6 +89,10 @@ EPISODE_GRACE_SECONDS = 3600
 #: Episodes written at once. An edition is hundreds of model calls; one at a
 #: time would take hours, and dozens at once would compete with listeners.
 CONCURRENCY = 3
+#: What a batched edition reserves against `DAILY_EDITION_MAX_DOLLARS` for
+#: each writer before the batch returns (§179): a 2-minute writer at batch
+#: price, rounded up (~$0.016 at list, halved, plus room for a longer script).
+BATCH_WRITER_RESERVE_USD = 0.02
 #: What a build cut short by a shutdown writes, so the next boot retries.
 INTERRUPTED = "interrupted: the server stopped during the build"
 #: What an edition says on a server that cannot write (demo mode, no key).
@@ -419,6 +423,11 @@ class _Pending:
         #: batched edition has prepared it; the writer is asked from this.
         self.prepared = None
         self.params: dict = {}
+        #: The start of the edition being built, for the re-check on return.
+        self.since = 0.0
+        #: Set once `_write_batch` has finished it, so the clean-up after the
+        #: batch does not discard a claim somebody else has taken since.
+        self.done = False
 
 
 async def _start(query: str, generator, cache, length: int,
@@ -459,7 +468,9 @@ async def _start(query: str, generator, cache, length: int,
         # retrieval query, the recency window and the story shape all come
         # from this brief. A brief prefetch already warmed is taken instead.
         plan = await generator.understand(plan, notes)
-        return _Pending(query, plan, key, notes)
+        pending = _Pending(query, plan, key, notes)
+        pending.since = since
+        return pending
     except BaseException:
         _IN_FLIGHT.discard(query)
         raise
@@ -600,30 +611,66 @@ async def _write_batch(pending: list, generator, cache, length: int,
             before = _dollars_so_far(item)
             message = answers.get(cid)
             try:
-                if message is not None:
+                if _tapped_meanwhile(item, cache, current_until):
+                    # A listener tapped this subject while the batch was out
+                    # and the tap wrote it, audio and all. Keep theirs: the
+                    # answer arriving now would archive it and drop its audio.
+                    result = {"status": "cached", "key": item.key,
+                              "dollars": _dollars_so_far(item),
+                              "detail": "a tap wrote it while the batch was out"}
+                elif message is not None:
                     sentences = generator.sentences_from_message(
                         item.prepared, item.notes, message)
+                    result = _finish(item, sentences, cache, length,
+                                     current_until)
                 else:
                     async with gate:
                         alive()
                         sentences = [x async for x in generator.stream_prepared(
                             item.prepared, item.notes)]
-                result = _finish(item, sentences, cache, length, current_until)
+                    result = _finish(item, sentences, cache, length,
+                                     current_until)
             except Exception as exc:  # noqa: BLE001
                 result = _failure(item.query, exc, item)
             finally:
                 _IN_FLIGHT.discard(item.query)
-            result["batched"] = message is not None
+                item.done = True
+            result["batched"] = message is not None and result.get("status") != "cached"
             if result.get("status") not in ("written", "volatile"):
                 spent["n"] -= 1
-            spent["usd"] += float(result.get("dollars") or 0.0) - before
+            spent["usd"] += (float(result.get("dollars") or 0.0) - before
+                             - BATCH_WRITER_RESERVE_USD)
             result["mixes"] = item.mixes
             report["episodes"][item.query] = result
 
         await asyncio.gather(*(finish(cid, item) for cid, item in ids.items()))
     finally:
+        # Only what was never finished (a cancelled build): a finished one
+        # let go of its claim already, and it may have been taken since.
         for item in pending:
-            _IN_FLIGHT.discard(item.query)
+            if not item.done:
+                _IN_FLIGHT.discard(item.query)
+
+
+def _tapped_meanwhile(item: "_Pending", cache, current_until: float) -> bool:
+    """Whether this episode was written for this edition since it was prepared.
+
+    The same test `_start` makes, made again when a batched answer returns -
+    up to `EDITION_BATCH_WAIT_SECONDS` later - and with the same consequence:
+    the edition's window is given to what is there instead of writing over it.
+    """
+    try:
+        if not cache.get(item.key):
+            return False
+        sourced = getattr(cache, "sourced_at", lambda _k: None)(item.key) or 0.0
+        if sourced < item.since:
+            return False
+        extend = getattr(cache, "extend_current", None)
+        if extend is not None:
+            extend(item.key, current_until)
+        return True
+    except Exception:  # noqa: BLE001 - a failed check writes, as before
+        return False
 
 
 def _batches(generator) -> bool:
@@ -684,7 +731,10 @@ async def build(mix_store, generator=None, cache=None,
         ceiling_usd = max(0.0, float(s.daily_edition_max_dollars or 0.0))
         # Episodes are reserved before each write; dollars are only known
         # after one, so the dollar ceiling can be passed by at most the
-        # episodes already in flight (`CONCURRENCY`).
+        # episodes already in flight (`CONCURRENCY`). Batched (§179), the
+        # writer is not paid until the batch returns, so each prepared
+        # episode reserves `BATCH_WRITER_RESERVE_USD` for it up front and the
+        # reservation is swapped for the real figure when its answer lands.
         spent = {"n": 0, "usd": 0.0}
         until = _current_until(now)
         gate = asyncio.Semaphore(CONCURRENCY)
@@ -718,7 +768,8 @@ async def build(mix_store, generator=None, cache=None,
                         # The brief and the evidence are spent already; the
                         # writer is added when its answer comes back.
                         result.mixes = subject["mixes"]
-                        spent["usd"] += _dollars_so_far(result)
+                        spent["usd"] += (_dollars_so_far(result)
+                                         + BATCH_WRITER_RESERVE_USD)
                         pending.append(result)
                         return
                 else:

@@ -9,9 +9,13 @@ Counted where the request goes out, not where it is asked for: a cache hit
 never reaches here, and a request that failed is counted - it spent a slot
 against the provider's limit all the same - with the failures kept beside it.
 
-**Never on the critical path for real.** `record` is one small SQLite upsert,
-it never raises, and a store that cannot be opened costs a log line. Days are
-UTC because that is when API-Sports and GNews reset their daily allowances.
+**Never on the critical path.** `record` adds one to a count in memory and
+returns - it is called from the event loop, on the search path (live facts),
+so it never touches the disk itself. The counts are written out by a
+background thread at most every `FLUSH_SECONDS`, and before every report, so
+a crash loses at most that many seconds of counts. It never raises, and a
+store that cannot be opened costs a log line. Days are UTC because that is
+when API-Sports and GNews reset their daily allowances.
 
 The limits are copied here from each provider's published plans, looked up
 2026-09-30, and from the settings that ration them - re-check before buying
@@ -25,6 +29,7 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import closing
 from typing import Optional
 
 from paths import data_path
@@ -101,7 +106,7 @@ class UsageStore:
     def __init__(self, path: Optional[str] = None) -> None:
         self.path = data_path("PROVIDER_USAGE_DB", "provider_usage.db", path)
         self._lock = threading.Lock()
-        with self._connect() as db:
+        with closing(self._connect()) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS calls (
                               day      TEXT NOT NULL,
                               provider TEXT NOT NULL,
@@ -117,19 +122,33 @@ class UsageStore:
     def record(self, provider: str, ok: bool = True,
                now: Optional[float] = None) -> None:
         day = _day(time.time() if now is None else now)
-        with self._lock, self._connect() as db:
-            db.execute(
-                "INSERT INTO calls (day, provider, requests, failures) "
-                "VALUES (?, ?, 1, ?) ON CONFLICT(day, provider) DO UPDATE SET "
-                "requests = requests + 1, failures = failures + excluded.failures",
-                (day, provider, 0 if ok else 1))
+        self.add({(day, provider): (1, 0 if ok else 1)})
+
+    def add(self, counts: dict) -> None:
+        """Add `{(day, provider): (requests, failures)}` in one transaction."""
+        if not counts:
+            return
+        with self._lock:
+            db = self._connect()
+            try:
+                with db:
+                    db.executemany(
+                        "INSERT INTO calls (day, provider, requests, failures) "
+                        "VALUES (?, ?, ?, ?) ON CONFLICT(day, provider) DO UPDATE "
+                        "SET requests = requests + excluded.requests, "
+                        "failures = failures + excluded.failures",
+                        [(day, provider, requests, failures)
+                         for (day, provider), (requests, failures)
+                         in counts.items()])
+            finally:
+                db.close()
 
     def days(self, count: int, now: Optional[float] = None) -> dict:
         """provider -> {day: (requests, failures)} for the last `count` days."""
         now = time.time() if now is None else now
         since = _day(now - (count - 1) * DAY)
         out: dict = {}
-        with self._connect() as db:
+        with closing(self._connect()) as db:
             for day, provider, requests, failures in db.execute(
                     "SELECT day, provider, requests, failures FROM calls "
                     "WHERE day >= ?", (since,)):
@@ -137,7 +156,7 @@ class UsageStore:
         return out
 
     def clear(self) -> None:
-        with self._lock, self._connect() as db:
+        with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM calls")
 
 
@@ -158,27 +177,104 @@ def store() -> UsageStore:
 
 
 def reset(usage_store: Optional[UsageStore] = None) -> None:
-    """For tests: use this store (or open a fresh one on next use)."""
+    """For tests: use this store (or open a fresh one on next use), and
+    forget any counts not yet written."""
     global _STORE
     with _STORE_LOCK:
         _STORE = usage_store
+    with _PENDING_LOCK:
+        _PENDING.clear()
+        _LAST_FLUSH[0] = 0.0
 
 
 def exists() -> bool:
-    """Whether the store has been created. Reading never creates it."""
+    """Whether there is anything to report. Reading never creates the store."""
     if _STORE is not None:
         return True
+    with _PENDING_LOCK:
+        if _PENDING:
+            return True
     return os.path.exists(data_path("PROVIDER_USAGE_DB", "provider_usage.db"))
 
 
+#: How often, at most, the counts held in memory are written out.
+FLUSH_SECONDS = 10.0
+
+_PENDING: dict = {}
+_PENDING_LOCK = threading.Lock()
+_LAST_FLUSH = [0.0]
+_FLUSHING = [False]
+
+
 def record(provider: str, ok: bool = True) -> None:
-    """Count one request that went out to `provider`. Never raises."""
+    """Count one request that went out to `provider`. Never raises, never waits.
+
+    Adds to a count in memory; a background thread writes it out.
+    """
     if provider not in LABELS:
         return
     try:
-        store().record(provider, ok)
+        key = (_day(time.time()), provider)
+        with _PENDING_LOCK:
+            requests, failures = _PENDING.get(key, (0, 0))
+            _PENDING[key] = (requests + 1, failures + (0 if ok else 1))
+            due = (not _FLUSHING[0]
+                   and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
+            if due:
+                _FLUSHING[0] = True
+        if due:
+            threading.Thread(target=_flush_in_background, daemon=True,
+                             name="provider-usage-flush").start()
     except Exception as exc:  # noqa: BLE001 - counting never costs a request
         log.warning("could not count a %s request: %s", provider, exc)
+
+
+def _flush_in_background() -> None:
+    try:
+        flush()
+    finally:
+        with _PENDING_LOCK:
+            _FLUSHING[0] = False
+
+
+#: One flush at a time, so a report that flushes waits for a background write
+#: already holding the counts rather than reading the store before it lands.
+_FLUSH_LOCK = threading.Lock()
+
+
+def flush() -> None:
+    """Write the counts held in memory to the store. Never raises.
+
+    A write that fails puts its counts back, so they are tried again rather
+    than lost.
+    """
+    with _FLUSH_LOCK:
+        _flush_locked()
+
+
+def _flush_locked() -> None:
+    try:
+        # The store first, then the counts: a `reset` between the two leaves
+        # nothing to take, so counts never land in a store they were not
+        # recorded against.
+        target = store()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not open provider usage: %s", exc)
+        return
+    with _PENDING_LOCK:
+        taken = dict(_PENDING)
+        _PENDING.clear()
+        _LAST_FLUSH[0] = time.monotonic()
+    if not taken:
+        return
+    try:
+        target.add(taken)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not write provider usage: %s", exc)
+        with _PENDING_LOCK:
+            for key, (requests, failures) in taken.items():
+                held = _PENDING.get(key, (0, 0))
+                _PENDING[key] = (held[0] + requests, held[1] + failures)
 
 
 def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
@@ -190,6 +286,8 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
     """
     now = time.time() if now is None else now
     try:
+        if exists():
+            flush()
         seen = store().days(days, now) if exists() else {}
     except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
         log.warning("could not read provider usage: %s", exc)

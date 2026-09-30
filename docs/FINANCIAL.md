@@ -106,29 +106,29 @@ call itself, so they cost no extra call.
   side.
 - **Replace it:** `metering.db` records the real token counts per episode.
 
-**Where the $0.04 goes** (estimate, 2-minute search episode, before §179):
+**Where the $0.04 goes** (estimate, 2-minute search episode, before §179; the instructions measured at 10,241 characters on 2026-09-30):
 
 | Part | Tokens | Cost | Share |
 |---|---|---|---|
 | Brief: instructions + question | ~1,000 in | $0.002 | 5% |
-| Brief: output (mostly reasoning, then JSON) | ~800 out | $0.008 | 20% |
-| Writer: house rules + style example (identical every call) | ~3,500 in | $0.007 | 17% |
+| Brief: output (mostly reasoning, then JSON) | ~800 out | $0.008 | 21% |
+| Writer: house rules + style example (identical every call) | ~2,500 in | $0.005 | 13% |
 | Writer: brief + evidence packet | ~2,000 in | $0.004 | 10% |
-| Writer: reasoning before writing (`EFFORT=low`) | ~1,600 out | $0.016 | 39% |
+| Writer: reasoning before writing (`EFFORT=low`) | ~1,600 out | $0.016 | 41% |
 | Writer: the script, title, `<<NEXT:>>` | ~400 out | $0.004 | 10% |
 
 About 70% is output, and most of that is reasoning the spec amendment buys on
-purpose (§129) - not a lever. The lever was the 17% paid again on every call
+purpose (§129) - not a lever. The lever was the 13% paid again on every call
 for the same instructions.
 
 **Two savings shipped in §179, neither changing a word a listener hears:**
 
 - **Prompt caching on the writer's instructions** (`PROMPT_CACHE=1`, default).
-  The ~3,500 identical tokens are marked cacheable; a writer call inside five
-  minutes of the last reads them at 0.1x input - about **-$0.0063 per episode
-  (-16%)** once traffic keeps the cache warm, and a shorter wait before the
+  The ~2,500 identical tokens are marked cacheable; a writer call inside five
+  minutes of the last reads them at 0.1x input - about **-$0.0045 per episode
+  (-11%)** once traffic keeps the cache warm, and a shorter wait before the
   first word. Below one writer call per five minutes each call pays the 1.25x
-  write instead (+$0.0018): `PROMPT_CACHE_TTL=1h` suits sparse traffic (2x
+  write instead (+$0.0013): `PROMPT_CACHE_TTL=1h` suits sparse traffic (2x
   write, pays off at three calls an hour). The brief's instructions (~630
   tokens) are below Sonnet 5's 1,024-token cacheable minimum and are not marked.
 - **Batch pricing on both editions** (`EDITION_BATCH=1`, default). Trending

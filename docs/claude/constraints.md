@@ -840,7 +840,7 @@
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
   episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the
-  writer's instructions (house rules plus style example, ~3,500 tokens) are
+  writer's instructions (house rules plus style example, ~2,500 tokens) are
   sent as one cacheable block (`PROMPT_CACHE=1`, `writer_system()`), so the
   prefix is byte-identical from call to call and everything that varies stays
   in the user turn; and the two editions - Trending and DailyFAM, which write

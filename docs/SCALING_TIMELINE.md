@@ -73,7 +73,7 @@ batch pricing on both editions are **on (§179)**.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
-| **Done (§179)** | — | Prompt caching on the writer (`PROMPT_CACHE=1`) | -16% per episode once traffic keeps it warm |
+| **Done (§179)** | — | Prompt caching on the writer (`PROMPT_CACHE=1`) | about -11% (~$0.0045) per episode once traffic keeps it warm |
 | **Done (§179)** | — | Batch pricing for the Trending and DailyFAM editions (`EDITION_BATCH=1`) | -50% on those writer calls |
 | **Stage 0 · now** | Writer calls are rarer than one per five minutes (pre-launch) | Optional: `PROMPT_CACHE_TTL=1h`, so a sparse call reads rather than re-writes the cache | ± cents |
 | **Stage 1 · before launch** | Rate limits are per organisation and a pool of keys adds nothing | Check the usage tier in the Anthropic console; request the next tier | $0 |

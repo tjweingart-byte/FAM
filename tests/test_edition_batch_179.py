@@ -381,3 +381,91 @@ def test_a_failed_trending_batch_is_written_live(edition):
     assert [r["status"] for r in results.values()] == ["written"] * 3
     assert not any(r["batched"] for r in results.values())
     assert len([e for e in gen.log if e[0] == "prepare"]) == 3
+
+
+# --------------------------------------------------------------------------
+# Review fixes: a tap in the window, the dollar ceiling, the 1h TTL
+# --------------------------------------------------------------------------
+class TapsMeanwhile(BatchWriter):
+    """While the batch is out, a listener's tap writes every episode."""
+
+    def __init__(self, cache, keys, **kw):
+        super().__init__(**kw)
+        self.cache, self.keys = cache, keys
+
+    async def batch_request(self, plan, notes):
+        prepared, params = await super().batch_request(plan, notes)
+        self.keys.append(None)
+        return prepared, params
+
+    def sentences_from_message(self, plan, notes, msg):  # pragma: no cover
+        raise AssertionError("a tap's episode was written over")
+
+
+def _tap_everything_before_the_answers(monkeypatch, cache, words=("Tapped.",)):
+    real = claude_batch.run
+
+    async def run_then_tap(client, requests, **kwargs):
+        answers = await real(client, requests, **kwargs)
+        for request_params in requests.values():
+            from pipeline import key_for
+            key = await key_for(plan_episode(request_params["q"],
+                                             daily_edition.minutes()))
+            cache.put(key, list(words), 3600, request_params["q"], "", 2, "",
+                      "", "", "Tap's title", sourced_at=time.time() + 1)
+        return answers
+
+    monkeypatch.setattr(claude_batch, "run", run_then_tap)
+
+
+def test_a_tap_during_the_batch_keeps_its_episode_daily(edition, monkeypatch):
+    _mixes(edition)
+    cache = MemoryScriptCache()
+    _tap_everything_before_the_answers(monkeypatch, cache)
+    report = run(daily_edition.build(edition, TapsMeanwhile(cache, []), cache))
+    assert report["cached"] == 3 and report["written"] == 0
+    for result in report["episodes"].values():
+        assert cache.get(result["key"]) == ["Tapped."]
+    assert not daily_edition._IN_FLIGHT
+
+
+def test_a_tap_during_the_batch_keeps_its_episode_trending(edition, monkeypatch):
+    cache = MemoryScriptCache()
+    real = claude_batch.run
+
+    async def run_then_tap(client, requests, **kwargs):
+        answers = await real(client, requests, **kwargs)
+        from pipeline import key_for
+        for params in requests.values():
+            key = await key_for(plan_episode(params["q"], 2))
+            cache.put(key, ["Tapped."], 3600, params["q"], "", 2, "", "", "",
+                      "Tap's title")
+        return answers
+
+    monkeypatch.setattr(claude_batch, "run", run_then_tap)
+    results = run(trending_bank.write_batched(
+        _stories(), TapsMeanwhile(cache, []), cache, 2, time.time() + 3600))
+    assert [r["status"] for r in results.values()] == ["cached"] * 3
+    assert all(cache.get(r["key"]) == ["Tapped."] for r in results.values())
+
+
+def test_the_dollar_ceiling_still_bounds_a_batched_edition(edition, monkeypatch):
+    """Batched, the writer is paid when the batch returns - after every
+    episode has passed the ceiling check - so each one reserves its writer
+    up front. Without that, only the episode ceiling bound the batch."""
+    tight = dataclasses.replace(config.settings, daily_edition_max_dollars=0.03)
+    monkeypatch.setattr(config, "settings", tight)
+    _mixes(edition)
+    report = run(daily_edition.build(edition, BatchWriter(), MemoryScriptCache()))
+    assert report["skipped_for_ceiling"] >= 1
+    assert report["written"] <= 2
+
+
+def test_an_hour_long_cache_write_is_priced_at_twice_the_input_rate(monkeypatch):
+    usage = metering.Usage(model="claude-sonnet-5", cache_write_tokens=1_000_000)
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, prompt_cache_ttl="5m"))
+    assert metering.price_of(usage).cache_write == pytest.approx(2.50)
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, prompt_cache_ttl="1h"))
+    assert metering.price_of(usage).cache_write == pytest.approx(4.00)

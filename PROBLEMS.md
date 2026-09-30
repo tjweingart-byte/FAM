@@ -13871,14 +13871,14 @@ January 2027**, delete `_pods_over_rest`, `_pods_over_graphql` and their
 settings.
 
 **2. Prompt caching on the writer's instructions** (`PROMPT_CACHE=1`,
-`PROMPT_CACHE_TTL=5m`). The house rules plus the style example are ~3,500
-tokens, identical on every writer call, and were 17% of a new episode's
+`PROMPT_CACHE_TTL=5m`). The house rules plus the style example are ~2,500
+tokens (10,241 characters), identical on every writer call, and were 13% of a new episode's
 Claude cost. `writer_system()` sends them as one block with
 `cache_control`; the brief, evidence and question stay in the user turn, so
-the prefix is byte-identical across episodes. About -$0.0063 per episode
+the prefix is byte-identical across episodes. About -$0.0045 per episode (-11%)
 once traffic keeps the cache warm, and a shorter wait before the first word.
 Below one writer call per five minutes each call pays the 1.25x write
-instead (+$0.0018): `PROMPT_CACHE_TTL=1h` is there for sparse traffic. The
+instead (+$0.0013): `PROMPT_CACHE_TTL=1h` is there for sparse traffic. The
 brief's instructions (~630 tokens) are under Sonnet 5's 1,024-token cacheable
 minimum and are not marked; a test fails if the writer's ever are.
 
@@ -13946,3 +13946,40 @@ holds no database).
 batch has been observed. After deploying, `usage_report.py` should show
 `cache_read_tokens` on writer calls within minutes of steady traffic, and the
 next edition's log line should say how many writers the batch answered.
+
+**Review, before merging into Main.** An independent pass over the diff
+found these; each fixed one has a test:
+
+* *A late batch answer wrote over a tap's episode.* The cache was checked
+  only before the batch went out, so a story tapped in the hour the batch was
+  out was written live (audio kept) and then overwritten by the answer - its
+  audio dropped, a new voice drawn, `origin` changed. Both editions now check
+  again when the answer arrives and keep the tap's episode (`cached`; DailyFAM
+  gives it the edition's window, as `_start` does). The line above claiming
+  this was true is now true.
+* *DailyFAM's dollar ceiling stopped bounding the writers.* Batched, the
+  writer is paid when the batch returns, after every episode has passed the
+  check. Each prepared episode now reserves `BATCH_WRITER_RESERVE_USD`
+  ($0.02) up front, swapped for the real figure on return.
+* *"Start here" could wait behind a batch.* The scheduler awaited the Trending
+  build before the startup write-ahead, whose cards lose their names an hour
+  after the slot. The startup episodes are now written first.
+* *Counting blocked the event loop.* `provider_usage.record` opened SQLite on
+  every request, on the search path. Counts are now kept in memory and written
+  by a background thread at most every `FLUSH_SECONDS` (10), and before each
+  report; a failed write keeps its counts for the next one.
+* *A one-hour cache write was priced at 1.25x.* `metering` now prices writes at
+  2x when `PROMPT_CACHE_TTL=1h`.
+* *The instructions are ~2,500 tokens, not ~3,500* (10,241 characters,
+  measured). The saving is ~$0.0045 an episode (-11%), not -$0.0063 (-16%);
+  the figures above and in `docs/` are corrected.
+* `/api/health` now reports both savings and where each value came from
+  (`writer_savings`), since either is settable in a dashboard.
+
+Known and left: a redeploy during a batch rebuilds the edition with a new
+batch while the old one still runs and bills (the batch id is not kept), and a
+failed cancel writes everything live while the batch may still finish - both
+cost at most one edition's writers twice, at the batch rate. The v2 pod route
+(`GET https://api.runpod.io/v2/pods`) is still unverified from here; RunPod is
+blocked from this container. Check it with a real key:
+`curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" https://api.runpod.io/v2/pods | head -c 400`.

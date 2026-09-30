@@ -128,3 +128,48 @@ def test_the_admin_page_draws_them():
     page = (admin_tracker.PROJECT_ROOT / "admin_ui" / "tracker.html").read_text()
     assert 'id="providers"' in page and "drawProviders(s.providers)" in page
     assert "Limit (next plan)" in page
+
+
+def test_counting_never_touches_the_disk_on_the_callers_thread(tmp_path):
+    """`live_sources._json` is on the search path and runs on the event loop,
+    so a count is kept in memory and written by a background thread."""
+    import threading
+
+    caller = threading.current_thread()
+    writers = []
+
+    class Watching(provider_usage.UsageStore):
+        def add(self, counts):
+            writers.append(threading.current_thread())
+            super().add(counts)
+
+    provider_usage.reset(Watching(str(tmp_path / "u.db")))
+    for _ in range(5):
+        provider_usage.record("exa")
+    for thread in threading.enumerate():
+        if thread.name == "provider-usage-flush":
+            thread.join(5)
+    assert writers and all(w is not caller for w in writers)
+    assert {r["provider"]: r for r in provider_usage.report()}["exa"]["today"] == 5
+
+
+def test_a_failed_write_keeps_its_counts_for_the_next_one(tmp_path):
+    real = provider_usage.UsageStore(str(tmp_path / "u.db"))
+
+    class Flaky:
+        fail = True
+
+        def add(self, counts):
+            if self.fail:
+                raise OSError("database is locked")
+            real.add(counts)
+
+        def days(self, *a, **k):
+            return real.days(*a, **k)
+
+    flaky = Flaky()
+    provider_usage.reset(flaky)
+    provider_usage.record("gdelt")
+    provider_usage.flush()                  # fails; the count is put back
+    flaky.fail = False
+    assert {r["provider"]: r for r in provider_usage.report()}["gdelt"]["today"] == 1

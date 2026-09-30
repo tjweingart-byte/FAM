@@ -322,7 +322,7 @@ class Settings:
     # would silently undo this change on every push.
     effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
     # Prompt caching on the writer's instructions (§179). The system prompt -
-    # the house rules and the style example, ~3,500 tokens - is identical on
+    # the house rules and the style example, ~2,500 tokens - is identical on
     # every writer call, so it is marked cacheable: a call inside the TTL of
     # the last one reads it at a tenth of the input price and starts sooner.
     # The words sent and the words written are unchanged. `PROMPT_CACHE=0`

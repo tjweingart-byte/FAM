@@ -1,6 +1,6 @@
 """The writer's instructions are marked cacheable (PROBLEMS.md §179).
 
-The ~3,500 tokens of house rules and style example are the same on every
+The ~2,500 tokens of house rules and style example are the same on every
 writer call. Marked with `cache_control`, a call inside the TTL of the last
 one reads them at a tenth of the input price and starts sooner. What these pin
 is the part that makes that true and the part that makes it safe: the cached
@@ -64,6 +64,22 @@ def test_off_sends_the_plain_string(monkeypatch):
 
 def test_above_the_models_cacheable_minimum():
     """Sonnet 5 caches nothing shorter than 1,024 tokens, silently. The prompt
-    is ~3,500; this fails if it is ever cut to a size where the marker would
+    is ~2,500 (10,241 characters); this fails if it is ever cut to a size where the marker would
     do nothing. Four characters a token is the conservative estimate."""
     assert len(system_prompt()) / 4 > 1024
+
+
+def test_the_health_page_says_which_savings_are_on_and_where_from(monkeypatch):
+    """Settable in the environment and in a dashboard, so a running server
+    says what is in force - an `EDITION_BATCH=0` left behind would otherwise
+    undo the saving silently on every push."""
+    import app
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("EDITION_BATCH", "0")
+    with TestClient(app.app) as client:
+        savings = client.get("/api/health").json()["writer_savings"]
+    assert savings["prompt_cache_source"] == "config.py default"
+    assert savings["edition_batch_source"] == "EDITION_BATCH env var"
+    assert set(savings) >= {"prompt_cache", "prompt_cache_ttl", "edition_batch",
+                            "edition_batch_wait_seconds"}
