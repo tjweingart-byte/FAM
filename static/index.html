@@ -4078,10 +4078,12 @@
       };
       if(PLAYER_SCREENS[screen] && episodeStamp){
         var parts = episodeStamp.split("|");
-        var shown = document.getElementById("p-title");
-        out.episode = { q: parts[0], minutes: Number(parts[1]) || 0,
-                        context: parts[2] || "",
-                        title: (shown && shown.textContent.trim()) || "" };
+        // The query is everything before the last two fields, so a "|"
+        // typed into a question does not cut it short.
+        var q = parts.slice(0, Math.max(1, parts.length - 2)).join("|");
+        out.episode = { q: q.slice(0, 500),
+                        minutes: Number(parts[parts.length - 2]) || 0,
+                        context: (parts.length > 2 ? parts[parts.length - 1] : "").slice(0, 300) };
       }
       return out;
     }
@@ -15549,6 +15551,9 @@
       // into one style recalculation and skip the transition entirely.
       requestAnimationFrame(function(){
         requestAnimationFrame(function(){
+          // Paused before the bar started (the search box took focus at
+          // once): leave it full rather than let it empty on its own.
+          if(nextUpPaused) return;
           bar.style.transition = "transform " + NEXT_UP_SECONDS + "s linear";
           bar.style.transform = "scaleX(0)";
         });

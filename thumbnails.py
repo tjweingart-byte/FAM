@@ -678,9 +678,9 @@ def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
             return None
         held = store()
         held.refresh_if_changed()
+        # Read on even with nothing approved, so the nodes tiles ask for are
+        # remembered from the first page drawn on a new deployment.
         approved = held.approved()
-        if not approved:
-            return None
         import topics
 
         tree = topics.category_tree()
@@ -1233,7 +1233,11 @@ def duplicate_of(thumb_store: "ThumbnailStore", node_id: str,
     if mine is None:
         return ""
     for other in thumb_store.all():
-        if other.node_id == node_id:
+        # Only pictures that are, or may become, live: a rejected or failed
+        # one is on no tile and never will be.
+        if other.node_id == node_id or (
+                other.status not in (STATUS_APPROVED, STATUS_REVIEW)
+                and not other.pending):
             continue
         for pending in (False, True):
             memo = (thumb_store.path, other.node_id, pending, other.updated_at)

@@ -140,8 +140,35 @@ def test_a_report_is_kept_when_its_episode_cannot_be_read(client, monkeypatch):
     rid = r.json()["id"]
     report = [x for x in client.get("/api/admin/feedback", headers=ADMIN)
               .json()["reports"] if x["id"] == rid][0]
-    assert report["episode"]["title"] == "Fed"
+    # The page's own title is never stored: the inbox shows only what the
+    # server read.
+    assert report["episode"]["title"] == ""
     assert report["episode"]["transcript"] == []
+
+
+def test_overlong_episode_words_never_refuse_the_report(client, monkeypatch):
+    monkeypatch.setattr(appmod, "_make_pipeline", lambda *a, **k: _Pipeline())
+    r = client.post("/api/feedback", json={
+        "text": "Long one", "episode": {"q": "x" * 2000, "minutes": "abc",
+                                        "context": "y" * 900, "title": "z" * 900}})
+    assert r.status_code == 200, r.text
+
+
+def test_a_listener_over_the_read_pace_keeps_their_report(client, monkeypatch):
+    from fastapi import HTTPException
+
+    def over(request):
+        raise HTTPException(status_code=429, detail="slow down")
+    monkeypatch.setattr(appmod, "_read_limit", over)
+    monkeypatch.setattr(appmod, "_make_pipeline",
+                        lambda *a, **k: pytest.fail("looked up past the pace"))
+    r = client.post("/api/feedback", json={
+        "text": "Kept anyway", "episode": {"q": "fed rates", "minutes": 2}})
+    assert r.status_code == 200
+    rid = r.json()["id"]
+    report = [x for x in client.get("/api/admin/feedback", headers=ADMIN)
+              .json()["reports"] if x["id"] == rid][0]
+    assert report["episode"] is None and report["text"] == "Kept anyway"
 
 
 def test_an_old_inbox_gains_the_episode_column(tmp_path):
@@ -305,6 +332,11 @@ def test_a_sim_league_page_never_reaches_the_packet():
                    "Jayden Daniels throws 3 TDs as Commanders top Colts 45-31")
     madden = _result("https://example.org/week-4",
                      "Week 4 recap", ["Our Madden franchise results are in"])
+    # John Madden and a ColdFusion page are real coverage.
+    coach = _result("https://www.nfl.com/news/x", "The All-Madden team",
+                    ["John Madden's Thanksgiving turkey leg"])
+    cold = _result("https://athletics.example.edu/news.cfm", "Game notes")
+    assert research.screen_results([coach, cold], query="colts") == [coach, cold]
     real = _result("https://www.cbssports.com/nfl/gametracker/x", "Colts at Commanders")
     kept = research.screen_results([fake, madden, real], query="colts commanders")
     assert kept == [real]
@@ -327,3 +359,34 @@ def test_the_writer_never_argues_a_fact_out_loud():
     text = open(script_generator.__file__).read()
     assert "Disagreement \\\nis usually the most interesting part" not in text
     assert "say only the \\\nbetter-supported one - never the argument" in text
+
+
+def test_a_prime_time_kickoff_is_said_on_the_eastern_day():
+    # 00:20 UTC on a Monday is 8:20 pm on the Sunday in the East.
+    sunday_night = datetime(2026, 10, 12, 0, 20, tzinfo=timezone.utc)
+    said = LS._kickoff_said(sunday_night, NFL)
+    assert said.startswith("Sunday 11 October at 8:20 pm Eastern"), said
+
+
+def test_an_empty_schedule_says_nothing_about_a_record():
+    assert LS.season_facts(NFL, TEAMS[0], [], now=NOW) == []
+
+
+def test_a_city_followed_by_another_teams_name_is_not_this_leagues_team():
+    teams = TEAMS + [{"id": 6, "name": "Houston Texans", "city": "Houston"}]
+    assert LS.teams_named(teams, "Houston Rockets tonight") == []
+    assert [t["id"] for t in LS.teams_named(teams, "the Houston game")] == [6]
+    # A conference all-star side is no team anybody means.
+    assert LS.teams_named(TEAMS + [{"id": 7, "name": "AFC", "city": ""}],
+                          "AFC playoff picture") == []
+
+
+def test_a_live_game_does_not_refetch_its_teams_schedules(monkeypatch):
+    calls = _fake_api(monkeypatch)
+    live = dict(WASHINGTON[-1], game=dict(WASHINGTON[-1]["game"],
+                                           status={"short": "Q2"}))
+    asyncio.run(LS.team_schedule(NFL, 1))
+    before = len(calls)
+    rows = asyncio.run(LS.team_schedule(NFL, 1, fresh=live))
+    assert len(calls) == before
+    assert rows[-1] is live

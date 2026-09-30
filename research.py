@@ -133,12 +133,16 @@ TIER_ESTABLISHED = frozenset({
 # writer to weigh it; the writer weighed it out loud for a paragraph. Two
 # screens now keep that kind of page out before anybody weighs anything.
 
-#: Words that mark a page as a video game's or a simulated league's, not the
-#: sport's. Matched as whole words in the title, the URL and the passages.
+#: Phrases that mark a page as a video game's or a simulated league's, not
+#: the sport's: regular expressions over the title and the passages (never
+#: the URL, where `.cfm` is a file type). "Madden" alone is John Madden, the
+#: All-Madden team and a Thanksgiving tradition, so only the game's own
+#: phrasings count.
 SIMULATION_MARKERS = (
-    "madden", "sim league", "simulation league", "simulated season",
-    "franchise mode", "online franchise", "cfm", "video game league",
-    "nba 2k", "mlb the show", "ea sports fc", "esports league",
+    r"madden (nfl|\d\d|ultimate team|franchise|league|sim|online|cfm)",
+    r"sim(ulation)? league", r"simulated season", r"franchise mode",
+    r"online franchise", r"video game league", r"nba 2k\d*", r"mlb the show",
+    r"ea sports fc", r"esports league",
 )
 #: Hosts known to publish simulated results written up like real ones.
 SIMULATION_HOSTS = frozenset({"2kolf.com"})
@@ -155,11 +159,10 @@ def is_simulation(result) -> bool:
     if host in SIMULATION_HOSTS or any(host.endswith("." + h)
                                        for h in SIMULATION_HOSTS):
         return True
-    text = " ".join([getattr(result, "title", "") or "",
-                     getattr(result, "url", "") or ""]
+    text = " ".join([getattr(result, "title", "") or ""]
                     + [str(h) for h in (getattr(result, "highlights", None) or [])])
     text = " ".join(re.findall(r"[a-z0-9]+", text.lower()))
-    return any(re.search(r"\b" + re.escape(marker) + r"\b", text)
+    return any(re.search(r"\b(" + marker + r")\b", text)
                for marker in SIMULATION_MARKERS)
 
 

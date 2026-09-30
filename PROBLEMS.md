@@ -13798,7 +13798,7 @@ and the live track under that key - the same lookups as `/api/next`,
 `/api/sources` and `/api/transcript` - and keeps a copy in the report
 (`feedback.episode_snapshot`, a new `episode` column added by migration),
 because the cache keeps an episode a week and a report outlives it. The page
-names only the question, so a report cannot plant a transcript. It never
+names only the question, so a report cannot plant a title or a transcript. It never
 generates and never costs the report: an episode that cannot be read leaves
 an empty snapshot. The /admin inbox and the preview's Live database panel
 have an **Episode** button that opens title, sources (linked) and transcript.
@@ -13813,3 +13813,36 @@ sweep paints those first. And a new painting within `DUPLICATE_BITS` (6 of
 64) of another node's stored picture, by difference hash, is held for review
 as "same picture as X" rather than put live. Expect more line drawings until
 the tree is painted: that is the price of no picture being shared.
+
+**Review, before merging into Main.** An independent pass over the diff found
+seven real faults, all fixed with a test each:
+
+* *A report could be lost.* The episode lookup was paced by the read limit
+  outside any guard, so a listener whose player had been polling got a 429
+  and lost what they typed; and an over-long title or query was a 422. The
+  pace now costs only the episode's details, and the episode's words are cut,
+  never refused. The page's own title is no longer stored at all - the inbox
+  shows only what the server read.
+* *The team path could cost the lookup.* Its requests were uncaught and
+  unbounded, so a slow or refused `/teams` failed the whole resolve before
+  today's live games were tried. It now has `TEAM_PATH_SHARE` of the time and
+  falls through; the teams' seasons have what is left of the fetch's time,
+  and never cost the game its own facts.
+* *Days were UTC days.* Sunday Night Football kicks off on Monday in UTC, so
+  every prime-time game had the wrong day in the one block the writer is told
+  to take every date from. Days and kick-offs are said in the league's zone
+  (`Sport.local_zone`: "Sunday 11 October at 8:20 pm Eastern").
+* *A record from absence.* An empty or unreadable schedule said a team had
+  "not finished a regular-season game yet". It now says nothing unless the
+  schedule shows the regular season still ahead of them.
+* *The sim screen caught real pages.* `cfm` matched every ColdFusion URL, and
+  "madden" matched John Madden. Markers are the game's own phrasings, over
+  title and passages only, never the URL.
+* Also: a postponed game no longer makes a schedule re-read on every lookup
+  (`UNSETTLED_HOURS`); a live game refreshes its own row inside the cached
+  schedules instead of costing two more requests; a city followed by another
+  team's name ("Houston Rockets") and the AFC/NFC all-star sides no longer
+  match; the countdown bar cannot keep emptying when paused before it
+  started; the tile-picture queue remembers asked-for nodes before anything
+  is approved; and a duplicate is judged only against pictures that are, or
+  may become, live.

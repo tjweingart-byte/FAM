@@ -971,3 +971,9 @@ def test_a_repaint_is_not_its_own_duplicate(tree):
             checker=_checker([CLEAN]), attempts=1, review="none",
             thumb_store=th.store()))
         assert got.status == th.STATUS_APPROVED
+
+
+def test_a_node_is_remembered_even_before_anything_is_approved(tree):
+    _put("college football", status=th.STATUS_REVIEW)
+    assert th.pick("how college football money changed", ("sports",)) is None
+    assert "college football" in th.asked_for()
