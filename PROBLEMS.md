@@ -13846,3 +13846,140 @@ seven real faults, all fixed with a test each:
   started; the tile-picture queue remembers asked-for nodes before anything
   is approved; and a duplicate is judged only against pictures that are, or
   may become, live.
+
+## 179. Costs: prompt caching, batched editions, RunPod REST v2, and provider counts
+
+**Why.** RunPod wrote on 2026-09-30 that its GraphQL API will be rate limited
+from 2026-10-27 (43,200/day, 3,600/hour, 180/minute) and retired in January
+2027. The owner asked what that did to cost, then for the Claude cost
+breakdown, and then for all of it to be done on this branch. Five changes.
+
+**1. The pod lookup asks RunPod's REST v2 first.** The email changed no cost:
+GraphQL was only the third way of finding a moved pod, asked at most once a
+minute per server (~1,440/day, 3% of the new cap), and synthesis goes to the
+serverless endpoint API, which none of this touches. What the email did not
+say is that REST v1 - which `voice_control` asked first - answers 410 Gone
+from **2026-11-15**. `_runpod_pods` now asks `GET {RUNPOD_API_URL}/pods`
+(`https://api.runpod.io/v2`) first, following `pagination.nextCursor` up to
+`MAX_POD_PAGES`, then v1, then GraphQL. v2's pods carry `status` (not
+`desiredStatus`), `publicIp`, `portMappings` and `runtime.ports`, all of
+which `_pods_from` already read. **Unverified against RunPod itself**: its
+docs are blocked from this container, so the v2 envelope (`{"pods": [...],
+"pagination": {...}}`) is from SkyPilot's migration PR. A wrong guess costs a
+rung - v1 and GraphQL still answer until their dates - and a log line. **In
+January 2027**, delete `_pods_over_rest`, `_pods_over_graphql` and their
+settings.
+
+**2. Prompt caching on the writer's instructions** (`PROMPT_CACHE=1`,
+`PROMPT_CACHE_TTL=5m`). The house rules plus the style example are ~2,500
+tokens (10,241 characters), identical on every writer call, and were 13% of a new episode's
+Claude cost. `writer_system()` sends them as one block with
+`cache_control`; the brief, evidence and question stay in the user turn, so
+the prefix is byte-identical across episodes. About -$0.0045 per episode (-11%)
+once traffic keeps the cache warm, and a shorter wait before the first word.
+Below one writer call per five minutes each call pays the 1.25x write
+instead (+$0.0013): `PROMPT_CACHE_TTL=1h` is there for sparse traffic. The
+brief's instructions (~630 tokens) are under Sonnet 5's 1,024-token cacheable
+minimum and are not marked; a test fails if the writer's ever are.
+
+**3. Batch pricing for both editions** (`EDITION_BATCH=1`,
+`EDITION_BATCH_WAIT_SECONDS=3600`, `EDITION_BATCH_POLL_SECONDS=30`). Trending
+and DailyFAM write before anybody taps, so their writers go through the
+Message Batches API at 50% off every token. The shape:
+
+* `ScriptGenerator.stream_sentences` is now `prepare` + `stream_prepared`,
+  and the sentence parsing that lived inside the stream loop is
+  `_ScriptReader` - pronunciations, held-back `<<` markers, `OpeningGuard`,
+  the 1.35x word valve, title/next/summary. `batch_request` prepares a plan
+  and returns the writer's params; `sentences_from_message` feeds a batched
+  answer to the same reader in 48-character slices, so the valve stops where
+  a stream would have.
+* `claude_batch.run` sends **one batch per edition** (ten batches of one
+  would wait ten times in a row), polls, calls the edition's heartbeat on
+  every poll (so `STALE_CLAIM_SECONDS` never takes a claim from a builder
+  that is waiting), and never raises: a batch that cannot be created, errors
+  a request, or passes the deadline (cancelled, then read for what finished)
+  gives `None` for what it did not answer.
+* Each edition prepares episodes exactly as before - DailyFAM under the same
+  gate and ceilings, Trending one at a time - then writes whatever came back
+  `None` live **from the prepared plan** (`stream_prepared`), so research is
+  never bought twice. DailyFAM's dollar ceiling counts the brief and evidence
+  as they are spent and the writer when its answer returns; the episode
+  ceiling bounds the batch.
+* The brief stays a live call: its 8 s timeout is what decides the research,
+  and a day-long batch would not honour it.
+* `metering.Usage.add_model_call(..., batched=True)` keeps the tokens as they
+  are and records `batch_discount` in dollars, per call at that call's rates;
+  `Cost.claude` and `cost_usd` subtract it.
+
+What it costs the product: an edition now replaces the last one when its
+batch ends - usually within the hour, never more than
+`EDITION_BATCH_WAIT_SECONDS` plus the live fallback - rather than when ten
+streams end. A tap on a story in that window writes it live, as before, and
+the edition then finds it cached. A batch cancelled at the deadline may have
+finished requests that were then written live; those are billed twice, once
+at the batch rate, and the log says how many the batch answered.
+
+**4. Requests per outside service per day on `/admin`.** `provider_usage.py`
+(new store `PROVIDER_USAGE_DB`, created by the first request, never by the
+page; on the Dockerfile's disk list; not wiped, like metering) counts every
+request where it goes out - `live_sources._json` by host (API-Sports,
+Finnhub, Polymarket), `gnews._get`, `gdelt._get`, `research`'s Exa call - with
+failures kept beside it, per UTC day (when API-Sports and GNews reset). The
+page shows today, yesterday and a seven-day average, the limit in force (the
+rationed ones read from `API_SPORTS_DAILY_REQUESTS` and
+`GNEWS_DAILY_REQUESTS`) and, in parentheses, what the next plan raises it to.
+Counting never raises.
+
+**5. Docs.** `docs/SCALING_TIMELINE.md` (new) says when to change each
+service - RunPod, Claude, Exa, Render, the database, API-Sports, GNews,
+Finnhub, GDELT, Polymarket, the image model - by stage, by a number on
+`/admin` or `usage_report.py`, or by a provider's date, with the launch
+checklist. The owner's decision: **stay on pay-per-second RunPod workers for
+now**; the first active worker (~$343/mo) goes in on launch day, or at
+~16 GPU-hours a day if launch can live with cold starts. `docs/FINANCIAL.md`
+gains the Claude breakdown, the RunPod API timeline, the active-worker option
+and the database options (SQLite → Render Postgres + R2 around 10k MAU; RunPod
+holds no database).
+
+**Unverified here:** no API key, so neither the cache hit rate nor a real
+batch has been observed. After deploying, `usage_report.py` should show
+`cache_read_tokens` on writer calls within minutes of steady traffic, and the
+next edition's log line should say how many writers the batch answered.
+
+**Review, before merging into Main.** An independent pass over the diff
+found these; each fixed one has a test:
+
+* *A late batch answer wrote over a tap's episode.* The cache was checked
+  only before the batch went out, so a story tapped in the hour the batch was
+  out was written live (audio kept) and then overwritten by the answer - its
+  audio dropped, a new voice drawn, `origin` changed. Both editions now check
+  again when the answer arrives and keep the tap's episode (`cached`; DailyFAM
+  gives it the edition's window, as `_start` does). The line above claiming
+  this was true is now true.
+* *DailyFAM's dollar ceiling stopped bounding the writers.* Batched, the
+  writer is paid when the batch returns, after every episode has passed the
+  check. Each prepared episode now reserves `BATCH_WRITER_RESERVE_USD`
+  ($0.02) up front, swapped for the real figure on return.
+* *"Start here" could wait behind a batch.* The scheduler awaited the Trending
+  build before the startup write-ahead, whose cards lose their names an hour
+  after the slot. The startup episodes are now written first.
+* *Counting blocked the event loop.* `provider_usage.record` opened SQLite on
+  every request, on the search path. Counts are now kept in memory and written
+  by a background thread at most every `FLUSH_SECONDS` (10), and before each
+  report; a failed write keeps its counts for the next one.
+* *A one-hour cache write was priced at 1.25x.* `metering` now prices writes at
+  2x when `PROMPT_CACHE_TTL=1h`.
+* *The instructions are ~2,500 tokens, not ~3,500* (10,241 characters,
+  measured). The saving is ~$0.0045 an episode (-11%), not -$0.0063 (-16%);
+  the figures above and in `docs/` are corrected.
+* `/api/health` now reports both savings and where each value came from
+  (`writer_savings`), since either is settable in a dashboard.
+
+Known and left: a redeploy during a batch rebuilds the edition with a new
+batch while the old one still runs and bills (the batch id is not kept), and a
+failed cancel writes everything live while the batch may still finish - both
+cost at most one edition's writers twice, at the batch rate. The v2 pod route
+(`GET https://api.runpod.io/v2/pods`) is still unverified from here; RunPod is
+blocked from this container. Check it with a real key:
+`curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" https://api.runpod.io/v2/pods | head -c 400`.

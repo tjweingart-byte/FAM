@@ -94,6 +94,29 @@ PRICES: dict[str, tuple[float, float]] = {
 #: costs a premium over it. Published multipliers, not measured here.
 CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
+#: A write under the one-hour TTL (`PROMPT_CACHE_TTL=1h`, §179) costs twice
+#: the input rate rather than 1.25x.
+CACHE_WRITE_1H_MULTIPLIER = 2.0
+
+
+def cache_write_multiplier() -> float:
+    """What a cache write costs here, by the TTL the writer asks for.
+
+    Only the writer marks anything cacheable, so the TTL in force is the one
+    every write in the ledger was made under.
+    """
+    try:
+        from config import settings
+
+        if str(getattr(settings, "prompt_cache_ttl", "") or "").strip() == "1h":
+            return CACHE_WRITE_1H_MULTIPLIER
+    except Exception:  # noqa: BLE001 - pricing never fails on a setting
+        pass
+    return CACHE_WRITE_MULTIPLIER
+
+#: What the Message Batches API takes off every token of a batched call,
+#: cache reads and writes included (§179). Published, not measured here.
+BATCH_DISCOUNT = 0.5
 
 #: What a synthesis GPU costs per hour. Default is the middle of the L4
 #: on-demand range; a reserved card or a neocloud is cheaper. Only ever used
@@ -149,20 +172,38 @@ class Usage:
     live_cost: float = 0.0
     audio_seconds: float = 0.0
     cache_hit: bool = False
+    #: Dollars the Message Batches API took off this episode's Claude calls
+    #: (§179). Worked out per call when it is recorded, at that call's model's
+    #: rates, because the tokens above are totals across calls and only some
+    #: of them were batched.
+    batch_discount: float = 0.0
 
-    def add_model_call(self, model: str, usage: object) -> None:
+    def add_model_call(self, model: str, usage: object,
+                       batched: bool = False) -> None:
         """Fold in one Claude response's `usage` block.
 
         Takes the SDK object rather than numbers so every call site records the
         same four fields; a call site that pulled out only input and output
         would under-report cache traffic without looking wrong.
+
+        `batched` is a call answered through the Message Batches API, billed
+        at `BATCH_DISCOUNT` off every token. The tokens are counted as they
+        are; the discount is kept beside them in dollars, so a report still
+        says how much was read and written and what it actually cost.
         """
         self.model = model or self.model
         self.model_calls += 1
-        self.input_tokens += _int_attr(usage, "input_tokens")
-        self.output_tokens += _int_attr(usage, "output_tokens")
-        self.cache_read_tokens += _int_attr(usage, "cache_read_input_tokens")
-        self.cache_write_tokens += _int_attr(usage, "cache_creation_input_tokens")
+        call = Usage(model=model,
+                     input_tokens=_int_attr(usage, "input_tokens"),
+                     output_tokens=_int_attr(usage, "output_tokens"),
+                     cache_read_tokens=_int_attr(usage, "cache_read_input_tokens"),
+                     cache_write_tokens=_int_attr(usage, "cache_creation_input_tokens"))
+        self.input_tokens += call.input_tokens
+        self.output_tokens += call.output_tokens
+        self.cache_read_tokens += call.cache_read_tokens
+        self.cache_write_tokens += call.cache_write_tokens
+        if batched:
+            self.batch_discount += _claude_list_cost(call) * BATCH_DISCOUNT
 
     def add_research(self, searches: int, cost: float) -> None:
         self.exa_searches += int(searches or 0)
@@ -205,13 +246,20 @@ class Cost:
     exa: float = 0.0
     live: float = 0.0
     gpu_marginal: float = 0.0
+    #: Taken off the Claude lines above by the Message Batches API (§179). A
+    #: positive number, subtracted in `total` and `claude`.
+    batch_discount: float = 0.0
     priced: bool = True
 
     @property
+    def claude(self) -> float:
+        """What Claude actually billed: the four token lines, less batching."""
+        return (self.claude_input + self.claude_output + self.cache_read
+                + self.cache_write - self.batch_discount)
+
+    @property
     def total(self) -> float:
-        return round(self.claude_input + self.claude_output + self.cache_read
-                     + self.cache_write + self.exa + self.live
-                     + self.gpu_marginal, 6)
+        return round(self.claude + self.exa + self.live + self.gpu_marginal, 6)
 
     def as_dict(self) -> dict:
         out = {k: round(v, 6) for k, v in asdict(self).items() if k != "priced"}
@@ -239,12 +287,25 @@ def price_of(usage: Usage) -> Cost:
         cost.cache_read = (usage.cache_read_tokens / 1_000_000
                            * per_in * CACHE_READ_MULTIPLIER)
         cost.cache_write = (usage.cache_write_tokens / 1_000_000
-                            * per_in * CACHE_WRITE_MULTIPLIER)
+                            * per_in * cache_write_multiplier())
+        cost.batch_discount = float(usage.batch_discount or 0.0)
     cost.exa = float(usage.exa_cost or 0.0)
     # Billed, like Exa: the provider's own figure, recorded when it was spent.
     cost.live = float(usage.live_cost or 0.0)
     cost.gpu_marginal = gpu_cost(usage.audio_seconds)
     return cost
+
+
+def _claude_list_cost(usage: Usage) -> float:
+    """One call's Claude cost at list price; 0 for a model with no price."""
+    rate = PRICES.get(usage.model)
+    if rate is None:
+        return 0.0
+    per_in, per_out = rate
+    return (usage.input_tokens * per_in + usage.output_tokens * per_out
+            + usage.cache_read_tokens * per_in * CACHE_READ_MULTIPLIER
+            + usage.cache_write_tokens * per_in * cache_write_multiplier()
+            ) / 1_000_000
 
 
 def gpu_cost(audio_seconds: float) -> float:
@@ -359,8 +420,7 @@ class MeterStore:
         become a failed episode. It logs and returns 0 instead.
         """
         cost = price_of(usage)
-        claude_usd = (cost.claude_input + cost.claude_output
-                      + cost.cache_read + cost.cache_write)
+        claude_usd = cost.claude
         row = (
             at or time.time(), user_id or "", entitlements.normalise(plan),
             surface, usage.model, int(minutes or 0), usage.model_calls,

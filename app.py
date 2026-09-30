@@ -842,6 +842,16 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
+    # Requests per outside service per day (§179). Created by the first
+    # request that goes out, and reported once it exists, like the bank above.
+    try:
+        import provider_usage
+
+        if provider_usage.exists():
+            stores.append(("provider usage", "PROVIDER_USAGE_DB",
+                           provider_usage.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -1546,6 +1556,20 @@ async def health(request: Request) -> dict:
         "writer_effort_source": ("EFFORT env var"
                                  if os.environ.get("EFFORT", "").strip()
                                  else "config.py default"),
+        # The two writer savings (§179), with where each came from: either
+        # left at 0 in a dashboard would quietly undo it on every push.
+        "writer_savings": {
+            "prompt_cache": settings.prompt_cache,
+            "prompt_cache_ttl": settings.prompt_cache_ttl,
+            "prompt_cache_source": ("PROMPT_CACHE env var"
+                                    if os.environ.get("PROMPT_CACHE", "").strip()
+                                    else "config.py default"),
+            "edition_batch": settings.edition_batch,
+            "edition_batch_wait_seconds": settings.edition_batch_wait_seconds,
+            "edition_batch_source": ("EDITION_BATCH env var"
+                                     if os.environ.get("EDITION_BATCH", "").strip()
+                                     else "config.py default"),
+        },
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
         # What orders Made for you beyond the tags (§131): whether a semantic

@@ -207,18 +207,25 @@ class Client:
         self._last = time.monotonic()
         self.requests += 1
         query = {**params, "apikey": key()}
+        import provider_usage
+
         try:
             async with httpx.AsyncClient(timeout=self._timeout,
                                          transport=self._transport) as client:
                 response = await client.get(f"{API}/{endpoint}", params=query)
         except httpx.TimeoutException:
+            provider_usage.record("gnews", ok=False)
             raise GNewsError(f"GNews {endpoint} timed out after "
                              f"{self._timeout:.0f}s") from None
         except httpx.HTTPError as exc:
+            provider_usage.record("gnews", ok=False)
             raise GNewsError(f"GNews {endpoint} could not be reached: "
                              f"{type(exc).__name__}") from None
         finally:
             self._last = time.monotonic()
+        # Counted for the admin page (§179): one request against GNews's
+        # own daily allowance, whatever it answered.
+        provider_usage.record("gnews", ok=response.status_code == 200)
         if response.status_code != 200:
             raise GNewsError(_refusal(endpoint, response),
                              status=response.status_code)

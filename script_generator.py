@@ -424,6 +424,25 @@ def system_prompt() -> str:
     return SYSTEM_PROMPT + style_example_block()
 
 
+def writer_system():
+    """The writer's `system`, marked cacheable unless `PROMPT_CACHE=0` (§179).
+
+    The same text either way: one block holding `system_prompt()`, with a
+    `cache_control` marker on it. Everything that varies per episode - the
+    brief, the evidence, the question - is in the user message after it, so
+    the cached prefix is byte-identical from call to call, which is the only
+    condition a cache read has. Nothing about what is written changes; only
+    what the ~2,500 identical tokens cost and how soon the first one is read.
+    """
+    text = system_prompt()
+    if not settings.prompt_cache:
+        return text
+    marker: dict = {"type": "ephemeral"}
+    if str(settings.prompt_cache_ttl or "").strip() == "1h":
+        marker["ttl"] = "1h"
+    return [{"type": "text", "text": text, "cache_control": marker}]
+
+
 @dataclass
 class ScriptNotes:
     """What the model wrote that is not spoken.
@@ -1053,6 +1072,87 @@ def _take_pronunciations(buffer: str, notes: "ScriptNotes | None",
         else pronunciation.strip_markers(buffer)
 
 
+#: How much of a batched answer `_ScriptReader` is fed at a time - about what
+#: one streamed event carries, so the budget valve fires where it would live.
+_BATCH_SLICE = 48
+
+
+class _ScriptReader:
+    """Turns the writer's text into speech-ready sentences, as it arrives.
+
+    One per episode, never per generator: one generator serves many
+    concurrent episodes and each has its own opening to protect. Fed by a
+    stream's events (`stream_sentences`) or by slices of a batched answer
+    (`sentences_from_message`), so both are read by the same rules - the
+    pronunciation lines, the held-back `<<` markers, the opening guard and
+    the word budget.
+    """
+
+    def __init__(self, plan: "EpisodePlan", notes: "ScriptNotes | None") -> None:
+        self.plan = plan
+        self.notes = notes
+        self.buffer = ""
+        self.emitted_words = 0
+        self.guard = OpeningGuard()
+        self.shared = _names_are_shared(plan)
+
+    @property
+    def over_budget(self) -> bool:
+        return self.emitted_words > self.plan.max_words * 1.35
+
+    def feed(self, text: str) -> list[str]:
+        out: list[str] = []
+        self.buffer += text
+        # The writer's pronunciations (§165), written before the script: kept
+        # the moment each line is complete - before the sentence that names
+        # them reaches the voice - and taken out of the text, so the "<<"
+        # below never holds the episode back behind one.
+        if "<<" in self.buffer:
+            self.buffer = _take_pronunciations(self.buffer, self.notes, self.shared)
+        # Everything from "<<" onwards is the go-deeper marker rather than
+        # speech, and it can arrive split across events. Hold it back instead
+        # of letting the sentence splitter reach it.
+        speech, marker, rest = self.buffer.partition("<<")
+        while True:
+            match = _SENTENCE_END.search(speech)
+            if not match:
+                break
+            sentence = clean_for_speech(speech[: match.end()])
+            speech = speech[match.end() :]
+            if sentence and self.guard.allow(sentence):
+                self.emitted_words += count_words(sentence)
+                out.append(sentence)
+        self.buffer = speech + marker + rest
+        return out
+
+    def finish(self) -> list[str]:
+        """The tail, and what the writer said that is not spoken."""
+        out: list[str] = []
+        self.buffer = _take_pronunciations(self.buffer, self.notes, self.shared)
+        tail = clean_for_speech(self.buffer)
+        if tail and self.guard.allow(tail):
+            out.append(tail)
+        # Nothing but disclaimer is still better than nothing at all.
+        rescued = self.guard.rescue()
+        if rescued:
+            out.append(rescued)
+        if self.notes is not None:
+            self.notes.thread = extract_thread(self.buffer)
+            self.notes.title = extract_title(self.buffer)
+            self.notes.summary = extract_summary(self.buffer)
+            self.notes.meta_openings = tuple(self.guard.dropped)
+        return out
+
+
+def _refusal_line(message) -> str:
+    """The sentence a declined request ends on, or "" when it was not."""
+    if getattr(message, "stop_reason", None) != "refusal":
+        return ""
+    detail = getattr(message, "stop_details", None)
+    reason = getattr(detail, "explanation", None) or "the request was declined"
+    return clean_for_speech(f"I can't put together a briefing on that. {reason}")
+
+
 def clean_for_speech(text: str) -> str:
     """Strip anything the model may have added that should not be spoken."""
     # The go-deeper marker, and any half-written one: everything from an
@@ -1109,7 +1209,7 @@ class ScriptGenerator:
         kwargs: dict = {
             "model": settings.model,
             "max_tokens": settings.max_output_tokens,
-            "system": system_prompt(),
+            "system": writer_system(),
             "output_config": {"effort": settings.effort},
             "messages": [{"role": "user", "content": content}],
         }
@@ -1461,56 +1561,32 @@ class ScriptGenerator:
         written without it (PROBLEMS.md §108).
         """
         plan = await self.prepare(plan, notes)
-        buffer = ""
-        emitted_words = 0
-        # One per stream, never per generator: one generator serves many
-        # concurrent episodes and each stream has its own opening to protect.
-        guard = OpeningGuard()
-        shared = _names_are_shared(plan)
+        async for sentence in self.stream_prepared(plan, notes):
+            yield sentence
+
+    async def stream_prepared(
+        self, plan: EpisodePlan, notes: ScriptNotes | None = None
+    ) -> AsyncIterator[str]:
+        """The writing half of `stream_sentences`, for a plan already prepared.
+
+        Its own method so a batched edition that has to fall back to writing
+        live (§179) does so from the brief and evidence it already paid for,
+        rather than asking for them again.
+        """
+        reader = _ScriptReader(plan, notes)
 
         _mark(notes, "writer_request")
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
             async for event in stream.text_stream:
-                buffer += event
-                # The writer's pronunciations (§165), written before the
-                # script: kept the moment each line is complete - before the
-                # sentence that names them reaches the voice - and taken out
-                # of the text, so the "<<" below never holds the episode
-                # back behind one.
-                if "<<" in buffer:
-                    buffer = _take_pronunciations(buffer, notes, shared)
-                # Everything from "<<" onwards is the go-deeper marker rather
-                # than speech, and it can arrive split across events. Hold it
-                # back instead of letting the sentence splitter reach it.
-                speech, marker, rest = buffer.partition("<<")
-                while True:
-                    match = _SENTENCE_END.search(speech)
-                    if not match:
-                        break
-                    sentence = clean_for_speech(speech[: match.end()])
-                    speech = speech[match.end() :]
-                    if sentence and guard.allow(sentence):
-                        emitted_words += count_words(sentence)
-                        yield sentence
-                buffer = speech + marker + rest
+                for sentence in reader.feed(event):
+                    yield sentence
                 # Safety valve: a model that ignores the budget must not be
                 # allowed to produce an hour of audio for a 1-minute request.
-                if emitted_words > plan.max_words * 1.35:
+                if reader.over_budget:
                     break
 
-            buffer = _take_pronunciations(buffer, notes, shared)
-            tail = clean_for_speech(buffer)
-            if tail and guard.allow(tail):
-                yield tail
-            # Nothing but disclaimer is still better than nothing at all.
-            rescued = guard.rescue()
-            if rescued:
-                yield rescued
-            if notes is not None:
-                notes.thread = extract_thread(buffer)
-                notes.title = extract_title(buffer)
-                notes.summary = extract_summary(buffer)
-                notes.meta_openings = tuple(guard.dropped)
+            for sentence in reader.finish():
+                yield sentence
 
             final = await stream.get_final_message()
             # The provider bills this organisation, not this listener, so if
@@ -1519,10 +1595,59 @@ class ScriptGenerator:
             # the text: cache reads and writes are invisible in the output.
             if notes is not None:
                 notes.usage.add_model_call(settings.model, getattr(final, "usage", None))
-            if final.stop_reason == "refusal":
-                detail = getattr(final, "stop_details", None)
-                reason = getattr(detail, "explanation", None) or "the request was declined"
-                yield clean_for_speech(f"I can't put together a briefing on that. {reason}")
+            refused = _refusal_line(final)
+            if refused:
+                yield refused
+
+    # -- the same writing, answered through the Batches API (§179) --------
+    #
+    # For the two editions only: they write before anybody taps, so the half
+    # price is worth an answer that arrives within the hour rather than now.
+    # Split in two because a batch is: everything before the writer runs per
+    # episode (`batch_request`), the writers go out together, and each answer
+    # is read back by the same `_ScriptReader` a stream feeds
+    # (`sentences_from_message`) - so a batched episode is parsed, guarded and
+    # budgeted exactly as a streamed one is.
+
+    async def batch_request(self, plan: EpisodePlan,
+                            notes: ScriptNotes | None = None
+                            ) -> tuple[EpisodePlan, dict]:
+        """Prepare one episode for a batch: the prepared plan, and the params.
+
+        `prepare` runs here exactly as it does before a stream - brief,
+        evidence, the refusal of a current question with none - so a batched
+        episode is built from the same inputs. Raises what `prepare` raises.
+        """
+        plan = await self.prepare(plan, notes)
+        _mark(notes, "writer_request")
+        return plan, self._request_kwargs(plan)
+
+    def sentences_from_message(self, plan: EpisodePlan,
+                               notes: ScriptNotes | None, message) -> list[str]:
+        """The sentences a batched writer's `Message` holds, read as a stream.
+
+        Fed through `_ScriptReader` in small slices rather than all at once,
+        so the budget valve stops where a stream would have stopped it
+        rather than after the whole text.
+        """
+        text = "".join(getattr(block, "text", "") or ""
+                       for block in (getattr(message, "content", None) or [])
+                       if getattr(block, "type", "") == "text")
+        reader = _ScriptReader(plan, notes)
+        out: list[str] = []
+        for start in range(0, len(text), _BATCH_SLICE):
+            out.extend(reader.feed(text[start:start + _BATCH_SLICE]))
+            if reader.over_budget:
+                break
+        out.extend(reader.finish())
+        if notes is not None:
+            notes.usage.add_model_call(settings.model,
+                                       getattr(message, "usage", None),
+                                       batched=True)
+        refused = _refusal_line(message)
+        if refused:
+            out.append(refused)
+        return out
 
     async def top_up(
         self, plan: EpisodePlan, spoken_so_far: str, words_needed: int,

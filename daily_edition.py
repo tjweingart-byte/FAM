@@ -89,6 +89,10 @@ EPISODE_GRACE_SECONDS = 3600
 #: Episodes written at once. An edition is hundreds of model calls; one at a
 #: time would take hours, and dozens at once would compete with listeners.
 CONCURRENCY = 3
+#: What a batched edition reserves against `DAILY_EDITION_MAX_DOLLARS` for
+#: each writer before the batch returns (§179): a 2-minute writer at batch
+#: price, rounded up (~$0.016 at list, halved, plus room for a longer script).
+BATCH_WRITER_RESERVE_USD = 0.02
 #: What a build cut short by a shutdown writes, so the next boot retries.
 INTERRUPTED = "interrupted: the server stopped during the build"
 #: What an edition says on a server that cannot write (demo mode, no key).
@@ -401,20 +405,39 @@ async def with_earlier_editions(plan, cache):
     return dataclasses.replace(plan, covered=tuple(titles)) if titles else plan
 
 
-async def write_episode(query: str, generator, cache, length: int,
-                        current_until: float, since: float = 0.0) -> dict:
-    """Write one subject's episode into the shared cache. Never raises.
+class _Pending:
+    """One episode between its brief and its words (§179).
 
-    `since` is the start of the edition being built: a current episode
-    sourced after it is this edition's already (a restart, or a mix saved an
-    hour ago) and is left alone; one sourced before it is the last edition's
-    and is written again - which matters only when an edition runs twice in
-    one day and the words, dated by day, are the same.
+    What `_start` hands `_finish`: everything a write needs that was decided
+    before the writer ran, so a batched edition can prepare every episode,
+    send the writers together, and finish each one from its answer.
     """
-    import prefetch
-    import research
-    from cache import ttl_for
-    from pipeline import bucket_for, key_for
+
+    def __init__(self, query: str, plan, key: str, notes) -> None:
+        self.query = query
+        self.plan = plan
+        self.key = key
+        self.notes = notes
+        self.ei = _ei_state(plan.brief)
+        #: The plan `prepare` returned (brief and evidence in it), once a
+        #: batched edition has prepared it; the writer is asked from this.
+        self.prepared = None
+        self.params: dict = {}
+        #: The start of the edition being built, for the re-check on return.
+        self.since = 0.0
+        #: Set once `_write_batch` has finished it, so the clean-up after the
+        #: batch does not discard a claim somebody else has taken since.
+        self.done = False
+
+
+async def _start(query: str, generator, cache, length: int,
+                 current_until: float, since: float):
+    """Everything before the writer: a `_Pending`, or a finished result.
+
+    Leaves `query` in `_IN_FLIGHT` when it returns a `_Pending`; the caller
+    takes it out once the episode is finished either way.
+    """
+    from pipeline import key_for
     from script_generator import ScriptNotes, plan_episode
 
     if query in _IN_FLIGHT:
@@ -424,6 +447,7 @@ async def write_episode(query: str, generator, cache, length: int,
         plan = plan_episode(query, length)
         key = await key_for(plan, getattr(generator, "client", None))
         if not key:
+            _IN_FLIGHT.discard(query)
             return {"status": "failed", "key": "", "detail": "no cache key"}
         if cache.get(key):
             sourced = getattr(cache, "sourced_at", lambda _k: None)(key) or 0.0
@@ -435,6 +459,7 @@ async def write_episode(query: str, generator, cache, length: int,
                 extend = getattr(cache, "extend_current", None)
                 if extend is not None:
                     extend(key, current_until)
+                _IN_FLIGHT.discard(query)
                 return {"status": "cached", "key": key}
         notes = ScriptNotes()
         # What the earlier editions were, so today's is a different one.
@@ -443,49 +468,218 @@ async def write_episode(query: str, generator, cache, length: int,
         # retrieval query, the recency window and the story shape all come
         # from this brief. A brief prefetch already warmed is taken instead.
         plan = await generator.understand(plan, notes)
-        ei = _ei_state(plan.brief)
-        sentences = [s async for s in generator.stream_sentences(plan, notes)]
-        dollars = prefetch._dollars(notes)
-        if not sentences:
-            return {"status": "failed", "key": key, "dollars": dollars, "ei": ei,
-                    "detail": "the writer returned nothing"}
-        now = time.time()
-        if (notes.live_status or "") == "in_progress":
-            # Kept, like every episode (§143), and never current: a score
-            # taken mid-game is not what a tap later should be handed.
-            ttl = 0
-        else:
-            ttl = max(ttl_for(query, live_status=notes.live_status,
-                              outcome_dependent=notes.outcome_dependent,
-                              recency_days=notes.recency_days),
-                      int(current_until - now), 60)
-        sources = notes.provenance.to_json() if notes.provenance is not None else ""
-        extra = {"summary": notes.summary} if notes.summary else {}
-        if notes.sourced_at:
-            extra["sourced_at"] = notes.sourced_at
-        # No author: an edition episode was nobody's tap, so it belongs to
-        # everybody - the rule prefetch and the Trending bank keep.
-        # Written in a voice drawn from the bank (§147): nobody chose one,
-        # and the tap plays the episode in the voice kept here.
-        import voice_bank
+        pending = _Pending(query, plan, key, notes)
+        pending.since = since
+        return pending
+    except BaseException:
+        _IN_FLIGHT.discard(query)
+        raise
 
-        extra["origin"] = "dailyfam"
-        extra["voice"] = voice_bank.random_slug()
-        cache.put(key, sentences, ttl, query, notes.thread, length,
-                  bucket_for(plan), sources, "", notes.title, **extra)
-        return {"status": "written" if ttl else "volatile", "key": key,
-                "dollars": dollars, "ei": ei, "title": notes.title,
-                "sourced_at": notes.sourced_at or now}
-    except research.NoEvidence as exc:
+
+def _finish(pending: "_Pending", sentences: list, cache, length: int,
+            current_until: float) -> dict:
+    """Put one written episode into the shared cache, and say what happened."""
+    import prefetch
+    from cache import ttl_for
+    from pipeline import bucket_for
+
+    notes, query, key, ei = pending.notes, pending.query, pending.key, pending.ei
+    dollars = prefetch._dollars(notes)
+    if not sentences:
+        return {"status": "failed", "key": key, "dollars": dollars, "ei": ei,
+                "detail": "the writer returned nothing"}
+    now = time.time()
+    if (notes.live_status or "") == "in_progress":
+        # Kept, like every episode (§143), and never current: a score taken
+        # mid-game is not what a tap later should be handed.
+        ttl = 0
+    else:
+        ttl = max(ttl_for(query, live_status=notes.live_status,
+                          outcome_dependent=notes.outcome_dependent,
+                          recency_days=notes.recency_days),
+                  int(current_until - now), 60)
+    sources = notes.provenance.to_json() if notes.provenance is not None else ""
+    extra = {"summary": notes.summary} if notes.summary else {}
+    if notes.sourced_at:
+        extra["sourced_at"] = notes.sourced_at
+    # No author: an edition episode was nobody's tap, so it belongs to
+    # everybody - the rule prefetch and the Trending bank keep.
+    # Written in a voice drawn from the bank (§147): nobody chose one, and
+    # the tap plays the episode in the voice kept here.
+    import voice_bank
+
+    extra["origin"] = "dailyfam"
+    extra["voice"] = voice_bank.random_slug()
+    cache.put(key, sentences, ttl, query, notes.thread, length,
+              bucket_for(pending.plan), sources, "", notes.title, **extra)
+    return {"status": "written" if ttl else "volatile", "key": key,
+            "dollars": dollars, "ei": ei, "title": notes.title,
+            "sourced_at": notes.sourced_at or now}
+
+
+def _failure(query: str, exc: BaseException, pending=None) -> dict:
+    """What a write that raised is recorded as. One episode is not the edition."""
+    import prefetch
+    import research
+
+    if isinstance(exc, research.NoEvidence):
         # Not a fault: FAM declined to write this from memory, which is the
         # answer a tap would get too. The tap will try again with its own.
         return {"status": "no_evidence", "key": "", "detail": str(exc)[:200]}
+    log.warning("daily edition: could not write %r: %s", query, exc)
+    result = {"status": "failed", "key": "",
+              "detail": f"{type(exc).__name__}: {exc}"[:200]}
+    if pending is not None:
+        result["dollars"] = prefetch._dollars(pending.notes)
+    return result
+
+
+async def write_episode(query: str, generator, cache, length: int,
+                        current_until: float, since: float = 0.0) -> dict:
+    """Write one subject's episode into the shared cache. Never raises.
+
+    `since` is the start of the edition being built: a current episode
+    sourced after it is this edition's already (a restart, or a mix saved an
+    hour ago) and is left alone; one sourced before it is the last edition's
+    and is written again - which matters only when an edition runs twice in
+    one day and the words, dated by day, are the same.
+    """
+    try:
+        pending = await _start(query, generator, cache, length,
+                               current_until, since)
     except Exception as exc:  # noqa: BLE001 - one episode is not the edition
-        log.warning("daily edition: could not write %r: %s", query, exc)
-        return {"status": "failed", "key": "",
-                "detail": f"{type(exc).__name__}: {exc}"[:200]}
+        return _failure(query, exc)
+    if isinstance(pending, dict):
+        return pending
+    try:
+        sentences = [s async for s in generator.stream_sentences(
+            pending.plan, pending.notes)]
+        return _finish(pending, sentences, cache, length, current_until)
+    except Exception as exc:  # noqa: BLE001 - one episode is not the edition
+        return _failure(query, exc)
     finally:
         _IN_FLIGHT.discard(query)
+
+
+def _dollars_so_far(pending: "_Pending") -> float:
+    import prefetch
+
+    return float(prefetch._dollars(pending.notes) or 0.0)
+
+
+async def _prepare_for_batch(query: str, generator, cache, length: int,
+                             current_until: float, since: float):
+    """`_start`, then everything the writer needs: a `_Pending` or a result."""
+    try:
+        pending = await _start(query, generator, cache, length,
+                               current_until, since)
+    except Exception as exc:  # noqa: BLE001 - one episode is not the edition
+        return _failure(query, exc)
+    if isinstance(pending, dict):
+        return pending
+    try:
+        pending.prepared, pending.params = await generator.batch_request(
+            pending.plan, pending.notes)
+        return pending
+    except Exception as exc:  # noqa: BLE001
+        _IN_FLIGHT.discard(query)
+        return _failure(query, exc, pending)
+
+
+async def _write_batch(pending: list, generator, cache, length: int,
+                       current_until: float, report: dict, spent: dict,
+                       alive) -> None:
+    """Send every prepared writer as one batch; finish each from its answer.
+
+    A writer the batch did not answer - it failed, errored, or was cancelled
+    at `EDITION_BATCH_WAIT_SECONDS` - is written live from the brief and
+    evidence it already has, `CONCURRENCY` at a time, so a saving never costs
+    an episode.
+    """
+    import claude_batch
+
+    s = _settings()
+    ids = {f"e{i}": item for i, item in enumerate(pending)}
+    try:
+        answers = await claude_batch.run(
+            generator.client, {cid: item.params for cid, item in ids.items()},
+            wait_seconds=s.edition_batch_wait_seconds,
+            poll_seconds=s.edition_batch_poll_seconds, alive=alive)
+        gate = asyncio.Semaphore(CONCURRENCY)
+
+        async def finish(cid: str, item: "_Pending") -> None:
+            before = _dollars_so_far(item)
+            message = answers.get(cid)
+            try:
+                if _tapped_meanwhile(item, cache, current_until):
+                    # A listener tapped this subject while the batch was out
+                    # and the tap wrote it, audio and all. Keep theirs: the
+                    # answer arriving now would archive it and drop its audio.
+                    result = {"status": "cached", "key": item.key,
+                              "dollars": _dollars_so_far(item),
+                              "detail": "a tap wrote it while the batch was out"}
+                elif message is not None:
+                    sentences = generator.sentences_from_message(
+                        item.prepared, item.notes, message)
+                    result = _finish(item, sentences, cache, length,
+                                     current_until)
+                else:
+                    async with gate:
+                        alive()
+                        sentences = [x async for x in generator.stream_prepared(
+                            item.prepared, item.notes)]
+                    result = _finish(item, sentences, cache, length,
+                                     current_until)
+            except Exception as exc:  # noqa: BLE001
+                result = _failure(item.query, exc, item)
+            finally:
+                _IN_FLIGHT.discard(item.query)
+                item.done = True
+            result["batched"] = message is not None and result.get("status") != "cached"
+            if result.get("status") not in ("written", "volatile"):
+                spent["n"] -= 1
+            spent["usd"] += (float(result.get("dollars") or 0.0) - before
+                             - BATCH_WRITER_RESERVE_USD)
+            result["mixes"] = item.mixes
+            report["episodes"][item.query] = result
+
+        await asyncio.gather(*(finish(cid, item) for cid, item in ids.items()))
+    finally:
+        # Only what was never finished (a cancelled build): a finished one
+        # let go of its claim already, and it may have been taken since.
+        for item in pending:
+            if not item.done:
+                _IN_FLIGHT.discard(item.query)
+
+
+def _tapped_meanwhile(item: "_Pending", cache, current_until: float) -> bool:
+    """Whether this episode was written for this edition since it was prepared.
+
+    The same test `_start` makes, made again when a batched answer returns -
+    up to `EDITION_BATCH_WAIT_SECONDS` later - and with the same consequence:
+    the edition's window is given to what is there instead of writing over it.
+    """
+    try:
+        if not cache.get(item.key):
+            return False
+        sourced = getattr(cache, "sourced_at", lambda _k: None)(item.key) or 0.0
+        if sourced < item.since:
+            return False
+        extend = getattr(cache, "extend_current", None)
+        if extend is not None:
+            extend(item.key, current_until)
+        return True
+    except Exception:  # noqa: BLE001 - a failed check writes, as before
+        return False
+
+
+def _batches(generator) -> bool:
+    """Whether this edition's writers go out as one batch (§179)."""
+    return bool(_settings().edition_batch
+                and getattr(generator, "client", None) is not None
+                and hasattr(generator, "batch_request")
+                and hasattr(generator, "sentences_from_message")
+                and hasattr(generator, "stream_prepared"))
 
 
 def _current_until(now: float) -> float:
@@ -537,10 +731,21 @@ async def build(mix_store, generator=None, cache=None,
         ceiling_usd = max(0.0, float(s.daily_edition_max_dollars or 0.0))
         # Episodes are reserved before each write; dollars are only known
         # after one, so the dollar ceiling can be passed by at most the
-        # episodes already in flight (`CONCURRENCY`).
+        # episodes already in flight (`CONCURRENCY`). Batched (§179), the
+        # writer is not paid until the batch returns, so each prepared
+        # episode reserves `BATCH_WRITER_RESERVE_USD` for it up front and the
+        # reservation is swapped for the real figure when its answer lands.
         spent = {"n": 0, "usd": 0.0}
         until = _current_until(now)
         gate = asyncio.Semaphore(CONCURRENCY)
+        # Batched (§179): each episode is prepared here as it always was,
+        # under the same gate and ceilings, and its writer waits in
+        # `pending` to go out with the rest as one batch.
+        batching = _batches(generator)
+        pending: list = []
+
+        def alive() -> None:
+            store().touch(sid, now + (time.monotonic() - started))
 
         async def one(subject: dict) -> None:
             query = subject["query"]
@@ -554,9 +759,23 @@ async def build(mix_store, generator=None, cache=None,
                 # several writing at once, counting afterwards lets every one
                 # of them pass a ceiling of one.
                 spent["n"] += 1
-                store().touch(sid, now + (time.monotonic() - started))
-                result = await write_episode(query, generator, cache, minutes(),
-                                             until, since=slot.timestamp())
+                alive()
+                if batching:
+                    result = await _prepare_for_batch(
+                        query, generator, cache, minutes(), until,
+                        since=slot.timestamp())
+                    if isinstance(result, _Pending):
+                        # The brief and the evidence are spent already; the
+                        # writer is added when its answer comes back.
+                        result.mixes = subject["mixes"]
+                        spent["usd"] += (_dollars_so_far(result)
+                                         + BATCH_WRITER_RESERVE_USD)
+                        pending.append(result)
+                        return
+                else:
+                    result = await write_episode(query, generator, cache,
+                                                 minutes(), until,
+                                                 since=slot.timestamp())
                 if result.get("status") not in ("written", "volatile"):
                     spent["n"] -= 1
                 spent["usd"] += float(result.get("dollars") or 0.0)
@@ -564,6 +783,9 @@ async def build(mix_store, generator=None, cache=None,
                 report["episodes"][query] = result
 
         await asyncio.gather(*(one(subject) for subject in wanted))
+        if pending:
+            await _write_batch(pending, generator, cache, minutes(), until,
+                               report, spent, alive)
         report.update(_summarise(report["episodes"]))
         report["dollars"] = round(spent["usd"], 4)
         store().finish(sid, now, report)
@@ -607,6 +829,9 @@ def _summarise(episodes: dict) -> dict:
         "ei_ok": eis.count("ok"),
         "ei_degraded": eis.count("degraded"),
         "ei_off": eis.count("off"),
+        # Written from a batched answer at half price (§179). Below `written`
+        # on a batching edition means the batch fell back to writing live.
+        "batched": sum(1 for e in episodes.values() if e.get("batched")),
     }
 
 

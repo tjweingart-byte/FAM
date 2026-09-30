@@ -719,6 +719,72 @@ async def collect(now: float, size: int, client=None) -> tuple:
 # --------------------------------------------------------------------------
 # Writing the episodes
 # --------------------------------------------------------------------------
+async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
+    """Everything before the writer: `(plan, key, notes)`, or a result dict."""
+    import prefetch
+    from pipeline import key_for
+    from script_generator import ScriptNotes, plan_episode
+
+    plan = plan_episode(story.query, minutes)
+    key = await key_for(plan, getattr(generator, "client", None))
+    if not key:
+        return {"status": "failed", "key": "", "detail": "no cache key"}
+    if not rewrite and cache.get(key):
+        return {"status": "cached", "key": key}
+    notes = ScriptNotes()
+    plan = await generator.understand(plan, notes)
+    if getattr(plan.brief, "outcome_dependent", False):
+        return {"status": "volatile", "key": key,
+                "dollars": prefetch._dollars(notes),
+                "detail": "the answer is a result; the tap writes it"}
+    return plan, key, notes
+
+
+def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
+            expires_at: float, origin: str) -> dict:
+    """Put one written episode into the shared cache, and say what happened."""
+    import prefetch
+    from pipeline import bucket_for
+
+    dollars = prefetch._dollars(notes)
+    if not sentences:
+        return {"status": "failed", "key": key, "dollars": dollars,
+                "detail": "the writer returned nothing"}
+    if (notes.live_status or "") == "in_progress":
+        return {"status": "volatile", "key": key, "dollars": dollars,
+                "detail": "under way; a score is never kept"}
+    ttl = max(60, int(expires_at - time.time()))
+    sources = notes.provenance.to_json() if notes.provenance is not None else ""
+    extra = {"summary": notes.summary} if notes.summary else {}
+    if notes.sourced_at:
+        extra["sourced_at"] = notes.sourced_at   # §143
+    # No author: a bank episode was nobody's tap, so it belongs to
+    # everybody - the rule prefetch keeps, for the same reason.
+    # A voice drawn from the bank (§147), kept so every tap hears it.
+    import voice_bank
+
+    extra["origin"] = origin
+    extra["voice"] = voice_bank.random_slug()
+    cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
+              bucket_for(plan), sources, "", notes.title, **extra)
+    return {"status": "written", "key": key, "dollars": dollars,
+            "title": notes.title}
+
+
+def _failure(story, exc: BaseException, notes=None) -> dict:
+    import prefetch
+    import research
+
+    if isinstance(exc, research.NoEvidence):
+        return {"status": "no_evidence", "key": "", "detail": str(exc)[:200]}
+    log.warning("trending bank: could not write %r: %s", story.query, exc)
+    result = {"status": "failed", "key": "",
+              "detail": f"{type(exc).__name__}: {exc}"[:200]}
+    if notes is not None:
+        result["dollars"] = prefetch._dollars(notes)
+    return result
+
+
 async def write_episode(story, generator, cache, minutes: int,
                         expires_at: float, origin: str = "trending",
                         rewrite: bool = False) -> dict:
@@ -727,54 +793,99 @@ async def write_episode(story, generator, cache, minutes: int,
     `rewrite` writes it even when the key is already current - the "Start
     here" questions ask about *this week*, so each slot asks them again
     rather than keeping the answer the last slot found."""
-    import prefetch
-    import research
-    from pipeline import bucket_for, key_for
-    from script_generator import ScriptNotes, plan_episode
-
+    notes = None
     try:
-        plan = plan_episode(story.query, minutes)
-        key = await key_for(plan, getattr(generator, "client", None))
-        if not key:
-            return {"status": "failed", "key": "", "detail": "no cache key"}
-        if not rewrite and cache.get(key):
-            return {"status": "cached", "key": key}
-        notes = ScriptNotes()
-        plan = await generator.understand(plan, notes)
-        if getattr(plan.brief, "outcome_dependent", False):
-            return {"status": "volatile", "key": key,
-                    "dollars": prefetch._dollars(notes),
-                    "detail": "the answer is a result; the tap writes it"}
+        started = await _start(story, generator, cache, minutes, rewrite)
+        if isinstance(started, dict):
+            return started
+        plan, key, notes = started
         sentences = [s async for s in generator.stream_sentences(plan, notes)]
-        dollars = prefetch._dollars(notes)
-        if not sentences:
-            return {"status": "failed", "key": key, "dollars": dollars,
-                    "detail": "the writer returned nothing"}
-        if (notes.live_status or "") == "in_progress":
-            return {"status": "volatile", "key": key, "dollars": dollars,
-                    "detail": "under way; a score is never kept"}
-        ttl = max(60, int(expires_at - time.time()))
-        sources = notes.provenance.to_json() if notes.provenance is not None else ""
-        extra = {"summary": notes.summary} if notes.summary else {}
-        if notes.sourced_at:
-            extra["sourced_at"] = notes.sourced_at   # §143
-        # No author: a bank episode was nobody's tap, so it belongs to
-        # everybody - the rule prefetch keeps, for the same reason.
-        # A voice drawn from the bank (§147), kept so every tap hears it.
-        import voice_bank
-
-        extra["origin"] = origin
-        extra["voice"] = voice_bank.random_slug()
-        cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
-                  bucket_for(plan), sources, "", notes.title, **extra)
-        return {"status": "written", "key": key, "dollars": dollars,
-                "title": notes.title}
-    except research.NoEvidence as exc:
-        return {"status": "no_evidence", "key": "", "detail": str(exc)[:200]}
+        return _finish(story, plan, key, notes, sentences, cache, minutes,
+                       expires_at, origin)
     except Exception as exc:  # noqa: BLE001 - one episode is not the edition
-        log.warning("trending bank: could not write %r: %s", story.query, exc)
-        return {"status": "failed", "key": "",
-                "detail": f"{type(exc).__name__}: {exc}"[:200]}
+        return _failure(story, exc, notes)
+
+
+def _batches(generator) -> bool:
+    """Whether this edition's writers go out as one batch (§179)."""
+    return bool(settings.edition_batch
+                and getattr(generator, "client", None) is not None
+                and hasattr(generator, "batch_request")
+                and hasattr(generator, "sentences_from_message")
+                and hasattr(generator, "stream_prepared"))
+
+
+async def write_batched(stories: list, generator, cache, minutes: int,
+                        expires_at: float, alive=None,
+                        origin: str = "trending") -> dict:
+    """Every story's episode, the writers sent as one batch (§179).
+
+    Each story is prepared exactly as `write_episode` prepares it - brief,
+    evidence, the refusal of a result it cannot know - one at a time, as the
+    edition always wrote them. The writers then go out together at half
+    price and each answer is read by the same reader a stream uses. A writer
+    the batch did not answer is written live from what it already has.
+    Returns story id -> result. Never raises.
+    """
+    import claude_batch
+    import prefetch
+
+    results: dict = {}
+    waiting: dict = {}
+    for story in stories:
+        if alive is not None:
+            alive()
+        notes = None
+        try:
+            started = await _start(story, generator, cache, minutes)
+            if isinstance(started, dict):
+                results[story.id] = started
+                continue
+            plan, key, notes = started
+            prepared, params = await generator.batch_request(plan, notes)
+            waiting[f"t{len(waiting)}"] = (story, plan, key, notes, prepared,
+                                          params)
+        except Exception as exc:  # noqa: BLE001 - one episode is not the edition
+            results[story.id] = _failure(story, exc, notes)
+    if not waiting:
+        return results
+
+    answers = await claude_batch.run(
+        generator.client,
+        {cid: entry[5] for cid, entry in waiting.items()},
+        wait_seconds=settings.edition_batch_wait_seconds,
+        poll_seconds=settings.edition_batch_poll_seconds, alive=alive)
+    for cid, (story, plan, key, notes, prepared, _) in waiting.items():
+        message = answers.get(cid)
+        try:
+            if cache.get(key):
+                # A tap wrote this story while the batch was out (§179). Keep
+                # the tap's episode and its audio; the answer arriving now
+                # would archive it and draw it a different voice.
+                result = {"status": "cached", "key": key,
+                          "dollars": prefetch._dollars(notes),
+                          "detail": "a tap wrote it while the batch was out"}
+                results[story.id] = result
+                continue
+            if message is not None:
+                sentences = generator.sentences_from_message(prepared, notes,
+                                                             message)
+            else:
+                if alive is not None:
+                    alive()
+                sentences = [s async for s in generator.stream_prepared(
+                    prepared, notes)]
+            result = _finish(story, plan, key, notes, sentences, cache,
+                             minutes, expires_at, origin)
+        except Exception as exc:  # noqa: BLE001
+            result = _failure(story, exc, notes)
+        result["batched"] = message is not None
+        results[story.id] = result
+    log.info("trending bank: %d of %d writer(s) answered by the batch, "
+             "$%.4f", sum(1 for r in results.values() if r.get("batched")),
+             len(waiting), sum(float(prefetch._dollars(e[3]) or 0.0)
+                               for e in waiting.values()))
+    return results
 
 
 # --------------------------------------------------------------------------
@@ -836,11 +947,19 @@ async def build(now: Optional[float] = None, generator=None, cache=None,
             # episodes must not expire underneath it. It also covers a story
             # the next edition repeats, which finds this script cached.
             expires_at = now + shelf + EPISODE_GRACE_SECONDS
-            for story in edition_stories:
-                alive()
-                edition.episodes[story.id] = await write_episode(
-                    story, generator, cache, config.BROWSE_MINUTES,
-                    expires_at)
+            if _batches(generator):
+                # The writers go out as one batch at half price (§179); the
+                # edition is finished, and replaces the last one, when the
+                # batch is - within `EDITION_BATCH_WAIT_SECONDS`.
+                edition.episodes = await write_batched(
+                    edition_stories, generator, cache, config.BROWSE_MINUTES,
+                    expires_at, alive=alive)
+            else:
+                for story in edition_stories:
+                    alive()
+                    edition.episodes[story.id] = await write_episode(
+                        story, generator, cache, config.BROWSE_MINUTES,
+                        expires_at)
         else:
             reason = ("TRENDING_BANK_WRITE=0" if not settings.trending_bank_write
                       else "no writer on this server")
@@ -1034,6 +1153,15 @@ async def run_forever(generator=None, cache=None,
                  "in the same second as the story sweep", initial_delay)
         await asyncio.sleep(initial_delay)
     while True:
+        # "Start here" first (§179): its eight episodes are written live and
+        # their cards lose their names an hour after the slot, while a batched
+        # edition can take up to `EDITION_BATCH_WAIT_SECONDS` - so the short,
+        # deadline-bound job does not wait behind the long one.
+        try:
+            if generator is not None and startup_due():
+                await write_startup(generator=generator, cache=cache)
+        except Exception:  # noqa: BLE001
+            log.exception("startup episodes: the scheduler tick failed")
         try:
             if settings.trending_bank and due():
                 row = store().status(slot_id(last_slot()))
@@ -1041,11 +1169,6 @@ async def run_forever(generator=None, cache=None,
                             force=_retry_at_once(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
-        try:
-            if generator is not None and startup_due():
-                await write_startup(generator=generator, cache=cache)
-        except Exception:  # noqa: BLE001
-            log.exception("startup episodes: the scheduler tick failed")
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))
 
 

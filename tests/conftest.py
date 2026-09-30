@@ -161,7 +161,10 @@ FAM_ENVIRONMENT = (
     "VOICE_VERIFY_TTL", "VOICE_SUPERVISE_SECONDS", "VOICE_PROBE_TIMEOUT",
     "VOICE_RETRY_SECONDS", "VOICE_WORKER_PORT", "VOICE_ALLOW_PLAIN_HTTP",
     "RUNPOD_POD", "RUNPOD_POD_ID",
-    "RUNPOD_REST_URL", "RUNPOD_GRAPHQL_URL",
+    "RUNPOD_API_URL", "RUNPOD_REST_URL", "RUNPOD_GRAPHQL_URL",
+    # §179: the writer's prompt cache and the editions' batching.
+    "PROMPT_CACHE", "PROMPT_CACHE_TTL",
+    "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py
@@ -172,7 +175,7 @@ FAM_ENVIRONMENT = (
 DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
-    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB",
+    "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -409,6 +412,21 @@ def isolated_categories(tmp_path, monkeypatch):
     yield
     topics_mod.reset_category_tree()
     categories_mod.reset_sweep()
+
+
+@pytest.fixture(autouse=True)
+def isolated_provider_usage(tmp_path, monkeypatch):
+    """The per-day request counts (§179), per test. Every mocked provider
+    call is counted, so without this the suite would write a
+    `provider_usage.db` into the project root and one test's counts would be
+    the next test's admin page."""
+    import provider_usage
+
+    monkeypatch.setenv("PROVIDER_USAGE_DB",
+                       str(tmp_path / "stores" / "provider_usage.db"))
+    provider_usage.reset()
+    yield
+    provider_usage.reset()
 
 
 @pytest.fixture(autouse=True)

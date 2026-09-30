@@ -10,8 +10,8 @@ become <pre class="mermaid"> blocks, which the artifact viewer renders.
 import re, sys, pathlib, html, markdown
 ROOT = pathlib.Path(__file__).resolve().parent
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "fam-docs.html"
-DOCS = [("financial","Financial","FINANCIAL.md"),("backend","Backend","BACKEND.md"),("data","Data","DATA.md")]
-LINKS = {"FINANCIAL.md":"#financial","BACKEND.md":"#backend","DATA.md":"#data"}
+DOCS = [("financial","Financial","FINANCIAL.md"),("timeline","Scaling timeline","SCALING_TIMELINE.md"),("backend","Backend","BACKEND.md"),("data","Data","DATA.md")]
+LINKS = {"FINANCIAL.md":"#financial","SCALING_TIMELINE.md":"#timeline","BACKEND.md":"#backend","DATA.md":"#data"}
 
 def render(src):
     blocks = []

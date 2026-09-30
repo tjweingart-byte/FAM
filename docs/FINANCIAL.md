@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-09-25 (code at `Main` after PR #59) |
+| **As of** | 2026-09-30 (code at `Main` after PR #81, plus §179: prompt caching, edition batching, RunPod REST v2, provider counts) |
 | **Audience** | Founders, anyone pricing a plan or approving spend |
-| **Companion docs** | [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
+| **Companion docs** | [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) (when to change each service, by stage), [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
 
 ## How to read the numbers
 
@@ -106,6 +106,40 @@ call itself, so they cost no extra call.
   side.
 - **Replace it:** `metering.db` records the real token counts per episode.
 
+**Where the $0.04 goes** (estimate, 2-minute search episode, before §179; the instructions measured at 10,241 characters on 2026-09-30):
+
+| Part | Tokens | Cost | Share |
+|---|---|---|---|
+| Brief: instructions + question | ~1,000 in | $0.002 | 5% |
+| Brief: output (mostly reasoning, then JSON) | ~800 out | $0.008 | 21% |
+| Writer: house rules + style example (identical every call) | ~2,500 in | $0.005 | 13% |
+| Writer: brief + evidence packet | ~2,000 in | $0.004 | 10% |
+| Writer: reasoning before writing (`EFFORT=low`) | ~1,600 out | $0.016 | 41% |
+| Writer: the script, title, `<<NEXT:>>` | ~400 out | $0.004 | 10% |
+
+About 70% is output, and most of that is reasoning the spec amendment buys on
+purpose (§129) - not a lever. The lever was the 13% paid again on every call
+for the same instructions.
+
+**Two savings shipped in §179, neither changing a word a listener hears:**
+
+- **Prompt caching on the writer's instructions** (`PROMPT_CACHE=1`, default).
+  The ~2,500 identical tokens are marked cacheable; a writer call inside five
+  minutes of the last reads them at 0.1x input - about **-$0.0045 per episode
+  (-11%)** once traffic keeps the cache warm, and a shorter wait before the
+  first word. Below one writer call per five minutes each call pays the 1.25x
+  write instead (+$0.0013): `PROMPT_CACHE_TTL=1h` suits sparse traffic (2x
+  write, pays off at three calls an hour). The brief's instructions (~630
+  tokens) are below Sonnet 5's 1,024-token cacheable minimum and are not marked.
+- **Batch pricing on both editions** (`EDITION_BATCH=1`, default). Trending
+  (10 episodes, twice a day) and DailyFAM (one per subject, 05:00) send their
+  writer calls through the Message Batches API at **50% off every token**. The
+  brief stays a live call (it has an 8 s timeout and decides the research).
+  An edition finishes when its batch does - most within the hour; one not
+  ended in `EDITION_BATCH_WAIT_SECONDS` (3600) is cancelled and its
+  unanswered episodes are written live, so a saving never costs an episode.
+  `metering` records the discount (`Usage.batch_discount`).
+
 **Other Claude calls.** All are shared, which means one call per deployment
 rather than one per listener.
 
@@ -171,6 +205,38 @@ figures are 730 h/month at list prices.
 | L4 | 0.39 | **~$285** |
 | RTX 4090 (the measurements were made on this) | 0.69 | **~$504** |
 | *Assumption in `metering.py` (`GPU_USD_PER_HOUR=0.60`)* | 0.60 | *$438* |
+
+**The third option: a serverless active worker.** An always-warm worker on
+the same serverless endpoint, billed every second at a ~40% discount on flex
+(list, 24 GB class: **~$0.47/h, ~$343/month**). It removes the cold start for
+the first listener after a quiet spell, and pay-per-second flex workers still
+cover peaks above it. On cost alone it beats flex at about **16 GPU-hours a
+day** ($11.28/day ÷ $0.69/h); on the one-second spec it is worth it the day
+the public can tap. The owner's decision (2026-09-30): stay on pay-per-second
+flex for now; `SCALING_TIMELINE.md` says when to add the first active worker.
+
+| Option | $/h (list) | Idle cost | Cold start | Best for |
+|---|---|---|---|---|
+| Serverless flex (today) | 0.69 | $0 | boot + ~10 s model load | before launch |
+| Serverless active worker + flex | 0.47 active, 0.69 flex | ~$343/mo per active worker | none for the first | launch onward |
+| Always-on pod (A5000 / L4) | 0.27 / 0.39 | $197 / $285 per month | none | one card of steady load; you scale it yourself |
+
+**RunPod's own API, and its deadlines.** Separate from what synthesis costs.
+The app asks RunPod's API where a moved pod is (`voice_control._runpod_pods`,
+the `runpod-pod` rung, used only when `RUNPOD_POD` is set). RunPod is retiring
+the older surfaces:
+
+| Date | What RunPod changes | What FAM does |
+|---|---|---|
+| 2026-09-17 | Staged rate limits on REST v1 and GraphQL begin | Nothing: at most one lookup a minute per server |
+| **2026-10-27** | GraphQL limited to 43,200/day, 3,600/hour, 180/minute | Nothing: worst case ~1,440/day per server (3%) |
+| **2026-11-15** | REST v1 (`rest.runpod.io/v1`) answers 410 Gone | Already asks **REST v2 first** (`RUNPOD_API_URL`, §179); v1 is a later rung until then |
+| **January 2027** | GraphQL retired | Delete the v1 and GraphQL rungs (`_pods_over_rest`, `_pods_over_graphql`) |
+
+Synthesis itself goes to the serverless endpoint API (`api.runpod.ai/v2/<id>/runsync`),
+which none of this touches: its limits are 2,000 `/runsync` per 10 s and scale
+with the worker count - at 100k MAU, peak use is roughly a sixth of it
+(estimate). None of these limits has a price: the email changes no cost line.
 
 **Pod or serverless?** `render.yaml` ships `REMOTE_VOICE_TRANSPORT=runpod`,
 which is serverless. §118 describes an always-on pod. Confirm which one is
@@ -355,6 +421,31 @@ unless marked), and what to do.
 | **Serverless vs pod cost** | See §2.3; break-even is roughly several GPU-hours a day | Move to pods once the GPU line exceeds about half a pod's rent |
 | **Chatterbox itself** | No licence fee and no quota | Only the reference-voice rights (`voice_bank.py` stores a rights record per voice) |
 
+### 5.2a The database
+
+RunPod holds no database - only a ~20 GB volume of model weights. The database
+is **eighteen SQLite files on Render's one disk** (every `data_path(...)` in
+the code; `scripts.db` also holds kept audio, §132). Options as the audience
+grows (list prices looked up 2026-09-30):
+
+| Option | Price (list) | Good for | Catch |
+|---|---|---|---|
+| **SQLite on the Render disk, grown** (today) | $0.25/GB/mo | to ~10k MAU on one Render Pro instance | a service with a disk runs as one instance: no horizontal scaling |
+| **Render Postgres** | Basic ~$6-7/mo; Pro-4gb $35/mo; storage $0.30/GB | the likely move: same provider, private network | moving 18 stores and the in-process caches is a re-architecture, not a setting |
+| Neon (serverless Postgres) | $0.106/CU-hour + $0.35/GB, no minimum | spiky traffic; scales to zero | wakes slowly after idle; outside Render |
+| Supabase Pro | $25/mo + compute; 8 GB then $0.125/GB | predictable bills | bundles auth/storage FAM already has |
+| Cloudflare R2 (kept audio only) | $0.015/GB/mo, **$0 egress** | audio at 10k+ MAU | serving audio straight from R2 would touch the settled no-audio-files rule - discuss first |
+
+Database cost stays under 1% of the bill at every size below; the move is
+forced by the one-instance ceiling, not by price.
+
+| MAU | Database | Added per month (estimate) |
+|---|---|---|
+| 100 | SQLite, 1 GB disk | $0 |
+| 1,000 | SQLite, disk grown to ~10 GB | +$2.50 |
+| 10,000 | Render Postgres Pro (~$35-60) + R2 for audio (~$1-5) | +$40-65, plus the migration |
+| 100,000 | a larger Postgres (~$100-200+) + R2 | +$100-200 |
+
 ### 5.3 Claude (Anthropic)
 
 | Limit | Where it bites | Action |
@@ -407,6 +498,11 @@ the episode continues without the fact.
 
 ## 6. Recommended actions, in order
 
+0. **Done in §179:** prompt caching on the writer, batch pricing on both
+   editions, the RunPod lookup on REST v2 ahead of v1's retirement, and a
+   per-day request count for every outside service on `/admin`, beside its
+   limit and the next plan's. Stage-by-stage triggers are in
+   [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
 1. **Correct the metering constants on Render.** Set
    `SYNTHESIS_REALTIME_FACTOR=4.6`, set `GPU_USD_PER_HOUR` to the real card
    rate, and consider raising `research.COST_PER_SEARCH` to ~0.015. Without
@@ -442,3 +538,14 @@ the episode continues without the fact.
     [serverless pricing](https://docs.runpod.io/serverless/pricing)
   - GNews: [pricing](https://gnews.io/pricing)
   - Exa: [pricing](https://exa.ai/docs/admin/pricing)
+- **Looked up 2026-09-30 (§179):**
+  - RunPod API retirement: [SkyPilot's migration PR](https://github.com/skypilot-org/skypilot/pull/10846),
+    [RunPod: migrate from API v1](https://docs.runpod.io/api-reference-v2/migrate-from-v1),
+    and RunPod's email of the GraphQL limits
+  - RunPod serverless limits: [send requests](https://docs.runpod.io/serverless/endpoints/send-requests);
+    active workers: [pricing guide](https://flexprice.io/blog/runprod-pricing-guide-with-gpu-costs)
+  - Databases: [Render pricing](https://render.com/pricing),
+    [Neon vs Supabase](https://neon.com/guides/neon-launch-plan-vs-supabase-pro-plan),
+    [Cloudflare R2](https://mecanik.dev/en/posts/cloudflare-r2-pricing-explained-real-costs-vs-s3-and-backblaze/)
+  - Claude prompt caching and batches: the Anthropic rate card (Sonnet 5
+    $2/$10 per M; cache read 0.1x, write 1.25x/2x; batches 50% off)

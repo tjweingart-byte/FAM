@@ -244,8 +244,17 @@ async def _get(params: dict, timeout: float,
                max_wait: Optional[float] = None) -> dict:
     """One DOC request, in its turn. `max_wait=None` is background work."""
     await PACER.slot(max_wait)
+    import provider_usage
+
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(DOC_API, params=params)
+        try:
+            response = await client.get(DOC_API, params=params)
+        except Exception:
+            provider_usage.record("gdelt", ok=False)
+            raise
+        # Counted for the admin page (§179), refused or not: a 429 spent
+        # the slot as surely as a 200 did.
+        provider_usage.record("gdelt", ok=response.is_success)
         response.raise_for_status()
         try:
             return response.json()
