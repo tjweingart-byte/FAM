@@ -87,6 +87,7 @@ the Render deployment.
 | **messages.db** | `messages.py` | Direct messages (text ≤ 1,000 chars), read marks, per-side "Delete chat" marks | Yes | Grows forever |
 | **saved.db** | `saved.py` | Save-for-later pointers, folders, resume positions (`progress`), 2-week listening `history`, dismissed tiles | Yes | Bounded by history pruning |
 | **shares.db** | `sharing.py` | Share links (question, minutes, title) and an open counter | Yes | Grows forever |
+| **feedback.db** | `feedback.py` | Instant feedback bug reports: text, screen, build, viewport, `resolved_at` (§175) | Account id only; anonymised on deletion | Grows forever |
 | **mixes.db** | `mixes.py`, `daily_edition.py` | DailyFAM mixes (subjects, never audio), covers (≤ 200k chars), public flag; `daily_editions` build ledger | Yes | ≤ 30 mixes per listener |
 | **quotas.db** | `quotas.py` | Usage counters and per-episode charges | Yes | Pruned after 60 days |
 | **metering.db** | `metering.py` | One row per episode: tokens, Exa searches, live calls, audio seconds, cache hit, cost split between Claude, Exa and GPU | Yes | 1 row per episode, forever |
@@ -198,7 +199,7 @@ more than one worker (see `FINANCIAL.md` §5.1).
 | **Vocabulary nodes** | 180 days since last seen. Parents and seeded nodes are exempt. | `categories.NODE_TTL` |
 | **Live stories in the pool** | Sports 8 h, markets 18 h, attention 20 h, prediction 4 d from `first_seen`; then a 36 h cooldown | `stories.DOMAIN_SHELF_LIFE` |
 | **Warmed briefs** | 1 hour, in memory | `PREFETCH_BRIEF_TTL_SECONDS` |
-| **Metering, messages, shares, social, mixes** | **Indefinitely.** No automatic pruning. | — |
+| **Metering, messages, shares, social, mixes, feedback** | **Indefinitely.** No automatic pruning. | — |
 
 **A guest has no record in the event log.** A guest session is a device, not a
 person (§127, `app._remembers`), so none of a guest's plays, searches or
