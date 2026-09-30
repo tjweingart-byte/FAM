@@ -410,6 +410,15 @@ name routing would need a maintained roster of every league, and a stale one is
 worse than a default someone chose. Resolving sport from team wants the
 provider's own cross-sport team search; that is the next step, not guessed at.
 
+**Team seasons (PROBLEMS.md §178).** For a sport with a `team_league` (the
+NFL today), a game not on today's card is resolved from the teams' own
+season schedules - named teams matched against the league's `/teams`
+catalogue (by full name, nickname, or a city only one team has), then
+`/games?team=&season=` - and every game's facts carry both teams' records
+(regular-season finals, counted in code), last results and next games.
+Schedules are cached ten minutes and re-read whenever one holds a game that
+may have moved. A game that has not started never has a score.
+
 The entity id carries its sport (`american-football:9`) because a bare game id
 is meaningless without knowing which API issued it, and `fetch` gets only the
 entity.

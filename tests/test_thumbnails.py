@@ -113,12 +113,18 @@ def test_the_deepest_branch_with_a_picture_wins(tree):
     assert got["url"].startswith("/api/thumb/college%20football?v=")
 
 
-def test_a_branch_waiting_for_review_falls_back_to_its_parent(tree):
+def test_a_branch_waiting_for_review_borrows_nobody_elses_picture(tree):
+    """9.30 #7: a tile shows its own node's picture or the drawing - never
+    its parent's, which put one picture on every subject under a branch.
+    The node it wanted is painted first."""
     _put("sports")
     _put("american football")
     _put("college football", status=th.STATUS_REVIEW)
-    assert th.pick("how college football money changed",
-                   ("sports",))["node"] == "american football"
+    assert th.pick("how college football money changed", ("sports",)) is None
+    assert "college football" in th.asked_for()
+    order = th.wanted(tree, th.store(), regenerate=True)
+    facets = set(T.FACETS)
+    assert [n for n in order if n not in facets][0] == "college football"
 
 
 def test_nothing_in_the_tree_falls_back_to_the_declared_facet(tree):
@@ -148,7 +154,11 @@ def test_a_repainted_picture_is_a_new_url(tree):
 def test_a_tile_carries_its_picture_and_the_facet_word(tree):
     topic = next(t for t in T.TOPIC_BANK if "sports" in t.tags)
     assert topic.as_dict()["thumb"] == ""
-    _put("sports")
+    # Its own node: the deepest the tree finds in its question, else its facet.
+    found = sorted(tree.match(topic.query),
+                   key=lambda n: (-th._depth(tree, n, T.FACETS), n))
+    _put(found[0] if found else "sports")
+    th._bump_generation()
     d = topic.as_dict()
     assert d["thumb"].startswith("/api/thumb/")
     assert d["thumb_facet"]
@@ -900,3 +910,64 @@ def test_people_and_devices_only_when_the_topic_is_about_them():
     for words in ("viewpoint", "dusk", "overcast", "close-up"):
         assert words in th.WRITER_SYSTEM
     assert "Take nothing else from them" in th.STYLE_REFERENCE_NOTE
+
+
+# --- 9.30 #7: every node its own picture ------------------------------------
+
+
+def _picture(seed: int) -> bytes:
+    """A picture with structure, so its difference hash means something."""
+    from PIL import Image, ImageDraw
+
+    im = Image.new("RGB", (1024, 768), (40, 90, 60))
+    draw = ImageDraw.Draw(im)
+    import random
+    rnd = random.Random(seed)
+    for _ in range(40):
+        x, y = rnd.randrange(0, 1000), rnd.randrange(0, 740)
+        draw.rectangle([x, y, x + rnd.randrange(40, 300), y + rnd.randrange(40, 300)],
+                       fill=(rnd.randrange(256), rnd.randrange(256), rnd.randrange(256)))
+    out = io.BytesIO()
+    im.save(out, "PNG")
+    return out.getvalue()
+
+
+def test_the_same_picture_for_two_nodes_is_held_not_put_live(tree):
+    same = _picture(1)
+    first = asyncio.run(th.make_one(
+        "college football", th.Scene("college football", "a stadium", False),
+        "sports", painter=_painter([th.Painting(same, "image/png")]),
+        checker=_checker([CLEAN]), attempts=1, review="none",
+        thumb_store=th.store()))
+    assert first.status == th.STATUS_APPROVED
+    second = asyncio.run(th.make_one(
+        "american football", th.Scene("american football", "a stadium", False),
+        "sports", painter=_painter([th.Painting(same, "image/png")]),
+        checker=_checker([CLEAN]), attempts=1, review="none",
+        thumb_store=th.store()))
+    assert second.status == th.STATUS_REVIEW
+    assert second.check["duplicate_of"] == "college football"
+    assert "same picture" in second.reason
+    # Never on a tile: its own node shows nothing rather than a copy.
+    assert th.pick("american football", ()) is None
+
+
+def test_different_pictures_for_two_nodes_both_go_live(tree):
+    for i, node in enumerate(("college football", "american football")):
+        got = asyncio.run(th.make_one(
+            node, th.Scene(node, "a scene", False), "sports",
+            painter=_painter([th.Painting(_picture(10 + i), "image/png")]),
+            checker=_checker([CLEAN]), attempts=1, review="none",
+            thumb_store=th.store()))
+        assert got.status == th.STATUS_APPROVED, got.reason
+
+
+def test_a_repaint_is_not_its_own_duplicate(tree):
+    same = _picture(3)
+    for _ in range(2):
+        got = asyncio.run(th.make_one(
+            "college football", th.Scene("college football", "a stadium", False),
+            "sports", painter=_painter([th.Painting(same, "image/png")]),
+            checker=_checker([CLEAN]), attempts=1, review="none",
+            thumb_store=th.store()))
+        assert got.status == th.STATUS_APPROVED

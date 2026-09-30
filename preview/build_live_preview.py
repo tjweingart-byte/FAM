@@ -1286,10 +1286,27 @@ __WRITING_SIM__
       if (!fbText) return json({ error: "Say what went wrong - the report is empty." }, 400);
       if (fbText.length > 4000) return json({ error: "That is longer than a report can be (4000 characters). Trim it and send it again." }, 400);
       var fbId = rid();
+      // Typed on the audio player: keep the episode's title, sources and
+      // transcript beside the report, as feedback.episode_snapshot does.
+      // Here they are the fixtures the player itself was shown.
+      var fbEp = null;
+      if (body.episode && body.episode.q) {
+        var src = FIXTURES["/api/sources"] || {};
+        var tr = FIXTURES["/api/transcript"] || {};
+        fbEp = {
+          query: String(body.episode.q), minutes: body.episode.minutes || 0,
+          title: body.episode.title || (FIXTURES["/api/next"] || {}).title || "",
+          sources: (src.items || []).map(function (x) {
+            return { label: x.label || "", title: x.title || "", at: x.at || "",
+                     tier: x.tier || "", kind: x.kind || "", url: x.url || "" };
+          }),
+          transcript: (tr.sentences || []).slice(), transcript_cut: false
+        };
+      }
       return put("feedback", fbId, {
         user_id: EMAIL ? UID : "", text: fbText, screen: body.screen || "",
         build: body.build || "", page: body.page || "", viewport: body.viewport || "",
-        created: now(), resolved_at: 0, state: "open"
+        created: now(), resolved_at: 0, state: "open", episode: fbEp
       }).then(function () { paint(); return json({ ok: true, id: fbId }); });
     }
 
@@ -2149,11 +2166,29 @@ __WRITING_SIM__
           }).join("") + '</tr>' + (open ? document_(r, fields.length) : '') +
           (open && COLTAB === "feedback"
             ? '<tr class="fd-doc"><td colspan="' + fields.length + '"><button class="fd-btn" data-fb="' +
-              esc(r.id) + '">' + (r.resolved_at ? "Reopen" : "Resolve") + '</button></td></tr>'
+              esc(r.id) + '">' + (r.resolved_at ? "Reopen" : "Resolve") + '</button>' +
+              (r.episode ? ' <button class="fd-btn" data-fbep="' + esc(r.id) + '">' +
+                           (EPOPEN[r.id] ? "Hide episode" : "Episode") + '</button>' : '') +
+              (r.episode && EPOPEN[r.id] ? feedbackEpisode(r.episode) : '') +
+              '</td></tr>'
             : '');
       }).join("") :
         '<tr><td colspan="' + fields.length + '" class="fd-empty">No rows yet in <b>' +
         COLTAB + '</b> &mdash; it lives in <b>' + FILE[COLTAB] + '</b>.</td></tr>') + '</tbody>';
+  }
+
+  // The episode a report was typed on (9.30 #6): title, sources, transcript.
+  var EPOPEN = {};
+  function feedbackEpisode(e) {
+    var src = e.sources || [], lines = e.transcript || [];
+    return '<div class="fd-ep"><b>' + esc(e.title || e.query || "Untitled episode") + '</b>' +
+      '<div class="fd-ep-h">Sources &middot; ' + src.length + '</div>' +
+      (src.length ? '<ol>' + src.map(function (x) {
+        return '<li>' + esc(x.label) + (x.title ? ' &mdash; ' + esc(x.title) : '') +
+          (x.at ? ' <i>' + esc(x.at) + '</i>' : '') + '</li>';
+      }).join("") + '</ol>' : '<div>No sources recorded.</div>') +
+      '<div class="fd-ep-h">Transcript</div>' +
+      '<p>' + (lines.length ? esc(lines.join(" ")) : 'No transcript found.') + '</p></div>';
   }
 
   // The whole document, for a row someone clicked. The table above shows the
@@ -2254,6 +2289,13 @@ __WRITING_SIM__
     panel.querySelector(".fd-scroll").addEventListener("click", function (e) {
       // Resolving a report is a toggle on the row, never a delete - the
       // server's inbox keeps the same shape (feedback.resolve).
+      var fbep = e.target.closest("[data-fbep]");
+      if (fbep) {
+        var eid = fbep.getAttribute("data-fbep");
+        if (EPOPEN[eid]) delete EPOPEN[eid]; else EPOPEN[eid] = 1;
+        paint();
+        return;
+      }
       var fb = e.target.closest("[data-fb]");
       if (fb) {
         var rep = rows("feedback").filter(function (x) { return x.id === fb.getAttribute("data-fb"); })[0];
@@ -2548,6 +2590,11 @@ STAGE = """
                    padding: 6px 11px; font-size: 12px; color: #a79eba; cursor: pointer;
                    font-family: inherit; }
   #famDb .fd-btn:hover { color: #f1eef7; border-color: #8a6a22; }
+  #famDb .fd-ep { margin-top: 9px; color: #dcd6e8; font-size: 10.5px; line-height: 1.45; }
+  #famDb .fd-ep-h { margin: 8px 0 3px; color: #7c7391; font-size: 9.5px;
+    letter-spacing: .05em; text-transform: uppercase; }
+  #famDb .fd-ep ol { margin: 0; padding-left: 16px; }
+  #famDb .fd-ep p { margin: 0; max-height: 220px; overflow: auto; }
   #famDb .fd-note { font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
                     color: #7c7391; line-height: 1.4; flex: 1; min-width: 150px; }
 </style>

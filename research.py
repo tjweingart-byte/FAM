@@ -104,6 +104,9 @@ TIER_PRIMARY = frozenset({
     "bbc.co.uk", "bbc.com", "npr.org", "theguardian.com", "cnbc.com",
     "espn.com", "espn.co.uk", "theathletic.com", "skysports.com",
     "nature.com", "science.org", "nasa.gov", "who.int",
+    # The leagues' own sites: primary for their own schedules and results.
+    "nfl.com", "nba.com", "wnba.com", "mlb.com", "nhl.com", "ncaa.com",
+    "premierleague.com", "uefa.com", "fifa.com",
 })
 
 #: Established outlets and trade press: reliable, not primary.
@@ -114,7 +117,87 @@ TIER_ESTABLISHED = frozenset({
     "theverge.com", "arstechnica.com", "wired.com", "engadget.com",
     "marketwatch.com", "barrons.com", "investopedia.com", "sportingnews.com",
     "cbssports.com", "nbcsports.com", "si.com", "yahoo.com", "usatoday.com",
+    "foxsports.com", "bleacherreport.com", "theringer.com",
+    "sports-reference.com", "pro-football-reference.com",
+    "basketball-reference.com", "baseball-reference.com", "espncricinfo.com",
 })
+
+
+# --------------------------------------------------------------------------
+# Screening: what never reaches the packet (9.30 #5)
+# --------------------------------------------------------------------------
+#
+# The packet's worst episode read a Madden sim league's "Commanders top Colts
+# 45-31" as a real result for a game not yet played, beside a gametracker
+# and an odds piece that both said it had not kicked off. A grade told the
+# writer to weigh it; the writer weighed it out loud for a paragraph. Two
+# screens now keep that kind of page out before anybody weighs anything.
+
+#: Words that mark a page as a video game's or a simulated league's, not the
+#: sport's. Matched as whole words in the title, the URL and the passages.
+SIMULATION_MARKERS = (
+    "madden", "sim league", "simulation league", "simulated season",
+    "franchise mode", "online franchise", "cfm", "video game league",
+    "nba 2k", "mlb the show", "ea sports fc", "esports league",
+)
+#: Hosts known to publish simulated results written up like real ones.
+SIMULATION_HOSTS = frozenset({"2kolf.com"})
+#: Words in the listener's own question that make a simulated league the
+#: subject, so the screen stands aside.
+_GAME_WORDS = re.compile(
+    r"\b(madden|video ?games?|esports?|sim league|simulation|franchise mode|"
+    r"2k\d*|gaming)\b", re.I)
+
+
+def is_simulation(result) -> bool:
+    """Whether a result reports a video game or a simulated league."""
+    host = host_of(result)
+    if host in SIMULATION_HOSTS or any(host.endswith("." + h)
+                                       for h in SIMULATION_HOSTS):
+        return True
+    text = " ".join([getattr(result, "title", "") or "",
+                     getattr(result, "url", "") or ""]
+                    + [str(h) for h in (getattr(result, "highlights", None) or [])])
+    text = " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+    return any(re.search(r"\b" + re.escape(marker) + r"\b", text)
+               for marker in SIMULATION_MARKERS)
+
+
+#: On a sports question, an outlet FAM does not know is dropped once this
+#: many known ones are in hand: a score or a record has a known outlet
+#: reporting it, and the unknown ones are where the stray results live.
+SPORTS_KNOWN_ENOUGH = 2
+
+
+def screen_results(results, *, query: str = "", live_domain: str = "") -> list:
+    """What may reach the packet, in the order given. Never raises.
+
+    * A simulated or video-game league's page, unless the question is about
+      one - its "results" are for games that were never played.
+    * On a question that turns on a sports state (`live_domain == "sports"`),
+      an unknown outlet whenever `SPORTS_KNOWN_ENOUGH` known ones answered.
+
+    Dropped pages are logged with their hosts, so a screen that drops too
+    much is visible rather than silent.
+    """
+    results = list(results or [])
+    kept, dropped = [], []
+    games_asked = bool(_GAME_WORDS.search(query or ""))
+    for result in results:
+        if not games_asked and is_simulation(result):
+            dropped.append((host_of(result), "simulation"))
+            continue
+        kept.append(result)
+    if live_domain == "sports":
+        known = [r for r in kept if credibility(r) != "unverified"]
+        if len(known) >= SPORTS_KNOWN_ENOUGH:
+            dropped.extend((host_of(r), "unknown outlet on a sports question")
+                           for r in kept if credibility(r) == "unverified")
+            kept = [r for r in kept if credibility(r) != "unverified"]
+    if dropped:
+        log.info("research: screened out %s for %r",
+                 ", ".join(f"{h or '?'} ({why})" for h, why in dropped), query)
+    return kept
 
 #: How much a tier is worth when ordering. Only the order matters, not the gaps.
 TIER_SCORES = {"primary": 3, "established": 2, "unverified": 1}
@@ -489,7 +572,7 @@ def domains(results) -> list:
 
 def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int, search_type: str,
-                       recency_days: int = 0) -> Packet:
+                       recency_days: int = 0, live_domain: str = "") -> Packet:
     """One Exa call, ranked, packed and costed.
 
     `recency_days` becomes `start_published_date`, which is the *filter* half
@@ -511,7 +594,9 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
     reply = client.search_and_contents(query, **kwargs)
     elapsed = time.perf_counter() - started
 
-    results = rank_results(list(getattr(reply, "results", []) or []))
+    returned = list(getattr(reply, "results", []) or [])
+    results = screen_results(rank_results(returned), query=query,
+                             live_domain=live_domain)
     cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
     import provenance as provenance_mod
 
@@ -526,7 +611,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         searches=1,
         seconds=elapsed,
         cost=float(cost) if cost is not None else COST_PER_SEARCH,
-        results_returned=len(results),
+        results_returned=len(returned),
         backend="exa",
         window_days=recency_days,
     )
@@ -534,7 +619,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
 async def _second_look(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int,
-                       search_type: str) -> Optional[Packet]:
+                       search_type: str, live_domain: str = "") -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
     The distinction is the whole reason this is a separate function, and it is
@@ -556,7 +641,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
     try:
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, search_type, 0)
+            highlights_per_source, search_type, 0, live_domain)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
                     "packet", query, exc)
@@ -637,9 +722,10 @@ async def retrieve(query: str, backend: Optional[str] = None,
 
     # Off the event loop: other episodes are being served while this runs,
     # and a synchronous HTTP call on the loop would stop all of them.
+    live_domain = str(getattr(brief, "live_domain", "") or "")
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
-        highlights_per_source, search_type, recency_days)
+        highlights_per_source, search_type, recency_days, live_domain)
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -663,7 +749,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
         log.info("exa packet missed %s for %r; one more search on %r with no "
                  "window", missing, query, broader)
         second = await _second_look(broader, num_results, packet_sources,
-                                    highlights_per_source, search_type)
+                                    highlights_per_source, search_type,
+                                    live_domain)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
@@ -702,7 +789,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
 
         second = await gdelt.retrieve(query, recency_days=recency_days)
         if second:
-            ranked = rank_results(second)[:packet_sources]
+            ranked = screen_results(rank_results(second), query=query,
+                                    live_domain=live_domain)[:packet_sources]
             extra = build_packet(ranked, packet_sources, highlights_per_source)
             if extra.strip():
                 packet.context = (packet.context or "") + "\n" + extra
@@ -767,7 +855,10 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
         log.warning("gdelt failed while retrieving %r", query, exc_info=True)
         return packet
 
-    ranked = rank_results(list(results or []))[:settings.exa_packet_sources]
+    ranked = screen_results(
+        rank_results(list(results or [])), query=query,
+        live_domain=str(getattr(brief, "live_domain", "") or "")
+    )[:settings.exa_packet_sources]
     packet.context = build_packet(ranked, settings.exa_packet_sources,
                                   settings.exa_highlights_per_source)
     packet.sources = domains(ranked)

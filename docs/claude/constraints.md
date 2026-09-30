@@ -222,6 +222,8 @@
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
 <!-- rule:recency-credibility -->
+> **Current (PROBLEMS.md §178):** before anything is graded, `research.screen_results` drops a simulated or video-game league's page (a Madden league's "result" for a game not yet played) unless the question is about one, and on a sports question (`live_domain == "sports"`) drops unknown outlets once two known ones answered. The writer never argues a factual disagreement aloud: it says the better-supported reading and nothing about the sources.
+
 - **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
   jobs, rather than a weighted score nobody can reason about. The window
   (`start_published_date`, from the brief) decides what is eligible, so nothing
@@ -363,6 +365,8 @@
   in its place; the swipe-up gesture still moves through an album and is the
   one the `next-hint` label actually advertises.
 <!-- rule:live-facts -->
+> **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
+
 - **An article index is the wrong instrument for a scoreboard, and the seam is
   now built out.** *(§82, §89, `live_facts.py`, `live_sources.py`,
   `LIVE_FACTS.md`.)* A game ends and the scoreboard knows instantly; the recap

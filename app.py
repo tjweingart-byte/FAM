@@ -3036,12 +3036,51 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
 # an admin may read them.
 
 
+class FeedbackEpisode(BaseModel):
+    """The episode on the player when a report was typed there: the words it
+    was asked for, keyed the way `/api/next` keys them."""
+    q: str = Field("", max_length=500)
+    minutes: int = Field(0, ge=0, le=10)
+    context: str = Field("", max_length=300)
+    title: str = Field("", max_length=300)
+
+
 class FeedbackRequest(BaseModel):
     text: str = Field("", max_length=feedback_mod.MAX_TEXT + 500)
     screen: str = Field("", max_length=500)
     build: str = Field("", max_length=500)
     page: str = Field("", max_length=2000)
     viewport: str = Field("", max_length=500)
+    episode: Optional[FeedbackEpisode] = None
+
+
+async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
+    """Title, sources and transcript of the episode a report was filed on
+    (9.30 #6), read from the cache and the live track under the episode's own
+    key - the same lookups as `/api/next`, `/api/sources` and
+    `/api/transcript`, so the inbox shows what the listener was hearing.
+
+    **Never generates** and never raises: a report is kept whether or not its
+    episode can be found. The page names only the question; everything kept
+    is read here, so a report cannot plant a transcript of its own.
+    """
+    if ep is None or not ep.q.strip():
+        return None
+    minutes = ep.minutes or DEFAULT_MINUTES
+    title, sources, sentences = ep.title.strip(), {}, []
+    try:
+        plan = _validated_plan(ep.q, minutes, ep.context)
+        pipeline = _make_pipeline()
+        meta = await pipeline.episode_meta(plan)
+        title = meta.get("title") or title
+        sources = provenance_mod.Provenance.from_json(
+            await pipeline.sources_for(plan)).as_dict()
+        sentences, _live, _done = await pipeline.captions_for(plan)
+    except HTTPException:
+        pass
+    except Exception:  # noqa: BLE001 - the report matters more than its attachment
+        log.exception("could not read the episode for a feedback report")
+    return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences)
 
 
 @app.post("/api/feedback")
@@ -3050,6 +3089,11 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
     body, and is recorded only for an account; a guest is paced by session
     and kept anonymous."""
     listener = _listener(request)
+    episode = None
+    if req.episode is not None and req.text.strip():
+        # The same pace as the lookups it repeats (`/api/next` and friends).
+        _read_limit(request)
+        episode = await _feedback_episode(req.episode)
     try:
         report = FEEDBACK.add(
             req.text, user_id=listener if _has_account(request) else "",
@@ -3061,7 +3105,7 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
             page=req.page,
             viewport=req.viewport,
             agent=request.headers.get("user-agent", ""),
-            throttle_key=listener)
+            throttle_key=listener, episode=episode)
     except feedback_mod.FeedbackError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"]}

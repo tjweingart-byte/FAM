@@ -235,7 +235,8 @@ class LiveFacts:
             "may state it."),
         SCHEDULED: (
             "This event has NOT STARTED. It has no result. Write about it in "
-            "the future tense."),
+            "the future tense. Anything below about games already played - "
+            "a season record, a last result - is settled and may be stated."),
         UNKNOWN: (
             "The provider did not establish whether this has started or "
             "finished, so **you do not know that it has**. Do not state a "
@@ -292,11 +293,20 @@ class LiveFacts:
                 "up into a certainty, and never describe a percentage as a "
                 "lead, a win or a result.")
         else:
+            # **Take the true reading silently** (9.30 #5). "Say so in
+            # passing" became a paragraph about which source to ignore - a
+            # listener heard the evidence argued over instead of the answer.
+            # Where a thing stands in the world is the episode; where it
+            # stands in our notes never is.
             standing = (
                 "This is the most authoritative thing you have been given. "
                 "Where it and the articles below disagree, this is what is "
-                "true and the articles are older - say so in passing if it "
-                "matters and carry on.")
+                "true and the articles are older or wrong. Every number you "
+                "say about this - a score, a record, a date, who won - comes "
+                "from here; leave out any article's figure that differs. "
+                "Never tell the listener that sources disagree, never "
+                "describe a source or tell them to ignore one: say what is "
+                "true and carry on.")
 
         return f"""
 This came from {self.source}, which reports the state directly rather than an

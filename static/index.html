@@ -1981,6 +1981,18 @@
   /* The countdown, drawn rather than described: a bar that empties. */
   .nextup-timer{ position:absolute; left:0; top:0; height:3px; width:100%;
     background:var(--copper); transform-origin:left center; }
+  .nextup-search{ display:flex; align-items:center; gap:6px; margin-top:12px;
+    padding:0 6px 0 12px; border-radius:12px; background:var(--bg);
+    border:1px solid var(--border); }
+  .nextup-search:focus-within{ border-color:var(--copper); }
+  .nextup-search-input{ flex:1; min-width:0; border:0; background:none;
+    outline:none; color:var(--text); padding:11px 0;
+    font-family:'Space Grotesk', sans-serif; font-size:16px; }
+  .nextup-search-input::placeholder{ color:var(--text-faint); }
+  .nextup-search-input::-webkit-search-cancel-button{ display:none; }
+  .nextup-search-go{ flex:none; width:32px; height:32px; border:0;
+    border-radius:50%; background:none; color:var(--copper); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
   .nextup-back{ display:block; width:100%; margin-top:14px; padding:11px;
     border:none; background:none; color:var(--text-muted);
     font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.07em;
@@ -2158,6 +2170,14 @@
     white-space:nowrap; }
   .yf-chip.common{ border-color:var(--copper); color:var(--copper); cursor:default; }
   .yf-chip.muted{ color:var(--text-muted); font-style:italic; }
+  /* Interests on a profile: a label, then one line of pills that scrolls
+     left to right (9.30 #4); a pill cut off at the edge says "more this way". */
+  .yf-interests{ margin-top:16px; }
+  .yf-chips.yf-chips-line{ flex-wrap:nowrap; overflow-x:auto; margin-top:9px;
+    padding-bottom:2px; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+    scroll-snap-type:x proximity; }
+  .yf-chips-line::-webkit-scrollbar{ display:none; }
+  .yf-chips-line .yf-chip{ flex:none; scroll-snap-align:start; }
   .yf-row{ display:flex; align-items:center; justify-content:space-between;
     margin-top:20px; }
   .yf-label{ font-family:'JetBrains Mono', monospace; font-size:10px;
@@ -3490,6 +3510,18 @@
           <div class="nextup-h">What&rsquo;s next</div>
           <div class="nextup-sub" id="nextUpSub">First one starts in 15</div>
           <div class="nextup-grid" id="nextUpGrid"></div>
+          <!-- Your own prompt (9.30 #2). Touching it stops the countdown, so
+               the lead tile never starts under somebody's typing. -->
+          <form class="nextup-search" id="nextUpSearch" onsubmit="submitNextUpSearch(event)">
+            <input class="nextup-search-input" id="nextUpSearchInput" type="search"
+                   enterkeyhint="search" autocomplete="off" autocorrect="off"
+                   autocapitalize="off" spellcheck="false" aria-label="Search"
+                   placeholder="Search for anything"
+                   onfocus="pauseNextUp()" oninput="pauseNextUp()" onpointerdown="pauseNextUp()">
+            <button class="nextup-search-go" type="submit" aria-label="Search">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+            </button>
+          </form>
           <button class="nextup-back" id="nextUpBack" onclick="dismissNextUp()">Back to myFAM</button>
         </div>
       </div>
@@ -4030,20 +4062,35 @@
     var text = document.getElementById("feedbackText");
     var err = document.getElementById("feedbackError");
     var send = document.getElementById("feedbackSend");
+    // The screens that are the audio player. A report typed on one carries
+    // the episode playing, so the inbox can show its title, sources and
+    // transcript (9.30 #6); only the words that key it are sent - the server
+    // reads the rest from its own cache.
+    var PLAYER_SCREENS = { player: 1, playall: 1 };
     function context(){
       var active = document.querySelector(".screen.active");
-      return {
-        screen: active ? active.id.replace(/^screen-/, "") : "",
+      var screen = active ? active.id.replace(/^screen-/, "") : "";
+      var out = {
+        screen: screen,
         build: FAM_CLIENT,
         page: location.pathname + location.search,
         viewport: window.innerWidth + "x" + window.innerHeight
       };
+      if(PLAYER_SCREENS[screen] && episodeStamp){
+        var parts = episodeStamp.split("|");
+        var shown = document.getElementById("p-title");
+        out.episode = { q: parts[0], minutes: Number(parts[1]) || 0,
+                        context: parts[2] || "",
+                        title: (shown && shown.textContent.trim()) || "" };
+      }
+      return out;
     }
     function close(){ overlay.hidden = true; openBtn.focus(); }
     openBtn.addEventListener("click", function(){
       var c = context();
       document.getElementById("feedbackCtx").textContent =
-        "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport;
+        "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport
+        + (c.episode ? " \u00b7 this episode's title, sources and transcript" : "");
       err.hidden = true;
       overlay.hidden = false;
       text.focus();
@@ -7139,10 +7186,16 @@
   function confirmGoDeeper(){
     var val = document.getElementById("goDeeperInput").value.trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
-    recordFamEvent("search", "", val);
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
-    var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     closeGoDeeper();
+    startFollowUp(val, baseKey, goDeeperMinutes);
+  }
+  // A follow-up on the episode under `baseKey`: what Go Deeper plays, and
+  // what What's next plays from its lead tile and its search box, so the
+  // episode on offer there is the one Go Deeper would have made (9.30 #2).
+  function startFollowUp(val, baseKey, minutes){
+    recordFamEvent("search", "", val);
+    var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     var newKey = "deeper_" + Date.now();
     TOPICS[newKey] = {
       title: deriveTitleFromPrompt(val),
@@ -7157,7 +7210,7 @@
       // The length chosen in the modal. Named, and on a surface the server
       // does not hold to two minutes - from myFAM or DailyFAM it would
       // otherwise be a browse tap and ignore the choice (§147).
-      exploreMinutes: goDeeperMinutes,
+      exploreMinutes: Math.max(1, Math.min(5, Math.round(minutes) || 2)),
       surface: (stack[0] === "home") ? "search" : "other",
       titleOverridden: false
     };
@@ -10893,9 +10946,18 @@
       + yfIcon("bookmark", 14) + 'Saved for Later</button>'
       + '</div>';
 
-    // **No interest pills on your own page** (9.29 packet, at the owner's
-    // direction): they cluttered it, and Edit profile is where they are seen
-    // and changed. A friend's page still shows theirs.
+    // Interests as one line under the two buttons (9.30 #4, reversing the
+    // 9.29 packet's "none on your own page"): a label and a row of pills that
+    // scrolls sideways, so five interests cost one line rather than a
+    // wrapping block. Each opens that interest's Topic screen; they are
+    // changed in Edit profile. A friend's page draws the same row.
+    yfInterests = (p.interests_shown || []).slice(0, p.interests_max || 5);
+    html += interestLineHTML(yfInterests.length
+      ? yfInterests.map(function(row, i){
+          return '<button class="yf-chip" onclick="openInterestAt(' + i + ')">'
+            + escapeHtml(row.label) + '</button>';
+        }).join("")
+      : '<button class="yf-chip muted" onclick="editIdentity()">Add interests in Edit profile</button>');
 
     // Friends as stories. A gold ring is something new from them - a vibe in
     // the last two days or a message you have not read - and the VIBE badge
@@ -10944,6 +11006,21 @@
 
     document.getElementById("profileBody").innerHTML = html;
     loadHubMessages();
+  }
+
+  //: The interests the hub's pills were drawn from, so a tap can open the
+  //: Topic screen for the right one without putting free text in an onclick.
+  var yfInterests = [];
+  function openInterestAt(i){
+    var row = yfInterests[i];
+    if(row) openTopic(row.id, row.label);
+  }
+  // "Interests" and one sideways-scrolling line of pills: your page and a
+  // friend's draw it the same way (9.30 #4).
+  function interestLineHTML(pills){
+    if(!pills) return "";
+    return '<div class="yf-interests"><span class="yf-label">Interests</span>'
+      + '<div class="yf-chips yf-chips-line">' + pills + '</div></div>';
   }
 
   // "1 new from TJ", off the same inbox the Messages screen reads.
@@ -11859,7 +11936,7 @@
     // Their interests, as chips that open the Topic screen, and how many of
     // them are yours too.
     personInterests = interestRows(pub);
-    html += '<div class="yf-chips">' + interestChipsHTML(personInterests, "openPersonInterest") + '</div>';
+    html += interestLineHTML(interestChipsHTML(personInterests, "openPersonInterest"));
 
     // Their public DailyFAM mixes - a new mix is public unless its owner
     // switched it off.
@@ -15377,40 +15454,43 @@
   // which meant somebody who had just heard about today's news was offered
   // four standing explainers.
   //
-  // Two things may take the lead slot ahead of the ranking, and both are
-  // *better* answers to "most likely next" rather than exceptions to it:
+  // **The lead tile is Go Deeper's own suggestion** (9.30 #2): the
+  // `<<NEXT:>>` line the model wrote on this very episode, else the follow-up
+  // built from its title - exactly what the Go Deeper chip offers - and it
+  // plays the way Go Deeper would, as a follow-up on this episode at its
+  // length. It is the answer to "having heard this, what next", read off
+  // what was actually covered, which no ranking over a bank can see; and
+  // there is always one, so the countdown is never on a stranger's pick.
   //
-  //  * **the album's next episode**, when one is playing. Inside an album the
-  //    next episode is not a recommendation, it is the thing the listener
-  //    already chose, and a ranking that talked them out of it would be
-  //    wrong however well it scored.
-  //  * **the predicted follow-up**, the `<<NEXT:>>` line the model wrote on
-  //    this very episode and that was never spoken. It is the answer to
-  //    exactly this question - having heard this, what would this listener
-  //    most likely ask next - read off what was actually covered, which no
-  //    ranking over a bank of tiles can see.
-  //
-  // With neither, the lead is the ranking's own first pick, which is what the
-  // countdown should be on.
+  // The album's next episode, when one is playing, comes second: inside an
+  // album it is the thing the listener already chose, so it stays one tap
+  // away, but the countdown is on the follow-up, at the owner's direction.
   function buildNextUpTiles(query, topicId, done){
-    var lead = null;
     var album = currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer];
+    var albumTile = null;
     if(album && currentTopicIndexInAlbum > -1
        && currentTopicIndexInAlbum < album.topics.length - 1){
       var nextKey = album.topics[currentTopicIndexInAlbum + 1];
       if(TOPICS[nextKey]){
-        lead = { title: TOPICS[nextKey].title, sub: "next in " + album.name,
-                 album: true };
+        albumTile = { title: TOPICS[nextKey].title, sub: "next in " + album.name,
+                      album: true };
       }
-    } else if(episodeThread){
-      lead = { title: episodeThread, sub: "most likely next",
-               query: episodeThread, topicId: "" };
     }
+    var context = nextUpContext();
+    var baseKey = getGoDeeperBaseKey(context);
     fetch(withInterests("/api/nextup?topic_id=" + encodeURIComponent(topicId || "")
                         + "&q=" + encodeURIComponent(query || "")))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ return d; }, function(){ return {}; })
       .then(function(d){
+        // Read after the round trip, so a `<<NEXT:>>` line fetched when the
+        // episode ended has had the same time to land.
+        var text = episodeThread || nextUpFallback(baseKey);
+        var lead = text ? { title: text, sub: "go deeper", deeper: true,
+                            query: text, baseKey: baseKey,
+                            minutes: currentPlayMinutes } : null;
         var tiles = lead ? [lead] : [];
+        if(albumTile) tiles.push(albumTile);
         (d.topics || []).forEach(function(t, i){
           if(tiles.length >= 4) return;
           tiles.push({
@@ -15426,6 +15506,16 @@
         done(tiles.slice(0, 4));
       })
       .catch(function(){ done([]); });
+  }
+  function nextUpContext(){
+    var active = document.querySelector(".screen.active");
+    return active && active.id === "screen-playall" ? "playall" : "player";
+  }
+  // Go Deeper's title-built suggestion, for a base named outright rather
+  // than read off whichever Go Deeper is open (`goDeeperFallback`).
+  function nextUpFallback(baseKey){
+    var title = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "";
+    return title ? "What's the bigger story behind " + title + "?" : "";
   }
 
   function showNextUp(tiles){
@@ -15444,6 +15534,8 @@
       "--nextup-fade", NEXT_UP_FADE_MS + "ms");
     document.getElementById("nextUpBack").textContent =
       nextUpFromSearch ? "Back to search" : "Back to myFAM";
+    document.getElementById("nextUpSearchInput").value = "";
+    nextUpPaused = false;
     document.getElementById("nextUpOverlay").classList.add("active");
 
     // The countdown, shown rather than described: the bar empties over the
@@ -15476,6 +15568,32 @@
     if(nextUpTimer){ clearInterval(nextUpTimer); nextUpTimer = null; }
   }
 
+  // Touching the search box stops the countdown for good on this card: the
+  // bar freezes where it is and nothing starts itself while somebody types.
+  var nextUpPaused = false;
+  function pauseNextUp(){
+    if(nextUpPaused) return;
+    nextUpPaused = true;
+    stopNextUpTimer();
+    var bar = document.getElementById("nextUpTimer");
+    if(bar){
+      bar.style.transform = getComputedStyle(bar).transform;
+      bar.style.transition = "none";
+    }
+    var sub = document.getElementById("nextUpSub");
+    if(sub) sub.textContent = "Paused - pick one or search";
+  }
+  function submitNextUpSearch(ev){
+    if(ev) ev.preventDefault();
+    var input = document.getElementById("nextUpSearchInput");
+    var val = input.value.trim();
+    if(!val){ pauseNextUp(); input.focus(); return; }
+    var baseKey = getGoDeeperBaseKey(nextUpContext());
+    closeNextUp();
+    input.blur();
+    startFollowUp(val, baseKey, currentPlayMinutes);
+  }
+
   function closeNextUp(){
     stopNextUpTimer();
     document.getElementById("nextUpOverlay").classList.remove("active");
@@ -15488,6 +15606,7 @@
     closeNextUp();
     if(!tile) return;
     if(tile.album){ playNextInAlbum(); return; }
+    if(tile.deeper){ startFollowUp(tile.query, tile.baseKey, tile.minutes); return; }
     var key = "next_" + index + "_" + Date.now();
     TOPICS[key] = {
       title: tile.title,

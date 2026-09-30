@@ -183,6 +183,8 @@
         }
         chips.push('<span class="chip ' + (ck[k] ? "bad" : "ok") + '">' + (ck[k] ? "" : "no ") + k.replace("_", " ") + '</span>');
       });
+      // 9.30 #7: no two subjects wear the same picture.
+      if (ck.duplicate_of) chips.push('<span class="chip bad">same picture as ' + esc(ck.duplicate_of) + '</span>');
       if (t.flagged) chips.push('<span class="chip flag">names a real thing</span>');
       // Every painting this subject has ever had, across runs and Repaints.
       chips.push('<span class="chip" title="Pictures painted for this subject across every run and Repaint">' + t.attempts + (t.attempts === 1 ? ' painting' : ' paintings') + ' in all · $' + t.cost_usd + '</span>');
