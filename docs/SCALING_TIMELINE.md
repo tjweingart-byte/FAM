@@ -123,15 +123,40 @@ RunPod holds no database.
 
 ## 6. API-Sports — live scores and score lines on cards
 
-**Today:** free, 100 requests/day, shared by episode lookups and story cards,
-**counted per process** (`API_SPORTS_DAILY_REQUESTS=100`). One sport's
-scoreboard refreshes about every 14 minutes.
+**Today:** ten sports (American football, soccer, basketball, baseball,
+hockey, rugby, volleyball, AFL, Formula 1, MMA), **each on its own free plan:
+100 requests/day per sport** (PROBLEMS.md §180). Each sport is its own
+API-Sports subscription on the same key, billed and limited separately, so
+each has its own day, its own pace of myFAM sweeps (about every 14 minutes
+on 100/day) and its own row under API-Sports on `/admin`.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
-| **Stage 1 · before launch** | A live-score product with 14-minute-old scores | **Pro, $19/mo: 7,500/day**. Set `API_SPORTS_DAILY_REQUESTS=7500` | +$19/mo |
-| **Any stage, earlier** | `/admin` shows API-Sports *today* above ~80 on most days, or a second sport is wanted | The same $19 plan: the cheapest real upgrade in `FINANCIAL.md` (75x the allowance) | +$19/mo |
-| **Stage 3-4** | `/admin` above ~6,000/day | $29 (75k/day) or $39 (150k/day) | +$10-20/mo |
+| **Stage 1 · before launch** | The sports the product leads with (NFL, soccer) should not have 14-minute-old scores | **Pro, $19/mo per sport: 7,500/day** for those sports only | +$19/mo per sport |
+| **Any stage, earlier** | A sport's row on `/admin` shows *today* above ~80 on most days, or its lookups are refused late in the day | That sport to Pro | +$19/mo |
+| **Stage 3-4** | A sport above ~6,000/day | That sport to Ultra ($29, 75k/day) or Mega ($39, 150k/day) | +$10-20/mo |
+
+**Changing a sport's plan** - the whole procedure:
+
+1. **Buy it** on API-Sports' dashboard (dashboard.api-football.com), on the
+   product for that sport. The key does not change.
+2. **Tell FAM**: set `API_SPORTS_TIERS` on the service in Render, naming only
+   the sports that are not on `API_SPORTS_TIER` (the default, `free`):
+   `API_SPORTS_TIERS=american-football=pro,football=pro`. Tiers are `free`,
+   `pro`, `ultra`, `mega`. Never on staging, which spends nothing.
+3. **Redeploy** (Render restarts on a changed variable).
+4. **Check** `/admin`: the sport's row says the new plan and allowance, and
+   once it has made a request it shows what API-Sports itself reports left.
+   A plan API-Sports does not report is flagged on that row in red.
+   `python tools/verify_live.py --domain sports` asks every sport's `/status`
+   and prints each plan as API-Sports has it.
+5. **Downgrading** is the same in reverse: change the plan on the dashboard,
+   then remove the sport from `API_SPORTS_TIERS`.
+
+`API_SPORTS_SPORTS` limits which sports are used at all (empty is all ten);
+`API_SPORTS_DAILY_REQUESTS` caps each sport below its plan for several
+workers sharing one; `API_SPORTS_LOOKUP_RESERVE` keeps a share of each day
+from the sweep for episode lookups (0 by default, as §135 directs).
 
 ## 7. GNews — the Trending edition
 
@@ -191,7 +216,7 @@ shared by everybody, so it does not grow with listeners.
 3. Render: Standard plan, 10 GB disk, `AUDIO_CACHE_MAX_MB` raised.
 4. Anthropic: next usage tier requested; `ENFORCE_QUOTAS=1`.
 5. Exa: card on file, auto top-up.
-6. Licences before charging money: GNews Essential, Finnhub commercial, API-Sports Pro.
+6. Licences before charging money: GNews Essential, Finnhub commercial, API-Sports Pro for the sports the product leads with (per sport, §180).
 7. Metering: `SYNTHESIS_REALTIME_FACTOR=4.6`, `GPU_USD_PER_HOUR` set.
 
 Fixed monthly cost of the checklist (estimate): ~$150/mo before launch day,

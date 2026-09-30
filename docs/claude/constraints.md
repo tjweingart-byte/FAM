@@ -364,6 +364,20 @@
   model call and a GPU, in place of whatever was playing. Removed with nothing
   in its place; the swipe-up gesture still moves through an album and is the
   one the `next-hint` label actually advertises.
+<!-- rule:api-sports-per-sport -->
+- **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
+  direction.)* API-Sports sells and limits each sport as its own subscription
+  on one key, so FAM keeps a budget per sport (`live_sources.budget_for`), a
+  plan per sport (`API_SPORTS_TIER` for all, `API_SPORTS_TIERS` for the ones
+  that differ; everything `free` until something is bought), and a row per
+  sport under API-Sports on `/admin` (`provider_usage.record(..., detail=)`).
+  The provider's own `x-ratelimit-requests-*` count bounds ours and flags a
+  plan it does not report. Buying is done on API-Sports' dashboard first;
+  the setting only says what was bought (`docs/SCALING_TIMELINE.md` section 6
+  has the steps). Ten products are wired; a status code not listed for a
+  sport is `unknown` and says nothing, so an unverified mapping costs a silent
+  game, never a wrong one.
+
 <!-- rule:live-facts -->
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 

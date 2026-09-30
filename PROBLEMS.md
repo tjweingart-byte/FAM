@@ -13983,3 +13983,50 @@ cost at most one edition's writers twice, at the batch rate. The v2 pod route
 (`GET https://api.runpod.io/v2/pods`) is still unverified from here; RunPod is
 blocked from this container. Check it with a real key:
 `curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" https://api.runpod.io/v2/pods | head -c 400`.
+
+## 180. Ten sports, a plan per sport, and calls per sport on /admin
+
+The owner: wire in soccer, American football, basketball, baseball, hockey,
+rugby, volleyball, F1, MMA and AFL; keep them all on the free tier; make it
+possible to choose each sport's plan later; and show on `/admin` how much each
+sport is called, because API-Sports bills by sport.
+
+**Ten products.** `live_sources.SPORTS` gains hockey, rugby, volleyball, AFL
+(games between two teams, like the four already there), Formula 1 (`kind =
+race`) and MMA (`kind = fight`). A race is found on the season's calendar by
+the Grand Prix's name or place, else the one under way, just run, or next;
+a finished one is said with its podium from `/rankings/races` (one more
+request, only when it has finished). A fight is found on today's card by a
+fighter's name, and its winner is only ever the one the provider marks. AFL's
+`score` beside goals and behinds and hockey's plain numbers are read.
+Routing is by whole sport words ("f1" is not in "f150"), then by a team named
+in a league catalogue already held, never by a request; the sweep reads each
+team league's catalogue once a day for that. NBA, NHL and MLB now carry team
+records, last and next games like the NFL (§178), each season named the way
+its API names it (`season_of`: "2025-2026" for basketball). **Unverified:**
+the hosts are blocked here, so status codes, league ids (NBA 12, NHL 57,
+MLB 1) and the race and fight shapes are from API-Sports' documentation as
+far as it could be read; a code not listed is `unknown` and says nothing.
+
+**A plan per sport.** Each sport has its own `RequestBudget`
+(`budget_for(sport)`, chosen from the request's host), its own daily
+allowance from its plan (`TIERS`: free 100, pro 7,500, ultra 75,000, mega
+150,000; `API_SPORTS_TIER` for every sport, `API_SPORTS_TIERS` for the ones
+that differ), and its own sweep pace - a sweep takes only the sports that are
+due. Every answer's `x-ratelimit-requests-limit/remaining` headers are read:
+API-Sports' own count covers every worker and bounds ours, and a plan it
+reports that is not the configured one is flagged. `verify` asks every
+sport's `/status` and prints each plan. `API_SPORTS_DAILY_REQUESTS` is now a
+per-sport ceiling below the plan (0, the new default, is the plan's own), and
+`API_SPORTS_LOOKUP_RESERVE` can hold a share of each day back from the sweep
+for episode lookups - 0 by default, keeping §135's direction that the sweep
+paces itself over the whole allowance. The steps for changing a sport's plan
+are in `docs/SCALING_TIMELINE.md` section 6: buy it on API-Sports' dashboard,
+set `API_SPORTS_TIERS`, redeploy, check the sport's row on `/admin`.
+
+**Calls per sport on /admin.** `provider_usage.record(provider, ok, detail)`
+counts a request against the provider and, for API-Sports, against
+`api_sports/<sport>` as well. The API-Sports row says it is billed per sport,
+and under it each enabled sport has its own row: today (and failures),
+yesterday, the seven-day average, its plan and allowance, the next plan and
+its price, and what API-Sports last reported left.

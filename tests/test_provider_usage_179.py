@@ -62,9 +62,12 @@ def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
                                   gnews_daily_requests=950)
     monkeypatch.setattr(config, "settings", patched)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
-    assert rows["api_sports"]["limit"].startswith("7,500/day")
+    # API-Sports is per sport since §180: the ceiling setting caps each sport
+    # at its plan, and the free plan's 100 is below 7,500.
+    sports = {b["sport"]: b for b in rows["api_sports"]["breakdown"]}
+    assert sports["american-football"]["limit"].startswith("Free: 100/day")
+    assert "Pro $19/mo: 7,500/day" in sports["american-football"]["next"]
     assert rows["gnews"]["limit"].startswith("950/day")
-    assert "7,500/day" in rows["api_sports"]["next"]
     assert "1,000/day" in rows["gnews"]["next"]
 
 

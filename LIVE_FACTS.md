@@ -295,8 +295,20 @@ configured and returning them.
 domain off. `/api/health` lists which were derived under
 `live_sources.derived_from_key`.
 
-**API-Sports shares one daily allowance** between the myFAM story sweep and
-these lookups (`live_sources.API_SPORTS_BUDGET`, `API_SPORTS_DAILY_REQUESTS`).
+**Each API-Sports sport has its own daily allowance** (PROBLEMS.md §180),
+shared between the myFAM story sweep and these lookups
+(`live_sources.budget_for(sport)`). API-Sports sells and limits each sport
+separately, so each is on its own plan (`API_SPORTS_TIER`, `API_SPORTS_TIERS`
+- free, pro, ultra, mega; the steps to change one are in
+`docs/SCALING_TIMELINE.md` section 6), spends its own day, and is counted on
+its own row under API-Sports on `/admin`. Every answer's
+`x-ratelimit-requests-*` headers are read, so the count API-Sports itself
+keeps - across every worker - bounds ours, and a plan it does not report is
+flagged. Ten products are wired: American football, soccer, basketball,
+baseball, hockey, rugby, volleyball, AFL (games between two teams), Formula 1
+(races: a podium read from the race's rankings) and MMA (fights: a winner
+only where the provider marks one). NFL, NBA, NHL and MLB also carry team
+records, last and next games.
 A lookup reads the sweep's card first (`live_sources.CARD`): finding the game
 is free when the sweep listed it, and a card inside half the sports freshness
 limit is used as the state. When the allowance is spent the lookup says so

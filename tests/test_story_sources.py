@@ -208,6 +208,9 @@ def api_sports(monkeypatch, card=None, **settings_kw):
     monkeypatch.setattr(live_sources, "API_SPORTS_BUDGET",
                         live_sources.RequestBudget())
     monkeypatch.setattr(live_sources, "CARD", {})
+    # A fresh day: every sport due, each with its own allowance (§180).
+    monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(live_sources, "BUDGETS", {})
     settings_kw.setdefault("stories_sports", "american-football")
     patched = with_settings(monkeypatch, api_sports_key="k", **settings_kw)
     monkeypatch.setattr(live_sources, "settings", patched)
@@ -314,13 +317,20 @@ def test_the_provider_s_own_limit_reply_is_an_outage_not_an_empty_card(monkeypat
         "response": []})
     with pytest.raises(live_sources.BudgetSpent):
         run(story_sources.ApiSportsSignals().collect(8))
-    assert live_sources.API_SPORTS_BUDGET.remaining() == 0
+    # Its own sport's day is spent (§180: each sport is its own allowance).
+    assert live_sources.budget_for("american-football").remaining() == 0
 
 
 def test_every_sweep_request_is_counted(monkeypatch):
     live_sources = api_sports(monkeypatch, stories_sports="american-football,basketball")
     run(story_sources.ApiSportsSignals().collect(8))
-    assert live_sources.API_SPORTS_BUDGET.used == 2
+    # Each against its own sport's day (§180): the card, plus the league's
+    # team catalogue, read once a day so a team's name finds its sport.
+    assert live_sources.budget_for("american-football").used == 2
+    assert live_sources.budget_for("basketball").used == 2
+    run(story_sources.ApiSportsSignals().collect(8))
+    assert live_sources.budget_for("american-football").used == 2, \
+        "a sport that is not due yet was swept again"
     # And the card is kept for the episode lookup to read before it spends.
     assert set(live_sources.CARD) == {"american-football", "basketball"}
 
