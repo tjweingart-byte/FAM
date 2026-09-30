@@ -120,6 +120,7 @@
   .scroll::-webkit-scrollbar{ width:0; }.brandrow .badge{ font-family:'JetBrains Mono', monospace; font-size:9.5px; font-weight:700; letter-spacing:0.1em; background:var(--copper); color:var(--ink); padding:4px 8px; border-radius:6px; }/* The same mark as the myFAM / DailyFAM / explore headings, at hero size.
      Only the scale is set here; the letterforms and the chevron come from
      .wm-f and .wm-a, so the brand can only ever change in one place. */
+  .fr-wait{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--copper); margin-top:3px; }
   .fam-logo{ text-align:center; padding:0 0 22px; font-size:30px; line-height:1.1; }.back-row{ flex:none; display:flex; align-items:center; gap:10px; padding:16px 18px 10px; }
   .back-row .back{ display:flex; align-items:center; opacity:0.85; cursor:pointer; padding:4px 8px 4px 0; color:var(--text); }
   .back-row .back:active{ opacity:1; }
@@ -3857,7 +3858,17 @@
           init.headers = headers;
         }
       } catch(e){}
-      return raw.call(this, input, init);
+      // The waitlist (WAITLIST.md): while it runs the server answers anybody
+      // who is not a member 403 with `X-FAM-Waitlist` naming where to go -
+      // after a logout, or a sign-up made from inside the app. The page goes
+      // there rather than drawing the refusal as a failure.
+      return raw.call(this, input, init).then(function(res){
+        try {
+          var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
+          if(go && /^\/waitlist(\/me)?$/.test(go)) location.replace(go);
+        } catch(e){}
+        return res;
+      });
     };
   })();
   var TOPICS = {
@@ -10320,6 +10331,11 @@
       .then(function(d){
         var was = AUTH.authenticated;
         AUTH = d;
+        // A page that reached this far while the waitlist runs - opened from
+        // the offline shell - is sent where the server would have sent it.
+        if(d && d.waitlist && d.status !== "active"){
+          location.replace(d.status === "waitlisted" ? "/waitlist/me" : "/waitlist");
+        }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
         // The Profile tab is decided entirely by this answer, so it is the
@@ -11705,7 +11721,11 @@
       + '<div class="fr-av">' + avatarHTML(person, 40) + '</div>'
       + '<div class="fr-body"><div class="fr-name">'
       + escapeHtml(person.name || "Someone") + '</div>'
-      + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div></div>'
+      + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div>'
+      // Friends from the waitlist show on both sides before they are let in
+      // (WAITLIST.md §4); this says why they cannot be messaged yet.
+      + (person.waitlisted ? '<div class="fr-wait">Still on the waitlist</div>' : '')
+      + '</div>'
       + (action
           ? '<button class="pf-btn" onclick="event.stopPropagation(); ' + action + '">'
             + label + '</button>'

@@ -139,6 +139,10 @@ class Listener:
     #: Inferring from `email` called such a listener anonymous and offered them
     #: a sign-up screen on every open.
     has_account: bool = False
+    #: 'active' or 'waitlisted' for an account, "" for a guest. Read in the
+    #: same query that resolves the session, because the waitlist gate asks it
+    #: on every request (WAITLIST.md).
+    status: str = ""
 
     @property
     def is_authenticated(self) -> bool:
@@ -154,6 +158,7 @@ class Listener:
             "tier": self.tier,
             "authenticated": self.is_authenticated,
             "has_account": self.has_account,
+            "status": self.status,
         }
 
 
@@ -250,6 +255,11 @@ class AccountStore:
         self.path = data_path("ACCOUNTS_DB", "accounts.db", path)
         self._local = threading.local()
         self._pruned_at = 0.0
+        #: What a newly created account starts as. 'active' unless the
+        #: waitlist gate is on (app.py sets it from WAITLIST at import), and
+        #: written in the INSERT itself rather than updated after it, so there
+        #: is no moment in which a brand-new account is active by accident.
+        self.new_account_status = "active"
         with self._conn() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS accounts (
@@ -293,6 +303,26 @@ class AccountStore:
                 # need somewhere for a name to live that is not the email.
                 "ALTER TABLE accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE accounts ADD COLUMN phone TEXT NOT NULL DEFAULT ''",
+                # The waitlist (WAITLIST.md). `status` defaults to 'active' so
+                # that widening an existing file backfills every account that
+                # already exists as active - they were let in before there was
+                # a line to stand in. Only an account created while the gate
+                # is on starts 'waitlisted' (`new_account_status`).
+                "ALTER TABLE accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+                # Who invited them: a listener id, set once at join and never
+                # rewritten. Not a foreign key - SQLite would not enforce one
+                # across the stores anyway, and a deleted inviter must not
+                # delete the person they brought.
+                "ALTER TABLE accounts ADD COLUMN referred_by TEXT NOT NULL DEFAULT ''",
+                # Their own invite code, minted by FAM (never by the vendor, so
+                # a link handed out before Viral Loops answered still works).
+                "ALTER TABLE accounts ADD COLUMN referral_code TEXT NOT NULL DEFAULT ''",
+                # Viral Loops' own code for them, needed to name them as the
+                # referrer when somebody they invited is registered there.
+                "ALTER TABLE accounts ADD COLUMN vl_referral_code TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE accounts ADD COLUMN vl_participant_id TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE accounts ADD COLUMN waitlist_joined_at REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE accounts ADD COLUMN access_granted_at REAL NOT NULL DEFAULT 0",
             ):
                 try:
                     conn.execute(ddl)
@@ -313,6 +343,10 @@ class AccountStore:
                          " ON accounts(email) WHERE email != ''")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone"
                          " ON accounts(phone) WHERE phone != ''")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS accounts_referral_code"
+                         " ON accounts(referral_code) WHERE referral_code != ''")
+            conn.execute("CREATE INDEX IF NOT EXISTS accounts_referred_by"
+                         " ON accounts(referred_by) WHERE referred_by != ''")
 
             # How an account can be reached, one row per route. Separate from
             # `accounts` because it is many-to-one: the same person may sign in
@@ -373,7 +407,7 @@ class AccountStore:
             row = self._conn().execute(
                 "SELECT s.user_id, COALESCE(a.email, ''), COALESCE(a.plan, 'free'),"
                 "       COALESCE(a.display_name, ''), COALESCE(a.phone, ''),"
-                "       a.user_id IS NOT NULL"
+                "       a.user_id IS NOT NULL, COALESCE(a.status, '')"
                 " FROM sessions s"
                 " LEFT JOIN accounts a ON a.user_id = s.user_id"
                 " WHERE s.token_hash = ? AND s.expires > ?",
@@ -396,7 +430,7 @@ class AccountStore:
         except Exception:
             log.exception("could not refresh session; continuing")
         return Listener(row[0], row[1], entitlements.normalise(row[2]),
-                        row[3], row[4], bool(row[5]))
+                        row[3], row[4], bool(row[5]), row[6])
 
     def end_session(self, token: str) -> bool:
         if not token:
@@ -427,8 +461,8 @@ class AccountStore:
     def account(self, user_id: str) -> Optional[dict]:
         try:
             row = self._conn().execute(
-                "SELECT email, created, last_login, plan, display_name, phone"
-                " FROM accounts WHERE user_id = ?",
+                "SELECT email, created, last_login, plan, display_name, phone,"
+                " status FROM accounts WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -439,7 +473,7 @@ class AccountStore:
         return {"user_id": user_id, "email": row[0],
                 "created": row[1], "last_login": row[2],
                 "plan": entitlements.normalise(row[3]),
-                "display_name": row[4], "phone": row[5]}
+                "display_name": row[4], "phone": row[5], "status": row[6]}
 
     def plan_for(self, user_id: str) -> str:
         """Which plan to stamp on this listener's usage rows.
@@ -501,8 +535,10 @@ class AccountStore:
         try:
             self._conn().execute(
                 "INSERT INTO accounts (user_id, email, password, created,"
-                " last_login, phone) VALUES (?, ?, ?, ?, ?, ?)",
-                (user_id, email, hash_password(password), now, now, phone),
+                " last_login, phone, status, waitlist_joined_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, email, hash_password(password), now, now, phone,
+                 *self._new_status(now)),
             )
         except sqlite3.IntegrityError as exc:
             # Only tells them an identifier is taken, which they can already
@@ -515,7 +551,13 @@ class AccountStore:
         self._link(user_id, "email", email, email, now)
         if phone:
             self._link(user_id, "phone", phone, email, now)
-        return Listener(user_id, email, phone=phone, has_account=True)
+        return self.listener_of(user_id)
+
+    def _new_status(self, now: float) -> tuple[str, float]:
+        """(status, waitlist_joined_at) for an account being created now."""
+        if self.new_account_status == "waitlisted":
+            return "waitlisted", now
+        return "active", 0.0
 
     def _phone_taken(self, phone: str) -> bool:
         row = self._conn().execute(
@@ -577,7 +619,8 @@ class AccountStore:
         if not account:
             return Listener(user_id)
         return Listener(user_id, account["email"], account["plan"],
-                        account["display_name"], account["phone"], True)
+                        account["display_name"], account["phone"], True,
+                        account["status"])
 
     # --- identities -------------------------------------------------------
 
@@ -677,8 +720,10 @@ class AccountStore:
                 "SELECT 1 FROM accounts WHERE email = ?", (email,)).fetchone())
             self._conn().execute(
                 "INSERT INTO accounts (user_id, email, password, created,"
-                " last_login, display_name) VALUES (?, ?, '', ?, ?, ?)",
-                (current_user_id, "" if taken else email, now, now, display_name),
+                " last_login, display_name, status, waitlist_joined_at)"
+                " VALUES (?, ?, '', ?, ?, ?, ?, ?)",
+                (current_user_id, "" if taken else email, now, now, display_name,
+                 *self._new_status(now)),
             )
         self._link(current_user_id, provider, subject, email, now)
         return self.listener_of(current_user_id), True
@@ -727,8 +772,10 @@ class AccountStore:
         try:
             self._conn().execute(
                 "INSERT INTO accounts (user_id, email, password, created,"
-                " last_login, phone) VALUES (?, '', ?, ?, ?, ?)",
-                (user_id, hash_password(password), now, now, phone),
+                " last_login, phone, status, waitlist_joined_at)"
+                " VALUES (?, '', ?, ?, ?, ?, ?, ?)",
+                (user_id, hash_password(password), now, now, phone,
+                 *self._new_status(now)),
             )
         except sqlite3.IntegrityError as exc:
             raise AuthError("That phone number is already registered.") from exc

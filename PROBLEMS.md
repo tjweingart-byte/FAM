@@ -13983,3 +13983,50 @@ cost at most one edition's writers twice, at the batch rate. The v2 pod route
 (`GET https://api.runpod.io/v2/pods`) is still unverified from here; RunPod is
 blocked from this container. Check it with a real key:
 `curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" https://api.runpod.io/v2/pods | head -c 400`.
+
+## 180. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox
+
+**What was asked.** A waitlist before launch (the owner's spec, kept verbatim
+in `WAITLIST.md`): a landing page that takes an email, a "Founding FAM member"
+status page with place in line, invites, Your FAM and unlocks, profile setup,
+an admin page to grant access, and Viral Loops for referral links, fraud
+checks and email. The owner's answers during the build: **the app is closed
+until an account is active**; sign-up is **email and password** (Apple and
+Google wait on the Apple Developer Program); **Viral Loops sends the email**.
+
+**What conflicted, and how it was settled.** The spec assumed a profiles table
+with row-level security, a friends table and an `is_admin` column. FAM has
+SQLite stores, friendship as a mutual follow, and admin by
+`FAM_ADMIN_ACCOUNTS`; each is used as it is (`WAITLIST.md`, Decisions). The
+one real reversal is the closed app, which overrides
+`account-gates-kept` while `WAITLIST=1` - recorded at that rule as a Current
+note and as its own rule, `waitlist-gate`.
+
+**What was built.**
+
+* `accounts.py`: `status` and the referral columns, `status` defaulting to
+  `active` so existing accounts are backfilled; `new_account_status` writes
+  `waitlisted` in every account `INSERT` while the gate is on; `Listener`
+  carries `status`, read in the session query, so the gate costs no query.
+* `waitlist.py`: codes, joining, the line (invites, then join time), the
+  cutoff, granting one / the top N, and the Viral Loops outbox.
+* `viral_loops.py`: register and flag, and `drain`, which never raises.
+  Unconfigured, nothing is sent and nothing is dropped.
+* `app.py`: the gate in the session middleware; `/waitlist`,
+  `/waitlist/me`, `/api/waitlist/*`; `/admin/waitlist` and its three
+  endpoints; referral friendships at signup; discovery, lookup, follow and
+  messaging rules; the waitlist in `/api/health` and in account deletion.
+* `static/waitlist.html` (both mockups), `admin_ui/waitlist.html`, and in
+  the app a 403 hook that follows `X-FAM-Waitlist` plus the "Still on the
+  waitlist" label in Your Friends.
+* `tests/test_waitlist.py`: backfill, every sign-up route, referrals, the
+  line, grants, the outbox under success, outage and no keys, the gate for
+  guests / waitlisted / granted / admin, the status numbers, profile setup
+  unable to touch status, discovery, messaging and deletion.
+
+**Unverified from here.** The Viral Loops request shapes: both docs hosts are
+blocked from this container, so they follow search excerpts of the v3
+reference. The outbox makes a wrong shape a visible retried error
+(`/api/health` `waitlist.outbox_pending`, the admin page) rather than a lost
+signup. Production turns the gate on with `WAITLIST=1` in the Render
+dashboard - deliberately not in `render.yaml`.

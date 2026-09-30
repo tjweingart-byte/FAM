@@ -183,3 +183,4 @@ and `limit` = Lines.
 | 13659 | 54 | 177. Tile pictures: a pale edge on every one, and every one the same picture |
 | 13713 | 137 | 178. The 9.30 packet: seven changes, and the Commanders episode |
 | 13850 | 137 | 179. Costs: prompt caching, batched editions, RunPod REST v2, and provider counts |
+| 13987 | 47 | 180. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox |

@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B27">
+<title>FAM — Get early access</title>
+<meta name="description" content="Listen to everything you want to know about. Join the FAM waitlist.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Barlow+Condensed:wght@500;600&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  The pre-launch waitlist (WAITLIST.md). One page, two views:
+
+  * /waitlist     - the landing page: email, then a password. Signing up here
+                    is the app's own email-and-password sign-up, so the
+                    account made here is the one the app opens with later.
+  * /waitlist/me  - the status page: place in line, Your FAM, the next unlock,
+                    and profile setup, which writes the same profile the app
+                    reads (/api/me and /api/preferences).
+
+  Nothing here decides anything: place, cutoff, friends and status all come
+  from /api/waitlist/me, and every rule is enforced by the server.
+-->
+<style>
+  :root{
+    --page-bg:#1E1B27; --card:#26222F; --card-2:#2E2A3A; --line:#3A3548;
+    --text:#F4EFE4; --muted:#A9A2B8; --faint:#6F6882;
+    --gold:#F0C35E; --gold-ink:#1E1B27; --coral:#E2694F; --sage:#8FAE9A;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--page-bg); color:var(--text);
+    font-family:'Space Grotesk', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  body{ min-height:100vh; min-height:100dvh; }
+  button,input{ font:inherit; color:inherit; }
+  .hidden{ display:none !important; }
+  .label{ font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight:600;
+    letter-spacing:0.16em; text-transform:uppercase; }
+
+  /* The wordmark: the same drawn F, chevron A and M the app uses. */
+  .wordmark{ display:inline-flex; align-items:flex-end; gap:0.14em; color:var(--gold); line-height:1; }
+  .wordmark svg{ display:block; height:1em; width:auto; overflow:visible; }
+
+  /* ---------- landing ---------- */
+  .landing{ position:relative; min-height:100vh; min-height:100dvh; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; }
+  /* Dusk, drawn: no photograph ships with the repo yet. `--hero` takes one
+     (WAITLIST.md) the day there is a licensed image to put here. */
+  .landing::before{ content:""; position:absolute; inset:0; z-index:0;
+    background-color:#1B1F2E;
+    background-image: var(--hero, none),
+      radial-gradient(120% 60% at 50% 105%, rgba(240,155,70,0.55), rgba(240,155,70,0) 60%),
+      radial-gradient(80% 40% at 80% 70%, rgba(226,105,79,0.30), rgba(226,105,79,0) 70%),
+      linear-gradient(180deg, #1B1F2E 0%, #2A2A3A 38%, #4A3A3C 64%, #7A5238 84%, #3A2A22 100%);
+    background-size:cover; background-position:center; }
+  .landing::after{ content:""; position:absolute; inset:0; z-index:0;
+    background:linear-gradient(180deg, rgba(20,18,28,0.35) 0%, rgba(20,18,28,0) 40%, rgba(20,18,28,0.25) 100%); }
+  .landing-in{ position:relative; z-index:1; width:100%; max-width:440px;
+    padding:max(64px, env(safe-area-inset-top)) 24px 48px; }
+  .landing .wordmark{ font-size:52px; display:flex; justify-content:center; margin:0 auto 44px; width:max-content; }
+  .headline{ font-family:'Fraunces', Georgia, serif; font-weight:400; text-transform:uppercase;
+    font-size:clamp(34px, 10vw, 44px); line-height:1.08; letter-spacing:0.01em; margin:0 0 30px;
+    color:#F6F0E4; }
+  .field{ width:100%; height:58px; border-radius:14px; border:1px solid rgba(244,239,228,0.55);
+    background:rgba(20,18,28,0.28); padding:0 22px; font-size:17px; outline:none;
+    -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+  .field::placeholder{ color:rgba(244,239,228,0.72); }
+  .field:focus{ border-color:var(--gold); }
+  .field + .field{ margin-top:12px; }
+  .cta{ width:100%; height:58px; margin-top:16px; border:0; border-radius:14px; cursor:pointer;
+    background:var(--gold); color:var(--gold-ink); font-size:21px;
+    display:flex; align-items:center; justify-content:center; gap:14px; }
+  .cta:disabled{ opacity:0.6; cursor:default; }
+  .cta svg{ width:20px; height:20px; }
+  .form-note{ min-height:20px; margin:12px 2px 0; font-size:14px; line-height:1.4; color:#F6D9A0; }
+  .form-note.err{ color:#FFB4A2; }
+  .quiet-link{ display:block; margin:18px auto 0; background:none; border:0; cursor:pointer;
+    color:rgba(244,239,228,0.85); font-size:15px; letter-spacing:0.14em; }
+  .invited{ margin:-14px 0 22px; font-size:15px; color:#F6D9A0; }
+
+  /* ---------- status ---------- */
+  .status{ max-width:440px; margin:0 auto; padding:max(28px, env(safe-area-inset-top)) 20px 56px; }
+  .top{ display:flex; align-items:center; justify-content:space-between; margin:8px 0 26px; }
+  .top .wordmark{ font-size:40px; }
+  .me-btn{ width:46px; height:46px; border-radius:50%; border:1.5px solid var(--muted);
+    background:transparent; cursor:pointer; font-size:17px; letter-spacing:0.06em; }
+  .menu{ position:absolute; right:20px; top:84px; background:var(--card-2); border:1px solid var(--line);
+    border-radius:12px; padding:6px; z-index:5; box-shadow:0 10px 30px rgba(0,0,0,0.4); }
+  .menu button{ display:block; width:100%; text-align:left; background:none; border:0; padding:10px 14px;
+    border-radius:8px; cursor:pointer; font-size:15px; }
+  .menu button:hover{ background:var(--line); }
+  .hello{ font-family:'Fraunces', Georgia, serif; margin:0 0 22px; }
+  .hello .line1{ font-size:24px; color:var(--muted); }
+  #placeTag{ white-space:nowrap; }
+  .hello .line2{ font-size:clamp(19px, 6vw, 27px); text-transform:uppercase; letter-spacing:0.01em; margin-top:4px; }
+  .card{ background:var(--card); border-radius:18px; padding:24px 22px; margin-bottom:14px; }
+  .count-row{ display:flex; align-items:center; gap:18px; }
+  .big{ font-family:'Fraunces', Georgia, serif; font-size:68px; line-height:0.95; letter-spacing:-0.01em; }
+  .count-row .label{ color:var(--gold); font-size:18px; }
+  .count-row .sub{ color:var(--muted); font-size:15px; margin-top:6px; }
+  .track{ margin:26px 2px 0; }
+  .track-ends{ display:flex; justify-content:space-between; font-size:15px; color:var(--text); margin-bottom:12px; }
+  .rail{ position:relative; height:26px; }
+  .rail .base{ position:absolute; left:12px; right:12px; top:12px; height:2px; background:var(--line); }
+  .rail .fill{ position:absolute; left:12px; top:12px; height:2px; background:var(--gold); width:0; }
+  .rail .tick{ position:absolute; top:9px; width:8px; height:8px; border-radius:50%; background:#5A5470; transform:translateX(-50%); }
+  .rail .tick.on{ background:var(--gold); }
+  .rail .you{ position:absolute; top:1px; width:24px; height:24px; border-radius:50%; background:var(--gold);
+    transform:translateX(-50%); box-shadow:0 0 0 4px rgba(240,195,94,0.18); }
+  .rail .goal{ position:absolute; right:0; top:0; width:26px; height:26px; border-radius:50%;
+    border:2px solid var(--text); background:var(--card); }
+  .track-note{ text-align:center; color:var(--muted); font-size:15px; margin-top:18px; }
+  .card h2{ font-family:'Fraunces', Georgia, serif; font-weight:400; text-transform:uppercase;
+    font-size:clamp(28px, 8.4vw, 36px); line-height:1.05; margin:0 0 10px; }
+  .card p{ margin:0; font-size:18px; line-height:1.4; color:#D9D2E4; }
+  .card .cta{ font-size:20px; height:54px; margin-top:22px; }
+  .section-head{ display:flex; align-items:center; justify-content:space-between; margin:26px 0 16px; }
+  .section-head .label{ color:var(--gold); font-size:19px; }
+  .ghost{ border:1px solid #5A5470; background:transparent; border-radius:8px; padding:7px 14px;
+    cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; }
+  .ghost svg{ width:18px; height:18px; }
+  .fam-row{ display:flex; gap:16px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+  .fam-row::-webkit-scrollbar{ display:none; }
+  .fam-person{ flex:none; width:70px; text-align:center; }
+  .av{ width:70px; height:70px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Barlow Condensed', sans-serif; font-weight:600; font-size:26px; letter-spacing:0.04em;
+    background:#4A4360; color:var(--text); overflow:hidden; }
+  .av img{ width:100%; height:100%; object-fit:cover; }
+  .fam-person:nth-child(4n+1) .av{ background:#F2D2B6; color:#3A2A22; }
+  .fam-person:nth-child(4n+3) .av{ background:#8FAE9A; color:#1E1B27; }
+  .fam-person .nm{ margin-top:8px; font-size:14px; color:#D9D2E4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fam-person .wt{ font-size:11px; color:var(--faint); }
+  .slot{ width:70px; height:70px; border-radius:50%; border:1.5px dashed #5A5470; background:none;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--muted); }
+  .slot svg{ width:24px; height:24px; }
+  .unlock{ display:flex; align-items:center; gap:16px; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    padding:16px 0; margin-top:22px; }
+  .lock{ width:62px; height:62px; flex:none; border-radius:50%; background:#34304A;
+    display:flex; align-items:center; justify-content:center; color:var(--gold); }
+  .lock svg{ width:26px; height:26px; }
+  .unlock .t1{ font-size:21px; }
+  .unlock .t2{ font-size:16px; color:var(--muted); margin-top:4px; }
+
+  .profile h3{ font-family:'Fraunces', Georgia, serif; font-weight:400; text-transform:uppercase; font-size:24px; margin:0 0 6px; }
+  .profile .lede{ font-size:15px; color:var(--muted); margin:0 0 18px; line-height:1.4; }
+  .photo-row{ display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+  .photo-row .av{ width:64px; height:64px; font-size:22px; }
+  .pfield{ display:block; margin-bottom:12px; }
+  .pfield span{ display:block; font-size:12px; color:var(--muted); margin:0 0 6px 2px; }
+  .pinput{ width:100%; height:50px; border-radius:12px; border:1px solid var(--line); background:var(--card-2);
+    padding:0 16px; font-size:16px; outline:none; }
+  .pinput:focus{ border-color:var(--gold); }
+  .handle-wrap{ position:relative; }
+  .handle-wrap .at{ position:absolute; left:16px; top:0; line-height:50px; color:var(--muted); }
+  .handle-wrap .pinput{ padding-left:32px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px; }
+  .chip{ border:1px solid #5A5470; background:transparent; border-radius:999px; padding:8px 14px;
+    cursor:pointer; font-size:14px; }
+  .chip.on{ background:var(--gold); color:var(--gold-ink); border-color:var(--gold); }
+  .done-pill{ display:inline-block; font-size:12px; color:var(--sage); border:1px solid var(--sage);
+    border-radius:999px; padding:3px 10px; margin-left:8px; vertical-align:middle; }
+  .toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--text); color:var(--gold-ink); padding:12px 18px; border-radius:12px; font-size:15px;
+    transition:opacity .2s, transform .2s; pointer-events:none; z-index:10; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .granted{ text-align:center; }
+  .granted .big{ font-size:44px; margin-bottom:10px; }
+  @media (prefers-reduced-motion: reduce){ .toast{ transition:none; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="wm" viewBox="0 0 48.7 16.9">
+      <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+        <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
+        <g transform="translate(11.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
+        <g transform="translate(29.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ============ LANDING ============ -->
+<main class="landing hidden" id="landing">
+  <div class="landing-in">
+    <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
+    <h1 class="headline">Listen to everything you want to know about.</h1>
+    <div class="invited hidden" id="invited">A friend saved you a spot.</div>
+
+    <form id="joinForm" novalidate>
+      <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
+             placeholder="Enter your email" aria-label="Email" required>
+      <input class="field hidden" id="password" type="password" autocomplete="new-password"
+             placeholder="Choose a password" aria-label="Password" minlength="8">
+      <button class="cta label" id="joinBtn" type="submit">
+        <span id="joinLabel">Get early access</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
+    </form>
+
+    <form id="loginForm" class="hidden" novalidate>
+      <input class="field" id="loginEmail" type="email" autocomplete="email" placeholder="Email" aria-label="Email">
+      <input class="field" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+      <button class="cta label" type="submit" id="loginBtn">Sign in</button>
+      <div class="form-note" id="loginNote" role="status" aria-live="polite"></div>
+    </form>
+
+    <button class="quiet-link label" id="toggleLogin" type="button">Already on the list? Sign in</button>
+  </div>
+</main>
+
+<!-- ============ STATUS ============ -->
+<main class="status hidden" id="status">
+  <div class="top">
+    <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
+    <button class="me-btn label" id="meBtn" aria-haspopup="true" aria-label="Account">·</button>
+  </div>
+  <div class="menu hidden" id="menu" role="menu">
+    <button type="button" role="menuitem" onclick="scrollToProfile()">Edit profile</button>
+    <button type="button" role="menuitem" onclick="signOut()">Sign out</button>
+  </div>
+
+  <div class="hello">
+    <div class="line1" id="helloName">You’re a</div>
+    <div class="line2">Founding FAM member <span id="placeTag"></span></div>
+  </div>
+
+  <section class="card" id="placeCard">
+    <div class="count-row">
+      <div class="big" id="placesUntil">—</div>
+      <div>
+        <div class="label" id="placesLabel">Places until full access</div>
+        <div class="sub" id="placesSub">You’re moving up the list.</div>
+      </div>
+    </div>
+    <div class="track" aria-hidden="true">
+      <div class="track-ends label" style="font-weight:500;letter-spacing:0.14em"><span>You</span><span>Full access</span></div>
+      <div class="rail" id="rail"><div class="base"></div><div class="fill" id="railFill"></div><div class="goal"></div></div>
+    </div>
+    <div class="track-note">Invite friends to move up faster.</div>
+  </section>
+
+  <section class="card granted hidden" id="grantedCard">
+    <div class="big">You’re in.</div>
+    <p>Your profile and your friends are already there.</p>
+    <button class="cta label" type="button" onclick="location.href='/'">Open FAM</button>
+  </section>
+
+  <section class="card">
+    <h2>Get closer to FAM</h2>
+    <p>Every person you bring with you moves you up the list.</p>
+    <button class="cta label" type="button" onclick="invite()">Invite someone
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+  </section>
+
+  <div class="section-head">
+    <div class="label">Your FAM</div>
+    <button class="ghost label" type="button" onclick="copyLink()" style="font-weight:500">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/><path d="M16 11h6M19 8v6"/></svg>
+      Share
+    </button>
+  </div>
+  <div class="fam-row" id="famRow"></div>
+
+  <div class="unlock" id="unlockRow">
+    <div class="lock"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1zm2 0h6V8a3 3 0 0 0-6 0v2zm3 4a1.5 1.5 0 0 0-.75 2.8V18h1.5v-1.2A1.5 1.5 0 0 0 12 14z"/></svg></div>
+    <div>
+      <div class="t1 label" id="unlockT1">—</div>
+      <div class="t2 label" id="unlockT2" style="font-weight:500">Until your next unlock</div>
+    </div>
+  </div>
+
+  <section class="card profile" id="profile" style="margin-top:26px">
+    <h3>Your profile <span class="done-pill hidden" id="profileDone">Complete</span></h3>
+    <p class="lede">Claim your @handle now. This is the profile your friends see when FAM opens.</p>
+    <div class="photo-row">
+      <div class="av" id="photoPreview">?</div>
+      <div>
+        <button class="ghost" type="button" onclick="document.getElementById('photoFile').click()">Choose a photo</button>
+        <button class="ghost hidden" type="button" id="photoRemove" style="margin-top:8px" onclick="removePhoto()">Remove</button>
+        <input type="file" id="photoFile" accept="image/*" class="hidden">
+      </div>
+    </div>
+    <label class="pfield"><span>Display name</span>
+      <input class="pinput" id="pName" maxlength="40" autocomplete="name"></label>
+    <label class="pfield"><span>Handle</span>
+      <div class="handle-wrap"><span class="at">@</span>
+        <input class="pinput" id="pHandle" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false"></div></label>
+    <div class="pfield"><span>What you’re into</span>
+      <div class="chips" id="chips"></div></div>
+    <button class="cta label" type="button" id="saveProfile" onclick="saveProfile()">Save profile</button>
+    <div class="form-note" id="profileNote" role="status" aria-live="polite"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  var PARAM = "referralCode";
+  var $ = function(id){ return document.getElementById(id); };
+
+  function toast(text){
+    var t = $("toast"); t.textContent = text; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+  function api(path, body, method){
+    var init = { method: method || (body ? "POST" : "GET"), credentials: "same-origin",
+                 headers: { "X-FAM-Client": "web/waitlist" } };
+    if(body){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
+    return fetch(path, init).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if(!res.ok){
+          var err = new Error(data.error || data.detail || "Something went wrong. Try again.");
+          err.status = res.status; throw err;
+        }
+        return data;
+      });
+    });
+  }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function fmt(n){ return Number(n).toLocaleString("en-US"); }
+
+  // The invite code rides through sign-in and a reload: kept in this tab
+  // until the account is made, then thrown away.
+  var referral = "";
+  try {
+    var fromUrl = new URLSearchParams(location.search).get(PARAM) || "";
+    if(fromUrl) sessionStorage.setItem("famReferral", fromUrl);
+    referral = fromUrl || sessionStorage.getItem("famReferral") || "";
+  } catch(e){}
+
+  /* ---------------- landing ---------------- */
+  function showLanding(){
+    $("landing").classList.remove("hidden");
+    if(referral) $("invited").classList.remove("hidden");
+    var stage = "email";
+    $("joinForm").addEventListener("submit", function(ev){
+      ev.preventDefault();
+      var note = $("joinNote"); note.className = "form-note"; note.textContent = "";
+      var email = $("email").value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+        note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
+      }
+      if(stage === "email"){
+        stage = "password";
+        $("password").classList.remove("hidden");
+        $("joinLabel").textContent = "Join the waitlist";
+        note.textContent = "Choose a password. It’s the one you’ll open FAM with.";
+        $("password").focus();
+        return;
+      }
+      var pw = $("password").value;
+      if(pw.length < 8){ note.className = "form-note err"; note.textContent = "Use at least 8 characters."; return; }
+      $("joinBtn").disabled = true;
+      api("/api/waitlist/join", { email: email, password: pw, referral_code: referral })
+        .then(function(d){
+          try { sessionStorage.removeItem("famReferral"); } catch(e){}
+          location.replace(d.redirect || "/waitlist/me");
+        })
+        .catch(function(e){
+          $("joinBtn").disabled = false;
+          note.className = "form-note err"; note.textContent = e.message;
+        });
+    });
+    $("toggleLogin").addEventListener("click", function(){
+      var toLogin = $("loginForm").classList.contains("hidden");
+      $("loginForm").classList.toggle("hidden", !toLogin);
+      $("joinForm").classList.toggle("hidden", toLogin);
+      this.textContent = toLogin ? "New here? Get early access" : "Already on the list? Sign in";
+      if(toLogin){ $("loginEmail").value = $("email").value; $("loginEmail").focus(); }
+    });
+    $("loginForm").addEventListener("submit", function(ev){
+      ev.preventDefault();
+      var note = $("loginNote"); note.className = "form-note"; note.textContent = "";
+      $("loginBtn").disabled = true;
+      api("/api/auth/login", { email: $("loginEmail").value.trim(), password: $("loginPassword").value })
+        .then(function(d){ location.replace(d.status === "active" ? "/" : "/waitlist/me"); })
+        .catch(function(e){ $("loginBtn").disabled = false; note.className = "form-note err"; note.textContent = e.message; });
+    });
+  }
+
+  /* ---------------- status ---------------- */
+  var STATE = null, chosen = {}, avatar = null, avatarChanged = false;
+
+  function drawPlace(d){
+    var first = (d.name || "").split(/\s+/)[0];
+    $("helloName").textContent = first ? first + ", you’re a" : "You’re a";
+    $("meBtn").textContent = initials(d.name || d.profile.handle || "");
+    if(d.status === "active"){
+      $("placeCard").classList.add("hidden");
+      $("grantedCard").classList.remove("hidden");
+      $("placeTag").textContent = "";
+      return;
+    }
+    $("placeTag").textContent = d.place ? "· #" + fmt(d.place) : "";
+    var rail = $("rail");
+    Array.prototype.slice.call(rail.querySelectorAll(".tick,.you")).forEach(function(n){ n.remove(); });
+    // How much of the line in front of them is already inside the cutoff.
+    var frac = d.in_next_batch ? 1 : (d.place && d.cutoff ? Math.min(1, d.cutoff / d.place) : 0);
+    if(d.in_next_batch){
+      $("placesUntil").textContent = "✓";
+      $("placesLabel").textContent = "You’re in the next batch";
+      $("placesSub").textContent = "Keep an eye on your inbox.";
+    } else {
+      $("placesUntil").textContent = d.places_until == null ? "—" : fmt(d.places_until);
+      $("placesLabel").textContent = d.places_until === 1 ? "Place until full access" : "Places until full access";
+      $("placesSub").textContent = "You’re moving up the list.";
+    }
+    for(var i = 1; i <= 5; i++){
+      var tk = document.createElement("div");
+      tk.className = "tick" + (i / 6 <= frac ? " on" : "");
+      tk.style.left = "calc(12px + (100% - 24px) * " + (i / 6) + ")";
+      rail.appendChild(tk);
+    }
+    $("railFill").style.width = "calc((100% - 24px) * " + frac + ")";
+    var you = document.createElement("div");
+    you.className = "you";
+    you.style.left = "calc(12px + (100% - 24px) * " + Math.min(frac, 0.97) + ")";
+    rail.appendChild(you);
+  }
+
+  function initials(name){
+    var w = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if(w.length >= 2) return (w[0][0] + w[1][0]).toUpperCase();
+    return (w[0] || "·").slice(0, 2).toUpperCase();
+  }
+
+  function drawFam(d){
+    var html = d.fam.map(function(p){
+      var face = p.avatar ? '<img alt="" src="' + esc(p.avatar) + '">' : esc(p.initials);
+      return '<div class="fam-person"><div class="av">' + face + '</div>'
+        + '<div class="nm">' + esc((p.name || p.handle || "").split(/\s+/)[0]) + '</div>'
+        + (p.waitlisted ? '' : '<div class="wt">in FAM</div>') + '</div>';
+    }).join("");
+    var empty = Math.max(3, 5 - d.fam.length);
+    for(var i = 0; i < empty; i++){
+      html += '<div class="fam-person"><button class="slot" type="button" aria-label="Invite someone" onclick="invite()">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>';
+    }
+    $("famRow").innerHTML = html;
+    var u = d.unlock;
+    if(u.remaining == null){
+      $("unlockT1").textContent = u.milestones.length ? "Every unlock reached" : "Unlocks coming soon";
+      $("unlockT2").textContent = u.milestones.length ? "You brought " + fmt(d.invites) + " with you" : "Invite friends to move up";
+    } else {
+      $("unlockT1").textContent = u.remaining + (u.remaining === 1 ? " more person" : " more people");
+      $("unlockT2").textContent = "Until your next unlock";
+    }
+  }
+
+  function drawProfile(d, topics){
+    var p = d.profile;
+    $("pName").value = p.name || d.name || "";
+    $("pHandle").value = p.handle || "";
+    avatar = p.avatar || ""; avatarChanged = false;
+    drawPhoto();
+    chosen = {}; (p.topics || []).forEach(function(t){ chosen[t] = true; });
+    $("chips").innerHTML = topics.map(function(t){
+      return '<button type="button" class="chip' + (chosen[t.id] ? " on" : "") + '" data-id="' + esc(t.id) + '">' + esc(t.label) + '</button>';
+    }).join("");
+    Array.prototype.forEach.call($("chips").children, function(b){
+      b.addEventListener("click", function(){
+        var id = b.getAttribute("data-id"); chosen[id] = !chosen[id]; b.classList.toggle("on", chosen[id]);
+      });
+    });
+    $("profileDone").classList.toggle("hidden", !p.complete);
+  }
+  function drawPhoto(){
+    var el = $("photoPreview");
+    el.innerHTML = avatar ? '<img alt="" src="' + esc(avatar) + '">' : esc(initials($("pName").value));
+    $("photoRemove").classList.toggle("hidden", !avatar);
+  }
+
+  // Downscaled here, as the app does: the server takes a data URL of 96 KB at
+  // most and refuses anything else.
+  $("photoFile").addEventListener("change", function(){
+    var file = this.files && this.files[0]; if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var size = 256, c = document.createElement("canvas"); c.width = c.height = size;
+        var s = Math.min(img.width, img.height);
+        c.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        avatar = c.toDataURL("image/jpeg", 0.82); avatarChanged = true; drawPhoto();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  window.removePhoto = function(){ avatar = ""; avatarChanged = true; drawPhoto(); };
+
+  window.saveProfile = function(){
+    var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
+    var body = { name: $("pName").value.trim(), handle: $("pHandle").value.trim().replace(/^@/, "") };
+    if(avatarChanged) body.avatar = avatar;
+    var interests = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+    $("saveProfile").disabled = true;
+    api("/api/me", body)
+      .then(function(){ return api("/api/preferences", { interests: interests }); })
+      .then(function(){ note.textContent = "Saved."; return load(); })
+      .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
+      .then(function(){ $("saveProfile").disabled = false; });
+  };
+
+  function link(){
+    var l = STATE && STATE.referral_link || "";
+    return /^https?:/.test(l) ? l : location.origin + l;
+  }
+  window.copyLink = function(){
+    var l = link();
+    (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject())
+      .then(function(){ toast("Invite link copied"); })
+      .catch(function(){ window.prompt("Copy your invite link", l); });
+  };
+  window.invite = function(){
+    var l = link();
+    if(navigator.share){
+      navigator.share({ title: "FAM", text: "Come get early access to FAM with me.", url: l })
+        .catch(function(){});
+    } else { window.copyLink(); }
+  };
+  window.scrollToProfile = function(){ $("menu").classList.add("hidden"); $("profile").scrollIntoView({ behavior: "smooth" }); };
+  window.signOut = function(){
+    api("/api/auth/logout", {}).catch(function(){}).then(function(){ location.replace("/waitlist"); });
+  };
+  $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
+  document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
+
+  var TOPICS = null;
+  function load(){
+    return Promise.all([
+      api("/api/waitlist/me"),
+      TOPICS ? Promise.resolve(TOPICS) : api("/api/preferences").then(function(p){ return (TOPICS = p.interests_all || []); })
+    ]).then(function(r){
+      STATE = r[0];
+      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);
+    });
+  }
+  function showStatus(){
+    $("status").classList.remove("hidden");
+    load().catch(function(e){
+      if(e.status === 401) location.replace("/waitlist");
+      else toast(e.message);
+    });
+  }
+
+  if(/^\/waitlist\/me\/?$/.test(location.pathname)) showStatus(); else showLanding();
+})();
+</script>
+</body>
+</html>
