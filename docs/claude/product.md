@@ -25,7 +25,7 @@ Three surfaces, all backed by generated audio:
    or "what's up FAM" opens that screen from any tab (off until turned on in
    Settings, since it keeps the microphone open).
    > **Current:** the mic sits on the box's own line beside attach, the same
-   > size *(§181, 10.1 packet)*.
+   > size *(§182, 10.1 packet)*.
 2. **myFAM** — a browse page of trending / recommended / for-you episodes.
    Tapping a tile generates and plays that episode. *Finished (§102): four
    rails over two shared inventories - the evergreen bank and a live story
@@ -396,7 +396,7 @@ strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
 <!-- rule:trending-searches -->
-- **Trending searches** *(§181, at the owner's direction)*: focusing the empty
+- **Trending searches** *(§182, at the owner's direction)*: focusing the empty
   search box draws five to ten other listeners' searches whose episodes are
   still **current** (`/api/searches/trending`: searched episodes only, most
   played first, one per question, no explicit episode), so a tap lands on an
@@ -406,7 +406,7 @@ the rest of this list it needs taste rather than a key.
   question at the length its episode was written for.
 
 <!-- rule:autocorrect-at-send -->
-- **A search is corrected as a whole when it is sent** *(§181)*. The
+- **A search is corrected as a whole when it is sent** *(§182)*. The
   word-by-word pass (§142) only saw a word once something followed it, so
   the last word of every search was never corrected. `runSearch` asks
   `/api/spell` for every word not already answered (waiting at most

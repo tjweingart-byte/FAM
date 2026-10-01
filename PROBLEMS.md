@@ -14058,7 +14058,7 @@ each fixed with a test:
   and `/admin` also lists any sport spending today that `API_SPORTS_SPORTS`
   leaves out.
 
-## 181. The 10.1 packet, second set: Go Deeper, friends, trending searches, autocorrect
+## 182. The 10.1 packet, second set: Go Deeper, friends, trending searches, autocorrect
 
 The second set of the 10.1 implementations, in its order.
 
