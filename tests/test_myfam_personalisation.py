@@ -5,7 +5,7 @@ Five rails, in one order, each on a different signal:
     Made for you                     what you listen to, live and evergreen
     Trending                         what the world is on, live only
     What you missed last week        cached, listened to 3-7 days ago, unheard
-    What FAM can't stop listening to cached, ranked by total listens
+    Most played episodes today cached, ranked by total listens
     What your friends are listening  cached, played or created by friends
 
 And five general rules, each of which this file pins because each is the sort
@@ -64,7 +64,7 @@ def story(subject, tags, domain=stories.ATTENTION, first_seen=None, strength=1.0
 # the page itself
 # --------------------------------------------------------------------------
 def test_the_rails_are_in_the_order_the_packet_asks_for():
-    """"What FAM can't stop listening to" above "What your friends are
+    """"Most played episodes today" above "What your friends are
     listening to" - the crowd row that always has something in it goes above
     the one that is empty until somebody follows anybody.
 
@@ -78,7 +78,7 @@ def test_the_rails_are_in_the_order_the_packet_asks_for():
         "Made for you",
         "Trending",
         "What you missed last week",
-        "What FAM can't stop listening to",
+        "Most played episodes today",
         "What your friends are listening to",
     ]
 

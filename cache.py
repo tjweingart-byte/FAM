@@ -432,6 +432,59 @@ def best_match(
     return best
 
 
+#: Words a myFAM search ignores when it counts what two texts share: alone,
+#: "the" or "what" would make every episode a match for every question.
+SEARCH_STOPWORDS = frozenset("""
+a an and are as at be been but by can did do does for from had has have how
+i in into is it its me my of on or our so than that the their them then
+there these they this to was we were what when where which who why will
+with would you your about
+""".split())
+#: The closest a search result may be with no word in common - only an
+#: embedding that understands meaning gets there; the lexical fallback's
+#: cosine is word overlap by another name.
+SEARCH_MIN_COSINE = 0.5
+_search_vectors: dict[str, list[float]] = {}
+
+
+def _search_words(text: str) -> set:
+    return {t for t in embeddings.tokens(text or "") if t not in SEARCH_STOPWORDS}
+
+
+def rank_similar(asked: str, entries: list[dict], limit: int = 12) -> list[dict]:
+    """Cached episodes most like what was typed, best first (§181).
+
+    The search behind myFAM's search button. `entries` are `recent()` rows;
+    each is compared on its question and its title together. Two signals,
+    and an entry needs one of them to be a result at all: the share of the
+    typed words it contains, or an embedding cosine of at least
+    `SEARCH_MIN_COSINE`. Ordered by words found, then the cosine, then plays.
+    Never a model call; an entry's vector is computed once and remembered.
+    """
+    wanted = _search_words(asked)
+    if not wanted:
+        return []
+    probe = embeddings.embed(normalize_query(asked))
+    scored = []
+    for entry in entries:
+        text = f"{entry.get('query', '')} {entry.get('title', '')}"
+        found = len(wanted & _search_words(text)) / float(len(wanted))
+        # Keyed on the words as well as the key: a re-written episode keeps
+        # its key and may change its title.
+        key = (entry.get("key") or "") + "\n" + text
+        vector = _search_vectors.get(key)
+        if vector is None:
+            if len(_search_vectors) > 5000:
+                _search_vectors.clear()
+            vector = _search_vectors[key] = embeddings.embed(normalize_query(text))
+        score = embeddings.cosine(probe, vector)
+        if found <= 0 and score < SEARCH_MIN_COSINE:
+            continue
+        scored.append((found, score, entry.get("plays", 0), entry))
+    scored.sort(key=lambda row: (-row[0], -row[1], -row[2]))
+    return [row[3] for row in scored[:limit]]
+
+
 @dataclass
 class StoredAudio:
     """One episode's finished audio, exactly as it was streamed the first time.

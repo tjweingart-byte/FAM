@@ -211,10 +211,16 @@ def main() -> int:
             """
             page.evaluate("openMyFamTab()")
             page.wait_for_selector(".feed-rail .seed-card", timeout=10000, state="attached")
-            rails = page.eval_on_selector_all(".feed-section", "e => e.length")
+            rails = page.eval_on_selector_all(
+                '.feed-section:not([data-section="searching"])', "e => e.length")
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
+            # "What users are searching" (§181), Explore's way in, sits right
+            # under Made for you; it is drawn by the page, not a server rail.
+            assert len(titles) > 1 and titles[1].strip() == "What users are searching", \
+                f"the What users are searching rail is not under Made for you: {titles}"
+            titles = titles[:1] + titles[2:]
             # Trending is second, in the slot Explore New used to hold. It was
             # last, where a row nobody scrolls to is a row nobody reads, and it
             # is the one rail here with a reason to be looked at *today*.
@@ -231,7 +237,7 @@ def main() -> int:
             assert [t.strip().replace("\n", " ") for t in titles[1:]] == [
                 "Trending",
                 "What you missed last week",
-                "What FAM can't stop listening to",
+                "Most played episodes today",
                 "What your friends are listening to",
             ], f"the rails are not the ones the packet asks for: {titles}"
             # Every rail now opens its own full-length view from the card at
@@ -559,7 +565,7 @@ def main() -> int:
         def your_fam_is_messages_and_only_messages():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(500)
-            page.click("#screen-myfam .myfam-msg-btn")
+            page.click('#screen-myfam .tab[data-tab="messages"]')
             page.wait_for_timeout(600)
             # The two tiles that sat above the threads both came off at the
             # owner's direction: the weekly recap is gone entirely, and Save
@@ -762,10 +768,11 @@ def main() -> int:
                                         " var p = e.closest('.mini-stage')"
                                         "   .getBoundingClientRect();"
                                         " return {w: r.width, pw: p.width,"
-                                        "  right: p.right - r.right}; }")
+                                        "  left: r.left - p.left}; }")
             assert box["w"] < box["pw"] * 0.6, \
                 "the sources panel is still a full-width strip"
-            assert box["right"] < 4, "the sources panel is not in the corner"
+            # Top left since §181; the top right is the (+).
+            assert box["left"] < 4, "the sources panel is not in the top-left corner"
 
             # And the whole list is one tap away, with the ones that are
             # hidden in the corner still in it.
@@ -2687,17 +2694,31 @@ def main() -> int:
                 "an abandoned cover was kept for the next mix"
 
         def messages_sheet():
-            # The sheet has to be leavable. A tab that cannot be left is the
-            # bug this app already shipped once, on Explore.
+            # Messages is a tab since §181, where Explore was, and has to be
+            # leavable by its own tab bar. myFAM's header button searches.
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(600)
-            page.click("#screen-myfam .myfam-msg-btn")
+            page.click('#screen-myfam .tab[data-tab="messages"]')
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-messages"
-            page.click("#screen-messages .yf-back")
+            page.click('#screen-messages .tab[data-tab="myfam"]')
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
-                "closing messages did not return to myFAM"
+                "the tab bar did not leave Messages for myFAM"
+            page.click("#myfamSearchBtn")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfamsearch", \
+                "myFAM's header button does not open its search"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            # And Explore is a rail under Made for you, one tile into it.
+            assert page.query_selector('#myfamFeed [data-section="searching"] .searching-tile'), \
+                "the What users are searching rail is missing"
+            page.click('#myfamFeed [data-section="searching"] .searching-tile')
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-explore"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
 
         def profile():
             page.evaluate("openProfile()")
@@ -3069,7 +3090,7 @@ def main() -> int:
             listed = page.evaluate(
                 "inboxThreads.map(function(t){ return t['with']; })")
             assert "u_nadia" not in listed, f"the deleted chat is still on the list: {listed}"
-            page.evaluate("closeMessages(); openMyFamTab()")
+            page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
         def mix_visibility():

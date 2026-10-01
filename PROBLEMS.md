@@ -14057,3 +14057,82 @@ each fixed with a test:
   on an empty NBA schedule); the sweep keeps 24 signals across ten sports;
   and `/admin` also lists any sport spending today that `API_SPORTS_SPORTS`
   leaves out.
+
+## 181. The 9.30 interface packet: sign-up samples, myFAM search, Messages as a tab, Explore as a rail, the player's (+)
+
+The owner's "first set of implementations" (Evan and Ethan's advice day), in
+its order.
+
+**1a. Samples on the sign-up screen.** The welcome screen rotates through
+today's three most-played episodes, one card at a time, every 4.5 seconds
+(dots to pick one). `/api/welcome` is the top of `rank_most_played`, the same
+ranking as the myFAM rail, cut to `WELCOME_SAMPLES` and filtered to episodes
+whose **audio is kept** - the person reading this screen has no account, and
+the guest rule (`_guest_play_gated`: a guest tap plays kept audio or nothing)
+is applied before the tap instead of after it. A tap plays it replay-only
+(`cached_only`), the way Explore plays a card, so it can write nothing and
+wake no voice. With nothing kept the samples are hidden, never padded.
+Leaving the player still never stops it (§142): a tap on the sample already
+playing brings its player back.
+
+**1b. The sign-up screen's heading** is "Listen to anything you want to know
+about" (was "Ask anything. Hear the answer.").
+
+**2a. myFAM's header button searches.** The messages button in myFAM's top
+right is a search button now, opening **Search myFAM**
+(`screen-myfamsearch`): type anything and the cached episodes other people
+made that are most like it come up, ready to play. `/api/myfam/search`
+reads the shared cache (`recent(400, exclude_author=listener)`, every
+surface - a myFAM tile somebody else tapped is as much "made by others" as a
+search) and ranks with `cache.rank_similar`: the share of the typed words
+(stopwords aside) found in the question and title, then the embedding
+cosine, then plays; an entry with no word in common needs a cosine of
+`SEARCH_MIN_COSINE`, which only the semantic embedder reaches. Vectors are
+memoised per key. Results play replay-only. Nothing found offers "Search FAM
+for it", which hands the words to searchFAM. The "Search FAM" bar under
+myFAM's header is **removed**.
+
+**2b. Messages is a tab** in the place Explore had, on every copy of the tab
+bar, and has a bar of its own (six tab bars now). It carries the unread
+count (`data-msg-badge`), which had moved to YourFAM's tab while messages
+lived behind the profile; `closeMessages` is gone with the sheet.
+
+**2c. Explore is a myFAM rail.** "What users are searching" sits right under
+Made for you, one tile - "Start scrolling" - that opens Explore exactly as
+the tab did. Drawn client-side (`searchingRailHTML`), because it holds no
+episodes of its own. Explore keeps its own root on the stack (the rules
+that keep its reels apart from the mini player read `stack[0]`), lights
+myFAM's tab, and has a back arrow to myFAM.
+
+**2d. "Most played episodes today"** replaces "What FAM can't stop listening
+to", and `MOST_PLAYED_WINDOW` is **24 hours** (was thirty days), ranked by
+total listens as before - a finished listen once, by question.
+
+**3a. The player's (+)**, top right of the stage: "Add [topic] to a DailyFAM
+mix", every mix the listener has, and "+ Create new playlist" (named in the
+modal, prefilled with the topic). A mix follows subjects, never episodes
+(§137), so the episode is added as its **topic**: `/api/episode/topic` runs
+`topics.episode_subject` over the question and title - a `FOCUS_HINTS`
+specific named in the text, first named first (`f:nfl~Eagles`), else a
+catalogue subject named by its label, else one whose subtag the text
+carries, else the subject standing for its facet (`FACET_SUBJECT`) - and
+when nothing matches, the episode's title becomes a typed topic. Already in
+the mix says so rather than saving. A guest is offered sign-up / log in.
+
+**3b. Sources moved** from the stage's top right to its top left.
+
+**Unverified here:** how the samples, the search and the (+) feel on a
+phone, and whether `episode_subject`'s picks match what listeners mean -
+it is words, not a model, and "Giants" or "Kings" name more than one team.
+
+**Review, before merging into Main.** A pass over the whole diff found:
+
+* *The search's memo was keyed on the cache key alone*, and a re-written
+  episode keeps its key with a new title - so it kept its old vector. Keyed
+  on the key and the words now.
+* *The first search could stall the server.* With the semantic embedder the
+  first search embeds every entry it has not seen, on the event loop. It
+  runs in a thread now (`asyncio.to_thread`).
+* *Leftovers of the old Messages sheet*: `.screen.sheet`, `.msg-dot` and the
+  header button's `myfam-msg-btn` name (it searches now: `myfam-head-btn`,
+  `#myfamSearchBtn`). The `sheet-in` animation stays for voice search.

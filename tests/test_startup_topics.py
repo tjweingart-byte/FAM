@@ -130,7 +130,7 @@ def test_startup_topics_are_not_in_the_bank():
 
     The bank serves every rail; this set serves one rail for one kind of
     listener. Letting these into `TOPIC_BANK` would put a cold-start tile in
-    "What FAM can't stop listening to" and in the mix picker, which are both
+    "Most played episodes today" and in the mix picker, which are both
     surfaces where a question written for a first impression has no business.
     """
     assert not set(T.BANK_BY_ID) & set(T.STARTUP_BY_ID)
