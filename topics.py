@@ -442,6 +442,12 @@ class Topic:
     #: On a follow-up tile, the id of the story it follows (§136). Empty on
     #: everything else. Not serialised.
     follows: str = ""
+    #: `Story.domain` for a live tile - `markets` is what lets a market move
+    #: reach Made for you on a listener's interest in money (§186). Empty for
+    #: the bank. Not serialised.
+    domain: str = ""
+    #: `Story.minor_league` (§186). Not serialised.
+    minor_league: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -483,9 +489,18 @@ class Topic:
 # recommending. See PROBLEMS for why this is the right trade at this size.
 TAG_WORDS: dict[str, tuple[str, ...]] = {
     "sports": ("nfl", "nba", "football", "basketball", "golf", "soccer", "tennis",
-               "olympics", "coach", "playoff", "draft", "league", "match"),
+               "olympics", "coach", "playoff", "draft", "league", "match",
+               # §186: the sports themselves, so a question about one is filed
+               # under sport rather than nowhere.
+               "mlb", "nhl", "mls", "wnba", "baseball", "hockey", "rugby",
+               "cricket", "ufc", "mma", "boxing", "nascar", "quarterback",
+               "touchdown", "playoffs", "fixture"),
     "business": ("startup", "founder", "company", "ceo", "ipo", "merger", "layoff",
-                 "strategy", "brand", "hiring", "venture"),
+                 "strategy", "brand", "hiring", "venture",
+                 # §186: travel is a business question - "flights to Israel"
+                 # was filed under nothing at all.
+                 "airline", "airlines", "airport", "flight", "flights",
+                 "aviation"),
     "money": ("fed", "inflation", "rates", "market", "stocks", "economy", "tariff",
               "recession", "housing", "oil", "currency", "bond"),
     "tech": ("ai", "software", "chip", "robot", "app", "model", "data", "code",
@@ -497,7 +512,12 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
     "culture": ("film", "movie", "music", "album", "book", "art", "hollywood",
                 "song", "show", "artist", "fashion"),
     "world": ("election", "war", "treaty", "border", "sanctions", "summit",
-              "government", "protest", "strait", "diplomacy", "policy"),
+              "government", "protest", "strait", "diplomacy", "policy",
+              # §186: the places the news is about. A question naming one is a
+              # world question, which is what keeps it from being a question
+              # about nothing - and so from unlocking anything in sport.
+              "israel", "gaza", "iran", "ukraine", "russia", "lebanon",
+              "syria", "palestinian", "ceasefire", "nato", "embassy"),
 }
 
 #: The same eight facets, with a word a listener would recognise on a button.
@@ -1092,7 +1112,37 @@ def tags_for_text(text: str) -> tuple[str, ...]:
     found = {tag for tag, keys in TAG_WORDS.items() if words & set(keys)}
     found |= {TAG_PARENT[tag] for tag in found if tag in TAG_PARENT}
     found |= set(category_tree().match(text))
+    if "sports" not in found and _names_a_sport(text):
+        found.add("sports")
     return tuple(sorted(found))
+
+
+def _names_a_sport(text: str) -> bool:
+    """Whether the words name a sport or a team FAM already knows (§186).
+
+    The same two readings `live_sources.sport_for` routes a question on - a
+    sport's own words ("stanley cup", "grand prix") and a team from a league
+    catalogue this deployment has already read ("Maple Leafs game") - so a
+    question the live lookup would send to a sports provider is also filed
+    under sport by the ranker. Cached catalogues only: this never spends a
+    request, and with none read it is the sport words alone.
+    """
+    if not text:
+        return False
+    try:
+        import live_sources
+
+        padded = " " + " ".join(_WORD.findall(text.lower())) + " "
+        for sport in live_sources.SPORTS.values():
+            if any(" " + " ".join(_WORD.findall(w.lower())) + " " in padded
+                   for w in sport.words):
+                return True
+        for held in list(live_sources.TEAMS.values()):
+            if held and live_sources.teams_named(held[1], text):
+                return True
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not read the sports vocabulary")
+    return False
 
 
 #: Words that say nothing about a subject. Kept short on purpose: this list
@@ -1112,7 +1162,36 @@ their theirs through under very
 FAMILIAR_MIN_WORD = 3
 
 
-def familiar_words(events: Iterable[Event]) -> frozenset[str]:
+class FamiliarWords(frozenset):
+    """`familiar_words`' answer: the words, and the field each was used in.
+
+    A frozenset of every word, exactly as before, so every caller that only
+    asks "have they said this" is unchanged. `filed` adds the second half
+    (§186): word -> the facets of the events it came from, with `UNFILED`
+    for an event the vocabulary could not place. A word absent from `filed`
+    - a place word, or a set a test built by hand - counts in every field.
+    """
+
+    filed: dict
+
+    def __new__(cls, words=(), filed=None):
+        self = super().__new__(cls, words)
+        self.filed = dict(filed or {})
+        return self
+
+    def __or__(self, other):
+        # The added words are unfiled-and-unscoped (a place counts
+        # everywhere), so they join the set without joining `filed`.
+        return FamiliarWords(frozenset(self) | frozenset(other), self.filed)
+
+    __ror__ = __or__
+
+
+#: The field a word from an uncategorised event is filed under (§186).
+UNFILED = "?"
+
+
+def familiar_words(events: Iterable[Event]) -> FamiliarWords:
     """Every subject word this listener has actually said or played.
 
     Read off the event log's own `text` - the question they typed, the tile
@@ -1130,15 +1209,59 @@ def familiar_words(events: Iterable[Event]) -> frozenset[str]:
     A set intersection over lower-cased words, no stemming, no embedding, no
     model call. A miss costs one tile being damped that need not have been,
     which is a damping and not a filter - see `BROAD_MATCH_PENALTY`.
+
+    **Each word is filed under the field it was used in** (§186). One search
+    about a flight to Tel Aviv made "tel" and "aviv" familiar, and so every
+    Maccabi Tel Aviv fixture "named something they follow". A word now
+    vouches for a live story only in the field of the event it came from -
+    see `_subject_is_familiar`.
     """
     out: set[str] = set()
+    filed: dict[str, set] = {}
     for event in events:
         if not event.text:
             continue
-        for word in _WORD.findall(event.text.lower()):
-            if len(word) >= FAMILIAR_MIN_WORD and word not in FAMILIAR_STOPWORDS:
-                out.add(word)
-    return frozenset(out)
+        words = [w for w in _WORD.findall(event.text.lower())
+                 if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS]
+        if not words:
+            continue
+        fields = _event_fields(event) or {UNFILED}
+        for word in words:
+            out.add(word)
+            filed.setdefault(word, set()).update(fields)
+    return FamiliarWords(out, {w: frozenset(f) for w, f in filed.items()})
+
+
+def _event_fields(event: Event) -> set:
+    """The facets one event was about: its stored tags and what its words say
+    today, each folded to the heading it sits under."""
+    tags = set(event.tags or ())
+    try:
+        tags |= set(tags_for_text(event.text or ""))
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not file %r", event.text)
+    return {f for f in (_root_facet(t) for t in tags) if f}
+
+
+def _root_facet(tag: str) -> str:
+    """The heading a tag sits under: a facet is its own, a subtag's is its
+    parent, a grown category's is the root of its branch. "" when no
+    vocabulary knows the tag."""
+    if tag in TAG_LABELS:
+        return tag
+    if tag in TAG_PARENT:
+        return TAG_PARENT[tag]
+    try:
+        chain = category_tree().ancestors(tag)
+    except Exception:  # noqa: BLE001
+        return ""
+    root = chain[-1] if chain else ""
+    return root if root in TAG_LABELS else ""
+
+
+def _tile_facets(topic: Topic) -> set:
+    """The headings a tile is filed under, from its declared tags."""
+    return {f for f in (_root_facet(t) for t in topic.tags) if f}
 
 
 def _is_specific(tag: str) -> bool:
@@ -1209,8 +1332,19 @@ def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
     declared tuple, and the only tags that can be specific in it are subtags,
     which is exactly what this asked before.
     """
+    fields = _tile_facets(topic)
     return not any(profile.get(tag, 0.0) > 0 for tag in topic_tags(topic)
-                   if _names_a_subject(tag))
+                   if _names_a_subject(tag)
+                   and _in_field(_root_facet(tag), fields))
+
+
+def _in_field(root: str, fields: set) -> bool:
+    """Whether a subject filed under `root` vouches for a tile filed under
+    `fields` (§186). A subject is a subject *in a field*: "israel" is a world
+    subject and says nothing about a sports fixture that happens to be played
+    there. A tag or tile no vocabulary can place is not refused on that
+    ground - the rule only bites where both sides are known."""
+    return not root or not fields or root in fields
 
 
 def _is_local(topic: Topic, local: frozenset[str]) -> bool:
@@ -1248,7 +1382,27 @@ def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
     words = {w for w in _WORD.findall(f"{topic.title} {topic.query}".lower())
              if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS
              and w not in generic}
-    return bool(words & familiar)
+    shared = words & familiar
+    filed = getattr(familiar, "filed", None)
+    if not shared or not filed:
+        return bool(shared)
+    fields = _tile_facets(topic)
+    return any(_word_vouches(filed.get(w), fields) for w in shared)
+
+
+def _word_vouches(used_in, fields: set) -> bool:
+    """Whether a word used in `used_in` fields vouches for a tile in `fields`
+    (§186). Unfiled (a place, a hand-built set) vouches everywhere. A word
+    from an event the vocabulary could place vouches in that field only. A
+    word from an event it could not place vouches anywhere **but sport**:
+    fixtures are named after their teams and teams after their towns, so a
+    city somebody asked about is the one word most likely to name a game
+    they have never heard of."""
+    if used_in is None or not fields:
+        return True
+    if used_in & fields:
+        return True
+    return UNFILED in used_in and "sports" not in fields
 
 
 #: Words that name a field rather than a subject in it: every word of the
@@ -1303,8 +1457,55 @@ def _off_subject(topic: Topic, profile: dict[str, float],
     """
     return (_is_live_story(topic)
             and _is_broad_match(topic, profile)
+            and not _follows_markets(topic, profile)
             and not _subject_is_familiar(topic, familiar)
-            and semantic.get(topic.id, 0.0) < _semantic_near())
+            and not _semantically_near(topic, profile, semantic))
+
+
+def _semantically_near(topic: Topic, profile: dict[str, float],
+                       semantic: dict[str, float]) -> bool:
+    """A near paraphrase of something they asked for - **in a field they
+    have shown any taste for** (§186). Meaning is measured on words, and a
+    fixture between two clubs from a city reads close to a question about
+    flying there; the field is what tells a paraphrase from a namesake."""
+    if semantic.get(topic.id, 0.0) < _semantic_near():
+        return False
+    fields = _tile_facets(topic)
+    return not fields or any(profile.get(f, 0.0) > 0 for f in fields)
+
+
+def _follows_markets(topic: Topic, profile: dict[str, float]) -> bool:
+    """A market move is on subject for anyone whose taste includes money
+    (§186, at the owner's direction: "Markets should also be available in
+    the made for you section"). A price move is the money field's own
+    subject rather than one corner of it, so the field is enough - the
+    reverse of a fixture, where the field ("sport") says nothing about which
+    of a thousand games. The variety cap still holds it to its share."""
+    return (getattr(topic, "domain", "") == stories.MARKETS
+            and profile.get("money", 0.0) > 0)
+
+
+def _far_minor_league(topic: Topic, profile: dict[str, float],
+                      continent: str) -> bool:
+    """A game in a minor league on another continent that this listener does
+    not follow (§186, at the owner's direction: "There should be no
+    possibility of it being populated with a niche sports league in a
+    continent across the ocean from a person's country").
+
+    Never offered on Made for you, whatever else vouches for it - a word,
+    a near paraphrase, a field. Only following a subject on the tile itself
+    (a team, a league: `_is_broad_match` says no) brings one back. A
+    listener whose continent is unknown is treated as being on none, so a
+    minor-league fixture needs a followed subject for them too."""
+    if not getattr(topic, "minor_league", False) or not _is_live_story(topic):
+        return False
+    if not _is_broad_match(topic, profile):
+        return False
+    import geography
+
+    where = geography.continent_for(topic.geo_scope, topic.geo_key,
+                                    topic.countries)
+    return not continent or where != continent
 
 
 def _is_live_story(topic: Topic) -> bool:
@@ -1512,6 +1713,23 @@ def local_startup_topic(place: str) -> Optional[Topic]:
 STARTUP_PRIOR_STEP = 0.08
 
 
+def made_for_you_candidates(inventory: Iterable[Topic],
+                            live_held: Iterable[Topic]) -> list[Topic]:
+    """What Made for you ranks: the page's inventory **and every live story
+    the pool is holding** (§186).
+
+    The pool's variety cap (`stories.MAX_PER_FACET` per facet and place,
+    `POOL_SIZE` in all) decides what the *shared* surfaces are offered, and
+    a story it hides is still a real, unexpired story. Made for you is the
+    one rail chosen for one listener and has a variety cap of its own, so it
+    reads all of them - a market move the pool held back because five
+    others were louder is exactly what a listener who follows money wants.
+    """
+    inventory = list(inventory)
+    have = {t.id for t in inventory}
+    return inventory + [t for t in live_held if t.id not in have]
+
+
 def browse_inventory(live: Iterable[Topic], has_account: bool) -> list[Topic]:
     """What a browse rail is allowed to *offer* this listener, as one list.
 
@@ -1707,8 +1925,15 @@ UNSHELVED = ("might_like",)
 #: `social.circle_of` makes about a mutual follow. `save` is a little lower:
 #: it is a statement about wanting more of this, made to nobody, and it is the
 #: one of the three that can be pressed before the episode has said anything.
-EVENT_WEIGHT = {"search": 1.0, "play": 1.0, "complete": 2.5, "skip": -1.5,
-                "pick": 1.6, "share": 2.0, "vibe": 2.0, "save": 1.5}
+#:
+#: > **Current (§186, at the owner's direction):** the numbers are the
+#: > owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5.
+#: > A search is now worth as much as finishing an episode (typing a question
+#: > is the plainest statement of interest there is), a skip barely moves
+#: > anything, and a vibe outweighs a share. The reasoning above is the
+#: > history of the old ordering; `share` and `pick` keep their old values.
+EVENT_WEIGHT = {"search": 2.0, "play": 1.0, "complete": 2.0, "skip": -0.5,
+                "pick": 1.6, "share": 2.0, "vibe": 2.5, "save": 2.0}
 
 #: **Not interested is gone** (§171, at the owner's direction: "This button
 #: and function should not be a feature. The algorithm should work naturally
@@ -2751,6 +2976,14 @@ def topic_tags(topic: Topic) -> tuple[str, ...]:
         if len(_TAG_MEMO) < MAX_TAG_MEMO:
             _TAG_MEMO[topic.query] = found
     extra = set(found) - set(topic.tags)
+    # **Only within the tile's own field** (§186). A fixture's question names
+    # its teams and its teams are named after towns, so "Maccabi Tel Aviv" in
+    # a game's query matched `tel aviv -> israel -> world` and the game was
+    # scored as a world story about Israel. A tile says which headings it is
+    # under; what the tree finds outside them is a coincidence of words.
+    fields = _tile_facets(topic)
+    if fields:
+        extra = {t for t in extra if _in_field(_root_facet(t), fields)}
     # Returned unchanged when the tree has nothing to add, rather than sorted
     # into the same set. The guarantee worth being able to state is the
     # strong one - a deployment with no tree gets back the identical tuple -
@@ -3199,7 +3432,7 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
                       engage: Optional[dict[str, float]] = None,
                       floor: float = RELEVANCE_FLOOR,
                       semantic: Optional[dict[str, float]] = None,
-                      learned=None) -> list[Topic]:
+                      learned=None, continent: str = "") -> list[Topic]:
     """Closest match to what they already play. Exploitation.
 
     `damp` is the fatigue multiplier: a tile offered here again and again and
@@ -3259,6 +3492,10 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     that split is the whole safety argument. The two thumbs the log cannot
     record, freshness and a listener's own place, stay hand-applied on top of
     the model's probability.
+
+    `continent` is the listener's own (`geography.listener_continent`), and
+    it decides one thing: a minor-league game from anywhere else is never
+    offered unless they follow it (§186, `_far_minor_league`).
     """
     damp = damp or {}
     semantic = semantic or {}
@@ -3266,6 +3503,8 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
     scored = []
     for topic in pool:
         if topic.id in exclude:
+            continue
+        if _far_minor_league(topic, profile, continent):
             continue
         score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0))
                  * damp.get(topic.id, 1.0)
@@ -3359,7 +3598,8 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
                  familiar: frozenset = frozenset(),
                  local: frozenset = frozenset(),
                  local_topic: Optional[Topic] = None,
-                 engage: Optional[dict[str, float]] = None) -> list[Topic]:
+                 engage: Optional[dict[str, float]] = None,
+                 continent: str = "") -> list[Topic]:
     """The first rail a listener with no history sees: the startup set first,
     then the ordinary ranking behind it.
 
@@ -3438,7 +3678,8 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
     seen = exclude | {t.id for t in lead}
     rest = rank_from_history(profile, seen, damp, limit=limit - len(lead),
                              candidates=candidates, familiar=familiar,
-                             local=local, engage=engage, floor=0.0)
+                             local=local, engage=engage, floor=0.0,
+                             continent=continent)
     return lead + rest
 
 
@@ -3903,8 +4144,12 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # / None on a deployment with no model and no trained ranking, which is
     # the page that shipped before either existed. Never on a cold start:
     # there is no history to mean anything, and the prior is not a taste.
+    import geography
+
+    continent = geography.listener_continent(country)
+    candidates = made_for_you_candidates(inventory, live_held)
     semantic = ({} if cold
-                else taste_vectors.for_listener(events, inventory, now))
+                else taste_vectors.for_listener(events, candidates, now))
     learned = learned_rank.active(store, now)
     wide = SECTION_SIZE * CANDIDATE_FACTOR
     # How deep the personal rails look for a written tile. Only deeper when
@@ -3982,16 +4227,16 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 # nothing about, and `startup.py` leads this rail with a
                 # question about their own town when they have given one.
                 picks = rank_startup(prior, seen, limit=reach,
-                                     candidates=inventory,
+                                     candidates=candidates,
                                      damp=damp, familiar=familiar, local=place,
                                      local_topic=local_topic,
-                                     engage=engage)
+                                     engage=engage, continent=continent)
             else:
                 picks = rank_from_history(profile, seen, damp, limit=reach,
-                                          candidates=inventory,
+                                          candidates=candidates,
                                           familiar=familiar, local=place,
                                           engage=engage, semantic=semantic,
-                                          learned=learned)
+                                          learned=learned, continent=continent)
         elif key == "followers":
             picks = rank_friends(store, circle, seen, damp, limit=wide, now=now,
                                  written=written, episode_info=episode_info,
@@ -4024,7 +4269,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # hold nothing but cached episodes.
             picks = ready_first(picks, written)
         if key not in RANKED_BY_LISTENS:
-            picks = diversify(picks, SECTION_SIZE)
+            picks = diversify(picks, SECTION_SIZE,
+                              strict=key == "from_history")
         picked[key] = picks
         if key in UNSHELVED:
             unshelved_held |= {t.id for t in picks}
@@ -4056,7 +4302,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         fallback = (ready_first(fallback[:READY_REACH], written)
                     + fallback[READY_REACH:])
         extra = _fill_to_minimum(picked[key], floors[key], fallback,
-                                 on_page | mine)
+                                 on_page | mine, max_per_facet=MAX_PER_FACET)
         picked[key] = picked[key] + extra
         used |= {t.id for t in extra}
     # **Exactly `SECTION_SIZE` on the page, never more** (§134). Every ranker
@@ -4322,21 +4568,25 @@ def build_section(store: EventStore, user_id: str, key: str,
         # startup rail whose "View more" ran the ordinary ranker would open on
         # the empty list the rail was built to avoid - two different answers to
         # one question, which is the thing this function exists not to do.
+        import geography
+
+        continent = geography.listener_continent(country)
+        candidates = made_for_you_candidates(inventory, live_held)
         if cold:
             prior, _order = startup_profile(store, now)
             picks = rank_startup(prior, mine, limit=limit,
-                                 candidates=inventory, damp=damp,
+                                 candidates=candidates, damp=damp,
                                  familiar=familiar, local=place,
                                  local_topic=local_topic,
-                                 engage=engage)
+                                 engage=engage, continent=continent)
         else:
             # The same two §131 terms the rail reads, or this screen would
             # be a different ranking from the rail that opened it.
             picks = rank_from_history(
-                profile, mine, damp, limit=limit, candidates=inventory,
+                profile, mine, damp, limit=limit, candidates=candidates,
                 familiar=familiar, local=place, engage=engage,
-                semantic=taste_vectors.for_listener(events, inventory, now),
-                learned=learned_rank.active(store, now))
+                semantic=taste_vectors.for_listener(events, candidates, now),
+                learned=learned_rank.active(store, now), continent=continent)
     elif key == "might_like":
         picks = rank_might_like(profile, mine, damp, limit=limit)
     elif key == "missed":
@@ -4363,15 +4613,17 @@ def build_section(store: EventStore, user_id: str, key: str,
     # forty tiles can carry more of one subject than a row showing six, and a
     # cap that did not scale would make "view more" a different ranking from
     # the rail it opened - which is the one thing this screen must not be.
+    cap = MAX_PER_FACET * (limit // SECTION_SIZE or 1)
     if key != "world_trending" and key not in RANKED_BY_LISTENS:
-        picks = diversify(picks, limit,
-                          max_per_facet=MAX_PER_FACET * (limit // SECTION_SIZE or 1))
+        picks = diversify(picks, limit, max_per_facet=cap,
+                          strict=key == "from_history")
     # "View more" never shows fewer than the rail it opened (§127).
     floors = RAIL_MINIMUM if floors is None else floors
     if floors.get(key):
         picks = picks + _fill_to_minimum(
             picks, floors[key],
-            _rail_fallback(key, profile, live, live_held, inventory), mine)
+            _rail_fallback(key, profile, live, live_held, inventory), mine,
+            max_per_facet=cap if key == "from_history" else 0)
     section = {
         "key": key,
         "title": dict(SECTIONS)[key],
@@ -4433,6 +4685,8 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             live_status=getattr(story, "live_status", "") or "",
             live_as_of=float(getattr(story, "live_as_of", 0.0) or 0.0),
             last_seen=float(getattr(story, "last_seen", 0.0) or 0.0),
+            domain=getattr(story, "domain", "") or "",
+            minor_league=bool(getattr(story, "minor_league", False)),
         ))
     return tiles[:limit] if limit else tiles
 
@@ -4735,7 +4989,7 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
 
 
 def _fill_to_minimum(picked: list, minimum: int, candidates: list,
-                     exclude: set) -> list:
+                     exclude: set, max_per_facet: int = 0) -> list:
     """The tiles to append so `picked` reaches `minimum`, and no more.
 
     Never a tile already on the rail, already on another rail (`exclude`
@@ -4746,11 +5000,23 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
     if need <= 0:
         return []
     have = {t.id for t in picked} | set(exclude)
+    counts: dict = {}
+    for topic in picked:
+        for facet in _tile_variety_facets(topic):
+            counts[facet] = counts.get(facet, 0) + 1
     out: list = []
     for topic in candidates:
         if topic.id in have:
             continue
+        facets = _tile_variety_facets(topic)
+        # `max_per_facet` is the rail's own variety cap (§186): a top-up
+        # that broke it would put back exactly the sameness it exists for.
+        if max_per_facet and any(counts.get(f, 0) >= max_per_facet
+                                 for f in facets):
+            continue
         have.add(topic.id)
+        for facet in facets:
+            counts[facet] = counts.get(facet, 0) + 1
         out.append(topic)
         if len(out) >= need:
             break
@@ -4758,7 +5024,7 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
 
 
 def diversify(topics: list, limit: int = SECTION_SIZE,
-              max_per_facet: int = MAX_PER_FACET) -> list:
+              max_per_facet: int = MAX_PER_FACET, strict: bool = False) -> list:
     """Cap how much of one rail one subject may have. The variety rule.
 
     Facets rather than tags, because the thing a listener notices is four
@@ -4771,6 +5037,12 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
     `limit`, the tiles it passed over come back in their original order -
     a half-empty rail is a worse outcome than a slightly samey one, and the
     listener reads the first one as broken.
+
+    **`strict` never gives way** (§186, Made for you, at the owner's
+    direction: "There should absolutely be variety in episodes in someone's
+    made for you"). What it passes over is dropped, and the rail's floor
+    tops it up from other headings instead (`_fill_to_minimum` with the same
+    cap) - so a rail of four can never be four tiles of one subject.
     """
     kept: list = []
     spare: list = []
@@ -4783,7 +5055,7 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
         # in, and the cap would silently stop binding. The join belongs where
         # a tile is scored against a listener; this is a rule about the shape
         # of the row and the eight headings are the right vocabulary for it.
-        facets = {facet_of(tag) for tag in topic.tags} or {"other"}
+        facets = _tile_variety_facets(topic)
         if any(counts.get(f, 0) >= max_per_facet for f in facets):
             spare.append(topic)
             continue
@@ -4792,7 +5064,14 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
         kept.append(topic)
         if len(kept) >= limit:
             return kept
+    if strict:
+        return kept
     return (kept + spare)[:limit]
+
+
+def _tile_variety_facets(topic) -> set:
+    """What one tile counts against in `diversify`'s cap."""
+    return {facet_of(tag) for tag in topic.tags} or {"other"}
 
 
 def topics_from_trending(items, limit: int = SECTION_SIZE) -> list:

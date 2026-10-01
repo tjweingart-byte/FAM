@@ -92,16 +92,21 @@ from __future__ import annotations
 #: silently never exists. `tests/test_category_seed.py` fails instead.
 SEED: dict[str, dict] = {
     "sports": {
+        # §186: the leagues, so a question about one files it as a subject
+        # (depth two) rather than as the whole of a sport.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}},
-        "basketball": {"playoff basketball": {}, "draft prospects": {}},
+                              "quarterback play": {}, "nfl": {}},
+        "basketball": {"playoff basketball": {}, "draft prospects": {},
+                       "nba": {}, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
-                     "world cup": {}},
-        "baseball": {},
+                     "world cup": {}, "premier league": {},
+                     "bundesliga": {}, "major league soccer": {}},
+        "baseball": {"mlb": {}, "world series": {}},
+        "ice hockey": {"nhl": {}, "stanley cup": {}},
         "golf": {"major championship": {}},
         "tennis": {},
-        "motorsport": {"formula one": {}},
-        "combat sports": {"boxing": {}, "mixed martial arts": {}},
+        "motorsport": {"formula one": {}, "nascar": {}},
+        "combat sports": {"boxing": {}, "mixed martial arts": {}, "ufc": {}},
         "olympic sport": {},
         "athletic training": {"injury recovery": {}},
         "team ownership": {"stadium funding": {}, "sports stadiums": {},
@@ -143,7 +148,7 @@ SEED: dict[str, dict] = {
         "retail business": {"ecommerce": {}, "luxury goods": {}},
         "energy business": {"oil companies": {}, "renewable energy": {},
                             "electricity grids": {}},
-        "airlines": {},
+        "airlines": {"air travel": {}, "flights": {}},
         "automotive industry": {"electric vehicles": {}},
         "advertising": {},
         "labour market": {"remote work": {}},
@@ -185,8 +190,12 @@ SEED: dict[str, dict] = {
         "archaeology": {},
     },
     "world": {
-        "geopolitical conflict": {"middle east": {}, "ukraine": {},
-                                  "taiwan": {}},
+        # §186: the Middle East's own subjects, so a question about one of
+        # them is a world subject - and so never a sports one.
+        "geopolitical conflict": {
+            "middle east": {"israel": {"tel aviv": {}, "jerusalem": {}},
+                            "gaza": {}, "iran": {}, "lebanon": {}},
+            "ukraine": {}, "taiwan": {}},
         "elections and politics": {"presidential election": {}, "polling": {},
                                    "political parties": {}},
         "trade policy": {"tariffs": {}, "sanctions": {}},

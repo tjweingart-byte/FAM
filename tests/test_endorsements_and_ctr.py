@@ -55,18 +55,17 @@ def test_every_endorsement_is_a_kind_the_log_accepts(store):
     )
 
 
-def test_an_endorsement_outranks_a_play_and_not_a_completion():
-    """Sending somebody an episode is a stronger claim about taste than
-    pressing play and a weaker one than sitting through the whole thing."""
+def test_the_weights_are_the_owners():
+    """§186: the owner set these numbers. A change to any of them is a
+    change to the owner's rule, not a tuning pass."""
+    for kind, weight in {"search": 2.0, "play": 1.0, "complete": 2.0,
+                         "skip": -0.5, "save": 2.0, "vibe": 2.5}.items():
+        assert T.EVENT_WEIGHT[kind] == weight, kind
+
+
+def test_an_endorsement_outranks_a_play():
     for kind in T.ENDORSEMENTS:
         assert T.EVENT_WEIGHT[kind] > T.EVENT_WEIGHT["play"]
-        assert T.EVENT_WEIGHT[kind] < T.EVENT_WEIGHT["complete"]
-
-
-def test_sharing_and_vibing_weigh_the_same():
-    """One is sent to a person and the other posted to followers. A rule
-    making either worth more would need a number nobody can tune."""
-    assert T.EVENT_WEIGHT["share"] == T.EVENT_WEIGHT["vibe"]
 
 
 def test_an_endorsement_moves_the_taste_profile(store):

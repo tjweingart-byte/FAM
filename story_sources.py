@@ -93,6 +93,13 @@ def _tags(text: str, *extra: str) -> tuple:
     return tuple(sorted(found))
 
 
+def _in_field(tags: tuple, facet: str) -> tuple:
+    """Only the tags filed under `facet` (§186)."""
+    import topics
+
+    return tuple(t for t in tags if topics._root_facet(t) == facet)
+
+
 # --------------------------------------------------------------------------
 # GDELT - what the press is writing about
 # --------------------------------------------------------------------------
@@ -453,7 +460,10 @@ class FinnhubSignals(stories.StorySource):
                              f"nothing here says why."),
                 domain=self.domain,
                 source=self.name,
-                tags=_tags(label, "money"),
+                # Filed as what it is - a move in the stock market - and not
+                # by the words of the company's name (§186): "Taiwan
+                # Semiconductor" is a market story, not a Taiwan story.
+                tags=_tags("", "money", "markets", "stock market"),
                 strength=min(1.0, abs(change) / peak),
                 as_of=now,
             ))
@@ -792,7 +802,12 @@ class ApiSportsSignals(stories.StorySource):
                          "title, the angle and the query."),
             domain=self.domain,
             source=self.name,
-            tags=_tags(f"{home} {away} {sport.key} {league}", "sports"),
+            # Filed under sport and nothing else (§186). A team is named
+            # after its town, and the town's own subjects ("tel aviv" ->
+            # israel -> world) are not what a game is about - carried, they
+            # made every fixture played there a world story too.
+            tags=_in_field(_tags(f"{home} {away} {sport.key} {league}",
+                                 "sports"), "sports"),
             strength=round(self.STRENGTH.get(status, 0.5)
                            * (1.0 if major else self.MINOR_LEAGUE), 3),
             as_of=now,
@@ -801,6 +816,7 @@ class ApiSportsSignals(stories.StorySource):
             region_hint=hint,
             live_line=line,
             live_status=status,
+            minor_league=not major,
         )
 
 

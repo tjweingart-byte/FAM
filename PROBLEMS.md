@@ -14432,3 +14432,89 @@ gain. The history tabs keep their order (by surface key), so they now read
 All / dailyFAM / myFAM / searchFAM. `historySurface` now recognises a mix
 play by `source === "myFAM"`, the mix player's new source label.
 
+
+## 186. Made for you: one search about Israel filled it with Middle East sport
+
+The owner's report: "I looked up one episode about a flight to Israel last
+night, and now my entire made for you page is sports in the middle east. I
+have never shown interest in sports in the middle east. No matter how much I
+try to look up other things, it still only is giving me sports in the middle
+east." Then, at the owner's direction: the weights are search 2, play 1,
+finishing 2, skip -0.5, save 2, vibe 2.5; markets must reach Made for you;
+"there should absolutely be variety", and "no possibility of it being
+populated with a niche sports league in a continent across the ocean from a
+person's country"; "this is likely a problem with episode categorization".
+
+**What was happening** (read from the code; the production log was not
+available to this session, so the exact rows are unconfirmed):
+
+* `tags_for_text("flight to israel")` returned `()`. The search was filed
+  under nothing - no facet, no category - so it taught the profile nothing
+  and its later replacements could not outvote it either.
+* `familiar_words` kept every word anybody typed, unfiled and forever. §155
+  lets a live story through when it "names something followed", and a
+  word the listener used counts - so "tel" and "aviv" from one travel
+  question vouched for every Maccabi and Hapoel Tel Aviv fixture.
+* `topic_tags` re-read a game's query against the tree, and the tree knows
+  places: a club named after its city was filed `tel aviv -> israel ->
+  middle east -> world` as well as sport.
+* `diversify` gives way when the cap would leave a rail short. With little
+  else over the floor, four sports tiles were "a slightly samey" rail.
+* Nothing stopped a minor league abroad. API-Sports already knew which
+  games were outside `MAJOR_LEAGUES` (it scored them at 0.45) and the pool's
+  variety cap is per facet *and place*, so every region got its own five
+  sports stories.
+
+**What changed:**
+
+1. **Weights** are the owner's (`EVENT_WEIGHT`); `share` and `pick` keep
+   theirs. A test pins the numbers.
+2. **Categorisation.** `TAG_WORDS` gains the sports themselves (`mlb`,
+   `nhl`, `hockey`, `rugby`, ...), travel under business (`flight`,
+   `airline`, `airport`) and the places the news is about under world
+   (`israel`, `gaza`, `iran`, `ukraine`, ...). `tags_for_text` also files a
+   question under sport when it names a sport or a team from a league
+   catalogue already read (`_names_a_sport`, the same readings
+   `live_sources.sport_for` routes on, never a request). The seed gains the
+   leagues (`nfl`, `nba`, `premier league`, `mlb`, `nhl`, ...), the Middle
+   East's subjects (`israel`, `tel aviv`, `gaza`, `iran`, `lebanon`) and
+   `air travel`/`flights` under airlines.
+3. **A subject is a subject in a field.** `topic_tags` adds a tree match
+   only within the tile's own declared headings; `_is_broad_match` counts a
+   followed subject only in its own field (`_in_field`); a sports signal is
+   filed under sport and nothing else (`story_sources._in_field`); a market
+   move is filed `money / markets / stock market`, never by the company's
+   name ("Taiwan Semiconductor" is not a Taiwan story).
+4. **Familiar words are filed** (`FamiliarWords.filed`): a word vouches for
+   a live story only in the field of the event it came from. A word from an
+   event no vocabulary can place vouches anywhere but sport - fixtures are
+   named after teams and teams after towns. Place words vouch everywhere,
+   as before. A semantic near-match vouches only in a field the listener has
+   any taste for.
+5. **No far minor league** (`_far_minor_league`): a game outside
+   `MAJOR_LEAGUES` (`Story.minor_league`, from the provider's league row) on
+   a continent other than the listener's (`geography.listener_continent` of
+   the country `/api/myfam` already resolves) is never on Made for you
+   unless they follow a subject on the tile. Unknown continent = none.
+6. **Variety does not give way on Made for you** (`diversify(strict=True)`,
+   and `_fill_to_minimum(max_per_facet=)` for the top-up): at most
+   `MAX_PER_FACET` (2) of four tiles per heading; the floor fills from other
+   headings out of the evergreen inventory. Same on its View more screen.
+7. **Markets reach Made for you.** A market move (`Topic.domain ==
+   markets`) is on subject for anyone with money in their taste
+   (`_follows_markets`), and Made for you now ranks every live story the
+   pool is holding (`made_for_you_candidates`), not only the forty the
+   shared cap offers - a market move held back behind louder stories is
+   still a real one.
+
+**Reverses / narrows:** §121's "share and vibe weigh the same" and "an
+endorsement sits below a completion"; §114/§155's "the country never
+ranks" is narrowed - the country still never *boosts*, but it now excludes
+minor-league games from other continents; §127's top-up gives way to the
+cap on this rail. `tests/test_made_for_you_186.py` is the reported case end
+to end.
+
+**Not verified here:** no production event log, no API-Sports or Finnhub
+key - whether the reporter's rail was exactly this mechanism, and how many
+market stories a configured deployment holds, are the first things to check
+on `fam-staging` with real data.

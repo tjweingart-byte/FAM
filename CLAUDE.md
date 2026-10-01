@@ -180,6 +180,11 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - YourFAM's row puts friends with vibes up first; a swipe in the viewer goes
   to the next friend's vibes, the picture opens the profile; the Friends page
   has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
+- **Made for you** (§186): subjects and familiar words vouch only in their own
+  field; variety never gives way (≤2 per heading, capped top-up); no
+  minor-league game from another continent unless followed; market moves on
+  any money taste; ranks every held story. Weights: search 2, play 1, finish 2,
+  skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
