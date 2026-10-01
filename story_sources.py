@@ -55,7 +55,7 @@ import logging
 import time
 import math
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import live_facts
@@ -580,8 +580,85 @@ def _first_price(row: dict) -> Optional[float]:
 # --------------------------------------------------------------------------
 # API-Sports - what is being played today
 # --------------------------------------------------------------------------
+#: **The leagues the sweep follows** (§190, at the owner's direction), as
+#: `(league, country)` pairs in the provider's own names, "" for any country.
+#: Every other league - and every sport not listed here (volleyball, rugby,
+#: AFL) - is never swept: its games are looked up only on demand, when an
+#: episode asks about one (`live_sources.ApiSportsSource`). `None` is a
+#: sport with no league row: Formula 1's card asks for the race only, so
+#: every Grand Prix is followed, and a fight is followed when it is on a
+#: numbered UFC card (`followed`).
+SWEPT_LEAGUES = {
+    "american-football": frozenset({("nfl", ""), ("ncaa", "")}),
+    "basketball": frozenset({("nba", ""), ("ncaa", ""), ("wnba", "")}),
+    "baseball": frozenset({("mlb", ""), ("ncaa", "")}),
+    "hockey": frozenset({("nhl", "")}),
+    "football": frozenset({
+        ("uefa champions league", ""), ("premier league", "england"),
+        ("la liga", "spain"), ("bundesliga", "germany"),
+        ("world cup", ""), ("fifa world cup", "")}),
+    "formula-1": None,
+    "mma": None,
+}
+#: How long before a followed game starts it is worth watching (§190): the
+#: card's "Starts 20:15" line turns into a live score on the first sweep
+#: after kick-off rather than one interval late.
+WATCH_LEAD_SECONDS = 900.0
+
+
+def followed(sport, row: dict) -> bool:
+    """Whether the sweep follows this game (§190): one of `SWEPT_LEAGUES`."""
+    import live_sources
+
+    if sport.key not in SWEPT_LEAGUES:
+        return False
+    if sport.kind == "race":
+        # The card asks for `type=Race`; practice and qualifying are not it.
+        return str((row or {}).get("type") or "race").lower() == "race"
+    if sport.kind == "fight":
+        # Numbered UFC events only: a Fight Night is a UFC card the owner
+        # left to on-demand lookups.
+        text = " ".join(str((row or {}).get(k) or "")
+                        for k in ("slug", "event", "name")).lower()
+        return "ufc" in text and "fight night" not in text
+    league, country = live_sources.league_of(row)
+    pairs = SWEPT_LEAGUES[sport.key] or frozenset()
+    league, country = league.lower(), country.lower()
+    return (league, "") in pairs or (league, country) in pairs
+
+
+def watching(sport, rows: list, now: float) -> bool:
+    """Whether a held card has something to watch (§190): a followed game
+    under way, about to start, or started in the last few hours and not yet
+    marked final. A card whose followed games are all final, or that has
+    none, has nothing - and is not asked again until its day turns over."""
+    import live_sources
+
+    source = live_sources.ApiSportsSource
+    for row in rows or ():
+        if not followed(sport, row):
+            continue
+        status = sport.statuses.get(
+            str(source._status_block(row).get("short") or "").upper(),  # noqa: SLF001
+            live_facts.UNKNOWN)
+        if status == live_facts.IN_PROGRESS:
+            return True
+        if status != live_facts.SCHEDULED:
+            # Final, or a code nobody mapped (postponed, cancelled): nothing
+            # a sweep would change on a tile.
+            continue
+        kick = source._kickoff(row)  # noqa: SLF001
+        if kick is None:
+            continue
+        at = kick.timestamp()
+        if (at - WATCH_LEAD_SECONDS <= now
+                and at >= now - live_sources.UNSETTLED_HOURS * 3600):
+            return True
+    return False
+
+
 class ApiSportsSignals(stories.StorySource):
-    """Today's card for the sports this deployment serves - **with the score**.
+    """Today's card for the leagues FAM follows - **with the score**.
 
     **The score is passed on now** (§135, at the owner's direction: "it
     should include score so people can have updates on current sports events
@@ -596,26 +673,30 @@ class ApiSportsSignals(stories.StorySource):
     says how old it is. The episode still researches the game on the tap,
     and the live lookup reads the same feed.
 
-    **Swept on the whole daily allowance, paced** (§135). It used to sweep at
-    most every two hours to keep the free tier's hundred requests a day in
-    reserve. `min_interval_seconds` now comes from
-    `live_sources.API_SPORTS_BUDGET`: whatever is left of the day's
-    allowance, spread over what is left of the day - about every fourteen
-    minutes with one sport on the free tier, and slower on a day episode
-    lookups have spent a share of it. One request per sport per sweep.
+    **Swept only when there is something to watch, and only on demand**
+    (§190, at the owner's direction; it replaces §135's "spend the whole
+    allowance on a timer", which spent a hundred requests a day per sport
+    with nobody looking). Per sport and UTC day:
 
-    **Major leagues first.** A date request returns every fixture in the
-    world; `live_sources.MAJOR_LEAGUES` puts the NFL, the NBA and the Premier
-    League ahead of the third division, and a game the press is also running
-    rises further when `stories.corroborate` finds it in the news sweep. The
-    league's country is the tile's geography.
+    * the day's card is read once, the first time somebody draws myFAM -
+      which is how the sweep learns when the followed games start;
+    * after that the sport is swept again only while a followed game is on
+      or about to start (`watching`), at most every
+      `STORIES_SPORTS_INTERVAL_SECONDS`;
+    * once every followed game is final, it is not asked again that day.
+
+    And none of it happens with nobody looking: `idle` skips the whole
+    source until somebody has drawn myFAM in the last
+    `STORIES_DEMAND_SECONDS`. Only `SWEPT_LEAGUES` become tiles; everything
+    else - other leagues, and volleyball, rugby and AFL entirely - is looked
+    up on demand by the episode that asks.
     """
 
     name = "API-Sports"
     domain = stories.SPORTS
     #: Flat-rate plan; the bill is not per call.
     cost_per_refresh = 0.0
-    #: Up to ten sports share one sweep (§180).
+    #: Up to seven sports share one sweep (§180, §190).
     max_signals = 24
 
     #: When each sport was last swept (§180): each is its own plan and its
@@ -625,20 +706,54 @@ class ApiSportsSignals(stories.StorySource):
     def _last_swept(self) -> dict:
         return SPORT_SWEPT_AT
 
-    @property
-    def min_interval_seconds(self) -> float:
+    @staticmethod
+    def _days(now: float) -> tuple:
+        today = datetime.fromtimestamp(now, tz=timezone.utc).date()
+        return today.isoformat(), date_before(today).isoformat()
+
+    def dates_due(self, key: str, now: float) -> list:
+        """The card dates this sport should be asked for now, or [] (§190).
+
+        Today's, the first time today or while it has something to watch;
+        yesterday's while a game that began before UTC midnight is still on
+        (a 7pm Eastern kick-off ends after it)."""
         import live_sources
 
-        # The soonest any sport is due; `collect` skips the ones that are not.
-        return min((live_sources.budget_for(k).sweep_interval(1)
-                    for k in self.sports()), default=3600.0)
-
-    def _due(self, key: str, now: float) -> bool:
-        import live_sources
-
+        sport = live_sources.SPORTS[key]
+        today, yesterday = self._days(now)
+        held = SPORT_CARDS.get(key, {})
+        first_today = today not in held
+        dates = []
+        if first_today or watching(sport, held[today], now):
+            dates.append(today)
+        if yesterday in held and watching(sport, held[yesterday], now):
+            dates.append(yesterday)
+        if not dates:
+            return []
+        budget = live_sources.budget_for(key)
+        if budget.remaining(now) < len(dates):
+            return []
+        if first_today:
+            return dates
         last = self._last_swept.get(key)
+        gap = max(float(settings.stories_sports_interval_seconds),
+                  budget.sweep_interval(len(dates), now))
         # A little early is fine: the sweep's own clock is not exact.
-        return last is None or now - last >= live_sources.budget_for(key).sweep_interval(1) * 0.9
+        if last is not None and now - last < gap * 0.9:
+            return []
+        return dates
+
+    def idle(self, now: float) -> str:
+        """Why this source should not be asked this tick, or "" (§190)."""
+        if not stories.recent_demand(now):
+            return ("nobody has drawn myFAM in the last "
+                    f"{settings.stories_demand_seconds / 60:.0f} min; "
+                    "sports are swept on demand")
+        if not any(self.dates_due(k, now) for k in self.sports()
+                   if k in SWEPT_LEAGUES):
+            return ("nothing to watch: no followed league has a game on or "
+                    "about to start")
+        return ""
 
     def diagnose(self) -> tuple[bool, str]:
         import live_sources
@@ -649,14 +764,18 @@ class ApiSportsSignals(stories.StorySource):
             if key not in live_sources.SPORTS:
                 return False, (f"STORIES_SPORTS lists {key!r}, which is not one of "
                                f"{', '.join(sorted(live_sources.SPORTS))}")
-        paced = ", ".join(
-            f"{k} every {live_sources.budget_for(k).sweep_interval(1) / 60:.0f} min "
-            f"({live_sources.budget_for(k).remaining()} of "
+        swept = [k for k in self.sports() if k in SWEPT_LEAGUES]
+        if not swept:
+            return False, ("no sport this deployment uses has a followed league; "
+                           "sports are looked up on demand only")
+        state = ", ".join(
+            f"{k} ({live_sources.budget_for(k).remaining()} of "
             f"{live_sources.budget_for(k).daily} left, {live_sources.tier_of(k)})"
-            for k in self.sports())
+            for k in swept)
         failing = "; ".join(f"{k} FAILING ({why})" for k, why in SPORT_FAILURES.items())
-        return True, (f"API_SPORTS_KEY present, sweeping {paced}; not verified "
-                      "from this machine" + (f"; {failing}" if failing else ""))
+        return True, (f"API_SPORTS_KEY present, following {state} while a "
+                      "followed game is on; not verified from this machine"
+                      + (f"; {failing}" if failing else ""))
 
     async def verify(self) -> tuple[bool, str]:
         import live_sources
@@ -664,8 +783,8 @@ class ApiSportsSignals(stories.StorySource):
         return await live_sources.ApiSportsSource().verify()
 
     def sports(self) -> list:
-        """What the sweep lists: `STORIES_SPORTS`, else every sport this
-        deployment uses (§180). No cap: each sport spends its own plan."""
+        """What the sweep may list: `STORIES_SPORTS`, else every sport this
+        deployment uses (§180). Only those in `SWEPT_LEAGUES` are swept."""
         import live_sources
 
         raw = (settings.stories_sports or "").strip()
@@ -677,30 +796,37 @@ class ApiSportsSignals(stories.StorySource):
         import live_sources
 
         timeout = float(settings.live_timeout_seconds) * 4
-        today = datetime.now(timezone.utc).date().isoformat()
 
-        async def card(key: str):
+        async def card(key: str, dates: list):
             sport = live_sources.SPORTS[key]
-            params = {"date": today}
-            if sport.kind == "race":
-                # The race only, not the weekend's practice and qualifying.
-                params["type"] = "Race"
-            data = await live_sources.api_sports_json(
-                f"{sport.host}/{sport.path}", params, timeout)
-            rows = (data or {}).get("response", []) or []
+            held = SPORT_CARDS.setdefault(key, {})
+            for day in dates:
+                params = {"date": day}
+                if sport.kind == "race":
+                    # The race only, not the weekend's practice and qualifying.
+                    params["type"] = "Race"
+                data = await live_sources.api_sports_json(
+                    f"{sport.host}/{sport.path}", params, timeout)
+                held[day] = (data or {}).get("response", []) or []
+            # Two days at most: today's, and yesterday's late games.
+            for day in sorted(held)[:-2]:
+                held.pop(day, None)
+            rows = [row for day in sorted(held, reverse=True)
+                    for row in held[day]]
             live_sources.remember_card(key, rows)
             await self._warm_catalogue(sport)
-            return sport, rows
+            return sport, [row for row in rows if followed(sport, row)]
 
         clock = time.time()
-        due = [k for k in self.sports()
-               if k in live_sources.SPORTS and self._due(k, clock)]
+        due = {k: self.dates_due(k, clock) for k in self.sports()
+               if k in live_sources.SPORTS and k in SWEPT_LEAGUES}
+        due = {k: dates for k, dates in due.items() if dates}
         for key in due:
             self._last_swept[key] = clock
         out = []
         failures: list = []
         for key, result in zip(due, await asyncio.gather(
-                *(card(k) for k in due), return_exceptions=True)):
+                *(card(k, d) for k, d in due.items()), return_exceptions=True)):
             if isinstance(result, BaseException):
                 failures.append((key, result))
                 continue
@@ -823,8 +949,15 @@ class ApiSportsSignals(stories.StorySource):
 #: When each API-Sports sport was last swept (§180), for the process - not
 #: per source object, so a rebuilt registry does not sweep everything again.
 SPORT_SWEPT_AT: dict = {}
+#: Each followed sport's cards as last read (§190): sport -> {UTC date: rows},
+#: today's and yesterday's. What `watching` reads to decide whether to ask.
+SPORT_CARDS: dict = {}
 #: Each sport whose last sweep failed, and why, until one succeeds.
 SPORT_FAILURES: dict = {}
+
+
+def date_before(day: date) -> date:
+    return day - timedelta(days=1)
 
 
 def _status_code(row: dict) -> str:

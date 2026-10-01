@@ -276,6 +276,11 @@ async def _refresh_stories_forever() -> None:
     is `STORIES_BACKGROUND_SECONDS` old - every fifteen minutes by default,
     one sweep for every listener, exactly as a page load would have paid.
 
+    Since §190 a tick spends only on what is due: the news and Finnhub every
+    two hours, and API-Sports only when somebody drew myFAM recently and a
+    followed game is on (`ApiSportsSignals.idle`). A tick with nothing due
+    asks nobody.
+
     Never raises: a sweep that fails is logged by `_warm_stories` and the
     next tick tries again.
     """
@@ -5203,7 +5208,11 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # cannot name.
     if categories_mod.is_stale():
         asyncio.create_task(_grow_categories())
-    if stories_mod.is_stale():
+    # Somebody is looking (§190): the sports sweep spends only on demand,
+    # and the first look after a quiet spell starts a sweep now rather than
+    # waiting for the next tick.
+    woke = stories_mod.note_demand()
+    if stories_mod.is_stale() or woke:
         # Through the same wrapper the boot sweep uses. A bare `create_task`
         # drops its exception into a log line nobody reads, and this one runs
         # on every page load - so a provider that raises would stop the pool

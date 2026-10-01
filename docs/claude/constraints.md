@@ -396,6 +396,35 @@
   sport is `unknown` and says nothing, so an unverified mapping costs a silent
   game, never a wrong one.
 
+<!-- rule:sweep-on-demand -->
+- **The outside services are asked when somebody is looking and there is
+  something to see, never on a timer all day.** *(PROBLEMS.md §190, at the
+  owner's direction, reversing §135's "spend the whole API-Sports allowance
+  every fifteen minutes".)* The first day of `/admin` counts showed 86-172
+  requests a day per sport and 1,392 Finnhub quotes with almost nobody
+  listening. Now:
+  * **API-Sports sweeps only the leagues the owner named**
+    (`story_sources.SWEPT_LEAGUES`): NFL and NCAA football; NBA, NCAA and
+    WNBA; MLB and NCAA baseball; NHL; Champions League, Premier League,
+    La Liga, Bundesliga and the World Cup; every Formula 1 race; numbered UFC
+    cards (not Fight Nights). Volleyball, rugby, AFL and every other league
+    are never swept - an episode that asks looks them up on demand.
+  * **Only when there is something to watch** (`story_sources.watching`): a
+    sport's card is read once per UTC day, then again only while a followed
+    game is under way or within `WATCH_LEAD_SECONDS` of starting, at most
+    every `STORIES_SPORTS_INTERVAL_SECONDS`; yesterday's card while a game
+    that began before UTC midnight is unfinished. All final, or none
+    followed: nothing more that day.
+  * **Only on demand** (`ApiSportsSignals.idle`, `stories.note_demand`):
+    nothing is swept unless an account drew myFAM in the last
+    `STORIES_DEMAND_SECONDS`; the first look after a quiet spell starts a
+    sweep (scheduled, never awaited) and sees the fresh tiles next load.
+  * **Finnhub every two hours, round the clock**
+    (`STORIES_MARKETS_INTERVAL_SECONDS`): large moves are what matter, and
+    markets are moving to 24-hour trading, so it is not tied to the session.
+  * A team catalogue the provider refused is not asked again that UTC day
+    (`live_sources.TEAMS_REFUSED`).
+
 <!-- rule:live-facts -->
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
@@ -439,6 +468,7 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:bank-for-guests -->
+> **Current (PROBLEMS.md §190):** sports are no longer asked every fifteen minutes with nobody looking: only followed leagues, only while one of their games is on, and only when somebody drew myFAM recently; Finnhub is every two hours (rule:sweep-on-demand). "Only sports and markets are asked that often" below is history.
 > **Current (PROBLEMS.md §174):** Trending cards no longer say the place (the card shows its subject like every rail), and View more is grouped by **continent** - Worldwide, the listener's own, then the rest busiest first; no Antarctica (`geography.continent_for`). "Each card says the place" below is history.
 
 - **The evergreen bank is for a listener with no account, and the crowd row

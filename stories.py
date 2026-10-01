@@ -673,6 +673,28 @@ _RETIRED: dict = {}
 _FIRST_SEEN: dict = {}
 #: source name -> when it was last asked. See `StorySource.min_interval_seconds`.
 _LAST_SWEPT: dict = {}
+#: When a listener last drew myFAM (§190). The sources that sweep on demand
+#: (API-Sports) ask `recent_demand` before spending anything.
+_DEMAND = [0.0]
+
+
+def note_demand(now: Optional[float] = None) -> bool:
+    """Record that somebody drew myFAM (§190). Never raises, never waits.
+
+    True when this wakes the pool - nobody had looked for
+    `STORIES_DEMAND_SECONDS` - so the caller starts a sweep now rather than
+    leaving the on-demand sources to the next tick.
+    """
+    now = time.time() if now is None else now
+    woke = not recent_demand(now)
+    _DEMAND[0] = max(_DEMAND[0], now)
+    return woke
+
+
+def recent_demand(now: Optional[float] = None) -> bool:
+    """Whether somebody drew myFAM in the last `STORIES_DEMAND_SECONDS`."""
+    now = time.time() if now is None else now
+    return bool(_DEMAND[0]) and now - _DEMAND[0] <= float(settings.stories_demand_seconds)
 
 
 def register(source: StorySource) -> None:
@@ -722,6 +744,7 @@ def reset() -> None:
     _RETIRED.clear()
     _FIRST_SEEN.clear()
     _LAST_SWEPT.clear()
+    _DEMAND[0] = 0.0
     _SOURCES.clear()
 
 
@@ -779,6 +802,20 @@ async def collect(limit: int = MAX_PER_SOURCE,
         if not ok:
             reports.append(SourceReport(source.name, source.domain,
                                         NOT_CONFIGURED, 0, why))
+            continue
+        # A source may say it has nothing to do this tick (§190): API-Sports
+        # with nobody looking, or with no followed game on. Said in the
+        # report like any other skip, and its held stories stay.
+        idle = getattr(source, "idle", None)
+        try:
+            resting = idle(now) if idle else ""
+        except Exception as exc:  # noqa: BLE001 - asking is better than not
+            log.warning("stories: %s could not say whether it is idle: %s",
+                        source.name, exc)
+            resting = ""
+        if resting:
+            reports.append(SourceReport(source.name, source.domain,
+                                        SKIPPED, 0, resting))
             continue
         floor = float(getattr(source, "min_interval_seconds", 0.0) or 0.0)
         since = now - _LAST_SWEPT.get(source.name, 0.0)

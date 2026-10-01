@@ -448,10 +448,12 @@ def isolated_api_sports(monkeypatch):
 
     monkeypatch.setattr(live_sources, "BUDGETS", {})
     monkeypatch.setattr(live_sources, "TEAMS", {})
+    monkeypatch.setattr(live_sources, "TEAMS_REFUSED", {})
     monkeypatch.setattr(live_sources, "SCHEDULES", {})
     import story_sources
 
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
     monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
     monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
     yield
