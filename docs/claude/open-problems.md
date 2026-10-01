@@ -726,6 +726,7 @@
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
+> **Current (PROBLEMS.md §190):** an account is its credentials, never the device. A sign-up from a browser whose session already has an account no longer refuses ("this listener already has an account"): it mints a fresh listener id, attaches the credentials there, and moves the browser onto it as a login would - only once the sign-up succeeded, so a refused address logs nobody out (`app._signup_listener`, `_signup_session`). The first account is untouched. A guest's session is still claimed, not replaced.
 11. ~~**Personalisation needs state the app does not have**~~ - *identity is
    done; the recommender is still crude.* `accounts.py` gives every listener a
    server-minted session id in an HttpOnly cookie, and an account is *email and

@@ -310,6 +310,9 @@ def isolated_accounts(tmp_path, monkeypatch):
         "PREFS",
         prefs_mod.PreferenceStore(str(tmp_path / "auth" / "preferences.db")),
     )
+    # The sign-up samples' brief memo (§190) is per process; a test's
+    # ranking must not be answered from the one before it.
+    monkeypatch.setattr(appmod, "_WELCOME_MEMO", {"at": 0.0, "episodes": []})
 
 
 @pytest.fixture(autouse=True)

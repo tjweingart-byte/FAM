@@ -25,8 +25,13 @@ section when a decision changes, including why.
   kept, so `/?referralCode=x` survives). Any `/api/*` call answers 403 with
   `X-FAM-Waitlist`, except `/api/auth/*`, `/api/waitlist/*`, `/api/admin/*`,
   `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`,
-  any request carrying an admin credential, and a shared episode's own two
-  calls (decision 10).
+  any request carrying an admin credential, a shared episode's own two
+  calls (decision 10), and the landing page's samples: `/api/welcome`,
+  `/api/thumb/*`, and `/api/audio` for exactly one of today's three sign-up
+  samples as a replay (`_welcome_sample_request`, PROBLEMS.md §190).
+* **One browser, many accounts** (§190): joining from a browser that already
+  holds an account's session makes a new account on a fresh listener id and
+  moves the browser onto it; the earlier account still signs in.
 * **Pages:** `static/waitlist.html` (landing at `/waitlist`, status at
   `/waitlist/me`) and `admin_ui/waitlist.html` (`/admin/waitlist`).
 * **API:** `POST /api/waitlist/join`, `GET /api/waitlist/me`,

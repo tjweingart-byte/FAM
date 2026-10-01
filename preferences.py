@@ -383,6 +383,11 @@ class Preferences:
     #: The Sunday of the week whose recap they have already been shown.
     recap_week: str = ""
     intro_done: bool = False
+    #: Whether the player's menu may name this listener as the one who
+    #: searched an episode (§190). Off unless they turn it on: what somebody
+    #: searched is theirs (`op-friend-profile`), and this is the one place it
+    #: is shown to anybody else, by their choice.
+    searches_public: bool = False
 
     @property
     def public_interests(self) -> tuple[str, ...]:
@@ -402,6 +407,7 @@ class Preferences:
             "weekly_recap": self.weekly_recap,
             "recap_week": self.recap_week,
             "intro_done": self.intro_done,
+            "searches_public": self.searches_public,
         }
 
 
@@ -469,6 +475,12 @@ class PreferenceStore:
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass  # already there
+            # §190: off for every row written before it, which is the default.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " searches_public INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -486,7 +498,7 @@ class PreferenceStore:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
                 " intro_done, hidden_interests, topics, profile_interests,"
-                " city, region, country"
+                " city, region, country, searches_public"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -508,6 +520,7 @@ class PreferenceStore:
             profile_interests=tuple(
                 t for t in (row[7] or "").split("\n") if t),
             location=Location(row[8] or "", row[9] or "", row[10] or ""),
+            searches_public=bool(row[11]),
         )
 
     def save(
@@ -524,6 +537,7 @@ class PreferenceStore:
         weekly_recap: Optional[bool] = None,
         intro_done: Optional[bool] = None,
         recap_week: Optional[str] = None,
+        searches_public: Optional[bool] = None,
         at: float = 0.0,
     ) -> Preferences:
         """Write only the fields given. Raises PreferenceError on a bad value.
@@ -564,13 +578,15 @@ class PreferenceStore:
             recap_week=(recap_week if recap_week is not None else current.recap_week),
             intro_done=(bool(intro_done) if intro_done is not None
                         else current.intro_done),
+            searches_public=(bool(searches_public) if searches_public is not None
+                             else current.searches_public),
         )
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
                     intro_done, updated, hidden_interests, topics,
-                    profile_interests, city, region, country)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_interests, city, region, country, searches_public)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
@@ -583,6 +599,7 @@ class PreferenceStore:
                    city         = excluded.city,
                    region       = excluded.region,
                    country      = excluded.country,
+                   searches_public = excluded.searches_public,
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
@@ -590,7 +607,7 @@ class PreferenceStore:
              "\n".join(merged.topics),
              "\n".join(merged.profile_interests),
              merged.location.city, merged.location.region,
-             merged.location.country),
+             merged.location.country, int(merged.searches_public)),
         )
         return merged
 

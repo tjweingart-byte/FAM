@@ -53,6 +53,7 @@
   directions is what produced filler: it made the model pad. `ALLOW_TOPUPS=1`
   restores the old behaviour.
 <!-- rule:transport -->
+> **Current (PROBLEMS.md §190):** the full player minimises with a down arrow top left (`#playerDown`), not an X; it still never stops.
 - **Transport: two gestures, and both stay.** *(PROBLEMS.md §71.)* The
   progress bar is draggable on all three listening surfaces, and the
   fifteen-second buttons are untouched. They answer different questions - the
@@ -965,6 +966,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §190):** the landing page rotates the app's three sign-up samples, so `/api/welcome` and `/api/thumb/` are open past the gate and `/api/audio` is let through for exactly those samples as replays (`_welcome_sample_request`: `cached_only`, the browse length, nothing attached, no voice, a question that is one of today's samples).
 - **Before launch the app is closed to everyone but `active` accounts, and the
   server enforces it.** *(PROBLEMS.md §183, WAITLIST.md, at the owner's
   direction.)* `WAITLIST=1` (set in the dashboard, never in `render.yaml`, so

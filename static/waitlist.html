@@ -77,6 +77,29 @@
     color:rgba(244,239,228,0.85); font-size:15px; letter-spacing:0.14em; }
   .invited{ margin:-14px 0 22px; font-size:15px; color:#F6D9A0; }
 
+  /* Today's three most-played episodes, rotating (§190): the app's sign-up
+     samples, for somebody who cannot open the app yet. Hidden with none. */
+  .samples{ margin:-6px 0 26px; }
+  .samples-kicker{ font-size:13px; color:rgba(244,239,228,0.78); margin:0 0 8px 2px; }
+  .sample{ position:relative; display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+    border:1px solid rgba(244,239,228,0.35); border-radius:14px; padding:10px 12px;
+    background:rgba(20,18,28,0.42); cursor:pointer; transition:opacity 260ms ease;
+    -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+  .sample.fading{ opacity:0; }
+  .sample-pic{ flex:none; width:64px; height:64px; border-radius:10px; background:#3A3548 center/cover no-repeat; }
+  .sample-text{ min-width:0; flex:1; }
+  .sample-title{ font-size:15.5px; line-height:1.25; color:#F6F0E4; }
+  .sample-hook{ font-size:12.5px; line-height:1.35; color:rgba(244,239,228,0.72); margin-top:3px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .sample-play{ flex:none; width:38px; height:38px; border-radius:50%; background:var(--gold); color:var(--gold-ink);
+    display:flex; align-items:center; justify-content:center; }
+  .sample-play svg{ width:15px; height:15px; }
+  .sample-dots{ display:flex; gap:6px; justify-content:center; margin-top:9px; }
+  .sample-dot{ width:6px; height:6px; border-radius:50%; border:0; padding:0; cursor:pointer;
+    background:rgba(244,239,228,0.35); }
+  .sample-dot.on{ background:var(--gold); }
+  .sample-note{ min-height:0; font-size:12.5px; color:#F6D9A0; margin:6px 2px 0; }
+
   /* ---------- status ---------- */
   .status{ max-width:440px; margin:0 auto; padding:max(28px, env(safe-area-inset-top)) 20px 56px; }
   .top{ display:flex; align-items:center; justify-content:space-between; margin:8px 0 26px; }
@@ -187,6 +210,15 @@
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
     <h1 class="headline">Listen to everything you want to know about.</h1>
     <div class="invited hidden" id="invited">A friend saved you a spot.</div>
+
+    <!-- The app's sign-up samples (§181), here too (§190): played as
+         replays, which the gate lets through for exactly these three. -->
+    <section class="samples hidden" id="samples" aria-label="Most played today">
+      <div class="samples-kicker label">Most played today</div>
+      <button type="button" class="sample" id="sampleCard"></button>
+      <div class="sample-dots" id="sampleDots"></div>
+      <div class="sample-note" id="sampleNote" role="status" aria-live="polite"></div>
+    </section>
 
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
@@ -299,6 +331,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="/fam-audio.js"></script>
 <script>
 (function(){
   "use strict";
@@ -336,9 +369,90 @@
     referral = fromUrl || sessionStorage.getItem("famReferral") || "";
   } catch(e){}
 
+  /* ---------------- samples (§190) ---------------- */
+  // The app's sign-up screen rotates today's three most-played episodes
+  // (§181); so does this page. `/api/welcome` returns only kept episodes,
+  // and each plays as a replay (`cached_only`): nothing is written and no
+  // voice wakes. A tap on the one playing pauses or resumes it.
+  var samples = [], sampleAt = 0, sampleTimer = null, samplePlaying = "";
+  var SAMPLE_TURN_MS = 4500, PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
+      PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+  var sampleState = "";  // "" | "playing" | "paused"
+  function loadSamples(){
+    fetch("/api/welcome", { credentials: "same-origin", headers: { "X-FAM-Client": "web/waitlist" } })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        samples = (d.episodes || []).slice(0, 3);
+        sampleAt = 0; drawSample();
+        clearInterval(sampleTimer);
+        if(samples.length > 1){
+          sampleTimer = setInterval(function(){
+            // Never turn away from the one being listened to.
+            if(sampleState) return;
+            turnSample(sampleAt + 1);
+          }, SAMPLE_TURN_MS);
+        }
+      })
+      .catch(function(){ samples = []; drawSample(); });
+  }
+  function turnSample(i){
+    var card = $("sampleCard");
+    if(!samples.length) return;
+    card.classList.add("fading");
+    setTimeout(function(){
+      sampleAt = (i + samples.length) % samples.length;
+      drawSample(); card.classList.remove("fading");
+    }, 260);
+  }
+  function drawSample(){
+    var box = $("samples");
+    box.classList.toggle("hidden", !samples.length);
+    if(!samples.length) return;
+    var ep = samples[sampleAt] || samples[0];
+    var title = ep.title || ep.query;
+    var on = sampleState && samplePlaying === ep.query;
+    $("sampleCard").innerHTML =
+      '<span class="sample-pic"' + (ep.thumb ? ' style="background-image:url(&quot;' + esc(ep.thumb) + '&quot;)"' : '') + '></span>'
+      + '<span class="sample-text"><span class="sample-title">' + esc(title) + '</span>'
+      + (ep.angle || ep.subtitle ? '<span class="sample-hook">' + esc(ep.angle || ep.subtitle) + '</span>' : '')
+      + '</span><span class="sample-play" aria-hidden="true">' + (on && sampleState === "playing" ? PAUSE : PLAY) + '</span>';
+    $("sampleCard").setAttribute("aria-label", (on && sampleState === "playing" ? "Pause " : "Play ") + title);
+    $("sampleDots").innerHTML = samples.length > 1 ? samples.map(function(_, j){
+      return '<button type="button" class="sample-dot' + (j === sampleAt ? ' on' : '')
+        + '" aria-label="Sample ' + (j + 1) + '" data-i="' + j + '"></button>';
+    }).join("") : "";
+  }
+  function playSample(){
+    var ep = samples[sampleAt];
+    if(!ep || !window.FamAudio) return;
+    var note = $("sampleNote");
+    if(sampleState && samplePlaying === ep.query){
+      if(sampleState === "playing"){ window.FamAudio.pause(); sampleState = "paused"; }
+      else { window.FamAudio.resume(); sampleState = "playing"; }
+      drawSample(); return;
+    }
+    samplePlaying = ep.query; sampleState = "playing";
+    note.textContent = "Starting the episode…";
+    drawSample();
+    window.FamAudio.play(ep.query, ep.minutes || 2, {
+      onFirstAudio: function(){ note.textContent = ""; },
+      onEnd: function(){ sampleState = ""; samplePlaying = ""; drawSample(); },
+      onError: function(err){
+        sampleState = ""; samplePlaying = ""; drawSample();
+        note.textContent = (err && err.message) || "That episode could not be played just now.";
+      }
+    }, "", null, { cachedOnly: true });
+  }
+  $("sampleCard").addEventListener("click", playSample);
+  $("sampleDots").addEventListener("click", function(ev){
+    var i = ev.target && ev.target.getAttribute("data-i");
+    if(i !== null && i !== undefined && i !== "") turnSample(Number(i));
+  });
+
   /* ---------------- landing ---------------- */
   function showLanding(){
     $("landing").classList.remove("hidden");
+    loadSamples();
     if(referral) $("invited").classList.remove("hidden");
     var stage = "email";
     $("joinForm").addEventListener("submit", function(ev){
