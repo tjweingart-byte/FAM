@@ -373,7 +373,9 @@ def test_the_rail_and_the_section_screen_draw_one_line():
     depending on which surface was drawing it.
     """
     page = _page()
-    assert page.count("seedHook(") == 3, "one definition, two call sites"
+    # Three call sites since §186: the sign-up screen's sample card draws its
+    # line through the same function as the rail and the section screen.
+    assert page.count("seedHook(") == 4, "one definition, three call sites"
     assert "seedWhy" not in page, "the old name is still reachable"
 
 
