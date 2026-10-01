@@ -144,6 +144,8 @@
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
 <!-- rule:op-taste-vocab -->
+> **Current (PROBLEMS.md §187):** the weights are the owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5 - so "share and vibe weigh the same" and "between a play and a completion" below are history. "The country is stored and never ranks" is narrowed: it never boosts, but it excludes minor-league games from other continents on Made for you (`mfy-field-variety`).
+
 5. **The taste model is crude, and the vocabulary is no longer the ceiling.**
    *(§121. Four changes, in the order they were asked for, and the fourth is
    the one that removes a limit rather than tuning under it.)*
@@ -319,6 +321,27 @@
   not add a dismiss-a-tile control back to any surface without asking. (Go
   Deeper's X, which closes a suggested follow-up, is a different thing and
   stays.)
+
+<!-- rule:mfy-field-variety -->
+- **Made for you: subjects are filed by field, variety never gives way, no
+  far minor league, markets on a money taste** *(PROBLEMS.md §187, at the
+  owner's direction, after one search about a flight to Israel filled the
+  rail with Middle East sport).* A search is filed under the fields it is
+  about (`TAG_WORDS` travel/places/sports, `_names_a_sport`, seeded leagues
+  and Middle East subjects). A subject vouches for a live story only in its
+  own field: `topic_tags` adds tree matches inside the tile's declared
+  headings only, `_is_broad_match` reads `_in_field`, a sports signal is
+  filed under sport alone and a market move as `money/markets/stock market`.
+  `familiar_words` files each word under its event's fields; a word from an
+  unplaceable event vouches anywhere but sport; place words everywhere; a
+  semantic near-match only in a field the listener has taste for. A game
+  outside `MAJOR_LEAGUES` on another continent than the listener's is never
+  offered unless they follow a subject on it (`_far_minor_league`; unknown
+  continent = none). `diversify(strict=True)` and a capped top-up hold the
+  rail (and its View more) to `MAX_PER_FACET` per heading. A market move is
+  on subject for any positive `money` taste (`_follows_markets`), and the
+  rail ranks every story the pool holds (`made_for_you_candidates`), not
+  only what the shared cap shows.
 
 <!-- rule:op-taste-scoring -->
 5b. **The taste model is crude, and less crude than it was.**

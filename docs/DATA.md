@@ -239,18 +239,18 @@ flowchart TB
 
 ### 6.1 Inputs
 
-- **Event weights** (`topics.py:1513`):
+- **Event weights** (`topics.EVENT_WEIGHT`, the owner's numbers since §187):
 
   | Event | Weight |
   |---|---|
-  | search | 1.0 |
+  | search | 2.0 |
   | play | 1.0 |
-  | complete (≥ 85 % heard) | 2.5 |
-  | skip | −1.5 |
+  | complete (≥ 85 % heard) | 2.0 |
+  | skip | −0.5 |
   | pick | 1.6 |
   | share | 2.0 |
-  | vibe | 2.0 |
-  | save | 1.5 |
+  | vibe | 2.5 |
+  | save | 2.0 |
 
   **Impressions carry no weight.** An impression can make a tile *tired*; it
   can never create taste. Otherwise the feed would teach itself its own

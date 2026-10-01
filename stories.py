@@ -266,6 +266,11 @@ class Signal:
     #: The provider's status for `live_line`, in `live_facts`' closed
     #: vocabulary (`scheduled`/`in_progress`/`final`).
     live_status: str = ""
+    #: A game in a league outside `live_sources.MAJOR_LEAGUES` (§187). Set by
+    #: the sports source from the provider's own league row, never guessed
+    #: from the words. Made for you never offers one from another continent
+    #: to a listener who does not follow it - see `topics._far_minor_league`.
+    minor_league: bool = False
 
     @property
     def id(self) -> str:
@@ -450,6 +455,8 @@ class Story:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: `Signal.minor_league`, carried through (§187).
+    minor_league: bool = False
 
     @property
     def id(self) -> str:
@@ -932,6 +939,7 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         live_line=signal.live_line,
         live_status=signal.live_status,
         live_as_of=now if signal.live_line else 0.0,
+        minor_league=bool(getattr(signal, "minor_league", False)),
     )
 
 

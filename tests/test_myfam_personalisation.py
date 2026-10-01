@@ -272,20 +272,26 @@ def test_no_rail_becomes_one_subject(store):
             f"{section['key']} is dominated by one subject: {facets}")
 
 
-def test_a_listener_with_one_interest_still_gets_a_full_rail(store):
-    """The cost of the cap, stated so it is a known trade rather than a
-    surprise. Somebody whose entire history is sport has nothing else with any
-    affinity, so the cap has nothing to reach for - and a two-tile rail would
-    read as broken where a samey six-tile one reads as a taste. The variety
-    rule is a cap on what is available, never a quota on what is not.
-    """
+def test_a_listener_with_one_interest_gets_variety_not_a_samey_rail(store):
+    """§187 reverses the old trade, at the owner's direction ("there should
+    absolutely be variety in episodes in someone's made for you"). Somebody
+    whose whole history is sport gets at most `MAX_PER_FACET` sport tiles on
+    Made for you: with the floor off the rail is short and honest, and with
+    the real floor it is filled from other headings - never put back to four
+    games."""
     stories.seed([story(f"game {n}", ("sports", "sports-drama"))
                   for n in range(8)])
     for _ in range(4):
         play(store, "me", "golf-evolution", kind="complete", tags=("sports",))
     feed = T.build_feed(store, "me", floors={})
     made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
+    assert len(made["topics"]) == T.MAX_PER_FACET
+
+    feed = T.build_feed(store, "me")
+    made = [s for s in feed["sections"] if s["key"] == "from_history"][0]
     assert len(made["topics"]) == T.SECTION_SIZE
+    sport = [t for t in made["topics"] if "sports" in t["tags"]]
+    assert len(sport) <= T.MAX_PER_FACET
 
 
 def test_the_variety_cap_holds_while_there_is_something_to_reach_for():

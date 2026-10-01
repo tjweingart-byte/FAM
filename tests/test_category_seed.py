@@ -238,16 +238,27 @@ def test_two_tiles_sharing_a_question_keep_their_own_declared_tags(seeded):
     query, but a live story and a bank topic are minted by different code."""
     query = "what is happening in college football"
     first = T.Topic("a", "A", "", query, ("sports",), "sports")
-    second = T.Topic("b", "B", "", query, ("world", "money"), "world")
+    second = T.Topic("b", "B", "", query, ("sports", "money"), "sports")
 
     assert "sports" in T.topic_tags(first)
     tags = T.topic_tags(second)
-    assert {"world", "money"} <= set(tags), tags
+    assert {"sports", "money"} <= set(tags), tags
     assert "college football" in tags, "the tree's half should still apply"
     # ...and asking in the other order gives the same two answers.
     T.reset_topic_tags()
     assert set(T.topic_tags(second)) == set(tags)
-    assert "world" not in T.topic_tags(first)
+    assert "money" not in T.topic_tags(first)
+
+
+def test_the_tree_only_adds_within_a_tiles_own_field(seeded):
+    """§187: a tile's question can name a subject from another field by
+    coincidence - a club named after its city - and the tree must not file
+    the tile there. Within the field it still adds."""
+    game = T.Topic("g", "G", "", "maccabi tel aviv vs hapoel haifa nba game",
+                   ("sports",), "sports")
+    tags = set(T.topic_tags(game))
+    assert "nba" in tags
+    assert not tags & {"tel aviv", "israel", "middle east", "world"}, tags
 
 
 def test_the_tile_memo_is_dropped_when_the_tree_changes(store):
