@@ -4714,7 +4714,7 @@ def _categorise_written_tile(tile: dict, words: str) -> None:
     if not node:
         return
     text = " ".join(str(tile.get(k, "")) for k in ("title", "angle", "query"))
-    tags = stories_mod.category_tags(node, text)
+    tags = stories_mod.refine_tags(tile.get("tags") or (), node, text)
     tile["tags"] = list(tags)
     found = thumbnails.pick(tile.get("query", ""), tags, category=node)
     tile["thumb"] = found["url"] if found else ""
@@ -4747,9 +4747,10 @@ def _event_tags(topic_id: str, text: str, minutes: int) -> tuple:
 
     A bank or catalogue tile declares its own tags and keeps them. A startup
     question keeps its facet and gains the episode's category beside it. A
-    live story, or anything else, takes the episode's category outright: the
-    writer read the research, and the tags it replaces were matched off
-    headline words before anything was. So the taste model learns "boxing"
+    live story, or anything else, is corrected by it (`stories.refine_tags`):
+    the category is added and tags of another facet - matched off headline
+    words before anything was researched - are dropped, while its own
+    facet's tags (a team, a league) stay. So the taste model learns "boxing"
     from a play of a boxing episode, not "science" from a headline that said
     "study"."""
     tags = topics_mod.tags_for_id(topic_id, text)
@@ -4761,10 +4762,10 @@ def _event_tags(topic_id: str, text: str, minutes: int) -> tuple:
         return tags
     import stories as stories_mod
 
-    refined = stories_mod.category_tags(node, text)
     if topic_id in topics_mod.STARTUP_BY_ID:
-        return tuple(sorted(set(tags) | set(refined)))
-    return refined
+        return tuple(sorted(set(tags)
+                            | set(stories_mod.category_tags(node, text))))
+    return stories_mod.refine_tags(tags, node, text)
 
 
 def _audio_is_kept(query: str, minutes: int) -> bool:

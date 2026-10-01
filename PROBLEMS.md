@@ -14606,9 +14606,13 @@ instance of it the index prefers.
   told to pick the most specific true one. `resolve_category` resolves the
   answer in code - a node id, a facet or its label, else the deepest node
   `tree.match` finds, else "" - so nothing the tree cannot place reaches a
-  tile. A categorised story's tags become the category, its ancestry and
-  same-facet keyword subtags only (`category_tags`), so it is ranked under the
-  facet it is drawn under.
+  tile. A categorised *news* story's tags are corrected by it
+  (`stories.refine_tags`): the category and its ancestry are added, tags of
+  another facet are dropped, and everything in its own facet - or claimed by
+  no facet - stays, so it is ranked under the facet it is drawn under without
+  losing a team or league tag. A game or a market move keeps the tags its
+  provider filed it under (§187's `_in_field`); its category decides only the
+  picture.
 * **`Story.category` -> `Topic.category` -> `thumbnails.pick(category=)`**,
   which outranks the words. Without an approved picture `thumb_facet` still
   carries the category's facet and `seedTagText` reads it before `tags[0]`.
@@ -14658,9 +14662,12 @@ without one keeps the old, like `title`). It is resolved against the tree
 where it is read (`stories.resolve_category`), so a tree that grows later
 can still place an older episode. A written tile's tags, picture and facet
 word are redrawn from it (`_categorise_written_tile`); words the tree cannot
-place change nothing. Plays are logged through `app._event_tags`: a bank or
+place change nothing; the same `refine_tags` keeps a written tile's own
+facet's tags. Plays are logged through `app._event_tags`: a bank or
 catalogue tile keeps its declared tags, a startup question gains the
-category beside its facet, and a live story takes the category outright - so
+category beside its facet, and anything else is corrected by it
+(`refine_tags`: the category added, other facets' tags dropped, its own
+facet's kept) - so
 the taste model learns "boxing" from a boxing episode rather than "science"
 from a headline that said "study". Prefetch now stores title, summary and
 category too; it stored none, so a warmed episode's tile could never have

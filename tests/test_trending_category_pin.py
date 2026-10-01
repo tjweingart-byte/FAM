@@ -198,3 +198,28 @@ def test_a_category_without_a_picture_still_names_the_facet(tree):
                    query="a press conference", tags=("boxing", "sports"),
                    icon="", category="mixed martial arts")
     assert tile.as_dict()["thumb_facet"] == "sports"
+
+
+def test_a_category_never_costs_a_story_its_own_facets_tags(tree):
+    """§155: a live game reaches Made for you only when its tags name
+    something the listener follows. A category corrects the facet; it must
+    not drop the team and league tags that make that match."""
+    tags = stories.refine_tags(
+        ("cincinnati bengals", "american football", "science", "sports"),
+        "american football", "Bengals at Steelers")
+    assert {"cincinnati bengals", "american football", "sports"} <= set(tags)
+    assert "science" not in tags
+
+
+def test_a_category_never_refiles_a_game(tree, monkeypatch):
+    """A game is filed under sport by its provider (§187); a composed
+    category picks its picture and leaves its tags alone."""
+    signal = stories.Signal(subject="Bengals at Steelers",
+                            observation="kick-off at 8pm",
+                            domain=stories.SPORTS,
+                            tags=("american football", "sports"))
+    story = stories._story_from(signal, "Bengals at Steelers", "What decides it",
+                                "what decides Bengals at Steelers", False, 0.0,
+                                category="team ownership")
+    assert story.tags == ("american football", "sports")
+    assert story.category == "team ownership"

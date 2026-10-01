@@ -954,13 +954,15 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
                 degraded: bool, now: float, category: str = "") -> Story:
     scope, key, label = _geography(signal.countries, signal.region_hint)
     tags = tuple(signal.tags)
-    if category:
+    if category and signal.domain == ATTENTION:
         # The composer read the whole story and said what it is; the keyword
         # tags read headline words one at a time ("study" made a boxing press
-        # conference SCIENCE). Its category and that category's ancestry are
-        # the tags, so the facet a tile is ranked and labelled under is the
-        # one the picture is drawn from.
-        tags = category_tags(category, f"{title} {angle} {query}")
+        # conference SCIENCE). Its category corrects them, so the facet a
+        # tile is ranked and labelled under is the one the picture is drawn
+        # from. News only: a game or a market move is filed by its provider
+        # under its own field (§187, `story_sources._in_field`), and the
+        # category then decides the picture and nothing else.
+        tags = refine_tags(signal.tags, category, f"{title} {angle} {query}")
     return Story(
         subject=signal.subject,
         title=title.strip()[:80],
@@ -1065,19 +1067,11 @@ def _facets() -> frozenset:
 
 
 def facet_for(tag: str) -> str:
-    """The facet a tag or a category-tree node sits under, or ""."""
+    """The facet a tag or a category-tree node sits under, or "" - the one
+    definition, `topics._root_facet` (§187)."""
     import topics
 
-    if tag in topics.FACETS:
-        return tag
-    parent = topics.TAG_PARENT.get(tag, "")
-    if parent:
-        return parent
-    try:
-        chain = topics.category_tree().ancestors(tag)
-    except Exception:  # noqa: BLE001
-        return ""
-    return next((a for a in reversed(chain) if a in topics.FACETS), "")
+    return topics._root_facet(tag)
 
 
 def resolve_category(text: str) -> str:
@@ -1133,6 +1127,21 @@ def category_tags(category: str, text: str = "") -> tuple:
             tags.update(t for t in topics.tags_for_text(text)
                         if facet_for(t) == facet)
     return tuple(sorted(t for t in tags if t))
+
+
+def refine_tags(existing, category: str, text: str = "") -> tuple:
+    """`existing` tags, corrected by a category.
+
+    The category and its ancestry are added (`category_tags`), and of what
+    was there only the tags of *another* facet are dropped - the "science"
+    a headline's "study" put on a boxing story. Everything in the category's
+    facet stays, and so does anything no facet claims: a sports story's team
+    and league tags are what lets it reach Made for you for somebody who
+    follows that team (§155), and a category is never a reason to lose that.
+    """
+    facet = facet_for(category)
+    kept = {t for t in (existing or ()) if facet_for(t) in (facet, "")}
+    return tuple(sorted(kept | set(category_tags(category, text))))
 
 
 _ANCHOR_WORD = re.compile(r"[a-z0-9]+")
