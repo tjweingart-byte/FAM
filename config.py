@@ -1438,6 +1438,11 @@ class Settings:
     # *gives* is not decided yet; the page counts down to the next one.
     waitlist_unlocks: str = field(
         default_factory=lambda: os.environ.get("WAITLIST_UNLOCKS", "1,3,5"))
+    # How many new invites one code may credit in an hour (0 = no cap).
+    # Nothing about a signup is verified, so without this a script with one
+    # code and made-up addresses could buy the front of the line. Past the
+    # cap people still join; they just do not move the inviter up.
+    waitlist_referrals_per_hour: int = _env_int("WAITLIST_REFERRALS_PER_HOUR", 20)
     # Viral Loops: referral tracking, fraud checks and email, never the source
     # of truth. Both unset means nothing is sent and every call waits in the
     # outbox (viral_loops.py). The token is server-only.

@@ -2070,6 +2070,9 @@ def _reachable(me: str, other: str) -> bool:
     The exception is a friendship that already exists: people already in each
     other's graph keep seeing each other whatever either one's status.
     """
+    if not settings.waitlist:
+        # Launch: everybody is findable again, whatever their row still says.
+        return True
     if other not in WAITLIST.waitlisted_among([other]):
         return True
     return _in_graph(me, other)
@@ -2077,7 +2080,8 @@ def _reachable(me: str, other: str) -> bool:
 
 def _mark_waitlisted(people: list[dict]) -> list[dict]:
     """Label who is still on the waitlist, for "Still on the waitlist"."""
-    waiting = WAITLIST.waitlisted_among(p["user_id"] for p in people)
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in people)
+               if settings.waitlist else set())
     for person in people:
         person["waitlisted"] = person["user_id"] in waiting
     return people
@@ -2251,7 +2255,8 @@ async def people_search(request: Request,
     # Waitlisted accounts are not in the directory at all - friends included:
     # a friend is already on the Friends list, and search is discovery.
     found = SOCIAL.find_people(q, exclude_user=user, limit=40)
-    waiting = WAITLIST.waitlisted_among(p["user_id"] for p in found)
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in found)
+               if settings.waitlist else set())
     found = [p for p in found if p["user_id"] not in waiting][:20]
     following = {p["user_id"] for p in SOCIAL.following(user)}
     for person in found:
@@ -2552,7 +2557,10 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     user = _require_account(request)
     # Messaging opens with the app (WAITLIST.md §4): nobody on the waitlist
     # sends, and nothing is sent to somebody who could not open it.
-    waiting = WAITLIST.waitlisted_among([user, req.to])
+    # Only while the waitlist runs: at launch (WAITLIST=0) everybody may
+    # message, whatever an old row still says.
+    waiting = (WAITLIST.waitlisted_among([user, req.to])
+               if settings.waitlist else set())
     if waiting:
         raise HTTPException(status_code=403, detail=(
             "Messages open when you are let in off the waitlist."
@@ -3423,6 +3431,10 @@ WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/")
 WAITLIST_OPEN_PATHS = frozenset({
     "/api/health", "/api/voice/register", "/api/client-status",
     "/api/me", "/api/preferences",
+    # Their account: read it, rename it, and above all delete it. Deleting
+    # an account has to be reachable by everybody who has one (App Store
+    # 5.1.1(v)), the waitlisted included.
+    "/api/account",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
 #: link is a list of episodes to browse, which is the app. A shared *episode*
@@ -3489,7 +3501,11 @@ def _waitlist_refusal(request: Request, listener):
                          listener.status else "guest",
              "redirect": target},
             status_code=403, headers={"X-FAM-Waitlist": target})
-    if path in WAITLIST_CLOSED_PAGES or path.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
+    # Normalised, because the static mount serves the shell for `/index.html/`
+    # and `//` too, and a gate that matches only the spellings it thought of
+    # is a gate with a side door.
+    page = "/" + path.strip("/")
+    if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
         query = request.url.query
         return RedirectResponse(target + ("?" + query if query else ""),
                                 status_code=302)
@@ -7026,7 +7042,11 @@ def _waitlist_after_signup(user_id: str, referral_code: str = "") -> None:
     try:
         if WAITLIST.status_of(user_id) != waitlist_mod.WAITLISTED:
             return
-        joined = WAITLIST.join(user_id, referral_code)
+        joined = WAITLIST.join(user_id, referral_code,
+                               referrals_per_hour=settings.waitlist_referrals_per_hour)
+        if joined.get("capped"):
+            log.warning("waitlist: invite code %r passed its hourly cap; %r joined"
+                        " without crediting it", referral_code, user_id)
         if joined["referrer"]:
             for a, b in ((user_id, joined["referrer"]), (joined["referrer"], user_id)):
                 try:
@@ -7057,7 +7077,7 @@ async def _drain_viral_loops_forever(every: float = 300.0) -> None:
     while True:
         try:
             result = await viral_loops_mod.drain(WAITLIST, VIRAL_LOOPS)
-            if result["sent"] or result["failed"]:
+            if result["sent"] or result["failed"] or result["refused"]:
                 log.info("viral loops outbox: %s", result)
         except Exception:  # noqa: BLE001 - a loop that dies stops retrying
             log.exception("viral loops outbox drain failed")
@@ -7153,8 +7173,7 @@ async def waitlist_me(request: Request) -> dict:
     user = _require_account(request)
     status = WAITLIST.status_of(user)
     code = WAITLIST.ensure_code(user)
-    ordered = WAITLIST.ordered() if status == waitlist_mod.WAITLISTED else []
-    place = next((r["place"] for r in ordered if r["user_id"] == user), None)
+    place = WAITLIST.place_of(user)
     cutoff = WAITLIST.cutoff()
     invites = WAITLIST.invites_of(user)
     friends = SOCIAL.friends(user)
@@ -7170,7 +7189,7 @@ async def waitlist_me(request: Request) -> dict:
         "waitlist": settings.waitlist,
         "name": profile["name"] or account.get("display_name") or "",
         "place": place,
-        "total": len(ordered),
+        "total": WAITLIST.waitlisted_count() if place is not None else 0,
         "cutoff": cutoff,
         "places_until": (max(0, place - cutoff) if place is not None else None),
         "in_next_batch": bool(place is not None and cutoff and place <= cutoff),

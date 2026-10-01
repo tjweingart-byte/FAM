@@ -14281,3 +14281,30 @@ comes from the app's own `/api/audio`, that endpoint is let through only for
 exactly what was shared: that question, that length, `surface=share`,
 nothing attached (`ShareStore.is_shared`, `_shared_episode_request`). Any
 other question through the same URL still answers 403. Mix links stay closed.
+
+**Review before merging into Main (01/10).** Merged Main in first: Main had
+taken §180-§182 meanwhile, so this section is §183. An independent pass over
+the whole diff found no way round the gate (`/api/v1`, trailing slashes,
+case, HEAD/OPTIONS and `..` were all refused) and nothing that could write
+`status`; it found these, each now fixed with a test:
+
+* *A waitlisted account could not be deleted* - `/api/account` was behind the
+  gate. It is open to them now, with Delete account on the status page.
+* *Launch would not have lifted the rules.* Discovery and messaging checked
+  the row, not the switch, so anyone never granted would have stayed hidden
+  after `WAITLIST=0`. Both now apply only while the waitlist runs.
+* *Invites could be farmed.* Signups are unverified and the place in line
+  counts invites, so one code with made-up addresses could reach #1. A code
+  now credits at most `WAITLIST_REFERRALS_PER_HOUR` (20) an hour - keyed on
+  the code, since an address can be forged per request (`app._limit_key`).
+* *Two drains could send one call twice* (a second welcome email): every
+  signup kicks a drain. One drain runs at a time now (a lock per loop).
+* *A refused call was retried hourly for ever.* A 4xx other than 408/429 is
+  now finished with its error kept, and counted on the admin page.
+* Smaller: `/index.html/` and `//` served the app shell to a guest (the API
+  still refused them); the page path is normalised now. Place in line is a
+  COUNT query rather than a sort of the whole line on every status-page load.
+
+Known and left: deleting an account does not tell Viral Loops; the admin
+table reads two stores per row, which is fine at thousands and not at
+hundreds of thousands.

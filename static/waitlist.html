@@ -220,6 +220,7 @@
   <div class="menu hidden" id="menu" role="menu">
     <button type="button" role="menuitem" onclick="scrollToProfile()">Edit profile</button>
     <button type="button" role="menuitem" onclick="signOut()">Sign out</button>
+    <button type="button" role="menuitem" onclick="deleteAccount()" style="color:#FFB4A2">Delete account</button>
   </div>
 
   <div class="hello">
@@ -527,6 +528,15 @@
     } else { window.copyLink(); }
   };
   window.scrollToProfile = function(){ $("menu").classList.add("hidden"); $("profile").scrollIntoView({ behavior: "smooth" }); };
+  // Deleting an account is reachable by everybody who has one, the
+  // waitlisted included: it erases the account, its place and its profile.
+  window.deleteAccount = function(){
+    $("menu").classList.add("hidden");
+    if(!window.confirm("Delete your FAM account? Your place in line, your profile and your invites go with it. This can’t be undone.")) return;
+    api("/api/account", null, "DELETE")
+      .then(function(){ location.replace("/waitlist"); })
+      .catch(function(e){ toast(e.message); });
+  };
   window.signOut = function(){
     api("/api/auth/logout", {}).catch(function(){}).then(function(){ location.replace("/waitlist"); });
   };

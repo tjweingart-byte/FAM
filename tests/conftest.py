@@ -130,7 +130,8 @@ FAM_ENVIRONMENT = (
     # The waitlist (WAITLIST.md). A developer with WAITLIST=1 set must not run
     # a suite in which the app answers every guest 403, and one with a Viral
     # Loops token must not run a suite that registers people with the vendor.
-    "WAITLIST", "WAITLIST_UNLOCKS", "VIRAL_LOOPS_API_TOKEN",
+    "WAITLIST", "WAITLIST_UNLOCKS", "WAITLIST_REFERRALS_PER_HOUR",
+    "VIRAL_LOOPS_API_TOKEN",
     "VIRAL_LOOPS_CAMPAIGN_ID",
     "FAM_ENV_FILE", "HOST", "MAX_OUTPUT_TOKENS", "MAX_WEB_SEARCHES",
     "MAX_WPM", "MIN_WPM", "MODEL", "PORT", "PREROLL_SECONDS",

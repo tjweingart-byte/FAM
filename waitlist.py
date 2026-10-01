@@ -159,7 +159,7 @@ class Waitlist:
         return row[0] if row else ""
 
     def join(self, user_id: str, referral_code: str = "",
-             at: float = 0.0) -> dict:
+             at: float = 0.0, referrals_per_hour: int = 0) -> dict:
         """Record the waitlist half of a new account: its code and its inviter.
 
         The account itself was created by the ordinary sign-up (so it is the
@@ -168,7 +168,16 @@ class Waitlist:
         that does not exist, or that is the joiner's own, is ignored rather
         than refused - a stale link must never stop somebody joining.
 
-        Returns {"referrer": id or "", "code": their own code}.
+        **A code credits at most `referrals_per_hour` new invites an hour**
+        (0 = no cap). Invites decide who is let in first, and nothing about a
+        signup is verified - no email is sent - so a script with one code and
+        a list of made-up addresses could otherwise buy the front of the line.
+        The cap is keyed on the code because the code is the one thing such a
+        script cannot vary; an address can be forged per request (see
+        `app._limit_key`). Past the cap the person still joins, just without
+        moving their inviter up, and `capped` says so.
+
+        Returns {"referrer": id or "", "code": their own code, "capped": bool}.
         """
         now = at or time.time()
         account = self.accounts.account(user_id)
@@ -178,6 +187,13 @@ class Waitlist:
         referrer = self.user_for_code(referral_code)
         if referrer == user_id:
             referrer = ""
+        capped = False
+        if referrer and referrals_per_hour > 0:
+            recent = self._conn().execute(
+                "SELECT COUNT(*) FROM accounts WHERE referred_by = ?"
+                " AND created >= ?", (referrer, now - 3600)).fetchone()[0]
+            if recent >= referrals_per_hour:
+                capped, referrer = True, ""
         if referrer:
             self._conn().execute(
                 "UPDATE accounts SET referred_by = ? WHERE user_id = ?"
@@ -189,7 +205,8 @@ class Waitlist:
         row = self._conn().execute(
             "SELECT referred_by FROM accounts WHERE user_id = ?", (user_id,)
         ).fetchone()
-        return {"referrer": row[0] if row else "", "code": code}
+        return {"referrer": row[0] if row else "", "code": code,
+                "capped": capped}
 
     # --- reading ----------------------------------------------------------
 
@@ -247,11 +264,38 @@ class Waitlist:
                 for n, r in enumerate(rows, start=1)]
 
     def place_of(self, user_id: str) -> Optional[int]:
-        """Their place in line, or None when they are not waitlisted."""
-        for row in self.ordered():
-            if row["user_id"] == user_id:
-                return row["place"]
-        return None
+        """Their place in line, or None when they are not waitlisted.
+
+        Counted rather than read off `ordered()`: the status page asks on
+        every load, and sorting the whole line to find one person is the
+        cost that grows with the line. Same order as `ordered()` - more
+        invites first, then earlier join, then id - which a test pins.
+        """
+        me = self._conn().execute(
+            "SELECT a.status, CASE WHEN a.waitlist_joined_at > 0"
+            "  THEN a.waitlist_joined_at ELSE a.created END,"
+            " (SELECT COUNT(*) FROM accounts r WHERE r.referred_by = a.user_id)"
+            " FROM accounts a WHERE a.user_id = ?", (user_id,)).fetchone()
+        if not me or me[0] != WAITLISTED:
+            return None
+        _status, joined, invites = me
+        ahead = self._conn().execute(
+            "SELECT COUNT(*) FROM ("
+            "  SELECT a.user_id,"
+            "    CASE WHEN a.waitlist_joined_at > 0 THEN a.waitlist_joined_at"
+            "         ELSE a.created END AS joined,"
+            "    (SELECT COUNT(*) FROM accounts r WHERE r.referred_by = a.user_id)"
+            "      AS invites"
+            "  FROM accounts a WHERE a.status = ?)"
+            " WHERE invites > ? OR (invites = ? AND (joined < ?"
+            "   OR (joined = ? AND user_id < ?)))",
+            (WAITLISTED, invites, invites, joined, joined, user_id)).fetchone()[0]
+        return int(ahead) + 1
+
+    def waitlisted_count(self) -> int:
+        return int(self._conn().execute(
+            "SELECT COUNT(*) FROM accounts WHERE status = ?", (WAITLISTED,)
+        ).fetchone()[0])
 
     def counts(self, now: float = 0.0) -> dict:
         now = now or time.time()
@@ -357,6 +401,15 @@ class Waitlist:
             "UPDATE waitlist_outbox SET attempts = ?, next_at = ?, last_error = ?"
             " WHERE id = ?", (attempts, now + delay, str(error)[:500], item_id))
 
+    def mark_given_up(self, item_id: int, error: str, at: float = 0.0) -> None:
+        """A call the vendor refused outright (a 4xx other than 429): retrying
+        cannot change the answer, so it is finished - with the error kept, so
+        it stays visible on the admin page rather than vanishing."""
+        self._conn().execute(
+            "UPDATE waitlist_outbox SET done_at = ?, attempts = attempts + 1,"
+            " last_error = ? WHERE id = ?",
+            (at or time.time(), "refused: " + str(error)[:490], item_id))
+
     def outbox_summary(self) -> dict:
         row = self._conn().execute(
             "SELECT COUNT(*), COALESCE(MAX(attempts), 0) FROM waitlist_outbox"
@@ -364,8 +417,16 @@ class Waitlist:
         last = self._conn().execute(
             "SELECT last_error FROM waitlist_outbox WHERE done_at = 0"
             " AND last_error != '' ORDER BY id DESC LIMIT 1").fetchone()
+        refused = self._conn().execute(
+            "SELECT COUNT(*) FROM waitlist_outbox WHERE done_at > 0"
+            " AND last_error LIKE 'refused: %'").fetchone()[0]
+        last_refused = self._conn().execute(
+            "SELECT last_error FROM waitlist_outbox WHERE done_at > 0"
+            " AND last_error LIKE 'refused: %' ORDER BY id DESC LIMIT 1").fetchone()
         return {"pending": int(row[0]), "max_attempts": int(row[1]),
-                "last_error": last[0] if last else ""}
+                "last_error": last[0] if last else "",
+                "refused": int(refused),
+                "last_refused": last_refused[0] if last_refused else ""}
 
     def set_vendor_ids(self, user_id: str, referral_code: str = "",
                        participant_id: str = "") -> None:

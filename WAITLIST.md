@@ -93,7 +93,26 @@ section when a decision changes, including why.
 12. **"Watch the video" is not drawn** - there is no video yet, and a control
     with nothing behind it is worse than none. The hero photo is a drawn dusk
     gradient until there is a licensed image (set `--hero` on `.landing`).
-13. **Still open (ask the owner):** what each unlock gives (the tiers are
+13. **The waitlist rules end at launch, not when each row changes.** Hidden
+    from discovery and no messaging apply only while `WAITLIST=1`; setting it
+    to 0 lifts them for everybody, including anyone never granted, so launch
+    is one switch rather than a cleanup of rows.
+14. **A waitlisted account can be deleted** (Delete account on the status
+    page; `/api/account` is open to them). Deleting removes it from FAM; it
+    does not yet tell Viral Loops, so the address stays with the vendor until
+    it is removed there by hand.
+15. **One invite code credits at most `WAITLIST_REFERRALS_PER_HOUR` (20)
+    invites an hour.** Nothing about a signup is verified, so without a cap a
+    script with one code and made-up addresses could buy the front of the
+    line. The cap is keyed on the code because it is the one thing such a
+    script cannot vary (an address can be forged per request). People past
+    the cap still join; they do not move the inviter up. "Grant the top N"
+    is still a person's decision - look at the table before granting.
+16. **Viral Loops calls are sent once and given up on when refused.** One
+    drain runs at a time, so no call is sent twice; a 4xx other than 408/429
+    is a refusal retrying cannot change, finished with its error kept and
+    shown on the admin page.
+17. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

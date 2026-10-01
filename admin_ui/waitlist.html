@@ -126,6 +126,7 @@
     var vendorLines = [];
     if (!v.configured) vendorLines.push("Viral Loops is not configured (VIRAL_LOOPS_CAMPAIGN_ID / VIRAL_LOOPS_API_TOKEN). Calls wait in the outbox.");
     if (v.pending) vendorLines.push(n(v.pending) + " Viral Loops call(s) waiting" + (v.last_error ? ". Last error: " + esc(v.last_error) : "."));
+    if (v.refused) vendorLines.push(n(v.refused) + " call(s) refused by Viral Loops and not retried. Latest: " + esc(v.last_refused));
     $("vendor").hidden = !vendorLines.length;
     $("vendor").innerHTML = vendorLines.join("<br>");
     if (document.activeElement !== $("cutoff")) $("cutoff").value = DATA.cutoff;

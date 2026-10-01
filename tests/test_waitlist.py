@@ -141,7 +141,7 @@ def test_outbox_delivers_and_keeps_the_vendor_code(acc, wl):
     wl.join("a")
     wl.enqueue("a", "register")
     result = asyncio.run(vl_mod.drain(wl, _vendor(handler)))
-    assert result == {"sent": 1, "failed": 0, "skipped": 0}
+    assert result == {"sent": 1, "failed": 0, "refused": 0, "skipped": 0}
     path, token, body = seen[0]
     assert path.endswith("/campaign/participant") and token == "secret"
     assert body["user"]["email"] == "a@fam.test" and body["campaignId"] == "camp-1"
@@ -168,7 +168,7 @@ def test_unconfigured_sends_nothing(acc, wl):
     acc.sign_up("a", "a@fam.test", PASSWORD)
     wl.enqueue("a", "register")
     assert asyncio.run(vl_mod.drain(wl, vl_mod.ViralLoops())) == {
-        "sent": 0, "failed": 0, "skipped": 0}
+        "sent": 0, "failed": 0, "refused": 0, "skipped": 0}
     assert wl.outbox_summary()["pending"] == 1
 
 
@@ -288,18 +288,20 @@ def test_waitlisted_are_out_of_discovery_but_friends_still_see_them(world, monke
     waiting, _ = _join("w@fam.test")
     waiting.post("/api/me", json={"name": "Wes", "handle": "wes"})
     wes = waiting.get("/api/auth/me").json()["user_id"]
-    monkeypatch.setattr(appmod, "settings",
-                        dataclasses.replace(appmod.settings, waitlist=False))
-    appmod.ACCOUNTS.new_account_status = "active"
-    stranger = TestClient(appmod.app)
-    stranger.post("/api/auth/signup", json={"email": "s@fam.test", "password": PASSWORD})
+
+    def member(email):
+        """An active account, made while the waitlist runs: joined, then let in."""
+        c, _ = _join(email)
+        appmod.WAITLIST.grant([c.get("/api/auth/me").json()["user_id"]])
+        return c
+
+    stranger = member("s@fam.test")
     assert stranger.get("/api/people?q=wes").json()["people"] == []
     assert stranger.get("/api/person?handle=wes").status_code == 404
     assert stranger.post("/api/friends/follow", json={"handle": "wes"}).status_code == 404
     assert stranger.post("/api/friends/follow", json={"user_id": wes}).status_code == 404
     # A friend made before still sees them, labelled.
-    friend = TestClient(appmod.app)
-    friend.post("/api/auth/signup", json={"email": "f@fam.test", "password": PASSWORD})
+    friend = member("f@fam.test")
     fid = friend.get("/api/auth/me").json()["user_id"]
     appmod.SOCIAL.follow(fid, wes); appmod.SOCIAL.follow(wes, fid)
     assert friend.get("/api/person?handle=wes").status_code == 200
@@ -343,3 +345,95 @@ def test_anyone_can_listen_to_a_shared_episode(world, monkeypatch):
                     "attach": "a1"}):
         r = guest.get("/api/audio", params=params)
         assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
+
+
+def test_launch_lifts_the_waitlist_rules(world, monkeypatch):
+    """WAITLIST=0 is launch: anyone still marked waitlisted is findable and
+    can message, rather than hidden for good by a row nobody updated."""
+    waiting, _ = _join("w@fam.test")
+    waiting.post("/api/me", json={"name": "Wes", "handle": "wes"})
+    wes = waiting.get("/api/auth/me").json()["user_id"]
+    monkeypatch.setattr(appmod, "settings",
+                        dataclasses.replace(appmod.settings, waitlist=False))
+    appmod.ACCOUNTS.new_account_status = "active"
+    other = TestClient(appmod.app)
+    other.post("/api/auth/signup", json={"email": "o@fam.test", "password": PASSWORD})
+    assert [p["handle"] for p in other.get("/api/people?q=wes").json()["people"]] == ["wes"]
+    assert other.get("/api/person?handle=wes").status_code == 200
+    assert other.post("/api/messages", json={"to": wes, "text": "hi"}).status_code == 200
+    # And the app itself is open to them.
+    assert waiting.get("/", follow_redirects=False).status_code == 200
+
+
+def test_waitlisted_can_delete_their_account(world):
+    member, _ = _join("w@fam.test")
+    user = member.get("/api/auth/me").json()["user_id"]
+    assert member.get("/api/account").status_code == 200
+    assert member.delete("/api/account").status_code == 200
+    assert appmod.ACCOUNTS.account(user) is None
+
+
+def test_the_shell_is_closed_under_every_spelling(world):
+    guest = TestClient(appmod.app)
+    for path in ("/", "/index.html", "/index.html/", "//"):
+        r = guest.get(path, follow_redirects=False)
+        assert r.status_code == 302, path
+
+
+def test_an_invite_code_credits_a_limited_number_an_hour(acc, wl):
+    acc.sign_up("inviter", "i@fam.test", PASSWORD)
+    code = wl.join("inviter")["code"]
+    results = []
+    for n in range(4):
+        acc.sign_up(f"f{n}", f"f{n}@fam.test", PASSWORD)
+        results.append(wl.join(f"f{n}", code, referrals_per_hour=3))
+    assert [r["referrer"] for r in results] == ["inviter"] * 3 + [""]
+    assert results[-1]["capped"] is True
+    assert len(wl.invites_of("inviter")) == 3
+
+
+def test_counted_place_matches_the_line(acc, wl):
+    for n, uid in enumerate("abcdef"):
+        acc.sign_up(uid, f"{uid}@fam.test", PASSWORD, at=100 + n)
+        wl.join(uid, at=100 + n)
+    acc.sign_up("g", "g@fam.test", PASSWORD, at=200)
+    wl.join("g", wl.ensure_code("e"), at=200)
+    acc.sign_up("h", "h@fam.test", PASSWORD, at=201)
+    wl.join("h", wl.ensure_code("c"), at=201)
+    for row in wl.ordered():
+        assert wl.place_of(row["user_id"]) == row["place"]
+    wl.grant(["a"])
+    assert wl.place_of("a") is None
+
+
+def test_a_refusal_is_not_retried_but_stays_visible(acc, wl):
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    wl.enqueue("a", "register")
+
+    def refuse(request):
+        return httpx.Response(422, text="email rejected")
+
+    result = asyncio.run(vl_mod.drain(wl, _vendor(refuse)))
+    assert result["refused"] == 1 and result["failed"] == 0
+    summary = wl.outbox_summary()
+    assert summary["pending"] == 0 and summary["refused"] == 1
+    assert "email rejected" in summary["last_refused"]
+
+
+def test_concurrent_drains_send_each_call_once(acc, wl):
+    calls = []
+
+    async def handler(request):
+        calls.append(json.loads(request.content)["user"]["email"])
+        await asyncio.sleep(0.05)
+        return httpx.Response(200, json={"referralCode": "X"})
+
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    wl.enqueue("a", "register")
+    vendor = _vendor(handler)
+
+    async def both():
+        return await asyncio.gather(vl_mod.drain(wl, vendor), vl_mod.drain(wl, vendor))
+
+    asyncio.run(both())
+    assert calls == ["a@fam.test"]

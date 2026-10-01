@@ -953,7 +953,10 @@
   every vendor call goes through the outbox, and **a vendor outage never loses
   a signup**. Waitlisted accounts are out of discovery (search, handle and id
   lookup, follow) except to people already in their graph, and cannot message
-  or be messaged. Profile setup writes only `/api/me` and `/api/preferences`,
+  or be messaged - **while the waitlist runs**: `WAITLIST=0` lifts both for
+  everybody, so launch is one switch. One invite code credits at most
+  `WAITLIST_REFERRALS_PER_HOUR` invites an hour, and a waitlisted account can
+  always delete itself. Profile setup writes only `/api/me` and `/api/preferences`,
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
 <!-- rule:tiers-off -->

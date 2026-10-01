@@ -21,7 +21,9 @@ in one function here and nowhere else.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import weakref
 from typing import Optional
 
 log = logging.getLogger("fam.viral_loops")
@@ -31,7 +33,34 @@ TIMEOUT_SECONDS = 10.0
 
 
 class ViralLoopsError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int = 0) -> None:
+        super().__init__(message)
+        self.status = status
+
+    @property
+    def permanent(self) -> bool:
+        """A refusal retrying cannot change: a 4xx other than 429 (too many
+        requests) or 408 (timeout). Everything else - 5xx, network - is the
+        vendor being down, and is retried."""
+        return 400 <= self.status < 500 and self.status not in (408, 429)
+
+
+#: One drain at a time per process. Every signup and every grant kicks a
+#: drain, alongside the timer; two running at once would both read the same
+#: due row while the first is still waiting on the network and send it twice
+#: - a second welcome email. Later drains wait their turn and then find the
+#: row done.
+#: Keyed by event loop, because a lock belongs to the loop that first waits
+#: on it - the server has one loop, a test suite has many.
+_DRAIN_LOCKS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def _lock() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    lock = _DRAIN_LOCKS.get(loop)
+    if lock is None:
+        lock = _DRAIN_LOCKS[loop] = asyncio.Lock()
+    return lock
 
 
 class ViralLoops:
@@ -59,7 +88,7 @@ class ViralLoops:
                                     headers=headers)
         if res.status_code >= 400:
             raise ViralLoopsError(f"{path} answered {res.status_code}: "
-                                  f"{res.text[:300]}")
+                                  f"{res.text[:300]}", res.status_code)
         try:
             return res.json() or {}
         except ValueError:
@@ -85,11 +114,17 @@ class ViralLoops:
 async def drain(waitlist, client: Optional[ViralLoops], limit: int = 50) -> dict:
     """Deliver whatever is due in the outbox. Never raises.
 
-    Returns {"sent", "failed", "skipped"} so a caller can log what happened.
+    Returns {"sent", "failed", "refused", "skipped"} so a caller can log
+    what happened. Serialised by `_lock()`, so no row is sent twice.
     """
-    result = {"sent": 0, "failed": 0, "skipped": 0}
+    result = {"sent": 0, "failed": 0, "refused": 0, "skipped": 0}
     if client is None or not client.configured:
         return result
+    async with _lock():
+        return await _drain(waitlist, client, limit, result)
+
+
+async def _drain(waitlist, client: ViralLoops, limit: int, result: dict) -> dict:
     for item in waitlist.due(limit=limit):
         view = waitlist.vendor_view(item["user_id"])
         if view is None or not view["email"]:
@@ -108,6 +143,15 @@ async def drain(waitlist, client: Optional[ViralLoops], limit: int = 50) -> dict
                 await client.flag(view["email"])
             waitlist.mark_done(item["id"])
             result["sent"] += 1
+        except ViralLoopsError as exc:
+            log.warning("viral loops %s for %s failed: %s", item["action"],
+                        item["user_id"], exc)
+            if exc.permanent:
+                waitlist.mark_given_up(item["id"], str(exc))
+                result["refused"] += 1
+            else:
+                waitlist.mark_failed(item["id"], str(exc))
+                result["failed"] += 1
         except Exception as exc:  # noqa: BLE001 - a vendor must never break us
             log.warning("viral loops %s for %s failed: %s", item["action"],
                         item["user_id"], exc)
