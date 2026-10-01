@@ -87,6 +87,11 @@
    / What your friends are listening to**, in that order - the crowd row that
    always has something in it above the one that is empty until somebody
    follows anybody.
+
+   > **Current:** since §181 the crowd row is **"Most played episodes
+   > today"** - total listens in the last **24 hours** - and a fixed
+   > one-tile rail, "What users are searching", sits under Made for you and
+   > opens Explore.
    **Every choosing rail runs one path** *(§136)*: taste, then the tiles
    whose script is already written first (`ready_first`, `READY_REACH` deep,
    never a filter), then **no repeats** against everything the listener has
@@ -115,7 +120,7 @@
    it a fact about what people are playing.
    **The three crowd rails hold cached episodes only** *(§141, at the owner's
    direction)*: "What FAM can't stop listening to" ranks by total listens
-   (thirty days, a finished listen counted once, by question so a search
+   (thirty days - **twenty-four hours since §181** - a finished listen counted once, by question so a search
    counts); the friends rail is what friends listened to *or created*
    (`scripts.author`); and "What you missed last week" is what other
    listeners played three to seven days ago that this one never heard, with

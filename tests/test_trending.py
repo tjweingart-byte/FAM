@@ -2,7 +2,7 @@
 
 Two rows, two questions, and keeping them apart is the point:
 
-* **"What FAM can't stop listening to"** - this app's own play counts over its own
+* **"Most played episodes today"** - this app's own play counts over its own
   bank. Cheap, identical for everyone, and the row that already existed.
 * **"Trending"** - what the world is talking about, from an outside feed.
 
@@ -99,7 +99,7 @@ def test_myfam_has_both_a_world_row_and_a_fam_popularity_row():
     titles = dict(T.SECTIONS)
     assert "world_trending" in keys and "most_played" in keys
     assert titles["world_trending"] == "Trending"
-    assert titles["most_played"] == "What FAM can't stop listening to"
+    assert titles["most_played"] == "Most played episodes today"
 
 
 def test_the_fam_popularity_row_still_ranks_plays_over_the_bank():

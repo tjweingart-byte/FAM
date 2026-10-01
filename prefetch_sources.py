@@ -75,7 +75,7 @@ class TrendingSource:
     on an empty server with nobody signed in.
 
     **The name is a ledger key, not the rail's name.** The rail it warms is
-    "What FAM can't stop listening to"; `trending` now means the world, on a
+    "Most played episodes today"; `trending` now means the world, on a
     different row from a different place. Renaming this would reset every
     recorded warm and take against it, which is the only number that can
     answer "is prefetching this worth it" - so the string stays and the reason
@@ -97,7 +97,7 @@ class TrendingSource:
                 query=topic.query,
                 minutes=self.minutes,
                 source=self.name,
-                reason=(f"#{rank + 1} in what FAM can't stop listening to, "
+                reason=(f"#{rank + 1} in most played episodes today, "
                         f"the same tile for everyone"),
                 topic_id=topic.id,
                 weight=float(limit - rank),

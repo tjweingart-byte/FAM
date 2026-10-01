@@ -184,3 +184,4 @@ and `limit` = Lines.
 | 13713 | 137 | 178. The 9.30 packet: seven changes, and the Commanders episode |
 | 13850 | 137 | 179. Costs: prompt caching, batched editions, RunPod REST v2, and provider counts |
 | 13987 | 74 | 180. Ten sports, a plan per sport, and calls per sport on /admin |
+| 14061 | 67 | 181. The 9.30 interface packet: sign-up samples, myFAM search, Messages as a tab, Explore as a rail, the player's (+) |

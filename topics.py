@@ -138,13 +138,14 @@ MISSED_SECTION_SIZE = SECTION_SIZE
 #: listens between `MISSED_WINDOW` and this long ago.
 MISSED_QUIET = 3 * 86400
 
-#: How far back "What FAM can't stop listening to" counts an episode's
-#: listens. The owner's rule is "ranked by total listens for the episode",
-#: and the rail only shows cached episodes, so the honest total is every
-#: listen inside the longest life a cached script can have
-#: (`CACHE_MAX_AGE_SECONDS`, thirty days) - older listens were to a script
-#: that no longer exists. It was `TRENDING_WINDOW`, three days.
-MOST_PLAYED_WINDOW = 30 * 86400
+#: How far back "Most played episodes today" counts an episode's listens.
+#: **Twenty-four hours** (§181, the 9.30 interface packet: "populated by the
+#: most listened to episodes of the last 24 hours IN ORDER of total
+#: listens"). It was thirty days - every listen inside the longest life a
+#: cached script can have - under the old heading "What FAM can't stop
+#: listening to"; before that `TRENDING_WINDOW`, three days. The sign-up
+#: screen's three samples are the top of this same ranking.
+MOST_PLAYED_WINDOW = 24 * 3600
 
 #: No constant names the live feeds "What you missed last week" refuses, on
 #: purpose. The owner named Polymarket, Finnhub and API-Sports; the rule is
@@ -193,7 +194,7 @@ WORLD_FLOOR = SECTION_SIZE
 #: **Narrowed by §134, at the owner's direction.** Every rail shows exactly
 #: `SECTION_SIZE`, and only the rails that *choose* are topped up to it:
 #:
-#: * **What FAM can't stop listening to** is out of this table. Topping it up
+#: * **Most played episodes today** is out of this table. Topping it up
 #:   from tiles nobody has played is making up plays under a heading that
 #:   claims them ("it should not make up episodes"); it holds what was played
 #:   and shows four the moment four have been.
@@ -844,6 +845,67 @@ FOCUS_HINTS: dict[str, tuple[str, tuple[str, ...]]] = {
     "space": ("mission or company", ("SpaceX", "NASA", "Artemis", "Blue Origin")),
     "health": ("area", ("Running", "Strength training", "Nutrition", "Sleep")),
 }
+
+#: The subject a facet's episodes are filed under when nothing more specific
+#: is named (§181): "add [this topic] to a DailyFAM mix" on the player.
+FACET_SUBJECT: dict[str, str] = {
+    "sports": "sports", "money": "stocks", "world": "news", "tech": "technology",
+    "science": "science", "business": "business", "health": "health",
+}
+#: Subjects whose suggestions repeat another subject's (every team in
+#: "sports" is also in its league) or are too broad to name a topic.
+_SUBJECT_HINTS_SKIPPED = frozenset({"sports"})
+
+
+def episode_subject(text: str) -> tuple[str, str]:
+    """(catalogue id, focus) for what an episode is about, or ("", "").
+
+    The player's (+) asks this (§181): an episode is added to a DailyFAM mix
+    as the *topic* it falls into, a followed subject (`f:nfl`) narrowed to
+    the specific it names when it names one of `FOCUS_HINTS` (`f:nfl~Eagles`).
+    In order, and never a model call:
+
+    1. a suggested specific named in the text, the first named (the longer
+       of two starting together) - where two subjects suggest it ("Apple"),
+       the one the text's tags agree with;
+    2. a catalogue subject named by its own label ("Formula 1", "NFL");
+    3. a catalogue subject whose subtag the text carries (`ai`, `space`);
+    4. the subject standing for the text's facet (`FACET_SUBJECT`).
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return "", ""
+    low = " " + " ".join(_WORD.findall(raw.lower())) + " "
+    tags = set(tags_for_text(raw))
+
+    def named(phrase: str) -> bool:
+        words = " ".join(_WORD.findall(phrase.lower()))
+        return bool(words) and (" " + words + " ") in low
+
+    hits = []
+    for subject, (_noun, hints) in FOCUS_HINTS.items():
+        if subject in _SUBJECT_HINTS_SKIPPED or subject not in CATALOGUE_BY_ID:
+            continue
+        agree = len(tags & set(CATALOGUE_BY_ID[subject].tags))
+        for hint in hints:
+            if named(hint):
+                words = " " + " ".join(_WORD.findall(hint.lower())) + " "
+                hits.append((low.index(words), -len(hint), -agree, subject, hint))
+    if hits:
+        hits.sort(key=lambda h: h[:3])
+        return hits[0][3], hits[0][4]
+    labels = sorted(INTEREST_CATALOGUE, key=lambda i: -len(i.label))
+    for item in labels:
+        if named(item.label) or named(item.id.replace("-", " ")):
+            return item.id, ""
+    for item in INTEREST_CATALOGUE:
+        if len(item.tags) > 1 and item.tags[1] in tags:
+            return item.id, ""
+    for facet, subject in FACET_SUBJECT.items():
+        if facet in tags and subject in CATALOGUE_BY_ID:
+            return subject, ""
+    return "", ""
+
 
 #: Every subtag, and the facet it lives under.
 #:
@@ -1591,7 +1653,7 @@ SECTIONS = (
     # a real measurement over the handful somebody follows, and is empty until
     # they follow anybody - so the row that always has something in it goes
     # above the row that does not.
-    ("most_played", "What FAM can't stop listening to"),
+    ("most_played", "Most played episodes today"),
     # Renamed from "Your circle is on this", and the rename is a promise this
     # rail now keeps: it reads the follow graph rather than co-listener
     # overlap. The old heading, and the card copy under it, already said
@@ -2874,7 +2936,7 @@ def known_topics(now: Optional[float] = None) -> dict[str, Topic]:
         known.setdefault(topic.id, topic)
     # And Trending's edition (§139). Its stories are not in the pool, and a
     # play of one must still count as a play of a tile this server can name -
-    # in "What FAM can't stop listening to", the friends rail and the
+    # in "Most played episodes today", the friends rail and the
     # no-repeats check - or the most-offered row on the page would teach
     # every crowd rail nothing.
     import trending_bank
@@ -2889,7 +2951,7 @@ def rank_most_played(
     limit: int = SECTION_SIZE, written=None, episode_info=None,
     heard: Optional[Heard] = None,
 ) -> list[Topic]:
-    """What FAM can't stop listening to: **cached episodes only, ranked by
+    """Most played episodes today: **cached episodes only, ranked by
     total listens** (the owner's rule).
 
     Deliberately identical for everyone, which is what makes it the cheapest
@@ -2906,9 +2968,8 @@ def rank_most_played(
 
     **A finished listen counts once** (`_tally_listens`): it writes a `play`
     and a `complete`, and counting both scored every finished listen twice.
-    The window is `MOST_PLAYED_WINDOW` - the longest a cached script can
-    live - so "total" means every listen to the episode that is still here
-    to be played.
+    The window is `MOST_PLAYED_WINDOW`, the last twenty-four hours (§181),
+    so "total" means every listen today.
 
     **Cached is a filter now, not a sort** - reversing §125's "not a filter"
     at the owner's direction. `episode_info` is `query -> CachedEpisode|None`
@@ -3745,7 +3806,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     `episode_info` is `query -> CachedEpisode|None` at the page's length, and
     `authored` is the live cache rows the listener's circle first wrote
     (`ScriptCache.authored_by`). They are what the three crowd rails read:
-    "What FAM can't stop listening to", "What your friends are listening to"
+    "Most played episodes today", "What your friends are listening to"
     and "What you missed last week" show cached episodes only - see
     `rank_most_played`, `rank_friends` and `rank_missed`.
 
@@ -4636,7 +4697,7 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
     * **What you missed last week** is not topped up since §141 - every
       source here is an inventory of mostly unwritten tiles, and that rail
       holds cached episodes only.
-    * **What FAM can't stop listening to** is no longer topped up at all
+    * **Most played episodes today** is no longer topped up at all
       (§134) - a tile nobody played under a heading that says it was played
       is making one up.
 

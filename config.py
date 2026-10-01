@@ -497,7 +497,7 @@ class Settings:
 
     # --- world trending --------------------------------------------------
     # The myFAM row that says what the *world* is paying attention to, as
-    # opposed to "What FAM can't stop listening to", which is this app's own play
+    # opposed to "Most played episodes today", which is this app's own play
     # counts. A different subsystem from live facts on purpose - see
     # `trending.py`: one changes what is offered, the other what is said.
     #
