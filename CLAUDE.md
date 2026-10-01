@@ -314,7 +314,7 @@ Accounts, tiers, sharing
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends. [waitlist-gate]
+  friends; a shared episode plays for anyone (only what was shared). [waitlist-gate]
 - **Tiers are built and switched off** (`ENFORCE_QUOTAS=0`) - no checkout means no wall. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]

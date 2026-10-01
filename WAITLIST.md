@@ -20,12 +20,13 @@ section when a decision changes, including why.
   that creates an account (email, phone, Google, Apple) writes `waitlisted`
   in the `INSERT` itself (`AccountStore.new_account_status`).
 * **The gate** (`app._waitlist_refusal`, inside the session middleware): a
-  guest or waitlisted account asking for `/`, `/index.html`, `/v/*`, `/s/*`
-  or `/m/*` is redirected to `/waitlist` or `/waitlist/me` (query string
+  guest or waitlisted account asking for `/`, `/index.html`, `/v/*` or
+  `/m/*` is redirected to `/waitlist` or `/waitlist/me` (query string
   kept, so `/?referralCode=x` survives). Any `/api/*` call answers 403 with
   `X-FAM-Waitlist`, except `/api/auth/*`, `/api/waitlist/*`, `/api/admin/*`,
-  `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`, and
-  any request carrying an admin credential.
+  `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`,
+  any request carrying an admin credential, and a shared episode's own two
+  calls (decision 10).
 * **Pages:** `static/waitlist.html` (landing at `/waitlist`, status at
   `/waitlist/me`) and `admin_ui/waitlist.html` (`/admin/waitlist`).
 * **API:** `POST /api/waitlist/join`, `GET /api/waitlist/me`,
@@ -76,8 +77,15 @@ section when a decision changes, including why.
    the two are already in each other's graph; `/api/friends` labels them
    `waitlisted` ("Still on the waitlist"); `/api/messages` refuses to send
    from or to one.
-10. **Share and mix links are behind the gate.** Behind each is the player,
-    which is the app; a non-member opening one lands on the waitlist.
+10. **Anyone can listen to a shared episode, waitlist or not** (the owner,
+    01/10; this reverses the first build, which closed share links too).
+    `/s/<id>` is open, and so are the two calls its page makes: counting the
+    open, and `/api/audio` - but only for exactly what was shared (that
+    question at that length, `surface=share`, nothing attached;
+    `ShareStore.is_shared`), so the share page is not a way into the rest of
+    FAM. Its "Join FAM" door is the front door, which the gate sends to
+    `/waitlist`. Mix links (`/m/<id>`) stay closed: a mix is a list to browse,
+    which is the app.
 11. **A complete profile is a name, a handle and at least one topic.** A
     photo is offered, not required. Topics are the app's own interests
     (`/api/preferences` `interests_all`), saved the same way the app saves

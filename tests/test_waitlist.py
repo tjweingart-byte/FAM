@@ -218,7 +218,7 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     r = member.get("/", follow_redirects=False)
     assert r.headers["location"] == "/waitlist/me"
     assert member.get("/api/audio?q=x").status_code == 403
-    assert member.get("/s/abc", follow_redirects=False).status_code == 302
+    assert member.get("/m/abc", follow_redirects=False).status_code == 302
     assert member.get("/api/waitlist/me").status_code == 200
 
 
@@ -316,3 +316,30 @@ def test_account_deletion_clears_waitlist_rows(world):
     removed = appmod.erase_listener(user)
     assert removed["waitlist"] == 1
     assert appmod.WAITLIST.outbox_summary()["pending"] == 0
+
+
+def test_anyone_can_listen_to_a_shared_episode(world, monkeypatch):
+    """The owner (01/10): a shared episode plays for anybody, waitlist or not
+    - and the share page is not a way into the rest of the app."""
+    import sharing
+    store = sharing.ShareStore(os.path.join(os.path.dirname(
+        appmod.WAITLIST.accounts.path), "shares.db"))
+    monkeypatch.setattr(appmod, "SHARES", store)
+    share = store.create("sharer", "why is the sky blue", 0)
+    guest = TestClient(appmod.app)
+    # The page itself is not redirected.
+    assert guest.get(f"/s/{share['id']}", follow_redirects=False).status_code != 302
+    assert guest.post(f"/api/share/{share['id']}/open").status_code != 403
+    # Its audio passes the gate (whatever the endpoint then does with it)...
+    ok = guest.get("/api/audio", params={"q": "why is the sky blue", "minutes": 1,
+                                         "fmt": "pcm", "surface": "share"})
+    assert "X-FAM-Waitlist" not in ok.headers
+    # ...and nothing else does: another question, another length, another
+    # surface, or an attachment riding along.
+    for params in ({"q": "something else", "minutes": 1, "surface": "share"},
+                   {"q": "why is the sky blue", "minutes": 5, "surface": "share"},
+                   {"q": "why is the sky blue", "minutes": 1, "surface": "search"},
+                   {"q": "why is the sky blue", "minutes": 1, "surface": "share",
+                    "attach": "a1"}):
+        r = guest.get("/api/audio", params=params)
+        assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"

@@ -3422,10 +3422,34 @@ WAITLIST_OPEN_PATHS = frozenset({
     "/api/health", "/api/voice/register", "/api/client-status",
     "/api/me", "/api/preferences",
 })
-#: Pages that are the app, sent to the waitlist instead while it is on. Share
-#: and mix links are included: behind each is the player, which is the app.
+#: Pages that are the app, sent to the waitlist instead while it is on. A mix
+#: link is a list of episodes to browse, which is the app. A shared *episode*
+#: (`/s/<id>`) is not here: anyone may listen to one, waitlist or not (the
+#: owner, 01/10) - see `_shared_episode_request` for the audio it needs.
 WAITLIST_CLOSED_PAGES = ("/", "/index.html")
-WAITLIST_CLOSED_PAGE_PREFIXES = ("/v/", "/s/", "/m/")
+WAITLIST_CLOSED_PAGE_PREFIXES = ("/v/", "/m/")
+
+
+def _shared_episode_request(request: Request) -> bool:
+    """Whether this API call is a shared episode's landing page at work.
+
+    Two calls make that page go: counting the open, and the audio itself. The
+    audio endpoint is the whole app's, so it is let through only for exactly
+    what somebody shared - that question at that length, from the share
+    surface, with nothing attached - and never for anything else a stranger
+    might type into the same URL.
+    """
+    path = request.url.path
+    if path.startswith("/api/share/") and path.endswith("/open"):
+        return True
+    if path != "/api/audio":
+        return False
+    params = request.query_params
+    if params.get("surface") != "share":
+        return False
+    if any(params.get(k) for k in ("attach", "context", "episode", "topic_id")):
+        return False
+    return SHARES.is_shared(params.get("q", ""), params.get("minutes", ""))
 
 
 def _waitlist_page_for(listener) -> str:
@@ -3453,6 +3477,8 @@ def _waitlist_refusal(request: Request, listener):
         if path in WAITLIST_OPEN_PATHS or path.startswith(WAITLIST_OPEN_PREFIXES):
             return None
         if _admin_request(request):
+            return None
+        if _shared_episode_request(request):
             return None
         return JSONResponse(
             {"detail": "FAM is open to members only while the waitlist is"

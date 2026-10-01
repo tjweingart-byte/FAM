@@ -920,7 +920,10 @@
   a merge cannot close the app by accident) sends guests and waitlisted
   accounts to `/waitlist` and answers their API calls 403 with
   `X-FAM-Waitlist`, from the session middleware (`_waitlist_refusal`) - a
-  gate only in the interface is open to curl. Every account created while it
+  gate only in the interface is open to curl. **Anyone can listen to a shared
+  episode, waitlist or not** (the owner, 01/10): `/s/<id>` stays open, and its
+  audio passes only for exactly what was shared (`ShareStore.is_shared`), so
+  a share is never a way into the rest of the app. Every account created while it
   is on starts `waitlisted`, written in the `INSERT`; existing accounts were
   backfilled `active` by the column default. **One database, one account:**
   a waitlist signup is the app's own sign-up, and granting access changes

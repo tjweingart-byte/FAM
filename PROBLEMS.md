@@ -14030,3 +14030,11 @@ reference. The outbox makes a wrong shape a visible retried error
 (`/api/health` `waitlist.outbox_pending`, the admin page) rather than a lost
 signup. Production turns the gate on with `WAITLIST=1` in the Render
 dashboard - deliberately not in `render.yaml`.
+
+**Shared episodes stay open (01/10, the owner).** The first build closed
+`/s/<id>` with the rest of the app. Anyone can listen to a shared episode,
+waitlist or not, so the share page is out of the gate - and because its audio
+comes from the app's own `/api/audio`, that endpoint is let through only for
+exactly what was shared: that question, that length, `surface=share`,
+nothing attached (`ShareStore.is_shared`, `_shared_episode_request`). Any
+other question through the same URL still answers 403. Mix links stay closed.
