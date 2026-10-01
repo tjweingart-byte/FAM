@@ -771,7 +771,7 @@ class MixStore:
             raise MixError("That mix is already yours.")
         existing = self.list_for_user(user_id)
         if any(m.source_id == source.id for m in existing):
-            raise MixError("That mix is already in your DailyFAM.")
+            raise MixError("That mix is already in your myFAM.")
         if len(existing) >= MAX_MIXES_PER_USER:
             raise MixError(f"You already have {MAX_MIXES_PER_USER} mixes.")
         taken = {m.name.lower() for m in existing}

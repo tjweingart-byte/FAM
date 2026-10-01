@@ -221,7 +221,7 @@ MIX_TEMPLATES: dict[str, tuple[str, str]] = {
     "sms": ("My daily FAM mix, {name} - a new briefing every day on {topics}. "
             "Add it to yours: {url}", ""),
     "email": ("I made a daily mix on FAM called \"{name}\". Every day it is a "
-              "fresh briefing on {topics}.\n\nAdd it to your DailyFAM: {url}",
+              "fresh briefing on {topics}.\n\nAdd it to your myFAM: {url}",
               "{name} - a daily FAM mix"),
     "whatsapp": ("My daily FAM mix, {name} - a new briefing every day on {topics}. "
                  "Add it to yours: {url}", ""),
@@ -257,7 +257,7 @@ def render_mix(target_key: str, *, name: str, topics: list[str], url: str) -> di
         raise ShareError(f"Unknown share destination {target_key!r}.")
     template, subject = MIX_TEMPLATES.get(chosen.key, (chosen.template, chosen.subject))
     values = {
-        "name": (name or "A DailyFAM mix").strip()[:MAX_TITLE],
+        "name": (name or "A myFAM mix").strip()[:MAX_TITLE],
         "topics": mix_topics_line(list(topics))[:MAX_QUERY],
         "url": url or "",
     }

@@ -14414,3 +14414,21 @@ waitlist merged in, found these, each fixed with a test:
   empty `change`); only Clear removes it.
 * The push store's connections are closed (`with sqlite3.connect()` only
   commits), and the loop no longer reaches into its private lock.
+
+## 185. myFAM and DailyFAM swap names on screen
+
+The owner asked for the names of myFAM and DailyFAM to be switched. Only
+what a listener reads changed: the rails screen (first tab) now shows
+**DailyFAM** - tab label, wordmark, "Search DailyFAM", "Back to DailyFAM",
+the history tab - and the mixes screen shows **myFAM** - its tab, wordmark,
+"Add to myFAM", "Removed from your myFAM", the player's "Add this topic to a
+myFAM mix", the share text and the server's mix errors.
+
+Everything internal keeps its name: `screen-myfam`/`screen-playfam`,
+`data-tab`, history `surface` keys (`myfam`, `dailyfam`), `/api/myfam/...`,
+`daily_edition.py`, and the docs. Renaming those would touch every stored
+history row and every installed client's contract for no listener-visible
+gain. The history tabs keep their order (by surface key), so they now read
+All / dailyFAM / myFAM / searchFAM. `historySurface` now recognises a mix
+play by `source === "myFAM"`, the mix player's new source label.
+

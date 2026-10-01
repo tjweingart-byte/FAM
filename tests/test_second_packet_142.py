@@ -211,7 +211,7 @@ def test_history_needs_an_account_and_a_guest_is_not_recorded(client):
 
 def test_settings_offers_listening_history():
     assert 'openHistory()' in js_function("renderSettings")
-    for tab in ("All", "myFAM", "dailyFAM", "searchFAM"):
+    for tab in ("All", "dailyFAM", "myFAM", "searchFAM"):
         assert f">{tab}</button>" in INDEX
 
 

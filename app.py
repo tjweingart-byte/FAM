@@ -4266,7 +4266,7 @@ async def remove_public_mix(mix_id: str, request: Request) -> dict:
     DailyFAM. `mix_id` is the original's, as on the add."""
     _read_limit(request)
     if not MIXES.remove_copy(_require_account(request), mix_id):
-        raise HTTPException(status_code=404, detail="That mix is not in your DailyFAM.")
+        raise HTTPException(status_code=404, detail="That mix is not in your myFAM.")
     return {"ok": True}
 
 

@@ -3026,7 +3026,7 @@ def main() -> int:
             page.wait_for_selector("#screen-history.active", timeout=8000)
             tabs = page.eval_on_selector_all(
                 "#histTabs .hist-tab", "e => e.map(x => x.textContent.trim())")
-            assert tabs == ["All", "myFAM", "dailyFAM", "searchFAM"], tabs
+            assert tabs == ["All", "dailyFAM", "myFAM", "searchFAM"], tabs
             page.wait_for_selector("#histBody .sv-row", timeout=8000)
             titles = page.eval_on_selector_all(
                 "#histBody .sv-title", "e => e.map(x => x.textContent)")

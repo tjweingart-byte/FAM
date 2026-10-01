@@ -79,6 +79,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Messages is a tab where Explore was; Explore is the "What users are
   searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
 
+- **Names swapped for the listener** (§185): the rails screen *shows*
+  "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
+  the old names. [names-swapped]
+
 ## What an episode is  (`product.md`)
 
 - **Satisfied first, curious second**: meet the want that brought them, fully. [satisfy-first]

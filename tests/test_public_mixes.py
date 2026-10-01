@@ -134,7 +134,7 @@ def test_adding_makes_a_copy_that_remembers_where_it_came_from(store):
 def test_the_same_mix_cannot_be_added_twice(store):
     source = store.create("b", "Gym", ["f:ai"])
     store.add_copy("a", source)
-    with pytest.raises(M.MixError, match="already in your DailyFAM"):
+    with pytest.raises(M.MixError, match="already in your myFAM"):
         store.add_copy("a", source)
     assert store.added_from("a") == {source.id}
 
@@ -255,7 +255,7 @@ def test_the_added_button_asks_before_removing():
         html = f.read()
     body = html.split("function addMixFrom(", 1)[1].split("\n  }\n", 1)[0]
     assert "confirmRemoveMix(m)" in body
-    assert "from your DailyFAM?" in html
+    assert "from your myFAM?" in html
 
 
 def test_a_copy_whose_owner_has_no_name_does_not_say_from_nobody():
