@@ -580,7 +580,7 @@ def _first_price(row: dict) -> Optional[float]:
 # --------------------------------------------------------------------------
 # API-Sports - what is being played today
 # --------------------------------------------------------------------------
-#: **The leagues the sweep follows** (§190, at the owner's direction), as
+#: **The leagues the sweep follows** (§191, at the owner's direction), as
 #: `(league, country)` pairs in the provider's own names, "" for any country.
 #: Every other league - and every sport not listed here (volleyball, rugby,
 #: AFL) - is never swept: its games are looked up only on demand, when an
@@ -600,14 +600,14 @@ SWEPT_LEAGUES = {
     "formula-1": None,
     "mma": None,
 }
-#: How long before a followed game starts it is worth watching (§190): the
+#: How long before a followed game starts it is worth watching (§191): the
 #: card's "Starts 20:15" line turns into a live score on the first sweep
 #: after kick-off rather than one interval late.
 WATCH_LEAD_SECONDS = 900.0
 
 
 def followed(sport, row: dict) -> bool:
-    """Whether the sweep follows this game (§190): one of `SWEPT_LEAGUES`."""
+    """Whether the sweep follows this game (§191): one of `SWEPT_LEAGUES`."""
     import live_sources
 
     if sport.key not in SWEPT_LEAGUES:
@@ -628,7 +628,7 @@ def followed(sport, row: dict) -> bool:
 
 
 def watching(sport, rows: list, now: float) -> bool:
-    """Whether a held card has something to watch (§190): a followed game
+    """Whether a held card has something to watch (§191): a followed game
     under way, about to start, or started in the last few hours and not yet
     marked final. A card whose followed games are all final, or that has
     none, has nothing - and is not asked again until its day turns over."""
@@ -674,7 +674,7 @@ class ApiSportsSignals(stories.StorySource):
     and the live lookup reads the same feed.
 
     **Swept only when there is something to watch, and only on demand**
-    (§190, at the owner's direction; it replaces §135's "spend the whole
+    (§191, at the owner's direction; it replaces §135's "spend the whole
     allowance on a timer", which spent a hundred requests a day per sport
     with nobody looking). Per sport and UTC day:
 
@@ -696,7 +696,7 @@ class ApiSportsSignals(stories.StorySource):
     domain = stories.SPORTS
     #: Flat-rate plan; the bill is not per call.
     cost_per_refresh = 0.0
-    #: Up to seven sports share one sweep (§180, §190).
+    #: Up to seven sports share one sweep (§180, §191).
     max_signals = 24
 
     #: When each sport was last swept (§180): each is its own plan and its
@@ -712,7 +712,7 @@ class ApiSportsSignals(stories.StorySource):
         return today.isoformat(), date_before(today).isoformat()
 
     def dates_due(self, key: str, now: float) -> list:
-        """The card dates this sport should be asked for now, or [] (§190).
+        """The card dates this sport should be asked for now, or [] (§191).
 
         Today's, the first time today or while it has something to watch;
         yesterday's while a game that began before UTC midnight is still on
@@ -744,7 +744,7 @@ class ApiSportsSignals(stories.StorySource):
         return dates
 
     def idle(self, now: float) -> str:
-        """Why this source should not be asked this tick, or "" (§190)."""
+        """Why this source should not be asked this tick, or "" (§191)."""
         if not stories.recent_demand(now):
             return ("nobody has drawn myFAM in the last "
                     f"{settings.stories_demand_seconds / 60:.0f} min; "
@@ -949,7 +949,7 @@ class ApiSportsSignals(stories.StorySource):
 #: When each API-Sports sport was last swept (§180), for the process - not
 #: per source object, so a rebuilt registry does not sweep everything again.
 SPORT_SWEPT_AT: dict = {}
-#: Each followed sport's cards as last read (§190): sport -> {UTC date: rows},
+#: Each followed sport's cards as last read (§191): sport -> {UTC date: rows},
 #: today's and yesterday's. What `watching` reads to decide whether to ask.
 SPORT_CARDS: dict = {}
 #: Each sport whose last sweep failed, and why, until one succeeds.

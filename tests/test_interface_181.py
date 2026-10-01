@@ -126,10 +126,15 @@ def test_explore_is_a_rail_under_made_for_you():
 # --- the player's (+) ------------------------------------------------------
 
 
-def test_the_player_has_a_plus_and_sources_moved_left():
+def test_the_players_menu_adds_to_a_mix_and_sources_sit_by_the_title():
+    """§190 moved the (+) into the three dots' menu ("Add to playlist") and
+    the sources to the right of the title, where Spotify's green button is."""
     player = HTML[HTML.index('id="screen-player"'):HTML.index('id="screen-playall"')]
-    assert 'onclick="openAddToMix()"' in player
-    assert ".src-panel{ position:absolute; top:0; left:0;" in HTML
+    assert 'onclick="openPlayerMenu()"' in player
+    menu = HTML.split("function openPlayerMenu(){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"Add to playlist"), action: function(){ openAddToMix(); }' in menu
+    row = player.split('<div class="p-titlerow">', 1)[1].split('<div class="progress-wrap">', 1)[0]
+    assert row.index('id="p-title"') < row.index('id="srcPanel"')
 
 
 @pytest.mark.parametrize("text,expected", [

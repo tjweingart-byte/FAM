@@ -1015,7 +1015,7 @@ def sport_for(subject: str) -> Sport:
 #: year; a day is generous.
 TEAMS: dict = {}
 TEAMS_SECONDS = 86400.0
-#: sport -> (UTC day, why) for a catalogue the provider refused (§190): it
+#: sport -> (UTC day, why) for a catalogue the provider refused (§191): it
 #: is not asked again until its day turns over.
 TEAMS_REFUSED: dict = {}
 #: Each team's season schedule: (sport, team id) -> (fetched at, rows).
@@ -1050,7 +1050,7 @@ async def league_teams(sport: Sport, now: Optional[float] = None) -> list:
     day = RequestBudget._today(now)
     refused = TEAMS_REFUSED.get(sport.key)
     if refused and refused[0] == day:
-        # Asked once today and refused (§190): the answer will not change
+        # Asked once today and refused (§191): the answer will not change
         # before the provider's day does, and asking again on every sweep
         # and every lookup is how hockey spent 172 requests in a day.
         raise RuntimeError(f"the {sport.label} catalogue was refused today: "

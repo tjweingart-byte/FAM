@@ -195,7 +195,7 @@ CARD = {"response": [
      "scores": {"home": {"total": 3}, "away": {"total": 30}}},
     {"teams": {"home": {"name": "Rams"}, "away": {"name": "Niners"}},
      "league": NFL, "status": {"short": "WHO-KNOWS"}},
-    # A league the sweep does not follow (§190): looked up on demand only.
+    # A league the sweep does not follow (§191): looked up on demand only.
     {"teams": {"home": {"name": "Stallions"}, "away": {"name": "Renegades"}},
      "league": {"name": "UFL", "country": {"name": "USA"}},
      "status": {"short": "Q2"},
@@ -564,7 +564,7 @@ def test_the_sports_card_is_ordered_deterministically(monkeypatch):
 
 
 def test_only_a_followed_league_becomes_a_tile(monkeypatch):
-    """A date request returns every fixture in the world. Since §190 only the
+    """A date request returns every fixture in the world. Since §191 only the
     leagues the owner named (`SWEPT_LEAGUES`) become tiles; a regional game is
     looked up on demand by the episode that asks about it, never swept.
     Its league's country is its geography."""

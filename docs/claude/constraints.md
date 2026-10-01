@@ -53,6 +53,7 @@
   directions is what produced filler: it made the model pad. `ALLOW_TOPUPS=1`
   restores the old behaviour.
 <!-- rule:transport -->
+> **Current (PROBLEMS.md §190):** the full player minimises with a down arrow top left (`#playerDown`), not an X; it still never stops.
 - **Transport: two gestures, and both stay.** *(PROBLEMS.md §71.)* The
   progress bar is draggable on all three listening surfaces, and the
   fifteen-second buttons are untouched. They answer different questions - the
@@ -398,7 +399,7 @@
 
 <!-- rule:sweep-on-demand -->
 - **The outside services are asked when somebody is looking and there is
-  something to see, never on a timer all day.** *(PROBLEMS.md §190, at the
+  something to see, never on a timer all day.** *(PROBLEMS.md §191, at the
   owner's direction, reversing §135's "spend the whole API-Sports allowance
   every fifteen minutes".)* The first day of `/admin` counts showed 86-172
   requests a day per sport and 1,392 Finnhub quotes with almost nobody
@@ -468,7 +469,7 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:bank-for-guests -->
-> **Current (PROBLEMS.md §190):** sports are no longer asked every fifteen minutes with nobody looking: only followed leagues, only while one of their games is on, and only when somebody drew myFAM recently; Finnhub is every two hours (rule:sweep-on-demand). "Only sports and markets are asked that often" below is history.
+> **Current (PROBLEMS.md §191):** sports are no longer asked every fifteen minutes with nobody looking: only followed leagues, only while one of their games is on, and only when somebody drew myFAM recently; Finnhub is every two hours (rule:sweep-on-demand). "Only sports and markets are asked that often" below is history.
 > **Current (PROBLEMS.md §174):** Trending cards no longer say the place (the card shows its subject like every rail), and View more is grouped by **continent** - Worldwide, the listener's own, then the rest busiest first; no Antarctica (`geography.continent_for`). "Each card says the place" below is history.
 
 - **The evergreen bank is for a listener with no account, and the crowd row
@@ -995,6 +996,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §190):** the landing page rotates the app's three sign-up samples, so `/api/welcome` and `/api/thumb/` are open past the gate and `/api/audio` is let through for exactly those samples as replays (`_welcome_sample_request`: `cached_only`, the browse length, nothing attached, no voice, a question that is one of today's samples).
 - **Before launch the app is closed to everyone but `active` accounts, and the
   server enforces it.** *(PROBLEMS.md §183, WAITLIST.md, at the owner's
   direction.)* `WAITLIST=1` (set in the dashboard, never in `render.yaml`, so

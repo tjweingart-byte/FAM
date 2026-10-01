@@ -762,17 +762,21 @@ def main() -> int:
                 "e => getComputedStyle(e).marginLeft")
             assert overlap.startswith("-"), \
                 f"the marks are not overlapped: margin-left {overlap}"
-            # In the corner of the player, not a strip across it.
+            # Right of the title since §190, where Spotify's green button is
+            # - not a strip across the player.
             box = page.eval_on_selector("#srcPanel", "e => {"
                                         " var r = e.getBoundingClientRect();"
-                                        " var p = e.closest('.mini-stage')"
+                                        " var p = e.closest('.p-titlerow')"
+                                        "   .getBoundingClientRect();"
+                                        " var t = document.getElementById('p-title')"
                                         "   .getBoundingClientRect();"
                                         " return {w: r.width, pw: p.width,"
-                                        "  left: r.left - p.left}; }")
+                                        "  right: p.right - r.right, tr: t.right,"
+                                        "  left: r.left}; }")
             assert box["w"] < box["pw"] * 0.6, \
                 "the sources panel is still a full-width strip"
-            # Top left since §181; the top right is the (+).
-            assert box["left"] < 4, "the sources panel is not in the top-left corner"
+            assert box["right"] < 24 and box["left"] >= box["tr"], \
+                f"the sources panel is not right of the title: {box}"
 
             # And the whole list is one tap away, with the ones that are
             # hidden in the corner still in it.
@@ -1112,7 +1116,9 @@ def main() -> int:
             words = page.eval_on_selector_all(
                 "#screen-player .pc-row2 .pt-cap",
                 "e => e.map(x => x.textContent.trim().toLowerCase())")
-            assert words == ["share", "vibe", "save", "captions"], \
+            # §190: captions moved to the sheet at the bottom; the queue is
+            # bottom right, beside share, as on Spotify.
+            assert words == ["vibe", "save", "share", "queue"], \
                 f"the player's icons are labelled {words}"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
@@ -1984,14 +1990,15 @@ def main() -> int:
             shows on the chip and in Settings."""
             page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
-            chip = page.query_selector("#screen-home .voice-chip #homeVoiceVal")
+            chip = page.query_selector("#screen-home #voiceBubble")
             assert chip, "the search page has no voice control"
+            # §190: two bubbles under the bar, Length then Voice, and the
+            # choice is not printed on them.
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
-                    '#screen-home .fam-controls .length-chip, #screen-home .attach-btn'))
-                    .map(e => e.id || e.className)""")
-            assert order[0] == "length-chip" and "voice-chip" in order[1] \
-                and order[2] == "attachBtn", f"controls are in the order {order}"
+                    '#screen-home .fam-controls .search-bubble'))
+                    .map(e => e.textContent.trim())""")
+            assert order == ["Length", "Voice"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(
@@ -2009,9 +2016,9 @@ def main() -> int:
                     }
                 }""")
             page.wait_for_timeout(350)
-            shown = page.text_content("#homeVoiceName").strip()
-            assert shown == "Nova", f"the voice chip reads {shown!r} after choosing Nova"
             assert page.evaluate("selectedVoice") == "remote:nova"
+            shown = page.text_content("#voiceBubble").strip()
+            assert shown == "Voice", f"the voice bubble prints the choice: {shown!r}"
 
         def voice_search_words_can_be_corrected():
             try:
@@ -2082,6 +2089,81 @@ def main() -> int:
             assert page.evaluate("window.__q") == "what was the score of the dodgers game", \
                 f"the uncorrected words were searched: {page.evaluate('window.__q')!r}"
             assert not page.is_visible("#voiceSearch"), "the voice screen stayed up"
+
+        def the_search_bar_is_one_line_with_its_buttons_on_the_right():
+            """§190, modelled on Google: the mic and attach inside the bar on
+            its right, two bubbles under it, trending searches under those
+            whether or not the box is focused, and two minutes again on
+            coming back into the app."""
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.fill("#searchInput", "")
+            page.evaluate("document.activeElement && document.activeElement.blur()")
+            page.wait_for_selector("#trendSearches .trend-chip", timeout=3000)
+            geo = page.evaluate("""() => {
+                var bar = document.getElementById('searchBar').getBoundingClientRect();
+                var box = document.getElementById('searchInput').getBoundingClientRect();
+                var at = document.getElementById('attachBtn').getBoundingClientRect();
+                var bub = document.getElementById('lengthBubble').getBoundingClientRect();
+                return {inBar: at.top >= bar.top && at.bottom <= bar.bottom,
+                        right: at.left > box.right - 1, under: bub.top >= bar.bottom};
+            }""")
+            assert geo["inBar"] and geo["right"], f"attach is not on the bar's right: {geo}"
+            assert geo["under"], f"the bubbles are not under the bar: {geo}"
+            assert not page.is_visible("#searchGoBtn"), "go shows with nothing typed"
+            page.type("#searchInput", "x")
+            assert page.is_visible("#searchGoBtn"), "go did not appear once typed"
+            assert not page.is_visible("#trendSearches"), "typing did not hide them"
+            page.fill("#searchInput", "")
+            page.evaluate("paintTrendSearches()")
+            page.evaluate("selectedLengthMinutes = 5")
+            page.evaluate("""() => {
+                Object.defineProperty(document, 'visibilityState',
+                    { value: 'visible', configurable: true });
+                document.dispatchEvent(new Event('visibilitychange'));
+                delete document.visibilityState;
+            }""")
+            assert page.evaluate("selectedLengthMinutes") == 2, \
+                "coming back into the app kept the old length"
+
+        def the_player_menu_and_the_queue():
+            """§190: the three dots open Spotify's menu; Add to Queue puts the
+            episode in the queue, Go to Queue lists it, and a DailyFAM tile's
+            dots offer the same."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(500)
+            page.evaluate("QUEUE = []; showScreen('player')")
+            page.wait_for_timeout(200)
+            page.click("#playerMore")
+            page.wait_for_timeout(250)
+            rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            for want in ("Share", "Add to playlist", "Add to Queue", "Go to Queue"):
+                assert want in rows, f"the player's menu has no {want!r}: {rows}"
+            assert any(r.startswith("Closed captions") for r in rows), rows
+            assert "Remove from this playlist" not in rows, \
+                "Remove from this playlist outside a myFAM playlist"
+            page.evaluate("closeSheet()")
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#myfamFeed [data-tile-more]", timeout=8000)
+            page.evaluate("document.querySelector('#myfamFeed [data-tile-more]').click()")
+            page.wait_for_timeout(250)
+            rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert "Add to Queue" in rows and "Go to Queue" in rows, rows
+            page.evaluate("""() => {
+                var rows = document.querySelectorAll('#sheetCard .sheet-item');
+                for (var i = 0; i < rows.length; i++)
+                    if (rows[i].textContent.trim() === 'Add to Queue') { rows[i].click(); return; }
+            }""")
+            page.wait_for_timeout(200)
+            assert page.evaluate("QUEUE.length") == 1, "the tile was not queued"
+            page.evaluate("openQueue()")
+            page.wait_for_timeout(200)
+            listed = page.eval_on_selector_all("#sheetCard .q-row .q-rm", "e => e.length")
+            assert listed == 1, f"the queue sheet lists {listed}"
+            page.evaluate("removeFromQueue(0); closeSheet(); QUEUE = []; drawMixSkip(false)")
 
         def view_more_shows_eight_and_refreshes():
             """"View more" shows eight of the rail and Refresh replaces them
@@ -2371,9 +2453,10 @@ def main() -> int:
             want = page.evaluate("selectedLengthMinutes")
             page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
-            chip = page.text_content("#lengthVal").strip()
-            assert chip.startswith("%d min" % want), \
-                f"the search chip reads {chip!r}, the setting is {want} min"
+            # §190: the bubble says "Length" and no number; the menu ticks it.
+            chip = page.text_content("#lengthBubble").strip()
+            assert chip == "Length", f"the length bubble reads {chip!r}"
+            assert want == 2, f"the search page opened on {want} min, not 2"
             for element_id in ("lengthModalVal",):
                 shown = page.text_content("#" + element_id).strip()
                 assert shown == "%d min" % want, \
@@ -2874,11 +2957,11 @@ def main() -> int:
             page.wait_for_selector("#screen-player.active", timeout=15000)
             page.wait_for_function("FamAudio.isActive()", timeout=15000)
             page.wait_for_timeout(300)
-            page.click("#screen-player .player-top .x")
+            page.click("#screen-player #playerDown")
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-home", \
-                "the X did not go back to where the episode was started"
-            assert page.evaluate("FamAudio.isActive()"), "the X stopped the episode"
+                "the down arrow did not go back to where the episode was started"
+            assert page.evaluate("FamAudio.isActive()"), "the down arrow stopped the episode"
             bar = page.query_selector("#screen-home #nowBar")
             assert bar and bar.is_visible(), "no mini player under a minimised episode"
             # The same episode, and its button is the same transport.
@@ -3892,6 +3975,9 @@ def main() -> int:
               voice_search_words_can_be_corrected)
         check("View more shows eight and refreshes to eight new ones",
               view_more_shows_eight_and_refreshes)
+        check("The search bar is one line with its buttons on the right",
+              the_search_bar_is_one_line_with_its_buttons_on_the_right)
+        check("The player's menu and the queue", the_player_menu_and_the_queue)
 
         if errors:
             failures.append(f"page errors: {errors}")

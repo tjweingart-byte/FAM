@@ -54,7 +54,7 @@ def pool(monkeypatch):
 def test_the_floors():
     s = config.settings
     assert s.stories_background_seconds == TICK == s.stories_ttl_seconds
-    # Two hours since §190, round the clock: large moves are what matter.
+    # Two hours since §191, round the clock: large moves are what matter.
     assert story_sources.FinnhubSignals().min_interval_seconds == 7200.0
     for slow in (story_sources.GdeltSignals, story_sources.TrendingRegistrySignals,
                  story_sources.PolymarketSignals):

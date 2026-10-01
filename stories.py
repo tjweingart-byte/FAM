@@ -673,13 +673,13 @@ _RETIRED: dict = {}
 _FIRST_SEEN: dict = {}
 #: source name -> when it was last asked. See `StorySource.min_interval_seconds`.
 _LAST_SWEPT: dict = {}
-#: When a listener last drew myFAM (§190). The sources that sweep on demand
+#: When a listener last drew myFAM (§191). The sources that sweep on demand
 #: (API-Sports) ask `recent_demand` before spending anything.
 _DEMAND = [0.0]
 
 
 def note_demand(now: Optional[float] = None) -> bool:
-    """Record that somebody drew myFAM (§190). Never raises, never waits.
+    """Record that somebody drew myFAM (§191). Never raises, never waits.
 
     True when this wakes the pool - nobody had looked for
     `STORIES_DEMAND_SECONDS` - so the caller starts a sweep now rather than
@@ -803,7 +803,7 @@ async def collect(limit: int = MAX_PER_SOURCE,
             reports.append(SourceReport(source.name, source.domain,
                                         NOT_CONFIGURED, 0, why))
             continue
-        # A source may say it has nothing to do this tick (§190): API-Sports
+        # A source may say it has nothing to do this tick (§191): API-Sports
         # with nobody looking, or with no followed game on. Said in the
         # report like any other skip, and its held stories stay.
         idle = getattr(source, "idle", None)

@@ -335,6 +335,7 @@ earn the next tap on their own, which is what the predicted follow-up and the
 prefetch plan are for.
 
 <!-- rule:post-episode-grid -->
+> **Current (PROBLEMS.md §190):** an episode on the full player that ends with something in the listener's queue plays the first of it at once instead of the grid; a myFAM playlist still plays through first.
 > **Current (PROBLEMS.md §178):** the lead tile - the one the countdown is on - is always Go Deeper's own suggestion (the `<<NEXT:>>` line, else the title-built follow-up) and plays as a Go Deeper follow-up at the episode's length; the album's next episode, when there is one, is second; the ranking fills the rest. A search box sits above "Back to myFAM": touching it stops the countdown for that card, and what is typed plays as a follow-up on the episode that ended.
 
 **Part of that is now paid back after the episode rather than inside it**
@@ -430,6 +431,7 @@ strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
 <!-- rule:trending-searches -->
+> **Current (PROBLEMS.md §190):** shown under the search page's two bubbles whenever the box is empty and nothing is attached (not only on focus), as one full-width bubble per search, and ranked by how many listeners searched the question in the last two hours (`TRENDING_SEARCHES_WINDOW`, distinct listeners, plays break ties) - a question nobody searched in that window is not offered. Still current episodes only, still cache-only.
 - **Trending searches** *(§182, at the owner's direction)*: focusing the empty
   search box draws five to ten other listeners' searches whose episodes are
   still **current** (`/api/searches/trending`: searched episodes only, most
@@ -449,3 +451,45 @@ the rest of this list it needs taste rather than a key.
   **title never shows a misspelling** - it takes every correction, EI and the
   writer are told to spell titles correctly, and a title made from a
   question goes through `autocorrect.correct_text`.
+
+<!-- rule:search-bar -->
+- **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
+  packet with a Google screenshot)*: one rounded bar holding the question,
+  with the mic and attach on its right and the go arrow only once something
+  is typed or attached; under it two bubbles, **Length** and **Voice**, which
+  open their menus and **never print the current choice** (the menus tick
+  it); under those, trending searches (`trending-searches`). **The length is
+  two minutes again every time somebody comes back into the app** - the page
+  loading, or returning from the background (`DEFAULT_LENGTH_MINUTES`,
+  `visibilitychange`); a length is chosen for one search, not kept.
+
+<!-- rule:player-layout -->
+- **The player is Spotify's layout** *(PROBLEMS.md §190, the owner's, with
+  Spotify screenshots)*: a down arrow top left (the old X, top right) that
+  minimises and never stops (§142); the three dots top right open the menu;
+  the episode's picture is behind the title (`/api/episode/card`'s `thumb`, a
+  tile's own picture first); the title, with **nothing** where Spotify names
+  the artist; the sources where Spotify's green button is, right of the
+  title; the transport (±15s stays, `transport`), the next button when a
+  playlist or the queue has a next; **GO DEEPER** where Spotify's mood chip
+  is, bigger, in its pill; share and the queue bottom right; the closed
+  captions in a sheet at the bottom, shut until slid or tapped up (open is
+  on). **The menu** is Spotify's, with the owner's changes: a header of the
+  title over the searcher, Share, Closed captions · On/Off, Add to playlist
+  (a myFAM mix, `/api/episode/topic` as the old (+) did), Remove from this
+  playlist (only while a myFAM playlist plays), Add to Queue, Go to Queue.
+  Spotify's "Exclude from your taste profile" is **not** offered - it is the
+  "not interested" control `no-not-interested` (§171) rules out, so it waits
+  on the owner. **The searcher** is a handle only when that listener turned on
+  `searches_public` (Settings, off by default) and is not the one listening;
+  the response carries no id.
+
+<!-- rule:queue -->
+- **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a
+  DailyFAM tile's three dots (top right, beside save; the same menu less what
+  needs a playing episode); Go to Queue lists Now playing, the playlist's
+  rest, then the queue, each removable or playable. It is client state for
+  this visit, never stored - a "next", not a shelf. A full-player episode
+  that ends with something queued plays it at once; the next button skips to
+  it; a myFAM playlist plays through first.
+
