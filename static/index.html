@@ -121,6 +121,7 @@
   .scroll::-webkit-scrollbar{ width:0; }.brandrow .badge{ font-family:'JetBrains Mono', monospace; font-size:9.5px; font-weight:700; letter-spacing:0.1em; background:var(--copper); color:var(--ink); padding:4px 8px; border-radius:6px; }/* The same mark as the myFAM / DailyFAM / explore headings, at hero size.
      Only the scale is set here; the letterforms and the chevron come from
      .wm-f and .wm-a, so the brand can only ever change in one place. */
+  .fr-wait{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--copper); margin-top:3px; }
   .fam-logo{ text-align:center; padding:0 0 22px; font-size:30px; line-height:1.1; }.back-row{ flex:none; display:flex; align-items:center; gap:10px; padding:16px 18px 10px; }
   .back-row .back{ display:flex; align-items:center; opacity:0.85; cursor:pointer; padding:4px 8px 4px 0; color:var(--text); }
   .back-row .back:active{ opacity:1; }
@@ -3984,7 +3985,17 @@
           init.headers = headers;
         }
       } catch(e){}
-      return raw.call(this, input, init);
+      // The waitlist (WAITLIST.md): while it runs the server answers anybody
+      // who is not a member 403 with `X-FAM-Waitlist` naming where to go -
+      // after a logout, or a sign-up made from inside the app. The page goes
+      // there rather than drawing the refusal as a failure.
+      return raw.call(this, input, init).then(function(res){
+        try {
+          var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
+          if(go && /^\/waitlist(\/me)?$/.test(go)) location.replace(go);
+        } catch(e){}
+        return res;
+      });
     };
   })();
   var TOPICS = {
@@ -6061,6 +6072,19 @@
     shelfFolders = { saved: [], vibe: [] };
     shelfPick = { saved: "", vibe: "" };
     myVibes = [];
+    // Their referral link and push state are theirs (10.1 third set). The
+    // browser's push subscription goes too, so the next person on this
+    // device is not told about the last one's mixes: the server drops the
+    // endpoint on the push service's 410 the next time it sends.
+    inviteLink = "";
+    pushState = null;
+    try {
+      if("serviceWorker" in navigator && navigator.serviceWorker.getRegistration){
+        navigator.serviceWorker.getRegistration().then(function(reg){
+          return reg && reg.pushManager && reg.pushManager.getSubscription();
+        }).then(function(sub){ if(sub) sub.unsubscribe(); }).catch(function(){});
+      }
+    } catch(e){}
   }
 
   // The app shell, so FAM opens with no connection at all. Only where a
@@ -8459,6 +8483,8 @@
     if(!pushState.subscribed) return "Listening at " + when + ". Allow notifications to hear when it\u2019s ready.";
     return "We\u2019ll tell you it\u2019s ready at " + when + ".";
   }
+  // Clearing is the Clear button only: a desktop time field fires an empty
+  // change while one half of it is being retyped.
   function mixWhenHTML(m){
     return '<div class="mix-when" id="mixWhen">'
       + '<span class="mix-when-i" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" '
@@ -8467,7 +8493,7 @@
       + '<div class="mix-when-b"><div class="mix-when-t">Listen time</div>'
       + '<div class="mix-when-s" id="mixWhenNote">' + escapeHtml(mixWhenNote(m)) + '</div></div>'
       + '<input class="mix-when-in" id="mixWhenIn" type="time" aria-label="Listen time" value="'
-      + escapeHtml(m.listen_at || "") + '" onchange="setMixListenTime(this.value)">'
+      + escapeHtml(m.listen_at || "") + '" onchange="if(this.value) setMixListenTime(this.value)">'
       + (m.listen_at ? '<button class="mix-when-x" onclick="setMixListenTime(\'\')" aria-label="Remove listen time">Clear</button>' : '')
       + '</div>';
   }
@@ -8482,12 +8508,16 @@
   function setMixListenTime(value){
     var m = mixById(currentMixId);
     if(!m) return;
+    // Asked here, inside the tap, before anything waits on the network:
+    // Safari only shows the permission prompt from the gesture itself.
+    var asking = (value && pushState && pushState.available && !pushState.subscribed)
+      ? askNotificationPermission() : null;
     saveMix("PATCH", "/api/mixes/" + m.id, { listen_at: value || "", listen_tz: listenerZone() }, function(saved){
       repaintMixWhen();
       if(!saved.listen_at){ toast("Listen time removed"); return; }
       var go = function(){
         if(pushState && pushState.available && !pushState.subscribed){
-          subscribeToPush(function(ok){
+          subscribeToPush(asking, function(ok){
             repaintMixWhen();
             toast(ok ? "We\u2019ll tell you at " + listenTimeLabel(saved.listen_at)
                      : "Listen time saved \u2014 notifications are off");
@@ -8507,15 +8537,27 @@
     for(var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
     return out;
   }
-  // Asks the browser, then hands the server where to deliver. `done(true)`
-  // only when the server has it; every other ending is `done(false)`.
-  function subscribeToPush(done){
+  function pushSupported(){
     try {
-      if(!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined"){
-        done(false); return;
-      }
-    } catch(e){ done(false); return; }
-    Promise.resolve(Notification.requestPermission()).then(function(p){
+      return "serviceWorker" in navigator && "PushManager" in window
+        && typeof Notification !== "undefined";
+    } catch(e){ return false; }
+  }
+  // The permission prompt, as a promise of the answer. Called from the tap.
+  function askNotificationPermission(){
+    if(!pushSupported()) return Promise.resolve("unsupported");
+    try { return Promise.resolve(Notification.requestPermission()); }
+    catch(e){ return Promise.resolve("denied"); }
+  }
+  // Waits for the browser's answer, then hands the server where to deliver.
+  // `done(true)` only when the server has it; every other ending, including
+  // a service worker that never becomes ready, is `done(false)`.
+  function subscribeToPush(asking, done){
+    if(!pushSupported()){ done(false); return; }
+    var finished = false;
+    var finish = function(ok){ if(!finished){ finished = true; done(ok); } };
+    setTimeout(function(){ finish(false); }, 15000);
+    Promise.resolve(asking || askNotificationPermission()).then(function(p){
       if(p !== "granted") throw new Error("not allowed");
       return navigator.serviceWorker.ready;
     }).then(function(reg){
@@ -8530,8 +8572,8 @@
     }).then(function(r){
       if(!r.ok) throw new Error("refused");
       pushState.subscribed = true;
-      done(true);
-    }).catch(function(){ done(false); });
+      finish(true);
+    }).catch(function(){ finish(false); });
   }
 
   // Public mixes appear on the profile. A new mix is public by default.
@@ -10763,6 +10805,11 @@
       .then(function(d){
         var was = AUTH.authenticated;
         AUTH = d;
+        // A page that reached this far while the waitlist runs - opened from
+        // the offline shell - is sent where the server would have sent it.
+        if(d && d.waitlist && d.status !== "active"){
+          location.replace(d.status === "waitlisted" ? "/waitlist/me" : "/waitlist");
+        }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
         // The Profile tab is decided entirely by this answer, so it is the
@@ -11354,6 +11401,7 @@
 
   function renderProfile(p){
     profileNow = p;
+    loadInviteLink();
     var follows = p.follows || {};
     var friends = follows.friends || 0;
     var vibes = p.echo_count || 0;
@@ -11718,10 +11766,22 @@
   // A way to bring somebody in: the phone's share sheet with the app's
   // address and this listener's handle, which is what somebody arriving
   // needs in order to find them. Nothing is posted anywhere by FAM.
+  //: While the waitlist runs (WAITLIST.md) an invite is this member's own
+  //: referral link: the person invited joins the line through it and is
+  //: made their friend. Fetched ahead (`loadInviteLink`, when the Friends
+  //: page or the profile opens) because a share sheet must open inside the
+  //: tap - Safari refuses one started after a network wait.
+  var inviteLink = "";
+  function loadInviteLink(){
+    if(inviteLink || !(AUTH && AUTH.authenticated && AUTH.waitlist)) return;
+    fetch("/api/waitlist/me").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d && d.referral_link) inviteLink = d.referral_link; })
+      .catch(function(){});
+  }
   function inviteFriends(){
     var handle = profileNow && profileNow.handle;
-    var url = location.origin && location.origin.indexOf("http") === 0
-      ? location.origin + "/" : "";
+    var url = inviteLink || (location.origin && location.origin.indexOf("http") === 0
+      ? location.origin + "/" : "");
     var text = "Come listen with me on FAM" + (handle ? " — I'm @" + handle : "") + ".";
     if(navigator.share){
       navigator.share({ title: "FAM", text: text, url: url || undefined }).catch(function(){});
@@ -12058,6 +12118,7 @@
     document.getElementById("friendsBody").innerHTML =
       '<div class="pf-empty">Loading…</div>';
     navigate("friends");
+    loadInviteLink();
     loadFriends();
     // They are looking at who follows them, so nobody is new any more. Done
     // **here** and never when the popup is drawn: a badge that cleared itself
@@ -12192,7 +12253,11 @@
       + '<div class="fr-av">' + avatarHTML(person, 40) + '</div>'
       + '<div class="fr-body"><div class="fr-name">'
       + escapeHtml(person.name || "Someone") + '</div>'
-      + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div></div>'
+      + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div>'
+      // Friends from the waitlist show on both sides before they are let in
+      // (WAITLIST.md §4); this says why they cannot be messaged yet.
+      + (person.waitlisted ? '<div class="fr-wait">Still on the waitlist</div>' : '')
+      + '</div>'
       + (action
           ? '<button class="pf-btn" onclick="event.stopPropagation(); ' + action + '">'
             + label + '</button>'

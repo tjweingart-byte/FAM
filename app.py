@@ -76,6 +76,8 @@ import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
 import accounts as accounts_mod
+import viral_loops as viral_loops_mod
+import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import push as push_mod
@@ -566,7 +568,8 @@ async def lifespan(_: FastAPI):
     # without keys logs why once and keeps every listen time for later.
     push_ready = push_mod.status()
     if push_ready["available"]:
-        _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(MIXES, PUSH)))
+        _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
+            MIXES, PUSH, allowed=_may_be_notified)))
     else:
         log.info("mix notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
@@ -575,6 +578,10 @@ async def lifespan(_: FastAPI):
     _announce_voice_control()
     if settings.voice_backend == "remote" and settings.voice_supervise_seconds > 0:
         _BACKGROUND.add(asyncio.create_task(_supervise_voice()))
+    # The Viral Loops outbox (WAITLIST.md): whatever failed or waited for keys
+    # is retried here. A no-op with no token, which is every staging deploy.
+    if VIRAL_LOOPS.configured:
+        _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
@@ -1249,6 +1256,11 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise usage for %r", user_id)
         removed["usage_rows_anonymised"] = -1
+    try:
+        removed["waitlist"] = WAITLIST.forget(user_id)
+    except Exception:
+        log.exception("could not erase waitlist rows for %r", user_id)
+        removed["waitlist"] = -1
     credentials_gone = ACCOUNTS.delete_account(user_id)
     removed["identities"] = credentials_gone["identities"]
     removed["sessions"] = credentials_gone["sessions"]
@@ -1606,6 +1618,12 @@ async def health(request: Request) -> dict:
         # redeploy keep the accounts people made? Measured from where the
         # files are, not from what was configured - see `_persistence_of`.
         "storage": _storage_summary(_databases),
+        # Settable in the dashboard and in the environment, so said here
+        # (WAITLIST.md): whether the app is closed to all but active accounts,
+        # and whether the vendor is being told.
+        "waitlist": {"gate": settings.waitlist,
+                     "viral_loops": VIRAL_LOOPS.configured,
+                     "outbox_pending": WAITLIST.outbox_summary()["pending"]},
         "voice_store": VOICE_STORE["dir"],
         # The public API surface, so a client can ask rather than assume.
         "api": {"version": API_VERSION, "prefix": API_PREFIX,
@@ -1665,6 +1683,9 @@ class CredentialsRequest(BaseModel):
     email: str = Field("", max_length=accounts_mod.MAX_EMAIL)
     phone: str = Field("", max_length=accounts_mod.MAX_PHONE * 2)
     password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+    #: The invite code a waitlist link carried (`?referralCode=`). Read on
+    #: sign-up only, and only while the account is waitlisted.
+    referral_code: str = Field("", max_length=64)
     #: Native clients only. See `_maybe_token` - a browser must never ask for
     #: this, because reading the token in script is precisely what the HttpOnly
     #: cookie exists to prevent.
@@ -1676,6 +1697,8 @@ class ProviderRequest(BaseModel):
 
     provider: str = Field(..., max_length=16)
     id_token: str = Field(..., max_length=8192)
+    #: The invite code a waitlist link carried; see CredentialsRequest.
+    referral_code: str = Field("", max_length=64)
     #: The raw nonce the client generated for this sign-in, if it used one.
     #: Sending it is what stops a captured token being replayed; the server
     #: accepts both the raw value and its SHA-256, because Apple is sent the
@@ -1713,8 +1736,9 @@ async def auth_me(request: Request) -> dict:
     the id is not in the page's reach, which is the point of the cookie."""
     listener = getattr(request.state, "listener", None)
     if listener is None:
-        return {"user_id": "", "email": "", "authenticated": False}
-    return listener.as_dict()
+        return {"user_id": "", "email": "", "authenticated": False,
+                "waitlist": settings.waitlist}
+    return {**listener.as_dict(), "waitlist": settings.waitlist}
 
 
 def _one_identifier(req: CredentialsRequest) -> str:
@@ -1786,6 +1810,8 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
                                         phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _waitlist_after_signup(listener.user_id, req.referral_code or "")
+    listener = ACCOUNTS.listener_of(listener.user_id)
     # A fresh token even though the id has not changed, so that a native
     # client is handed one it can store. The old session stays valid: nothing
     # about signing up should log out the browser tab that did it.
@@ -1853,6 +1879,9 @@ async def auth_provider(req: ProviderRequest, request: Request) -> dict:
             current_user_id=_require_listener(request))
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if is_new:
+        _waitlist_after_signup(listener.user_id, req.referral_code or "")
+        listener = ACCOUNTS.listener_of(listener.user_id)
 
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
@@ -2041,6 +2070,37 @@ class ShareRequest(BaseModel):
 
 # --- friends --------------------------------------------------------------
 
+def _in_graph(me: str, other: str) -> bool:
+    """Whether either of these two follows the other."""
+    return bool(me and other and (SOCIAL.is_following(me, other)
+                                  or SOCIAL.is_following(other, me)))
+
+
+def _reachable(me: str, other: str) -> bool:
+    """Whether `me` may find or open `other` (WAITLIST.md §4).
+
+    A waitlisted account is out of discovery - search, handle lookup, follow by
+    handle - until it is let in, enforced here rather than in the interface.
+    The exception is a friendship that already exists: people already in each
+    other's graph keep seeing each other whatever either one's status.
+    """
+    if not settings.waitlist:
+        # Launch: everybody is findable again, whatever their row still says.
+        return True
+    if other not in WAITLIST.waitlisted_among([other]):
+        return True
+    return _in_graph(me, other)
+
+
+def _mark_waitlisted(people: list[dict]) -> list[dict]:
+    """Label who is still on the waitlist, for "Still on the waitlist"."""
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in people)
+               if settings.waitlist else set())
+    for person in people:
+        person["waitlisted"] = person["user_id"] in waiting
+    return people
+
+
 @app.get("/api/friends")
 async def friends_read(request: Request) -> dict:
     """Who this listener follows, who follows them, and who does both.
@@ -2051,9 +2111,9 @@ async def friends_read(request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     return {
-        "following": SOCIAL.following(user),
-        "followers": SOCIAL.followers(user),
-        "friends": SOCIAL.friends(user),
+        "following": _mark_waitlisted(SOCIAL.following(user)),
+        "followers": _mark_waitlisted(SOCIAL.followers(user)),
+        "friends": _mark_waitlisted(SOCIAL.friends(user)),
         "counts": SOCIAL.follow_counts(user),
         # Who followed since this listener last looked. Read here rather than
         # from an endpoint of its own because the interface asks this question
@@ -2133,6 +2193,8 @@ async def person_profile(request: Request,
         found = [p for p in SOCIAL.find_people(wanted, exclude_user=me, limit=5)
                  if p["handle"] == wanted]
         target = found[0]["user_id"] if found else ""
+        if target and not _reachable(me, target):
+            target = ""
     if not target:
         raise HTTPException(status_code=404, detail="No listener by that handle.")
 
@@ -2204,7 +2266,12 @@ async def people_search(request: Request,
     """
     _read_limit(request)
     user = _require_account(request)
-    found = SOCIAL.find_people(q, exclude_user=user)
+    # Waitlisted accounts are not in the directory at all - friends included:
+    # a friend is already on the Friends list, and search is discovery.
+    found = SOCIAL.find_people(q, exclude_user=user, limit=40)
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in found)
+               if settings.waitlist else set())
+    found = [p for p in found if p["user_id"] not in waiting][:20]
     following = {p["user_id"] for p in SOCIAL.following(user)}
     for person in found:
         person["following"] = person["user_id"] in following
@@ -2221,6 +2288,8 @@ async def friends_follow(req: FollowRequest, request: Request) -> dict:
         exact = [p for p in found
                  if p["handle"] == req.handle.strip().lstrip("@").lower()]
         target = exact[0]["user_id"] if exact else ""
+    if target and not _reachable(user, target):
+        target = ""
     if not target:
         raise HTTPException(status_code=404, detail="No listener by that handle.")
     try:
@@ -2500,6 +2569,17 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     """
     _read_limit(request)
     user = _require_account(request)
+    # Messaging opens with the app (WAITLIST.md §4): nobody on the waitlist
+    # sends, and nothing is sent to somebody who could not open it.
+    # Only while the waitlist runs: at launch (WAITLIST=0) everybody may
+    # message, whatever an old row still says.
+    waiting = (WAITLIST.waitlisted_among([user, req.to])
+               if settings.waitlist else set())
+    if waiting:
+        raise HTTPException(status_code=403, detail=(
+            "Messages open when you are let in off the waitlist."
+            if user in waiting else
+            "They are still on the waitlist. Messages open when they are in."))
     kind = "episode" if req.query else "text"
     # Sending ends the typing, now rather than when the dots time out - a
     # message arriving under a still-bouncing indicator reads as a second one
@@ -3280,6 +3360,16 @@ MIXES = mixes_mod.MixStore()
 PUSH = push_mod.PushStore()
 SOCIAL = social_mod.SocialStore()
 ACCOUNTS = accounts_mod.AccountStore()
+#: The pre-launch waitlist (WAITLIST.md): columns on the accounts row, read and
+#: written through the accounts store's own connection.
+WAITLIST = waitlist_mod.Waitlist(ACCOUNTS)
+if settings.waitlist:
+    # Every route that creates an account (email, phone, Google, Apple) starts
+    # it on the list - one switch in the INSERT, not a step each route has to
+    # remember.
+    ACCOUNTS.new_account_status = waitlist_mod.WAITLISTED
+VIRAL_LOOPS = viral_loops_mod.ViralLoops(settings.viral_loops_api_token,
+                                         settings.viral_loops_campaign_id)
 PREFS = prefs_mod.PreferenceStore()
 METER = metering.MeterStore()
 QUOTAS = quotas.QuotaStore()
@@ -3329,6 +3419,10 @@ async def carry_the_session(request: Request, call_next):
             log.exception("could not mint a session; continuing without one")
     request.state.listener = listener
 
+    closed = _waitlist_refusal(request, listener)
+    if closed is not None:
+        return closed
+
     response = await call_next(request)
 
     # An endpoint that changes who you are (log in, log out, sign up) says so
@@ -3342,6 +3436,96 @@ async def carry_the_session(request: Request, call_next):
     elif minted:
         _set_session_cookie(response, request, minted)
     return response
+
+
+#: While `WAITLIST` is on, the API a listener who is not active may still reach:
+#: signing up and in, the waitlist's own endpoints, and the profile fields the
+#: status page edits (`/api/me`: name, handle, photo; `/api/preferences`:
+#: topics). Everything else - listening included - answers 403. The admin
+#: endpoints check their own credential and are passed through for it.
+WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/")
+WAITLIST_OPEN_PATHS = frozenset({
+    "/api/health", "/api/voice/register", "/api/client-status",
+    "/api/me", "/api/preferences",
+    # Their account: read it, rename it, and above all delete it. Deleting
+    # an account has to be reachable by everybody who has one (App Store
+    # 5.1.1(v)), the waitlisted included.
+    "/api/account",
+})
+#: Pages that are the app, sent to the waitlist instead while it is on. A mix
+#: link is a list of episodes to browse, which is the app. A shared *episode*
+#: (`/s/<id>`) is not here: anyone may listen to one, waitlist or not (the
+#: owner, 01/10) - see `_shared_episode_request` for the audio it needs.
+WAITLIST_CLOSED_PAGES = ("/", "/index.html")
+WAITLIST_CLOSED_PAGE_PREFIXES = ("/v/", "/m/")
+
+
+def _shared_episode_request(request: Request) -> bool:
+    """Whether this API call is a shared episode's landing page at work.
+
+    Two calls make that page go: counting the open, and the audio itself. The
+    audio endpoint is the whole app's, so it is let through only for exactly
+    what somebody shared - that question at that length, from the share
+    surface, with nothing attached - and never for anything else a stranger
+    might type into the same URL.
+    """
+    path = request.url.path
+    if path.startswith("/api/share/") and path.endswith("/open"):
+        return True
+    if path != "/api/audio":
+        return False
+    params = request.query_params
+    if params.get("surface") != "share":
+        return False
+    if any(params.get(k) for k in ("attach", "context", "episode", "topic_id")):
+        return False
+    return SHARES.is_shared(params.get("q", ""), params.get("minutes", ""))
+
+
+def _waitlist_page_for(listener) -> str:
+    if listener is not None and listener.status == waitlist_mod.WAITLISTED:
+        return "/waitlist/me"
+    return "/waitlist"
+
+
+def _waitlist_refusal(request: Request, listener):
+    """The response that keeps the app closed, or None to let it through.
+
+    Enforced here, on the server, for every request, because a closed app that
+    is closed only in the interface is open to anybody with curl. Only an
+    'active' account passes; a guest or a waitlisted account is sent to the
+    waitlist (a page) or told why (the API, 403 with `X-FAM-Waitlist` naming
+    where to go, which the app's own pages follow).
+    """
+    if not settings.waitlist:
+        return None
+    if listener is not None and listener.status == waitlist_mod.ACTIVE:
+        return None
+    path = request.url.path
+    target = _waitlist_page_for(listener)
+    if path.startswith("/api/"):
+        if path in WAITLIST_OPEN_PATHS or path.startswith(WAITLIST_OPEN_PREFIXES):
+            return None
+        if _admin_request(request):
+            return None
+        if _shared_episode_request(request):
+            return None
+        return JSONResponse(
+            {"detail": "FAM is open to members only while the waitlist is"
+                       " running. Your place is saved.",
+             "waitlist": listener.status if listener is not None and
+                         listener.status else "guest",
+             "redirect": target},
+            status_code=403, headers={"X-FAM-Waitlist": target})
+    # Normalised, because the static mount serves the shell for `/index.html/`
+    # and `//` too, and a gate that matches only the spellings it thought of
+    # is a gate with a side door.
+    page = "/" + path.strip("/")
+    if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
+        query = request.url.query
+        return RedirectResponse(target + ("?" + query if query else ""),
+                                status_code=302)
+    return None
 
 
 #: Endpoints answered for a machine rather than for a listener, so no session
@@ -3897,6 +4081,18 @@ async def delete_mix(mix_id: str, request: Request):
     if not MIXES.delete(_require_account(request), mix_id):
         raise HTTPException(status_code=404, detail="That mix no longer exists.")
     return {"ok": True}
+
+
+def _may_be_notified(user_id: str) -> bool:
+    """Whether "your mix is ready" may reach this account: always, unless the
+    waitlist is running and they are not let in yet (WAITLIST.md)."""
+    if not settings.waitlist:
+        return True
+    try:
+        return WAITLIST.status_of(user_id) == waitlist_mod.ACTIVE
+    except Exception:  # noqa: BLE001 - unsure is no
+        log.exception("push: could not read the waitlist status of %r", user_id)
+        return False
 
 
 # ---------------- "Your mix is ready" (the 10.1 packet, third set) ----------------
@@ -6449,6 +6645,17 @@ def _is_admin_account(request: Request) -> bool:
     return _allowed_admin(_admin_listener(request))
 
 
+def _admin_request(request: Request) -> bool:
+    """Whether this request carries an admin credential - either one."""
+    if _is_admin_account(request):
+        return True
+    if not ADMIN_TOKEN:
+        return False
+    sent = (request.headers.get("x-admin-token")
+            or request.headers.get("authorization", "").removeprefix("Bearer ").strip())
+    return bool(sent) and hmac.compare_digest(sent, ADMIN_TOKEN)
+
+
 def _require_admin(request: Request) -> None:
     """The admin credential or an admin account, or a 404.
 
@@ -6896,6 +7103,284 @@ async def http_error(_: Request, exc: HTTPException):
     if headers.get("X-FAM-Refused-By"):
         body["refused_by"] = headers["X-FAM-Refused-By"]
     return JSONResponse(body, status_code=exc.status_code, headers=headers or None)
+
+
+# --- the waitlist (WAITLIST.md) -------------------------------------------
+#
+# One database, one account: joining creates the real FAM account, waitlisted,
+# and granting access flips its status. Viral Loops is told through the outbox
+# and never waited on. Place in line is counted here (`waitlist.ordered`) and
+# used everywhere - the status page, the admin table and "grant the top N".
+
+def _initials(name: str, handle: str) -> str:
+    words = [w for w in (name or "").split() if w[:1].isalnum()]
+    if len(words) >= 2:
+        return (words[0][0] + words[1][0]).upper()
+    if words:
+        return words[0][:2].upper()
+    return (handle or "?")[:2].upper()
+
+
+def _waitlist_after_signup(user_id: str, referral_code: str = "") -> None:
+    """The waitlist half of a new account, if it was created on the list.
+
+    Sets who invited them (once), makes inviter and invitee friends straight
+    away - a mutual follow is what a friend *is* here, so "Your FAM" on the
+    waitlist and Your Friends in the app are the same rows - and queues their
+    registration with Viral Loops. Never raises: the account already exists,
+    and nothing about the waitlist may turn a successful sign-up into an error.
+    """
+    try:
+        if WAITLIST.status_of(user_id) != waitlist_mod.WAITLISTED:
+            return
+        joined = WAITLIST.join(user_id, referral_code,
+                               referrals_per_hour=settings.waitlist_referrals_per_hour)
+        if joined.get("capped"):
+            log.warning("waitlist: invite code %r passed its hourly cap; %r joined"
+                        " without crediting it", referral_code, user_id)
+        if joined["referrer"]:
+            for a, b in ((user_id, joined["referrer"]), (joined["referrer"], user_id)):
+                try:
+                    SOCIAL.follow(a, b)
+                except social_mod.SocialError:
+                    log.exception("could not make waitlist friends %r -> %r", a, b)
+        if not WAITLIST.has_action(user_id, "register"):
+            WAITLIST.enqueue(user_id, "register")
+            _kick_viral_loops()
+    except Exception:  # noqa: BLE001 - the sign-up already succeeded
+        log.exception("waitlist bookkeeping failed for %r", user_id)
+
+
+def _kick_viral_loops() -> None:
+    """Deliver the outbox now, in the background. Never awaited by a request."""
+    if not VIRAL_LOOPS.configured:
+        return
+    try:
+        task = asyncio.get_running_loop().create_task(
+            viral_loops_mod.drain(WAITLIST, VIRAL_LOOPS))
+        _BACKGROUND.add(task)
+        task.add_done_callback(_BACKGROUND.discard)
+    except RuntimeError:
+        pass  # no running loop (a synchronous caller); the timer delivers it
+
+
+async def _drain_viral_loops_forever(every: float = 300.0) -> None:
+    while True:
+        try:
+            result = await viral_loops_mod.drain(WAITLIST, VIRAL_LOOPS)
+            if result["sent"] or result["failed"] or result["refused"]:
+                log.info("viral loops outbox: %s", result)
+        except Exception:  # noqa: BLE001 - a loop that dies stops retrying
+            log.exception("viral loops outbox drain failed")
+        await asyncio.sleep(every)
+
+
+def _referral_link(request: Request, code: str) -> str:
+    base = _public_base(request)
+    return f"{base}/waitlist?{waitlist_mod.REFERRAL_PARAM}={code}"
+
+
+def _profile_state(user_id: str) -> dict:
+    person = SOCIAL.person(user_id)
+    prefs = PREFS.get(user_id)
+    topics = list(prefs.interests)
+    return {"name": person.get("name") or "", "handle": person.get("handle") or "",
+            "avatar": person.get("avatar") or "", "topics": topics,
+            # A photo is asked for and not required: a profile with a name, a
+            # handle and something to be interested in is one a friend can
+            # recognise and the feed can use.
+            "complete": bool(person.get("name") and person.get("handle") and topics)}
+
+
+def _waitlist_page() -> HTMLResponse:
+    page = PROJECT_ROOT / "static" / "waitlist.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/waitlist", include_in_schema=False)
+async def waitlist_landing(request: Request):
+    """The waitlist's front door. A signed-in waitlisted account goes straight
+    to its status page; an active one to the app."""
+    listener = getattr(request.state, "listener", None)
+    if listener is not None and listener.status == waitlist_mod.WAITLISTED:
+        return RedirectResponse("/waitlist/me", status_code=302)
+    return _waitlist_page()
+
+
+@app.get("/waitlist/me", include_in_schema=False)
+async def waitlist_status_page(request: Request):
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        return RedirectResponse("/waitlist", status_code=302)
+    return _waitlist_page()
+
+
+class WaitlistJoinRequest(BaseModel):
+    email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
+    password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+    referral_code: str = Field("", max_length=64)
+    want_token: bool = False
+
+
+@app.post("/api/waitlist/join")
+async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
+    """Join: the app's own email-and-password sign-up, then the waitlist half.
+
+    The same account the app will open with later - `ACCOUNTS.sign_up` on the
+    session this browser already has - so granting access changes one column
+    and moves nothing. With the gate on, the account is created waitlisted;
+    with it off (a development server), it is created active and the waitlist
+    half is skipped, which is exactly what the app does after launch.
+    """
+    _rate_limit(request)
+    user = _require_listener(request)
+    try:
+        listener = ACCOUNTS.sign_up(user, req.email, req.password)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _waitlist_after_signup(listener.user_id, req.referral_code)
+    listener = ACCOUNTS.listener_of(listener.user_id)
+    token = _session_token(request)
+    if req.want_token and not token:
+        token, _ = ACCOUNTS.new_session(listener.user_id)
+        request.state.set_session = token
+    return {**listener.as_dict(),
+            "redirect": "/waitlist/me" if listener.status == waitlist_mod.WAITLISTED
+            else "/",
+            **_maybe_token(request, token, req.want_token)}
+
+
+@app.get("/api/waitlist/me")
+async def waitlist_me(request: Request) -> dict:
+    """Everything the status page draws, for the signed-in account.
+
+    Place and "places until full access" come from `waitlist.ordered` and the
+    admin's cutoff. Your FAM is this account's friends - mutual follows, the
+    same list the app's Your Friends shows - and invites are the accounts that
+    joined with this one's code.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    status = WAITLIST.status_of(user)
+    code = WAITLIST.ensure_code(user)
+    place = WAITLIST.place_of(user)
+    cutoff = WAITLIST.cutoff()
+    invites = WAITLIST.invites_of(user)
+    friends = SOCIAL.friends(user)
+    waiting = WAITLIST.waitlisted_among(p["user_id"] for p in friends)
+    # Invitees first (they are what the page is counting), then any other
+    # friend - somebody already in the app who followed back is FAM too.
+    order = {uid: n for n, uid in enumerate(invites)}
+    friends.sort(key=lambda p: order.get(p["user_id"], len(order)))
+    account = ACCOUNTS.account(user) or {}
+    profile = _profile_state(user)
+    return {
+        "status": status,
+        "waitlist": settings.waitlist,
+        "name": profile["name"] or account.get("display_name") or "",
+        "place": place,
+        "total": WAITLIST.waitlisted_count() if place is not None else 0,
+        "cutoff": cutoff,
+        "places_until": (max(0, place - cutoff) if place is not None else None),
+        "in_next_batch": bool(place is not None and cutoff and place <= cutoff),
+        "referral_code": code,
+        "referral_link": _referral_link(request, code),
+        "invites": len(invites),
+        "unlock": waitlist_mod.next_unlock(
+            len(invites), waitlist_mod.parse_unlocks(settings.waitlist_unlocks)),
+        "fam": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
+                 "initials": _initials(p["name"], p["handle"]),
+                 "invited": p["user_id"] in order,
+                 "waitlisted": p["user_id"] in waiting} for p in friends],
+        "profile": profile,
+    }
+
+
+# --- admin -----------------------------------------------------------------
+
+@app.get("/admin/waitlist", include_in_schema=False)
+async def admin_waitlist_page(request: Request):
+    """The waitlist's admin page. A shell like /admin: every number on it is
+    fetched from the endpoints below, which are what check who is asking, and
+    it signs in through the same `/api/admin/login` every load."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "waitlist.html"
+    response = HTMLResponse(page.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store",
+                                     "X-Robots-Tag": "noindex"})
+    old = request.cookies.get(ADMIN_COOKIE, "")
+    if old:
+        ACCOUNTS.end_session(old)
+        response.delete_cookie(ADMIN_COOKIE, path="/")
+    return response
+
+
+@app.get("/api/admin/waitlist")
+async def admin_waitlist(request: Request) -> dict:
+    """The whole line, with the summary numbers. Admin only (404 otherwise)."""
+    _require_admin(request)
+    ordered = WAITLIST.ordered()
+    rows = []
+    complete = 0
+    for row in ordered:
+        profile = _profile_state(row["user_id"])
+        complete += profile["complete"]
+        rows.append({"user_id": row["user_id"], "place": row["place"],
+                     "name": profile["name"] or row["display_name"],
+                     "handle": profile["handle"], "email": row["email"],
+                     "invites": row["invites"],
+                     "profile_complete": profile["complete"],
+                     "joined": row["joined"]})
+    counts = WAITLIST.counts()
+    top = sorted((r for r in rows if r["invites"]), key=lambda r: -r["invites"])[:5]
+    return {
+        "summary": {**counts,
+                    "profile_complete_pct": (round(100 * complete / len(rows))
+                                             if rows else 0),
+                    "top_inviters": [{"name": r["name"], "handle": r["handle"],
+                                      "email": r["email"], "invites": r["invites"]}
+                                     for r in top]},
+        "cutoff": WAITLIST.cutoff(),
+        "gate": settings.waitlist,
+        "viral_loops": {"configured": VIRAL_LOOPS.configured,
+                        **WAITLIST.outbox_summary()},
+        "rows": rows,
+    }
+
+
+class AdminGrantRequest(BaseModel):
+    user_ids: list[str] = Field(default_factory=list, max_length=5000)
+    top: int = Field(0, ge=0, le=100000)
+
+
+@app.post("/api/admin/waitlist/grant")
+async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict:
+    """Let one person, several, or the top N in. Each is flagged in Viral
+    Loops through the outbox, which takes them off its leaderboard."""
+    _require_admin(request)
+    try:
+        if req.top:
+            granted = WAITLIST.grant_top(req.top)
+        elif req.user_ids:
+            granted = WAITLIST.grant(req.user_ids)
+        else:
+            raise waitlist_mod.WaitlistError("Name somebody to let in, or a number.")
+    except waitlist_mod.WaitlistError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _kick_viral_loops()
+    return {"granted": len(granted), "user_ids": granted}
+
+
+class AdminCutoffRequest(BaseModel):
+    cutoff: int = Field(..., ge=0, le=10_000_000)
+
+
+@app.post("/api/admin/waitlist/cutoff")
+async def admin_waitlist_cutoff(req: AdminCutoffRequest, request: Request) -> dict:
+    _require_admin(request)
+    return {"cutoff": WAITLIST.set_cutoff(req.cutoff)}
 
 
 # Also resolved from the project root, and for the same reason as the

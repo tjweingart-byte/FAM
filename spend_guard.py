@@ -59,6 +59,9 @@ PAID_CREDENTIALS = (
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "RUNPOD_API_KEY", "RUNPOD_ENDPOINT_ID", "RUNPOD_POD", "RUNPOD_POD_ID",
     "REMOTE_VOICE_URL", "REMOTE_VOICE_TOKEN",
+    # Not paid, but outbound to a third party that emails real people: a
+    # staging signup must never register anybody with the vendor.
+    "VIRAL_LOOPS_API_TOKEN",
 )
 
 #: Credential-shaped names that buy nothing, so the derived test does not ask

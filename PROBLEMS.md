@@ -14227,7 +14227,89 @@ found these, all fixed with a test each except the last:
   this is believed fine; if a typed search ever sits on the loading screen
   on iOS, this is where to look.
 
-## 183. The 10.1 packet, third set: DailyFAM listen times, friends, vibes
+## 183. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox
+
+**What was asked.** A waitlist before launch (the owner's spec, kept verbatim
+in `WAITLIST.md`): a landing page that takes an email, a "Founding FAM member"
+status page with place in line, invites, Your FAM and unlocks, profile setup,
+an admin page to grant access, and Viral Loops for referral links, fraud
+checks and email. The owner's answers during the build: **the app is closed
+until an account is active**; sign-up is **email and password** (Apple and
+Google wait on the Apple Developer Program); **Viral Loops sends the email**.
+
+**What conflicted, and how it was settled.** The spec assumed a profiles table
+with row-level security, a friends table and an `is_admin` column. FAM has
+SQLite stores, friendship as a mutual follow, and admin by
+`FAM_ADMIN_ACCOUNTS`; each is used as it is (`WAITLIST.md`, Decisions). The
+one real reversal is the closed app, which overrides
+`account-gates-kept` while `WAITLIST=1` - recorded at that rule as a Current
+note and as its own rule, `waitlist-gate`.
+
+**What was built.**
+
+* `accounts.py`: `status` and the referral columns, `status` defaulting to
+  `active` so existing accounts are backfilled; `new_account_status` writes
+  `waitlisted` in every account `INSERT` while the gate is on; `Listener`
+  carries `status`, read in the session query, so the gate costs no query.
+* `waitlist.py`: codes, joining, the line (invites, then join time), the
+  cutoff, granting one / the top N, and the Viral Loops outbox.
+* `viral_loops.py`: register and flag, and `drain`, which never raises.
+  Unconfigured, nothing is sent and nothing is dropped.
+* `app.py`: the gate in the session middleware; `/waitlist`,
+  `/waitlist/me`, `/api/waitlist/*`; `/admin/waitlist` and its three
+  endpoints; referral friendships at signup; discovery, lookup, follow and
+  messaging rules; the waitlist in `/api/health` and in account deletion.
+* `static/waitlist.html` (both mockups), `admin_ui/waitlist.html`, and in
+  the app a 403 hook that follows `X-FAM-Waitlist` plus the "Still on the
+  waitlist" label in Your Friends.
+* `tests/test_waitlist.py`: backfill, every sign-up route, referrals, the
+  line, grants, the outbox under success, outage and no keys, the gate for
+  guests / waitlisted / granted / admin, the status numbers, profile setup
+  unable to touch status, discovery, messaging and deletion.
+
+**Unverified from here.** The Viral Loops request shapes: both docs hosts are
+blocked from this container, so they follow search excerpts of the v3
+reference. The outbox makes a wrong shape a visible retried error
+(`/api/health` `waitlist.outbox_pending`, the admin page) rather than a lost
+signup. Production turns the gate on with `WAITLIST=1` in the Render
+dashboard - deliberately not in `render.yaml`.
+
+**Shared episodes stay open (01/10, the owner).** The first build closed
+`/s/<id>` with the rest of the app. Anyone can listen to a shared episode,
+waitlist or not, so the share page is out of the gate - and because its audio
+comes from the app's own `/api/audio`, that endpoint is let through only for
+exactly what was shared: that question, that length, `surface=share`,
+nothing attached (`ShareStore.is_shared`, `_shared_episode_request`). Any
+other question through the same URL still answers 403. Mix links stay closed.
+
+**Review before merging into Main (01/10).** Merged Main in first: Main had
+taken §180-§182 meanwhile, so this section is §183. An independent pass over
+the whole diff found no way round the gate (`/api/v1`, trailing slashes,
+case, HEAD/OPTIONS and `..` were all refused) and nothing that could write
+`status`; it found these, each now fixed with a test:
+
+* *A waitlisted account could not be deleted* - `/api/account` was behind the
+  gate. It is open to them now, with Delete account on the status page.
+* *Launch would not have lifted the rules.* Discovery and messaging checked
+  the row, not the switch, so anyone never granted would have stayed hidden
+  after `WAITLIST=0`. Both now apply only while the waitlist runs.
+* *Invites could be farmed.* Signups are unverified and the place in line
+  counts invites, so one code with made-up addresses could reach #1. A code
+  now credits at most `WAITLIST_REFERRALS_PER_HOUR` (20) an hour - keyed on
+  the code, since an address can be forged per request (`app._limit_key`).
+* *Two drains could send one call twice* (a second welcome email): every
+  signup kicks a drain. One drain runs at a time now (a lock per loop).
+* *A refused call was retried hourly for ever.* A 4xx other than 408/429 is
+  now finished with its error kept, and counted on the admin page.
+* Smaller: `/index.html/` and `//` served the app shell to a guest (the API
+  still refused them); the page path is normalised now. Place in line is a
+  COUNT query rather than a sort of the whole line on every status-page load.
+
+Known and left: deleting an account does not tell Viral Loops; the admin
+table reads two stores per row, which is fine at thousands and not at
+hundreds of thousands.
+
+## 184. The 10.1 packet, third set: DailyFAM listen times, friends, vibes
 
 The third set of the 10.1 implementations, in its order.
 
@@ -14300,3 +14382,35 @@ under Play is gone; the avatar and name at the top are one button
 (`story-who-btn`, ringed in copper) that opens the profile.
 
 Pinned in `tests/test_packet_1001_third.py`.
+
+**Review, before merging into Main.** Main had taken §183 for the waitlist in
+the meantime, so this became §184. A pass over the whole diff, with the
+waitlist merged in, found these, each fixed with a test:
+
+* *The permission prompt would never show on an iPhone.* It was asked after
+  the save's round trip, and Safari only allows it from the tap itself. It is
+  asked first now, and a service worker that never becomes ready ends the
+  wait after 15s instead of hanging the row.
+* *Invites during the waitlist went to a closed door.* "Invite new users"
+  shared the app's front page, which the waitlist sends to `/waitlist` with
+  no code - the inviter got no credit and no friendship. While it runs the
+  invite is the member's own referral link (`/api/waitlist/me`), fetched
+  when the Friends page or profile opens, because Safari refuses a share
+  sheet opened after a network wait.
+* *Nothing outside the app is told about it.* While the waitlist runs only
+  `active` accounts are notified (`_may_be_notified`); a skipped owner's day
+  is not claimed, so being let in the same morning still sends it.
+* *Signing out left the last person's state.* Their referral link, push
+  state and this browser's push subscription now go with the rest of
+  `forgetOfflineCopies`, so a shared device is not told about the previous
+  listener's mixes.
+* *A notification tap could land on the wrong tab*: an open share page or
+  `/waitlist` was focused and handed a message only the app reads. Only a
+  window on `/` is reused.
+* *An invented contact address*: the VAPID `sub` claim fell back to a made-up
+  `mailto:`, which Apple's push service refuses. `VAPID_SUBJECT` is now
+  required, and `/api/push` says so when it is missing.
+* *A desktop time field cleared the time* when one half was retyped (an
+  empty `change`); only Clear removes it.
+* The push store's connections are closed (`with sqlite3.connect()` only
+  commits), and the loop no longer reaches into its private lock.

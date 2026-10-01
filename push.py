@@ -16,7 +16,8 @@ The rules this file keeps:
 * **Once a day per mix**, by the listener's own calendar day in their own zone
   (`sent`, keyed by mix and local date) - not the server's.
 * **Delivery is Web Push** (a service worker's `push` event, `static/sw.js`).
-  It needs a VAPID key pair (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`) and the
+  It needs a VAPID key pair (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`), a
+  contact for the push services (`VAPID_SUBJECT`, mailto: or https:) and the
   optional `pywebpush` package (`requirements-push.txt`). Without either,
   `status()` says which, `/api/push` repeats it, and the listen-time row under
   a mix says notifications are not switched on - the time is still kept, so
@@ -35,6 +36,7 @@ import logging
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -118,6 +120,13 @@ def status() -> dict:
         return {"available": False, "public_key": "",
                 "reason": "Notifications are not set up on this server yet "
                           "(no VAPID keys). Your listen time is kept for when they are."}
+    if not s.vapid_subject.startswith(("mailto:", "https://")):
+        # Push services (Apple's among them) refuse a key with no contact,
+        # and nothing here invents one.
+        return {"available": False, "public_key": "",
+                "reason": "Notifications are not set up on this server yet "
+                          "(VAPID_SUBJECT is not a mailto: or https: address). "
+                          "Your listen time is kept for when they are."}
     try:
         import pywebpush  # noqa: F401
     except ImportError:
@@ -149,8 +158,16 @@ class PushStore:
                 delivered INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (mix_id, day))""")
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=5.0)
+    @contextmanager
+    def _connect(self):
+        """One connection per call, committed and closed - the loop runs
+        every minute, and `with sqlite3.connect()` alone never closes."""
+        db = sqlite3.connect(self.path, timeout=5.0)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def subscribe(self, user_id: str, subscription: dict, kind: str = WEBPUSH) -> None:
         endpoint = str((subscription or {}).get("endpoint") or "").strip()
@@ -210,6 +227,11 @@ class PushStore:
             cur = db.execute("INSERT OR IGNORE INTO push_sent (mix_id, day, sent_at, delivered) "
                              "VALUES (?, ?, ?, ?)", (mix_id, day, time.time(), int(delivered)))
             return cur.rowcount == 1
+
+    def record_delivered(self, mix_id: str, day: str, delivered: int) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("UPDATE push_sent SET delivered = ? WHERE mix_id = ? AND day = ?",
+                       (int(delivered), mix_id, day))
 
     def forget(self, user_id: str) -> int:
         """An account deleted: where its phone could be reached goes with it."""
@@ -277,7 +299,7 @@ def _send_webpush(sub: dict, payload: dict, push_store: PushStore) -> bool:
         webpush(subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
                 data=json.dumps(payload),
                 vapid_private_key=s.vapid_private_key,
-                vapid_claims={"sub": s.vapid_subject or "mailto:hello@fam.example"},
+                vapid_claims={"sub": s.vapid_subject},
                 ttl=PUSH_TTL_SECONDS, timeout=10)
         return True
     except WebPushException as exc:
@@ -303,32 +325,37 @@ def send_to(user_id: str, payload: dict, push_store: PushStore) -> int:
     return delivered
 
 
-def tick(mix_store, push_store: PushStore, now: Optional[float] = None) -> list:
+def tick(mix_store, push_store: PushStore, now: Optional[float] = None,
+         allowed=None) -> list:
     """One pass: send every due notification. Returns what it sent, for the
-    log and the tests: [(mix id, local day, delivered count)]."""
+    log and the tests: [(mix id, local day, delivered count)].
+
+    `allowed(user_id)` says whether this owner may be told anything now - the
+    app passes the waitlist's answer, so nobody outside the app while it runs
+    is notified about a mix inside it."""
     if not status()["available"]:
         return []
     sent = []
     for mix, day in due(mix_store, push_store, now):
+        if allowed is not None and not allowed(mix.user_id):
+            continue
         if not push_store.subscriptions(mix.user_id):
             continue  # nowhere to send; ask again if they subscribe in the window
         if not push_store.mark_sent(mix.id, day, 0):
             continue
         delivered = send_to(mix.user_id, message_for(mix), push_store)
-        with push_store._lock, push_store._connect() as db:
-            db.execute("UPDATE push_sent SET delivered = ? WHERE mix_id = ? AND day = ?",
-                       (delivered, mix.id, day))
+        push_store.record_delivered(mix.id, day, delivered)
         sent.append((mix.id, day, delivered))
     if sent:
         log.info("push: mix notifications sent: %s", sent)
     return sent
 
 
-async def run_forever(mix_store, push_store: PushStore) -> None:
+async def run_forever(mix_store, push_store: PushStore, allowed=None) -> None:
     import asyncio
     while True:
         try:
-            await asyncio.to_thread(tick, mix_store, push_store)
+            await asyncio.to_thread(tick, mix_store, push_store, None, allowed)
         except Exception:
             log.exception("push: reminder pass failed")
         await asyncio.sleep(TICK_SECONDS)

@@ -1440,6 +1440,31 @@ class Settings:
     # same rule `public_base_url` above keeps, for the same reason.
     app_store_url: str = field(
         default_factory=lambda: os.environ.get("APP_STORE_URL", "").strip())
+    # The pre-launch waitlist (WAITLIST.md). On, the app is closed to anybody
+    # whose account is not 'active': guests and waitlisted accounts are sent
+    # to /waitlist, every new account starts 'waitlisted', and the app's API
+    # answers them 403. Off by default so a development server and the test
+    # suite are the app as it was; production turns it on until launch, and
+    # launch is setting it back to 0.
+    waitlist: bool = field(
+        default_factory=lambda: os.environ.get("WAITLIST", "0")
+        not in ("0", "false", "False", ""))
+    # Invite counts that unlock something, comma separated. What each unlock
+    # *gives* is not decided yet; the page counts down to the next one.
+    waitlist_unlocks: str = field(
+        default_factory=lambda: os.environ.get("WAITLIST_UNLOCKS", "1,3,5"))
+    # How many new invites one code may credit in an hour (0 = no cap).
+    # Nothing about a signup is verified, so without this a script with one
+    # code and made-up addresses could buy the front of the line. Past the
+    # cap people still join; they just do not move the inviter up.
+    waitlist_referrals_per_hour: int = _env_int("WAITLIST_REFERRALS_PER_HOUR", 20)
+    # Viral Loops: referral tracking, fraud checks and email, never the source
+    # of truth. Both unset means nothing is sent and every call waits in the
+    # outbox (viral_loops.py). The token is server-only.
+    viral_loops_api_token: str = field(
+        default_factory=lambda: os.environ.get("VIRAL_LOOPS_API_TOKEN", "").strip())
+    viral_loops_campaign_id: str = field(
+        default_factory=lambda: os.environ.get("VIRAL_LOOPS_CAMPAIGN_ID", "").strip())
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

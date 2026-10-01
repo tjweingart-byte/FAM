@@ -82,6 +82,16 @@ services:
         sync: false        # set once in the dashboard; never in the repo
       - key: DEMO_MODE
         value: "0"
+      # The pre-launch waitlist (WAITLIST.md). WAITLIST=1 closes the app to
+      # anybody whose account is not active, so it is asked for in the
+      # dashboard rather than set here: turning it on is a decision made when
+      # the waitlist page has been seen working, not a side effect of a merge.
+      - key: WAITLIST
+        sync: false
+      - key: VIRAL_LOOPS_CAMPAIGN_ID
+        sync: false
+      - key: VIRAL_LOOPS_API_TOKEN
+        sync: false
       # Who may open /admin, the live tracker (admin_tracker.py): the email,
       # phone or listener id of each admin account, comma separated. Asked
       # for here because nothing else prompts for it, and unset means nobody

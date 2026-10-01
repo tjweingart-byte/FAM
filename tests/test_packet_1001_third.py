@@ -1,4 +1,4 @@
-"""The 10.1 implementations packet, the third set (PROBLEMS.md §183)."""
+"""The 10.1 implementations packet, the third set (PROBLEMS.md §184)."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _configure(monkeypatch, **changes):
 def keys(monkeypatch):
     """A server that can deliver: keys set, pywebpush importable."""
     _configure(monkeypatch, vapid_public_key="BPUBLIC", vapid_private_key="private",
-               mix_reminders=True)
+               vapid_subject="mailto:ops@example.com", mix_reminders=True)
     monkeypatch.setitem(sys.modules, "pywebpush", type(sys)("pywebpush"))
 
 
@@ -327,3 +327,66 @@ def test_the_vibe_viewer_has_no_view_profile_button():
     who = overlay.split('class="story-who-btn"', 1)[1].split("</button>", 1)[0]
     assert 'onclick="storyProfile()"' in who
     assert 'id="storyAv"' in who
+
+
+# --- Review fixes, before merging into Main --------------------------------
+
+def test_no_contact_address_is_invented(monkeypatch, keys):
+    _configure(monkeypatch, vapid_public_key="BPUBLIC", vapid_private_key="private",
+               vapid_subject="")
+    state = push.status()
+    assert state["available"] is False and "VAPID_SUBJECT" in state["reason"]
+    assert "fam.example" not in (ROOT / "push.py").read_text()
+
+
+def test_nobody_outside_the_waitlist_is_notified(tmp_path, monkeypatch, keys):
+    store, mix = _mix_at(tmp_path)
+    pushes = push.PushStore(str(tmp_path / "m.db"))
+    pushes.subscribe("u", {"endpoint": "https://push.example/1",
+                           "keys": {"p256dh": "k", "auth": "a"}})
+    monkeypatch.setattr(push, "_edition_ready", lambda now: True)
+    monkeypatch.setattr(push, "_send_webpush", lambda sub, payload, ps: True)
+    now = _local(2026, 10, 2, 7, 31)
+    assert push.tick(store, pushes, now, allowed=lambda uid: False) == []
+    # Not claimed, so once they are let in the same day's still goes out.
+    assert push.tick(store, pushes, now + 60, allowed=lambda uid: True) \
+        == [(mix.id, "2026-10-02", 1)]
+
+
+def test_the_app_asks_the_waitlist_who_may_be_notified(monkeypatch):
+    src = (ROOT / "app.py").read_text()
+    assert "allowed=_may_be_notified" in src
+    body = src.split("def _may_be_notified(", 1)[1].split("\n\n\n", 1)[0]
+    assert "settings.waitlist" in body and "waitlist_mod.ACTIVE" in body
+
+
+def test_the_permission_prompt_is_asked_inside_the_tap():
+    body = _fn("setMixListenTime")
+    assert body.index("askNotificationPermission()") < body.index("saveMix(")
+    # And a service worker that never becomes ready cannot hang it.
+    assert "setTimeout(function(){ finish(false); }" in _fn("subscribeToPush")
+
+
+def test_an_empty_time_field_never_clears_the_listen_time():
+    assert 'onchange="if(this.value) setMixListenTime(this.value)"' in INDEX
+
+
+def test_a_notification_tap_only_hands_off_to_the_app_itself():
+    assert 'at.pathname === "/"' in SW
+
+
+def test_invites_carry_the_referral_link_while_the_waitlist_runs():
+    load = _fn("loadInviteLink")
+    assert "AUTH.waitlist" in load and "/api/waitlist/me" in load
+    assert "referral_link" in load
+    assert "inviteLink ||" in _fn("inviteFriends")
+    assert "loadInviteLink();" in _fn("openFriends")
+    # Signing out forgets it, and this browser's push subscription.
+    forget = _fn("forgetOfflineCopies")
+    assert 'inviteLink = "";' in forget and "unsubscribe()" in forget
+
+
+def test_the_push_store_closes_its_connections():
+    src = (ROOT / "push.py").read_text()
+    assert "db.close()" in src
+    assert "push_store._connect" not in src

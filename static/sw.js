@@ -69,9 +69,11 @@ self.addEventListener("notificationclick", function (event) {
   var url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      // Only the app itself (served at "/") understands "open-url"; an open
+      // share page, waitlist page or /admin is left alone and a window opens.
       for (var i = 0; i < list.length; i++) {
-        var c = list[i];
-        if (new URL(c.url).origin === self.location.origin && "focus" in c) {
+        var c = list[i], at = new URL(c.url);
+        if (at.origin === self.location.origin && at.pathname === "/" && "focus" in c) {
           c.postMessage({ type: "open-url", url: url });
           return c.focus();
         }
