@@ -2599,7 +2599,7 @@ def main() -> int:
 
         def an_added_mix_is_removed_by_the_same_button():
             """The (+) that reads Added, tapped again, asks "Remove ... from
-            your DailyFAM?" and on yes takes the copy back out. Runs after
+            your myFAM?" and on yes takes the copy back out. Runs after
             the add above; with nobody else's mix to find there is nothing
             to remove."""
             page.evaluate("openPlayFAM()")
@@ -2615,7 +2615,7 @@ def main() -> int:
             page.wait_for_selector("#sheetOverlay.active", timeout=3000)
             sheet = page.inner_text("#sheetCard")
             # The group heading is drawn in capitals, which inner_text reports.
-            assert "remove morning brief from your dailyfam?" in sheet.lower(), sheet[:200]
+            assert "remove morning brief from your myfam?" in sheet.lower(), sheet[:200]
             page.click("#sheetCard .sheet-item.danger")
             page.wait_for_timeout(500)
             assert not page.query_selector("#dailyResults .mix-add.on"), \
@@ -3026,7 +3026,7 @@ def main() -> int:
             page.wait_for_selector("#screen-history.active", timeout=8000)
             tabs = page.eval_on_selector_all(
                 "#histTabs .hist-tab", "e => e.map(x => x.textContent.trim())")
-            assert tabs == ["All", "myFAM", "dailyFAM", "searchFAM"], tabs
+            assert tabs == ["All", "dailyFAM", "myFAM", "searchFAM"], tabs
             page.wait_for_selector("#histBody .sv-row", timeout=8000)
             titles = page.eval_on_selector_all(
                 "#histBody .sv-title", "e => e.map(x => x.textContent)")

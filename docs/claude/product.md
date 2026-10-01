@@ -82,6 +82,18 @@ new one (`/api/episode/topic`).
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
+<!-- rule:names-swapped -->
+**The listener sees myFAM and DailyFAM with their names swapped (§185), at
+the owner's direction.** The rails screen (the first tab, `screen-myfam`) is
+labelled **DailyFAM**; the mixes screen (`screen-playfam`) is labelled
+**myFAM** - the tab labels, wordmarks, history tabs, toasts, sheets and the
+server's listener-facing sentences ("That mix is already in your myFAM.").
+Only what a listener reads changed: ids, routes, `data-tab`/`data-hist`
+values, history `surface` keys, function and module names, and these docs
+keep the old names, so "myFAM" in code and in `docs/claude/` still means the
+rails and "DailyFAM" the mixes. A new listener-facing string uses the
+swapped names.
+
 <!-- rule:decouple-script-audio -->
 ## The architectural consequence that matters most
 

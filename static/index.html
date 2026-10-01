@@ -2985,7 +2985,7 @@
       <section class="screen" id="screen-myfamsearch">
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <h2>Search myFAM</h2>
+          <h2>Search DailyFAM</h2>
         </div>
         <label class="yf-search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -3016,8 +3016,8 @@
         </div>
         <div class="hist-tabs" id="histTabs" role="tablist">
           <button class="hist-tab on" data-hist="" onclick="setHistoryTab('')">All</button>
-          <button class="hist-tab" data-hist="myfam" onclick="setHistoryTab('myfam')">myFAM</button>
-          <button class="hist-tab" data-hist="dailyfam" onclick="setHistoryTab('dailyfam')">dailyFAM</button>
+          <button class="hist-tab" data-hist="myfam" onclick="setHistoryTab('myfam')">dailyFAM</button>
+          <button class="hist-tab" data-hist="dailyfam" onclick="setHistoryTab('dailyfam')">myFAM</button>
           <button class="hist-tab" data-hist="search" onclick="setHistoryTab('search')">searchFAM</button>
         </div>
         <div class="scroll" id="histBody"></div>
@@ -3099,8 +3099,8 @@
         </div>
 
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3123,12 +3123,12 @@
              off" heading, which is not drawn at all until there is
              something to pick up. -->
         <div class="myfam-header myfam-header-fixed">
-            <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+            <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
             <div class="myfam-head-actions">
               <!-- Search within myFAM (§181, the 9.30 interface packet): it
                    took the messages button's place, and Messages moved to
                    the tab bar where Explore was. -->
-              <button class="myfam-head-btn" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="Search myFAM">
+              <button class="myfam-head-btn" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="Search DailyFAM">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
               </button>
             </div>
@@ -3166,8 +3166,8 @@
           <div class="nowbar-progress"><div class="nowbar-fill" id="nowFill"></div></div>
         </div>
         <div class="tabbar">
-          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3179,7 +3179,7 @@
       <section class="screen" id="screen-playfam">
         <div class="scroll">
           <div class="myfam-header">
-            <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+            <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
             <!-- Hidden until `/api/mixes` says this listener has an account.
                  A mix is one of the things an account is *for*, so offering to
                  make one to somebody who cannot keep one is a control with
@@ -3211,8 +3211,8 @@
           <div id="mixList"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3331,7 +3331,7 @@
                interface packet). A mix follows subjects, never episodes, so
                the server says which topic this is (`/api/episode/topic`). -->
           <button class="player-add" id="playerAdd" type="button" onclick="openAddToMix()"
-                  title="Add this topic to a DailyFAM mix" aria-label="Add this topic to a DailyFAM mix"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v9M7.5 12h9"/></svg></button>
+                  title="Add this topic to a myFAM mix" aria-label="Add this topic to a myFAM mix"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v9M7.5 12h9"/></svg></button>
           <div class="mini-title" id="p-title">Title</div>
           <div class="mini-src" id="p-src">Source</div>
           <div class="next-hint" id="nextHint"></div>
@@ -3408,7 +3408,7 @@
       <section class="screen" id="screen-explore">
         <div class="reel-stage" id="reelStage">
           <div class="reel-head">
-            <button class="reel-back" onclick="openMyFamTab()" aria-label="Back to myFAM"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <button class="reel-back" onclick="openMyFamTab()" aria-label="Back to DailyFAM"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
             <div class="reel-brand" aria-label="exploreFAM">explore<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></div>
             <div class="reel-count" id="reelCount"></div>
           </div>
@@ -3488,8 +3488,8 @@
           </div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3531,8 +3531,8 @@
           <div id="profileBody"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3559,8 +3559,8 @@
         </label>
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
@@ -3626,7 +3626,7 @@
         <div class="nextup-card mixdone-card" role="dialog" aria-labelledby="mixDoneH">
           <div class="mixdone-h" id="mixDoneH">You have finished listening to your playlist for today</div>
           <div class="mixdone-sub">Fresh episodes on the same topics tomorrow.</div>
-          <button class="nextup-back" onclick="closeMixDone(true)">Back to DailyFAM</button>
+          <button class="nextup-back" onclick="closeMixDone(true)">Back to myFAM</button>
         </div>
       </div>
 
@@ -3647,7 +3647,7 @@
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
             </button>
           </form>
-          <button class="nextup-back" id="nextUpBack" onclick="dismissNextUp()">Back to myFAM</button>
+          <button class="nextup-back" id="nextUpBack" onclick="dismissNextUp()">Back to DailyFAM</button>
         </div>
       </div>
 
@@ -3949,7 +3949,7 @@
       <h2 id="feedbackTitle">Report a bug</h2>
       <p class="fb-sub">What happened, and what did you expect? The screen you are on is sent with it.</p>
       <textarea class="modal-input fb-text" id="feedbackText" maxlength="4000" rows="6"
-                placeholder="e.g. I tapped Refresh on myFAM and the same four tiles came back."></textarea>
+                placeholder="e.g. I tapped Refresh on DailyFAM and the same four tiles came back."></textarea>
       <p class="fb-ctx" id="feedbackCtx"></p>
       <p class="fb-error" id="feedbackError" hidden></p>
       <div class="fb-btns">
@@ -3959,7 +3959,7 @@
     </form>
   </div>
 
-  <div class="footnote">Prototype scope: episodes are generated live and streamed as raw audio — no file is created and nothing is converted to MP3 — and myFAM here refers to the renamed Branches feature — the separate social layer (posts, friends, comments) isn't wired up since it isn't part of the initial rollout.</div>
+  <div class="footnote">Prototype scope: episodes are generated live and streamed as raw audio — no file is created and nothing is converted to MP3 — and DailyFAM here refers to the renamed Branches feature — the separate social layer (posts, friends, comments) isn't wired up since it isn't part of the initial rollout.</div>
 
 
 
@@ -8322,7 +8322,7 @@
 
   function startMixQueue(m, start){
     var items = m.items.slice();
-    mixPlay = { name: m.name || "DailyFAM",
+    mixPlay = { name: m.name || "myFAM",
                 order: items.slice(start).concat(items.slice(0, start)),
                 pos: 0, key: "" };
     playMixItem(mixPlay.order[0]);
@@ -8363,7 +8363,7 @@
     hideNowBar();
     var h = document.getElementById("mixDoneH");
     if(h) h.textContent = "You have finished listening to your "
-      + (name || "DailyFAM") + " playlist for today";
+      + (name || "myFAM") + " playlist for today";
     var overlay = document.getElementById("mixDoneOverlay");
     if(overlay) overlay.classList.add("active");
   }
@@ -8414,7 +8414,7 @@
     if(item.prompt && item.daily_prompt) daily = item.prompt;
     TOPICS[key] = {
       title: daily ? item.title + " \u00b7 today" : item.title,
-      source: "DailyFAM",
+      source: "myFAM",
       caption: "Live captions will appear here as this plays\u2014",
       prompt: daily || item.query,
       // The edition's length, from the server - minutes are in the cache key,
@@ -8689,7 +8689,7 @@
   function mixAddButtonHTML(m, where, i){
     if(m.mine) return '';
     return '<button class="mix-add' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
-      + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your DailyFAM" : "Add " + escapeHtml(m.name) + " to your DailyFAM") + '"'
+      + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your myFAM" : "Add " + escapeHtml(m.name) + " to your myFAM") + '"'
       + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
       + addIconSVG(m.added) + '</button>';
   }
@@ -8774,7 +8774,7 @@
     } else {
       html += '<button class="pub-add-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
         + ' onclick="addMixFrom(\'view\', 0)">' + addIconSVG(m.added)
-        + (m.added ? "In your DailyFAM" : "Add to my DailyFAM") + '</button>';
+        + (m.added ? "In your myFAM" : "Add to myFAM") + '</button>';
     }
     if(items.length){
       html += '<button class="mix-play" onclick="playPublicMix(0)">'
@@ -8827,7 +8827,7 @@
     if(m.added){ confirmRemoveMix(m); return; }
     if(!AUTH.authenticated){
       showActionSheet([
-        { group: "Adding a mix to your DailyFAM needs an account. Listening never does." },
+        { group: "Adding a mix to your myFAM needs an account. Listening never does." },
         { label: "Sign up", action: function(){ openAuth("signup"); } },
         { label: "Log in", action: function(){ openAuth("login"); } }
       ]);
@@ -8844,7 +8844,7 @@
       .then(function(saved){
         markMixAdded(m.id);
         if(Array.isArray(mixes) && !mixById(saved.id)) mixes.push(saved);
-        toast("Added to your DailyFAM as " + saved.name);
+        toast("Added to your myFAM as " + saved.name);
       })
       .catch(function(e){
         document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
@@ -8856,7 +8856,7 @@
   // the copy may have been renamed or re-covered since, and takes it back out.
   function confirmRemoveMix(m){
     showActionSheet([
-      { group: "Remove " + escapeHtml(m.name) + " from your DailyFAM?" },
+      { group: "Remove " + escapeHtml(m.name) + " from your myFAM?" },
       { label: "Yes, remove it", danger: true, action: function(){ removeMixCopy(m); } }
     ]);
   }
@@ -8873,7 +8873,7 @@
       .then(function(){
         if(Array.isArray(mixes)) mixes = mixes.filter(function(x){ return x.source_id !== m.id; });
         markMixAdded(m.id, false);
-        toast("Removed from your DailyFAM");
+        toast("Removed from your myFAM");
       })
       .catch(function(e){
         document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
@@ -9621,7 +9621,7 @@
     var ep = mfsResults[i];
     if(!ep) return;
     TOPICS["_mfsearch"] = { title: ep.title || ep.query, prompt: ep.query,
-                            source: "Search myFAM", caption: "",
+                            source: "Search DailyFAM", caption: "",
                             cachedOnly: true, exploreMinutes: ep.minutes || BROWSE_MINUTES,
                             titleOverridden: true };
     generate("_mfsearch");
@@ -10618,7 +10618,7 @@
     var key = "bank_" + topicId + "_" + Date.now();
     TOPICS[key] = {
       title: t.title,
-      source: "myFAM",
+      source: "DailyFAM",
       caption: "Live captions will appear here as this plays\u2014",
       // The tile generates from `query`, not the display title: a headline is
       // not a question, and the query is what the shared script cache keys on.
@@ -11898,7 +11898,7 @@
     } else {
       html += settingsRow("Sign up", "", "openAuth('signup')")
         + settingsRow("Log in", "", "openAuth('login')")
-        + '<div class="set-note">Listening needs no account. One keeps your mixes, interests and saved episodes, and makes myFAM yours.</div>';
+        + '<div class="set-note">Listening needs no account. One keeps your mixes, interests and saved episodes, and makes DailyFAM yours.</div>';
     }
 
     // No "Replay the first run" row, and no "This app" group left to hold it.
@@ -14199,7 +14199,7 @@
       });
   }
 
-  var HISTORY_LABELS = { myfam: "myFAM", dailyfam: "dailyFAM",
+  var HISTORY_LABELS = { myfam: "dailyFAM", dailyfam: "myFAM",
                          search: "searchFAM", other: "Shared & more" };
 
   function renderHistory(){
@@ -14264,7 +14264,7 @@
     // words alone - it would come back as an episode about "summarise this".
     if(!t || t.cachedOnly || t.attach) return "";
     if(t.surface) return t.surface;
-    if(t.fromMix || t.source === "DailyFAM") return "dailyfam";
+    if(t.fromMix || t.source === "myFAM") return "dailyfam";
     var root = stack[0] || "";
     if(root === "explore") return "";
     if(root === "home") return "search";
@@ -14364,7 +14364,7 @@
     if(!query){ toast("Play something first"); return; }
     if(!AUTH.authenticated){
       showActionSheet([
-        { group: "Create an account to keep DailyFAM mixes" },
+        { group: "Create an account to keep myFAM mixes" },
         { label: "Sign up", action: function(){ openAuth("signup"); } },
         { label: "Log in", action: function(){ openAuth("login"); } }
       ]);
@@ -14380,13 +14380,13 @@
       mixes = res[1].mixes || [];
       if(!topic.id && !topic.query){ toast("Could not tell what this episode is about"); return; }
       var entry = topic.id || { query: topic.query, title: topic.title };
-      var items = [{ group: "Add " + escapeHtml(topic.label) + " to a DailyFAM mix" }];
+      var items = [{ group: "Add " + escapeHtml(topic.label) + " to a myFAM mix" }];
       mixes.forEach(function(m){
         items.push({ label: escapeHtml(m.name), action: function(){ addTopicToMix(m, entry, topic.label); } });
       });
       items.push({ label: "+ Create new playlist", action: function(){ createMixWithTopic(entry, topic.label); } });
       showActionSheet(items);
-    }).catch(function(){ toast("Could not load your DailyFAM mixes"); });
+    }).catch(function(){ toast("Could not load your myFAM mixes"); });
   }
   function addTopicToMix(m, entry, label){
     var payload = (m.items || []).map(function(i){
@@ -16041,7 +16041,7 @@
             : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')
         + '</button></div>';
     }).join("")
-      + '<div class="cat-note">Pick a few to start. myFAM learns the rest from what you play.</div>';
+      + '<div class="cat-note">Pick a few to start. DailyFAM learns the rest from what you play.</div>';
   }
 
   // Chosen, and not yet saved.
@@ -16302,7 +16302,7 @@
     document.getElementById("nextUpOverlay").style.setProperty(
       "--nextup-fade", NEXT_UP_FADE_MS + "ms");
     document.getElementById("nextUpBack").textContent =
-      nextUpFromSearch ? "Back to search" : "Back to myFAM";
+      nextUpFromSearch ? "Back to search" : "Back to DailyFAM";
     document.getElementById("nextUpSearchInput").value = "";
     nextUpPaused = false;
     document.getElementById("nextUpOverlay").classList.add("active");
