@@ -654,8 +654,15 @@ def _facet_of_node(tree, node_id: str, facets: frozenset) -> str:
     return ""
 
 
-def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
+def pick(text: str, tags: Iterable[str] = (),
+         category: str = "") -> Optional[dict]:
     """The picture for a tile about `text`, or None to keep the drawing.
+
+    **A `category` outranks the words.** A live story's composer read the
+    whole story and named the node it is about (`stories.resolve_category`);
+    matching the question's words instead is how a boxing press conference
+    whose query never says "boxing" wore the facet's picture. A category the
+    tree no longer holds is ignored and the words decide, as before.
 
     **The tile's own node's picture, and nobody else's** (9.30 #7). The
     tile's node is the deepest one the tree finds in its text - or, when the
@@ -690,13 +697,18 @@ def pick(text: str, tags: Iterable[str] = ()) -> Optional[dict]:
             _MEMO = {}
             _MEMO_KEY = gen
         tags = tuple(tags or ())
-        key = (text or "", tags)
+        key = (text or "", tags, category or "")
         hit = _MEMO.get(key)
         if hit is None:
             facets = topics.FACETS
-            candidates = list(tree.match(text or "") if text else ())
-            candidates.sort(key=lambda n: (-_depth(tree, n, facets), n))
-            own = candidates[0] if candidates else ""
+            own = ""
+            if category and (category in facets
+                             or tree.get(category) is not None):
+                own = category
+            if not own:
+                candidates = list(tree.match(text or "") if text else ())
+                candidates.sort(key=lambda n: (-_depth(tree, n, facets), n))
+                own = candidates[0] if candidates else ""
             if not own:
                 own = topics.facet_of(tags[0]) if tags else ""
             node = own if own in approved else ""

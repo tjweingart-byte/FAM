@@ -9794,7 +9794,9 @@
   function seedTagText(sectionKey, topic){
     // A tile with a picture is labelled with the picture's own facet, so the
     // word and the image always agree about what the episode is (§160).
-    if(topic && topic.thumb && topic.thumb_facet) return topic.thumb_facet;
+    // Without a picture, a live story's composed category still names its
+    // facet (`thumb_facet`), which beats the alphabetically first tag.
+    if(topic && topic.thumb_facet) return topic.thumb_facet;
     return (topic && topic.tags && topic.tags[0]) ? topic.tags[0] : "";
   }
 

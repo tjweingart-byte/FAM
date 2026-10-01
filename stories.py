@@ -266,6 +266,14 @@ class Signal:
     #: The provider's status for `live_line`, in `live_facts`' closed
     #: vocabulary (`scheduled`/`in_progress`/`final`).
     live_status: str = ""
+    #: The names the story's headlines share - its people, organisations and
+    #: places, as the press spells them (`trending_bank.anchors_of`). What
+    #: pins the episode to *this* event: the composer is told to name them in
+    #: the query, and `pin_query` puts them there when it did not, so research
+    #: searches for the event the press is leading with rather than a theme
+    #: it could stand for. Names, never a headline - a headline can carry a
+    #: result, and the query is what research searches *from*.
+    anchors: tuple = ()
 
     @property
     def id(self) -> str:
@@ -450,6 +458,14 @@ class Story:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: The category-tree node this story is about (`categories`), chosen by
+    #: the composer and resolved against the tree in code
+    #: (`resolve_category`). What the tile's picture and its facet label are
+    #: read from - "mixed martial arts", not whichever facet a keyword in a
+    #: headline happened to sort first. Empty when templated or unresolved.
+    category: str = ""
+    #: `Signal.anchors`, kept for the edition report.
+    anchors: tuple = ()
 
     @property
     def id(self) -> str:
@@ -491,7 +507,8 @@ class Story:
                 "outcome_pending": self.outcome_pending,
                 "degraded": self.degraded, "coverage": self.coverage,
                 "geo": self.geo, "geo_scope": self.geo_scope,
-                "live_line": self.live_line, "live_status": self.live_status}
+                "live_line": self.live_line, "live_status": self.live_status,
+                "category": self.category}
 
 
 @dataclass
@@ -815,7 +832,19 @@ COMPOSER_SYSTEM = (
     "true whichever way the thing turns out.\n\n"
     "A question worth an episode, never a headline. A headline restates what "
     "somebody already saw; a question is the thing they would want explained "
-    "after seeing it."
+    "after seeing it.\n\n"
+    "But the question is about *this* story, not a theme it could stand for. "
+    "The query is what gets researched, from scratch, with nothing else "
+    "attached: name the specific people, organisations, places and event the "
+    "headlines are about, so a search finds this news and not something like "
+    "it. \"What a chaotic press conference signals about the fight\" finds "
+    "any fight; \"what Tyson Fury and Anthony Joshua's press conference "
+    "signals about their fight\" finds this one.\n\n"
+    "And say what kind of thing each story is: the most specific category "
+    "that is true of it. A heavyweight boxing match is boxing, not sport; a "
+    "story about vitamin C is nutrition, not technology; a club's sponsor "
+    "dispute is football. Prefer a category from the list you are given; "
+    "when none fits, name the kind of thing in two or three plain words."
 )
 
 STORY_SCHEMA = {
@@ -838,9 +867,17 @@ STORY_SCHEMA = {
                                              "a claim about an outcome."},
                     "query": {"type": "string",
                               "description": "6-16 words. The question FAM will "
-                                             "research and answer."},
+                                             "research and answer. Names the "
+                                             "people, organisations or places "
+                                             "the story is about."},
+                    "category": {"type": "string",
+                                 "description": "The most specific category "
+                                                "this story is about, from the "
+                                                "list where one fits - e.g. "
+                                                "'mixed martial arts', "
+                                                "'boxing', 'nutrition'."},
                 },
-                "required": ["n", "title", "angle", "query"],
+                "required": ["n", "title", "angle", "query", "category"],
                 "additionalProperties": False,
             },
         }
@@ -907,8 +944,16 @@ def template(signal: Signal, now: Optional[float] = None) -> Story:
 
 
 def _story_from(signal: Signal, title: str, angle: str, query: str,
-                degraded: bool, now: float) -> Story:
+                degraded: bool, now: float, category: str = "") -> Story:
     scope, key, label = _geography(signal.countries, signal.region_hint)
+    tags = tuple(signal.tags)
+    if category:
+        # The composer read the whole story and said what it is; the keyword
+        # tags read headline words one at a time ("study" made a boxing press
+        # conference SCIENCE). Its category and that category's ancestry are
+        # the tags, so the facet a tile is ranked and labelled under is the
+        # one the picture is drawn from.
+        tags = category_tags(category, f"{title} {angle} {query}")
     return Story(
         subject=signal.subject,
         title=title.strip()[:80],
@@ -916,7 +961,9 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         query=query.strip()[:200],
         domain=signal.domain,
         source=signal.source,
-        tags=tuple(signal.tags),
+        tags=tags,
+        category=category,
+        anchors=tuple(getattr(signal, "anchors", ()) or ()),
         strength=float(signal.strength),
         first_seen=now,
         last_seen=now,
@@ -957,6 +1004,159 @@ def sports_query(subject: str, status: str) -> str:
     return f"what to watch for in {subject} and what would decide it"
 
 
+#: How many lines of the category tree the composer is shown. One line per
+#: second-level category with its children, so the seed's 180 nodes are about
+#: seventy lines; the cap keeps a grown tree from swelling every compose.
+CATEGORY_VOCABULARY_LINES = 120
+#: Children listed on one line before the rest are left to the composer.
+CATEGORY_VOCABULARY_CHILDREN = 16
+
+
+def category_vocabulary() -> list:
+    """The category tree, as lines the composer can choose from. Never raises.
+
+    `facet / category: child, child`. Shallowest first and most-used first
+    within a facet, so a capped list loses the long tail, not the trunk. Empty
+    when there is no tree, and the composer then names the kind of thing in
+    its own words, which `resolve_category` matches as well as it can.
+    """
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        nodes = tree.nodes()
+    except Exception:  # noqa: BLE001 - a hint, never a reason to fail a compose
+        return []
+    if not nodes:
+        return []
+    children: dict = {}
+    for node in nodes.values():
+        if node.parent_id:
+            children.setdefault(node.parent_id, []).append(node)
+    lines = []
+    for node in sorted(nodes.values(),
+                       key=lambda n: (n.parent_id, -int(n.uses or 0), n.id)):
+        if node.parent_id not in _facets():
+            continue
+        kids = sorted(children.get(node.id, []),
+                      key=lambda n: (-int(n.uses or 0), n.id))
+        line = f"- {node.parent_id} / {node.id}"
+        if kids:
+            line += ": " + ", ".join(k.id for k in
+                                     kids[:CATEGORY_VOCABULARY_CHILDREN])
+        lines.append(line)
+        if len(lines) >= CATEGORY_VOCABULARY_LINES:
+            break
+    return lines
+
+
+def _facets() -> frozenset:
+    import topics
+
+    return topics.FACETS
+
+
+def facet_for(tag: str) -> str:
+    """The facet a tag or a category-tree node sits under, or ""."""
+    import topics
+
+    if tag in topics.FACETS:
+        return tag
+    parent = topics.TAG_PARENT.get(tag, "")
+    if parent:
+        return parent
+    try:
+        chain = topics.category_tree().ancestors(tag)
+    except Exception:  # noqa: BLE001
+        return ""
+    return next((a for a in reversed(chain) if a in topics.FACETS), "")
+
+
+def resolve_category(text: str) -> str:
+    """What the composer said a story is, as a node of the category tree.
+
+    In code, never trusted as given: an id the tree holds is kept; a facet,
+    or a facet's label ("Sport"), is the facet; anything else is matched
+    against the tree and the deepest node it names wins ("UFC mixed martial
+    arts" -> `mixed martial arts`). Nothing recognisable is "", and the tile
+    keeps its keyword tags - a category the tree cannot place would give the
+    picture nothing to draw from. Never raises.
+    """
+    try:
+        import categories
+        import topics
+
+        wanted = categories.normalise(text)
+        if not wanted:
+            return ""
+        if wanted in topics.FACETS:
+            return wanted
+        for facet, label in topics.TAG_LABELS.items():
+            if categories.normalise(label) == wanted:
+                return facet
+        tree = topics.category_tree()
+        if tree.get(wanted) is not None:
+            return wanted
+        found = list(tree.match(wanted))
+        if not found:
+            return ""
+        found.sort(key=lambda n: (-tree.depth_of(n), n))
+        return found[0]
+    except Exception:  # noqa: BLE001 - a category is ranking sugar here
+        log.warning("stories: could not resolve the category %r", text)
+        return ""
+
+
+def category_tags(category: str, text: str = "") -> tuple:
+    """A categorised story's tags: the category, its ancestry, and any
+    keyword subtag of the same facet that `text` carries. Never a tag from
+    another facet - that is the disagreement the category exists to end."""
+    import topics
+
+    tags = {category}
+    try:
+        tags.update(topics.category_tree().ancestors(category))
+    except Exception:  # noqa: BLE001
+        pass
+    facet = facet_for(category)
+    if facet:
+        tags.add(facet)
+        if text:
+            tags.update(t for t in topics.tags_for_text(text)
+                        if facet_for(t) == facet)
+    return tuple(sorted(t for t in tags if t))
+
+
+_ANCHOR_WORD = re.compile(r"[a-z0-9]+")
+
+
+def pin_query(query: str, anchors, limit: int = 200) -> str:
+    """The query, naming at least one of the story's anchors.
+
+    The composer is asked to name who and what the story is about; this is
+    the check that it did. A query that names none of them is researched as
+    a theme ("what a chaotic press conference signals about the fight") and
+    finds whichever fight the index likes best, so the anchors are added -
+    names only, which carry no result. Within `limit`, which is what
+    `_story_from` cuts a query to.
+    """
+    query = (query or "").strip()
+    anchors = [a.strip() for a in (anchors or ()) if a and a.strip()]
+    if not query or not anchors:
+        return query
+    have = set(_ANCHOR_WORD.findall(query.lower()))
+    for anchor in anchors:
+        words = _ANCHOR_WORD.findall(anchor.lower())
+        # The whole name, or any real word of it: "Fury" pins a story about
+        # Tyson Fury as well as his full name does.
+        if words and (all(w in have for w in words)
+                      or any(len(w) >= 4 and w in have for w in words)):
+            return query
+    named = ", ".join(anchors[:3])
+    tail = f" ({named})"
+    return (query[:max(0, limit - len(tail))].rstrip() + tail).strip()
+
+
 def build_composer_prompt(signals: list, when: str) -> str:
     """What the composer is shown. One block per signal, numbered.
 
@@ -971,6 +1171,9 @@ def build_composer_prompt(signals: list, when: str) -> str:
         lines.append("")
         lines.append(f"[{index}] subject: {signal.subject}")
         lines.append(f"    what was measured: {signal.observation}")
+        if getattr(signal, "anchors", ()):
+            lines.append("    named in the headlines: "
+                         + ", ".join(signal.anchors))
         lines.append(f"    kind of measurement: {_DOMAIN_NOTE[signal.domain]}")
         if signal.outcome_pending:
             lines.append("    NOTE: this has not finished. Nothing about how it "
@@ -985,6 +1188,10 @@ def build_composer_prompt(signals: list, when: str) -> str:
         "make each tile about a different question rather than three "
         "phrasings of one.",
     ]
+    vocabulary = category_vocabulary()
+    if vocabulary:
+        lines += ["", "Categories to choose from (facet / category: "
+                      "subcategories):"] + vocabulary
     return "\n".join(lines)
 
 
@@ -1067,7 +1274,9 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
             continue
         title = str(row.get("title") or "").strip()
         angle = str(row.get("angle") or "").strip()
-        query = str(row.get("query") or "").strip()
+        query = pin_query(str(row.get("query") or "").strip(),
+                          getattr(signals[index], "anchors", ()))
+        category = resolve_category(str(row.get("category") or ""))
         if not (title and query):
             continue
         if not (_safe(title) and _safe(angle) and _safe(query)):
@@ -1082,14 +1291,15 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
             log.warning("stories: composed tile asserts an outcome, templating "
                         "instead: %r / %r / %r", title, angle, query)
             continue
-        written[index] = (title, angle, query)
+        written[index] = (title, angle, query, category)
 
     out = []
     for index, signal in enumerate(signals):
         if index in written:
-            title, angle, query = written[index]
+            title, angle, query, category = written[index]
             out.append(_story_from(signal, title, angle, query,
-                                   degraded=False, now=now))
+                                   degraded=False, now=now,
+                                   category=category))
         else:
             out.append(template(signal, now))
     return out

@@ -325,6 +325,9 @@ Browse surfaces
   world. Trending feeds the bank, live facts feed the evidence; one fetch serves
   everyone; `why_now` is never evidence; ids hash the subject; an empty row is
   a fact about the deployment, never "nothing is trending". [two-crowd-rows]
+- A composed story names its **category** (resolved against the tree in code;
+  it decides picture, facet word and tags) and its query names the cluster's
+  **anchors** (`pin_query`, names never headlines) (§186). [trending-category-pin]
 
 Accounts, tiers, sharing
 - **An account gates what is kept, never what is heard**; a guest's events are
