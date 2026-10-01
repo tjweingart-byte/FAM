@@ -469,7 +469,9 @@ def rank_similar(asked: str, entries: list[dict], limit: int = 12) -> list[dict]
     for entry in entries:
         text = f"{entry.get('query', '')} {entry.get('title', '')}"
         found = len(wanted & _search_words(text)) / float(len(wanted))
-        key = entry.get("key") or text
+        # Keyed on the words as well as the key: a re-written episode keeps
+        # its key and may change its title.
+        key = (entry.get("key") or "") + "\n" + text
         vector = _search_vectors.get(key)
         if vector is None:
             if len(_search_vectors) > 5000:

@@ -14124,3 +14124,15 @@ the mix says so rather than saving. A guest is offered sign-up / log in.
 **Unverified here:** how the samples, the search and the (+) feel on a
 phone, and whether `episode_subject`'s picks match what listeners mean -
 it is words, not a model, and "Giants" or "Kings" name more than one team.
+
+**Review, before merging into Main.** A pass over the whole diff found:
+
+* *The search's memo was keyed on the cache key alone*, and a re-written
+  episode keeps its key with a new title - so it kept its old vector. Keyed
+  on the key and the words now.
+* *The first search could stall the server.* With the semantic embedder the
+  first search embeds every entry it has not seen, on the event loop. It
+  runs in a thread now (`asyncio.to_thread`).
+* *Leftovers of the old Messages sheet*: `.screen.sheet`, `.msg-dot` and the
+  header button's `myfam-msg-btn` name (it searches now: `myfam-head-btn`,
+  `#myfamSearchBtn`). The `sheet-in` animation stays for voice search.

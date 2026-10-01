@@ -4707,8 +4707,12 @@ async def myfam_search(request: Request,
     except Exception:  # noqa: BLE001 - a search box is never worth a 500
         log.exception("could not read the cache for a myFAM search")
         return {"episodes": []}
+    # Off the event loop: with the semantic embedder the first search embeds
+    # every entry it has not seen, which is CPU work no other request should
+    # wait behind.
+    ranked = await asyncio.to_thread(cache_mod.rank_similar, words, entries, limit)
     episodes = []
-    for entry in cache_mod.rank_similar(words, entries, limit=limit):
+    for entry in ranked:
         episodes.append({
             "query": entry["query"],
             "title": entry.get("title")

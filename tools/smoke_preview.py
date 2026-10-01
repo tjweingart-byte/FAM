@@ -2705,7 +2705,7 @@ def main() -> int:
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "the tab bar did not leave Messages for myFAM"
-            page.click("#screen-myfam .myfam-msg-btn")
+            page.click("#myfamSearchBtn")
             page.wait_for_timeout(500)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfamsearch", \
                 "myFAM's header button does not open its search"

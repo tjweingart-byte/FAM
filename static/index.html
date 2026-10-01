@@ -378,25 +378,18 @@
   .feed-more:active{ opacity:0.7; }
 
   /* Explore: a vertical feed of episodes that already exist. */
-  /* Messages opens over the app rather than replacing a tab: it is a place
-     you drop into and leave, not one of the five places you live. */
-  .screen.sheet{ background:var(--bg); }
-  .screen.sheet.active{ animation:sheet-in 220ms cubic-bezier(0.22,0.7,0.3,1); }
+  /* Messages was a sheet over the app until §181 made it a tab; the
+     animation stays for voice search's screen. */
   @keyframes sheet-in{ from{ transform:translateY(14px); opacity:0; } }
-  @media (prefers-reduced-motion: reduce){
-    .screen.sheet.active{ animation:none; }
-  }
   .sheet-close{ width:30px; height:30px; border-radius:50%; border:1px solid var(--border-strong);
     background:none; color:var(--text); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
   .sheet-close:active{ background:rgba(244,239,228,0.06); }
 
-  .myfam-msg-btn{ position:relative; width:34px; height:34px; border-radius:50%;
+  .myfam-head-btn{ position:relative; width:34px; height:34px; border-radius:50%;
     border:1px solid var(--border-strong); background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .myfam-msg-btn:active{ background:rgba(244,239,228,0.06); }
-  .msg-dot{ position:absolute; top:5px; right:5px; width:7px; height:7px; border-radius:50%;
-    background:var(--copper); border:1.5px solid var(--bg); }
+  .myfam-head-btn:active{ background:rgba(244,239,228,0.06); }
 
   /* Profile. Two readings of one page: your own, and someone else's. What
      differs is what you can do, not what it looks like. */
@@ -3086,7 +3079,7 @@
               <!-- Search within myFAM (§181, the 9.30 interface packet): it
                    took the messages button's place, and Messages moved to
                    the tab bar where Explore was. -->
-              <button class="myfam-msg-btn" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="Search myFAM">
+              <button class="myfam-head-btn" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="Search myFAM">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
               </button>
             </div>
