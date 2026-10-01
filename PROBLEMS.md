@@ -14884,8 +14884,10 @@ overnight, when nothing moves.
   matter, and US markets are moving to 24-hour trading, so it is not tied to
   the session. ~144 quotes a day.
 * **A refused catalogue is not asked again that UTC day**
-  (`live_sources.TEAMS_REFUSED`); a spent allowance is still `BudgetSpent`
-  and not remembered as a refusal.
+  (`live_sources.TEAMS_REFUSED`). Only the provider saying no counts - a
+  refusal in `errors` or a 4xx; a timeout or a 5xx is asked again, and a spent
+  allowance is still `BudgetSpent`. A sport's first card read that fails is
+  retried on the sweep's interval, never every tick.
 
 `StorySource.idle(now)` is new and optional: a source that returns a reason
 is reported `skipped` with it, and its held stories stay in the pool.

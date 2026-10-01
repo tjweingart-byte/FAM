@@ -1062,8 +1062,16 @@ async def league_teams(sport: Sport, now: Optional[float] = None) -> list:
                                      settings.live_timeout_seconds)
     except BudgetSpent:
         raise          # the allowance, not the catalogue: tomorrow says
-    except Exception as exc:
-        TEAMS_REFUSED[sport.key] = (day, f"{type(exc).__name__}: {exc}")
+    except ProviderHTTPError as exc:
+        # A 4xx is the provider saying no; a 5xx is the provider unwell,
+        # which the next sweep may find better.
+        if 400 <= exc.status < 500:
+            TEAMS_REFUSED[sport.key] = (day, str(exc))
+        raise
+    except RuntimeError as exc:
+        # Answered 200 with the refusal in `errors` (`api_sports_json`) -
+        # the free plan's season limit is one.
+        TEAMS_REFUSED[sport.key] = (day, str(exc))
         raise
     rows = [r for r in ((data or {}).get("response") or [])
             if isinstance(r, dict) and r.get("id") is not None and r.get("name")]

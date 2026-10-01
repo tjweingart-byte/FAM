@@ -127,8 +127,11 @@ RunPod holds no database.
 hockey, rugby, volleyball, AFL, Formula 1, MMA), **each on its own free plan:
 100 requests/day per sport** (PROBLEMS.md §180). Each sport is its own
 API-Sports subscription on the same key, billed and limited separately, so
-each has its own day, its own pace of myFAM sweeps (about every 14 minutes
-on 100/day) and its own row under API-Sports on `/admin`.
+each has its own day and its own row under API-Sports on `/admin`. Since
+§191 the myFAM sweep reads a followed sport's card once a day and then only
+while one of its followed leagues' games is on and somebody is looking (every
+15 minutes at most); volleyball, rugby and AFL are never swept, only looked up
+by the episodes that ask.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|

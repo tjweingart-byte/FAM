@@ -242,3 +242,43 @@ def test_a_refused_catalogue_is_not_asked_again_that_day(monkeypatch):
             run(LS.league_teams(sport))
     assert len(calls) == 1
     assert LS.budget_for("hockey").used == 1
+
+
+def test_a_catalogue_that_timed_out_is_asked_again(monkeypatch):
+    """Only the provider saying no is remembered for the day: a timeout or a
+    5xx is the network or the provider unwell, and the next try may work."""
+    calls = []
+
+    async def _json(url, headers, params, timeout):
+        calls.append(url)
+        if len(calls) == 1:
+            raise TimeoutError("slow")
+        if len(calls) == 2:
+            raise LS.ProviderHTTPError(503, "v1.hockey.api-sports.io/teams")
+        return {"response": [{"id": 1, "name": "Maple Leafs"}]}
+
+    monkeypatch.setattr(LS, "_json", _json)
+    monkeypatch.setattr(LS, "settings", dataclasses.replace(
+        config.settings, api_sports_key="k"))
+    sport = LS.SPORTS["hockey"]
+    with pytest.raises(TimeoutError):
+        run(LS.league_teams(sport))
+    with pytest.raises(LS.ProviderHTTPError):
+        run(LS.league_teams(sport))
+    assert [t["name"] for t in run(LS.league_teams(sport))] == ["Maple Leafs"]
+    assert "hockey" not in LS.TEAMS_REFUSED
+
+
+def test_a_failed_first_read_waits_the_interval_not_every_tick(provider, monkeypatch):
+    async def _json(url, headers, params, timeout):
+        provider.calls.append((url, dict(params)))
+        raise LS.ProviderHTTPError(500, "v1.american-football.api-sports.io/games")
+
+    monkeypatch.setattr(LS, "_json", _json)
+    source = story_sources.ApiSportsSignals()
+    with pytest.raises(LS.ProviderHTTPError):
+        run(source.collect(8))
+    key = "american-football"
+    gap = story_sources.settings.stories_sports_interval_seconds
+    assert source.dates_due(key, NOON + 60) == []
+    assert source.dates_due(key, NOON + gap) == [source._days(NOON)[0]]

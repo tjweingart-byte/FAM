@@ -733,11 +733,12 @@ class ApiSportsSignals(stories.StorySource):
         budget = live_sources.budget_for(key)
         if budget.remaining(now) < len(dates):
             return []
-        if first_today:
-            return dates
         last = self._last_swept.get(key)
-        gap = max(float(settings.stories_sports_interval_seconds),
-                  budget.sweep_interval(len(dates), now))
+        gap = float(settings.stories_sports_interval_seconds)
+        if not first_today:
+            gap = max(gap, budget.sweep_interval(len(dates), now))
+        # The day's first read waits only the plain interval, so a card that
+        # failed is retried on the sweep's clock - never on every tick.
         # A little early is fine: the sweep's own clock is not exact.
         if last is not None and now - last < gap * 0.9:
             return []
