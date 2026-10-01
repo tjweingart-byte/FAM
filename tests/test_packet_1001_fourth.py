@@ -108,7 +108,9 @@ def test_opening_go_deeper_does_not_stop_the_episode():
 
 def test_an_episode_ending_under_go_deeper_starts_nothing_over_it():
     # The player: no album advance, no countdown while the sheet is up.
-    end = INDEX[INDEX.index("if(goDeeperIsOpen()) return;\n        if(onEnd) onEnd();"):]
+    # §190 put the queue between the guard and `onEnd`; the guard is first.
+    end = INDEX[INDEX.index("if(goDeeperIsOpen()) return;\n        // Something queued"):]
+    assert end.index("if(goDeeperIsOpen()) return;") < end.index("playQueueNext()")
     assert end.index("if(goDeeperIsOpen()) return;") < end.index("maybeOfferNextUp(")
     assert "goDeeperIsOpen()" in _fn("maybeOfferNextUp")
     # Explore: the reel does not deal the next card under it.

@@ -285,8 +285,10 @@ def test_the_interests_wheel_is_gone():
 # --- the player's X minimises ---------------------------------------------
 
 def test_the_players_x_minimises_rather_than_stopping():
+    # The down arrow top left since §190, in the player's top bar.
     top = INDEX[INDEX.index('id="screen-player"'):]
-    top = top[:top.index("</div>")]
+    top = top[top.index('<div class="player-top">'):]
+    top = top[:top.index('<div class="mini-stage"')]
     assert 'onclick="minimizePlayer()"' in top
     body = js_function("minimizePlayer")
     assert "stopSpeech" not in body and "FamAudio.stop" not in body
