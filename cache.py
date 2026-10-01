@@ -213,8 +213,14 @@ def needs_fresh_information(query: str) -> bool:
 
 
 
+#: The brief intents that ask for a score or a game update - what is never
+#: current in sports until it is final (`ttl_for`, 10.1 #3).
+SPORTS_UPDATE_INTENTS = ("recap", "update")
+
+
 def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = False,
-            recency_days: int = 0, live_domain: str = "") -> int:
+            recency_days: int = 0, live_domain: str = "",
+            intent: str = "") -> int:
     """How long a script stays *current*, in seconds. **Zero means never.**
 
     **Current, not kept** (§143, at the owner's direction). Every episode is
@@ -264,13 +270,16 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
     volatile word, this returns exactly what it always returned.
 
     **Sports scores and game updates are never current** (10.1 #3, at the
-    owner's direction). In the sports domain, an episode built on a game that
-    has not finished - in progress, or the listener asked for a result that
-    evidence has not settled - is kept and replayable but never served to a
-    new request, so nobody is handed a score another listener heard two hours
-    ago, and the search box's trending searches never offer one. A `final`
-    keeps its ordinary window: that result does not move. The domain is
-    EI's reading of the request, like `outcome_dependent`, never the words.
+    owner's direction). In the sports domain, a score or a game update - EI's
+    `recap` or `update` intent - that evidence has not settled as `final` is
+    kept and replayable but never served to a new request, so nobody is
+    handed a score another listener heard two hours ago, and the search box's
+    trending searches never offer one. A `final` keeps its ordinary window:
+    that result does not move. **Not `outcome_dependent`**: EI's gate sets it
+    for every live-domain brief, so keying on it made every sports episode
+    never current - previews included, which re-opened §173's "upcoming
+    dodgers game" paying twice. A preview keeps its two hours. The domain and
+    the intent are EI's reading of the request, never the words.
     """
     tokens = set(_SPACE.split(_PUNCT.sub(" ", query.lower())))
     keyword_ttl = (settings.cache_ttl_volatile if tokens & _VOLATILE
@@ -279,7 +288,8 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
     status = (live_status or "").strip().lower()
     if status == "in_progress":
         return 0
-    if ((live_domain or "").strip().lower() == "sports" and outcome_dependent
+    if ((live_domain or "").strip().lower() == "sports"
+            and (intent or "").strip().lower() in SPORTS_UPDATE_INTENTS
             and status != "final"):
         return 0
     if status == "scheduled":

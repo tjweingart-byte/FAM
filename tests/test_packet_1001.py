@@ -12,7 +12,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import app as appmod  # noqa: E402
 import autocorrect  # noqa: E402
-from cache import MemoryScriptCache, ttl_for  # noqa: E402
+from cache import MemoryScriptCache, cache_key, ttl_for  # noqa: E402
 from config import settings  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -73,7 +73,10 @@ def test_the_mic_is_on_the_attach_line():
 # --- 3b. Trending searches, and no cached scores ---------------------------
 
 def _put(store, key, query, *, ttl=3600, plays=0, title="", minutes=2,
-         origin="search"):
+         origin="search", context=""):
+    # The key a search for these words computes - `key` only tells the rows
+    # apart in the test, so each gets its own question.
+    key = cache_key(query, minutes, None, context, True)
     store.put(key, ["A sentence."], ttl=ttl, query=query, minutes=minutes,
               title=title, origin=origin)
     for _ in range(plays):
@@ -88,7 +91,9 @@ def test_trending_searches_are_current_searched_episodes(client, monkeypatch):
     _put(store, "b", "what the fed does next", plays=9)
     _put(store, "c", "eagles score right now", ttl=0, plays=50)   # not current
     _put(store, "d", "a myfam tile", plays=40, origin="myfam")      # not a search
-    _put(store, "e", "How reusable rockets WORK?", plays=1)          # same question
+    _put(store, "e", "How reusable rockets WORK?", plays=1, minutes=3)  # same question
+    _put(store, "f", "and the economics of it", plays=30,          # a follow-up
+         context="how reusable rockets work")
     out = client.get("/api/searches/trending").json()["searches"]
     assert [s["query"] for s in out] == ["what the fed does next",
                                          "how reusable rockets work"]
@@ -102,31 +107,56 @@ def test_trending_searches_never_generate(client, monkeypatch):
     assert client.get("/api/searches/trending").json() == {"searches": []}
 
 
-def test_a_sports_result_not_yet_final_is_never_current():
-    # The listener asked for a result, in sports, and no evidence settled it.
-    assert ttl_for("bills game", outcome_dependent=True,
-                   live_domain="sports") == 0
-    assert ttl_for("bills game", outcome_dependent=True, live_status="scheduled",
-                   live_domain="sports") == 0
-    assert ttl_for("bills game", live_status="in_progress",
-                   live_domain="sports") == 0
+def _ttl_through_gate(query, intent, live_status=""):
+    """`ttl_for` with the brief EI would actually hand over: `gate` marks
+    every live-domain brief outcome-dependent, which the first version of the
+    sports rule missed (its tests passed combinations EI never produces)."""
+    import episode_intelligence as ei
+    brief = ei.gate(ei.Brief(query=query, intent=intent, subject=query,
+                             search_query=query, live_domain="sports"), query)
+    assert brief.outcome_dependent
+    return ttl_for(query, live_status=live_status,
+                   outcome_dependent=brief.outcome_dependent,
+                   recency_days=brief.recency_days,
+                   live_domain=brief.live_domain, intent=brief.intent)
+
+
+def test_a_sports_score_or_update_not_yet_final_is_never_current():
+    # A score or a game update, with no provider answer or one not settled.
+    assert _ttl_through_gate("bills score", "recap") == 0
+    assert _ttl_through_gate("how is the bills game going", "update",
+                             live_status="unknown") == 0
+    assert _ttl_through_gate("bills game", "update", live_status="in_progress") == 0
+    assert _ttl_through_gate("who won bills game", "recap", live_status="scheduled") == 0
     # A final result does not move.
-    assert ttl_for("bills game", outcome_dependent=True, live_status="final",
-                   live_domain="sports") > 0
-    # Outside sports, and for a preview, nothing changes.
+    assert _ttl_through_gate("who won the bills game", "recap",
+                             live_status="final") > 0
+
+
+def test_a_sports_preview_keeps_its_two_hours():
+    """§173: "upcoming dodgers game" asked twice in an afternoon is one
+    episode. The sports rule must not take that back."""
+    assert _ttl_through_gate("upcoming dodgers game", "preview",
+                             live_status="scheduled") == settings.cache_ttl_volatile
+    assert _ttl_through_gate("upcoming dodgers game", "preview") == \
+        min(settings.cache_ttl_seconds, settings.cache_ttl_volatile)
+    assert _ttl_through_gate("how the dodgers rotation works", "explainer") > 0
+
+
+def test_outside_sports_nothing_changes():
     assert ttl_for("who wins the vote", outcome_dependent=True,
-                   live_domain="elections") == min(
+                   live_domain="elections", intent="recap") == min(
         settings.cache_ttl_seconds, settings.cache_ttl_volatile)
-    assert ttl_for("bills preview", live_status="scheduled",
-                   live_domain="sports") > 0
 
 
 def test_the_domain_reaches_the_cache_policy():
     for f in ("pipeline.py", "prefetch.py"):
         src = (ROOT / f).read_text()
         assert 'live_domain=getattr(notes, "live_domain", "")' in src, f
+        assert 'intent=getattr(notes, "intent", "")' in src, f
     sg = (ROOT / "script_generator.py").read_text()
     assert 'notes.live_domain = str(getattr(plan.brief, "live_domain", "") or "")' in sg
+    assert 'notes.intent = str(getattr(plan.brief, "intent", "") or "")' in sg
 
 
 def test_the_search_box_shows_trending_searches_on_focus():

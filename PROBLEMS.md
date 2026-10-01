@@ -14170,11 +14170,11 @@ nothing rather than anything else.
 *No cached scores or game updates.* Before this, a sports question asking
 for a result with no live provider answer was current for the volatile
 window (two hours), so a score heard at 1pm was served to a search at 2pm.
-`ttl_for` now takes `live_domain` (EI's, carried on `ScriptNotes` like
-`outcome_dependent`): in sports, an outcome-dependent episode that is not
-`final` is never current. `in_progress` already was. A `final` keeps its
-window (that result does not move), and a preview (`scheduled`, not asking
-for a result) keeps its two hours. Never-current episodes are still kept and
+`ttl_for` now takes `live_domain` and `intent` (EI's, carried on
+`ScriptNotes` like `outcome_dependent`): in sports, a `recap` or `update` -
+a score or a game update - that is not `final` is never current.
+`in_progress` already was. A `final` keeps its window (that result does not
+move), and a preview keeps its two hours. Never-current episodes are still kept and
 replayable (§143) - they just cannot be served to a new search, and so never
 appear as a trending search.
 
@@ -14199,3 +14199,30 @@ and wherever a title is made from a stored question (Explore's untitled
 cards, a trending chip) it goes through `autocorrect.correct_text`.
 **Unverified here:** no API key, so the EI and writer instruction is
 untested against a model; the rest is pinned in `tests/test_packet_1001.py`.
+
+**Review, before merging into Main.** An independent pass over the diff
+found these, all fixed with a test each except the last:
+
+* *The sports rule caught every sports episode.* It first keyed on
+  `outcome_dependent`, but EI's `gate` sets that for every live-domain brief,
+  so a preview ("upcoming dodgers game") was never current either - §173's
+  two-searches-two-episodes bug back. It keys on the intent now, and the
+  tests build the brief through `gate` rather than passing combinations EI
+  never produces.
+* *A trending chip could be a follow-up.* A Go Deeper follow-up is a search
+  stored under its parent's context; its words asked cold are another key,
+  so the tap missed and wrote a new episode. Only a row whose key is the one
+  a bare search for its words computes is offered (with `CACHE_SEMANTIC_KEY`
+  on, off by default, that cannot be checked without a model call, and rows
+  are offered on trust).
+* *The speller ran on the event loop* in `/api/explore` and
+  `/api/searches/trending`; it runs in a thread now, like `/api/spell`, and
+  only for untitled entries.
+* *A send that waited could fire stale.* Text typed during the wait was
+  sent as it was before and then wiped, and leaving the screen still
+  started the search; either now drops that send.
+* **Unverified, on an iPhone:** when the send waits on the speller, audio
+  starts up to 700ms after the tap rather than inside it. Voice search's
+  auto-send and What's next's countdown already start audio off a timer, so
+  this is believed fine; if a typed search ever sits on the loading screen
+  on iOS, this is where to look.

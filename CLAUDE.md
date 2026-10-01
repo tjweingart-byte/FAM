@@ -268,7 +268,7 @@ Caching and prefetch
   the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
 - **TTL comes from what the script was built on, never from the question's
   words** - live status → `outcome_dependent` → window → keyword floor;
-  `in_progress` = never current, nor a sports result short of `final` (§182). Do not fix by adding keywords. Prefetch never
+  `in_progress` = never current, nor a sports score or update (`recap`/`update`) short of `final` (§182). Do not fix by adding keywords. Prefetch never
   calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
   edition is the stated exception). [ttl-from-evidence]
 - **Duration buys depth, not words** (`DEPTH_BANDS`); shapes, never boxes; a beat

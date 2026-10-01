@@ -5520,6 +5520,17 @@ async def trending_searches(request: Request) -> dict:
             continue
         if content_filter.scrub(query) != query:
             continue
+        # Only what a bare search for these words would land on: a Go
+        # Deeper follow-up is stored under its parent's context, so its words
+        # asked cold are a different key - a miss that writes a new episode,
+        # the opposite of what a trending search is for. With the semantic
+        # key on (`CACHE_SEMANTIC_KEY`, off by default) the key needs a model
+        # call to compute, and the row is offered on trust.
+        minutes = int(entry.get("minutes") or 0)
+        if not settings.cache_semantic_key and entry.get("key") not in (
+                cache_key(query, minutes, None, "", True),
+                cache_key(query, minutes, None, "", False)):
+            continue
         norm = normalize_query(query)
         if norm in seen:
             continue
@@ -5529,13 +5540,18 @@ async def trending_searches(request: Request) -> dict:
             # The episode's own title, spelled by the writer - never the
             # question, which may be misspelled (10.1 #4).
             "title": entry.get("title") or "",
-            # The question as the speller would have sent it, for a chip
-            # with no title to show (10.1 #4). `query` is what is asked.
-            "spelled": autocorrect_mod.correct_text(query),
-            "minutes": int(entry.get("minutes") or 0),
+            "minutes": minutes,
         })
         if len(picks) >= TRENDING_SEARCHES_MAX:
             break
+    # The question as the speller would have sent it, for a chip with no
+    # title to show (10.1 #4); `query` is still what is asked. Off the event
+    # loop, like `/api/spell`, and only for the untitled.
+    spelled = await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(p["query"]) if not p["title"]
+                 else p["query"] for p in picks])
+    for pick, text in zip(picks, spelled):
+        pick["spelled"] = text
     return {"searches": picks}
 
 
@@ -5593,6 +5609,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
     # and none of them is on Explore.
     entries = store.recent(limit, exclude_author=listener, origin="search")
+    # An untitled card is titled from its question, through the speller so a
+    # misspelling never becomes a title (10.1 #4) - in a thread, like
+    # `/api/spell`, and only for the cards that need it.
+    untitled = [e["query"] for e in entries if not e.get("title")]
+    spelled = dict(zip(untitled, await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(q) for q in untitled])))
     all_counts = SOCIAL.episode_counts_many(
         [(e["query"], e["minutes"]) for e in entries], listener)
     for entry in entries:
@@ -5608,7 +5630,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             # Through the speller, so a misspelled question is never a
             # card's title (10.1 #4).
             "title": entry.get("title")
-                     or _capitalised(autocorrect_mod.correct_text(entry["query"])),
+                     or _capitalised(spelled.get(entry["query"], entry["query"])),
             "minutes": entry["minutes"],
             # How many times it has actually been played - `scripts.plays`,
             # counted where an episode starts and nowhere that only looks

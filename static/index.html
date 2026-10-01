@@ -4419,8 +4419,20 @@
     var fixed = acCorrectQuestion(typed);
     if(!fixed.then){ sendSearch(fixed.query, fixed.title); return; }
     searchSending = true;
+    var box = document.getElementById("searchInput");
+    var raw = box.value;
+    // Where the send started: voice search ("hey FAM") sends from any tab.
+    var screenNow = function(){
+      var on = document.querySelector(".screen.active");
+      return on ? on.id : "";
+    };
+    var startedOn = screenNow();
     fixed.then(function(r){
       searchSending = false;
+      // Not if, during the wait, they kept typing (that text would be sent
+      // stale and then wiped) or went somewhere else: the send they pressed
+      // is no longer the one on screen.
+      if(box.value !== raw || screenNow() !== startedOn) return;
       sendSearch(r.query, r.title);
     });
   }

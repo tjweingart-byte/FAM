@@ -491,6 +491,9 @@ class ScriptNotes:
     #: Which live-fact domain EI put the request in ("sports", ...), or "".
     #: A sports result that is not final is never current (`cache.ttl_for`).
     live_domain: str = ""
+    #: EI's reading of what is being asked (`Brief.intent`). With the domain,
+    #: says whether this is a sports score or game update (`cache.ttl_for`).
+    intent: str = ""
     #: When the information this episode is written from was sourced - the
     #: moment retrieval and the live lookup both answered (§143). Stored
     #: beside the script, shown on replay surfaces, and the clock its
@@ -1468,6 +1471,7 @@ class ScriptGenerator:
                 getattr(plan.brief, "outcome_dependent", False))
             notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
             notes.live_domain = str(getattr(plan.brief, "live_domain", "") or "")
+            notes.intent = str(getattr(plan.brief, "intent", "") or "")
             if plan.live is not None:
                 notes.live_status = plan.live.status
                 notes.live_outcome = plan.live.outcome
