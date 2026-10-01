@@ -29,6 +29,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: Imported without being declared, on purpose. Each entry needs a reason,
 #: because the whole value of this list is that adding to it is uncomfortable.
 DELIBERATELY_OPTIONAL = {
+    # "Your mix is ready" by Web Push (push.py). Imported only after
+    # `push.status()` has checked it, which says "pywebpush is not installed"
+    # to /api/push and the mix page; every listen time is kept meanwhile.
+    "pywebpush": "requirements-push.txt",
     # The production voice and its stack: gigabytes, GPU-only, and installed
     # from requirements-chatterbox.txt. Imported inside the engine, which
     # raises TTSUnavailable when they are absent, so the app starts and says

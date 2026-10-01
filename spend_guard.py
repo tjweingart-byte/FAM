@@ -70,6 +70,9 @@ NOT_SPEND = {
     # Inbound secrets: they let something reach *this* server, never the reverse.
     "FAM_ADMIN_TOKEN": "inbound: who may open /admin on this server",
     "VOICE_REGISTRY_TOKEN": "inbound: who may register a voice worker here",
+    # Push services charge nothing, and staging sends none (`push.status`).
+    "VAPID_PRIVATE_KEY": "free: signs Web Push; push services do not bill",
+    "VAPID_PUBLIC_KEY": "free: the public half of the Web Push key",
 }
 
 #: Switches that would reach a paid or metered service, and the value zero

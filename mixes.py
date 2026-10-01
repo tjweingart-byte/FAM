@@ -371,12 +371,26 @@ class Mix:
     #: listener id - and is what lets the list say whose mix it came from.
     source_id: str = ""
     source_user: str = ""
+    #: When the listener means to hear this mix, "HH:MM" in `listen_tz`, or
+    #: "". It never moves the edition (05:00 Eastern writes every mix); it is
+    #: when `push.py` tells their phone the mix is ready.
+    listen_at: str = ""
+    #: The listener's IANA zone for `listen_at`; "" reads as the edition's.
+    listen_tz: str = ""
 
     @property
     def topic_ids(self) -> list[str]:
         """Shared members - bank topics and followed subjects - which is what
         the shared-cost design is measured on. Typed topics are not."""
         return [i.id for i in self.items if not i.custom]
+
+    def public_dict(self) -> dict:
+        """As anybody but its owner sees it: without the listen time, which
+        says when (and in which zone) this person listens."""
+        body = self.as_dict()
+        body.pop("listen_at", None)
+        body.pop("listen_tz", None)
+        return body
 
     def as_dict(self) -> dict:
         return {
@@ -390,6 +404,8 @@ class Mix:
             "public": self.public,
             "cover": self.cover,
             "source_id": self.source_id,
+            "listen_at": self.listen_at,
+            "listen_tz": self.listen_tz,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -440,7 +456,7 @@ def clean_items(raw: Sequence) -> list[MixItem]:
 
 #: Every column `_row_to_mix` reads, in its order.
 _COLUMNS = ("id, user_id, name, topic_ids, created_at, updated_at, items, public,"
-            " cover, source_id, source_user")
+            " cover, source_id, source_user, listen_at, listen_tz")
 
 #: How many public mixes one search returns. Covers are inline data URLs, so
 #: this is also what bounds the size of the response.
@@ -534,7 +550,7 @@ class MixStore:
                 conn.execute("ALTER TABLE mixes ADD COLUMN public INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass
-            for column in ("cover", "source_id", "source_user"):
+            for column in ("cover", "source_id", "source_user", "listen_at", "listen_tz"):
                 try:
                     conn.execute(f"ALTER TABLE mixes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
@@ -563,7 +579,9 @@ class MixStore:
                    bool(row[7]) if len(row) > 7 else False,
                    (row[8] or "") if len(row) > 8 else "",
                    (row[9] or "") if len(row) > 9 else "",
-                   (row[10] or "") if len(row) > 10 else "")
+                   (row[10] or "") if len(row) > 10 else "",
+                   (row[11] or "") if len(row) > 11 else "",
+                   (row[12] or "") if len(row) > 12 else "")
 
     def public_for_user(self, user_id: str) -> list[Mix]:
         """What this listener has chosen to show on their profile."""
@@ -580,6 +598,19 @@ class MixStore:
             ).fetchall()
         except Exception:
             log.exception("could not read every mix")
+            return []
+        return [self._row_to_mix(r) for r in rows]
+
+    def with_listen_time(self, limit: int = 20000) -> list[Mix]:
+        """Every mix somebody gave a listen time - what `push.py` checks each
+        minute, so it never reads the mixes nobody is waiting on."""
+        try:
+            rows = self._conn().execute(
+                "SELECT " + _COLUMNS + " FROM mixes WHERE listen_at != '' LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read mixes with a listen time")
             return []
         return [self._row_to_mix(r) for r in rows]
 
@@ -641,8 +672,11 @@ class MixStore:
         topic_ids: Optional[Sequence] = None,
         public: Optional[bool] = None,
         cover: Optional[str] = None,
+        listen_at: Optional[str] = None,
+        listen_tz: Optional[str] = None,
     ) -> Mix:
-        """`None` leaves a field as it is; `cover=""` removes the cover."""
+        """`None` leaves a field as it is; `cover=""` removes the cover and
+        `listen_at=""` the listen time."""
         mix = self.get(user_id, mix_id)
         if not mix:
             raise MixError("That mix no longer exists.")
@@ -660,13 +694,23 @@ class MixStore:
             mix.public = bool(public)
         if cover is not None:
             mix.cover = clean_cover(cover)
+        if listen_at is not None:
+            import push
+            try:
+                mix.listen_at = push.clean_listen_at(listen_at)
+            except ValueError as exc:
+                raise MixError(str(exc)) from None
+        if listen_tz is not None:
+            import push
+            mix.listen_tz = push.clean_zone(listen_tz)
         mix.updated_at = time.time()
         self._conn().execute(
             "UPDATE mixes SET name = ?, topic_ids = ?, updated_at = ?, items = ?,"
-            " public = ?, cover = ? WHERE id = ? AND user_id = ?",
+            " public = ?, cover = ?, listen_at = ?, listen_tz = ?"
+            " WHERE id = ? AND user_id = ?",
             (mix.name, ",".join(mix.topic_ids), mix.updated_at,
              json.dumps([i.as_dict() for i in mix.items]), int(mix.public),
-             mix.cover, mix_id, user_id),
+             mix.cover, mix.listen_at, mix.listen_tz, mix_id, user_id),
         )
         return mix
 

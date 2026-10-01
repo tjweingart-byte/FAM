@@ -14226,3 +14226,77 @@ found these, all fixed with a test each except the last:
   auto-send and What's next's countdown already start audio off a timer, so
   this is believed fine; if a typed search ever sits on the loading screen
   on iOS, this is where to look.
+
+## 183. The 10.1 packet, third set: DailyFAM listen times, friends, vibes
+
+The third set of the 10.1 implementations, in its order.
+
+**1a. No suggested mixes; a circled (+).** An empty DailyFAM drew three
+chips under "No mixes yet" (Morning, At the gym, Wind down - the server's
+`STARTER_MIXES`). They are gone from the page, with the code that drew them;
+`/api/mixes` still sends `starters`, because installed clients read it (the
+old-clients rule). The header's (+) is now a 34px circle with a 2px ring, so
+it reads as the way in. The naming screen's "Quick picks" were not in the
+packet's picture and stay.
+
+**1b. A listen time per mix, and "your mix is ready".** A mix carries
+`listen_at` ("HH:MM") and `listen_tz` (the browser's IANA zone), set from a
+**Listen time** row on the mix's page. At the owner's direction it **does not
+change when episodes are written** - the 05:00 edition writes every mix as
+before, and `daily_edition.py` never reads it. It decides only when `push.py`
+tells the listener's phone the mix is ready:
+
+* at or after the listen time, in the listener's own zone and calendar day;
+* **only once that edition is built** (`daily_edition` reports its slot
+  `ready`). A 4am listen time waits for the 5am edition; an edition that
+  failed sends nothing, because "ready" would be false. `GRACE_SECONDS` (3h)
+  bounds how late a "ready" is still worth sending;
+* once a day per mix, claimed in `push_sent` before sending so two workers
+  never send twice; a mix whose owner has nowhere to receive it is not
+  claimed, so subscribing inside the window still gets that day's.
+
+Delivery is **Web Push**: the page asks permission when a time is set,
+subscribes with the server's VAPID public key and hands the subscription to
+`/api/push/subscribe`; `sw.js` shows the notification and a tap opens
+`/?mix=<id>`, which now opens the listener's *own* mix (not its public page),
+or tells an already-open FAM window to. Subscriptions live beside the mixes
+in `mixes.db` (no new store to declare) and go with an erased account.
+
+**What is not done, and says so.** Web Push needs `VAPID_PUBLIC_KEY` /
+`VAPID_PRIVATE_KEY` (`python tools/vapid_keys.py` prints a pair) and
+`pywebpush` (`requirements-push.txt`, now in the Dockerfile). No deployment
+has keys yet, so today no notification is sent anywhere: `/api/push` answers
+`available: false` with the reason, the mix page shows that sentence under
+the time, and the time is kept so nothing needs setting again. Staging never
+sends. On iPhone, Web Push reaches only a FAM added to the home screen
+(iOS 16.4+); the native app needs APNs, which is another `kind` in the same
+subscriptions table and is not built. The listen time is never shown to
+anybody else (`Mix.public_dict`): it says when, and in which zone, a person
+listens. Verified here: a real `pywebpush` signs with the generated key and
+encrypts a payload; nothing was sent to a real push service.
+
+**2a. Invite new users.** The Friends page - which both "Find new friends"
+pills open, YourFAM's and myFAM's - has an **Invite new users +** pill under
+the handle search. It is the existing `inviteFriends`: the phone's share
+sheet with the app's address and this listener's handle, nothing posted by
+FAM.
+
+**2b. No (+) in YourFAM's header.** It started a new message, which the
+Messages tab and the Messages card already do. The gear stays.
+
+**2c. Friends with a vibe come first, and swipe like stories.** The circle
+row (`_circle_row`) now sorts friends whose vibes are up to the front,
+newest vibe first, *before* cutting to `CIRCLE_MAX` - so a vibe from the
+thirteenth person followed is not lost off the end (it looks at up to
+`CIRCLE_CANDIDATES`, 200). In the vibe viewer a tap still steps through one
+friend's vibes; a horizontal **swipe** goes to the next friend's (left) or
+the previous friend's (right), opening on their first unseen vibe, the way
+Instagram and Snapchat do. The overlay is `touch-action: pan-y`, so the
+browser leaves horizontal drags to the page, and a swipe's trailing click
+does not also step.
+
+**3a. The picture opens the profile.** The viewer's "View profile" button
+under Play is gone; the avatar and name at the top are one button
+(`story-who-btn`, ringed in copper) that opens the profile.
+
+Pinned in `tests/test_packet_1001_third.py`.

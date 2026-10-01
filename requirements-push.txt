@@ -1,0 +1,5 @@
+# Optional: "your mix is ready" notifications by Web Push (push.py). Without
+# it every mix's listen time is still kept, and /api/push says notifications
+# are not set up on this server. Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY too
+# (`python tools/vapid_keys.py`).
+pywebpush>=2.0
