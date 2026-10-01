@@ -1309,6 +1309,8 @@
   .mix-when + .mix-vis{ margin-top:10px; }
   .mix-when-i{ flex:none; color:var(--copper); display:flex; }
   .mix-when-b{ flex:1; min-width:0; }
+  .mix-when-t{ font-size:12.5px; color:var(--text); }
+  .mix-when-s{ font-size:10px; color:var(--text-muted); margin-top:3px; line-height:1.4; }
   .mix-when-in{ flex:none; background:var(--paper); color:var(--ink); border:none; border-radius:9px;
     padding:6px 8px; font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700;
     color-scheme:light; }
@@ -8462,8 +8464,8 @@
       + '<span class="mix-when-i" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
       + '<path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 003.4 0"/></svg></span>'
-      + '<div class="mix-when-b"><div class="mix-vis-t">Listen time</div>'
-      + '<div class="mix-vis-s" id="mixWhenNote">' + escapeHtml(mixWhenNote(m)) + '</div></div>'
+      + '<div class="mix-when-b"><div class="mix-when-t">Listen time</div>'
+      + '<div class="mix-when-s" id="mixWhenNote">' + escapeHtml(mixWhenNote(m)) + '</div></div>'
       + '<input class="mix-when-in" id="mixWhenIn" type="time" aria-label="Listen time" value="'
       + escapeHtml(m.listen_at || "") + '" onchange="setMixListenTime(this.value)">'
       + (m.listen_at ? '<button class="mix-when-x" onclick="setMixListenTime(\'\')" aria-label="Remove listen time">Clear</button>' : '')
