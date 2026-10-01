@@ -338,6 +338,10 @@ def load_fixtures() -> dict:
             "topics": [x for g in trending_view for x in g["topics"]],
             "groups": trending_view, "ready": 0, "empty_reason": "",
             "personalised": True, "taste_source": "taste"},
+        # The sign-up screen's samples, in `/api/welcome`'s shape: the whole
+        # tile (title, hook, picture) as the rail draws it (10.1 packet).
+        "/api/welcome": {"episodes": [
+            {**t.as_dict(), "minutes": 2} for t in topics_mod.TOPIC_BANK[:3]]},
         "/api/mixes": mixes,
         "/api/mixes/public": public_mixes,
         "/api/topics": {"topics": bank},

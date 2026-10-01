@@ -48,7 +48,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 import credentials
 import live_facts
@@ -846,8 +845,10 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     if not settings.episode_intelligence:
         return fallback_brief(query, "EPISODE_INTELLIGENCE=0")
 
-    now = now or datetime.now(timezone.utc).astimezone().strftime(
-        "%A %d %B %Y at %H:%M %Z").replace(" 0", " ")
+    # The listener's clock, as the writer's is (`listener_clock`, 10.1).
+    import listener_clock
+
+    now = now or listener_clock.now_line()
 
     try:
         client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))

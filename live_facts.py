@@ -47,6 +47,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+
+import listener_clock
 from typing import Optional
 
 from config import settings
@@ -261,12 +263,15 @@ class LiveFacts:
                 f"This provider is DELAYED by about "
                 f"{int(round(self.delayed_seconds / 60)) or 1} minute(s) by "
                 f"design. The state below was true at "
-                f"{self.as_of:%H:%M %Z} - {self.age_phrase(now)} - and may "
+                f"{listener_clock.say(self.as_of, '%H:%M %Z')} - "
+                f"{self.age_phrase(now)} - and may "
                 f"already have moved. Say it is delayed if you give a figure; "
                 f"never call it the current one.")
         else:
             freshness = (
-                f"It was observed at {self.as_of:%A %d %B %Y at %H:%M %Z}, "
+                # On the listener's clock (10.1): "observed at 04:10 UTC on
+                # Thursday" is Wednesday evening to somebody in California.
+                f"It was observed at {listener_clock.say(self.as_of)}, "
                 f"{self.age_phrase(now)}.")
 
         kind = f"\nThese are {self.kind} figures." if self.kind else ""

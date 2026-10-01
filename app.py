@@ -81,6 +81,7 @@ import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import push as push_mod
+import listener_clock
 import preferences as prefs_mod
 import social as social_mod
 import voice_store
@@ -1737,8 +1738,9 @@ async def auth_me(request: Request) -> dict:
     listener = getattr(request.state, "listener", None)
     if listener is None:
         return {"user_id": "", "email": "", "authenticated": False,
-                "waitlist": settings.waitlist}
-    return {**listener.as_dict(), "waitlist": settings.waitlist}
+                "waitlist": settings.waitlist, "home": settings.app_home_url}
+    return {**listener.as_dict(), "waitlist": settings.waitlist,
+            "home": settings.app_home_url}
 
 
 def _one_identifier(req: CredentialsRequest) -> str:
@@ -3406,6 +3408,9 @@ async def carry_the_session(request: Request, call_next):
     wants_identity = path == "/" or (
         path.startswith("/api/") and path not in MACHINE_PATHS
     )
+    # The listener's clock, from their device (10.1): what "today", "tonight"
+    # and "yesterday" mean in anything written for this request.
+    listener_clock.set_for_request(request.headers.get(listener_clock.HEADER, ""))
     token = _session_token(request)
     listener = ACCOUNTS.listener_for(token) if token else None
     minted = ""
@@ -5017,8 +5022,9 @@ async def welcome_samples(request: Request) -> dict:
     for topic in ranked:
         if not _audio_is_kept(topic.query, minutes):
             continue
-        samples.append({"id": topic.id, "title": topic.title,
-                        "query": topic.query, "minutes": minutes})
+        # The whole tile, as the rail draws it - title, hook and picture -
+        # so the sign-up screen shows exactly what myFAM shows (10.1 packet).
+        samples.append({**topic.as_dict(), "minutes": minutes})
         if len(samples) >= WELCOME_SAMPLES:
             break
     return {"episodes": samples}
@@ -7176,7 +7182,10 @@ async def _drain_viral_loops_forever(every: float = 300.0) -> None:
 
 
 def _referral_link(request: Request, code: str) -> str:
-    base = _public_base(request)
+    # Never relative: this link is pasted into other apps, where `/waitlist`
+    # is not a link at all. A server with no public host of its own (a
+    # laptop, a preview) hands out the app's home address instead.
+    base = _public_base(request) or settings.app_home_url
     return f"{base}/waitlist?{waitlist_mod.REFERRAL_PARAM}={code}"
 
 
