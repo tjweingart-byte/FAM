@@ -85,6 +85,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
+import listener_clock
 import research
 from config import PREFETCH_LEVELS, settings
 
@@ -969,6 +970,9 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     pf.note_cycle(listener)
 
     async def _cycle() -> None:
+        # Started by a page draw, written for everybody: never on the clock of
+        # the listener whose page it was (`listener_clock`).
+        listener_clock.set_for_request("")
         try:
             outcome = await pf.run_once(listener, minutes=minutes)
             if outcome.get("outcomes"):

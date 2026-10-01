@@ -242,6 +242,24 @@
   dropped, never a model call to rephrase — and a retry that still misses
   returns its evidence anyway, with the gap *named* to the writer so it is said
   plainly rather than filled from memory in the same confident voice.
+<!-- rule:listener-clock -->
+- **An episode is written on the listener's clock, never the server's** *(the
+  owner's 10.1 packet, PROBLEMS.md §186).* The server runs in UTC, and the
+  writer's "It is currently", EI's `now`, the packet's "today/yesterday" and a
+  live fact's "observed at" all read it - so a game that ended at 8:30pm in
+  California was "last night" by the time anybody there asked. They read
+  `listener_clock` now. The zone comes from the **device**, never a location:
+  the client sends its IANA zone as `X-FAM-TZ` on every API call (a browser and
+  an iPhone know it without a permission prompt), and Settings' **Time zone**
+  row can pin another (kept on the device, `fam.prefs.time_zone`). Work written
+  for everybody - prefetch cycles, the DailyFAM and Trending editions - resets
+  to the edition's zone (`DAILY_EDITION_TIMEZONE`), so a listener's clock never
+  leaks into a shared script. **The zone is not in `key_for`**, deliberately:
+  it is part of *when* an episode was written, like the moment itself, which is
+  not in the key either; the volatile window (`ttl_for`, 2h) bounds a stale
+  "tonight", and a per-zone key would stop Explore and a shared link finding
+  the episode somebody else made.
+
 <!-- rule:started-not-finished -->
 - **Started is not finished, and nothing upstream of the evidence may claim
   otherwise.** *(PROBLEMS.md §88.)* FAM wrote a final score for a game in its

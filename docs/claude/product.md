@@ -314,6 +314,8 @@ is cached in its own column beside the script for the same reason `thread` is
 whoever-asked-first's wording - and a re-write keeps the title it has.
 
 <!-- rule:next-is-prediction -->
+> **Current (PROBLEMS.md §186):** opening Go Deeper no longer stops the episode playing (the player's or an Explore card's). If it ends while the sheet is up, the sound stops and the sheet stays: no album advance, no What's next countdown, no next Explore card, until a prompt is sent, the suggestion taken, or the sheet closed.
+
 **Go Deeper did not lose its suggestion — it stopped coming from the script.**
 The model still writes a trailing `<<NEXT: ...>>` line, stripped before
 synthesis and never spoken, but it is now a *prediction* rather than a promise:

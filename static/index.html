@@ -1848,21 +1848,21 @@
     color:var(--text-muted); margin:8px 0 0; }
   .intro-sub[hidden]{ display:none; }
   /* The sign-up screen's rotating samples (§181). */
-  .welcome-samples{ margin:0 0 22px; }
+  .welcome-samples{ margin:22px 0 22px; }
   .welcome-samples[hidden]{ display:none; }
   .ws-kicker{ font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase;
     color:var(--text-muted); margin-bottom:8px; }
-  .ws-card{ width:100%; display:flex; align-items:center; gap:12px; text-align:left;
-    padding:14px 14px; border-radius:16px; border:1px solid var(--border-strong);
-    background:var(--surface-2); color:var(--text); cursor:pointer;
-    font-family:'Space Grotesk',sans-serif; min-height:64px;
-    transition:opacity 260ms ease; }
+  .ws-card{ width:100%; text-align:left; transition:opacity 260ms ease; }
   .ws-card.fading{ opacity:0; }
-  .ws-card:active{ transform:scale(0.99); }
-  .ws-play{ flex:none; width:34px; height:34px; border-radius:50%;
-    background:var(--copper); color:var(--ink); display:flex;
+  .ws-card .seed-thumb{ aspect-ratio:16/9; }
+  /* The whole title here: the rail clamps it to two lines to keep a row of
+     four even, and this card is alone. */
+  .ws-card .seed-card-title{ font-size:15px; display:block; -webkit-line-clamp:unset;
+    overflow:visible; }
+  .ws-card .seed-why{ font-size:12px; }
+  .ws-play{ position:absolute; right:10px; bottom:9px; z-index:1; width:34px; height:34px;
+    border-radius:50%; background:var(--copper); color:var(--ink); display:flex;
     align-items:center; justify-content:center; }
-  .ws-title{ font-size:14px; font-weight:600; line-height:1.3; }
   .ws-dots{ display:flex; gap:6px; justify-content:center; margin-top:9px; }
   .ws-dot{ width:6px; height:6px; border-radius:50%; background:var(--border-strong);
     border:0; padding:0; cursor:pointer; }
@@ -2582,9 +2582,6 @@
               <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
             </div>
             <div class="entry-h">Listen to anything you want to know about</div>
-            <p class="entry-lede">Type any question and hear a short episode that
-              answers it. Free to listen &mdash; an account keeps your mixes,
-              interests and saved episodes on every device.</p>
             <!-- Today's three most-played episodes, rotating (§181, the 9.30
                  interface packet): a sample of what FAM sounds like before
                  deciding anything. `/api/welcome` only returns episodes
@@ -2592,10 +2589,12 @@
                  nothing; with none, this stays hidden rather than empty. -->
             <div class="welcome-samples" id="welcomeSamples" hidden>
               <div class="ws-kicker">Most played today</div>
-              <button class="ws-card" id="wsCard" type="button" onclick="playWelcomeSample()">
-                <span class="ws-play" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>
-                <span class="ws-title" id="wsTitle"></span>
-              </button>
+              <!-- The rail's own card (10.1 packet): its picture, the whole
+                   title and the one-line hook, drawn by the same helpers
+                   myFAM's rails use (`seedThumbOpen`, `seedHook`). -->
+              <div class="seed-card ws-card" id="wsCard" role="button" tabindex="0"
+                   onclick="playWelcomeSample()"
+                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();playWelcomeSample();}"></div>
               <div class="ws-dots" id="wsDots"></div>
             </div>
             <div class="entry-acts">
@@ -3982,6 +3981,9 @@
           init = init || {};
           var headers = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
           if(!headers.has("X-FAM-Client")) headers.set("X-FAM-Client", FAM_CLIENT);
+          // Whose clock this is (10.1): the server writes "tonight" from it.
+          var zone = listenerZone();
+          if(zone && !headers.has("X-FAM-TZ")) headers.set("X-FAM-TZ", zone);
           init.headers = headers;
         }
       } catch(e){}
@@ -6242,6 +6244,9 @@
           reportedOutcome = true;
           recordFamEvent("complete", episodeTopicId, title, episodeThread);
         }
+        // Ended under an open Go Deeper: the sound stops and the sheet stays
+        // up on its own - no album advance, no countdown over it (10.1).
+        if(goDeeperIsOpen()) return;
         if(onEnd) onEnd();
         // Offered after the episode's own bookkeeping, and only where it
         // belongs - maybeOfferNextUp checks the surface for itself.
@@ -7397,11 +7402,19 @@
     showThreadSuggestion();
     document.getElementById("goDeeperOverlay").classList.add("active");
   }
+  // **The episode keeps playing while Go Deeper is open** (the owner, 10.1
+  // packet). It used to be stopped here, with no way back to it. If it ends
+  // first, the sound stops and the sheet stays up - nothing else is offered
+  // or started over it (`goDeeperIsOpen`) - until a prompt is sent, the
+  // suggestion is taken, or the sheet is closed.
+  function goDeeperIsOpen(){
+    var el = document.getElementById("goDeeperOverlay");
+    return !!(el && el.classList.contains("active"));
+  }
   function openGoDeeper(context){
     goDeeperContext = context;
     goDeeperBaseOverride = null;
     goDeeperThreadOverride = "";
-    stopSpeech();
     showGoDeeperModal(0);
     fetchEpisodeThread();   // still generating? fill the chip when it lands
     fetchEpisodeSources();  // and say what it was built on, once it exists
@@ -7434,8 +7447,7 @@
   function openGoDeeperOnReel(){
     var ep = reelCurrent;
     if(!ep){ toast("Nothing is playing"); return; }
-    stopSpeech();
-    stopReelProgress();
+    // Keeps playing, as the player's does (10.1 packet).
     openGoDeeperOn(ep, "exploreFAM", "explore", ep.thread || "");
   }
   function closeGoDeeper(){
@@ -7448,6 +7460,9 @@
     var val = document.getElementById("goDeeperInput").value.trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
+    // From Explore the card kept playing under the sheet (10.1); the
+    // follow-up replaces it, so its bar stops counting here.
+    if(goDeeperContext === "explore"){ stopReelProgress(); setReelPlaying(false); }
     closeGoDeeper();
     startFollowUp(val, baseKey, goDeeperMinutes);
   }
@@ -8502,8 +8517,18 @@
     if(!m || !el) return;
     el.outerHTML = mixWhenHTML(m);
   }
-  function listenerZone(){
+  // **The listener's clock** (the owner's 10.1 packet). The device's own
+  // zone - which a browser and a phone know without asking for a location -
+  // unless Settings pinned another (`fam.prefs.time_zone`). Sent on every API
+  // call as `X-FAM-TZ`, so "tonight" and "yesterday" in an episode are this
+  // listener's (`listener_clock.py`), and used for a mix's listen time.
+  function deviceZone(){
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch(e){ return ""; }
+  }
+  function listenerZone(){
+    var pinned = "";
+    try { pinned = localPrefs().time_zone || ""; } catch(e){}
+    return pinned || deviceZone();
   }
   function setMixListenTime(value){
     var m = mixById(currentMixId);
@@ -11778,10 +11803,14 @@
       .then(function(d){ if(d && d.referral_link) inviteLink = d.referral_link; })
       .catch(function(){});
   }
+  //: The app's address (`APP_HOME_URL`, the owner's 10.1 packet). An invite
+  //: names this, never the host the page is open on - a preview or a Render
+  //: URL is not where a friend should land. The server says it in
+  //: `/api/auth/me`; this is the same default for a page that has not heard.
+  var FAM_HOME = "https://familiarize.net";
   function inviteFriends(){
     var handle = profileNow && profileNow.handle;
-    var url = inviteLink || (location.origin && location.origin.indexOf("http") === 0
-      ? location.origin + "/" : "");
+    var url = inviteLink || (((AUTH && AUTH.home) || FAM_HOME) + "/");
     var text = "Come listen with me on FAM" + (handle ? " — I'm @" + handle : "") + ".";
     if(navigator.share){
       navigator.share({ title: "FAM", text: text, url: url || undefined }).catch(function(){});
@@ -11847,7 +11876,10 @@
       // scan first. It is account-gated like every other stored preference,
       // and says so rather than failing on save.
       + settingsRow("Where you are", escapeHtml(locationSummary()),
-          "openLocationFromSettings()");
+          "openLocationFromSettings()")
+      // The clock episodes are written on (10.1). Automatic is the device's
+      // own zone and needs no permission; this row is for pinning another.
+      + settingsRow("Time zone", escapeHtml(zoneSummary()), "openTimeZoneMenu()");
 
     // "Your interests" opens the whole list of topics directly (§142) - there
     // is no wheel in front of it any more, and no second door beside it.
@@ -11906,6 +11938,50 @@
     // - it is a development affordance, and it is still one tap away on the
     // button at the top of the page, which is where it belongs.
     el.innerHTML = html;
+  }
+
+  // ---- Time zone (10.1) ----
+  //: The zones offered for pinning, beside Automatic. A short list on
+  //: purpose: Automatic is right for nearly everybody, and this is for the
+  //: listener whose device is set to somewhere they are not.
+  var TIME_ZONES = [
+    ["America/New_York", "Eastern"], ["America/Chicago", "Central"],
+    ["America/Denver", "Mountain"], ["America/Phoenix", "Arizona"],
+    ["America/Los_Angeles", "Pacific"], ["America/Anchorage", "Alaska"],
+    ["Pacific/Honolulu", "Hawaii"], ["Europe/London", "London"],
+    ["Europe/Paris", "Central Europe"], ["Asia/Kolkata", "India"],
+    ["Asia/Tokyo", "Tokyo"], ["Australia/Sydney", "Sydney"]
+  ];
+  function zoneLabel(name){
+    for(var i = 0; i < TIME_ZONES.length; i++){
+      if(TIME_ZONES[i][0] === name) return TIME_ZONES[i][1];
+    }
+    return String(name || "").split("/").pop().replace(/_/g, " ");
+  }
+  function zoneSummary(){
+    var pinned = localPrefs().time_zone || "";
+    if(pinned) return zoneLabel(pinned);
+    var device = deviceZone();
+    return device ? "Automatic (" + zoneLabel(device) + ")" : "Automatic";
+  }
+  function setTimeZone(name){
+    saveLocalPrefs({ time_zone: name || "" });
+    refreshSettingsIfOpen();
+    toast(name ? "Episodes use " + zoneLabel(name) + " time"
+               : "Episodes use this device’s time");
+  }
+  function openTimeZoneMenu(){
+    var pinned = localPrefs().time_zone || "";
+    var device = deviceZone();
+    var items = [{ group: "Time zone for your episodes" },
+      { label: "Automatic" + (device ? " (" + zoneLabel(device) + ")" : "")
+               + (pinned ? "" : "  ✓"),
+        action: function(){ setTimeZone(""); } }];
+    TIME_ZONES.forEach(function(z){
+      items.push({ label: z[1] + (pinned === z[0] ? "  ✓" : ""),
+                   action: function(){ setTimeZone(z[0]); } });
+    });
+    showActionSheet(items);
   }
 
   // What the Interests row says it holds. Their chosen facets and their chosen
@@ -15131,6 +15207,8 @@
       onEnd: function(){
         stopReelProgress();
         setReelPlaying(false);
+        // Go Deeper open on this card: stop here and leave the sheet up.
+        if(goDeeperIsOpen()) return;
         // Running out is the same gesture as swiping up, without the swipe.
         nextReel();
       },
@@ -15388,8 +15466,18 @@
     box.hidden = !welcomeSamples.length;
     if(!welcomeSamples.length) return;
     var ep = welcomeSamples[welcomeAt] || welcomeSamples[0];
-    document.getElementById("wsTitle").textContent = ep.title || ep.query;
-    document.getElementById("wsCard").setAttribute("aria-label", "Play " + (ep.title || ep.query));
+    var title = ep.title || ep.query;
+    var tag = seedTagText("most_played", ep);
+    var card = document.getElementById("wsCard");
+    card.innerHTML = seedThumbOpen(ep)
+      + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+      + '<span class="ws-play" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>'
+      + '</div>'
+      + '<div class="seed-card-body">'
+      + '<div class="seed-card-title" id="wsTitle">' + escapeHtml(title) + '</div>'
+      + '<div class="seed-why">' + seedHook("most_played", ep) + '</div>'
+      + '</div>';
+    card.setAttribute("aria-label", "Play " + title);
     document.getElementById("wsDots").innerHTML = welcomeSamples.length > 1
       ? welcomeSamples.map(function(_, j){
           return '<button type="button" class="ws-dot' + (j === welcomeAt ? ' on' : '')
@@ -16207,7 +16295,7 @@
     buildNextUpTiles(query, topicId, function(tiles){
       // One tile is not a grid, and a popup offering nothing is worse than
       // the silence it replaced. Below two, the player simply stops.
-      if(tiles.length < 2 || !nextUpAllowedHere()) return;
+      if(tiles.length < 2 || !nextUpAllowedHere() || goDeeperIsOpen()) return;
       showNextUp(tiles);
     });
   }
