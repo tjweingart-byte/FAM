@@ -47,10 +47,9 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-
-import listener_clock
 from typing import Optional
 
+import listener_clock
 from config import settings
 
 log = logging.getLogger(__name__)

@@ -7460,6 +7460,9 @@
     var val = document.getElementById("goDeeperInput").value.trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
+    // From Explore the card kept playing under the sheet (10.1); the
+    // follow-up replaces it, so its bar stops counting here.
+    if(goDeeperContext === "explore"){ stopReelProgress(); setReelPlaying(false); }
     closeGoDeeper();
     startFollowUp(val, baseKey, goDeeperMinutes);
   }
