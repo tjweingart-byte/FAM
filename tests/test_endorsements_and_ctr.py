@@ -56,7 +56,7 @@ def test_every_endorsement_is_a_kind_the_log_accepts(store):
 
 
 def test_the_weights_are_the_owners():
-    """§186: the owner set these numbers. A change to any of them is a
+    """§187: the owner set these numbers. A change to any of them is a
     change to the owner's rule, not a tuning pass."""
     for kind, weight in {"search": 2.0, "play": 1.0, "complete": 2.0,
                          "skip": -0.5, "save": 2.0, "vibe": 2.5}.items():

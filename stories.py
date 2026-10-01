@@ -266,7 +266,7 @@ class Signal:
     #: The provider's status for `live_line`, in `live_facts`' closed
     #: vocabulary (`scheduled`/`in_progress`/`final`).
     live_status: str = ""
-    #: A game in a league outside `live_sources.MAJOR_LEAGUES` (§186). Set by
+    #: A game in a league outside `live_sources.MAJOR_LEAGUES` (§187). Set by
     #: the sports source from the provider's own league row, never guessed
     #: from the words. Made for you never offers one from another continent
     #: to a listener who does not follow it - see `topics._far_minor_league`.
@@ -455,7 +455,7 @@ class Story:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
-    #: `Signal.minor_league`, carried through (§186).
+    #: `Signal.minor_league`, carried through (§187).
     minor_league: bool = False
 
     @property

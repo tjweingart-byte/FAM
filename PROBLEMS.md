@@ -14433,7 +14433,59 @@ All / dailyFAM / myFAM / searchFAM. `historySurface` now recognises a mix
 play by `source === "myFAM"`, the mix player's new source label.
 
 
-## 186. Made for you: one search about Israel filled it with Middle East sport
+## 186. The 10.1 packet, fourth set: the sign-up card, familiarize.net, Go Deeper over a playing episode, the listener's clock
+
+Five requests from the owner's 10.1 implementations PDF.
+
+**1. The sign-up screen's samples are myFAM's card.** The rotating "Most
+played today" sample was a button with a play circle and a title. It is now
+the rails' own card - picture, the whole title, the one-line hook - drawn by
+the same helpers the rails use (`seedThumbOpen`, `seedTagText`, `seedHook`)
+from the whole tile: `/api/welcome` returns `Topic.as_dict()` plus `minutes`
+rather than four fields. The title is not clamped to two lines here (the
+rail clamps to keep a row even; this card is alone). The paragraph under
+"Listen to anything you want to know about" is gone. ("myFAM" in the request
+is the rails screen, which §185 now labels DailyFAM on screen.)
+
+**2. Invites name familiarize.net.** The Friends page's invite fell back to
+`location.origin` - the preview's or the Render URL's host, whichever the
+page was open on. `APP_HOME_URL` (default `https://familiarize.net`) is the
+app's address; `/api/auth/me` reports it as `home`, the invite uses it
+(`FAM_HOME` in the page is the same default, pinned by a test), and a
+referral link falls back to it instead of coming back relative. Share links
+still follow `PUBLIC_BASE_URL`, which production must set to
+`https://familiarize.net` for them to name it (see 3).
+
+**3. familiarize.net is gated.** Nothing to build: the gate (§183) sends a
+guest or waitlisted listener asking for `/` to `/waitlist`, and the waitlist
+page signs a member in and straight into the app. It is open on
+familiarize.net because production's `WAITLIST` is unset - `render.yaml`
+asks for it in the dashboard (`sync: false`) by design. This session was
+not permitted to change production's deploy settings, so the owner sets, in
+the Render dashboard for `fam`: `WAITLIST=1` and
+`PUBLIC_BASE_URL=https://familiarize.net`.
+
+**4. Go Deeper leaves the episode playing.** `openGoDeeper` (and Explore's
+`openGoDeeperOnReel`) called `stopSpeech()`, so the episode stopped and could
+not be resumed. They no longer do. If the episode ends while the sheet is up
+(`goDeeperIsOpen`), the sound stops and nothing is started over it - no
+album advance, no What's next countdown, no next Explore card - until a
+prompt is sent, the suggestion is taken, or the sheet is closed.
+
+**5. The listener's clock.** Every place that told a model what time it is
+read the server's, which is UTC: `now_line()`, EI's `now`, the packet's
+`age_phrase`, a live fact's "observed at". At 8:30pm Pacific it is already
+tomorrow in UTC, so a game that had just ended was written up as last
+night's. `listener_clock.py` holds the zone for the request; the client
+sends the device's IANA zone as `X-FAM-TZ` on every API call (no location
+permission - a browser and an iPhone both know it), and Settings has a
+**Time zone** row (Automatic, or pinned; kept on the device). Prefetch
+cycles and DailyFAM edition writes reset to the edition's zone, so a
+listener's clock never reaches a shared script; with no listener the default
+is the edition's zone (Eastern), no longer UTC. The zone is deliberately not
+in `key_for` - rule `listener-clock` says why.
+
+## 187. Made for you: one search about Israel filled it with Middle East sport
 
 The owner's report: "I looked up one episode about a flight to Israel last
 night, and now my entire made for you page is sports in the middle east. I
@@ -14511,7 +14563,7 @@ available to this session, so the exact rows are unconfirmed):
 endorsement sits below a completion"; §114/§155's "the country never
 ranks" is narrowed - the country still never *boosts*, but it now excludes
 minor-league games from other continents; §127's top-up gives way to the
-cap on this rail. `tests/test_made_for_you_186.py` is the reported case end
+cap on this rail. `tests/test_made_for_you_187.py` is the reported case end
 to end.
 
 **Not verified here:** no production event log, no API-Sports or Finnhub

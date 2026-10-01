@@ -239,7 +239,7 @@ flowchart TB
 
 ### 6.1 Inputs
 
-- **Event weights** (`topics.EVENT_WEIGHT`, the owner's numbers since §186):
+- **Event weights** (`topics.EVENT_WEIGHT`, the owner's numbers since §187):
 
   | Event | Weight |
   |---|---|

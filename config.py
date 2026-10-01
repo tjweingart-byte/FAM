@@ -1432,6 +1432,15 @@ class Settings:
     # shows the share as not-yet-public rather than pretending.
     public_base_url: str = field(
         default_factory=lambda: os.environ.get("PUBLIC_BASE_URL", "").rstrip("/"))
+    # The app's own address, the one people are sent to (the owner, 10.1:
+    # familiarize.net). An invite from the Friends page names this rather
+    # than whatever host the page happens to be open on - a preview, a
+    # Render URL - and a referral link falls back to it when the request
+    # names no public host. Not the same as `public_base_url`: that one says
+    # where *this* server is reached, which on staging is not here.
+    app_home_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "APP_HOME_URL", "https://familiarize.net").strip().rstrip("/"))
     # Where a share recipient is sent when they press anything that is not
     # play. Unset on every deployment until the app actually ships, and
     # nothing here invents a URL: an App Store link that 404s is a worse

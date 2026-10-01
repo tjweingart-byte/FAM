@@ -289,7 +289,7 @@ def test_a_second_follow_up_is_offered_once_the_story_moves_again(store, pool):
     now = time.time()
     # Tagged as `/api/event` tags a play of a live tile (`tags_for_id`): a
     # word from a play the vocabulary could not file vouches for no sport
-    # (§186), and a play of this story is filed exactly where the story is.
+    # (§187), and a play of this story is filed exactly where the story is.
     store.record(T.Event("t5", "play", "st-0", pool[0].query, pool[0].tags,
                          now - 3 * DAY))
     store.record(T.Event("t5", "play", "st-0-new", "what's new", pool[0].tags,

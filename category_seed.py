@@ -92,7 +92,7 @@ from __future__ import annotations
 #: silently never exists. `tests/test_category_seed.py` fails instead.
 SEED: dict[str, dict] = {
     "sports": {
-        # §186: the leagues, so a question about one files it as a subject
+        # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport.
         "american football": {"college football": {}, "super bowl": {},
                               "quarterback play": {}, "nfl": {}},
@@ -190,7 +190,7 @@ SEED: dict[str, dict] = {
         "archaeology": {},
     },
     "world": {
-        # §186: the Middle East's own subjects, so a question about one of
+        # §187: the Middle East's own subjects, so a question about one of
         # them is a world subject - and so never a sports one.
         "geopolitical conflict": {
             "middle east": {"israel": {"tel aviv": {}, "jerusalem": {}},

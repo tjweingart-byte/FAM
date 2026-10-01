@@ -273,7 +273,7 @@ def test_no_rail_becomes_one_subject(store):
 
 
 def test_a_listener_with_one_interest_gets_variety_not_a_samey_rail(store):
-    """§186 reverses the old trade, at the owner's direction ("there should
+    """§187 reverses the old trade, at the owner's direction ("there should
     absolutely be variety in episodes in someone's made for you"). Somebody
     whose whole history is sport gets at most `MAX_PER_FACET` sport tiles on
     Made for you: with the floor off the rail is short and honest, and with

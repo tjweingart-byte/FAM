@@ -251,7 +251,7 @@ def test_two_tiles_sharing_a_question_keep_their_own_declared_tags(seeded):
 
 
 def test_the_tree_only_adds_within_a_tiles_own_field(seeded):
-    """§186: a tile's question can name a subject from another field by
+    """§187: a tile's question can name a subject from another field by
     coincidence - a club named after its city - and the tree must not file
     the tile there. Within the field it still adds."""
     game = T.Topic("g", "G", "", "maccabi tel aviv vs hapoel haifa nba game",

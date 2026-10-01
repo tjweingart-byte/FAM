@@ -150,7 +150,7 @@ EVENT_WEIGHT[kind] × 0.5^(age / 14 days)
 ```
 
 per tag, then normalises to a peak of 1.0 so scores are comparable between
-listeners. Weights (the owner's, §186): `search` 2.0, `play` 1.0,
+listeners. Weights (the owner's, §187): `search` 2.0, `play` 1.0,
 `complete` 2.0, `skip` −0.5, `save` 2.0, `vibe` 2.5, `share` 2.0, `pick` 1.6. Declared interests enter flat at 1.0 before normalising — a
 starting position that behaviour outvotes within a day.
 

@@ -443,10 +443,10 @@ class Topic:
     #: everything else. Not serialised.
     follows: str = ""
     #: `Story.domain` for a live tile - `markets` is what lets a market move
-    #: reach Made for you on a listener's interest in money (§186). Empty for
+    #: reach Made for you on a listener's interest in money (§187). Empty for
     #: the bank. Not serialised.
     domain: str = ""
-    #: `Story.minor_league` (§186). Not serialised.
+    #: `Story.minor_league` (§187). Not serialised.
     minor_league: bool = False
 
     def as_dict(self) -> dict:
@@ -490,14 +490,14 @@ class Topic:
 TAG_WORDS: dict[str, tuple[str, ...]] = {
     "sports": ("nfl", "nba", "football", "basketball", "golf", "soccer", "tennis",
                "olympics", "coach", "playoff", "draft", "league", "match",
-               # §186: the sports themselves, so a question about one is filed
+               # §187: the sports themselves, so a question about one is filed
                # under sport rather than nowhere.
                "mlb", "nhl", "mls", "wnba", "baseball", "hockey", "rugby",
                "cricket", "ufc", "mma", "boxing", "nascar", "quarterback",
                "touchdown", "playoffs", "fixture"),
     "business": ("startup", "founder", "company", "ceo", "ipo", "merger", "layoff",
                  "strategy", "brand", "hiring", "venture",
-                 # §186: travel is a business question - "flights to Israel"
+                 # §187: travel is a business question - "flights to Israel"
                  # was filed under nothing at all.
                  "airline", "airlines", "airport", "flight", "flights",
                  "aviation"),
@@ -513,7 +513,7 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
                 "song", "show", "artist", "fashion"),
     "world": ("election", "war", "treaty", "border", "sanctions", "summit",
               "government", "protest", "strait", "diplomacy", "policy",
-              # §186: the places the news is about. A question naming one is a
+              # §187: the places the news is about. A question naming one is a
               # world question, which is what keeps it from being a question
               # about nothing - and so from unlocking anything in sport.
               "israel", "gaza", "iran", "ukraine", "russia", "lebanon",
@@ -1118,7 +1118,7 @@ def tags_for_text(text: str) -> tuple[str, ...]:
 
 
 def _names_a_sport(text: str) -> bool:
-    """Whether the words name a sport or a team FAM already knows (§186).
+    """Whether the words name a sport or a team FAM already knows (§187).
 
     The same two readings `live_sources.sport_for` routes a question on - a
     sport's own words ("stanley cup", "grand prix") and a team from a league
@@ -1132,10 +1132,13 @@ def _names_a_sport(text: str) -> bool:
     try:
         import live_sources
 
-        padded = " " + " ".join(_WORD.findall(text.lower())) + " "
-        for sport in live_sources.SPORTS.values():
-            if any(" " + " ".join(_WORD.findall(w.lower())) + " " in padded
-                   for w in sport.words):
+        words = _WORD.findall(text.lower())
+        single, phrases = _sport_vocabulary()
+        if single.intersection(words):
+            return True
+        if phrases:
+            padded = " " + " ".join(words) + " "
+            if any(phrase in padded for phrase in phrases):
                 return True
         for held in list(live_sources.TEAMS.values()):
             if held and live_sources.teams_named(held[1], text):
@@ -1167,7 +1170,7 @@ class FamiliarWords(frozenset):
 
     A frozenset of every word, exactly as before, so every caller that only
     asks "have they said this" is unchanged. `filed` adds the second half
-    (§186): word -> the facets of the events it came from, with `UNFILED`
+    (§187): word -> the facets of the events it came from, with `UNFILED`
     for an event the vocabulary could not place. A word absent from `filed`
     - a place word, or a set a test built by hand - counts in every field.
     """
@@ -1187,8 +1190,41 @@ class FamiliarWords(frozenset):
     __ror__ = __or__
 
 
-#: The field a word from an uncategorised event is filed under (§186).
+#: The field a word from an uncategorised event is filed under (§187).
 UNFILED = "?"
+
+
+_SPORT_VOCAB: Optional[tuple] = None
+
+
+def _sport_vocabulary() -> tuple:
+    """`live_sources.SPORTS`' words, split once: one-word names as a set and
+    longer ones as padded phrases, so `_names_a_sport` is a set lookup per
+    question rather than a scan of every sport per word."""
+    global _SPORT_VOCAB
+    if _SPORT_VOCAB is None:
+        import live_sources
+
+        single, phrases = set(), []
+        for sport in live_sources.SPORTS.values():
+            for word in sport.words:
+                parts = _WORD.findall(word.lower())
+                if len(parts) == 1:
+                    single.add(parts[0])
+                elif parts:
+                    phrases.append(" " + " ".join(parts) + " ")
+        _SPORT_VOCAB = (frozenset(single), tuple(phrases))
+    return _SPORT_VOCAB
+
+
+#: `_event_fields`' answer per (text, stored tags), for one tree generation
+#: and one set of read team catalogues. A listener's history is the same
+#: rows on every page, so without this each page re-filed every event they
+#: ever had - measured at ~90ms for a thousand (§187). Bounded like
+#: `_TAG_MEMO`, and dropped wholesale when either input changes.
+_FIELD_MEMO: dict = {}
+_FIELD_MEMO_KEY: tuple = ()
+MAX_FIELD_MEMO = 20000
 
 
 def familiar_words(events: Iterable[Event]) -> FamiliarWords:
@@ -1210,7 +1246,7 @@ def familiar_words(events: Iterable[Event]) -> FamiliarWords:
     model call. A miss costs one tile being damped that need not have been,
     which is a damping and not a filter - see `BROAD_MATCH_PENALTY`.
 
-    **Each word is filed under the field it was used in** (§186). One search
+    **Each word is filed under the field it was used in** (§187). One search
     about a flight to Tel Aviv made "tel" and "aviv" familiar, and so every
     Maccabi Tel Aviv fixture "named something they follow". A word now
     vouches for a live story only in the field of the event it came from -
@@ -1235,12 +1271,31 @@ def familiar_words(events: Iterable[Event]) -> FamiliarWords:
 def _event_fields(event: Event) -> set:
     """The facets one event was about: its stored tags and what its words say
     today, each folded to the heading it sits under."""
+    global _FIELD_MEMO, _FIELD_MEMO_KEY
+    try:
+        import live_sources
+
+        teams = tuple(sorted((k, v[0]) for k, v in live_sources.TEAMS.items()
+                             if v))
+    except Exception:  # noqa: BLE001
+        teams = ()
+    generation = (getattr(category_tree(), "_loaded_at", 0.0), teams)
+    if generation != _FIELD_MEMO_KEY:
+        _FIELD_MEMO = {}
+        _FIELD_MEMO_KEY = generation
+    key = (event.text or "", tuple(event.tags or ()))
+    found = _FIELD_MEMO.get(key)
+    if found is not None:
+        return set(found)
     tags = set(event.tags or ())
     try:
         tags |= set(tags_for_text(event.text or ""))
     except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
         log.exception("could not file %r", event.text)
-    return {f for f in (_root_facet(t) for t in tags) if f}
+    fields = frozenset(f for f in (_root_facet(t) for t in tags) if f)
+    if len(_FIELD_MEMO) < MAX_FIELD_MEMO:
+        _FIELD_MEMO[key] = fields
+    return set(fields)
 
 
 def _root_facet(tag: str) -> str:
@@ -1340,7 +1395,7 @@ def _is_broad_match(topic: Topic, profile: dict[str, float]) -> bool:
 
 def _in_field(root: str, fields: set) -> bool:
     """Whether a subject filed under `root` vouches for a tile filed under
-    `fields` (§186). A subject is a subject *in a field*: "israel" is a world
+    `fields` (§187). A subject is a subject *in a field*: "israel" is a world
     subject and says nothing about a sports fixture that happens to be played
     there. A tag or tile no vocabulary can place is not refused on that
     ground - the rule only bites where both sides are known."""
@@ -1392,7 +1447,7 @@ def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
 
 def _word_vouches(used_in, fields: set) -> bool:
     """Whether a word used in `used_in` fields vouches for a tile in `fields`
-    (§186). Unfiled (a place, a hand-built set) vouches everywhere. A word
+    (§187). Unfiled (a place, a hand-built set) vouches everywhere. A word
     from an event the vocabulary could place vouches in that field only. A
     word from an event it could not place vouches anywhere **but sport**:
     fixtures are named after their teams and teams after their towns, so a
@@ -1465,7 +1520,7 @@ def _off_subject(topic: Topic, profile: dict[str, float],
 def _semantically_near(topic: Topic, profile: dict[str, float],
                        semantic: dict[str, float]) -> bool:
     """A near paraphrase of something they asked for - **in a field they
-    have shown any taste for** (§186). Meaning is measured on words, and a
+    have shown any taste for** (§187). Meaning is measured on words, and a
     fixture between two clubs from a city reads close to a question about
     flying there; the field is what tells a paraphrase from a namesake."""
     if semantic.get(topic.id, 0.0) < _semantic_near():
@@ -1476,7 +1531,7 @@ def _semantically_near(topic: Topic, profile: dict[str, float],
 
 def _follows_markets(topic: Topic, profile: dict[str, float]) -> bool:
     """A market move is on subject for anyone whose taste includes money
-    (§186, at the owner's direction: "Markets should also be available in
+    (§187, at the owner's direction: "Markets should also be available in
     the made for you section"). A price move is the money field's own
     subject rather than one corner of it, so the field is enough - the
     reverse of a fixture, where the field ("sport") says nothing about which
@@ -1488,7 +1543,7 @@ def _follows_markets(topic: Topic, profile: dict[str, float]) -> bool:
 def _far_minor_league(topic: Topic, profile: dict[str, float],
                       continent: str) -> bool:
     """A game in a minor league on another continent that this listener does
-    not follow (§186, at the owner's direction: "There should be no
+    not follow (§187, at the owner's direction: "There should be no
     possibility of it being populated with a niche sports league in a
     continent across the ocean from a person's country").
 
@@ -1716,7 +1771,7 @@ STARTUP_PRIOR_STEP = 0.08
 def made_for_you_candidates(inventory: Iterable[Topic],
                             live_held: Iterable[Topic]) -> list[Topic]:
     """What Made for you ranks: the page's inventory **and every live story
-    the pool is holding** (§186).
+    the pool is holding** (§187).
 
     The pool's variety cap (`stories.MAX_PER_FACET` per facet and place,
     `POOL_SIZE` in all) decides what the *shared* surfaces are offered, and
@@ -1926,7 +1981,7 @@ UNSHELVED = ("might_like",)
 #: it is a statement about wanting more of this, made to nobody, and it is the
 #: one of the three that can be pressed before the episode has said anything.
 #:
-#: > **Current (§186, at the owner's direction):** the numbers are the
+#: > **Current (§187, at the owner's direction):** the numbers are the
 #: > owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5.
 #: > A search is now worth as much as finishing an episode (typing a question
 #: > is the plainest statement of interest there is), a skip barely moves
@@ -2976,7 +3031,7 @@ def topic_tags(topic: Topic) -> tuple[str, ...]:
         if len(_TAG_MEMO) < MAX_TAG_MEMO:
             _TAG_MEMO[topic.query] = found
     extra = set(found) - set(topic.tags)
-    # **Only within the tile's own field** (§186). A fixture's question names
+    # **Only within the tile's own field** (§187). A fixture's question names
     # its teams and its teams are named after towns, so "Maccabi Tel Aviv" in
     # a game's query matched `tel aviv -> israel -> world` and the game was
     # scored as a world story about Israel. A tile says which headings it is
@@ -2994,9 +3049,11 @@ def topic_tags(topic: Topic) -> tuple[str, ...]:
 
 def reset_topic_tags() -> None:
     """Drop the memo. For tests, and after a tree is cleared under us."""
-    global _TAG_MEMO, _TAG_MEMO_GEN
+    global _TAG_MEMO, _TAG_MEMO_GEN, _FIELD_MEMO, _FIELD_MEMO_KEY
     _TAG_MEMO = {}
     _TAG_MEMO_GEN = -1.0
+    _FIELD_MEMO = {}
+    _FIELD_MEMO_KEY = ()
 
 
 def _affinity(topic: Topic, profile: dict[str, float]) -> float:
@@ -3495,7 +3552,7 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
 
     `continent` is the listener's own (`geography.listener_continent`), and
     it decides one thing: a minor-league game from anywhere else is never
-    offered unless they follow it (§186, `_far_minor_league`).
+    offered unless they follow it (§187, `_far_minor_league`).
     """
     damp = damp or {}
     semantic = semantic or {}
@@ -5009,7 +5066,7 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
         if topic.id in have:
             continue
         facets = _tile_variety_facets(topic)
-        # `max_per_facet` is the rail's own variety cap (§186): a top-up
+        # `max_per_facet` is the rail's own variety cap (§187): a top-up
         # that broke it would put back exactly the sameness it exists for.
         if max_per_facet and any(counts.get(f, 0) >= max_per_facet
                                  for f in facets):
@@ -5038,7 +5095,7 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
     a half-empty rail is a worse outcome than a slightly samey one, and the
     listener reads the first one as broken.
 
-    **`strict` never gives way** (§186, Made for you, at the owner's
+    **`strict` never gives way** (§187, Made for you, at the owner's
     direction: "There should absolutely be variety in episodes in someone's
     made for you"). What it passes over is dropped, and the rail's floor
     tops it up from other headings instead (`_fill_to_minimum` with the same

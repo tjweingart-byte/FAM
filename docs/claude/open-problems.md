@@ -144,7 +144,7 @@
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
 <!-- rule:op-taste-vocab -->
-> **Current (PROBLEMS.md §186):** the weights are the owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5 - so "share and vibe weigh the same" and "between a play and a completion" below are history. "The country is stored and never ranks" is narrowed: it never boosts, but it excludes minor-league games from other continents on Made for you (`mfy-field-variety`).
+> **Current (PROBLEMS.md §187):** the weights are the owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5 - so "share and vibe weigh the same" and "between a play and a completion" below are history. "The country is stored and never ranks" is narrowed: it never boosts, but it excludes minor-league games from other continents on Made for you (`mfy-field-variety`).
 
 5. **The taste model is crude, and the vocabulary is no longer the ceiling.**
    *(§121. Four changes, in the order they were asked for, and the fourth is
@@ -324,7 +324,7 @@
 
 <!-- rule:mfy-field-variety -->
 - **Made for you: subjects are filed by field, variety never gives way, no
-  far minor league, markets on a money taste** *(PROBLEMS.md §186, at the
+  far minor league, markets on a money taste** *(PROBLEMS.md §187, at the
   owner's direction, after one search about a flight to Israel filled the
   rail with Middle East sport).* A search is filed under the fields it is
   about (`TAG_WORDS` travel/places/sports, `_names_a_sport`, seeded leagues

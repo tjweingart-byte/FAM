@@ -688,11 +688,14 @@ def now_line() -> str:
 
     Without this the model has no idea what "this morning" means and cannot
     tell a listener whether it is describing something current or stale.
-    """
-    from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc).astimezone()
-    return now.strftime("%A %d %B %Y at %H:%M %Z").replace(" 0", " ")
+    **On the listener's clock** (`listener_clock`, the owner's 10.1 packet).
+    It was the server's, which is UTC: a game that ended at 8:30pm in
+    California was "last night" by the time anybody there asked about it.
+    """
+    import listener_clock
+
+    return listener_clock.now_line()
 
 
 def plan_episode(

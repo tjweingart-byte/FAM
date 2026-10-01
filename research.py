@@ -278,7 +278,12 @@ def age_phrase(when: Optional[datetime], now: Optional[datetime] = None) -> str:
     """
     if when is None:
         return "date not stated"
-    now = now or datetime.now(timezone.utc)
+    # The listener's calendar day (`listener_clock`, 10.1): at 9pm in
+    # California the UTC date is already tomorrow, and an article from
+    # this evening read as "yesterday".
+    import listener_clock
+
+    now = now or listener_clock.now()
     days = (now.date() - when.date()).days
     if days < 0:
         return "dated in the future - treat with suspicion"
@@ -487,7 +492,9 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
             parts.append("")
         return "\n".join(parts)
 
-    now = now or datetime.now(timezone.utc)
+    import listener_clock
+
+    now = now or listener_clock.now()
     parts = []
     for index, result in enumerate(list(results)[:packet_sources], 1):
         when = published_at(result)

@@ -956,6 +956,10 @@ def schedule_mix(mix, generator=None, cache=None,
                      result.get("status"), query, result.get("ei", "-"))
 
     async def _guarded() -> None:
+        # The edition's clock, whoever's save started this (`listener_clock`).
+        import listener_clock
+
+        listener_clock.set_for_request("")
         try:
             await _write()
         except asyncio.CancelledError:  # pragma: no cover - shutdown

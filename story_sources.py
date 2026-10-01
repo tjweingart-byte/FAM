@@ -94,7 +94,7 @@ def _tags(text: str, *extra: str) -> tuple:
 
 
 def _in_field(tags: tuple, facet: str) -> tuple:
-    """Only the tags filed under `facet` (§186)."""
+    """Only the tags filed under `facet` (§187)."""
     import topics
 
     return tuple(t for t in tags if topics._root_facet(t) == facet)
@@ -461,7 +461,7 @@ class FinnhubSignals(stories.StorySource):
                 domain=self.domain,
                 source=self.name,
                 # Filed as what it is - a move in the stock market - and not
-                # by the words of the company's name (§186): "Taiwan
+                # by the words of the company's name (§187): "Taiwan
                 # Semiconductor" is a market story, not a Taiwan story.
                 tags=_tags("", "money", "markets", "stock market"),
                 strength=min(1.0, abs(change) / peak),
@@ -802,7 +802,7 @@ class ApiSportsSignals(stories.StorySource):
                          "title, the angle and the query."),
             domain=self.domain,
             source=self.name,
-            # Filed under sport and nothing else (§186). A team is named
+            # Filed under sport and nothing else (§187). A team is named
             # after its town, and the town's own subjects ("tel aviv" ->
             # israel -> world) are not what a game is about - carried, they
             # made every fixture played there a world story too.

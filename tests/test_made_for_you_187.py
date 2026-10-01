@@ -1,4 +1,4 @@
-"""§186: one search about a flight to Israel filled Made for you with sport
+"""§187: one search about a flight to Israel filled Made for you with sport
 from the Middle East.
 
 The owner's report: "I looked up one episode about a flight to Israel last
@@ -290,3 +290,19 @@ def test_the_sports_source_marks_a_minor_league():
     assert signal.minor_league is True
     assert "sports" in signal.tags
     assert live_facts  # imported for the status vocabulary the row uses
+
+
+def test_filing_a_long_history_stays_cheap(tree):
+    """Bound, not result (§122's rule): `familiar_words` runs on every page,
+    and filing each event reads the vocabulary. A thousand-event history
+    must stay well inside a page budget, and a second page reuses the memo."""
+    events = [T.Event("me", "search", "", f"flights to tel aviv number {n}", ())
+              for n in range(1000)]
+    started = time.perf_counter()
+    T.familiar_words(events)
+    first = time.perf_counter() - started
+    started = time.perf_counter()
+    T.familiar_words(events)
+    again = time.perf_counter() - started
+    assert first < 1.0, f"{first:.3f}s for a thousand events"
+    assert again < 0.1, f"{again:.3f}s on the second page"
