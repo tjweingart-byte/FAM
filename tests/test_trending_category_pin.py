@@ -1,6 +1,6 @@
 """Trending tiles say what they are, and their episodes are about their story.
 
-Two failures a listener reported (§186), each pinned here:
+Two failures a listener reported (§188), each pinned here:
 
 * **The picture and the label were the wrong subject.** A boxing press
   conference wore a laboratory under SCIENCE: its query never said "boxing",

@@ -123,7 +123,7 @@ _TITLE_MARKER = re.compile(r"<<\s*TITLE\s*:\s*([^<>]{1,120}?)\s*>>", re.I)
 #: title, so a half-heard episode reads like every other myFAM tile (§127).
 _SUMMARY_MARKER = re.compile(r"<<\s*SUMMARY\s*:\s*([^<>]{1,240}?)\s*>>", re.I)
 #: What kind of thing the episode turned out to be about, in a few plain
-#: words, on the same kind of line and for the same reason as TITLE (§187).
+#: words, on the same kind of line and for the same reason as TITLE (§189).
 #: Resolved against the category tree in code (`stories.resolve_category`),
 #: never trusted as given, and what a written tile's picture, facet word and
 #: logged tags are read from - the writer has read the research, and the
@@ -534,7 +534,7 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
-    #: What kind of thing the episode is, off `<<CATEGORY:>>` (§187), as the
+    #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
     category: str = ""
@@ -591,7 +591,7 @@ def extract_title(text: str) -> str:
 
 
 def extract_category(text: str) -> str:
-    """The writer's `<<CATEGORY:>>` words, or "" when it wrote none (§187)."""
+    """The writer's `<<CATEGORY:>>` words, or "" when it wrote none (§189)."""
     match = _CATEGORY_MARKER.search(text)
     if not match:
         return ""
@@ -708,11 +708,14 @@ def now_line() -> str:
 
     Without this the model has no idea what "this morning" means and cannot
     tell a listener whether it is describing something current or stale.
-    """
-    from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc).astimezone()
-    return now.strftime("%A %d %B %Y at %H:%M %Z").replace(" 0", " ")
+    **On the listener's clock** (`listener_clock`, the owner's 10.1 packet).
+    It was the server's, which is UTC: a game that ended at 8:30pm in
+    California was "last night" by the time anybody there asked about it.
+    """
+    import listener_clock
+
+    return listener_clock.now_line()
 
 
 def plan_episode(

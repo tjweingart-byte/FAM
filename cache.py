@@ -591,7 +591,7 @@ class ScriptCache(Protocol):
     #: predates it answers "" rather than raising.
     def summary(self, key: str) -> str: ...
     #: What kind of thing the episode is about, as the writer worded it on
-    #: its `<<CATEGORY:>>` line (§187) - raw words, resolved against the
+    #: its `<<CATEGORY:>>` line (§189) - raw words, resolved against the
     #: category tree where it is read. Optional on a backend, like `summary`.
     def category(self, key: str) -> str: ...
     #: Who the cached episode's facts came from, as stored JSON. Kept beside
@@ -724,7 +724,7 @@ class MemoryScriptCache:
         self._titles: dict[str, str] = {}
         #: key -> its one-sentence summary, for the same reason again.
         self._summaries: dict[str, str] = {}
-        #: key -> the writer's `<<CATEGORY:>>` words (§187).
+        #: key -> the writer's `<<CATEGORY:>>` words (§189).
         self._categories: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
@@ -1157,7 +1157,7 @@ class SqliteScriptCache:
                 # episode, the searcher's own for a search. Kept so every
                 # later play is the same voice and so its kept audio is hit.
                 ("voice", "ALTER TABLE scripts ADD COLUMN voice TEXT NOT NULL DEFAULT ''"),
-                # §187: what kind of thing the episode turned out to be about,
+                # §189: what kind of thing the episode turned out to be about,
                 # off the writer's `<<CATEGORY:>>` line, so a written tile's
                 # picture and facet come from the episode rather than from a
                 # guess made before it was researched. Rows written before
@@ -1720,7 +1720,7 @@ class SqliteScriptCache:
             return ""
 
     def category(self, key: str) -> str:
-        """The writer's `<<CATEGORY:>>` words (§187), or "" when it has none."""
+        """The writer's `<<CATEGORY:>>` words (§189), or "" when it has none."""
         try:
             row = self._conn().execute(
                 "SELECT category, expires FROM scripts WHERE key = ?", (key,)

@@ -503,7 +503,7 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     if notes.sourced_at:
         extra["sourced_at"] = notes.sourced_at
     if getattr(notes, "category", ""):
-        extra["category"] = notes.category   # §187
+        extra["category"] = notes.category   # §189
     # No author: an edition episode was nobody's tap, so it belongs to
     # everybody - the rule prefetch and the Trending bank keep.
     # Written in a voice drawn from the bank (§147): nobody chose one, and
@@ -958,6 +958,10 @@ def schedule_mix(mix, generator=None, cache=None,
                      result.get("status"), query, result.get("ei", "-"))
 
     async def _guarded() -> None:
+        # The edition's clock, whoever's save started this (`listener_clock`).
+        import listener_clock
+
+        listener_clock.set_for_request("")
         try:
             await _write()
         except asyncio.CancelledError:  # pragma: no cover - shutdown

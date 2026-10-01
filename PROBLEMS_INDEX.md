@@ -189,5 +189,7 @@ and `limit` = Lines.
 | 14230 | 82 | 183. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox |
 | 14312 | 106 | 184. The 10.1 packet, third set: DailyFAM listen times, friends, vibes |
 | 14418 | 18 | 185. myFAM and DailyFAM swap names on screen |
-| 14436 | 60 | 186. Trending tiles say what they are, and their episodes stay on their story |
-| 14496 | 49 | 187. A written episode names and categorises its own tile |
+| 14436 | 52 | 186. The 10.1 packet, fourth set: the sign-up card, familiarize.net, Go Deeper over a playing episode, the listener's clock |
+| 14488 | 86 | 187. Made for you: one search about Israel filled it with Middle East sport |
+| 14574 | 60 | 188. Trending tiles say what they are, and their episodes stay on their story |
+| 14634 | 49 | 189. A written episode names and categorises its own tile |

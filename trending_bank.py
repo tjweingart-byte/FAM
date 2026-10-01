@@ -861,7 +861,7 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     if notes.sourced_at:
         extra["sourced_at"] = notes.sourced_at   # §143
     if getattr(notes, "category", ""):
-        extra["category"] = notes.category   # §187
+        extra["category"] = notes.category   # §189
     # No author: a bank episode was nobody's tap, so it belongs to
     # everybody - the rule prefetch keeps, for the same reason.
     # A voice drawn from the bank (§147), kept so every tap hears it.

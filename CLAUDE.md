@@ -98,11 +98,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   no extra call; the player opens on a derived title and swaps; a listener's or
   bank tile's title (`titleOverridden`) is never replaced; cached in its own column.
   A *written* live-story tile takes the writer's title, summary and
-  `<<CATEGORY:>>` for every later listener (§187). [title-from-content]
+  `<<CATEGORY:>>` for every later listener (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
-  line, else one built from the title - a box, and a 1-5 minute length (§170). [next-is-prediction]
+  line, else one built from the title - a box, and a 1-5 minute length (§170);
+  opening it never stops the episode, and one ending under it starts nothing (§186). [next-is-prediction]
 - After an episode: four recommendations, first auto-starts in **15s**; the lead
   is Go Deeper's own suggestion, played as its follow-up (§178), then album next,
   then `topics.rank_next_up` over both inventories; a search box above Back
@@ -182,6 +183,11 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - YourFAM's row puts friends with vibes up first; a swipe in the viewer goes
   to the next friend's vibes, the picture opens the profile; the Friends page
   has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
+- **Made for you** (§187): subjects and familiar words vouch only in their own
+  field; variety never gives way (≤2 per heading, capped top-up); no
+  minor-league game from another continent unless followed; market moves on
+  any money taste; ranks every held story. Weights: search 2, play 1, finish 2,
+  skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
@@ -265,6 +271,9 @@ Research and truth
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
+- **The listener's clock, never the server's** (§186): `listener_clock` from
+  the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
+  and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured
@@ -329,7 +338,7 @@ Browse surfaces
   a fact about the deployment, never "nothing is trending". [two-crowd-rows]
 - A composed story names its **category** (resolved against the tree in code;
   it decides picture, facet word and tags) and its query names the cluster's
-  **anchors** (`pin_query`, names never headlines) (§186). [trending-category-pin]
+  **anchors** (`pin_query`, names never headlines) (§188). [trending-category-pin]
 
 Accounts, tiers, sharing
 - **An account gates what is kept, never what is heard**; a guest's events are

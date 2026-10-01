@@ -1,4 +1,4 @@
-"""A written episode names and categorises its own tile (§187).
+"""A written episode names and categorises its own tile (§189).
 
 The owner's rule: the first listener of a live story may hear it under the
 composer's title, written from headlines before anything was researched.

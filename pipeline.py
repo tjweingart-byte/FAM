@@ -1502,7 +1502,7 @@ class PodcastPipeline:
             # double that stands in for one - is still called exactly as
             # it always was.
             extra = {"summary": stats.summary} if stats.summary else {}
-            # The writer's `<<CATEGORY:>>` words (§187), on the same terms.
+            # The writer's `<<CATEGORY:>>` words (§189), on the same terms.
             if getattr(notes, "category", ""):
                 extra["category"] = notes.category
             # Whether a play may keep this alive past its first lifetime
