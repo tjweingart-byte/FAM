@@ -46,7 +46,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (a myFAM rail since §181, not a tab; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -74,6 +74,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
+- **9.30 interface packet** (§181): sign-up rotates today's top three kept
+  episodes; myFAM's header button searches other people's cached episodes;
+  Messages is a tab where Explore was; Explore is the "What users are
+  searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
 
 ## What an episode is  (`product.md`)
 
@@ -128,7 +132,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
-  for you / Trending / What FAM can't stop listening to / friends. Every choosing
+  for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing
   rail: taste → `ready_first` (a sort, never a filter) → no repeats
   (`topics.is_repeat`); a heard live story is never re-offered as itself (a
   "what's new" follow-up after 6h). Trending is a twice-daily GNews edition

@@ -3,7 +3,7 @@
 Three rules, all set at the owner's direction, and each one reverses something
 this codebase had previously written down as deliberate:
 
-1. **"What FAM can't stop listening to" holds plays and nothing else.** It
+1. **"Most played episodes today" holds plays and nothing else.** It
    used to top itself up from the bank so it was never empty (CLAUDE.md §124
    recorded that as a decision rather than an accident, precisely so undoing
    it had to be a decision too). The heading is a claim about this
@@ -190,7 +190,7 @@ def test_the_crowd_row_reports_a_bank_tile_that_was_really_played(store):
     """The boundary, stated as the thing it is: this gates what FAM *offers*,
     never what it *reports*.
 
-    "What FAM can't stop listening to" is a measurement over the play log. If
+    "Most played episodes today" is a measurement over the play log. If
     listeners really played a bank topic, saying so is true - and hiding the
     most-played episode in the app because of who is looking would be §125's
     own over-claim in reverse, a row whose heading is a claim about this

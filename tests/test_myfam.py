@@ -131,7 +131,7 @@ def test_the_crowd_row_holds_plays_and_nothing_else(store):
     """Reversed at the owner's direction, and the reversal is the assertion.
 
     This row used to top itself up from the evergreen bank so it was never
-    empty. The heading is "What FAM can't stop listening to", which is a
+    empty. The heading is "Most played episodes today", which is a
     claim, and twenty-eight tiles nobody has ever played do not support it -
     so an unplayed row is empty now, and one play is all it takes to fill.
     """

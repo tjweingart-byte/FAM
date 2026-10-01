@@ -550,7 +550,7 @@ __MIX_ITEMS__
     ["from_history", "Made for you", "Play an episode and this fills with picks for you."],
     ["world_trending", "Trending", "FAM isn't connected to a live news source yet."],
     ["missed", "What you missed last week", "You\u2019re all caught up on last week."],
-    ["most_played", "What FAM can't stop listening to",
+    ["most_played", "Most played episodes today",
      "Once people start listening, the most-played episodes show up here."],
     ["followers", "What your friends are listening to",
      "Follow friends to hear what they\u2019re listening to."]

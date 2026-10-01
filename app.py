@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
+import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
                    is_shareable, normalize_query, parse_episode_id, research_words)
 import content_filter
@@ -4645,6 +4646,122 @@ def _topic_is_written(query: str, minutes: int) -> bool:
         return _already_written(_validated_plan(query, minutes))
     except HTTPException:
         return False
+
+
+@app.get("/api/episode/topic")
+async def episode_topic(request: Request,
+                        q: str = Query("", max_length=300),
+                        title: str = Query("", max_length=300)) -> dict:
+    """What TOPIC an episode falls into, for the player's (+) (§181).
+
+    The (+) adds the episode's *topic* to a DailyFAM mix - a mix follows
+    subjects, never episodes (§137) - so the answer is a mix entry exactly as
+    `PATCH /api/mixes/{id}` takes it: a followed subject (`f:nfl`,
+    `f:nfl~Eagles`, from `topics.episode_subject`), or, when the episode names
+    no subject the catalogue knows, the episode's title as a typed topic.
+    `label` is what the sheet says: "Add [label] to a DailyFAM mix".
+    Words in, words out: no model call, no cache read.
+    """
+    _read_limit(request)
+    words = (title or "").strip()
+    asked = (q or "").strip()
+    subject, focus = topics_mod.episode_subject(f"{asked} {words}")
+    if subject:
+        ident = "f:" + subject + ("~" + quote(focus, safe="!'()*")
+                                  if focus else "")
+        try:
+            item = mixes_mod.followed_item(ident)
+        except mixes_mod.MixError:
+            item = None
+        if item is not None:
+            return {"id": item.id, "label": focus or item.topic_label,
+                    "title": item.title}
+    typed = (words or asked)[:mixes_mod.MAX_QUERY]
+    if not typed:
+        return {"id": "", "label": "", "title": ""}
+    return {"id": "", "query": typed, "label": typed, "title": typed}
+
+
+@app.get("/api/myfam/search")
+async def myfam_search(request: Request,
+                       q: str = Query("", max_length=200),
+                       limit: int = Query(12, ge=1, le=30)) -> dict:
+    """myFAM's search button (§181): the cached episodes, made by other
+    listeners, most like what was typed.
+
+    A read of the shared cache and nothing else - like Explore it cannot
+    cause anything to be written, and a result is played replay-only. Every
+    surface's episodes are searched (a myFAM tile somebody else tapped is as
+    much "made by others" as a search), the listener's own are left out, as
+    Explore leaves them out, and archived rows never appear (`recent`).
+    Ranked by `cache.rank_similar`.
+    """
+    _read_limit(request)
+    words = (q or "").strip()
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if not words or store is None:
+        return {"episodes": []}
+    listener = _listener(request)
+    now = time.time()
+    try:
+        entries = store.recent(400, exclude_author=listener)
+    except Exception:  # noqa: BLE001 - a search box is never worth a 500
+        log.exception("could not read the cache for a myFAM search")
+        return {"episodes": []}
+    # Off the event loop: with the semantic embedder the first search embeds
+    # every entry it has not seen, which is CPU work no other request should
+    # wait behind.
+    ranked = await asyncio.to_thread(cache_mod.rank_similar, words, entries, limit)
+    episodes = []
+    for entry in ranked:
+        episodes.append({
+            "query": entry["query"],
+            "title": entry.get("title")
+                     or (entry["query"][:1].upper() + entry["query"][1:]),
+            "minutes": entry["minutes"],
+            "plays": entry.get("plays", 0),
+            "sourced_age_seconds": max(
+                0.0, now - (entry.get("sourced_at") or entry.get("created") or now)),
+            "explicit": bool(entry.get("explicit")),
+        })
+    return {"episodes": episodes}
+
+
+#: How many of today's most-played episodes the sign-up screen rotates
+#: through (§181, the 9.30 interface packet).
+WELCOME_SAMPLES = 3
+
+
+@app.get("/api/welcome")
+async def welcome_samples(request: Request) -> dict:
+    """The sign-up screen's samples: the top of "Most played episodes today".
+
+    The same ranking as the rail (`topics.rank_most_played`, total listens in
+    the last twenty-four hours), cut to `WELCOME_SAMPLES`, and only episodes
+    whose **audio is kept**: the person reading this screen has no account
+    yet, and a tap here must play at once and wake nothing - the guest rule
+    (`_guest_play_gated`) applied before the tap rather than after it. Fewer
+    than three is honest; none means the screen shows no samples at all.
+    No model call, no voice, no listener id in the response.
+    """
+    _read_limit(request)
+    minutes = BROWSE_MINUTES
+    try:
+        ranked = topics_mod.rank_most_played(
+            EVENTS, episode_info=_episode_info_probe(minutes),
+            limit=WELCOME_SAMPLES * 4)
+    except Exception:  # noqa: BLE001 - a sign-up page is never worth a 500
+        log.exception("could not rank the welcome samples")
+        ranked = []
+    samples = []
+    for topic in ranked:
+        if not _audio_is_kept(topic.query, minutes):
+            continue
+        samples.append({"id": topic.id, "title": topic.title,
+                        "query": topic.query, "minutes": minutes})
+        if len(samples) >= WELCOME_SAMPLES:
+            break
+    return {"episodes": samples}
 
 
 @app.get("/api/explorenew")

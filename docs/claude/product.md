@@ -61,6 +61,24 @@ Three surfaces, all backed by generated audio:
    myFAM tile, a DailyFAM edition, a Trending episode or a warmed guess is
    never on Explore.
 
+   > **Current:** since §181 Explore is not on the tab bar. It is reached
+   > from myFAM's "What users are searching" rail (one "Start scrolling"
+   > tile, right under Made for you); Messages has its tab.
+
+<!-- rule:interface-181 -->
+**The 9.30 interface packet (§181), at the owner's direction.** The sign-up
+screen says "Listen to anything you want to know about" and rotates today's
+three most-played episodes, kept audio only (`/api/welcome`), each playable
+there. myFAM's header button is **search within myFAM**: what is typed finds
+the cached episodes other listeners made that are most like it
+(`/api/myfam/search`, `cache.rank_similar`, replay only); the "Search FAM"
+bar is gone from myFAM. Messages is a tab, in Explore's old place, and
+carries the unread count. Explore is the "What users are searching" rail
+under Made for you. The player's (+) (top right; sources moved top left)
+adds the episode's **topic** - a followed subject from
+`topics.episode_subject`, else its title typed - to a DailyFAM mix, or to a
+new one (`/api/episode/topic`).
+
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 

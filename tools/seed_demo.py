@@ -197,7 +197,7 @@ async def main() -> int:
 
     print(f"\n{written} episode(s) in the shared cache.")
     print("  explore   has cards now, and plays them without spending anything")
-    print("  myFAM     'What FAM can't stop listening to' ranks these immediately,")
+    print("  myFAM     'Most played episodes today' ranks these immediately,")
     print("            and leads with the ones already written. The friends rail")
     print("            stays empty until you follow somebody, and 'Trending' stays")
     print("            empty until a live source is configured (MYFAM.md). Both are")
