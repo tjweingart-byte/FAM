@@ -241,6 +241,11 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def new_listener_id() -> str:
+    """A fresh listener id, minted here and never accepted from a client."""
+    return "anon_" + secrets.token_urlsafe(16)
+
+
 class AccountStore:
     """Credentials and sessions.
 
@@ -389,7 +394,7 @@ class AccountStore:
         """
         now = at or time.time()
         token = secrets.token_urlsafe(TOKEN_BYTES)
-        user_id = user_id or "anon_" + secrets.token_urlsafe(16)
+        user_id = user_id or new_listener_id()
         self._conn().execute(
             "INSERT INTO sessions (token_hash, user_id, created, expires, last_used)"
             " VALUES (?, ?, ?, ?, ?)",

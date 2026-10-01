@@ -2523,6 +2523,24 @@ class EventStore:
         return [(r[0], r[1] or "", r[2] or "", float(r[3]), r[4])
                 for r in rows]
 
+    def searches_since(self, since: float) -> list[tuple[str, str]]:
+        """(user_id, question) for every search in the window (§190).
+
+        What the search page's "Trending searches" counts: the most searched
+        questions of the last two hours. A guest's searches are never in the
+        log (`app._remembers`), so these are account holders' searches only.
+        """
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, text FROM events"
+                " WHERE at >= ? AND kind = 'search' AND text != ''",
+                (since,),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read searches")
+            return []
+        return [(r[0], r[1]) for r in rows]
+
     def plays_since(self, since: float) -> list[tuple[str, str]]:
         """(user_id, topic_id) for every bank topic played in the window."""
         try:

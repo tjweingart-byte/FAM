@@ -14686,3 +14686,109 @@ composed tags; only what is shown and what is logged use the writer's
 category.
 
 Tests: `tests/test_written_tile_identity.py`.
+
+## 190. The 10.1 packet, fifth set: search like Google, the player like Spotify, a queue, and a waitlist that tied an account to a device
+
+The owner's "10.1.26ii implementations" PDF, in its order.
+
+**1. The search page** (modelled on Google's, from a screenshot). The bar is
+one rounded line: the question, then the mic and attach **inside it on the
+right**, and the go arrow only once something is typed or attached (Enter
+still sends). Under it, two bubbles - **Length** and **Voice** - that open
+the existing menus; **the current choice is not printed on the page** (the
+menus tick it), so `#lengthVal` and `#homeVoiceName` are gone and the tests
+that pinned their placeholders now pin the modal's. **Two minutes every time
+somebody comes back into the app**: the page loading, or a `visibilitychange`
+back to visible (`DEFAULT_LENGTH_MINUTES`). Under the bubbles, **trending
+searches as one full-width bubble each**, shown whenever the box is empty
+(no longer only while focused), and ranked by **how many listeners searched
+the question in the last two hours** (`TRENDING_SEARCHES_WINDOW`; distinct
+listeners, so one person searching ten times is one; plays break ties;
+`EventStore.searches_since`). A question nobody searched in that window is
+not offered. Everything else about the rule stands: current episodes only,
+searched episodes only, never generates. A guest's searches are never in the
+log, so these are account holders' searches.
+
+**2. The waitlist refused two fresh addresses.** "This listener already has
+an account. Log out first." - `AccountStore.sign_up` attaches credentials to
+the session's id, and the owner's computer still held the session of the
+account made earlier. That tied a second account to the device the first was
+made on; the owner's rule is that an account is its email and password, and
+nothing about the machine. `app._signup_listener` now gives a sign-up from a
+browser whose id already has an account a **fresh listener id**, and
+`_signup_session` moves the browser onto it - a new session, the old one
+ended, exactly as a login does - **only after the sign-up succeeded**, so a
+refused address logs nobody out. Both `/api/waitlist/join` and
+`/api/auth/signup` use it; the first account is untouched and still logs in.
+`test_an_account_cannot_be_attached_twice` encoded the bug and is replaced.
+
+**3. The three rotating episodes on the waitlist page.** The landing page
+draws the app's sign-up samples (`/api/welcome`, §181) above the form,
+turning every 4.5 seconds, dots to pick, and plays one with `fam-audio.js`
+as a **replay** (`cached_only`). The gate opens `/api/welcome` and
+`/api/thumb/` (a category's picture, nobody's data), and lets `/api/audio`
+through only for exactly a sample: `cached_only=true`, the browse length,
+nothing attached, no voice, and a question that is one of today's samples
+(`_welcome_sample_request`, the shape of `_shared_episode_request`). The
+ranking is memoised for a minute (`WELCOME_MEMO_SECONDS`) because the gate
+asks it on every sample's audio.
+
+**4. The player, as Spotify's** (two screenshots, with the owner's notes):
+
+* a **down arrow top left** replaces the X top right; it minimises and the
+  mini player appears (§142 unchanged);
+* the **episode's picture behind the title** - a tile's own `thumb`, else
+  `/api/episode/card`'s `thumbnails.pick` of its words - fading into the
+  page; none is the page's colour;
+* the **title**, and **nothing** where Spotify names the artist (`#p-src` is
+  kept, hidden, because the sourced stamp is still worked out into it);
+* **sources** where Spotify's green button is, right of the title;
+* the transport as it was (±15s both stay), and the next button when a
+  playlist or the queue has a next;
+* **GO DEEPER** where Spotify's mood chip sits, bigger, in its yellow pill;
+* **share and the queue bottom right**, with speed/length bottom left, and
+  VIBE! and save beside share (not in the screenshot; dropping them would
+  have removed two features nobody asked to remove);
+* the **closed captions in a sheet at the bottom**, a strip until slid or
+  tapped up - open is on, as the old captions button was;
+* the **three dots** open Spotify's menu: a header of the title over the
+  searcher, Share, Closed captions · On/Off, Add to playlist (the old (+),
+  which is gone from the stage), Remove from this playlist (only while a
+  myFAM playlist plays: it PATCHes the mix without the playing topic and the
+  playlist carries on from the next), Add to Queue, Go to Queue.
+
+**What was not built, and why.** Spotify's menu has "Exclude track from your
+taste profile", and the owner said the menu should look the same apart from
+four changes. That is the "not interested" control §171 removed at the
+owner's direction (`no-not-interested`: no hide event, the ranking learns
+from plays, skips and fatigue). It is left out until the owner says which
+rule wins.
+
+**The searcher.** "[user who searched it] if someone searched it and they
+have their episodes public" - there was no such setting, and what somebody
+searched has always been theirs (`op-friend-profile`). So there is one now:
+`Preferences.searches_public`, **off by default**, a Settings row ("Show my
+name on episodes I searched"). `/api/episode/card` names the search's author
+(`scripts.author`) as `@handle` only when it is on and the author is not the
+one listening; the response carries no id.
+
+**5. The queue.** Add to Queue from the player's menu and from a **DailyFAM
+tile's three dots** (top right, beside save, same menu less what needs a
+playing episode); Go to Queue lists Now playing, the playlist's rest, then
+the queue, each removable or playable now. Client state for this visit only,
+never stored - it is a "next", not a shelf. A full-player episode that ends
+with something queued plays the first of it at once instead of the 15-second
+grid; the next button (`#mixSkipBtn`, now drawn for a queue too) skips to it;
+a myFAM playlist plays through before the queue.
+
+**Unverified here:** how the new bar, the picture behind the title and the
+captions sheet look on a real phone; whether "comes back into the app"
+should also mean a tab switch of a few seconds (it does now - any return to
+visible resets the length).
+
+Tests: `tests/test_waitlist.py` (a second account from one browser, a
+refused one logs nobody out, the landing page's samples and nothing else),
+`tests/test_packet_1001.py` (two-hour ranking, distinct searchers, the bar,
+the bubbles, the length reset), `tests/test_accounts.py`,
+`tests/test_interface_181.py`; smoke: the search bar, the player's menu and
+the queue.

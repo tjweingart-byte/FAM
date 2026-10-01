@@ -59,15 +59,33 @@ def test_the_feed_says_whether_they_follow_anybody():
 
 # --- 3a. The mic sits beside attach, the same size -------------------------
 
-def test_the_mic_is_on_the_attach_line():
-    controls = INDEX.split('<div class="fam-controls">', 1)[1].split(
-        'id="attachFile"', 1)[0]
-    mic = controls.index('id="voiceMicBtn"')
-    attach = controls.index('id="attachBtn"')
-    assert 0 < mic < attach
-    css = INDEX.split("  .voice-mic{", 1)[1].split("}", 1)[0]
-    assert "width:36px; height:36px" in css
+def test_the_mic_and_attach_are_on_the_bars_right():
+    """§190: Google's shape - the mic and attach inside the search bar, on
+    its right, after the question."""
+    bar = INDEX.split('<div class="fam-input-box" id="searchBar">', 1)[1].split(
+        '<div class="attach-row"', 1)[0]
+    box = bar.index('id="searchInput"')
+    mic = bar.index('id="voiceMicBtn"')
+    attach = bar.index('id="attachBtn"')
+    assert 0 < box < mic < attach
     assert ".voice-mic[hidden]{ display:none; }" in INDEX
+
+
+def test_length_and_voice_are_bubbles_that_do_not_print_the_choice():
+    """§190: two bubbles under the bar; the choice is in the menus only."""
+    controls = INDEX.split('<div class="fam-controls">', 1)[1].split(
+        'id="trendSearches"', 1)[0]
+    assert 'onclick="openLengthMenu()"' in controls and ">Length</button>" in controls
+    assert 'onclick="openVoiceMenu()"' in controls and ">Voice</button>" in controls
+    for gone in ('id="lengthVal"', 'id="homeVoiceName"', " min<"):
+        assert gone not in controls, gone
+
+
+def test_the_length_is_two_minutes_again_on_coming_back():
+    assert "var DEFAULT_LENGTH_MINUTES = 2;" in INDEX
+    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 2;", 1)[1].split("});", 1)[0]
+    assert 'document.visibilityState !== "visible"' in block
+    assert "selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;" in block
 
 
 # --- 3b. Trending searches, and no cached scores ---------------------------
@@ -83,7 +101,25 @@ def _put(store, key, query, *, ttl=3600, plays=0, title="", minutes=2,
         store.record_play(key)
 
 
-def test_trending_searches_are_current_searched_episodes(client, monkeypatch):
+@pytest.fixture
+def searches(tmp_path, monkeypatch):
+    """An event log to search into; `searches(query, n, ago)` records `n`
+    listeners searching `query` `ago` seconds back."""
+    import time as _time
+    import topics as topics_mod
+    store = topics_mod.EventStore(str(tmp_path / "events.db"))
+    monkeypatch.setattr(appmod, "EVENTS", store)
+    counter = iter(range(10_000))
+
+    def record(query, n=1, ago=60.0):
+        for _ in range(n):
+            store.record(topics_mod.Event(user_id="u%d" % next(counter),
+                                          kind="search", text=query,
+                                          at=_time.time() - ago))
+    return record
+
+
+def test_trending_searches_are_current_searched_episodes(client, monkeypatch, searches):
     store = MemoryScriptCache()
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", store)
     _put(store, "a", "how reusable rockets work", plays=5,
@@ -94,12 +130,38 @@ def test_trending_searches_are_current_searched_episodes(client, monkeypatch):
     _put(store, "e", "How reusable rockets WORK?", plays=1, minutes=3)  # same question
     _put(store, "f", "and the economics of it", plays=30,          # a follow-up
          context="how reusable rockets work")
+    _put(store, "g", "why the dollar fell", plays=80)              # searched long ago
+    # §190: most searched in the last two hours, in order - plays only
+    # break ties.
+    searches("how reusable rockets work", 3)
+    searches("What the Fed does next?", 2)
+    for q in ("eagles score right now", "a myfam tile", "and the economics of it"):
+        searches(q, 5)
+    searches("why the dollar fell", 9, ago=appmod.TRENDING_SEARCHES_WINDOW + 60)
     out = client.get("/api/searches/trending").json()["searches"]
-    assert [s["query"] for s in out] == ["what the fed does next",
-                                         "how reusable rockets work"]
-    assert out[1]["title"] == "Why Rockets Land Themselves"
-    assert out[0]["minutes"] == 2
+    assert [s["query"] for s in out] == ["how reusable rockets work",
+                                         "what the fed does next"]
+    assert [s["searches"] for s in out] == [3, 2]
+    assert out[0]["title"] == "Why Rockets Land Themselves"
+    assert out[1]["minutes"] == 2
     assert len(out) <= appmod.TRENDING_SEARCHES_MAX <= 10
+
+
+def test_one_listener_searching_twice_is_one_search(client, monkeypatch, searches):
+    import time as _time
+    import topics as topics_mod
+    store = MemoryScriptCache()
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", store)
+    _put(store, "a", "how reusable rockets work")
+    _put(store, "b", "what the fed does next")
+    for _ in range(5):
+        appmod.EVENTS.record(topics_mod.Event(user_id="same", kind="search",
+                                              text="what the fed does next",
+                                              at=_time.time() - 30))
+    searches("how reusable rockets work", 2)
+    out = client.get("/api/searches/trending").json()["searches"]
+    assert [s["query"] for s in out] == ["how reusable rockets work",
+                                         "what the fed does next"]
 
 
 def test_trending_searches_never_generate(client, monkeypatch):
@@ -159,11 +221,14 @@ def test_the_domain_reaches_the_cache_policy():
     assert 'notes.intent = str(getattr(plan.brief, "intent", "") or "")' in sg
 
 
-def test_the_search_box_shows_trending_searches_on_focus():
+def test_the_search_page_shows_trending_searches_under_the_bubbles():
     assert 'id="trendSearches"' in INDEX and "Trending searches" in INDEX
     assert 'fetch("/api/searches/trending")' in _fn("loadTrendSearches")
     paint = _fn("paintTrendSearches")
-    assert "document.activeElement === input && !input.value.trim()" in paint
+    # §190: shown whenever the box is empty, not only while it is focused.
+    assert "!input.value.trim() && !ATTACHED.length" in paint
+    assert "document.activeElement" not in paint
+    assert 'if(id === "home") loadTrendSearches();' in INDEX
     run = _fn("runTrendSearch")
     # A search, at the length its episode was written for.
     assert "exploreMinutes: t.minutes" in run and 'surface: "search"' in run
@@ -194,10 +259,11 @@ def test_correct_text_fixes_the_last_word_and_leaves_names():
 
 
 @needs_speller
-def test_trending_and_explore_never_title_a_misspelling(client, monkeypatch):
+def test_trending_and_explore_never_title_a_misspelling(client, monkeypatch, searches):
     store = MemoryScriptCache()
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", store)
     _put(store, "a", "whta happend in the elecion", plays=2)
+    searches("whta happend in the elecion")
     out = client.get("/api/searches/trending").json()["searches"]
     assert out[0]["query"] == "whta happend in the elecion"
     assert out[0]["spelled"] == "what happened in the election"
@@ -212,3 +278,22 @@ def test_the_writers_are_told_to_spell_titles_correctly():
     # (`test_the_prompt_stays_lean`).
     assert "Spell it correctly, even where the question was misspelled" in \
         (ROOT / "script_generator.py").read_text()
+
+
+def test_the_player_names_a_searcher_only_when_they_chose_to(client, monkeypatch):
+    """§190: the player's menu shows who searched an episode only when that
+    listener turned on `searches_public`, and never an id."""
+    store = MemoryScriptCache()
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", store)
+    key = cache_key("how reusable rockets work", 2, None, "", True)
+    store.put(key, ["A sentence."], ttl=3600, query="how reusable rockets work",
+              minutes=2, origin="search", author="author-1")
+    monkeypatch.setattr(appmod.SOCIAL, "person",
+                        lambda uid: {"handle": "rocketfan"} if uid == "author-1" else {})
+    ask = lambda: client.get("/api/episode/card",
+                             params={"q": "How reusable rockets work?"}).json()
+    assert ask()["searcher"] == ""
+    appmod.PREFS.save("author-1", searches_public=True)
+    out = ask()
+    assert out["searcher"] == "@rocketfan"
+    assert "author-1" not in str(out)

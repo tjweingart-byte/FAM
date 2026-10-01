@@ -437,3 +437,58 @@ def test_concurrent_drains_send_each_call_once(acc, wl):
 
     asyncio.run(both())
     assert calls == ["a@fam.test"]
+
+
+def test_a_second_account_can_be_made_from_the_same_browser(world):
+    """§190: an account is its credentials, never the device. The owner joined
+    once, then tried two fresh addresses from the same computer and was told
+    "this listener already has an account" both times."""
+    browser, first = _join("first@fam.test")
+    r = browser.post("/api/waitlist/join", json={"email": "second@fam.test",
+                                                 "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    second = r.json()
+    assert second["user_id"] != first["user_id"]
+    assert second["email"] == "second@fam.test"
+    # The browser is now the second account; the first still logs in.
+    assert browser.get("/api/auth/me").json()["user_id"] == second["user_id"]
+    other = TestClient(appmod.app)
+    r = other.post("/api/auth/login", json={"email": "first@fam.test",
+                                            "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["user_id"] == first["user_id"]
+    # The app's own sign-up does the same.
+    r = browser.post("/api/auth/signup", json={"email": "third@fam.test",
+                                               "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    assert r.json()["user_id"] not in (first["user_id"], second["user_id"])
+
+
+def test_a_refused_second_signup_logs_nobody_out(world):
+    browser, first = _join("first@fam.test")
+    r = browser.post("/api/waitlist/join", json={"email": "first@fam.test",
+                                                 "password": PASSWORD})
+    assert r.status_code == 400 and "already registered" in r.json()["error"]
+    assert browser.get("/api/auth/me").json()["user_id"] == first["user_id"]
+
+
+def test_the_landing_page_plays_the_sign_up_samples_and_nothing_else(world, monkeypatch):
+    """§190: the waitlist page rotates the app's three sign-up samples, so
+    the gate lets their replays through - exactly those, as replays."""
+    sample = {"query": "Why the Eagles lost", "minutes": appmod.BROWSE_MINUTES}
+    monkeypatch.setattr(appmod, "_welcome_episodes", lambda: [sample])
+    guest = TestClient(appmod.app)
+    assert guest.get("/api/welcome").status_code == 200
+    base = {"q": sample["query"], "minutes": str(appmod.BROWSE_MINUTES),
+            "fmt": "pcm", "cached_only": "true"}
+
+    def gated(**extra):
+        r = guest.get("/api/audio", params={**base, **extra})
+        return r.status_code == 403 and "X-FAM-Waitlist" in r.headers
+
+    assert not gated()
+    assert gated(q="Something else entirely")
+    assert gated(cached_only="")
+    assert gated(minutes="5")
+    assert gated(context="go deeper")
+    assert gated(voice="ian")
+    assert "fam-audio.js" in guest.get("/waitlist").text

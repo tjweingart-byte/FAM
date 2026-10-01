@@ -1793,6 +1793,49 @@ def _maybe_token(request: Request, token: str, want_token: bool) -> dict:
     return {"session_token": token, "expires_in": accounts_mod.SESSION_TTL}
 
 
+def _signup_listener(request: Request) -> tuple[str, bool]:
+    """The identity a sign-up attaches credentials to, and whether it is new.
+
+    Normally the one this browser already carries, so a guest's session is
+    claimed rather than replaced. **But an account belongs to its credentials,
+    never to the device** (PROBLEMS.md §190): a browser signed in to one
+    account - or still holding the session of one - must be able to create
+    another. Refusing with "this listener already has an account" tied the
+    second account to the machine the first was made on, which is what the
+    owner hit joining the waitlist from a computer with two fresh addresses.
+    So when the session's id already has an account, the new one gets a
+    freshly minted id; `_signup_session` moves this browser onto it only once
+    the sign-up has succeeded, so a refused address logs nobody out.
+    """
+    user = _require_listener(request)
+    if not ACCOUNTS.account(user):
+        return user, False
+    return accounts_mod.new_listener_id(), True
+
+
+def _signup_session(request: Request, user_id: str, fresh: bool,
+                    want_token: bool) -> dict:
+    """The session half of a successful sign-up, as `_maybe_token` returns it.
+
+    A fresh id moves the browser onto it as a login does: a new session, and
+    the one it replaces (the other account's, on this device) ended. The
+    other account is untouched and its credentials still log in. Otherwise the
+    current session stays: nothing about signing up should log out the tab
+    that did it, and a native client is handed a token it can store.
+    """
+    token = _session_token(request)
+    if fresh:
+        old = token
+        token, _ = ACCOUNTS.new_session(user_id)
+        if old:
+            ACCOUNTS.end_session(old)
+        request.state.set_session = token
+    elif want_token and not token:
+        token, _ = ACCOUNTS.new_session(user_id)
+        request.state.set_session = token
+    return _maybe_token(request, token, want_token)
+
+
 @app.post("/api/auth/signup")
 async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     """Attach an account to the identity this listener already has.
@@ -1802,9 +1845,9 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     one, which is why nothing has to be migrated.
     """
     _rate_limit(request)
-    user = _require_listener(request)
+    kind = _signup_identity(req)
+    user, fresh = _signup_listener(request)
     try:
-        kind = _signup_identity(req)
         if kind == "phone":
             listener = ACCOUNTS.sign_up_phone(user, req.phone, req.password)
         else:
@@ -1814,14 +1857,8 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _waitlist_after_signup(listener.user_id, req.referral_code or "")
     listener = ACCOUNTS.listener_of(listener.user_id)
-    # A fresh token even though the id has not changed, so that a native
-    # client is handed one it can store. The old session stays valid: nothing
-    # about signing up should log out the browser tab that did it.
-    token = _session_token(request)
-    if req.want_token and not token:
-        token, _ = ACCOUNTS.new_session(listener.user_id)
-        request.state.set_session = token
-    return {**listener.as_dict(), **_maybe_token(request, token, req.want_token)}
+    return {**listener.as_dict(),
+            **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
 
 @app.post("/api/auth/login")
@@ -3448,10 +3485,16 @@ async def carry_the_session(request: Request, call_next):
 #: status page edits (`/api/me`: name, handle, photo; `/api/preferences`:
 #: topics). Everything else - listening included - answers 403. The admin
 #: endpoints check their own credential and are passed through for it.
-WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/")
+#: `/api/thumb/` is a category's picture - nobody's data - which the landing
+#: page's samples draw (§190).
+WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/",
+                          "/api/thumb/")
 WAITLIST_OPEN_PATHS = frozenset({
     "/api/health", "/api/voice/register", "/api/client-status",
     "/api/me", "/api/preferences",
+    # The sign-up samples the landing page rotates (§190); their audio is
+    # `_welcome_sample_request`.
+    "/api/welcome",
     # Their account: read it, rename it, and above all delete it. Deleting
     # an account has to be reachable by everybody who has one (App Store
     # 5.1.1(v)), the waitlisted included.
@@ -3487,6 +3530,31 @@ def _shared_episode_request(request: Request) -> bool:
     return SHARES.is_shared(params.get("q", ""), params.get("minutes", ""))
 
 
+def _welcome_sample_request(request: Request) -> bool:
+    """Whether this is the audio of one of the sign-up samples (§190).
+
+    The waitlist's landing page rotates the same three episodes the app's
+    sign-up screen does, for somebody who cannot get into the app yet. As
+    with a shared episode, `/api/audio` is let through only for exactly
+    those: a replay (`cached_only`, so nothing is written and no voice
+    wakes), at the length the samples are kept at, nothing attached, and a
+    question that is one of today's samples - never anything else typed into
+    the same URL.
+    """
+    if request.url.path != "/api/audio":
+        return False
+    params = request.query_params
+    if params.get("cached_only") != "true":
+        return False
+    if any(params.get(k) for k in ("attach", "context", "episode", "topic_id",
+                                   "voice")):
+        return False
+    if params.get("minutes", "") != str(BROWSE_MINUTES):
+        return False
+    q = params.get("q", "")
+    return bool(q) and any(ep.get("query") == q for ep in _welcome_episodes())
+
+
 def _waitlist_page_for(listener) -> str:
     if listener is not None and listener.status == waitlist_mod.WAITLISTED:
         return "/waitlist/me"
@@ -3513,7 +3581,7 @@ def _waitlist_refusal(request: Request, listener):
             return None
         if _admin_request(request):
             return None
-        if _shared_episode_request(request):
+        if _shared_episode_request(request) or _welcome_sample_request(request):
             return None
         return JSONResponse(
             {"detail": "FAM is open to members only while the waitlist is"
@@ -4379,6 +4447,8 @@ class PreferenceRequest(BaseModel):
     #: on the day one exists.
     weekly_recap: Optional[bool] = None
     intro_done: Optional[bool] = None
+    #: §190: whether the player may name them as an episode's searcher.
+    searches_public: Optional[bool] = None
 
 
 def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
@@ -4579,7 +4649,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            profile_interests=req.profile_interests,
                            city=req.city, region=req.region,
                            country=req.country,
-                           weekly_recap=req.weekly_recap, intro_done=req.intro_done)
+                           weekly_recap=req.weekly_recap, intro_done=req.intro_done,
+                           searches_public=req.searches_public)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Saved topics are also *picks*, and the log is what the ranker reads.
@@ -5000,6 +5071,50 @@ def _topic_is_written(query: str, minutes: int) -> bool:
         return False
 
 
+@app.get("/api/episode/card")
+async def episode_card(request: Request,
+                       q: str = Query("", max_length=300),
+                       title: str = Query("", max_length=300)) -> dict:
+    """What the player draws around an episode (§190): its picture, and who
+    searched it.
+
+    * `thumb` - the tile picture for the episode's words
+      (`thumbnails.pick`), drawn behind the title; "" keeps the drawing.
+    * `searcher` - the handle of the listener whose search wrote it, **only
+      when they have turned on `searches_public`** and it is not the asker:
+      what somebody searched is theirs unless they say otherwise
+      (`op-friend-profile`). Authorship is provenance (`scripts.author`,
+      never in the key); this is the one place it is shown, by the author's
+      choice, and the response carries no id.
+
+    Reads the cache and the profile store; no model call.
+    """
+    _read_limit(request)
+    asked = (q or "").strip()
+    words = (title or "").strip()
+    thumb = ""
+    try:
+        import thumbnails
+        found = thumbnails.pick(f"{asked} {words}".strip())
+        thumb = (found or {}).get("url", "") or ""
+    except Exception:  # noqa: BLE001 - a picture is never worth a 500
+        log.exception("could not pick a picture for the player")
+    searcher = ""
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    norm = normalize_query(asked)
+    if store is not None and norm:
+        listener = _listener(request)
+        for entry in store.recent(TRENDING_SEARCHES_SCAN, origin="search"):
+            if normalize_query(entry.get("query") or "") != norm:
+                continue
+            author = entry.get("author") or ""
+            if author and author != listener and PREFS.get(author).searches_public:
+                handle = SOCIAL.person(author).get("handle") or ""
+                searcher = "@" + handle if handle else ""
+            break
+    return {"thumb": thumb, "searcher": searcher}
+
+
 @app.get("/api/episode/topic")
 async def episode_topic(request: Request,
                         q: str = Query("", max_length=300),
@@ -5084,19 +5199,22 @@ async def myfam_search(request: Request,
 WELCOME_SAMPLES = 3
 
 
-@app.get("/api/welcome")
-async def welcome_samples(request: Request) -> dict:
-    """The sign-up screen's samples: the top of "Most played episodes today".
+#: How long one ranking of the samples serves every request (§190): the
+#: waitlist gate asks for it on each sample's audio, and the samples turn
+#: over by the day, not by the second.
+WELCOME_MEMO_SECONDS = 60.0
+_WELCOME_MEMO: dict = {"at": 0.0, "episodes": []}
 
-    The same ranking as the rail (`topics.rank_most_played`, total listens in
-    the last twenty-four hours), cut to `WELCOME_SAMPLES`, and only episodes
-    whose **audio is kept**: the person reading this screen has no account
-    yet, and a tap here must play at once and wake nothing - the guest rule
-    (`_guest_play_gated`) applied before the tap rather than after it. Fewer
-    than three is honest; none means the screen shows no samples at all.
-    No model call, no voice, no listener id in the response.
-    """
-    _read_limit(request)
+
+def _welcome_episodes() -> list[dict]:
+    """The samples, ranked: see `welcome_samples`. Memoised briefly."""
+    now = time.monotonic()
+    # Keyed on the stores too, so a swapped log (a wipe, a test) is never
+    # answered from the old one.
+    stores = (id(EVENTS), id(SCRIPT_CACHE))
+    if (_WELCOME_MEMO["at"] and _WELCOME_MEMO.get("stores") == stores
+            and now - _WELCOME_MEMO["at"] < WELCOME_MEMO_SECONDS):
+        return _WELCOME_MEMO["episodes"]
     minutes = BROWSE_MINUTES
     try:
         ranked = topics_mod.rank_most_played(
@@ -5114,7 +5232,25 @@ async def welcome_samples(request: Request) -> dict:
         samples.append({**topic.as_dict(), "minutes": minutes})
         if len(samples) >= WELCOME_SAMPLES:
             break
-    return {"episodes": samples}
+    _WELCOME_MEMO.update(at=now, episodes=samples, stores=stores)
+    return samples
+
+
+@app.get("/api/welcome")
+async def welcome_samples(request: Request) -> dict:
+    """The sign-up screen's samples: the top of "Most played episodes today".
+
+    The same ranking as the rail (`topics.rank_most_played`, total listens in
+    the last twenty-four hours), cut to `WELCOME_SAMPLES`, and only episodes
+    whose **audio is kept**: the person reading this screen has no account
+    yet, and a tap here must play at once and wake nothing - the guest rule
+    (`_guest_play_gated`) applied before the tap rather than after it. Fewer
+    than three is honest; none means the screen shows no samples at all.
+    No model call, no voice, no listener id in the response. The waitlist's
+    landing page shows the same three (§190), so this is open past the gate.
+    """
+    _read_limit(request)
+    return {"episodes": _welcome_episodes()}
 
 
 @app.get("/api/explorenew")
@@ -5850,40 +5986,58 @@ def _capitalised(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
-#: How many trending searches the search box offers when it is focused
-#: (10.1 #3): five to ten, the owner's range.
+#: How many trending searches the search page offers (10.1 #3): five to
+#: ten, the owner's range.
 TRENDING_SEARCHES_MAX = 8
+#: The window they are counted over (§190, the owner's): the most searched
+#: questions of the last two hours, in order.
+TRENDING_SEARCHES_WINDOW = 2 * 3600
 #: How far back the cache is read to find them.
 TRENDING_SEARCHES_SCAN = 200
 
 
 @app.get("/api/searches/trending")
 async def trending_searches(request: Request) -> dict:
-    """What other people searched that would play instantly now (10.1 #3).
+    """The most searched questions of the last two hours, in order (§190).
 
-    Drawn under the search box when it is focused, so a tap is a search that
-    lands on an episode already written. **Only what is current** (`ttl_for`):
-    a search whose episode a new request would not be served is never
-    offered, which is what keeps a score or a game update off this list - an
-    episode built on a sports game that is not over is never current
+    Drawn under the search box, so a tap is a search that lands on an
+    episode already written. **Ranked by how many listeners searched it in
+    `TRENDING_SEARCHES_WINDOW`** (the owner's, §190; it was most played,
+    §182) - distinct listeners, so one person searching the same thing ten
+    times is one search - with plays breaking ties. **Only what is current**
+    (`ttl_for`): a search whose episode a new request would not be served is
+    never offered, which is what keeps a score or a game update off this list
+    - an episode built on a sports game that is not over is never current
     (`cache.ttl_for`'s sports rule). Searched episodes only, like Explore; no
     attachment is ever cached, a swearing episode is left off, and an empty
     list is a fact about the deployment, never filled with anything else.
 
-    Reads the cache and nothing else: it costs nothing and generates nothing.
+    Reads the cache and the event log and nothing else: it costs nothing and
+    generates nothing.
     """
     _read_limit(request)
     store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
     if store is None:
         return {"searches": []}
+    searchers: dict[str, set] = defaultdict(set)
+    for user, text in EVENTS.searches_since(time.time() - TRENDING_SEARCHES_WINDOW):
+        norm = normalize_query(text or "")
+        if norm:
+            searchers[norm].add(user)
+    if not searchers:
+        return {"searches": []}
     entries = store.recent(TRENDING_SEARCHES_SCAN, origin="search")
     seen: set[str] = set()
     picks = []
-    # Most played first, newest breaking ties: "trending" is what people
-    # are actually listening to, and `recent` is newest first already.
-    for entry in sorted(entries, key=lambda e: -int(e.get("plays") or 0)):
+    ranked = sorted(entries, key=lambda e: (
+        -len(searchers.get(normalize_query(e.get("query") or ""), ())),
+        -int(e.get("plays") or 0)))
+    for entry in ranked:
         query = (entry.get("query") or "").strip()
-        if not query or not entry.get("current") or entry.get("explicit"):
+        norm = normalize_query(query)
+        if not query or norm not in searchers:
+            continue
+        if not entry.get("current") or entry.get("explicit"):
             continue
         if content_filter.scrub(query) != query:
             continue
@@ -5898,7 +6052,6 @@ async def trending_searches(request: Request) -> dict:
                 cache_key(query, minutes, None, "", True),
                 cache_key(query, minutes, None, "", False)):
             continue
-        norm = normalize_query(query)
         if norm in seen:
             continue
         seen.add(norm)
@@ -5908,6 +6061,7 @@ async def trending_searches(request: Request) -> dict:
             # question, which may be misspelled (10.1 #4).
             "title": entry.get("title") or "",
             "minutes": minutes,
+            "searches": len(searchers[norm]),
         })
         if len(picks) >= TRENDING_SEARCHES_MAX:
             break
@@ -7330,21 +7484,17 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     half is skipped, which is exactly what the app does after launch.
     """
     _rate_limit(request)
-    user = _require_listener(request)
+    user, fresh = _signup_listener(request)
     try:
         listener = ACCOUNTS.sign_up(user, req.email, req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _waitlist_after_signup(listener.user_id, req.referral_code)
     listener = ACCOUNTS.listener_of(listener.user_id)
-    token = _session_token(request)
-    if req.want_token and not token:
-        token, _ = ACCOUNTS.new_session(listener.user_id)
-        request.state.set_session = token
     return {**listener.as_dict(),
             "redirect": "/waitlist/me" if listener.status == waitlist_mod.WAITLISTED
             else "/",
-            **_maybe_token(request, token, req.want_token)}
+            **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
 
 @app.get("/api/waitlist/me")

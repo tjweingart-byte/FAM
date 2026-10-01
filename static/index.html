@@ -127,20 +127,29 @@
   .back-row .back:active{ opacity:1; }
   .back-row h2{ font-family:'Fraunces', serif; font-weight:500; font-size:19px; margin:0; flex:1; }
   .head-dots{ display:flex; gap:3px; padding:8px; border-radius:10px; cursor:pointer; }
-  .head-dots span{ width:3.5px; height:3.5px; border-radius:50%; background:var(--text-muted); }.fam-input-box{ background:var(--surface); border-radius:16px; padding:14px 16px; border:1px solid var(--border); min-height:96px; display:flex; }
+  .head-dots span{ width:3.5px; height:3.5px; border-radius:50%; background:var(--text-muted); }.fam-input-box{ background:var(--surface); border-radius:26px; padding:6px 6px 6px 18px; border:1px solid var(--border); min-height:52px; display:flex; align-items:center; gap:6px; }
   .fam-input-box textarea{
     flex:1; border:none; outline:none; background:transparent; resize:none;
-    font-family:'Space Grotesk',sans-serif; font-size:13px; color:var(--text); line-height:1.5;
-    padding:0; margin:0;
+    font-family:'Space Grotesk',sans-serif; font-size:15px; color:var(--text); line-height:1.4;
+    padding:9px 0; margin:0; max-height:120px; overflow-y:auto;
   }
   .fam-input-box textarea::placeholder{ color:var(--text-muted); opacity:0.8; }
-  .go-btn{ width:36px; height:36px; border-radius:50%; background:var(--copper); color:var(--ink); border:none; display:flex; align-items:center; justify-content:center; flex:none; cursor:pointer; }
+  .bar-btns{ display:flex; align-items:center; gap:2px; flex:none; align-self:flex-end; }
+  .go-btn{ width:36px; height:36px; border-radius:50%; background:var(--copper); color:var(--ink); border:none; display:flex; align-items:center; justify-content:center; flex:none; cursor:pointer; margin:2px; }
+  .go-btn[hidden]{ display:none; }
   .go-btn:active{ transform:scale(0.94); }
-  .fam-controls{ display:flex; align-items:center; justify-content:space-between; margin:9px 2px 0; }
+  /* The two bubbles under the bar (§190). */
+  .fam-controls{ display:flex; align-items:center; gap:10px; margin:12px 0 0; }
+  .search-bubble{ flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+    height:44px; border-radius:22px; background:var(--surface); border:1px solid var(--border);
+    color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600;
+    cursor:pointer; }
+  .search-bubble svg{ color:var(--text-muted); }
+  .search-bubble:active{ transform:scale(0.98); }
   /* Attachments. The chip carries the file's name because "1 attachment" is
      not enough to notice you attached the wrong thing. */
-  .attach-btn{ width:36px; height:36px; border-radius:50%; background:var(--surface);
-    color:var(--text-muted); border:1px solid var(--border-strong); display:flex;
+  .attach-btn{ width:40px; height:40px; border-radius:50%; background:none;
+    color:var(--text-muted); border:none; display:flex;
     align-items:center; justify-content:center; flex:none; cursor:pointer; }
   .attach-btn:active{ transform:scale(0.94); }
   /* Voice search (§151). The mic sits on the search box's own line, beside
@@ -149,21 +158,24 @@
      in the middle, and lines around it that only appear - and only move -
      while somebody is actually talking. Nothing is searched until they press
      send: speech ending is not a request. */
-  .voice-mic{ width:36px; height:36px; border-radius:50%; flex:none;
-    background:var(--surface); border:1px solid var(--border-strong); color:var(--text-muted);
+  .voice-mic{ width:40px; height:40px; border-radius:50%; flex:none;
+    background:none; border:none; color:var(--text-muted);
     display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .voice-mic:active{ transform:scale(0.94); }
   /* Trending searches under the search box (10.1 #3). */
-  .trend-searches{ margin:16px 2px 0; }
+  /* Under the bubbles, one bubble a search, most searched first (§190). */
+  .trend-searches{ margin:20px 0 0; }
   .trend-searches[hidden]{ display:none; }
   .trend-label{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
     letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted);
-    margin:0 0 8px; }
-  .trend-list{ display:flex; flex-wrap:wrap; gap:7px; }
-  .trend-chip{ max-width:100%; padding:7px 12px; border-radius:999px;
-    background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
-    font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+    margin:0 4px 9px; }
+  .trend-list{ display:flex; flex-direction:column; gap:8px; }
+  .trend-chip{ display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    min-height:42px; padding:9px 16px; border-radius:21px;
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:13.5px; font-weight:500; cursor:pointer; }
+  .trend-chip .tc-text{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .trend-chip svg{ flex:none; color:var(--text-muted); }
   .trend-chip:active{ transform:scale(0.97); }
   .voice-mic[hidden]{ display:none; }
   .voice-search{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0; z-index:450;
@@ -248,11 +260,6 @@
   .attach-chip .rm{ color:var(--text-muted); cursor:pointer; font-size:13px; line-height:1; }
   .attach-chip.working{ opacity:0.6; }
   .attach-chip.failed{ border-color:var(--coral); color:var(--coral); }
-  .length-chip{ display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-muted); }
-  .length-chip .val{ display:inline-flex; align-items:center; gap:4px; background:var(--surface-2); border-radius:7px; padding:3px 7px 3px 9px; color:var(--text); font-weight:600; cursor:pointer; }
-  /* A voice's name can be longer than "2 min"; cut it rather than push the
-     attach and go buttons off a phone's width. */
-  .voice-chip #homeVoiceName{ max-width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .section{ margin-top:20px; }
   .section-kicker{ display:flex; align-items:center; justify-content:space-between; font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:9px; }
@@ -1143,11 +1150,8 @@
   /* In the corner of the player, over the stage rather than under it. */
   /* Top left since §181: the top right is the (+) that adds this episode's
      topic to a DailyFAM mix. */
-  .src-panel{ position:absolute; top:0; left:0; z-index:2; }
-  .player-add{ position:absolute; top:0; right:0; z-index:2; width:34px; height:34px;
-    border-radius:50%; border:0; background:none; color:var(--text-muted);
-    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
-  .player-add:active{ transform:scale(0.94); color:var(--text); }
+  /* Right of the title since §190, where Spotify's green button is. */
+  .src-panel{ position:relative; flex:none; z-index:2; }
   /* Required by tools/check_css.py: a class that sets display must say what
      [hidden] means, or the attribute stops working. Deleting CSS from this
      file has broken the app twice; the checker is not optional. */
@@ -1210,6 +1214,78 @@
   .src-note{ font-size:10px; color:var(--text-faint); line-height:1.45; padding:9px 0 2px; }
 
   .progress-wrap{ flex:none; padding:12px 20px 4px; }
+
+  /* -------- the player, in Spotify's layout (§190) -------- */
+  #screen-player{ position:relative; overflow:hidden; }
+  #screen-player > *{ position:relative; z-index:1; }
+  /* The episode's picture, behind the title, fading into the page so the
+     controls under it stay readable. Empty, it is the page's own colour. */
+  #screen-player > .player-bg{ position:absolute; inset:0; z-index:0;
+    background:var(--bg) center 22% / cover no-repeat; pointer-events:none; }
+  .player-bg::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(20,18,28,0.25) 0%, rgba(20,18,28,0.05) 30%,
+      var(--bg) 66%); }
+  .player-bg:not(.has-img)::after{ display:none; }
+  #screen-player .player-top{ display:grid; grid-template-columns:44px 1fr 44px;
+    align-items:center; padding:10px 12px 0; }
+  #screen-player .player-top .kicker{ text-align:center; }
+  .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+    border-radius:50%; }
+  .p-down:active, .p-more:active{ transform:scale(0.94); }
+  #screen-player .mini-stage{ padding:0 20px; }
+  .p-titlerow{ flex:none; display:flex; align-items:center; gap:12px; padding:0 20px; }
+  .p-titles{ flex:1; min-width:0; text-align:left; }
+  #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .mini-src[hidden]{ display:none; }
+  #screen-player .player-controls-2row{ padding:14px 20px 60px; gap:14px; }
+  #screen-player .pc-row1{ gap:22px; }
+  #screen-player .mini-play-btn{ width:60px; height:60px; }
+  /* GO DEEPER where Spotify keeps its mood chip, and bigger (§190). */
+  #screen-player .go-deeper-pill{ margin:0 auto; padding:12px 38px; font-size:14px; }
+  #screen-player .pc-row2{ width:100%; gap:12px; }
+  .pc-gap{ flex:1; }
+  /* The captions sheet: shut is a strip at the bottom; slid up is open, and
+     open is on. */
+  #screen-player .captions-panel{ position:absolute; left:0; right:0; bottom:0; z-index:3;
+    margin:0; border-radius:16px 16px 0 0; padding:0 18px 18px; min-height:0;
+    max-height:58%; display:flex; flex-direction:column;
+    transform:translateY(calc(100% - 46px)); transition:transform 260ms ease; }
+  #screen-player .captions-panel.on{ transform:none; }
+  #screen-player .cc-toprow{ height:46px; margin:0; gap:10px; cursor:pointer; flex:none;
+    position:relative; justify-content:flex-start; }
+  #screen-player .cc-toprow .cc-copybtn{ margin-left:auto; }
+  .cc-grab{ position:absolute; left:50%; top:6px; width:36px; height:4px; border-radius:2px;
+    margin-left:-18px; background:var(--border-strong); }
+  #screen-player .cc-text{ overflow-y:auto; min-height:60px; }
+  @media (prefers-reduced-motion: reduce){
+    #screen-player .captions-panel{ transition:none; }
+  }
+  /* The queue sheet and the menu's header (§190). */
+  .sheet-head{ display:flex; align-items:center; gap:12px; padding:4px 4px 12px;
+    margin-bottom:6px; border-bottom:1px solid var(--border); }
+  .sheet-head-pic{ flex:none; width:44px; height:44px; border-radius:8px;
+    background:var(--surface-2) center / cover no-repeat; }
+  .sheet-head-text{ min-width:0; flex:1; }
+  .sheet-head-title{ font-size:14px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheet-head-sub{ font-size:11.5px; color:var(--text-muted); margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .q-group{ font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--text-muted); margin:12px 2px 6px; }
+  .q-row{ display:flex; align-items:center; gap:10px; padding:9px 2px;
+    border-bottom:1px solid var(--border); }
+  .q-row .q-title{ flex:1; min-width:0; font-size:13px; color:var(--text); cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .q-row.now .q-title{ color:var(--copper); font-weight:600; cursor:default; }
+  .q-rm{ flex:none; border:0; background:none; color:var(--text-muted); font-size:18px;
+    width:32px; height:32px; cursor:pointer; }
+  .q-empty{ font-size:12.5px; color:var(--text-faint); padding:10px 2px; line-height:1.5; }
+  /* The menu's rows carry Spotify's icons (§190). */
+  .menu-row{ display:flex; align-items:center; gap:14px; }
+  .menu-row svg{ flex:none; color:var(--text-muted); }
+  .seed-act.tile-more{ color:#F4EFE4; }
   .progress-bar{ height:4px; border-radius:4px; background:rgba(244,239,228,0.12); position:relative; margin-bottom:6px;
     /* Draggable. touch-action:none so the browser does not claim the gesture
        as a scroll halfway through a scrub, which is what makes a bar this
@@ -3062,28 +3138,33 @@
             <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
           </div>
           <div class="home-hero">
-          <div class="fam-input-box">
-            <textarea id="searchInput" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
-          </div>
-          <div class="attach-row" id="attachRow"></div>
-          <div class="fam-controls">
-            <div class="length-chip">Length <span class="val" id="lengthVal" onclick="openLengthMenu()">2 min<svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
-            <!-- The voice this search is spoken in (§147). Only here and under
-                 Listening in Settings: every other surface draws a voice from
-                 the bank per episode. -->
-            <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">Ian</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
-            <div style="display:flex; align-items:center; gap:9px;">
-              <!-- Voice search (§151), beside attach (10.1 #3). Hidden until
-                   `paintVoiceMic` finds speech recognition in this browser: a
-                   mic that cannot hear is a control with nothing behind it. -->
-              <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
-              <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
-              <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          <!-- One bar, Google's shape (10.1 second packet, §190): the
+               question on the left, the mic and attach on the bar's right,
+               and go once there is something to send. -->
+          <div class="fam-input-box" id="searchBar">
+            <textarea id="searchInput" rows="1" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="FAMiliarize me about…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); runSearch(); }"></textarea>
+            <div class="bar-btns">
+              <!-- Voice search (§151). Hidden until `paintVoiceMic` finds
+                   speech recognition in this browser: a mic that cannot
+                   hear is a control with nothing behind it. -->
+              <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
+              <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
+              <button class="go-btn" id="searchGoBtn" hidden onclick="runSearch()" aria-label="Search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
           </div>
-          <!-- Trending searches (10.1 #3): what other people searched that
-               would play instantly now, drawn while the box is focused and
-               empty. `/api/searches/trending` offers only what is current. -->
+          <div class="attach-row" id="attachRow"></div>
+          <!-- Two bubbles under the bar (§190): each opens its choice. The
+               choice itself is not printed here - the menus tick it. -->
+          <div class="fam-controls">
+            <button type="button" class="search-bubble" id="lengthBubble" onclick="openLengthMenu()" aria-label="Episode length"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4"/></svg>Length</button>
+            <!-- The voice this search is spoken in (§147). Only here and
+                 under Listening in Settings: every other surface draws a
+                 voice from the bank per episode. -->
+            <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Voice</button>
+          </div>
+          <!-- Trending searches (10.1 #3, §190): the most searched questions
+               of the last two hours, in order, each one an episode already
+               written and still current (`/api/searches/trending`). -->
           <div class="trend-searches" id="trendSearches" hidden>
             <div class="trend-label">Trending searches</div>
             <div class="trend-list" id="trendList"></div>
@@ -3301,24 +3382,36 @@
 
       <!-- ============ PLAYER ============ -->
       <section class="screen" id="screen-player">
+        <!-- Spotify's layout (§190, the owner's): a down arrow top left that
+             minimises (never stops, §142), the episode's picture behind its
+             title, the title and the sources on one line, the transport,
+             GO DEEPER where Spotify keeps its mood chip, share and the queue
+             bottom right, and the captions in a sheet at the bottom that is
+             only open when it is slid up. The three dots open the menu. -->
+        <div class="player-bg" id="playerBg" aria-hidden="true"></div>
         <div class="player-top">
-          <span class="kicker">Now playing <span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span></span>
           <!-- Minimises, never stops (§142): the episode carries on in the
                mini player, whose button still pauses it and whose tap brings
                this screen back exactly where it is. -->
-          <span class="x" onclick="minimizePlayer()" aria-label="Minimise the player">✕</span>
+          <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Minimise the player"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+          <span class="kicker">Now playing <span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span></span>
+          <button type="button" class="p-more" id="playerMore" onclick="openPlayerMenu()" aria-label="More options"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
         </div>
-        <button class="go-deeper-pill" onclick="openGoDeeper('player')">GO DEEPER</button>
         <div class="mini-stage" id="playerStage">
+          <div class="next-hint" id="nextHint"></div>
+        </div>
+        <div class="p-titlerow">
+          <div class="p-titles">
+            <div class="mini-title" id="p-title">Title</div>
+            <!-- Where Spotify names the artist: nothing (§190). Kept, empty
+                 and hidden, because the sourced stamp is still worked out
+                 into it and the menu reads it. -->
+            <div class="mini-src" id="p-src" hidden>Source</div>
+          </div>
           <!-- Where this episode's facts came from: the first three
-               publishers' marks, overlapped, in the corner. Tapping opens the
-               whole list with headlines and links - see `openSources`.
-
-               In the corner rather than as a full-width strip under the title
-               because it is a thing a listener glances at, not a line of the
-               page. It is hidden until there is something to show, so an
-               episode answered from knowledge has an uncluttered corner
-               rather than an empty label. -->
+               publishers' marks, overlapped. Where Spotify's green button is
+               (§190); tapping opens the whole list - see `openSources`.
+               Hidden until there is something to show. -->
           <div class="src-panel" id="srcPanel" hidden onclick="openSources()"
                role="button" tabindex="0" aria-label="Show this episode's sources">
             <div class="src-strip">
@@ -3326,18 +3419,6 @@
               <span class="src-count" id="srcCount">—</span>
             </div>
           </div>
-          <!-- Add this episode's TOPIC to a DailyFAM mix (§181, the 9.30
-               interface packet). A mix follows subjects, never episodes, so
-               the server says which topic this is (`/api/episode/topic`). -->
-          <button class="player-add" id="playerAdd" type="button" onclick="openAddToMix()"
-                  title="Add this topic to a myFAM mix" aria-label="Add this topic to a myFAM mix"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v9M7.5 12h9"/></svg></button>
-          <div class="mini-title" id="p-title">Title</div>
-          <div class="mini-src" id="p-src">Source</div>
-          <div class="next-hint" id="nextHint"></div>
-        </div>
-        <div class="captions-panel off" id="ccPanel">
-          <div class="cc-toprow"><span class="cc-label">Live captions</span><div class="cc-copybtn" onclick="copyTranscript()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
-          <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
         </div>
         <div class="progress-wrap">
           <div class="progress-bar"><div class="buffered"></div><div class="fill"></div><div class="knob"></div></div>
@@ -3348,22 +3429,26 @@
             <div class="mini-ctrl-btn seek" onclick="skipAudio(-15)" title="Back 15 seconds" aria-label="Back 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M5.95 6.92A7.9 7.9 0 1 1 5.95 17.08" stroke-width="1.9"/><path d="M1.9 12 6.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
             <div class="mini-play-btn" onclick="togglePlay()"><div id="playIcon2"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div></div>
             <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M18.05 6.92A7.9 7.9 0 1 0 18.05 17.08" stroke-width="1.9"/><path d="M22.1 12 17.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
-            <!-- Only while a DailyFAM playlist is playing (§134): the next
-                 episode in the playlist. Hidden everywhere else, because
-                 everywhere else there is no "next" anybody chose. -->
+            <!-- The next episode: the playlist's next while a myFAM playlist
+                 plays (§134), else the first in the queue (§190). Hidden
+                 when there is no "next" anybody chose. -->
             <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l10 8-10 8V4z" fill="currentColor"/><path d="M19 5v14"/></svg></div>
           </div>
+          <button class="go-deeper-pill" onclick="openGoDeeper('player')">GO DEEPER</button>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 2 min</div>
-            <!-- Four icons with their names under them. Unlabelled, a
-                 bookmark, a two-way arrow and a speech rectangle are three
-                 guesses; the play-all sidebar and Explore's rail had always
-                 carried labels, and this row was the odd one out. -->
-            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
+            <span class="pc-gap"></span>
             <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
             <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
-            <span class="pt-icon" id="ccIcon" onclick="toggleCC()" title="Live captions" aria-label="Live captions"><svg width="17" height="13" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span class="pt-cap">Captions</span></span>
+            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
+            <span class="pt-icon" id="queueBtn" onclick="openQueue()" title="The queue" aria-label="The queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg><span class="pt-cap">queue</span></span>
           </div>
+        </div>
+        <!-- Closed captions, where Spotify keeps the lyrics: a sheet at the
+             bottom, shut until it is slid (or tapped) up. Open is on. -->
+        <div class="captions-panel off" id="ccPanel">
+          <div class="cc-toprow" id="ccIcon" onclick="toggleCC()" role="button" tabindex="0" aria-label="Closed captions"><span class="cc-grab" aria-hidden="true"></span><span class="cc-label">Closed captions</span><div class="cc-copybtn" onclick="event.stopPropagation(); copyTranscript()" aria-label="Copy the transcript"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
+          <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
         </div>
       </section>
 
@@ -4110,7 +4195,19 @@
   // The length a search opens on. Two minutes: long enough for the answer
   // and the story around it, short enough that somebody who typed a question
   // has it answered before they have to decide whether to stay.
-  var selectedLengthMinutes = 2;
+  var DEFAULT_LENGTH_MINUTES = 2;
+  var selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;
+  // **Every time somebody comes back into the app the length is two minutes
+  // again** (§190, the owner's): a length is chosen for one search, not
+  // kept. Coming back means the page loading (the line above) or returning
+  // from the background; the player's own episode is untouched - only the
+  // next search reads this.
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState !== "visible") return;
+    if(selectedLengthMinutes === DEFAULT_LENGTH_MINUTES) return;
+    selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;
+    if(typeof paintLengthControls === "function") paintLengthControls();
+  });
 
   function showScreen(id){
     // Find the target BEFORE deactivating anything. The other order clears
@@ -4126,6 +4223,7 @@
     next.classList.add("active");
     placeNowBar(next);
     if(id === "welcome") loadWelcomeSamples();
+    if(id === "home") loadTrendSearches();
   }
 
   // The mini player goes wherever the listener goes (§142). It was one strip
@@ -4356,6 +4454,7 @@
         + '<span class="rm" onclick="removeAttachment(' + i + ')">\u00d7</span>'
         + '</div>';
     }).join("");
+    paintTrendSearches();
   }
 
   function removeAttachment(i){
@@ -4519,6 +4618,7 @@
       pendingFromSearch = true;
       generate("_custom");
       document.getElementById("searchInput").value = "";
+      paintSearchBar();
       // The attachment belonged to that question. Leaving it on screen would
       // silently attach it to the next, unrelated one.
       clearAttachments();
@@ -4527,24 +4627,29 @@
     }
   }
 
-  // ---------------- Trending searches (10.1 #3) ----------------
+  // ---------------- Trending searches (10.1 #3, §190) ----------------
   //
-  // Tapping the search box shows what other people searched that would play
-  // instantly now - the server offers only episodes still current, so a tap
-  // is a cache hit, and never a score or a game update. Shown while the box
-  // is focused and empty; typing hides it. Fetched on focus, at most once a
-  // minute, and nothing is drawn when nothing qualifies.
+  // Under the bar and its two bubbles, one bubble a search: the most
+  // searched questions of the last two hours, in order. The server offers
+  // only episodes still current, so a tap is a cache hit, and never a score
+  // or a game update. Shown while the box is empty and nothing is attached;
+  // typing hides it. Fetched when the search page opens or the box is
+  // focused, at most once a minute, and nothing is drawn when nothing
+  // qualifies.
   var TREND_SEARCHES = [];
   var trendFetchedAt = 0;
   var TREND_REFETCH_MS = 60000;
+  var TREND_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/>'
+    + '<path d="M15 7h6v6"/></svg>';
 
   function paintTrendSearches(){
     var box = document.getElementById("trendSearches");
     var input = document.getElementById("searchInput");
     if(!box || !input) return;
+    paintSearchBar();
     // Not with something attached: that search is about the attachment.
-    var show = document.activeElement === input && !input.value.trim()
-               && !ATTACHED.length && TREND_SEARCHES.length > 0;
+    var show = !input.value.trim() && !ATTACHED.length && TREND_SEARCHES.length > 0;
     box.hidden = !show;
     if(!show) return;
     document.getElementById("trendList").innerHTML = TREND_SEARCHES.map(function(t, i){
@@ -4553,8 +4658,20 @@
       var label = t.title || deriveTitleFromPrompt(t.spelled || t.query);
       return '<button class="trend-chip" type="button" data-trend="' + i + '"'
         + ' onpointerdown="event.preventDefault()"'
-        + ' onclick="runTrendSearch(' + i + ')">' + escapeHtml(label) + '</button>';
+        + ' onclick="runTrendSearch(' + i + ')">' + TREND_ICON
+        + '<span class="tc-text">' + escapeHtml(label) + '</span></button>';
     }).join("");
+  }
+
+  // The bar grows with what is typed, up to its cap, and go appears once
+  // there is something to send - the mic and attach stay put.
+  function paintSearchBar(){
+    var input = document.getElementById("searchInput");
+    var go = document.getElementById("searchGoBtn");
+    if(!input) return;
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    if(go) go.hidden = !input.value.trim() && !ATTACHED.length;
   }
 
   function loadTrendSearches(){
@@ -4588,7 +4705,7 @@
     recordFamEvent("search", "", t.query);
     pendingFromSearch = true;
     if(input){ input.value = ""; input.blur(); }
-    document.getElementById("trendSearches").hidden = true;
+    paintSearchBar();
     generate("_custom");
   }
 
@@ -4597,9 +4714,6 @@
     if(!input) return;
     input.addEventListener("focus", loadTrendSearches);
     input.addEventListener("input", paintTrendSearches);
-    input.addEventListener("blur", function(){
-      document.getElementById("trendSearches").hidden = true;
-    });
   })();
 
   // The "FAMiliarizing you…" overlay used to run for a fixed 900ms and then
@@ -5897,6 +6011,229 @@
     if(prev === "messages") renderThreadList();
   }
 
+  // ---- The player's picture, its menu, and the queue (§190) ----
+  //
+  // Spotify's layout, at the owner's direction. What the menu offers:
+  // Share, Closed captions, Add to playlist (a myFAM mix: its topic, §181),
+  // Remove from this playlist (only while a myFAM playlist plays), Add to
+  // Queue and Go to Queue. Its header is the episode's title over the
+  // listener who searched it - only when they chose to show it
+  // (`searches_public`), never otherwise.
+  var PLAYER_CARD = { key: "", thumb: "", searcher: "" };
+
+  function drawPlayerPicture(url){
+    var bg = document.getElementById("playerBg");
+    if(!bg) return;
+    bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
+    bg.classList.toggle("has-img", !!url);
+  }
+  function loadPlayerCard(key, t){
+    PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "" };
+    drawPlayerPicture(PLAYER_CARD.thumb);
+    var q = t.prompt || t.title || "";
+    if(!q) return;
+    fetch("/api/episode/card?q=" + encodeURIComponent(q)
+          + "&title=" + encodeURIComponent(t.title || ""))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        // The episode may have changed while this was asked.
+        if(!d || PLAYER_CARD.key !== key) return;
+        PLAYER_CARD.searcher = d.searcher || "";
+        if(!PLAYER_CARD.thumb && d.thumb){
+          PLAYER_CARD.thumb = d.thumb;
+          drawPlayerPicture(d.thumb);
+        }
+      })
+      .catch(function(){});
+  }
+
+  var MENU_ICONS = {
+    share: '<path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/>',
+    cc: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 10.2a2.3 2.3 0 1 0 0 3.6M16.6 10.2a2.3 2.3 0 1 0 0 3.6"/>',
+    add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+    addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
+    queue: '<path d="M4 6h16M4 11h16M4 16h10"/>'
+  };
+  function menuLabel(icon, text){
+    return '<span class="menu-row"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"'
+      + ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'
+      + ' aria-hidden="true">' + MENU_ICONS[icon] + '</svg>' + text + '</span>';
+  }
+  function menuHead(title, sub, thumb){
+    return '<div class="sheet-head">'
+      + (thumb ? '<span class="sheet-head-pic" style="background-image:url(&quot;'
+                 + escapeHtml(thumb) + '&quot;)"></span>' : '')
+      + '<span class="sheet-head-text"><div class="sheet-head-title">'
+      + escapeHtml(title) + '</div>'
+      + (sub ? '<div class="sheet-head-sub">' + escapeHtml(sub) + '</div>' : '')
+      + '</span></div>';
+  }
+
+  function openPlayerMenu(){
+    var t = TOPICS[currentPlayingTopicKey] || {};
+    var title = (document.getElementById("p-title").textContent || "").trim()
+      || t.title || "";
+    var ccOn = document.getElementById("ccPanel").classList.contains("on");
+    var items = [
+      { head: menuHead(title, PLAYER_CARD.searcher, PLAYER_CARD.thumb) },
+      { label: menuLabel("share", "Share"), action: function(){ openShareModal(); } },
+      { label: menuLabel("cc", "Closed captions · " + (ccOn ? "On" : "Off")),
+        action: toggleCC },
+      { label: menuLabel("add", "Add to playlist"), action: function(){ openAddToMix(); } }
+    ];
+    // Only inside a myFAM playlist (§190): there is a playlist to take it
+    // out of.
+    if(mixPlay && mixPlay.id && mixPlay.key === currentPlayingTopicKey){
+      items.push({ label: menuLabel("remove", "Remove from this playlist"),
+                   action: removeFromPlayingMix });
+    }
+    items.push({ label: menuLabel("addq", "Add to Queue"),
+                 action: function(){ addToQueue(queueEntryFromTopic(t, title)); } });
+    items.push({ label: menuLabel("queue", "Go to Queue"), action: openQueue });
+    showActionSheet(items);
+  }
+
+  // The playing playlist entry, out of its mix - the mix keeps its other
+  // topics, and the playlist carries on from the next one when this ends.
+  function removeFromPlayingMix(){
+    if(!mixPlay || !mixPlay.id) return;
+    var m = mixById(mixPlay.id);
+    var item = mixPlay.order[mixPlay.pos];
+    if(!m || !item){ toast("That playlist has changed"); return; }
+    var payload = (m.items || []).filter(function(i){ return i.id !== item.id; })
+      .map(function(i){ return i.custom ? { query: i.query, title: i.title } : i.id; });
+    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      if(mixPlay && mixPlay.id === saved.id){
+        mixPlay.order.splice(mixPlay.pos, 1);
+        mixPlay.pos -= 1;
+      }
+      toast("Removed from " + (saved.name || "this playlist"));
+    });
+  }
+
+  // The captions sheet slides: up opens it (and turns captions on), down
+  // shuts it. A tap on its strip does the same as the slide.
+  (function(){
+    var panel = document.getElementById("ccPanel");
+    if(!panel) return;
+    var y0 = null;
+    panel.addEventListener("touchstart", function(e){ y0 = e.touches[0].clientY; },
+                           { passive: true });
+    panel.addEventListener("touchend", function(e){
+      if(y0 === null) return;
+      // The sheet's own slide, never the player's swipe to the album's next.
+      e.stopPropagation();
+      var dy = y0 - e.changedTouches[0].clientY;
+      y0 = null;
+      var open = panel.classList.contains("on");
+      if((dy > 30 && !open) || (dy < -30 && open)) toggleCC();
+    }, { passive: true });
+  })();
+
+  // ---- The queue ----
+  // Episodes the listener chose to hear next, in order. An episode on the
+  // full player that ends with something queued plays the first of them
+  // straight away instead of offering What's next; a myFAM playlist plays
+  // through first. Kept for this visit only - it is a "next", not a shelf.
+  var QUEUE = [];
+  var queueSeq = 0;
+
+  function queueEntryFromTopic(t, title){
+    return { title: title || t.title || t.prompt || "", prompt: t.prompt || t.title || "",
+             minutes: t.exploreMinutes || 0, source: t.source || "Your queue",
+             surface: t.surface || "", bankTopicId: t.bankTopicId || "",
+             cachedOnly: !!t.cachedOnly, thumb: t.thumb || PLAYER_CARD.thumb || "",
+             titleOverridden: true };
+  }
+  function queueEntryFromTile(tile){
+    return { title: tile.title || tile.query, prompt: tile.query,
+             minutes: BROWSE_MINUTES, source: "DailyFAM", surface: "",
+             bankTopicId: tile.id || "", cachedOnly: false, thumb: tile.thumb || "",
+             playable: tile.playable, titleOverridden: true };
+  }
+  function addToQueue(entry){
+    if(!entry || !entry.prompt){ toast("Nothing to queue"); return; }
+    if(entry.playable === false && !AUTH.authenticated){ showGuestGate(); return; }
+    QUEUE.push(entry);
+    drawMixSkip(!!mixPlay);
+    toast("Added to your queue");
+  }
+  function playQueueNext(){
+    var entry = QUEUE.shift();
+    drawMixSkip(!!mixPlay);
+    if(!entry) return false;
+    var key = "queue_" + (++queueSeq) + "_" + Date.now();
+    TOPICS[key] = {
+      title: entry.title, prompt: entry.prompt, source: entry.source,
+      caption: "Live captions will appear here as this plays—",
+      exploreMinutes: entry.minutes || 0, surface: entry.surface || undefined,
+      bankTopicId: entry.bankTopicId, cachedOnly: entry.cachedOnly,
+      thumb: entry.thumb, titleOverridden: entry.titleOverridden
+    };
+    if(!TOPICS[key].surface) delete TOPICS[key].surface;
+    generate(key);
+    return true;
+  }
+  function removeFromQueue(i){
+    QUEUE.splice(i, 1);
+    drawMixSkip(!!mixPlay);
+    openQueue();
+  }
+  function playFromQueue(i){
+    var entry = QUEUE.splice(i, 1)[0];
+    if(!entry) return;
+    QUEUE.unshift(entry);
+    closeSheet();
+    if(mixPlay) endMixQueue();
+    playQueueNext();
+  }
+  // The sequence after this one: the playlist's rest, then the queue.
+  function openQueue(){
+    var card = document.getElementById("sheetCard");
+    var t = TOPICS[currentPlayingTopicKey];
+    var now = nowBarState ? (nowBarState.title || nowBarState.query) : (t && t.title) || "";
+    var html = '<div class="sheet-scroll">';
+    html += '<div class="q-group">Now playing</div>'
+      + (now ? '<div class="q-row now"><span class="q-title">' + escapeHtml(now) + '</span></div>'
+             : '<div class="q-empty">Nothing is playing.</div>');
+    if(mixPlay && mixPlay.order && mixPlay.pos + 1 < mixPlay.order.length){
+      html += '<div class="q-group">Next from ' + escapeHtml(mixPlay.name || "your playlist") + '</div>';
+      mixPlay.order.slice(mixPlay.pos + 1).forEach(function(item){
+        html += '<div class="q-row"><span class="q-title">' + escapeHtml(item.title || item.query || "") + '</span></div>';
+      });
+    }
+    html += '<div class="q-group">Next in queue</div>';
+    if(!QUEUE.length){
+      html += '<div class="q-empty">Your queue is empty. Add episodes from the three dots on the player or on a DailyFAM tile.</div>';
+    }
+    QUEUE.forEach(function(e, i){
+      html += '<div class="q-row"><span class="q-title" role="button" tabindex="0" onclick="playFromQueue(' + i + ')">'
+        + escapeHtml(e.title) + '</span><button type="button" class="q-rm" aria-label="Take '
+        + escapeHtml(e.title) + ' out of the queue" onclick="removeFromQueue(' + i + ')">×</button></div>';
+    });
+    html += '</div><div class="sheet-cancel" onclick="closeSheet()">Close</div>';
+    card.innerHTML = html;
+    document.getElementById("sheetOverlay").classList.add("active");
+  }
+
+  // A DailyFAM tile's three dots (§190): the player's menu, for a tile.
+  function openTileMenu(topicId){
+    var tile = myFamTopics[topicId];
+    if(!tile) return;
+    var entry = queueEntryFromTile(tile);
+    showActionSheet([
+      { head: menuHead(tile.title || tile.query, "", tile.thumb || "") },
+      { label: menuLabel("share", "Share"),
+        action: function(){ openShareModal({ query: tile.query, title: tile.title,
+                                             minutes: BROWSE_MINUTES }); } },
+      { label: menuLabel("add", "Add to playlist"),
+        action: function(){ openAddToMix(tile.query, tile.title); } },
+      { label: menuLabel("addq", "Add to Queue"), action: function(){ addToQueue(entry); } },
+      { label: menuLabel("queue", "Go to Queue"), action: openQueue }
+    ]);
+  }
+
   function toggleNowBar(){ togglePlay(); }
   function openNowPlaying(){
     if(nowBarState) navigate("player");
@@ -6247,6 +6584,9 @@
         // Ended under an open Go Deeper: the sound stops and the sheet stays
         // up on its own - no album advance, no countdown over it (10.1).
         if(goDeeperIsOpen()) return;
+        // Something queued plays next, straight away (§190) - the full
+        // player only, and a playlist plays through first.
+        if(!onEnd && opts.queueable && QUEUE.length && playQueueNext()) return;
         if(onEnd) onEnd();
         // Offered after the episode's own bookkeeping, and only where it
         // belongs - maybeOfferNextUp checks the surface for itself.
@@ -6368,7 +6708,8 @@
     var playOpts = { cachedOnly: !!t.cachedOnly,
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
-                     episode: t.episode || "" };
+                     episode: t.episode || "", queueable: true };
+    loadPlayerCard(key, t);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the
     // listener went and chose something, and a queue that resumed behind
@@ -6677,6 +7018,7 @@
     var html = '<div class="sheet-scroll">';
     items.forEach(function(it, i){
       if(it.group){ html += '<div class="sheet-group">'+it.group+'</div>'; return; }
+      if(it.head){ html += it.head; return; }
       html += '<div class="sheet-item'+(it.danger ? ' danger' : '')+'" data-idx="'+i+'">'+it.label+'</div>';
     });
     html += '</div>';
@@ -8337,7 +8679,7 @@
 
   function startMixQueue(m, start){
     var items = m.items.slice();
-    mixPlay = { name: m.name || "myFAM",
+    mixPlay = { name: m.name || "myFAM", id: m.sample ? "" : m.id,
                 order: items.slice(start).concat(items.slice(0, start)),
                 pos: 0, key: "" };
     playMixItem(mixPlay.order[0]);
@@ -8357,7 +8699,8 @@
   }
 
   function skipMixItem(){
-    if(!mixPlay) return;
+    // No playlist: the button is the queue's next (§190).
+    if(!mixPlay){ stopSpeech(); setPlayState(false); playQueueNext(); return; }
     var from = mixPlay.key;
     // The same bookkeeping as leaving any episode early - a skip is evidence
     // - and then the next in line, never the What's next popup.
@@ -8398,7 +8741,7 @@
 
   function drawMixSkip(on){
     var btn = document.getElementById("mixSkipBtn");
-    if(btn) btn.hidden = !on;
+    if(btn) btn.hidden = !(on || QUEUE.length);
   }
 
   // Works for both kinds of entry: a bank topic and a typed one both end up
@@ -9870,6 +10213,10 @@
       + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
       + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
       + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
+      // The three dots (§190): the player's menu, for this tile.
+      + '<button class="seed-act tile-more" type="button" data-tile-more="' + escapeHtml(t.id) + '"'
+      + ' aria-label="More options for ' + escapeHtml(t.title) + '" title="More"'
+      + ' onclick="event.stopPropagation(); openTileMenu(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/></svg></button>'
       + '</span>';
   }
 
@@ -11924,6 +12271,12 @@
       // "What you missed last week" rail replaced it - and a settings row
       // that turns off something nothing shows is the control-with-nothing-
       // behind-it failure with a longer fuse, because it reads as working.
+      // §190: off unless they turn it on - what somebody searched is theirs.
+      var searchesPublic = !!(PREF_CHOICES && PREF_CHOICES.searches_public);
+      html += settingsRow("Show my name on episodes I searched",
+          searchesPublic ? "On" : "Off",
+          "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
+        + '<div class="set-note">When it\u2019s on, people who play an episode you searched see your @handle in the player\u2019s menu.</div>';
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
@@ -12059,6 +12412,16 @@
     showScreen(locationReturn);
     if(locationReturn === "settings") renderSettings();
     if(locationReturn === "profile") loadProfile();
+  }
+
+  function setSearchesPublic(on){
+    savePreferences({ searches_public: !!on }).then(function(saved){
+      if(saved && PREF_CHOICES) PREF_CHOICES.searches_public = !!saved.searches_public;
+      toast(saved ? (on ? "Your @handle shows on episodes you searched"
+                        : "Episodes you searched no longer name you")
+                  : "Could not save that");
+      refreshSettingsIfOpen();
+    });
   }
 
   function saveLocation(){
@@ -14433,12 +14796,14 @@
   // "Create new playlist". The topic comes from the server: a followed
   // subject (`f:nfl~Eagles`) where the episode names one, else the
   // episode's title as a typed topic.
-  function openAddToMix(){
+  // `query`/`title` given: a tile's (§190); otherwise the one playing.
+  function openAddToMix(tileQuery, tileTitle){
     var ep = currentEpisode();
     var t = TOPICS[currentPlayingTopicKey] || {};
-    var query = ep ? ep.query : (t.prompt || t.title || "");
-    var title = (document.getElementById("p-title").textContent || "").trim()
-      || (ep && ep.title) || query;
+    var query = tileQuery || (ep ? ep.query : (t.prompt || t.title || ""));
+    var title = tileQuery ? (tileTitle || tileQuery)
+      : ((document.getElementById("p-title").textContent || "").trim()
+         || (ep && ep.title) || query);
     if(!query){ toast("Play something first"); return; }
     if(!AUTH.authenticated){
       showActionSheet([
@@ -14527,8 +14892,13 @@
 
   var pendingShareTopicKey = null;
   var shareTargets = null;   // {key: rendered} for the episode on screen
-  function openShareModal(){
-    shareSubject = { kind: "episode" };
+  // What the share sheet is sharing: a tile's episode when its three dots
+  // opened it (§190), else the one playing.
+  function shareEpisode(){
+    return (shareSubject && shareSubject.episode) || currentEpisode();
+  }
+  function openShareModal(episode){
+    shareSubject = { kind: "episode", episode: episode || null };
     document.getElementById("shareTitle").textContent = "Share this FAM";
     pendingShareTopicKey = getCurrentPlayingTopicKey();
     document.getElementById("shareOverlay").classList.add("active");
@@ -14587,7 +14957,7 @@
      them. FAM holds no token for any of these platforms and never posts on
      anybody's behalf - see sharing.py. */
   function loadShareTargets(){
-    var ep = currentEpisode();
+    var ep = shareEpisode();
     var grid = document.getElementById("shareTargets");
     var note = document.getElementById("shareNote");
     shareTargets = null;
@@ -14917,7 +15287,7 @@
   }
 
   function sendEpisodeToContact(person, done){
-    var ep = currentEpisode();
+    var ep = shareEpisode();
     if(!ep){ done(false, "Play something first"); return; }
     var first = (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {

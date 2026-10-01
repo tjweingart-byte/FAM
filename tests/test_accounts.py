@@ -145,11 +145,20 @@ def test_logging_out_leaves_a_working_app_as_a_new_listener(client):
     assert client.get("/api/myfam").status_code == 200
 
 
-def test_an_account_cannot_be_attached_twice(client):
-    client.post("/api/auth/signup", json={"email": "ian@example.com", "password": GOOD})
+def test_a_second_sign_up_from_one_browser_is_a_second_account(client):
+    """§190, reversing the old "already has an account" refusal: an account
+    is its credentials, never the device. The second sign-up gets its own
+    listener id; the first account is untouched and still logs in."""
+    first = client.post("/api/auth/signup",
+                        json={"email": "ian@example.com", "password": GOOD}).json()
     again = client.post("/api/auth/signup",
                         json={"email": "other@example.com", "password": GOOD})
-    assert again.status_code == 400
+    assert again.status_code == 200
+    assert again.json()["user_id"] != first["user_id"]
+    assert client.get("/api/auth/me").json()["email"] == "other@example.com"
+    back = other().post("/api/auth/login",
+                        json={"email": "ian@example.com", "password": GOOD})
+    assert back.status_code == 200 and back.json()["user_id"] == first["user_id"]
 
 
 def test_a_taken_email_is_refused(client):

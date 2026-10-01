@@ -55,8 +55,11 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
-- **Trending searches**: the focused, empty search box offers 5-10 searched
-  episodes still current (`/api/searches/trending`); cache only. [trending-searches]
+- **Trending searches**: under the search bubbles, the 5-10 questions most
+  searched in the last 2h whose episodes are still current; cache only (§190). [trending-searches]
+- **Search is Google's shape** (§190): mic and attach inside the bar's right;
+  Length and Voice bubbles never print the choice; length back to 2 min on
+  every return to the app. [search-bar]
 - A search is spell-corrected whole at send; its title never shows a
   misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
@@ -78,6 +81,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   episodes; myFAM's header button searches other people's cached episodes;
   Messages is a tab where Explore was; Explore is the "What users are
   searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
+
+- **The player is Spotify's layout** (§190): down arrow, picture behind the
+  title, sources by it, GO DEEPER pill, captions sheet slid up, a ⋯ menu; no
+  "exclude from taste" (§171); the searcher shown only if `searches_public`. [player-layout]
+- **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
+  tile's ⋯; client state only; plays before the grid. [queue]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
@@ -212,7 +221,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
   are actionable sentences; an attached episode is **never cached**. [op-attachments]
-- Identity: server-minted session; account = credentials on that id; listening
+- Identity: server-minted session; account = credentials on that id, never
+  the device - a signed-in browser's sign-up gets a fresh id (§190); listening
   works with no account; email/phone/Google/Apple; **no delivery** means no
   password reset or verification - say so. [op-identity]
 
@@ -228,7 +238,7 @@ Audio and the opening
 - **Duration is a ceiling, not a quota** - end early rather than pad (`ALLOW_TOPUPS=1` restores). [duration-ceiling]
 - **Two transport gestures, both stay**: draggable bar (clamped to what is
   written) and ±15s. One transport: `setPlayState` alone moves audio and redraws
-  all four players. Leaving the player never stops it; X minimises; `placeNowBar`. [transport]
+  all four players. Leaving the player never stops it; the down arrow minimises; `placeNowBar`. [transport]
 - **Nothing speaks before its material has arrived, and no setting buys that
   back**: the writer holds brief and evidence before its first token; no tools
   on the speaking call; EI on every episode. Only work *before* the tap may be
@@ -349,7 +359,8 @@ Accounts, tiers, sharing
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends; a shared episode plays for anyone (only what was shared). [waitlist-gate]
+  friends; a shared episode plays for anyone (only what was shared); the landing
+  page plays the three sign-up samples as replays (§190). [waitlist-gate]
 - **Tiers are built and switched off** (`ENFORCE_QUOTAS=0`) - no checkout means no wall. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
