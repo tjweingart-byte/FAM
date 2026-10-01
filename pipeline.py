@@ -1482,7 +1482,8 @@ class PodcastPipeline:
             # that moment and never handed to somebody asking about it now.
             ttl = ttl_for(plan.query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
-                          recency_days=notes.recency_days)
+                          recency_days=notes.recency_days,
+                          live_domain=getattr(notes, "live_domain", ""))
         if writes and ttl <= 0 and settings.cache_life_seconds <= 0:
             # `CACHE_LIFE_SECONDS=0` is the pre-§143 cache: a never-current
             # episode is not written at all, and whatever the key held stays.

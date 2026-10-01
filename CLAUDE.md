@@ -41,7 +41,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
+  sends the corrected words, §165; mic beside attach, §181), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
@@ -55,6 +55,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
+- **Trending searches**: the focused, empty search box offers 5-10 searched
+  episodes still current (`/api/searches/trending`); cache only. [trending-searches]
+- A search is spell-corrected whole at send; its title never shows a
+  misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
   server's marks, each ≥2s, audio held to the fifth; a replay skips them (§148). [search-no-cover]
@@ -133,7 +137,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   taste, fatigue, engagement or learned order. Its cards carry no place; its
   View more is grouped by continent, Worldwide first, no Antarctica (§174).
   Crowd rails hold cached episodes only (§141); friends rail reads the follow
-  graph and is empty rather than strangers. `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
+  graph and is empty rather than strangers, and ends in "Find new friends" (§181). `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
 - **Taste model** (§121/§122/§126): share, vibe and save are signals;
   `ENGAGEMENT_WEIGHT` is global per tile, bounded, never on `rank_most_played`
@@ -260,7 +264,7 @@ Caching and prefetch
   the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
 - **TTL comes from what the script was built on, never from the question's
   words** - live status → `outcome_dependent` → window → keyword floor;
-  `in_progress` = never current. Do not fix by adding keywords. Prefetch never
+  `in_progress` = never current, nor a sports result short of `final` (§181). Do not fix by adding keywords. Prefetch never
   calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
   edition is the stated exception). [ttl-from-evidence]
 - **Duration buys depth, not words** (`DEPTH_BANDS`); shapes, never boxes; a beat

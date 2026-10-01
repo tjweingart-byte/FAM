@@ -4019,6 +4019,10 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             "empty_reason": (world_reason if key == "world_trending"
                              else _empty_reason(key, bool(circle))
                              if not picked[key] else ""),
+            # Whether they follow anybody, for the friends rail only: with
+            # nobody followed the page draws the "Find new friends" pill in
+            # place of a sentence (10.1 #2).
+            **({"has_circle": bool(circle)} if key == "followers" else {}),
         }
         for key, title in SECTIONS
     ]

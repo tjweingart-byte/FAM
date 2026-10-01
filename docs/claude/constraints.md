@@ -765,6 +765,10 @@
   keyword list as the floor for paths that have none of those — and `0` means
   do not cache, which is what `in_progress` returns, because no TTL is short
   enough for a score. Ordinary static content is untouched.
+  > **Current:** in the **sports** domain an outcome-dependent episode that
+  > is not `final` is never current either *(§181, at the owner's
+  > direction: no cached scores or game updates)*; the domain is EI's
+  > `live_domain`, carried on `ScriptNotes`, never the words.
   The plumbing is the part that is not obvious: the pipeline holds the
   **unprepared** plan at the write site, so the volatility facts come home on
   `ScriptNotes` alongside `thread` and `research`.

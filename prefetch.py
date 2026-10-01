@@ -752,7 +752,8 @@ class Prefetcher:
             # prefetcher that publishes staleness.
             ttl = ttl_for(candidate.query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
-                          recency_days=notes.recency_days)
+                          recency_days=notes.recency_days,
+                          live_domain=getattr(notes, "live_domain", ""))
             if ttl <= 0:
                 self.ledger.skipped_volatile += 1
                 log.info("prefetch wrote nothing for %r: it does not keep",

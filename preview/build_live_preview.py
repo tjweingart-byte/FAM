@@ -1260,6 +1260,23 @@ __WRITING_SIM__
     }
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
+    // The search box's trending searches (10.1 #3): searched episodes still
+    // current, most played first, one per question - as the server reads them.
+    if (path === "/api/searches/trending") {
+      var seenQ = {};
+      return json({ searches: rows("scripts")
+        .filter(function (s) { return s.expires > now() && s.origin === "search"
+                                      && (!s.current_until || s.current_until > now()); })
+        .sort(function (a, b) { return (b.hits || 0) - (a.hits || 0); })
+        .filter(function (s) {
+          var k = String(s.query).toLowerCase().trim();
+          if (!k || seenQ[k]) return false;
+          seenQ[k] = true; return true;
+        })
+        .slice(0, 8)
+        .map(function (s) { return { query: s.query, title: s.title || "",
+                                     spelled: s.query, minutes: s.minutes }; }) });
+    }
     if (path === "/api/interest") {
       return json(interestBody(qs.get("id") || "", qs.get("label") || "",
                                qs.get("filter") || "latest",

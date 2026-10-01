@@ -3362,6 +3362,11 @@ def main() -> int:
             page.evaluate("setTab('home')")
             page.wait_for_timeout(200)
             page.fill("#searchInput", "what the evidence says about longevity")
+            # Typing asks the speller about each word as it is finished, so by
+            # the send every word is known and the search goes out at once
+            # (10.1 #4); `fill` types nothing, so the words are asked here.
+            page.evaluate("Promise.resolve(acCorrectQuestion("
+                          "'what the evidence says about longevity'))")
             # All three taps in one go, because that is the case: the second
             # and third land while the first is still in flight. The preview
             # answers instantly, so pausing between them would be measuring
@@ -3385,6 +3390,60 @@ def main() -> int:
                 "request(s); a replay costs nothing and must not be blocked")
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
+
+        def a_search_is_corrected_when_it_is_sent():
+            """10.1 #4: the last word of a search was never corrected, because
+            the word-by-word pass waits for something after a word and a
+            search is sent straight after its last one. And the title never
+            shows a misspelling, even of a word the listener put back."""
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(200)
+            # The title as the search hands it over, before the episode's own
+            # title replaces it.
+            page.evaluate("""() => {
+                window.__sentTitles = [];
+                if (!window.__titleSpy) {
+                    window.__titleSpy = true;
+                    var inner = window.generate;
+                    window.generate = function (k) {
+                        if (k === "_custom") window.__sentTitles.push(TOPICS._custom.title);
+                        return inner.apply(this, arguments);
+                    };
+                }
+            }""")
+            page.fill("#searchInput", "the goverment and the leage")
+            page.evaluate("runSearch()")
+            page.wait_for_function(
+                "TOPICS._custom && TOPICS._custom.prompt.indexOf('league') > -1",
+                timeout=3000)
+            t = page.evaluate("({p: TOPICS._custom.prompt, t: __sentTitles[0]})")
+            assert t["p"] == "the government and the league", t
+            assert "League" in t["t"] and "Leage" not in t["t"], t
+            # Put back with a backspace: the question keeps it, the title not.
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home');"
+                          " AC_REVERTED['leage'] = true")
+            page.fill("#searchInput", "the leage")
+            page.evaluate("runSearch()")
+            page.wait_for_function("TOPICS._custom.prompt === 'the leage'",
+                                   timeout=3000)
+            title = page.evaluate("__sentTitles[1]")
+            assert title == "The League", title
+            page.evaluate("delete AC_REVERTED['leage']; stopSpeech(); clearGenOverlay()")
+            page.wait_for_timeout(150)
+
+        def trending_searches_show_on_focus():
+            """10.1 #3: tapping the empty search box shows what other people
+            searched that would play now, and typing hides it."""
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.fill("#searchInput", "")
+            page.focus("#searchInput")
+            page.wait_for_selector("#trendSearches .trend-chip", timeout=3000)
+            n = page.evaluate("document.querySelectorAll('#trendSearches .trend-chip').length")
+            assert 1 <= n <= 10, f"{n} trending searches"
+            page.type("#searchInput", "x")
+            assert not page.is_visible("#trendSearches"), "typing did not hide them"
+            page.fill("#searchInput", "")
+            page.evaluate("document.activeElement.blur()")
 
         def limit_screen_offers_an_upgrade():
             """Reaching a limit says which limit, and opens a way past it.
@@ -3694,6 +3753,8 @@ def main() -> int:
         check("The loading screen checks off five steps",
               the_loading_screen_checks_off_five_steps)
         check("One tap sends one request", one_tap_is_one_request)
+        check("A search is corrected when it is sent", a_search_is_corrected_when_it_is_sent)
+        check("Trending searches show on focus", trending_searches_show_on_focus)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
         check("Save for Later lists the shelf", save_for_later_lists_the_shelf)

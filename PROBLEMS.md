@@ -14057,3 +14057,67 @@ each fixed with a test:
   on an empty NBA schedule); the sweep keeps 24 signals across ten sports;
   and `/admin` also lists any sport spending today that `API_SPORTS_SPORTS`
   leaves out.
+
+## 181. The 10.1 packet, second set: Go Deeper, friends, trending searches, autocorrect
+
+The second set of the 10.1 implementations, in its order.
+
+**1. Go Deeper is yellow and in capitals.** The pill on the player, Play All
+and Explore (`.go-deeper-pill`) is drawn on `--deeper` (#FFD23F) with dark
+text, and reads GO DEEPER. The modal it opens is unchanged.
+
+**2. Find new friends on myFAM.** The friends rail ("What your friends are
+listening to") ends in the same pill as YourFAM's "Find new friends", opening
+the same page (`openFriends`, which sends a guest to sign-up). When the
+listener follows nobody it replaces the sentence; when they follow people
+whose episodes are not cached yet the sentence stays and the pill is under
+it; when there are episodes, it is under the rail. The feed now says
+`has_circle` on the followers section so the page can tell those apart.
+
+**3a. The mic is on the attach line.** The voice-search mic was a 64px ring
+under the controls. It is now a 36px button beside attach, the same size and
+style, still hidden where speech recognition is not available.
+
+**3b. Trending searches.** Focusing the empty search box draws up to eight
+(`TRENDING_SEARCHES_MAX`) chips under "Trending searches", from
+`/api/searches/trending`: searched episodes in the shared cache (the same
+`origin = "search"` rule as Explore) that a new request would still be
+served (`current`), most played first, one per question (`normalize_query`),
+no explicit episode. A tap is a search for that question at the length its
+episode was written for, so it lands on the episode already written - which
+is the point: more searches served from the cache inside its timeline. The
+endpoint reads the cache only; it never generates, and an empty list draws
+nothing rather than anything else.
+
+*No cached scores or game updates.* Before this, a sports question asking
+for a result with no live provider answer was current for the volatile
+window (two hours), so a score heard at 1pm was served to a search at 2pm.
+`ttl_for` now takes `live_domain` (EI's, carried on `ScriptNotes` like
+`outcome_dependent`): in sports, an outcome-dependent episode that is not
+`final` is never current. `in_progress` already was. A `final` keeps its
+window (that result does not move), and a preview (`scheduled`, not asking
+for a result) keeps its two hours. Never-current episodes are still kept and
+replayable (§143) - they just cannot be served to a new search, and so never
+appear as a trending search.
+
+**4. Autocorrect that works, and titles that are spelled.** The speller
+itself was fine - measured here it fixes "elecion", "happend", "yesturday",
+"pirce" and leaves "bitcoin" and "Messi" alone. The page was the fault: the
+word-by-word pass (§142) asks about a word only when something is typed after
+it, and a search is sent with the return key or the arrow, so **the last word
+of every search was never corrected** - and search questions are short, so
+that was usually the misspelled one. Now `runSearch` corrects the whole
+question as it is sent (`acCorrectQuestion`): words already answered come
+from memory, the rest go in one `/api/spell` request, and the send waits at
+most `AC_SEND_WAIT_MS` (700ms) before going with what it has. A pause in
+typing pre-asks the word being typed, so the usual send waits for nothing -
+a spell lookup only; the typing-pause prefetch stays removed.
+
+The title never shows a misspelling, whatever happened to the question: the
+question keeps a word the listener put back with a backspace, but the
+provisional title takes every correction; EI's brief title and the writer's
+`<<TITLE:>>` are told to be spelled correctly even when the request was not;
+and wherever a title is made from a stored question (Explore's untitled
+cards, a trending chip) it goes through `autocorrect.correct_text`.
+**Unverified here:** no API key, so the EI and writer instruction is
+untested against a model; the rest is pinned in `tests/test_packet_1001.py`.
