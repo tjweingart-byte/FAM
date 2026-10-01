@@ -799,7 +799,9 @@ Work out:
   happened with the fed yesterday" is not a title, "The Fed's Rate Call and
   Who It Hurts" is, and "A Pause With Consequences" is too vague to tap. No question
   mark, no colon, and never a result, a score or a winner: you have not
-  looked anything up.
+  looked anything up. **Spelled correctly** even when the request is not -
+  "elecion" is the election, and a misspelled name is spelled the way its
+  owner spells it.
 - **pronounce** - the names in the request or in your resolved subject that a
   voice reading English spelling would probably say wrong: people, places,
   teams, companies whose spelling does not tell an English reader how to say

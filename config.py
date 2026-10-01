@@ -497,7 +497,7 @@ class Settings:
 
     # --- world trending --------------------------------------------------
     # The myFAM row that says what the *world* is paying attention to, as
-    # opposed to "What FAM can't stop listening to", which is this app's own play
+    # opposed to "Most played episodes today", which is this app's own play
     # counts. A different subsystem from live facts on purpose - see
     # `trending.py`: one changes what is offered, the other what is said.
     #
@@ -898,13 +898,31 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "API_SPORTS_SPORT", "american-football").strip())
     # API-Sports' daily request allowance, shared by the story sweep and the
-    # live lookups episodes make (§135). 100 is the free tier. The sweep is
-    # paced to spend what is left evenly over what is left of the UTC day -
-    # about every fourteen minutes for one sport on the free tier - so the
-    # scores on myFAM are as fresh as the plan allows and the quota is never
-    # spent by lunchtime. Counted per process: a deployment running several
-    # workers should divide its plan between them.
-    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 100)
+    # live lookups episodes make (§135). The sweep is paced to spend what is
+    # left evenly over what is left of the UTC day, less a reserve for the
+    # lookups. Counted per process, and checked against the count API-Sports
+    # reports on every answer.
+    # **Per sport** since §180: API-Sports counts each product separately, so
+    # each sport has its own day. 0 means the sport's plan (below); a number
+    # is a ceiling of its own, for several workers sharing one plan.
+    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 0)
+    # Each sport's plan (§180): `free` (100/day), `pro` (7,500), `ultra`
+    # (75,000) or `mega` (150,000). API_SPORTS_TIER is every sport's;
+    # API_SPORTS_TIERS names the ones that differ ("hockey=pro,football=ultra").
+    # Buying a plan is done on API-Sports' dashboard, per sport; this only
+    # tells FAM what was bought. The admin page warns when the two disagree.
+    api_sports_tier: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_TIER", "free").strip())
+    api_sports_tiers: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_TIERS", "").strip())
+    # Which API-Sports products this deployment uses. Empty is all ten.
+    api_sports_sports: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_SPORTS", "").strip())
+    # A share of each sport's day the myFAM sweep leaves untouched for
+    # episodes' own lookups (§180). 0 keeps §135's direction - the sweep paces
+    # itself over the whole allowance, and a lookup borrows from later sweeps.
+    # Raise it if lookups are refused late in the day (/admin shows it).
+    api_sports_lookup_reserve: float = _env_float("API_SPORTS_LOOKUP_RESERVE", 0.0)
     sportsdataio_key: str = field(
         default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
     finnhub_key: str = field(

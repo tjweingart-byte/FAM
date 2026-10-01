@@ -488,6 +488,12 @@ class ScriptNotes:
     outcome_dependent: bool = False
     #: How fresh the evidence had to be, in days. 0 means evergreen.
     recency_days: int = 0
+    #: Which live-fact domain EI put the request in ("sports", ...), or "".
+    #: A sports result that is not final is never current (`cache.ttl_for`).
+    live_domain: str = ""
+    #: EI's reading of what is being asked (`Brief.intent`). With the domain,
+    #: says whether this is a sports score or game update (`cache.ttl_for`).
+    intent: str = ""
     #: When the information this episode is written from was sourced - the
     #: moment retrieval and the live lookup both answered (§143). Stored
     #: beside the script, shown on replay surfaces, and the clock its
@@ -995,7 +1001,7 @@ no question mark. Clear first, curious second: name the actual subject plainly
 (the person, team, company, place or event), so nobody reading it cold wonders
 what it could be about, and let the angle make them want to hear what the
 episode says about it - "Why the Fed Held Rates Again", not "A Pause With
-Consequences":
+Consequences". Spell it correctly, even where the question was misspelled:
 
 <<TITLE: three to eight words>>
 
@@ -1464,6 +1470,8 @@ class ScriptGenerator:
             notes.outcome_dependent = bool(
                 getattr(plan.brief, "outcome_dependent", False))
             notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
+            notes.live_domain = str(getattr(plan.brief, "live_domain", "") or "")
+            notes.intent = str(getattr(plan.brief, "intent", "") or "")
             if plan.live is not None:
                 notes.live_status = plan.live.status
                 notes.live_outcome = plan.live.outcome

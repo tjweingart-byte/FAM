@@ -13984,7 +13984,250 @@ cost at most one edition's writers twice, at the batch rate. The v2 pod route
 blocked from this container. Check it with a real key:
 `curl -s -H "Authorization: Bearer $RUNPOD_API_KEY" https://api.runpod.io/v2/pods | head -c 400`.
 
-## 180. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox
+## 180. Ten sports, a plan per sport, and calls per sport on /admin
+
+The owner: wire in soccer, American football, basketball, baseball, hockey,
+rugby, volleyball, F1, MMA and AFL; keep them all on the free tier; make it
+possible to choose each sport's plan later; and show on `/admin` how much each
+sport is called, because API-Sports bills by sport.
+
+**Ten products.** `live_sources.SPORTS` gains hockey, rugby, volleyball, AFL
+(games between two teams, like the four already there), Formula 1 (`kind =
+race`) and MMA (`kind = fight`). A race is found on the season's calendar by
+the Grand Prix's name or place, else the one under way, just run, or next;
+a finished one is said with its podium from `/rankings/races` (one more
+request, only when it has finished). A fight is found on today's card by a
+fighter's name, and its winner is only ever the one the provider marks. AFL's
+`score` beside goals and behinds and hockey's plain numbers are read.
+Routing is by whole sport words ("f1" is not in "f150"), then by a team named
+in a league catalogue already held, never by a request; the sweep reads each
+team league's catalogue once a day for that. NBA, NHL and MLB now carry team
+records, last and next games like the NFL (§178), each season named the way
+its API names it (`season_of`: "2025-2026" for basketball). **Unverified:**
+the hosts are blocked here, so status codes, league ids (NBA 12, NHL 57,
+MLB 1) and the race and fight shapes are from API-Sports' documentation as
+far as it could be read; a code not listed is `unknown` and says nothing.
+
+**A plan per sport.** Each sport has its own `RequestBudget`
+(`budget_for(sport)`, chosen from the request's host), its own daily
+allowance from its plan (`TIERS`: free 100, pro 7,500, ultra 75,000, mega
+150,000; `API_SPORTS_TIER` for every sport, `API_SPORTS_TIERS` for the ones
+that differ), and its own sweep pace - a sweep takes only the sports that are
+due. Every answer's `x-ratelimit-requests-limit/remaining` headers are read:
+API-Sports' own count covers every worker and bounds ours, and a plan it
+reports that is not the configured one is flagged. `verify` asks every
+sport's `/status` and prints each plan. `API_SPORTS_DAILY_REQUESTS` is now a
+per-sport ceiling below the plan (0, the new default, is the plan's own), and
+`API_SPORTS_LOOKUP_RESERVE` can hold a share of each day back from the sweep
+for episode lookups - 0 by default, keeping §135's direction that the sweep
+paces itself over the whole allowance. The steps for changing a sport's plan
+are in `docs/SCALING_TIMELINE.md` section 6: buy it on API-Sports' dashboard,
+set `API_SPORTS_TIERS`, redeploy, check the sport's row on `/admin`.
+
+**Calls per sport on /admin.** `provider_usage.record(provider, ok, detail)`
+counts a request against the provider and, for API-Sports, against
+`api_sports/<sport>` as well. The API-Sports row says it is billed per sport,
+and under it each enabled sport has its own row: today (and failures),
+yesterday, the seven-day average, its plan and allowance, the next plan and
+its price, and what API-Sports last reported left.
+
+**Review, before merging into Main.** An independent pass found five faults,
+each fixed with a test:
+
+* *A practice session was "the race".* The sweep asked for every session on
+  the day, so a Friday practice marked completed made the Grand Prix "finished".
+  It asks for the race only, and a row that is not the race says nothing.
+* *"Rugby World Cup" went to soccer.* Several sports share event names, and
+  the first in the table won. The sport whose own name is said now wins.
+* *The new sports ranked as minor leagues on myFAM.* The NHL, AFL and the big
+  rugby competitions are major; every Formula 1 race is; a fight is when it is
+  on a UFC card (`is_major_event`).
+* *One failing sport was silent* while any other answered - an unsubscribed
+  product would fail every sweep unseen. Each failure is logged, kept in
+  `story_sources.SPORT_FAILURES` until that sport succeeds, and named in the
+  source's report.
+* *The old guidance silently stopped working.* `API_SPORTS_DAILY_REQUESTS=7500`
+  for a Pro plan is a ceiling now; with no tier set it would cap at 100. It is
+  logged as an error naming `API_SPORTS_TIERS`.
+* Also: tier settings are parsed once, not on every count; fighters and races
+  are matched by whole name ("will" is not "Williams"); a fight is looked for
+  on yesterday's card too, because a US card ends after midnight UTC; a
+  finished race's podium is read once; team records are only fetched for the
+  league they are counted in (a EuroLeague game no longer spends two requests
+  on an empty NBA schedule); the sweep keeps 24 signals across ten sports;
+  and `/admin` also lists any sport spending today that `API_SPORTS_SPORTS`
+  leaves out.
+
+## 181. The 9.30 interface packet: sign-up samples, myFAM search, Messages as a tab, Explore as a rail, the player's (+)
+
+The owner's "first set of implementations" (Evan and Ethan's advice day), in
+its order.
+
+**1a. Samples on the sign-up screen.** The welcome screen rotates through
+today's three most-played episodes, one card at a time, every 4.5 seconds
+(dots to pick one). `/api/welcome` is the top of `rank_most_played`, the same
+ranking as the myFAM rail, cut to `WELCOME_SAMPLES` and filtered to episodes
+whose **audio is kept** - the person reading this screen has no account, and
+the guest rule (`_guest_play_gated`: a guest tap plays kept audio or nothing)
+is applied before the tap instead of after it. A tap plays it replay-only
+(`cached_only`), the way Explore plays a card, so it can write nothing and
+wake no voice. With nothing kept the samples are hidden, never padded.
+Leaving the player still never stops it (§142): a tap on the sample already
+playing brings its player back.
+
+**1b. The sign-up screen's heading** is "Listen to anything you want to know
+about" (was "Ask anything. Hear the answer.").
+
+**2a. myFAM's header button searches.** The messages button in myFAM's top
+right is a search button now, opening **Search myFAM**
+(`screen-myfamsearch`): type anything and the cached episodes other people
+made that are most like it come up, ready to play. `/api/myfam/search`
+reads the shared cache (`recent(400, exclude_author=listener)`, every
+surface - a myFAM tile somebody else tapped is as much "made by others" as a
+search) and ranks with `cache.rank_similar`: the share of the typed words
+(stopwords aside) found in the question and title, then the embedding
+cosine, then plays; an entry with no word in common needs a cosine of
+`SEARCH_MIN_COSINE`, which only the semantic embedder reaches. Vectors are
+memoised per key. Results play replay-only. Nothing found offers "Search FAM
+for it", which hands the words to searchFAM. The "Search FAM" bar under
+myFAM's header is **removed**.
+
+**2b. Messages is a tab** in the place Explore had, on every copy of the tab
+bar, and has a bar of its own (six tab bars now). It carries the unread
+count (`data-msg-badge`), which had moved to YourFAM's tab while messages
+lived behind the profile; `closeMessages` is gone with the sheet.
+
+**2c. Explore is a myFAM rail.** "What users are searching" sits right under
+Made for you, one tile - "Start scrolling" - that opens Explore exactly as
+the tab did. Drawn client-side (`searchingRailHTML`), because it holds no
+episodes of its own. Explore keeps its own root on the stack (the rules
+that keep its reels apart from the mini player read `stack[0]`), lights
+myFAM's tab, and has a back arrow to myFAM.
+
+**2d. "Most played episodes today"** replaces "What FAM can't stop listening
+to", and `MOST_PLAYED_WINDOW` is **24 hours** (was thirty days), ranked by
+total listens as before - a finished listen once, by question.
+
+**3a. The player's (+)**, top right of the stage: "Add [topic] to a DailyFAM
+mix", every mix the listener has, and "+ Create new playlist" (named in the
+modal, prefilled with the topic). A mix follows subjects, never episodes
+(§137), so the episode is added as its **topic**: `/api/episode/topic` runs
+`topics.episode_subject` over the question and title - a `FOCUS_HINTS`
+specific named in the text, first named first (`f:nfl~Eagles`), else a
+catalogue subject named by its label, else one whose subtag the text
+carries, else the subject standing for its facet (`FACET_SUBJECT`) - and
+when nothing matches, the episode's title becomes a typed topic. Already in
+the mix says so rather than saving. A guest is offered sign-up / log in.
+
+**3b. Sources moved** from the stage's top right to its top left.
+
+**Unverified here:** how the samples, the search and the (+) feel on a
+phone, and whether `episode_subject`'s picks match what listeners mean -
+it is words, not a model, and "Giants" or "Kings" name more than one team.
+
+**Review, before merging into Main.** A pass over the whole diff found:
+
+* *The search's memo was keyed on the cache key alone*, and a re-written
+  episode keeps its key with a new title - so it kept its old vector. Keyed
+  on the key and the words now.
+* *The first search could stall the server.* With the semantic embedder the
+  first search embeds every entry it has not seen, on the event loop. It
+  runs in a thread now (`asyncio.to_thread`).
+* *Leftovers of the old Messages sheet*: `.screen.sheet`, `.msg-dot` and the
+  header button's `myfam-msg-btn` name (it searches now: `myfam-head-btn`,
+  `#myfamSearchBtn`). The `sheet-in` animation stays for voice search.
+## 182. The 10.1 packet, second set: Go Deeper, friends, trending searches, autocorrect
+
+The second set of the 10.1 implementations, in its order.
+
+**1. Go Deeper is yellow and in capitals.** The pill on the player, Play All
+and Explore (`.go-deeper-pill`) is drawn on `--deeper` (#FFD23F) with dark
+text, and reads GO DEEPER. The modal it opens is unchanged.
+
+**2. Find new friends on myFAM.** The friends rail ("What your friends are
+listening to") ends in the same pill as YourFAM's "Find new friends", opening
+the same page (`openFriends`, which sends a guest to sign-up). When the
+listener follows nobody it replaces the sentence; when they follow people
+whose episodes are not cached yet the sentence stays and the pill is under
+it; when there are episodes, it is under the rail. The feed now says
+`has_circle` on the followers section so the page can tell those apart.
+
+**3a. The mic is on the attach line.** The voice-search mic was a 64px ring
+under the controls. It is now a 36px button beside attach, the same size and
+style, still hidden where speech recognition is not available.
+
+**3b. Trending searches.** Focusing the empty search box draws up to eight
+(`TRENDING_SEARCHES_MAX`) chips under "Trending searches", from
+`/api/searches/trending`: searched episodes in the shared cache (the same
+`origin = "search"` rule as Explore) that a new request would still be
+served (`current`), most played first, one per question (`normalize_query`),
+no explicit episode. A tap is a search for that question at the length its
+episode was written for, so it lands on the episode already written - which
+is the point: more searches served from the cache inside its timeline. The
+endpoint reads the cache only; it never generates, and an empty list draws
+nothing rather than anything else.
+
+*No cached scores or game updates.* Before this, a sports question asking
+for a result with no live provider answer was current for the volatile
+window (two hours), so a score heard at 1pm was served to a search at 2pm.
+`ttl_for` now takes `live_domain` and `intent` (EI's, carried on
+`ScriptNotes` like `outcome_dependent`): in sports, a `recap` or `update` -
+a score or a game update - that is not `final` is never current.
+`in_progress` already was. A `final` keeps its window (that result does not
+move), and a preview keeps its two hours. Never-current episodes are still kept and
+replayable (§143) - they just cannot be served to a new search, and so never
+appear as a trending search.
+
+**4. Autocorrect that works, and titles that are spelled.** The speller
+itself was fine - measured here it fixes "elecion", "happend", "yesturday",
+"pirce" and leaves "bitcoin" and "Messi" alone. The page was the fault: the
+word-by-word pass (§142) asks about a word only when something is typed after
+it, and a search is sent with the return key or the arrow, so **the last word
+of every search was never corrected** - and search questions are short, so
+that was usually the misspelled one. Now `runSearch` corrects the whole
+question as it is sent (`acCorrectQuestion`): words already answered come
+from memory, the rest go in one `/api/spell` request, and the send waits at
+most `AC_SEND_WAIT_MS` (700ms) before going with what it has. A pause in
+typing pre-asks the word being typed, so the usual send waits for nothing -
+a spell lookup only; the typing-pause prefetch stays removed.
+
+The title never shows a misspelling, whatever happened to the question: the
+question keeps a word the listener put back with a backspace, but the
+provisional title takes every correction; EI's brief title and the writer's
+`<<TITLE:>>` are told to be spelled correctly even when the request was not;
+and wherever a title is made from a stored question (Explore's untitled
+cards, a trending chip) it goes through `autocorrect.correct_text`.
+**Unverified here:** no API key, so the EI and writer instruction is
+untested against a model; the rest is pinned in `tests/test_packet_1001.py`.
+
+**Review, before merging into Main.** An independent pass over the diff
+found these, all fixed with a test each except the last:
+
+* *The sports rule caught every sports episode.* It first keyed on
+  `outcome_dependent`, but EI's `gate` sets that for every live-domain brief,
+  so a preview ("upcoming dodgers game") was never current either - §173's
+  two-searches-two-episodes bug back. It keys on the intent now, and the
+  tests build the brief through `gate` rather than passing combinations EI
+  never produces.
+* *A trending chip could be a follow-up.* A Go Deeper follow-up is a search
+  stored under its parent's context; its words asked cold are another key,
+  so the tap missed and wrote a new episode. Only a row whose key is the one
+  a bare search for its words computes is offered (with `CACHE_SEMANTIC_KEY`
+  on, off by default, that cannot be checked without a model call, and rows
+  are offered on trust).
+* *The speller ran on the event loop* in `/api/explore` and
+  `/api/searches/trending`; it runs in a thread now, like `/api/spell`, and
+  only for untitled entries.
+* *A send that waited could fire stale.* Text typed during the wait was
+  sent as it was before and then wiped, and leaving the screen still
+  started the search; either now drops that send.
+* **Unverified, on an iPhone:** when the send waits on the speller, audio
+  starts up to 700ms after the tap rather than inside it. Voice search's
+  auto-send and What's next's countdown already start audio off a timer, so
+  this is believed fine; if a typed search ever sits on the loading screen
+  on iOS, this is where to look.
+
+## 183. The pre-launch waitlist: one account, a server-side gate, and Viral Loops behind an outbox
 
 **What was asked.** A waitlist before launch (the owner's spec, kept verbatim
 in `WAITLIST.md`): a landing page that takes an email, a "Founding FAM member"

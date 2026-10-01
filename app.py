@@ -33,8 +33,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
+import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
-                   is_shareable, parse_episode_id, research_words)
+                   is_shareable, normalize_query, parse_episode_id, research_words)
+import content_filter
 import embeddings
 import learned_rank
 import taste_vectors
@@ -4813,6 +4815,122 @@ def _topic_is_written(query: str, minutes: int) -> bool:
         return False
 
 
+@app.get("/api/episode/topic")
+async def episode_topic(request: Request,
+                        q: str = Query("", max_length=300),
+                        title: str = Query("", max_length=300)) -> dict:
+    """What TOPIC an episode falls into, for the player's (+) (§181).
+
+    The (+) adds the episode's *topic* to a DailyFAM mix - a mix follows
+    subjects, never episodes (§137) - so the answer is a mix entry exactly as
+    `PATCH /api/mixes/{id}` takes it: a followed subject (`f:nfl`,
+    `f:nfl~Eagles`, from `topics.episode_subject`), or, when the episode names
+    no subject the catalogue knows, the episode's title as a typed topic.
+    `label` is what the sheet says: "Add [label] to a DailyFAM mix".
+    Words in, words out: no model call, no cache read.
+    """
+    _read_limit(request)
+    words = (title or "").strip()
+    asked = (q or "").strip()
+    subject, focus = topics_mod.episode_subject(f"{asked} {words}")
+    if subject:
+        ident = "f:" + subject + ("~" + quote(focus, safe="!'()*")
+                                  if focus else "")
+        try:
+            item = mixes_mod.followed_item(ident)
+        except mixes_mod.MixError:
+            item = None
+        if item is not None:
+            return {"id": item.id, "label": focus or item.topic_label,
+                    "title": item.title}
+    typed = (words or asked)[:mixes_mod.MAX_QUERY]
+    if not typed:
+        return {"id": "", "label": "", "title": ""}
+    return {"id": "", "query": typed, "label": typed, "title": typed}
+
+
+@app.get("/api/myfam/search")
+async def myfam_search(request: Request,
+                       q: str = Query("", max_length=200),
+                       limit: int = Query(12, ge=1, le=30)) -> dict:
+    """myFAM's search button (§181): the cached episodes, made by other
+    listeners, most like what was typed.
+
+    A read of the shared cache and nothing else - like Explore it cannot
+    cause anything to be written, and a result is played replay-only. Every
+    surface's episodes are searched (a myFAM tile somebody else tapped is as
+    much "made by others" as a search), the listener's own are left out, as
+    Explore leaves them out, and archived rows never appear (`recent`).
+    Ranked by `cache.rank_similar`.
+    """
+    _read_limit(request)
+    words = (q or "").strip()
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if not words or store is None:
+        return {"episodes": []}
+    listener = _listener(request)
+    now = time.time()
+    try:
+        entries = store.recent(400, exclude_author=listener)
+    except Exception:  # noqa: BLE001 - a search box is never worth a 500
+        log.exception("could not read the cache for a myFAM search")
+        return {"episodes": []}
+    # Off the event loop: with the semantic embedder the first search embeds
+    # every entry it has not seen, which is CPU work no other request should
+    # wait behind.
+    ranked = await asyncio.to_thread(cache_mod.rank_similar, words, entries, limit)
+    episodes = []
+    for entry in ranked:
+        episodes.append({
+            "query": entry["query"],
+            "title": entry.get("title")
+                     or (entry["query"][:1].upper() + entry["query"][1:]),
+            "minutes": entry["minutes"],
+            "plays": entry.get("plays", 0),
+            "sourced_age_seconds": max(
+                0.0, now - (entry.get("sourced_at") or entry.get("created") or now)),
+            "explicit": bool(entry.get("explicit")),
+        })
+    return {"episodes": episodes}
+
+
+#: How many of today's most-played episodes the sign-up screen rotates
+#: through (§181, the 9.30 interface packet).
+WELCOME_SAMPLES = 3
+
+
+@app.get("/api/welcome")
+async def welcome_samples(request: Request) -> dict:
+    """The sign-up screen's samples: the top of "Most played episodes today".
+
+    The same ranking as the rail (`topics.rank_most_played`, total listens in
+    the last twenty-four hours), cut to `WELCOME_SAMPLES`, and only episodes
+    whose **audio is kept**: the person reading this screen has no account
+    yet, and a tap here must play at once and wake nothing - the guest rule
+    (`_guest_play_gated`) applied before the tap rather than after it. Fewer
+    than three is honest; none means the screen shows no samples at all.
+    No model call, no voice, no listener id in the response.
+    """
+    _read_limit(request)
+    minutes = BROWSE_MINUTES
+    try:
+        ranked = topics_mod.rank_most_played(
+            EVENTS, episode_info=_episode_info_probe(minutes),
+            limit=WELCOME_SAMPLES * 4)
+    except Exception:  # noqa: BLE001 - a sign-up page is never worth a 500
+        log.exception("could not rank the welcome samples")
+        ranked = []
+    samples = []
+    for topic in ranked:
+        if not _audio_is_kept(topic.query, minutes):
+            continue
+        samples.append({"id": topic.id, "title": topic.title,
+                        "query": topic.query, "minutes": minutes})
+        if len(samples) >= WELCOME_SAMPLES:
+            break
+    return {"episodes": samples}
+
+
 @app.get("/api/explorenew")
 async def explore_new(request: Request, interests: str = Query("", max_length=200)):
     """Explore New: episodes adjacent to a taste rather than inside it.
@@ -5528,6 +5646,82 @@ async def episode_stats(request: Request,
     return _episode_stats(_listener(request), q, minutes, key)
 
 
+def _capitalised(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+#: How many trending searches the search box offers when it is focused
+#: (10.1 #3): five to ten, the owner's range.
+TRENDING_SEARCHES_MAX = 8
+#: How far back the cache is read to find them.
+TRENDING_SEARCHES_SCAN = 200
+
+
+@app.get("/api/searches/trending")
+async def trending_searches(request: Request) -> dict:
+    """What other people searched that would play instantly now (10.1 #3).
+
+    Drawn under the search box when it is focused, so a tap is a search that
+    lands on an episode already written. **Only what is current** (`ttl_for`):
+    a search whose episode a new request would not be served is never
+    offered, which is what keeps a score or a game update off this list - an
+    episode built on a sports game that is not over is never current
+    (`cache.ttl_for`'s sports rule). Searched episodes only, like Explore; no
+    attachment is ever cached, a swearing episode is left off, and an empty
+    list is a fact about the deployment, never filled with anything else.
+
+    Reads the cache and nothing else: it costs nothing and generates nothing.
+    """
+    _read_limit(request)
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if store is None:
+        return {"searches": []}
+    entries = store.recent(TRENDING_SEARCHES_SCAN, origin="search")
+    seen: set[str] = set()
+    picks = []
+    # Most played first, newest breaking ties: "trending" is what people
+    # are actually listening to, and `recent` is newest first already.
+    for entry in sorted(entries, key=lambda e: -int(e.get("plays") or 0)):
+        query = (entry.get("query") or "").strip()
+        if not query or not entry.get("current") or entry.get("explicit"):
+            continue
+        if content_filter.scrub(query) != query:
+            continue
+        # Only what a bare search for these words would land on: a Go
+        # Deeper follow-up is stored under its parent's context, so its words
+        # asked cold are a different key - a miss that writes a new episode,
+        # the opposite of what a trending search is for. With the semantic
+        # key on (`CACHE_SEMANTIC_KEY`, off by default) the key needs a model
+        # call to compute, and the row is offered on trust.
+        minutes = int(entry.get("minutes") or 0)
+        if not settings.cache_semantic_key and entry.get("key") not in (
+                cache_key(query, minutes, None, "", True),
+                cache_key(query, minutes, None, "", False)):
+            continue
+        norm = normalize_query(query)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        picks.append({
+            "query": query,
+            # The episode's own title, spelled by the writer - never the
+            # question, which may be misspelled (10.1 #4).
+            "title": entry.get("title") or "",
+            "minutes": minutes,
+        })
+        if len(picks) >= TRENDING_SEARCHES_MAX:
+            break
+    # The question as the speller would have sent it, for a chip with no
+    # title to show (10.1 #4); `query` is still what is asked. Off the event
+    # loop, like `/api/spell`, and only for the untitled.
+    spelled = await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(p["query"]) if not p["title"]
+                 else p["query"] for p in picks])
+    for pick, text in zip(picks, spelled):
+        pick["spelled"] = text
+    return {"searches": picks}
+
+
 @app.get("/api/explore")
 async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     """Episodes other listeners have already generated, newest first.
@@ -5582,6 +5776,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
     # and none of them is on Explore.
     entries = store.recent(limit, exclude_author=listener, origin="search")
+    # An untitled card is titled from its question, through the speller so a
+    # misspelling never becomes a title (10.1 #4) - in a thread, like
+    # `/api/spell`, and only for the cards that need it.
+    untitled = [e["query"] for e in entries if not e.get("title")]
+    spelled = dict(zip(untitled, await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(q) for q in untitled])))
     all_counts = SOCIAL.episode_counts_many(
         [(e["query"], e["minutes"]) for e in entries], listener)
     for entry in entries:
@@ -5594,8 +5794,10 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             # question with a capital letter - which is what every card
             # showed before titles existed, and is still right for an entry
             # written before this column did.
+            # Through the speller, so a misspelled question is never a
+            # card's title (10.1 #4).
             "title": entry.get("title")
-                     or (entry["query"][:1].upper() + entry["query"][1:]),
+                     or _capitalised(spelled.get(entry["query"], entry["query"])),
             "minutes": entry["minutes"],
             # How many times it has actually been played - `scripts.plays`,
             # counted where an episode starts and nowhere that only looks

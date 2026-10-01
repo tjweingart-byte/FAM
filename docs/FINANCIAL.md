@@ -292,7 +292,7 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 | Provider | What FAM uses it for | Current plan in code | Free-tier ceiling | Next tier (list) |
 |---|---|---|---|---|
 | **GNews** | Trending edition only | `GNEWS_DAILY_REQUESTS=90`. Uses about 26 requests per edition, 2 editions/day ≈ **52/day** | 100 req/day, 10 articles per call. For development use; check the terms before charging money. | Essential **€49.99/mo**: 1,000/day, 25 articles |
-| **API-Sports** | Live scores in episodes plus score lines on story cards | `API_SPORTS_DAILY_REQUESTS=100`, shared between both uses, **per process** | 100 req/day, which gives a score about every 14 min for **one** sport | **$19/mo** for 7,500/day; $29 for 75k; $39 for 150k (`PROVIDER_ROLLOUT.md:108`) |
+| **API-Sports** | Live scores in episodes plus score lines on story cards, ten sports | A plan **per sport** (`API_SPORTS_TIER`/`API_SPORTS_TIERS`, §180), each shared between both uses, **per process** | 100 req/day **per sport** on the free plans, a score about every 14 min for each | **$19/mo** for 7,500/day; $29 for 75k; $39 for 150k (`PROVIDER_ROLLOUT.md:108`) |
 | **Finnhub** | Market facts plus market-move story cards | Story source every 900 s (§156; was 1,800); quotes delayed 1,200 s | 60 req/min, **personal / non-commercial** | Paid plan per `PROVIDER_ROLLOUT.md` ($11.99/mo quoted there; verify, since Finnhub's commercial pricing is quote-based). Metered price in code: $0.80 / 1,000 calls (`live_sources.py:961`) |
 | **Polymarket** | Election and prediction facts plus cards | Keyless; source every 1,800 s | Free | n/a |
 | **GDELT** | Retrieval fallback rung, story pool discovery | `GDELT=1`; paced one request per 5.5 s; the story sweep (~32 requests) every 2 h since §156 | Free; **1 request per 5 s per IP**, and Render's outbound IP is shared | n/a: this limit cannot be bought off |
@@ -479,7 +479,7 @@ forced by the one-instance ceiling, not by price.
 | Limit | Where it bites | Action |
 |---|---|---|
 | Free 100/day, **shared** between live facts and story cards | One sport's scoreboard refreshes about every 14 min. A second sport halves it. Episode lookups eat into the same allowance. | **$19/mo (7,500/day)** is the cheapest real upgrade in this report: 75x the allowance. |
-| Counted **per process** | More than one worker multiplies spend | Divide `API_SPORTS_DAILY_REQUESTS` by the number of workers |
+| Counted **per process** | More than one worker multiplies spend | Set `API_SPORTS_DAILY_REQUESTS` to each sport's plan divided by the number of workers; `/admin` shows API-Sports' own count, which covers every worker |
 
 ### 5.8 Finnhub
 

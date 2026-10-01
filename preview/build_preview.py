@@ -347,6 +347,12 @@ def load_fixtures() -> dict:
                         "name": "Attached file", "chars": 4200, "url": "",
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
+        # The search box's trending searches (10.1 #3): the Explore
+        # fixture's questions, most played first, as the server orders them.
+        "/api/searches/trending": {"searches": [
+            {"query": e["query"], "title": "", "spelled": e["query"],
+             "minutes": e["minutes"]}
+            for e in sorted(explore["episodes"], key=lambda e: -e["plays"])]},
         # The thread and the episode's own title, from the same call. Both are
         # written by the model on trailing marker lines and read back out of
         # the cache, so a preview with no Claude has to stand in for both -

@@ -364,6 +364,20 @@
   model call and a GPU, in place of whatever was playing. Removed with nothing
   in its place; the swipe-up gesture still moves through an album and is the
   one the `next-hint` label actually advertises.
+<!-- rule:api-sports-per-sport -->
+- **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
+  direction.)* API-Sports sells and limits each sport as its own subscription
+  on one key, so FAM keeps a budget per sport (`live_sources.budget_for`), a
+  plan per sport (`API_SPORTS_TIER` for all, `API_SPORTS_TIERS` for the ones
+  that differ; everything `free` until something is bought), and a row per
+  sport under API-Sports on `/admin` (`provider_usage.record(..., detail=)`).
+  The provider's own `x-ratelimit-requests-*` count bounds ours and flags a
+  plan it does not report. Buying is done on API-Sports' dashboard first;
+  the setting only says what was bought (`docs/SCALING_TIMELINE.md` section 6
+  has the steps). Ten products are wired; a status code not listed for a
+  sport is `unknown` and says nothing, so an unverified mapping costs a silent
+  game, never a wrong one.
+
 <!-- rule:live-facts -->
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
@@ -751,6 +765,13 @@
   keyword list as the floor for paths that have none of those — and `0` means
   do not cache, which is what `in_progress` returns, because no TTL is short
   enough for a score. Ordinary static content is untouched.
+  > **Current:** in the **sports** domain a score or game update (EI's
+  > `recap` or `update` intent) that is not `final` is never current either
+  > *(§182, at the owner's direction: no cached scores or game updates)*;
+  > domain and intent are EI's, carried on `ScriptNotes`, never the words.
+  > Not keyed on `outcome_dependent`, which `gate` sets for every
+  > live-domain brief - a preview keeps §173's two hours. The DailyFAM
+  > edition passes neither, as the stated exception.
   The plumbing is the part that is not obvious: the pipeline holds the
   **unprepared** plan at the write site, so the volatility facts come home on
   `ScriptNotes` alongside `thread` and `research`.
@@ -860,7 +881,7 @@
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
   > account is not `active` - guests included - at the owner's direction
-  > (§180, rule `waitlist-gate` below). Everything in this rule holds again
+  > (§183, rule `waitlist-gate` below). Everything in this rule holds again
   > the moment the waitlist is switched off at launch.
   Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
@@ -915,7 +936,7 @@
   to by accident.
 <!-- rule:waitlist-gate -->
 - **Before launch the app is closed to everyone but `active` accounts, and the
-  server enforces it.** *(PROBLEMS.md §180, WAITLIST.md, at the owner's
+  server enforces it.** *(PROBLEMS.md §183, WAITLIST.md, at the owner's
   direction.)* `WAITLIST=1` (set in the dashboard, never in `render.yaml`, so
   a merge cannot close the app by accident) sends guests and waitlisted
   accounts to `/waitlist` and answers their API calls 403 with

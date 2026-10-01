@@ -94,6 +94,7 @@ FAM_ENVIRONMENT = (
     "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
     "STORIES_BACKGROUND_SECONDS", "STORIES_NEWS_INTERVAL_SECONDS",
     "STORIES_MARKETS_INTERVAL_SECONDS", "API_SPORTS_DAILY_REQUESTS",
+    "API_SPORTS_TIER", "API_SPORTS_TIERS", "API_SPORTS_SPORTS", "API_SPORTS_LOOKUP_RESERVE",
     "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
     "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
@@ -432,6 +433,23 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     provider_usage.reset()
     yield
     provider_usage.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_api_sports(monkeypatch):
+    """API-Sports' per-sport budgets and caches (§180) are process-globals:
+    one test's spending, schedules or catalogues must not be the next one's."""
+    import live_sources
+
+    monkeypatch.setattr(live_sources, "BUDGETS", {})
+    monkeypatch.setattr(live_sources, "TEAMS", {})
+    monkeypatch.setattr(live_sources, "SCHEDULES", {})
+    import story_sources
+
+    monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
+    monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
+    yield
 
 
 @pytest.fixture(autouse=True)

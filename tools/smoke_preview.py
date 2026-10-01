@@ -211,10 +211,16 @@ def main() -> int:
             """
             page.evaluate("openMyFamTab()")
             page.wait_for_selector(".feed-rail .seed-card", timeout=10000, state="attached")
-            rails = page.eval_on_selector_all(".feed-section", "e => e.length")
+            rails = page.eval_on_selector_all(
+                '.feed-section:not([data-section="searching"])', "e => e.length")
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
+            # "What users are searching" (§181), Explore's way in, sits right
+            # under Made for you; it is drawn by the page, not a server rail.
+            assert len(titles) > 1 and titles[1].strip() == "What users are searching", \
+                f"the What users are searching rail is not under Made for you: {titles}"
+            titles = titles[:1] + titles[2:]
             # Trending is second, in the slot Explore New used to hold. It was
             # last, where a row nobody scrolls to is a row nobody reads, and it
             # is the one rail here with a reason to be looked at *today*.
@@ -231,7 +237,7 @@ def main() -> int:
             assert [t.strip().replace("\n", " ") for t in titles[1:]] == [
                 "Trending",
                 "What you missed last week",
-                "What FAM can't stop listening to",
+                "Most played episodes today",
                 "What your friends are listening to",
             ], f"the rails are not the ones the packet asks for: {titles}"
             # Every rail now opens its own full-length view from the card at
@@ -559,7 +565,7 @@ def main() -> int:
         def your_fam_is_messages_and_only_messages():
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(500)
-            page.click("#screen-myfam .myfam-msg-btn")
+            page.click('#screen-myfam .tab[data-tab="messages"]')
             page.wait_for_timeout(600)
             # The two tiles that sat above the threads both came off at the
             # owner's direction: the weekly recap is gone entirely, and Save
@@ -762,10 +768,11 @@ def main() -> int:
                                         " var p = e.closest('.mini-stage')"
                                         "   .getBoundingClientRect();"
                                         " return {w: r.width, pw: p.width,"
-                                        "  right: p.right - r.right}; }")
+                                        "  left: r.left - p.left}; }")
             assert box["w"] < box["pw"] * 0.6, \
                 "the sources panel is still a full-width strip"
-            assert box["right"] < 4, "the sources panel is not in the corner"
+            # Top left since §181; the top right is the (+).
+            assert box["left"] < 4, "the sources panel is not in the top-left corner"
 
             # And the whole list is one tap away, with the ones that are
             # hidden in the corner still in it.
@@ -2687,17 +2694,31 @@ def main() -> int:
                 "an abandoned cover was kept for the next mix"
 
         def messages_sheet():
-            # The sheet has to be leavable. A tab that cannot be left is the
-            # bug this app already shipped once, on Explore.
+            # Messages is a tab since §181, where Explore was, and has to be
+            # leavable by its own tab bar. myFAM's header button searches.
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(600)
-            page.click("#screen-myfam .myfam-msg-btn")
+            page.click('#screen-myfam .tab[data-tab="messages"]')
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-messages"
-            page.click("#screen-messages .yf-back")
+            page.click('#screen-messages .tab[data-tab="myfam"]')
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
-                "closing messages did not return to myFAM"
+                "the tab bar did not leave Messages for myFAM"
+            page.click("#myfamSearchBtn")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfamsearch", \
+                "myFAM's header button does not open its search"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            # And Explore is a rail under Made for you, one tile into it.
+            assert page.query_selector('#myfamFeed [data-section="searching"] .searching-tile'), \
+                "the What users are searching rail is missing"
+            page.click('#myfamFeed [data-section="searching"] .searching-tile')
+            page.wait_for_timeout(700)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-explore"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
 
         def profile():
             page.evaluate("openProfile()")
@@ -3069,7 +3090,7 @@ def main() -> int:
             listed = page.evaluate(
                 "inboxThreads.map(function(t){ return t['with']; })")
             assert "u_nadia" not in listed, f"the deleted chat is still on the list: {listed}"
-            page.evaluate("closeMessages(); openMyFamTab()")
+            page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
         def mix_visibility():
@@ -3362,6 +3383,11 @@ def main() -> int:
             page.evaluate("setTab('home')")
             page.wait_for_timeout(200)
             page.fill("#searchInput", "what the evidence says about longevity")
+            # Typing asks the speller about each word as it is finished, so by
+            # the send every word is known and the search goes out at once
+            # (10.1 #4); `fill` types nothing, so the words are asked here.
+            page.evaluate("Promise.resolve(acCorrectQuestion("
+                          "'what the evidence says about longevity'))")
             # All three taps in one go, because that is the case: the second
             # and third land while the first is still in flight. The preview
             # answers instantly, so pausing between them would be measuring
@@ -3385,6 +3411,60 @@ def main() -> int:
                 "request(s); a replay costs nothing and must not be blocked")
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
+
+        def a_search_is_corrected_when_it_is_sent():
+            """10.1 #4: the last word of a search was never corrected, because
+            the word-by-word pass waits for something after a word and a
+            search is sent straight after its last one. And the title never
+            shows a misspelling, even of a word the listener put back."""
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(200)
+            # The title as the search hands it over, before the episode's own
+            # title replaces it.
+            page.evaluate("""() => {
+                window.__sentTitles = [];
+                if (!window.__titleSpy) {
+                    window.__titleSpy = true;
+                    var inner = window.generate;
+                    window.generate = function (k) {
+                        if (k === "_custom") window.__sentTitles.push(TOPICS._custom.title);
+                        return inner.apply(this, arguments);
+                    };
+                }
+            }""")
+            page.fill("#searchInput", "the goverment and the leage")
+            page.evaluate("runSearch()")
+            page.wait_for_function(
+                "TOPICS._custom && TOPICS._custom.prompt.indexOf('league') > -1",
+                timeout=3000)
+            t = page.evaluate("({p: TOPICS._custom.prompt, t: __sentTitles[0]})")
+            assert t["p"] == "the government and the league", t
+            assert "League" in t["t"] and "Leage" not in t["t"], t
+            # Put back with a backspace: the question keeps it, the title not.
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home');"
+                          " AC_REVERTED['leage'] = true")
+            page.fill("#searchInput", "the leage")
+            page.evaluate("runSearch()")
+            page.wait_for_function("TOPICS._custom.prompt === 'the leage'",
+                                   timeout=3000)
+            title = page.evaluate("__sentTitles[1]")
+            assert title == "The League", title
+            page.evaluate("delete AC_REVERTED['leage']; stopSpeech(); clearGenOverlay()")
+            page.wait_for_timeout(150)
+
+        def trending_searches_show_on_focus():
+            """10.1 #3: tapping the empty search box shows what other people
+            searched that would play now, and typing hides it."""
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.fill("#searchInput", "")
+            page.focus("#searchInput")
+            page.wait_for_selector("#trendSearches .trend-chip", timeout=3000)
+            n = page.evaluate("document.querySelectorAll('#trendSearches .trend-chip').length")
+            assert 1 <= n <= 10, f"{n} trending searches"
+            page.type("#searchInput", "x")
+            assert not page.is_visible("#trendSearches"), "typing did not hide them"
+            page.fill("#searchInput", "")
+            page.evaluate("document.activeElement.blur()")
 
         def limit_screen_offers_an_upgrade():
             """Reaching a limit says which limit, and opens a way past it.
@@ -3694,6 +3774,8 @@ def main() -> int:
         check("The loading screen checks off five steps",
               the_loading_screen_checks_off_five_steps)
         check("One tap sends one request", one_tap_is_one_request)
+        check("A search is corrected when it is sent", a_search_is_corrected_when_it_is_sent)
+        check("Trending searches show on focus", trending_searches_show_on_focus)
         check("A limit leads to the plans", limit_screen_offers_an_upgrade)
         check("One loading screen serves every surface", loading_screen_covers_every_surface)
         check("Save for Later lists the shelf", save_for_later_lists_the_shelf)

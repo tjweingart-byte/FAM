@@ -41,12 +41,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
+  sends the corrected words, §165; mic beside attach, §182), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (a myFAM rail since §181, not a tab; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -55,6 +55,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
+- **Trending searches**: the focused, empty search box offers 5-10 searched
+  episodes still current (`/api/searches/trending`); cache only. [trending-searches]
+- A search is spell-corrected whole at send; its title never shows a
+  misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
   server's marks, each ≥2s, audio held to the fifth; a replay skips them (§148). [search-no-cover]
@@ -70,6 +74,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
+- **9.30 interface packet** (§181): sign-up rotates today's top three kept
+  episodes; myFAM's header button searches other people's cached episodes;
+  Messages is a tab where Explore was; Explore is the "What users are
+  searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
 
 ## What an episode is  (`product.md`)
 
@@ -124,7 +132,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
-  for you / Trending / What FAM can't stop listening to / friends. Every choosing
+  for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing
   rail: taste → `ready_first` (a sort, never a filter) → no repeats
   (`topics.is_repeat`); a heard live story is never re-offered as itself (a
   "what's new" follow-up after 6h). Trending is a twice-daily GNews edition
@@ -133,7 +141,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   taste, fatigue, engagement or learned order. Its cards carry no place; its
   View more is grouped by continent, Worldwide first, no Antarctica (§174).
   Crowd rails hold cached episodes only (§141); friends rail reads the follow
-  graph and is empty rather than strangers. `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
+  graph and is empty rather than strangers, and ends in "Find new friends" (§182). `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
 - **Taste model** (§121/§122/§126): share, vibe and save are signals;
   `ENGAGEMENT_WEIGHT` is global per tile, bounded, never on `rank_most_played`
@@ -242,6 +250,9 @@ Research and truth
   catalogue, never a model; seven lookup outcomes; freshness enforced in code,
   stale data withheld; NFL records, last and next games are counted from the
   provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
+- **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
+  all free until bought) and an `/admin` row per sport; the provider's own
+  count bounds ours; ten products wired (§180). [api-sports-per-sport]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured
@@ -257,7 +268,7 @@ Caching and prefetch
   the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
 - **TTL comes from what the script was built on, never from the question's
   words** - live status → `outcome_dependent` → window → keyword floor;
-  `in_progress` = never current. Do not fix by adding keywords. Prefetch never
+  `in_progress` = never current, nor a sports score or update (`recap`/`update`) short of `final` (§182). Do not fix by adding keywords. Prefetch never
   calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
   edition is the stated exception). [ttl-from-evidence]
 - **Duration buys depth, not words** (`DEPTH_BANDS`); shapes, never boxes; a beat
@@ -310,7 +321,7 @@ Accounts, tiers, sharing
   never logged (`app._remembers`); the app opens on sign-up with "Continue as
   guest" one tap away; the Profile tab is a door for guests; every gate uses
   `gateActions()` - one sign-up screen. [account-gates-kept]
-- **Waitlist** (§180, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
+- **Waitlist** (§183, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except

@@ -51,6 +51,12 @@ LABELS = {
 }
 
 
+#: A request counted against a part of a provider as well as the provider:
+#: API-Sports bills per sport (§180), so `api_sports` also keeps
+#: `api_sports/hockey` and so on. Stored as its own provider-day row.
+SUB = "/"
+
+
 def _plans() -> dict:
     """provider -> (the limit today, the next plan and what it allows).
 
@@ -61,9 +67,8 @@ def _plans() -> dict:
 
     return {
         "api_sports": (
-            f"{int(settings.api_sports_daily_requests):,}/day "
-            "(free plan: 100/day, per process)",
-            "Pro $19/mo: 7,500/day"),
+            "billed and limited per sport - see each sport below",
+            "each sport's own next plan"),
         "exa": (
             "pay-as-you-go, ~10 requests/s per key",
             "no daily cap to buy; a second key adds rate"),
@@ -206,18 +211,24 @@ _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 
 
-def record(provider: str, ok: bool = True) -> None:
+def record(provider: str, ok: bool = True, detail: str = "") -> None:
     """Count one request that went out to `provider`. Never raises, never waits.
 
-    Adds to a count in memory; a background thread writes it out.
+    `detail` is the part of the provider it was billed to (an API-Sports
+    sport), counted as well as the provider's own total. Adds to a count in
+    memory; a background thread writes it out.
     """
     if provider not in LABELS:
         return
     try:
-        key = (_day(time.time()), provider)
+        day = _day(time.time())
+        keys = [(day, provider)]
+        if detail:
+            keys.append((day, provider + SUB + detail))
         with _PENDING_LOCK:
-            requests, failures = _PENDING.get(key, (0, 0))
-            _PENDING[key] = (requests + 1, failures + (0 if ok else 1))
+            for key in keys:
+                requests, failures = _PENDING.get(key, (0, 0))
+                _PENDING[key] = (requests + 1, failures + (0 if ok else 1))
             due = (not _FLUSHING[0]
                    and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
             if due:
@@ -299,7 +310,7 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         per_day = seen.get(provider, {})
         total = sum(requests for requests, _ in per_day.values())
         limit, upgrade = plans[provider]
-        rows.append({
+        row = {
             "provider": provider,
             "label": LABELS[provider],
             "today": per_day.get(today, (0, 0))[0],
@@ -308,5 +319,48 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
             "average": round(total / max(1, days), 1),
             "limit": limit,
             "next": upgrade,
-        })
+        }
+        if provider == "api_sports":
+            row["breakdown"] = _api_sports_breakdown(seen, today, yesterday, days)
+        rows.append(row)
     return rows
+
+
+def _api_sports_breakdown(seen: dict, today: str, yesterday: str,
+                          days: int) -> list[dict]:
+    """One row per API-Sports sport this deployment uses (§180): its calls,
+    its plan and what the next plan costs, and what API-Sports itself last
+    said about its limit - because each sport is its own bill."""
+    try:
+        import live_sources
+
+        budgets = live_sources.budgets_report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not read API-Sports' budgets: %s", exc)
+        return []
+    out = []
+    for sport, budget in budgets.items():
+        per_day = seen.get("api_sports" + SUB + sport, {})
+        total = sum(requests for requests, _ in per_day.values())
+        tier = budget.get("tier", "free")
+        plan = live_sources.TIERS[tier]
+        upgrade = live_sources.next_tier(sport)
+        up = live_sources.TIERS.get(upgrade)
+        out.append({
+            "sport": sport,
+            "label": budget.get("label", sport),
+            "today": per_day.get(today, (0, 0))[0],
+            "failed_today": per_day.get(today, (0, 0))[1],
+            "yesterday": per_day.get(yesterday, (0, 0))[0],
+            "average": round(total / max(1, days), 1),
+            "tier": tier,
+            "limit": (f"{plan['label']}: {budget.get('daily', plan['daily']):,}/day"
+                      + (f" (${plan['usd']}/mo)" if plan["usd"] else "")),
+            "next": (f"{up['label']} ${up['usd']}/mo: {up['daily']:,}/day"
+                     if up else "top plan"),
+            "remaining": budget.get("remaining"),
+            "provider_limit": budget.get("provider_limit"),
+            "provider_remaining": budget.get("provider_remaining"),
+            "mismatch": bool(budget.get("mismatch")),
+        })
+    return out

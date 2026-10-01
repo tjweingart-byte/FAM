@@ -93,6 +93,10 @@
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
   .report.done .text { color:var(--muted); }
+  /* A provider's parts, under it: API-Sports' sports (§180). */
+  tr.subrow td { font-size:12.5px; }
+  tr.subrow .subname { padding-left:18px; position:relative; color:var(--muted); }
+  tr.subrow .subname::before { content:"↳"; position:absolute; left:2px; color:var(--faint); }
   /* The episode a report was typed on (9.30 #6), behind its button. */
   .report .acts { display:flex; flex-direction:column; gap:6px; flex:none; }
   .report .ep { margin:8px 0 2px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; }
@@ -176,7 +180,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     <section class="card section" id="providersCard">
       <h2>Outside services, requests per day</h2>
-      <p class="sub">Every request that went out to each data service, counted where it was sent (a cached answer is never counted; a refused one is). Days are UTC, when API-Sports and GNews reset. The limit is today's; in parentheses, what the next paid plan raises it to. When to buy each is in <b>docs/SCALING_TIMELINE.md</b>.</p>
+      <p class="sub">Every request that went out to each data service, counted where it was sent (a cached answer is never counted; a refused one is). Days are UTC, when API-Sports and GNews reset. The limit is today's; in parentheses, what the next paid plan raises it to. API-Sports is billed per sport, so each sport it serves has a row of its own under it, with its plan and what API-Sports itself last reported left. When to buy each is in <b>docs/SCALING_TIMELINE.md</b>.</p>
       <div id="providers"></div>
     </section>
 
@@ -372,13 +376,30 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   // ------------------------------------------------------ outside services
   function drawProviders(rows) {
     if (!rows || !rows.length) { $("providers").innerHTML = '<p class="sub">Nothing to show.</p>'; return; }
-    var body = rows.map(function (r) {
+    function line(r, sub) {
       var today = Number(r.today).toLocaleString() +
         (r.failed_today ? ' <small style="color:var(--faint)">(' + Number(r.failed_today).toLocaleString() + ' failed)</small>' : '');
-      return '<tr><td>' + esc(r.label) + '</td><td class="n">' + today + '</td><td class="n">' +
+      // A sport's own count from API-Sports, off its last answer: the truth
+      // across every worker. A plan here that is not the plan API-Sports
+      // reports is flagged - buy on their dashboard, then set API_SPORTS_TIERS.
+      var said = "";
+      if (sub && r.provider_remaining != null) {
+        said = ' <small style="color:var(--muted)">· API-Sports: ' + Number(r.provider_remaining).toLocaleString() +
+          (r.provider_limit != null ? ' of ' + Number(r.provider_limit).toLocaleString() : '') + ' left</small>';
+      }
+      if (sub && r.mismatch) {
+        said += ' <small style="color:var(--bad, #c0392b)">· API-Sports reports a different plan - check API_SPORTS_TIERS</small>';
+      }
+      return '<tr' + (sub ? ' class="subrow"' : '') + '><td>' + (sub ? '<span class="subname">' + esc(r.label) + '</span>' : esc(r.label)) +
+        '</td><td class="n">' + today + '</td><td class="n">' +
         Number(r.yesterday).toLocaleString() + '</td><td class="n">' + Number(r.average).toLocaleString() +
         '</td><td title="' + esc(r.limit + ' (' + r.next + ')') + '">' + esc(r.limit) +
-        ' <span style="color:var(--muted)">(' + esc(r.next) + ')</span></td></tr>';
+        ' <span style="color:var(--muted)">(' + esc(r.next) + ')</span>' + said + '</td></tr>';
+    }
+    // API-Sports is billed per sport (§180), so each sport it is used for has
+    // a row of its own under it.
+    var body = rows.map(function (r) {
+      return line(r, false) + (r.breakdown || []).map(function (b) { return line(b, true); }).join("");
     }).join("");
     $("providers").innerHTML = '<div class="tbl"><table><thead><tr><th>Service</th><th>Today</th><th>Yesterday</th>' +
       '<th>7-day average</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
