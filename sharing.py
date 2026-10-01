@@ -496,6 +496,30 @@ class ShareStore:
                 "minutes": row[3], "title": row[4], "created": row[5],
                 "opens": row[6]}
 
+    def is_shared(self, query: str, minutes) -> bool:
+        """Whether somebody shared exactly this episode: this question at this
+        length, as the landing page asks for it (`minutes` floored at 1, the
+        way `landing_payload` draws it).
+
+        What the waitlist gate lets a stranger play (WAITLIST.md): anyone may
+        listen to a shared episode, and nothing else, so the audio endpoint is
+        opened only for a request this answers yes to.
+        """
+        query = " ".join(str(query or "").split())[:MAX_QUERY]
+        try:
+            minutes = int(minutes)
+        except (TypeError, ValueError):
+            return False
+        if not query:
+            return False
+        try:
+            rows = self._conn().execute(
+                "SELECT minutes FROM shares WHERE query = ?", (query,)).fetchall()
+        except Exception:
+            log.exception("could not look up a share")
+            return False
+        return any(max(1, int(r[0] or 0)) == minutes for r in rows)
+
     def opened(self, share_id: str) -> None:
         """Somebody followed the link. The only number here, and it is the one
         that says whether sharing does anything at all."""

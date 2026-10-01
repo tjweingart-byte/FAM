@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM admin — Waitlist</title>
+<!--
+  The waitlist's admin page (WAITLIST.md §5). A shell: every number is fetched
+  from /api/admin/waitlist*, and those endpoints are what check who is asking
+  (`_require_admin`, 404 for anybody else). Signing in is the same admin
+  email-and-password form as /admin, asked again on every load.
+-->
+<style>
+  :root{ --bg:#1E1B27; --card:#26222F; --line:#3A3548; --text:#F4EFE4; --muted:#A9A2B8; --gold:#F0C35E; --bad:#FFB4A2; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main{ max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+  h1{ font-size:22px; margin:0 0 4px; } .sub{ color:var(--muted); margin:0 0 20px; }
+  .card{ background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+  .stat .n{ font-size:26px; font-weight:600; } .stat .l{ color:var(--muted); font-size:13px; }
+  input, button{ font:inherit; color:inherit; }
+  input{ background:#2E2A3A; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  button{ background:var(--gold); color:#1E1B27; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; }
+  button.ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
+  button:disabled{ opacity:.55; cursor:default; }
+  .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .table-wrap{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; min-width:760px; }
+  th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th{ color:var(--muted); font-weight:500; cursor:pointer; user-select:none; }
+  th.sorted::after{ content:" ▾"; } th.sorted.asc::after{ content:" ▴"; }
+  td.num{ font-variant-numeric:tabular-nums; }
+  .yes{ color:#8FAE9A; } .no{ color:var(--muted); }
+  .err{ color:var(--bad); } .ok{ color:#8FAE9A; }
+  .login{ max-width:360px; margin:12vh auto; }
+  .login input{ width:100%; margin-bottom:10px; }
+  .warn{ border-left:3px solid var(--gold); }
+</style>
+</head>
+<body>
+<main>
+  <form class="card login" id="loginForm">
+    <h1>Waitlist admin</h1>
+    <p class="sub">Sign in with an admin account.</p>
+    <input id="adminEmail" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button id="loginBtn" type="submit">Sign in</button>
+    <p class="err" id="loginErr" hidden></p>
+  </form>
+
+  <div id="app" hidden>
+    <h1>Waitlist</h1>
+    <p class="sub" id="gateLine"></p>
+
+    <div class="card stats" id="stats"></div>
+    <div class="card warn" id="vendor" hidden></div>
+
+    <div class="card">
+      <div class="row">
+        <label>Access cutoff <input id="cutoff" type="number" min="0" style="width:110px"></label>
+        <button id="saveCutoff" type="button">Set cutoff</button>
+        <span style="width:24px"></span>
+        <label>Grant the top <input id="topN" type="number" min="1" style="width:90px"></label>
+        <button id="grantTop" type="button">Grant access</button>
+        <span id="actionNote"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <input id="search" type="search" placeholder="Search email or @handle" style="flex:1; min-width:220px">
+        <button class="ghost" id="refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th data-k="place" class="sorted asc">Place</th><th data-k="name">Name</th><th data-k="handle">Handle</th>
+            <th data-k="email">Email</th><th data-k="invites">Invites</th><th data-k="profile_complete">Profile</th>
+            <th data-k="joined">Joined</th><th></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="sub" id="shown" style="margin-top:10px"></p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var DATA = null, sortKey = "place", asc = true;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || j.detail || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function n(v) { return Number(v || 0).toLocaleString(); }
+  function day(t) { return t ? new Date(t * 1000).toISOString().slice(0, 10) : "—"; }
+  function note(text, bad) { $("actionNote").className = bad ? "err" : "ok"; $("actionNote").textContent = text; }
+
+  function draw() {
+    var s = DATA.summary;
+    $("gateLine").textContent = DATA.gate
+      ? "The app is closed to everyone but active accounts (WAITLIST=1)."
+      : "WAITLIST is off: the app is open and new accounts start active.";
+    var stats = [["Waitlisted", n(s.waitlisted)], ["Active", n(s.active)], ["Signups today", n(s.signups_today)],
+                 ["Profile complete", s.profile_complete_pct + "%"],
+                 ["Top inviters", s.top_inviters.length ? s.top_inviters.map(function (t) {
+                   return esc(t.handle ? "@" + t.handle : t.email) + " (" + t.invites + ")"; }).join("<br>") : "—"]];
+    $("stats").innerHTML = stats.map(function (x) {
+      return '<div class="stat"><div class="n"' + (x[0] === "Top inviters" ? ' style="font-size:14px;font-weight:500"' : "") + '>'
+        + x[1] + '</div><div class="l">' + x[0] + '</div></div>'; }).join("");
+    var v = DATA.viral_loops;
+    var vendorLines = [];
+    if (!v.configured) vendorLines.push("Viral Loops is not configured (VIRAL_LOOPS_CAMPAIGN_ID / VIRAL_LOOPS_API_TOKEN). Calls wait in the outbox.");
+    if (v.pending) vendorLines.push(n(v.pending) + " Viral Loops call(s) waiting" + (v.last_error ? ". Last error: " + esc(v.last_error) : "."));
+    if (v.refused) vendorLines.push(n(v.refused) + " call(s) refused by Viral Loops and not retried. Latest: " + esc(v.last_refused));
+    $("vendor").hidden = !vendorLines.length;
+    $("vendor").innerHTML = vendorLines.join("<br>");
+    if (document.activeElement !== $("cutoff")) $("cutoff").value = DATA.cutoff;
+
+    var q = $("search").value.trim().toLowerCase().replace(/^@/, "");
+    var rows = DATA.rows.filter(function (r) {
+      return !q || (r.email || "").toLowerCase().indexOf(q) >= 0 || (r.handle || "").indexOf(q) >= 0;
+    });
+    rows.sort(function (a, b) {
+      var x = a[sortKey], y = b[sortKey];
+      if (typeof x === "string" || typeof y === "string") { x = String(x || ""); y = String(y || ""); return asc ? x.localeCompare(y) : y.localeCompare(x); }
+      return asc ? (x - y) : (y - x);
+    });
+    var shown = rows.slice(0, 500);
+    $("rows").innerHTML = shown.map(function (r) {
+      return "<tr><td class=num>" + n(r.place) + "</td><td>" + esc(r.name) + "</td><td>" + (r.handle ? "@" + esc(r.handle) : "") + "</td>"
+        + "<td>" + esc(r.email) + "</td><td class=num>" + n(r.invites) + "</td>"
+        + "<td class=" + (r.profile_complete ? "yes>Yes" : "no>No") + "</td><td>" + day(r.joined) + "</td>"
+        + '<td><button class="ghost" data-grant="' + esc(r.user_id) + '" type="button">Grant</button></td></tr>';
+    }).join("");
+    $("shown").textContent = "Showing " + n(shown.length) + " of " + n(rows.length) + (q ? " matching" : "") + " waitlisted.";
+  }
+  function load() {
+    return api("/api/admin/waitlist").then(function (d) {
+      DATA = d; $("loginForm").hidden = true; $("app").hidden = false; draw();
+    });
+  }
+
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value })
+      .then(function () { $("adminPassword").value = ""; return load(); })
+      .catch(function (e) {
+        $("loginErr").textContent = e.status === 429 ? "Too many attempts. Wait a moment and try again."
+                                                     : "That email and password are not an admin's.";
+        $("loginErr").hidden = false;
+      })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+  document.querySelector("thead").addEventListener("click", function (ev) {
+    var k = ev.target.getAttribute && ev.target.getAttribute("data-k"); if (!k) return;
+    asc = sortKey === k ? !asc : true; sortKey = k;
+    Array.prototype.forEach.call(document.querySelectorAll("th"), function (th) {
+      th.classList.toggle("sorted", th.getAttribute("data-k") === k); th.classList.toggle("asc", asc); });
+    draw();
+  });
+  $("search").addEventListener("input", function () { if (DATA) draw(); });
+  $("refresh").addEventListener("click", load);
+  $("rows").addEventListener("click", function (ev) {
+    var id = ev.target.getAttribute && ev.target.getAttribute("data-grant"); if (!id) return;
+    if (!confirm("Let this person into FAM now?")) return;
+    ev.target.disabled = true;
+    api("/api/admin/waitlist/grant", { user_ids: [id] })
+      .then(function (d) { note("Granted " + d.granted + "."); return load(); })
+      .catch(function (e) { ev.target.disabled = false; note(e.message, true); });
+  });
+  $("grantTop").addEventListener("click", function () {
+    var top = parseInt($("topN").value, 10);
+    if (!(top > 0)) { note("Enter how many places to let in.", true); return; }
+    if (!confirm("Let the top " + top + " people into FAM now?")) return;
+    this.disabled = true; var btn = this;
+    api("/api/admin/waitlist/grant", { top: top })
+      .then(function (d) { note("Granted " + d.granted + "."); return load(); })
+      .catch(function (e) { note(e.message, true); })
+      .then(function () { btn.disabled = false; });
+  });
+  $("saveCutoff").addEventListener("click", function () {
+    var v = parseInt($("cutoff").value, 10);
+    if (!(v >= 0)) { note("The cutoff is a number of places.", true); return; }
+    api("/api/admin/waitlist/cutoff", { cutoff: v })
+      .then(function (d) { note("Cutoff set to " + n(d.cutoff) + "."); return load(); })
+      .catch(function (e) { note(e.message, true); });
+  });
+})();
+</script>
+</body>
+</html>

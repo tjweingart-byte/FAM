@@ -879,6 +879,10 @@
   discount beside the tokens (`Usage.batch_discount`).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
+  > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
+  > account is not `active` - guests included - at the owner's direction
+  > (§183, rule `waitlist-gate` below). Everything in this rule holds again
+  > the moment the waitlist is switched off at launch.
   Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole
   audio path do not. **The interaction log is inside the gate now** *(§127,
@@ -930,6 +934,31 @@
   **deleted rather than left unused** - the Piper reasoning for the third
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
+<!-- rule:waitlist-gate -->
+- **Before launch the app is closed to everyone but `active` accounts, and the
+  server enforces it.** *(PROBLEMS.md §183, WAITLIST.md, at the owner's
+  direction.)* `WAITLIST=1` (set in the dashboard, never in `render.yaml`, so
+  a merge cannot close the app by accident) sends guests and waitlisted
+  accounts to `/waitlist` and answers their API calls 403 with
+  `X-FAM-Waitlist`, from the session middleware (`_waitlist_refusal`) - a
+  gate only in the interface is open to curl. **Anyone can listen to a shared
+  episode, waitlist or not** (the owner, 01/10): `/s/<id>` stays open, and its
+  audio passes only for exactly what was shared (`ShareStore.is_shared`), so
+  a share is never a way into the rest of the app. Every account created while it
+  is on starts `waitlisted`, written in the `INSERT`; existing accounts were
+  backfilled `active` by the column default. **One database, one account:**
+  a waitlist signup is the app's own sign-up, and granting access changes
+  `status` and nothing else. Viral Loops is a supporting service and never
+  the source of truth: place in line is counted in FAM (`waitlist.ordered`),
+  every vendor call goes through the outbox, and **a vendor outage never loses
+  a signup**. Waitlisted accounts are out of discovery (search, handle and id
+  lookup, follow) except to people already in their graph, and cannot message
+  or be messaged - **while the waitlist runs**: `WAITLIST=0` lifts both for
+  everybody, so launch is one switch. One invite code credits at most
+  `WAITLIST_REFERRALS_PER_HOUR` invites an hour, and a waitlisted account can
+  always delete itself. Profile setup writes only `/api/me` and `/api/preferences`,
+  which cannot reach `status`, `referred_by`, place or admin. Launch is
+  `WAITLIST=0`.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   `ENFORCE_QUOTAS=0` is the default: every tier, limit, counter, reservation,
