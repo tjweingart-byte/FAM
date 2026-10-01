@@ -296,6 +296,8 @@ The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
 <!-- rule:title-from-content -->
+> **Current (PROBLEMS.md §187):** a *live story* tile (Trending or the pool) is not protected the way a bank tile is: once its episode is cached and current, every later listener sees the writer's title and summary on the card and in the player, and its picture, facet word and logged tags come from the writer's `<<CATEGORY:>>` line (`app._name_written_tiles`). The first listener of an unwritten story still hears it under the composer's title.
+
 **An episode is titled by what it turned out to be about.** *(§104.)* It used
 to be the typed question, so somebody who asked `what happened with the fed
 yesterday` got an episode called *What Happened With The Fed Yesterday* -

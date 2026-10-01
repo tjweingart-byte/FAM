@@ -96,7 +96,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
 - **Titled by what it turned out to be about**: a `<<TITLE: ...>>` line, stripped,
   no extra call; the player opens on a derived title and swaps; a listener's or
-  bank tile's title (`titleOverridden`) is never replaced; cached in its own column. [title-from-content]
+  bank tile's title (`titleOverridden`) is never replaced; cached in its own column.
+  A *written* live-story tile takes the writer's title, summary and
+  `<<CATEGORY:>>` for every later listener (§187). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that

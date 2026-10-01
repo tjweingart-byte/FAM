@@ -122,6 +122,13 @@ _TITLE_MARKER = re.compile(r"<<\s*TITLE\s*:\s*([^<>]{1,120}?)\s*>>", re.I)
 #: never spoken. What a "Pick up where you left off" card draws under its
 #: title, so a half-heard episode reads like every other myFAM tile (§127).
 _SUMMARY_MARKER = re.compile(r"<<\s*SUMMARY\s*:\s*([^<>]{1,240}?)\s*>>", re.I)
+#: What kind of thing the episode turned out to be about, in a few plain
+#: words, on the same kind of line and for the same reason as TITLE (§187).
+#: Resolved against the category tree in code (`stories.resolve_category`),
+#: never trusted as given, and what a written tile's picture, facet word and
+#: logged tags are read from - the writer has read the research, and the
+#: composer that categorised the tile beforehand had read only headlines.
+_CATEGORY_MARKER = re.compile(r"<<\s*CATEGORY\s*:\s*([^<>]{1,80}?)\s*>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
 _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
@@ -288,8 +295,7 @@ is worth having.
 Which means the episode **closes**. Answer the question completely and stop: \
 nothing held back for later, and do not leave a hook dangling to make them \
 want more. A \
-listener feels that immediately and it reads as a bait and switch. If the next \
-episode is worth having, it is because this one was good.
+listener feels that immediately and it reads as a bait and switch.
 
 Before you write, find the angle:
 - **Find what they have slightly wrong.** The most interesting version of \
@@ -396,7 +402,7 @@ point. Numbers in words, as said: "six hundred twelve yards", "thirty-seven \
 to fourteen".
 - No greeting, no sign-off, no naming the show, and never mention being an AI.
 
-Three lines after the script, never spoken:
+Four lines after the script, never spoken:
 
 <<TITLE: three to eight words>>
 
@@ -405,6 +411,8 @@ subject by name, then the angle - "Why the Fed Held Rates Again", not "A \
 Costly Pause". No colon, no question mark.
 
 <<SUMMARY: one plain sentence on what it covers>>
+
+<<CATEGORY: its most specific kind - "heavyweight boxing", never "sport">>
 
 <<NEXT: what they would most likely wonder about next>>
 
@@ -526,6 +534,10 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
+    #: What kind of thing the episode is, off `<<CATEGORY:>>` (§187), as the
+    #: writer worded it. Resolved against the category tree only where it is
+    #: read, so a tree that grows later can still place an older episode.
+    category: str = ""
     #: The `(name, respelling)` pairs the writer put on `<<SAY:>>` lines
     #: (§165). Already in the shared lexicon by the time this is read;
     #: carried here so `write.py` can print them beside the script.
@@ -576,6 +588,14 @@ def extract_title(text: str) -> str:
     # A model asked for a title occasionally writes a sentence. Trimmed rather
     # than rejected: most of a good title is still better than the question.
     return content_filter.scrub(title[:80])
+
+
+def extract_category(text: str) -> str:
+    """The writer's `<<CATEGORY:>>` words, or "" when it wrote none (§187)."""
+    match = _CATEGORY_MARKER.search(text)
+    if not match:
+        return ""
+    return re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")[:60]
 
 
 def extract_summary(text: str) -> str:
@@ -995,7 +1015,7 @@ Finish when the answer is finished. Land on the most concrete thing you have
 and stop. Do not tease what you are not covering, do not end on a question, and
 do not summarise what they just heard.
 
-{pronounce}Then three lines after the script. Name the episode by what it turned out to be
+{pronounce}Then four lines after the script. Name the episode by what it turned out to be
 about, never by the question you were asked - three to eight words, no colon and
 no question mark. Clear first, curious second: name the actual subject plainly
 (the person, team, company, place or event), so nobody reading it cold wonders
@@ -1010,12 +1030,18 @@ whether to come back to it - the subject and the angle, no tease, no question:
 
 <<SUMMARY: twelve to twenty words>>
 
+Name the most specific kind of thing it is about, in two to four plain words - \
+"heavyweight boxing", "nutrition", "premier league football", never just \
+"sport" or "news":
+
+<<CATEGORY: two to four words>>
+
 And predict the single most likely thing they would go on to ask, having heard
 this:
 
 <<NEXT: six to twelve words>>
 
-Read all three off what you actually said. All three lines are stripped before
+Read all four off what you actually said. All four lines are stripped before
 anything is spoken and the script must not hint at any of them. Nothing goes
 after them.
 
@@ -1146,6 +1172,7 @@ class _ScriptReader:
             self.notes.thread = extract_thread(self.buffer)
             self.notes.title = extract_title(self.buffer)
             self.notes.summary = extract_summary(self.buffer)
+            self.notes.category = extract_category(self.buffer)
             self.notes.meta_openings = tuple(self.guard.dropped)
         return out
 
@@ -1167,6 +1194,7 @@ def clean_for_speech(text: str) -> str:
     text = _NEXT_MARKER.sub("", text)
     text = _TITLE_MARKER.sub("", text)
     text = _SUMMARY_MARKER.sub("", text)
+    text = _CATEGORY_MARKER.sub("", text)
     text = re.sub(r"<<.*$", "", text, flags=re.S)
     # Stage directions first, while their brackets are still intact.
     text = re.sub(r"\[[^\]]{0,60}\]", "", text)

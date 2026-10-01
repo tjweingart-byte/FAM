@@ -14492,3 +14492,52 @@ pool goes through the same composer and gets categories too; it has no
 anchors yet, so its queries are not pinned.
 
 Tests: `tests/test_trending_category_pin.py`.
+
+## 187. A written episode names and categorises its own tile
+
+**The owner's direction.** §186 left the player keeping a Trending tile's
+composed title over the episode's `<<TITLE>>`. The owner: that is acceptable
+for the first listener, but once the episode is generated and cached, every
+other listener sees the title the writer put on it - and what was learned by
+the time the episode was finished should categorise it more specifically.
+
+**Titles.** `app._name_written_tiles` already gave a written *startup* tile
+its episode's title and summary (27/09 packet). It now does the same for a
+**live story** tile (a tile with a `source` that is not a bank tile): when
+the cache says the episode is current (`cached`), the tile takes the
+writer's title and its summary as the angle. The tap then opens the player
+on that title, since a tile's title travels into `TOPICS` with
+`titleOverridden`. The first listener of a story nobody has written still
+sees the composer's title; Trending's edition writes most of its ten ahead,
+so in practice most Trending tiles open on the writer's title. Bank tiles
+are untouched (§104). `/api/nextup` now marks and renames its tiles the same
+way.
+
+**Category.** The writer emits a fourth trailing line, `<<CATEGORY: ...>>`,
+parsed like TITLE/SUMMARY (`extract_category`), stripped from speech, and
+stored raw in a new `scripts.category` column (memory cache too; a re-write
+without one keeps the old, like `title`). It is resolved against the tree
+where it is read (`stories.resolve_category`), so a tree that grows later
+can still place an older episode. A written tile's tags, picture and facet
+word are redrawn from it (`_categorise_written_tile`); words the tree cannot
+place change nothing. Plays are logged through `app._event_tags`: a bank or
+catalogue tile keeps its declared tags, a startup question gains the
+category beside its facet, and a live story takes the category outright - so
+the taste model learns "boxing" from a boxing episode rather than "science"
+from a headline that said "study". Prefetch now stores title, summary and
+category too; it stored none, so a warmed episode's tile could never have
+been renamed.
+
+**The prompt budget.** `test_the_prompt_stays_lean` holds `SYSTEM_PROMPT`
+under 7,800 characters and says the way past it is a dedup pass. The line
+cost 75; the pass removed "If the next episode is worth having, it is because
+this one was good." - a restatement of the opening paragraph's "the
+satisfaction makes them believe another is worth having". 7,788 -> 7,793.
+
+**Not changed.** The first listener's player still shows the composer's
+title until the script finishes, then `applyEpisodeTitle` leaves it (the tile
+title is `titleOverridden`). Ranking for Made for you still reads a story's
+composed tags; only what is shown and what is logged use the writer's
+category.
+
+Tests: `tests/test_written_tile_identity.py`.
