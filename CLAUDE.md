@@ -242,6 +242,9 @@ Research and truth
   catalogue, never a model; seven lookup outcomes; freshness enforced in code,
   stale data withheld; NFL records, last and next games are counted from the
   provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
+- **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
+  all free until bought) and an `/admin` row per sport; the provider's own
+  count bounds ours; ten products wired (§180). [api-sports-per-sport]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured

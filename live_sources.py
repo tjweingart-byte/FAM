@@ -253,6 +253,8 @@ def report() -> dict:
                 if name and not (named[d] or "").strip()),
             # Shared by the story sweep and episode lookups (§135).
             "api_sports_budget": API_SPORTS_BUDGET.as_dict(),
+            # Per sport since §180: each is its own plan and its own day.
+            "api_sports_budgets": budgets_report(),
             "known": {d: sorted(v) for d, v in BUILDERS.items()}}
 
 
@@ -296,9 +298,13 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
         try:
             response = await client.get(url, headers=headers, params=params)
         except Exception:
-            provider_usage.record(provider, ok=False)
+            provider_usage.record(provider, ok=False,
+                                  detail=sport_of_url(url) if provider == "api_sports" else "")
             raise
-        provider_usage.record(provider, ok=response.is_success)
+        provider_usage.record(provider, ok=response.is_success,
+                              detail=sport_of_url(url) if provider == "api_sports" else "")
+        if provider == "api_sports":
+            _note_quota(url, response.headers)
         if not response.is_success:
             where = f"{response.url.host}{response.url.path}"
             body = log_redaction.redact(response.text[:160].strip())
@@ -371,6 +377,19 @@ class Sport:
     #: from UTC is the wrong day for every prime-time game.
     local_zone: str = ""
     zone_said: str = ""
+    #: What one of its events is: `match` (two sides, home and away),
+    #: `fight` (two fighters) or `race` (a field, read off rankings).
+    kind: str = "match"
+    #: What an event is called out loud.
+    noun: str = "game"
+    #: How this API names a season (§180): `start` is the year it starts
+    #: (NFL, NHL, soccer), `span` is "2025-2026" (basketball), `calendar` is
+    #: the year it is played in (MLB, F1, AFL, MMA).
+    season_style: str = "start"
+    #: The month a new season starts in, for `start` and `span`.
+    season_month: int = 8
+    #: What the listener would call it.
+    label: str = ""
 
 
 #: The four with the clearest demand. Adding one is a row here plus its status
@@ -390,13 +409,15 @@ SPORTS = {
             "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
         },
         # API-Sports' NFL.
-        team_league="1", local_zone="America/New_York", zone_said="Eastern"),
+        team_league="1", local_zone="America/New_York", zone_said="Eastern",
+        season_month=9),
     "football": Sport(
         key="football",
         host="https://v3.football.api-sports.io",
         path="fixtures", unit="goals",
         words=("soccer", "premier league", "la liga", "serie a", "bundesliga",
-               "champions league", "world cup", "fifa"),
+               "champions league", "world cup", "fifa", "ligue 1", "mls",
+               "europa league", "fa cup"),
         statuses={
             "NS": live_facts.SCHEDULED, "TBD": live_facts.SCHEDULED,
             "1H": live_facts.IN_PROGRESS, "2H": live_facts.IN_PROGRESS,
@@ -404,12 +425,13 @@ SPORTS = {
             "P": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
             "FT": live_facts.FINAL, "AET": live_facts.FINAL,
             "PEN": live_facts.FINAL,
-        }),
+        },
+        label="Soccer"),
     "basketball": Sport(
         key="basketball",
         host="https://v1.basketball.api-sports.io",
         path="games", unit="points",
-        words=("nba", "basketball", "wnba", "ncaab"),
+        words=("nba", "basketball", "wnba", "ncaab", "euroleague"),
         statuses={
             "NS": live_facts.SCHEDULED,
             "Q1": live_facts.IN_PROGRESS, "Q2": live_facts.IN_PROGRESS,
@@ -417,7 +439,10 @@ SPORTS = {
             "OT": live_facts.IN_PROGRESS, "HT": live_facts.IN_PROGRESS,
             "BT": live_facts.IN_PROGRESS,
             "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
-        }),
+        },
+        # API-Basketball's NBA; its seasons are named "2025-2026".
+        team_league="12", local_zone="America/New_York", zone_said="Eastern",
+        season_style="span", season_month=10, label="Basketball"),
     "baseball": Sport(
         key="baseball",
         host="https://v1.baseball.api-sports.io",
@@ -431,8 +456,140 @@ SPORTS = {
             "IN7": live_facts.IN_PROGRESS, "IN8": live_facts.IN_PROGRESS,
             "IN9": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
             "FT": live_facts.FINAL,
-        }),
+        },
+        # API-Baseball's MLB, played inside one calendar year.
+        team_league="1", local_zone="America/New_York", zone_said="Eastern",
+        season_style="calendar", label="Baseball"),
+    # --- §180: the rest of API-Sports' products the owner asked for -------
+    # Status codes are the providers' documented short codes as far as they
+    # could be read from here (the hosts are blocked in the build container);
+    # any code not listed becomes `unknown`, which says nothing - so a wrong
+    # guess costs a silent game, never a wrong one.
+    "hockey": Sport(
+        key="hockey",
+        host="https://v1.hockey.api-sports.io",
+        path="games", unit="goals",
+        words=("nhl", "hockey", "khl", "stanley cup", "ahl"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "P1": live_facts.IN_PROGRESS, "P2": live_facts.IN_PROGRESS,
+            "P3": live_facts.IN_PROGRESS, "OT": live_facts.IN_PROGRESS,
+            "PT": live_facts.IN_PROGRESS, "BT": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL, "AOT": live_facts.FINAL,
+            "AP": live_facts.FINAL,
+        },
+        # API-Hockey's NHL; its seasons are named by the year they start.
+        team_league="57", local_zone="America/New_York", zone_said="Eastern",
+        season_style="start", season_month=9, label="Hockey"),
+    "rugby": Sport(
+        key="rugby",
+        host="https://v1.rugby.api-sports.io",
+        path="games", unit="points",
+        words=("rugby", "six nations", "top 14", "super rugby", "nrl",
+               "premiership rugby", "all blacks", "springboks"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "1H": live_facts.IN_PROGRESS, "2H": live_facts.IN_PROGRESS,
+            "HT": live_facts.IN_PROGRESS, "ET": live_facts.IN_PROGRESS,
+            "BT": live_facts.IN_PROGRESS, "PT": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL, "AET": live_facts.FINAL,
+        },
+        label="Rugby"),
+    "volleyball": Sport(
+        key="volleyball",
+        host="https://v1.volleyball.api-sports.io",
+        path="games", unit="sets",
+        words=("volleyball", "superlega", "plusliga"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "S1": live_facts.IN_PROGRESS, "S2": live_facts.IN_PROGRESS,
+            "S3": live_facts.IN_PROGRESS, "S4": live_facts.IN_PROGRESS,
+            "S5": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL,
+        },
+        label="Volleyball"),
+    "afl": Sport(
+        key="afl",
+        host="https://v1.afl.api-sports.io",
+        path="games", unit="points",
+        words=("afl", "australian football", "aussie rules",
+               "australian rules"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "Q1": live_facts.IN_PROGRESS, "Q2": live_facts.IN_PROGRESS,
+            "Q3": live_facts.IN_PROGRESS, "Q4": live_facts.IN_PROGRESS,
+            "QT": live_facts.IN_PROGRESS, "HT": live_facts.IN_PROGRESS,
+            "BT": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL,
+        },
+        season_style="calendar", label="AFL"),
+    "formula-1": Sport(
+        key="formula-1",
+        host="https://v1.formula-1.api-sports.io",
+        path="races", unit="",
+        words=("formula 1", "formula one", "f1", "grand prix"),
+        # Races carry a word, not a code.
+        statuses={
+            "SCHEDULED": live_facts.SCHEDULED,
+            "LIVE": live_facts.IN_PROGRESS,
+            "COMPLETED": live_facts.FINAL,
+        },
+        kind="race", noun="race", season_style="calendar",
+        label="Formula 1"),
+    "mma": Sport(
+        key="mma",
+        host="https://v1.mma.api-sports.io",
+        path="fights", unit="",
+        words=("mma", "ufc", "bellator", "pfl", "mixed martial arts"),
+        statuses={
+            "NS": live_facts.SCHEDULED,
+            "IN": live_facts.IN_PROGRESS, "LIVE": live_facts.IN_PROGRESS,
+            "EOR": live_facts.IN_PROGRESS,
+            "FT": live_facts.FINAL,
+        },
+        kind="fight", noun="fight", season_style="calendar", label="MMA"),
 }
+
+#: What an admin page and a log call each product.
+for _key, _sport in list(SPORTS.items()):
+    if not _sport.label:
+        SPORTS[_key] = replace(_sport, label={
+            "american-football": "American football"}.get(_key, _key.title()))
+del _key, _sport
+
+
+def season_of(sport: "Sport", now: Optional[datetime] = None) -> str:
+    """The season this API is in today, named the way it names seasons."""
+    now = now or datetime.now(timezone.utc)
+    if sport.season_style == "calendar":
+        return str(now.year)
+    # A season that starts in the autumn belongs, until next summer, to the
+    # year it started. From two months before its opening month the coming
+    # season is the one schedules are published for, so it counts from then.
+    start = now.year if now.month >= sport.season_month - 2 else now.year - 1
+    if sport.season_style == "span":
+        return f"{start}-{start + 1}"
+    return str(start)
+
+
+def sport_of_url(url: str) -> str:
+    """Which API-Sports product a request goes to, from its host, or ""."""
+    try:
+        host = httpx.URL(url).host.lower()
+    except Exception:  # noqa: BLE001
+        return ""
+    for key, sport in SPORTS.items():
+        if httpx.URL(sport.host).host == host:
+            return key
+    return ""
+
+
+def enabled_sports() -> list:
+    """The products this deployment uses (`API_SPORTS_SPORTS`), in order."""
+    raw = (settings.api_sports_sports or "").strip()
+    if not raw:
+        return list(SPORTS)
+    return [k.strip() for k in raw.split(",") if k.strip() in SPORTS]
 
 
 # --------------------------------------------------------------------------
@@ -460,9 +617,20 @@ class RequestBudget:
     #: between two refreshes buys nothing.
     MIN_INTERVAL_SECONDS = 300.0
 
-    def __init__(self) -> None:
+    def __init__(self, sport: str = "") -> None:
+        #: The API-Sports product this counts, or "" for the shared fallback
+        #: (a request to a host no product in `SPORTS` owns).
+        self.sport = sport
         self.day = ""
         self.used = 0
+        #: What API-Sports itself said on its last answer, from the
+        #: `x-ratelimit-requests-*` headers: the plan's daily limit and what
+        #: was left, and our count when it said so. The truth across every
+        #: worker, where `used` is only this process's.
+        self.reported_limit: Optional[int] = None
+        self.reported_remaining: Optional[int] = None
+        self.reported_used_at = 0
+        self.reported_day = ""
 
     @staticmethod
     def _today(now: Optional[float] = None) -> str:
@@ -474,6 +642,20 @@ class RequestBudget:
         today = self._today(now)
         if today != self.day:
             self.day, self.used = today, 0
+        if self.reported_day and self.reported_day != today:
+            self.reported_remaining = None
+            self.reported_day = ""
+
+    def note_reported(self, limit: Optional[int], remaining: Optional[int],
+                      now: Optional[float] = None) -> None:
+        """Take API-Sports' own count, off the headers of an answer."""
+        self._roll(now)
+        if limit is not None:
+            self.reported_limit = max(0, int(limit))
+        if remaining is not None:
+            self.reported_remaining = max(0, int(remaining))
+            self.reported_used_at = self.used
+            self.reported_day = self.day
 
     def spend(self, requests: int = 1, now: Optional[float] = None) -> None:
         self._roll(now)
@@ -486,11 +668,24 @@ class RequestBudget:
 
     @property
     def daily(self) -> int:
-        return max(0, int(settings.api_sports_daily_requests))
+        if self.sport:
+            return daily_allowance(self.sport)
+        return max(0, int(settings.api_sports_daily_requests) or TIERS["free"]["daily"])
 
     def remaining(self, now: Optional[float] = None) -> int:
         self._roll(now)
-        return max(0, self.daily - self.used)
+        own = max(0, self.daily - self.used)
+        if self.reported_remaining is not None:
+            # The provider's count is every worker's; ours is this process's.
+            # Whichever says less is the one that holds.
+            since = self.used - self.reported_used_at
+            own = min(own, max(0, self.reported_remaining - since))
+        return own
+
+    def reserve(self) -> int:
+        """Requests the sweep leaves for episodes' own lookups (§180)."""
+        share = max(0.0, min(0.9, float(settings.api_sports_lookup_reserve)))
+        return int(round(self.daily * share))
 
     def sweep_interval(self, per_sweep: int, now: Optional[float] = None) -> float:
         """How long to wait between sweeps that each cost `per_sweep`."""
@@ -499,17 +694,156 @@ class RequestBudget:
         at = datetime.fromtimestamp(now, tz=timezone.utc)
         midnight = datetime(at.year, at.month, at.day, tzinfo=timezone.utc)
         left_today = max(1.0, 86400.0 - (at - midnight).total_seconds())
-        sweeps_left = self.remaining(now) // per_sweep
+        sweeps_left = max(0, self.remaining(now) - self.reserve()) // per_sweep
         if sweeps_left <= 0:
             return left_today           # nothing left: next sweep is tomorrow
         return max(self.MIN_INTERVAL_SECONDS, left_today / sweeps_left)
 
     def as_dict(self) -> dict:
-        return {"daily": self.daily, "used_today": self.used if self.day ==
-                self._today() else 0, "remaining": self.remaining()}
+        out = {"daily": self.daily, "used_today": self.used if self.day ==
+               self._today() else 0, "remaining": self.remaining()}
+        if self.sport:
+            out["tier"] = tier_of(self.sport)
+        if self.reported_limit is not None:
+            out["provider_limit"] = self.reported_limit
+        if self.reported_remaining is not None:
+            out["provider_remaining"] = self.reported_remaining
+        return out
+
+
+# --------------------------------------------------------------------------
+# Plans per sport (§180)
+# --------------------------------------------------------------------------
+#: API-Sports' plans, per product: each sport is its own subscription on the
+#: same key, so each is on its own plan. Copied from the published prices,
+#: looked up 2026-09-30 - re-check before buying. `API_SPORTS_TIERS` picks one
+#: per sport; everything is `free` until somebody buys something.
+TIERS = {
+    "free":  {"daily": 100,     "usd": 0,  "label": "Free"},
+    "pro":   {"daily": 7_500,   "usd": 19, "label": "Pro"},
+    "ultra": {"daily": 75_000,  "usd": 29, "label": "Ultra"},
+    "mega":  {"daily": 150_000, "usd": 39, "label": "Mega"},
+}
+TIER_ORDER = ("free", "pro", "ultra", "mega")
+
+
+_TIERS_PARSED: dict = {}
+
+
+def configured_tiers() -> dict:
+    """sport -> tier, from `API_SPORTS_TIERS` ("hockey=pro,football=ultra")
+    over `API_SPORTS_TIER` (every sport's default). A tier this build does not
+    know is logged - once per setting, not on every count - and read as the
+    default, never guessed upward."""
+    raw = (settings.api_sports_tier, settings.api_sports_tiers,
+           int(settings.api_sports_daily_requests or 0))
+    held = _TIERS_PARSED.get(raw)
+    if held is None:
+        held = _TIERS_PARSED[raw] = _parse_tiers()
+    return held
+
+
+def _parse_tiers() -> dict:
+    default = (settings.api_sports_tier or "free").strip().lower()
+    if default not in TIERS:
+        log.error("API_SPORTS_TIER=%r is not one of %s; using free",
+                  default, ", ".join(TIER_ORDER))
+        default = "free"
+    out = {key: default for key in SPORTS}
+    for part in (settings.api_sports_tiers or "").split(","):
+        if "=" not in part:
+            continue
+        sport, _, tier = (x.strip().lower() for x in part.partition("="))
+        if sport not in SPORTS:
+            log.error("API_SPORTS_TIERS names %r, which is not one of %s",
+                      sport, ", ".join(SPORTS))
+            continue
+        if tier not in TIERS:
+            log.error("API_SPORTS_TIERS gives %s the tier %r, which is not one "
+                      "of %s; using %s", sport, tier, ", ".join(TIER_ORDER), default)
+            continue
+        out[sport] = tier
+    override = int(settings.api_sports_daily_requests or 0)
+    for sport, tier in out.items():
+        if override > TIERS[tier]["daily"]:
+            # The pre-§180 guidance was "bought Pro: set this to 7,500". It is
+            # a ceiling now, so say why the allowance did not follow it.
+            log.error("API_SPORTS_DAILY_REQUESTS=%d is above %s's %s plan "
+                      "(%d/day) and only caps it now; if %s is on a bigger "
+                      "plan, say so in API_SPORTS_TIERS", override, sport,
+                      tier, TIERS[tier]["daily"], sport)
+    return out
+
+
+def tier_of(sport: str) -> str:
+    return configured_tiers().get(sport, "free")
+
+
+def next_tier(sport: str) -> str:
+    """The plan above this sport's, or "" when it is on the top one."""
+    at = TIER_ORDER.index(tier_of(sport))
+    return TIER_ORDER[at + 1] if at + 1 < len(TIER_ORDER) else ""
+
+
+def daily_allowance(sport: str) -> int:
+    """Requests per UTC day this process may spend on `sport`.
+
+    The sport's plan, unless `API_SPORTS_DAILY_REQUESTS` sets a ceiling of its
+    own - for several workers sharing one plan, each takes a share."""
+    override = int(settings.api_sports_daily_requests or 0)
+    allowance = TIERS[tier_of(sport)]["daily"]
+    return max(0, min(allowance, override) if override > 0 else allowance)
 
 
 API_SPORTS_BUDGET = RequestBudget()
+#: One budget per product, because API-Sports counts each separately.
+BUDGETS: dict = {}
+
+
+def budget_for(sport: str) -> RequestBudget:
+    """This sport's budget; the shared fallback for a host no sport owns."""
+    if not sport or sport not in SPORTS:
+        return API_SPORTS_BUDGET
+    held = BUDGETS.get(sport)
+    if held is None:
+        held = BUDGETS[sport] = RequestBudget(sport)
+    return held
+
+
+def _header_int(headers, name: str) -> Optional[int]:
+    try:
+        value = headers.get(name)
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _note_quota(url: str, headers) -> None:
+    """Read API-Sports' own daily count off an answer. Never raises."""
+    try:
+        limit = _header_int(headers, "x-ratelimit-requests-limit")
+        left = _header_int(headers, "x-ratelimit-requests-remaining")
+        if limit is not None or left is not None:
+            budget_for(sport_of_url(url)).note_reported(limit, left)
+    except Exception:  # noqa: BLE001 - a header is never worth a request
+        log.debug("could not read API-Sports' quota headers", exc_info=True)
+
+
+def budgets_report() -> dict:
+    """Per enabled sport: plan, allowance, today's spend, and what API-Sports
+    itself reported - for /api/health and the admin page."""
+    out = {}
+    # Every sport in use, and any other one spending today (a sport swept
+    # through STORIES_SPORTS but not in API_SPORTS_SPORTS is still billed).
+    keys = list(enabled_sports()) + [k for k in BUDGETS if k not in enabled_sports()]
+    for key in keys:
+        budget = budget_for(key)
+        row = budget.as_dict()
+        row["label"] = SPORTS[key].label
+        row["mismatch"] = bool(budget.reported_limit is not None
+                               and budget.reported_limit != TIERS[tier_of(key)]["daily"])
+        out[key] = row
+    return out
 
 
 class BudgetSpent(RuntimeError):
@@ -528,16 +862,18 @@ def _limit_reached(data: dict) -> bool:
 
 
 async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
-    """One API-Sports request, counted against the day's allowance."""
-    if API_SPORTS_BUDGET.remaining() <= 0:
+    """One API-Sports request, counted against its sport's daily allowance."""
+    sport = sport_of_url(url)
+    budget = budget_for(sport)
+    if budget.remaining() <= 0:
         raise BudgetSpent(
-            f"API-Sports' {API_SPORTS_BUDGET.daily} requests for today are "
-            "spent; they come back at 00:00 UTC")
-    API_SPORTS_BUDGET.spend(1)
+            f"API-Sports' {budget.daily} {SPORTS[sport].label if sport else ''} "
+            "requests for today are spent; they come back at 00:00 UTC")
+    budget.spend(1)
     data = await _json(url, {"x-apisports-key": settings.api_sports_key},
                        params, timeout)
     if _limit_reached(data):
-        API_SPORTS_BUDGET.exhaust()
+        budget.exhaust()
         raise BudgetSpent(f"API-Sports refused: {(data or {}).get('errors')}")
     errors = (data or {}).get("errors")
     if errors:
@@ -584,7 +920,21 @@ MAJOR_LEAGUES = frozenset({
     ("uefa champions league", ""), ("uefa europa league", ""),
     ("uefa nations league", ""), ("world cup", ""), ("fifa world cup", ""),
     ("copa libertadores", ""), ("euroleague", ""),
+    # §180's sports.
+    ("nhl", ""), ("afl", ""), ("six nations", ""), ("rugby world cup", ""),
+    ("super rugby", ""), ("nrl", ""),
 })
+
+
+def is_major_event(sport: "Sport", row: dict) -> bool:
+    """A race or a fight has no league row: every Formula 1 race is major,
+    and a fight is when it is on a UFC card (§180)."""
+    if sport.kind == "race":
+        return True
+    if sport.kind == "fight":
+        text = " ".join(str((row or {}).get(k) or "") for k in ("slug", "event", "name"))
+        return "ufc" in text.lower()
+    return False
 
 
 def league_of(row: dict) -> tuple:
@@ -621,10 +971,31 @@ def sport_for(subject: str) -> Sport:
     one. Deliberately not guessed at here.
     """
     text = " ".join((subject or "").lower().split())
-    for sport in SPORTS.values():
-        if any(word in text for word in sport.words):
+    padded = " " + " ".join(re.findall(r"[a-z0-9]+", text)) + " "
+    enabled = enabled_sports()
+
+    def said(word: str) -> bool:
+        # Whole words, so "f1" is not inside "f150" and "afl" not "waffle".
+        return " " + " ".join(re.findall(r"[a-z0-9]+", word)) + " " in padded
+    matched = [SPORTS[k] for k in enabled if any(said(w) for w in SPORTS[k].words)]
+    # Several sports share event names ("world cup", "champions league"); the
+    # one whose own name is said wins - "Rugby World Cup" is rugby (§180).
+    for sport in matched:
+        own = {sport.key.replace("-", " "), sport.label.lower(), sport.words[0]}
+        if any(said(word) for word in own):
             return sport
-    return SPORTS.get(settings.api_sports_sport, SPORTS["american-football"])
+    if matched:
+        return matched[0]
+    # No sport named: a team this deployment has already read a league's
+    # catalogue for ("Maple Leafs game") names its sport (§180). Only cached
+    # catalogues are asked - routing never spends a request.
+    for key in enabled:
+        held = TEAMS.get(key)
+        if held and teams_named(held[1], subject):
+            return SPORTS[key]
+    default = settings.api_sports_sport if settings.api_sports_sport in enabled \
+        else (enabled[0] if enabled else "american-football")
+    return SPORTS.get(default, SPORTS["american-football"])
 
 
 # --------------------------------------------------------------------------
@@ -650,6 +1021,8 @@ SCHEDULES: dict = {}
 #: game whose state may have moved (`_unsettled`), which is asked every time.
 SCHEDULE_SECONDS = 600.0
 #: Which stage counts toward a record. Pre-season games never do.
+#: Matched as a phrase: the NFL's stage is "Regular Season", other APIs
+#: prefix it ("NBA - Regular Season").
 REGULAR_SEASON = "regular season"
 #: The share of a resolve's time the team path may take, leaving the rest
 #: for today's live games if it finds nothing.
@@ -673,7 +1046,7 @@ async def league_teams(sport: Sport, now: Optional[float] = None) -> list:
         return held[1]
     data = await api_sports_json(f"{sport.host}/teams",
                                  {"league": sport.team_league,
-                                  "season": _nfl_season()},
+                                  "season": season_of(sport)},
                                  settings.live_timeout_seconds)
     rows = [r for r in ((data or {}).get("response") or [])
             if isinstance(r, dict) and r.get("id") is not None and r.get("name")]
@@ -776,9 +1149,13 @@ async def team_schedule(sport: Sport, team_id, now: Optional[float] = None,
     if held and now - held[0] < SCHEDULE_SECONDS and not _unsettled(
             held[1], sport, now, skip):
         return _with_fresh(held[1], fresh, skip)
-    params = {"team": str(team_id), "season": _nfl_season()}
-    if sport.team_league:
-        params["league"] = sport.team_league
+    if str(team_id) == "season":
+        # A race calendar: every race this season, not one team's (§180).
+        params = {"season": season_of(sport), "type": "Race"}
+    else:
+        params = {"team": str(team_id), "season": season_of(sport)}
+        if sport.team_league:
+            params["league"] = sport.team_league
     data = await api_sports_json(f"{sport.host}/{sport.path}", params,
                                  settings.live_timeout_seconds)
     rows = [r for r in ((data or {}).get("response") or []) if isinstance(r, dict)]
@@ -862,7 +1239,7 @@ def season_facts(sport: Sport, team: dict, rows: list,
             if home is None or away is None:
                 continue
             stage = str(_row_block(row, "stage")["stage"] or "").strip().lower()
-            if stage and stage != REGULAR_SEASON:
+            if stage and REGULAR_SEASON not in stage:
                 continue
             mine, theirs = (home, away) if side == "home" else (away, home)
             if mine > theirs:
@@ -882,8 +1259,8 @@ def season_facts(sport: Sport, team: dict, rows: list,
                   + " in the regular season so far.")
         said.append(record)
     elif upcoming and not finals and any(
-            str(_row_block(r, "stage")["stage"] or "").strip().lower()
-            == REGULAR_SEASON for r, _ in upcoming):
+            REGULAR_SEASON in str(_row_block(r, "stage")["stage"] or "").lower()
+            for r, _ in upcoming):
         # Only when the schedule shows the regular season still ahead of
         # them. An empty or unreadable schedule says nothing: absence of
         # results is never a record of none.
@@ -955,20 +1332,33 @@ class ApiSportsSource(LiveSource):
         return {"x-apisports-key": settings.api_sports_key}
 
     async def verify(self) -> tuple[bool, str]:
-        sport = SPORTS[settings.api_sports_sport]
-        try:
-            data = await _json(f"{sport.host}/status", self._headers(), {},
-                               settings.live_timeout_seconds)
-        except Exception as exc:  # noqa: BLE001
-            return False, f"API-Sports did not answer: {type(exc).__name__}: {exc}"
-        account = (data or {}).get("response") or {}
-        if not account:
-            errors = (data or {}).get("errors")
-            return False, f"API-Sports rejected the request: {errors or 'unreadable'}"
-        requests = (account.get("requests") or {})
-        return True, (f"API-Sports accepted the key on {sport.key}: "
-                      f"{requests.get('current', '?')}/{requests.get('limit_day', '?')} "
-                      f"requests used today")
+        """Ask every enabled sport's `/status` (§180): each is its own
+        subscription, so each says its own plan and today's count - and a
+        plan that is not the one `API_SPORTS_TIERS` says is named."""
+        said, ok_all = [], True
+        for key in enabled_sports():
+            sport = SPORTS[key]
+            try:
+                data = await _json(f"{sport.host}/status", self._headers(), {},
+                                   settings.live_timeout_seconds)
+            except Exception as exc:  # noqa: BLE001
+                ok_all = False
+                said.append(f"{key}: did not answer ({type(exc).__name__}: {exc})")
+                continue
+            account = (data or {}).get("response") or {}
+            if not isinstance(account, dict) or not account:
+                ok_all = False
+                errors = (data or {}).get("errors")
+                said.append(f"{key}: rejected ({errors or 'unreadable'})")
+                continue
+            requests = account.get("requests") or {}
+            plan = str((account.get("subscription") or {}).get("plan") or "?")
+            expected = tier_of(key)
+            note = "" if plan.lower() == expected or plan == "?" else \
+                f" - API_SPORTS_TIERS says {expected}; set it to {plan.lower()}"
+            said.append(f"{key}: {plan} plan, {requests.get('current', '?')}/"
+                        f"{requests.get('limit_day', '?')} used today{note}")
+        return ok_all, "API-Sports per sport: " + "; ".join(said)
 
     async def resolve(self, brief) -> Optional[Entity]:
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
@@ -982,6 +1372,11 @@ class ApiSportsSource(LiveSource):
             return await self._resolve_slot(brief, slot)
 
         sport = sport_for(subject)
+        # A race or a fight is not a game between two teams (§180).
+        if sport.kind == "race":
+            return await self._resolve_race(sport, subject)
+        if sport.kind == "fight":
+            return await self._resolve_fight(sport, subject)
         # Today's card from the last sweep first: finding *which* game costs
         # no request when the sweep already listed it. Only a game the sweep
         # did not see costs one. The state itself is always fetched fresh -
@@ -1027,6 +1422,69 @@ class ApiSportsSource(LiveSource):
                     id=f"{sport.key}:{self._game_id(row)}",
                     label=f"{home} v {away}")
         return None
+
+    async def _resolve_race(self, sport: Sport, subject: str) -> Optional[Entity]:
+        """The race a question is about: the season's calendar (one request,
+        cached like a team's schedule), then the Grand Prix it names by its
+        name or place, else the one under way, just run, or next."""
+        rows = await team_schedule(sport, "season")
+        rows = [r for r in rows if str(r.get("type") or "race").lower() == "race"]
+        words = {w for w in re.findall(r"[a-z]+", subject.lower()) if len(w) > 3}
+        words -= {"grand", "prix", "formula", "race", "result", "results",
+                  "winner", "won", "who", "what", "when", "this", "next", "last",
+                  "will", "today", "season", "weekend", "qualifying", "sprint"}
+
+        def names(row: dict) -> str:
+            comp = row.get("competition") or {}
+            where = comp.get("location") or {} if isinstance(comp, dict) else {}
+            return " ".join(str(x) for x in (
+                comp.get("name", "") if isinstance(comp, dict) else "",
+                where.get("country", "") if isinstance(where, dict) else "",
+                where.get("city", "") if isinstance(where, dict) else "",
+                (row.get("circuit") or {}).get("name", "")
+                if isinstance(row.get("circuit"), dict) else "")).lower()
+        named = [r for r in rows
+                 if words & set(re.findall(r"[a-z]+", names(r)))]
+        row = self._pick_game(named or rows, sport, two_teams=bool(named))
+        if row is None:
+            return None
+        return Entity(domain="sports", provider=self.name,
+                      id=f"{sport.key}:{self._game_id(row)}",
+                      label=self._team_names(row)[0] or "a race")
+
+    async def _resolve_fight(self, sport: Sport, subject: str) -> Optional[Entity]:
+        """The fight a question names by a fighter, on today's card (the
+        sweep's, else one request). A fight card is a day's; a fighter no
+        card today names is not guessed at."""
+        rows = card_rows(sport.key, max_age=6 * 3600.0)
+        if rows is None:
+            data = await api_sports_json(
+                f"{sport.host}/{sport.path}",
+                {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
+                settings.live_timeout_seconds)
+            rows = (data or {}).get("response", []) or []
+        words = {w for w in re.findall(r"[a-z]+", subject.lower()) if len(w) > 3}
+
+        def match(rows: list) -> Optional[Entity]:
+            for row in rows:
+                first, second = self._team_names(row)
+                # Whole names: "will" is not inside "Williams".
+                names = set(re.findall(r"[a-z]+", f"{first} {second}".lower()))
+                if words & names:
+                    return Entity(domain="sports", provider=self.name,
+                                  id=f"{sport.key}:{self._game_id(row)}",
+                                  label=f"{first} v {second}")
+            return None
+        found = match(rows)
+        if found is None and words:
+            # "Who won the Jones fight" is asked the morning after: a US card
+            # ends after midnight UTC, so yesterday's card is the other place.
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+            data = await api_sports_json(f"{sport.host}/{sport.path}",
+                                         {"date": yesterday},
+                                         settings.live_timeout_seconds)
+            found = match((data or {}).get("response", []) or [])
+        return found
 
     async def _resolve_by_team(self, brief, sport: Sport,
                                subject: str) -> Optional[Entity]:
@@ -1139,8 +1597,17 @@ class ApiSportsSource(LiveSource):
             rows = (data or {}).get("response", []) or []
         if not rows:
             return None
-        facts = self.to_facts(rows[0], entity, sport)
-        if facts is not None and sport.team_league:
+        row = rows[0]
+        if sport.kind == "race" and sport.statuses.get(
+                str(self._status_block(row).get("short") or "").upper()) \
+                == live_facts.FINAL:
+            row = dict(row, podium=await self._podium(sport, game_id))
+        facts = self.to_facts(row, entity, sport)
+        league = (row.get("league") or {}) if isinstance(row.get("league"), dict) else {}
+        own_league = str(league.get("id", sport.team_league)) == sport.team_league
+        if facts is not None and sport.team_league and own_league:
+            # Only for the league the records are counted in: a EuroLeague or
+            # KHL game would spend two requests on an empty NBA/NHL schedule.
             # Inside what is left of this fetch's own time, so a slow schedule
             # can never cost the game the facts already in hand.
             left = settings.live_timeout_seconds * 0.9 - (time.monotonic() - started)
@@ -1152,6 +1619,36 @@ class ApiSportsSource(LiveSource):
             facts = replace(facts, as_of=datetime.fromtimestamp(
                 swept_at, tz=timezone.utc))
         return facts
+
+    #: A finished race's podium does not change: read once (§180).
+    _PODIUMS: dict = {}
+
+    async def _podium(self, sport: Sport, race_id: str) -> list:
+        """A finished race's first three, `[(driver, team), ...]`, from its
+        rankings - or [] when they cannot be read, and the race is then only
+        said to have finished (§180)."""
+        if race_id in self._PODIUMS:
+            return self._PODIUMS[race_id]
+        try:
+            data = await api_sports_json(f"{sport.host}/rankings/races",
+                                         {"race": race_id},
+                                         settings.live_timeout_seconds)
+        except Exception as exc:  # noqa: BLE001 - the race's own facts stand
+            log.info("live facts: no podium for race %s (%s)", race_id, exc)
+            return []
+        rows = [r for r in ((data or {}).get("response") or []) if isinstance(r, dict)]
+
+        def position(r: dict) -> int:
+            try:
+                return int(r.get("position"))
+            except (TypeError, ValueError):
+                return 10_000
+        rows = sorted((r for r in rows if position(r) < 10_000), key=position)
+        podium = [(str((r.get("driver") or {}).get("name", "")),
+                   str((r.get("team") or {}).get("name", ""))) for r in rows[:3]]
+        if podium:
+            self._PODIUMS[race_id] = podium
+        return podium
 
     async def _with_seasons(self, facts: LiveFacts, row: dict,
                             sport: Sport, budget: float = 1.0) -> LiveFacts:
@@ -1186,9 +1683,19 @@ class ApiSportsSource(LiveSource):
     # and a single branching `to_facts` is where that difference gets lost.
     @staticmethod
     def _team_names(row: dict) -> tuple:
+        """The two sides: teams, or a fight's two fighters. A race has a
+        field, not sides: its name and "" (§180)."""
         teams = (row or {}).get("teams") or {}
-        return (str((teams.get("home") or {}).get("name", "")),
-                str((teams.get("away") or {}).get("name", "")))
+        if teams:
+            return (str((teams.get("home") or {}).get("name", "")),
+                    str((teams.get("away") or {}).get("name", "")))
+        fighters = (row or {}).get("fighters") or {}
+        if fighters:
+            return (str((fighters.get("first") or {}).get("name", "")),
+                    str((fighters.get("second") or {}).get("name", "")))
+        competition = (row or {}).get("competition") or {}
+        return (str(competition.get("name", "") if isinstance(competition, dict)
+                    else competition or ""), "")
 
     @staticmethod
     def _game_id(row: dict) -> str:
@@ -1204,7 +1711,11 @@ class ApiSportsSource(LiveSource):
             block = (row or {}).get(holder) or {}
             if block.get("status"):
                 return block["status"] or {}
-        return (row or {}).get("status") or {}
+        status = (row or {}).get("status") or {}
+        if isinstance(status, str):
+            # A race's status is a word ("Completed"), not a block.
+            return {"short": status.upper(), "long": status}
+        return status
 
     @staticmethod
     def _score(row: dict) -> tuple:
@@ -1215,7 +1726,15 @@ class ApiSportsSource(LiveSource):
         scores = (row or {}).get("scores") or {}
         home, away = scores.get("home"), scores.get("away")
         if isinstance(home, dict):
-            home, away = home.get("total"), (away or {}).get("total")
+            # `total` for most sports; AFL keeps `score` beside goals and
+            # behinds (§180).
+            def pick(block):
+                block = block or {}
+                for name in ("total", "score", "points"):
+                    if block.get(name) is not None:
+                        return block.get(name)
+                return None
+            home, away = pick(home), pick(away)
         return home, away
 
     @classmethod
@@ -1231,8 +1750,29 @@ class ApiSportsSource(LiveSource):
         status = sport.statuses.get(str(status_block.get("short") or "").upper(),
                                     live_facts.UNKNOWN)
         home, away = cls._team_names(row)
+        if sport.kind == "race":
+            # A race has a field, not two sides: its name and where it is.
+            # Practice and qualifying are sessions of the weekend, not the
+            # race: one "completed" on Friday is not the race finished.
+            if (status == live_facts.UNKNOWN or not home
+                    or str((row or {}).get("type") or "race").lower() != "race"):
+                return live_facts.UNKNOWN, ""
+            if status == live_facts.SCHEDULED:
+                when = cls._start_time(row)
+                return status, (f"Starts {when}" if when else "Today")
+            return status, ("Finished" if status == live_facts.FINAL
+                            else "Live \u00b7 under way")
         if status == live_facts.UNKNOWN or not (home and away):
             return live_facts.UNKNOWN, ""
+        if sport.kind == "fight":
+            if status == live_facts.SCHEDULED:
+                when = cls._start_time(row)
+                return status, (f"Starts {when}" if when else "Today")
+            if status == live_facts.FINAL:
+                winner, loser = cls._fight_result(row)
+                return status, (f"Final \u00b7 {winner} beat {loser}" if winner
+                                else f"Final \u00b7 {home} v {away}")
+            return status, f"Live \u00b7 {home} v {away}"
         hs, as_ = cls._score(row)
         scored = hs is not None and as_ is not None
         if status == live_facts.SCHEDULED:
@@ -1246,6 +1786,74 @@ class ApiSportsSource(LiveSource):
         if not where and elapsed:
             where = f"{elapsed}'"
         return status, "Live \u00b7 " + score + (f" \u00b7 {where}" if where else "")
+
+    @staticmethod
+    def _fight_result(row: dict) -> tuple:
+        """`(winner, loser)` off the fighters' own `winner` flags, or
+        ("", "") when neither is marked - never inferred from anything else."""
+        fighters = (row or {}).get("fighters") or {}
+        first, second = fighters.get("first") or {}, fighters.get("second") or {}
+        if first.get("winner") is True and second.get("winner") is not True:
+            return str(first.get("name", "")), str(second.get("name", ""))
+        if second.get("winner") is True and first.get("winner") is not True:
+            return str(second.get("name", "")), str(first.get("name", ""))
+        return "", ""
+
+    def _event_facts(self, row: dict, entity: Entity,
+                     sport: Sport) -> Optional[LiveFacts]:
+        """A fight or a race -> LiveFacts (§180). The result is only what the
+        provider marks: a fight's `winner` flag, a race's podium from its
+        rankings (`podium`, filled in by `fetch`)."""
+        status = sport.statuses.get(
+            str(self._status_block(row).get("short") or "").upper(),
+            live_facts.UNKNOWN)
+        first, second = self._team_names(row)
+        kick = _kickoff_said(self._kickoff(row), sport)
+        said: list = []
+        if sport.kind == "fight":
+            if not (first and second):
+                return None
+            if status == live_facts.SCHEDULED:
+                said.append(f"{first} and {second} have not fought yet."
+                            + (f" The fight is set for {kick}." if kick else ""))
+            elif status == live_facts.IN_PROGRESS:
+                said.append(f"{first} and {second} are fighting now; there is "
+                            "no result yet.")
+            elif status == live_facts.FINAL:
+                winner, loser = self._fight_result(row)
+                if winner:
+                    said.append(f"{winner} beat {loser}.")
+                else:
+                    said.append(f"{first} and {second} have fought; the "
+                                "provider names no winner.")
+            category = str((row or {}).get("category") or "").strip()
+            if said and category:
+                said.append(f"It is a {category.lower()} fight.")
+        else:
+            name = first or "The race"
+            circuit = ((row or {}).get("circuit") or {})
+            where = str(circuit.get("name", "")) if isinstance(circuit, dict) else ""
+            at = f" at {where}" if where else ""
+            if status == live_facts.SCHEDULED:
+                said.append(f"The {name}{at} has not started yet."
+                            + (f" It starts {kick}." if kick else ""))
+            elif status == live_facts.IN_PROGRESS:
+                said.append(f"The {name}{at} is under way; there is no result yet.")
+            elif status == live_facts.FINAL:
+                podium = list((row or {}).get("podium") or [])
+                if podium:
+                    first_place = podium[0]
+                    line = f"{first_place[0]} won the {name}{at}"
+                    line += f" for {first_place[1]}" if first_place[1] else ""
+                    rest = [p[0] for p in podium[1:3] if p[0]]
+                    said.append(line + (f", ahead of {' and '.join(rest)}." if rest else "."))
+                else:
+                    said.append(f"The {name}{at} has finished.")
+        if not said:
+            return None
+        return LiveFacts(domain="sports", source=self.name,
+                         as_of=datetime.now(timezone.utc), facts=said,
+                         status=status, entity=entity)
 
     @classmethod
     def _start_time(cls, row: dict) -> str:
@@ -1268,12 +1876,23 @@ class ApiSportsSource(LiveSource):
         try:
             return datetime.fromtimestamp(int(stamp), tz=timezone.utc)
         except (TypeError, ValueError, OverflowError, OSError):
-            return None
+            pass
+        # A race carries an ISO date with its offset (§180).
+        date = (row or {}).get("date")
+        if isinstance(date, str) and "T" in date:
+            try:
+                at = datetime.fromisoformat(date.replace("Z", "+00:00"))
+                return at if at.tzinfo else at.replace(tzinfo=timezone.utc)
+            except ValueError:
+                return None
+        return None
 
     def to_facts(self, row: dict, entity: Entity,
                  sport: Optional[Sport] = None) -> Optional[LiveFacts]:
         """One game row -> LiveFacts. Split out so tests can drive it."""
         sport = sport or SPORTS[settings.api_sports_sport]
+        if sport.kind in ("race", "fight"):
+            return self._event_facts(row, entity, sport)
         status_block = self._status_block(row)
         short = str(status_block.get("short") or "").upper()
         # Mapped at the boundary. Unrecognised becomes `unknown`, never a

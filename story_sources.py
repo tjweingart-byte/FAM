@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import math
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -604,13 +605,30 @@ class ApiSportsSignals(stories.StorySource):
     domain = stories.SPORTS
     #: Flat-rate plan; the bill is not per call.
     cost_per_refresh = 0.0
-    max_signals = 12
+    #: Up to ten sports share one sweep (§180).
+    max_signals = 24
+
+    #: When each sport was last swept (§180): each is its own plan and its
+    #: own day, so each is paced on its own budget and a sweep takes only
+    #: the sports that are due.
+    @property
+    def _last_swept(self) -> dict:
+        return SPORT_SWEPT_AT
 
     @property
     def min_interval_seconds(self) -> float:
         import live_sources
 
-        return live_sources.API_SPORTS_BUDGET.sweep_interval(len(self.sports()))
+        # The soonest any sport is due; `collect` skips the ones that are not.
+        return min((live_sources.budget_for(k).sweep_interval(1)
+                    for k in self.sports()), default=3600.0)
+
+    def _due(self, key: str, now: float) -> bool:
+        import live_sources
+
+        last = self._last_swept.get(key)
+        # A little early is fine: the sweep's own clock is not exact.
+        return last is None or now - last >= live_sources.budget_for(key).sweep_interval(1) * 0.9
 
     def diagnose(self) -> tuple[bool, str]:
         import live_sources
@@ -621,12 +639,14 @@ class ApiSportsSignals(stories.StorySource):
             if key not in live_sources.SPORTS:
                 return False, (f"STORIES_SPORTS lists {key!r}, which is not one of "
                                f"{', '.join(sorted(live_sources.SPORTS))}")
-        budget = live_sources.API_SPORTS_BUDGET
-        return True, (f"API_SPORTS_KEY present, sweeping "
-                      f"{', '.join(self.sports())} about every "
-                      f"{budget.sweep_interval(len(self.sports())) / 60:.0f} min "
-                      f"({budget.remaining()} of {budget.daily} requests left "
-                      f"today; not verified from this machine)")
+        paced = ", ".join(
+            f"{k} every {live_sources.budget_for(k).sweep_interval(1) / 60:.0f} min "
+            f"({live_sources.budget_for(k).remaining()} of "
+            f"{live_sources.budget_for(k).daily} left, {live_sources.tier_of(k)})"
+            for k in self.sports())
+        failing = "; ".join(f"{k} FAILING ({why})" for k, why in SPORT_FAILURES.items())
+        return True, (f"API_SPORTS_KEY present, sweeping {paced}; not verified "
+                      "from this machine" + (f"; {failing}" if failing else ""))
 
     async def verify(self) -> tuple[bool, str]:
         import live_sources
@@ -634,10 +654,14 @@ class ApiSportsSignals(stories.StorySource):
         return await live_sources.ApiSportsSource().verify()
 
     def sports(self) -> list:
+        """What the sweep lists: `STORIES_SPORTS`, else every sport this
+        deployment uses (§180). No cap: each sport spends its own plan."""
+        import live_sources
+
         raw = (settings.stories_sports or "").strip()
         if raw:
-            return [s.strip() for s in raw.split(",") if s.strip()][:4]
-        return [settings.api_sports_sport]
+            return [s.strip() for s in raw.split(",") if s.strip()]
+        return live_sources.enabled_sports()
 
     async def collect(self, limit: int) -> list:
         import live_sources
@@ -647,19 +671,28 @@ class ApiSportsSignals(stories.StorySource):
 
         async def card(key: str):
             sport = live_sources.SPORTS[key]
+            params = {"date": today}
+            if sport.kind == "race":
+                # The race only, not the weekend's practice and qualifying.
+                params["type"] = "Race"
             data = await live_sources.api_sports_json(
-                f"{sport.host}/{sport.path}", {"date": today}, timeout)
+                f"{sport.host}/{sport.path}", params, timeout)
             rows = (data or {}).get("response", []) or []
             live_sources.remember_card(key, rows)
+            await self._warm_catalogue(sport)
             return sport, rows
 
+        clock = time.time()
+        due = [k for k in self.sports()
+               if k in live_sources.SPORTS and self._due(k, clock)]
+        for key in due:
+            self._last_swept[key] = clock
         out = []
         failures: list = []
-        for result in await asyncio.gather(
-                *(card(k) for k in self.sports() if k in live_sources.SPORTS),
-                return_exceptions=True):
+        for key, result in zip(due, await asyncio.gather(
+                *(card(k) for k in due), return_exceptions=True)):
             if isinstance(result, BaseException):
-                failures.append(result)
+                failures.append((key, result))
                 continue
             sport, rows = result
             now = datetime.now(timezone.utc)
@@ -667,6 +700,16 @@ class ApiSportsSignals(stories.StorySource):
                 signal = self._signal(sport, row, now)
                 if signal is not None:
                     out.append(signal)
+        for failed_key, exc in failures:
+            # One sport failing is never silent while the others answer
+            # (§180): an unsubscribed product or a wrong host says so here
+            # and in the report, every sweep it happens.
+            log.warning("stories: API-Sports %s failed: %s", failed_key, exc)
+            SPORT_FAILURES[failed_key] = f"{type(exc).__name__}: {exc}"
+        for key in due:
+            if key not in {k for k, _ in failures}:
+                SPORT_FAILURES.pop(key, None)
+        failures = [exc for _, exc in failures]
         if failures and not out:
             # Every sport failed - the allowance, the key or the host. An
             # outage, raised so the report names it, never a day with no games.
@@ -676,6 +719,27 @@ class ApiSportsSignals(stories.StorySource):
         # Deterministic, because the provider's own order is not a ranking.
         out.sort(key=lambda s: (-s.strength, s.subject))
         return out[:limit]
+
+    @staticmethod
+    async def _warm_catalogue(sport) -> None:
+        """Read a team sport's league catalogue once a day (§180), so a
+        question naming only a team ("Maple Leafs game") finds its sport
+        without a request of its own - and only from what is left above the
+        lookups' reserve. Never raises."""
+        import live_sources
+
+        if not sport.team_league:
+            return
+        held = live_sources.TEAMS.get(sport.key)
+        if held and time.time() - held[0] < live_sources.TEAMS_SECONDS:
+            return
+        budget = live_sources.budget_for(sport.key)
+        if budget.remaining() <= budget.reserve():
+            return
+        try:
+            await live_sources.league_teams(sport)
+        except Exception as exc:  # noqa: BLE001 - a warm cache is a bonus
+            log.info("stories: could not read the %s catalogue: %s", sport.key, exc)
 
     #: How interesting each state of a game is to somebody browsing. Under way
     #: beats about to start beats finished: the first is the only one where an
@@ -694,7 +758,7 @@ class ApiSportsSignals(stories.StorySource):
         import live_sources
 
         home, away = live_sources.ApiSportsSource._team_names(row)  # noqa: SLF001
-        if not (home and away):
+        if not (home and (away or sport.kind == "race")):
             return None
         status, line = live_sources.ApiSportsSource.live_line(row, sport)
         if status == live_facts.UNKNOWN or not line:
@@ -703,7 +767,8 @@ class ApiSportsSignals(stories.StorySource):
             # does not offer.
             return None
         league, country = live_sources.league_of(row)
-        major = live_sources.is_major(league, country)
+        major = (live_sources.is_major(league, country)
+                 or live_sources.is_major_event(sport, row))
         where = stories.normalise_country(country)
         hint = ""
         if where in ("world", "international", ""):
@@ -719,8 +784,8 @@ class ApiSportsSignals(stories.StorySource):
             live_facts.FINAL: f"has finished: {line}",
         }[status]
         return stories.Signal(
-            subject=f"{home} vs {away}",
-            observation=(f"this {sport.key.replace('-', ' ')} game"
+            subject=f"{home} vs {away}" if away else home,
+            observation=(f"this {sport.label.lower()} {sport.noun}"
                          + (f" in the {league}" if league else "")
                          + f" {said}. The score is shown to the listener beside "
                          "the tile and updates on its own; keep it out of the "
@@ -737,6 +802,13 @@ class ApiSportsSignals(stories.StorySource):
             live_line=line,
             live_status=status,
         )
+
+
+#: When each API-Sports sport was last swept (§180), for the process - not
+#: per source object, so a rebuilt registry does not sweep everything again.
+SPORT_SWEPT_AT: dict = {}
+#: Each sport whose last sweep failed, and why, until one succeeds.
+SPORT_FAILURES: dict = {}
 
 
 def _status_code(row: dict) -> str:
