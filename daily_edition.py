@@ -502,6 +502,8 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     extra = {"summary": notes.summary} if notes.summary else {}
     if notes.sourced_at:
         extra["sourced_at"] = notes.sourced_at
+    if getattr(notes, "category", ""):
+        extra["category"] = notes.category   # §189
     # No author: an edition episode was nobody's tap, so it belongs to
     # everybody - the rule prefetch and the Trending bank keep.
     # Written in a voice drawn from the bank (§147): nobody chose one, and

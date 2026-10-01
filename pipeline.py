@@ -1502,6 +1502,9 @@ class PodcastPipeline:
             # double that stands in for one - is still called exactly as
             # it always was.
             extra = {"summary": stats.summary} if stats.summary else {}
+            # The writer's `<<CATEGORY:>>` words (§189), on the same terms.
+            if getattr(notes, "category", ""):
+                extra["category"] = notes.category
             # Whether a play may keep this alive past its first lifetime
             # (§134): only an episode that makes no claim about a window of
             # time - no recency window, not a question about a result, not

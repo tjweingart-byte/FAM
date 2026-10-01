@@ -773,6 +773,12 @@ class Prefetcher:
             import voice_bank
 
             stamp["origin"] = "prefetch"
+            # The writer's own name, hook and category (§189), each only when
+            # it wrote one: a warmed episode's tile is renamed by them once it
+            # is written, exactly like one a tap or an edition wrote.
+            for name in ("title", "summary", "category"):
+                if getattr(notes, name, ""):
+                    stamp[name] = getattr(notes, name)
             stamp["voice"] = voice_bank.random_slug()
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,

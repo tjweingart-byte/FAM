@@ -79,7 +79,7 @@ the Render deployment.
 
 | File | Owner | What it holds (main tables) | Per-listener? | Growth |
 |---|---|---|---|---|
-| **scripts.db** | `cache.py` | **The shared episode cache.** `scripts`: question, sentences, title, summary, `thread` (NEXT), sources, `vector` (float32 blob), author, origin, voice, `sourced_at`, `fresh_until`, plays. `episode_audio`: zlib-compressed PCM per (script, voice). | **No, shared by everybody** | The largest by far, because of audio |
+| **scripts.db** | `cache.py` | **The shared episode cache.** `scripts`: question, sentences, title, summary, category (the writer's `<<CATEGORY:>>`), `thread` (NEXT), sources, `vector` (float32 blob), author, origin, voice, `sourced_at`, `fresh_until`, plays. `episode_audio`: zlib-compressed PCM per (script, voice). | **No, shared by everybody** | The largest by far, because of audio |
 | **myfam.db** | `topics.py` | `events`: every interaction of an **account** (search, play, complete, skip, pick, share, vibe, save, impression), with tags, section and algorithm version. `learned_rank`: the fitted ranking model (1 row). | Yes | Grows forever, except impressions |
 | **preferences.db** | `preferences.py` | Interests, typed topics, hidden and pinned profile interests, language, **city / region / country** | Yes | 1 row per listener |
 | **accounts.db** | `accounts.py` | Credentials (scrypt), `sessions` (token **hash**), `identities` (Google/Apple subject), plan | Yes | Small |

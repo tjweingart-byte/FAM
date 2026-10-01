@@ -408,6 +408,11 @@ class Topic:
     #: not, so a tile that has one shows it and a tile that does not is
     #: unchanged rather than being given a stale one.
     angle: str = ""
+    #: The category-tree node a live story's composer said it is about
+    #: (`Story.category`). The tile's picture is that node's; empty everywhere
+    #: else, where the picture is matched from the question as before. Not
+    #: serialised: it decides a picture, it is not something a card says.
+    category: str = ""
     #: Which live source put this here. Shown nowhere; it is what makes a
     #: per-source hit rate answerable, the same way prefetch counts warmed
     #: against taken. A guess nobody can score is a guess nobody can improve.
@@ -477,9 +482,16 @@ class Topic:
         in-process lookup - never a database open, never a model call."""
         import thumbnails
 
-        found = thumbnails.pick(self.query, self.tags)
+        found = thumbnails.pick(self.query, self.tags, category=self.category)
         if not found:
-            return {"thumb": "", "thumb_facet": ""}
+            # No picture yet, but a composed category still says which facet
+            # the card is - rather than the alphabetically first tag.
+            facet = ""
+            if self.category:
+                import stories
+
+                facet = stories.facet_for(self.category)
+            return {"thumb": "", "thumb_facet": facet}
         return {"thumb": found["url"], "thumb_facet": found["facet"]}
 
 
@@ -4731,6 +4743,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             tags=tags,
             icon=_icon_for_tags(tags),
             angle=story.angle,
+            category=getattr(story, "category", "") or "",
             source=story.source,
             freshness=story.push(now),
             countries=tuple(getattr(story, "countries", ()) or ()),

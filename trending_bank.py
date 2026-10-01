@@ -226,7 +226,7 @@ def _story(row: dict, cls):
     """A stored story back into a `stories.Story`, tuples and all."""
     known = {f for f in cls.__dataclass_fields__}
     row = {k: v for k, v in row.items() if k in known}
-    for name in ("tags", "keywords"):
+    for name in ("tags", "keywords", "anchors"):
         if name in row:
             row[name] = tuple(row[name] or ())
     if "countries" in row:
@@ -542,6 +542,107 @@ def search_words(headline: str, limit: int = 4) -> str:
     return " ".join((names + rest)[:limit])
 
 
+#: How many names pin one story (`anchors_of`).
+MAX_ANCHORS = 4
+
+
+def anchors_of(group) -> tuple:
+    """The names a story's headlines share, as the press spells them.
+
+    What pins the episode to the event (`stories.pin_query`): the people,
+    organisations and places - a capitalised word that is not a headline's
+    first - that at least a third of the group's headlines use, the same
+    share `news_clusters` calls the group's core. Most shared first, then in
+    the order the leading headline says them. A Title Case headline
+    capitalises every word and says nothing about which are names, so it is
+    read only when no headline is in sentence case, and then only its words
+    the group shares. Names only, never a headline: a headline can carry a
+    result, and these go into the query research searches from.
+    """
+    import news_clusters
+
+    titles = [group.headline()] + [t for t in group.titles
+                                   if t != group.headline()]
+    stop = news_clusters.STOPWORDS
+
+    def capitalised(title: str, first: bool = False) -> list:
+        words = _WORD.findall(title.replace("\u2019s", "").replace("'s", ""))
+        out = []
+        for i, word in enumerate(words):
+            word = word.strip("'-")
+            if ((i == 0 and not first) or len(word) < 2
+                    or word.lower() in stop or word.isdigit()):
+                continue
+            if word[0].isupper():
+                out.append(word)
+        return out
+
+    def title_case(title: str) -> bool:
+        later = [w for w in _WORD.findall(title)[1:]
+                 if len(w) > 3 and w.lower() not in stop]
+        return len(later) >= 2 and all(w[0].isupper() for w in later)
+
+    sentence_case = [t for t in titles if not title_case(t)]
+    readable = sentence_case or titles
+    need = max(1.0, news_clusters.CORE_SHARE * len(readable))
+    counts: dict = {}
+    spelling: dict = {}
+    order: dict = {}
+    for title in readable:
+        for word in dict.fromkeys(capitalised(title, not sentence_case)):
+            low = word.lower()
+            counts[low] = counts.get(low, 0) + 1
+            spelling.setdefault(low, word)
+            order.setdefault(low, len(order))
+    if not sentence_case:
+        # Title case throughout: only the words the group holds in common,
+        # and one word at a time - every word is capitalised, so a run of
+        # them is the whole headline, not a name.
+        core = group.core() or set(group.keywords())
+        counts = {w: n for w, n in counts.items()
+                  if news_clusters._stem(w) in core}
+    kept = [w for w, n in counts.items() if n >= need]
+    kept.sort(key=lambda w: (-counts[w], order[w]))
+    # Whole names, not their words: "Fury" is said as "Tyson Fury" somewhere,
+    # and "League" only ever as "Premier League". Each kept word becomes the
+    # longest run of capitalised words any readable headline says it in.
+    runs = [run for title in sentence_case for run in _runs(title, stop)]
+    out: list = []
+    covered: set = set()
+    for low in kept:
+        if low in covered:
+            continue
+        holding = [r for r in runs if low in (w.lower() for w in r)]
+        best = max(holding, key=len) if holding else (spelling[low],)
+        covered.update(w.lower() for w in best)
+        name = " ".join(best)
+        if name not in out:
+            out.append(name)
+        if len(out) >= MAX_ANCHORS:
+            break
+    return tuple(out)
+
+
+def _runs(title: str, stop) -> list:
+    """Consecutive capitalised words in a headline - its multi-word names.
+    A headline's first word counts only as the start of a longer run, since
+    sentence case capitalises it whatever it is."""
+    words = [w.strip("'-") for w in
+             _WORD.findall(title.replace("\u2019s", "").replace("'s", ""))]
+    out, run, start = [], [], 0
+    for i, word in enumerate(words + [""]):
+        if (word and len(word) >= 2 and word[0].isupper()
+                and word.lower() not in stop and not word.isdigit()):
+            if not run:
+                start = i
+            run.append(word)
+            continue
+        if run and (start > 0 or len(run) >= 2):
+            out.append(tuple(run))
+        run = []
+    return out
+
+
 @dataclass
 class _Candidate:
     group: object
@@ -658,6 +759,7 @@ async def gnews_signals(client, now: float, size: int) -> list:
             url=group.urls[0] if group.urls else "",
             countries=stories.country_shares(candidate.countries),
             keywords=group.keywords(), coverage=covered,
+            anchors=anchors_of(group),
             suggested_query=f"{subject}: what is happening and why it matters",
             suggested_angle=f"Leading the news, in {covered} articles today",
         ))
@@ -758,6 +860,8 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     extra = {"summary": notes.summary} if notes.summary else {}
     if notes.sourced_at:
         extra["sourced_at"] = notes.sourced_at   # §143
+    if getattr(notes, "category", ""):
+        extra["category"] = notes.category   # §189
     # No author: a bank episode was nobody's tap, so it belongs to
     # everybody - the rule prefetch keeps, for the same reason.
     # A voice drawn from the bank (§147), kept so every tap hears it.

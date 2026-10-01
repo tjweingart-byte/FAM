@@ -690,6 +690,18 @@
   the two tiles above Your FAM's threads. The `weekly_recap` and `recap_week`
   *columns* stay, read by nothing, on the same reasoning as the language field
   - they are what a scheduled digest would read on the day there is one.
+<!-- rule:trending-category-pin -->
+- **A composed story names its category and its anchors.** *(PROBLEMS.md
+  §188, `stories.resolve_category`, `stories.pin_query`,
+  `trending_bank.anchors_of`.)* The composer chooses the most specific
+  category-tree node a story is about; it is resolved against the tree in
+  code, corrects a news story's tags (`refine_tags`: other facets' tags
+  dropped, its own facet's kept - a game or market move keeps its provider's
+  filing), and decides the tile's picture and facet word ahead of the
+  query's words - never the alphabetically first keyword tag. A GNews story's shared names travel as `Signal.anchors` and the query
+  must name one, appended in code when the composer did not, so research
+  searches for the event and not a theme it stands for. Names only, never a
+  headline, and all of it inside `query` so `key_for` needs no new field.
 <!-- rule:trending-floor -->
 > **Current (PROBLEMS.md §168):** Since §134/§139 Trending is chosen first from its own GNews edition and never draws on the live pool, so the reservation below is history.
 

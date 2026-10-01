@@ -14570,3 +14570,119 @@ to end.
 key - whether the reporter's rail was exactly this mechanism, and how many
 market stories a configured deployment holds, are the first things to check
 on `fam-staging` with real data.
+
+## 188. Trending tiles say what they are, and their episodes stay on their story
+
+**What was reported.** Trending episodes were uneven, some were confusing
+next to their titles, and the pictures and facet words were often the wrong
+subject: a Fury-Joshua press conference under SCIENCE with a laboratory, an
+Etihad sponsorship story under WORLD with a globe, a vitamin C story under
+TECH with a circuit board.
+
+**Why the picture was wrong.** `Topic._thumb` asked `thumbnails.pick(query,
+tags)`. The tree is matched against the *query*, and the composer's queries
+are abstract questions full of names ("what a chaotic press conference
+signals about the fight") - no node word, so no node. The fallback was
+`facet_of(tags[0])`, and a story's tags are **sorted**: keyword tags from the
+GNews headlines, so one headline saying "study" made the boxing story
+`('science', 'sports', ...)` and `science` won alphabetically. The card's
+word came from the same place (`seedTagText` reads `tags[0]` without a
+picture). A bank tile declares its tags in order, so `tags[0]` is right there
+(`test_nothing_in_the_tree_falls_back_to_the_declared_facet`), and that
+fallback is unchanged.
+
+**Why the episode drifted.** `trending_bank._start` writes from
+`story.query` alone - the GNews URL, headlines and date are dropped, by
+design (`gnews.py`: a headline is never evidence). The composer is told to
+write "a question, never a headline" and to vary similar tiles, which pushed
+it from the event to a theme, and research given a theme finds whichever
+instance of it the index prefers.
+
+**What changed.**
+
+* **The composer names the category** (`STORY_SCHEMA.category`, required).
+  It is shown the tree as `facet / category: children` lines
+  (`stories.category_vocabulary`, capped at `CATEGORY_VOCABULARY_LINES`) and
+  told to pick the most specific true one. `resolve_category` resolves the
+  answer in code - a node id, a facet or its label, else the deepest node
+  `tree.match` finds, else "" - so nothing the tree cannot place reaches a
+  tile. A categorised *news* story's tags are corrected by it
+  (`stories.refine_tags`): the category and its ancestry are added, tags of
+  another facet are dropped, and everything in its own facet - or claimed by
+  no facet - stays, so it is ranked under the facet it is drawn under without
+  losing a team or league tag. A game or a market move keeps the tags its
+  provider filed it under (§187's `_in_field`); its category decides only the
+  picture.
+* **`Story.category` -> `Topic.category` -> `thumbnails.pick(category=)`**,
+  which outranks the words. Without an approved picture `thumb_facet` still
+  carries the category's facet and `seedTagText` reads it before `tags[0]`.
+* **Research is pinned to the event by names.** `trending_bank.anchors_of`
+  takes the capitalised runs a third of a cluster's sentence-case headlines
+  share ("Tyson Fury", "Premier League"; Title Case headlines only when there
+  is nothing else, one shared word at a time). They ride on
+  `Signal.anchors`, the composer is shown them and told to name the people
+  and event in the query, and `stories.pin_query` appends them when the query
+  names none. Names only - a headline can carry a result, and the query is
+  what research searches from (the reason `_safe` checks it). Everything is
+  in the query itself, so `pipeline.key_for` and a tap compute the same key
+  with no new field.
+
+**Not changed.** The template path (composer down) still uses keyword tags;
+the player still keeps a tile's title over the episode's `<<TITLE>>`
+([title-from-content]) - raised with the owner, not decided. The GDELT live
+pool goes through the same composer and gets categories too; it has no
+anchors yet, so its queries are not pinned.
+
+Tests: `tests/test_trending_category_pin.py`.
+
+## 189. A written episode names and categorises its own tile
+
+**The owner's direction.** §188 left the player keeping a Trending tile's
+composed title over the episode's `<<TITLE>>`. The owner: that is acceptable
+for the first listener, but once the episode is generated and cached, every
+other listener sees the title the writer put on it - and what was learned by
+the time the episode was finished should categorise it more specifically.
+
+**Titles.** `app._name_written_tiles` already gave a written *startup* tile
+its episode's title and summary (27/09 packet). It now does the same for a
+**live story** tile (a tile with a `source` that is not a bank tile): when
+the cache says the episode is current (`cached`), the tile takes the
+writer's title and its summary as the angle. The tap then opens the player
+on that title, since a tile's title travels into `TOPICS` with
+`titleOverridden`. The first listener of a story nobody has written still
+sees the composer's title; Trending's edition writes most of its ten ahead,
+so in practice most Trending tiles open on the writer's title. Bank tiles
+are untouched (§104). `/api/nextup` now marks and renames its tiles the same
+way.
+
+**Category.** The writer emits a fourth trailing line, `<<CATEGORY: ...>>`,
+parsed like TITLE/SUMMARY (`extract_category`), stripped from speech, and
+stored raw in a new `scripts.category` column (memory cache too; a re-write
+without one keeps the old, like `title`). It is resolved against the tree
+where it is read (`stories.resolve_category`), so a tree that grows later
+can still place an older episode. A written tile's tags, picture and facet
+word are redrawn from it (`_categorise_written_tile`); words the tree cannot
+place change nothing; the same `refine_tags` keeps a written tile's own
+facet's tags. Plays are logged through `app._event_tags`: a bank or
+catalogue tile keeps its declared tags, a startup question gains the
+category beside its facet, and anything else is corrected by it
+(`refine_tags`: the category added, other facets' tags dropped, its own
+facet's kept) - so
+the taste model learns "boxing" from a boxing episode rather than "science"
+from a headline that said "study". Prefetch now stores title, summary and
+category too; it stored none, so a warmed episode's tile could never have
+been renamed.
+
+**The prompt budget.** `test_the_prompt_stays_lean` holds `SYSTEM_PROMPT`
+under 7,800 characters and says the way past it is a dedup pass. The line
+cost 75; the pass removed "If the next episode is worth having, it is because
+this one was good." - a restatement of the opening paragraph's "the
+satisfaction makes them believe another is worth having". 7,788 -> 7,793.
+
+**Not changed.** The first listener's player still shows the composer's
+title until the script finishes, then `applyEpisodeTitle` leaves it (the tile
+title is `titleOverridden`). Ranking for Made for you still reads a story's
+composed tags; only what is shown and what is logged use the writer's
+category.
+
+Tests: `tests/test_written_tile_identity.py`.

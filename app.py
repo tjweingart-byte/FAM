@@ -4624,7 +4624,14 @@ async def next_up(
     # picks nobody could account for afterwards.
     if user and _remembers(request):
         EVENTS.record_impressions(user, [("next_up", t.id) for t in picks])
-    return {"topics": [t.as_dict() for t in picks], "algo": EVENTS.algo_stamp()}
+    # A written live story or startup question is offered under its
+    # episode's own title and category here too (§189), as on myFAM.
+    tiles = [t.as_dict() for t in picks]
+    written = _written_probe(BROWSE_MINUTES)
+    for tile in tiles:
+        tile["cached"] = written(tile.get("query", ""))
+    _name_written_tiles(tiles, BROWSE_MINUTES)
+    return {"topics": tiles, "algo": EVENTS.algo_stamp()}
 
 
 #: What a guest is told when they tap an episode that has not been made yet.
@@ -4651,34 +4658,114 @@ import startup
 
 
 def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
-    """A startup tile that has been written is called what it turned out to
-    be about (the 27/09 packet).
+    """A written tile is called what its episode turned out to be about.
 
-    A startup tile is a question asked before anything is retrieved -
-    "this week's biggest storylines in sports" - so its own title cannot name
-    a subject, and on a card that reads as vague. Once somebody's tap has
-    written the episode, the cache holds the model's `<<TITLE:>>` and
-    `<<SUMMARY:>>` for it, and those name the actual story; the card takes
-    them. Only startup tiles: a bank tile's title is its own and is never
-    replaced (§104), and a live story's was composed from the story itself.
-    Two local reads per written tile, never a model call.
+    **Startup tiles** (the 27/09 packet): a question asked before anything
+    is retrieved - "this week's biggest storylines in sports" - names no
+    subject, so once a tap has written it the card takes the model's
+    `<<TITLE:>>` and `<<SUMMARY:>>`.
+
+    **And live stories** (§189, at the owner's direction): a Trending or
+    pool tile is titled by the composer from headlines alone, before anything
+    was researched, and the episode the writer then made can be about
+    something more specific or different. The first listener may hear it
+    under the composer's guess; once it is cached, every listener after them
+    sees the writer's title and summary, and the tile's picture, facet word
+    and tags come from the writer's `<<CATEGORY:>>` rather than from the
+    composer's. Never a bank tile: its title is its own (§104).
+
+    Only what the cache says is *current* (`cached`), so a stale episode's
+    title never sits on a tile whose next tap writes a new one. A few local
+    reads per written tile, never a model call.
     """
     for tile in tiles:
-        if not tile.get("cached") or not str(tile.get("id", "")).startswith(
-                startup.ID_PREFIX):
+        tid = str(tile.get("id", ""))
+        renamed = (tid.startswith(startup.ID_PREFIX)
+                   or (bool(tile.get("source"))
+                       and tid not in topics_mod.BANK_BY_ID))
+        if not tile.get("cached") or not renamed:
             continue
         try:
             key = _episode_key(_validated_plan(tile.get("query", ""), minutes))
             title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
             summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
                        if title else "")
+            category = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+                        if key and SCRIPT_CACHE else "")
         except Exception:  # noqa: BLE001 - a card's name is never worth a 500
-            log.exception("could not name a written startup tile")
+            log.exception("could not name a written tile")
             continue
         if title:
             tile["title"] = title
             if summary:
                 tile["angle"] = summary
+        if category:
+            _categorise_written_tile(tile, category)
+
+
+def _categorise_written_tile(tile: dict, words: str) -> None:
+    """Redraw a written tile's picture, facet word and tags from the writer's
+    category (§189). Unresolvable words change nothing - the tile keeps the
+    composer's category rather than losing one."""
+    import stories as stories_mod
+    import thumbnails
+
+    node = stories_mod.resolve_category(words)
+    if not node:
+        return
+    text = " ".join(str(tile.get(k, "")) for k in ("title", "angle", "query"))
+    tags = stories_mod.refine_tags(tile.get("tags") or (), node, text)
+    tile["tags"] = list(tags)
+    found = thumbnails.pick(tile.get("query", ""), tags, category=node)
+    tile["thumb"] = found["url"] if found else ""
+    tile["thumb_facet"] = (found["facet"] if found
+                           else stories_mod.facet_for(node))
+
+
+def _written_category(query: str, minutes: int) -> str:
+    """The category-tree node the cached episode for `query` says it is
+    about (§189), or "" when it is not written, has none, or cannot be
+    placed. One local read; never a model call."""
+    if not query or SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(query, minutes))
+        words = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+                 if key else "")
+    except Exception:  # noqa: BLE001 - a tag is never worth a failed event
+        return ""
+    if not words:
+        return ""
+    import stories as stories_mod
+
+    return stories_mod.resolve_category(words)
+
+
+def _event_tags(topic_id: str, text: str, minutes: int) -> tuple:
+    """The tags an interaction is logged with: `topics.tags_for_id`, refined
+    by what the written episode said it was about (§189).
+
+    A bank or catalogue tile declares its own tags and keeps them. A startup
+    question keeps its facet and gains the episode's category beside it. A
+    live story, or anything else, is corrected by it (`stories.refine_tags`):
+    the category is added and tags of another facet - matched off headline
+    words before anything was researched - are dropped, while its own
+    facet's tags (a team, a league) stay. So the taste model learns "boxing"
+    from a play of a boxing episode, not "science" from a headline that said
+    "study"."""
+    tags = topics_mod.tags_for_id(topic_id, text)
+    if (topic_id in topics_mod.BANK_BY_ID
+            or topic_id in topics_mod.CATALOGUE_BY_ID):
+        return tags
+    node = _written_category(text, minutes)
+    if not node:
+        return tags
+    import stories as stories_mod
+
+    if topic_id in topics_mod.STARTUP_BY_ID:
+        return tuple(sorted(set(tags)
+                            | set(stories_mod.category_tags(node, text))))
+    return stories_mod.refine_tags(tags, node, text)
 
 
 def _audio_is_kept(query: str, minutes: int) -> bool:
@@ -5191,7 +5278,7 @@ async def record_event(req: EventRequest, request: Request):
     # guest session as a broken server (§127).
     if not _remembers(request):
         return {"ok": True, "remembered": False}
-    tags = topics_mod.tags_for_id(req.topic_id, req.text)
+    tags = _event_tags(req.topic_id, req.text, BROWSE_MINUTES)
     EVENTS.record(
         topics_mod.Event(_listener(request), req.kind, req.topic_id, req.text, tags,
                          thread=req.thread)
@@ -6542,7 +6629,7 @@ async def audio(
                 # play is the one event that decides whether the ranker ever
                 # learns anything, and those queries carry none of the
                 # keywords their facet is matched on.
-                topics_mod.tags_for_id(topic_id, plan.query),
+                _event_tags(topic_id, plan.query, plan.minutes),
             )
         )
 

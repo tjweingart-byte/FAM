@@ -567,7 +567,7 @@ class ScriptCache(Protocol):
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
         minutes: int = 0, bucket: str = "", sources: str = "", author: str = "",
         title: str = "", summary: str = "", slide: bool = False,
-        sourced_at: Optional[float] = None
+        sourced_at: Optional[float] = None, category: str = ""
     ) -> None: ...
     #: The go-deeper thread stored with the script, or "" if there was none.
     #: Kept beside the sentences rather than inside them so a replayed episode
@@ -590,6 +590,10 @@ class ScriptCache(Protocol):
     #: Optional on a backend: callers read it with `getattr`, so a cache that
     #: predates it answers "" rather than raising.
     def summary(self, key: str) -> str: ...
+    #: What kind of thing the episode is about, as the writer worded it on
+    #: its `<<CATEGORY:>>` line (§189) - raw words, resolved against the
+    #: category tree where it is read. Optional on a backend, like `summary`.
+    def category(self, key: str) -> str: ...
     #: Who the cached episode's facts came from, as stored JSON. Kept beside
     #: the script for the same reason `thread` is: a cache hit replays
     #: sentences and has no `notes`, so without this a shared or Explore
@@ -720,6 +724,8 @@ class MemoryScriptCache:
         self._titles: dict[str, str] = {}
         #: key -> its one-sentence summary, for the same reason again.
         self._summaries: dict[str, str] = {}
+        #: key -> the writer's `<<CATEGORY:>>` words (§189).
+        self._categories: dict[str, str] = {}
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
@@ -795,7 +801,8 @@ class MemoryScriptCache:
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
         author: str = "", title: str = "", summary: str = "", slide: bool = False,
-        sourced_at: Optional[float] = None, origin: str = "", voice: str = ""
+        sourced_at: Optional[float] = None, origin: str = "", voice: str = "",
+        category: str = ""
     ) -> None:
         before = self._data.get(key)
         # A search re-writing an entry makes it a search episode; nothing
@@ -824,6 +831,8 @@ class MemoryScriptCache:
             self._titles[key] = title
         if summary:
             self._summaries[key] = summary
+        if category:
+            self._categories[key] = category
         # First writer only. A second listener asking the same question is
         # served from this entry and never rewrites it, so authorship stays
         # "who paid for this" rather than "who asked most recently".
@@ -839,7 +848,7 @@ class MemoryScriptCache:
         self._clocks[target] = (sourced, 1.0)
         self._origins[target] = ARCHIVE_ORIGIN
         for table in (self._authors, self._voices, self._sources, self._titles,
-                      self._summaries, self._plays):
+                      self._summaries, self._categories, self._plays):
             if key in table:
                 table[target] = table[key]
         self._drop_audio(target)
@@ -965,6 +974,12 @@ class MemoryScriptCache:
             return ""
         return self._summaries.get(key, "")
 
+    def category(self, key: str) -> str:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return ""
+        return self._categories.get(key, "")
+
     # -- audio (§132) -------------------------------------------------------
 
     def _live(self, key: str) -> bool:
@@ -1022,6 +1037,7 @@ class MemoryScriptCache:
             self._sources.pop(key, None)
             self._titles.pop(key, None)
             self._summaries.pop(key, None)
+            self._categories.pop(key, None)
             self._vectors.pop(key, None)
             self._clocks.pop(key, None)
             self._drop_audio(key)
@@ -1031,7 +1047,8 @@ class MemoryScriptCache:
         removed = len(self._data)
         for table in (self._data, self._authors, self._origins, self._voices,
                       self._sources, self._titles,
-                      self._summaries, self._vectors, self._audio, self._clocks):
+                      self._summaries, self._categories, self._vectors,
+                      self._audio, self._clocks):
             table.clear()
         return removed
 
@@ -1140,6 +1157,12 @@ class SqliteScriptCache:
                 # episode, the searcher's own for a search. Kept so every
                 # later play is the same voice and so its kept audio is hit.
                 ("voice", "ALTER TABLE scripts ADD COLUMN voice TEXT NOT NULL DEFAULT ''"),
+                # §189: what kind of thing the episode turned out to be about,
+                # off the writer's `<<CATEGORY:>>` line, so a written tile's
+                # picture and facet come from the episode rather than from a
+                # guess made before it was researched. Rows written before
+                # this have '' and keep the tile's own category.
+                ("category", "ALTER TABLE scripts ADD COLUMN category TEXT NOT NULL DEFAULT ''"),
             ):
                 try:
                     conn.execute(ddl)
@@ -1331,7 +1354,8 @@ class SqliteScriptCache:
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
         author: str = "", title: str = "", summary: str = "", slide: bool = False,
-        sourced_at: Optional[float] = None, origin: str = "", voice: str = ""
+        sourced_at: Optional[float] = None, origin: str = "", voice: str = "",
+        category: str = ""
     ) -> None:
         """Store the script, and the vector for the question that produced it.
 
@@ -1385,8 +1409,8 @@ class SqliteScriptCache:
                 "INSERT INTO scripts"
                 " (key, expires, created, hits, query, sentences, thread, minutes,"
                 "  bucket, vector, sources, author, title, summary, ttl,"
-                "  sourced_at, fresh_until, origin, voice)"
-                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  sourced_at, fresh_until, origin, voice, category)"
+                " VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(key) DO UPDATE SET"
                 "  expires = excluded.expires, created = excluded.created,"
                 "  ttl = excluded.ttl, sourced_at = excluded.sourced_at,"
@@ -1404,6 +1428,8 @@ class SqliteScriptCache:
                 "               ELSE scripts.title END,"
                 "  summary = CASE WHEN excluded.summary != '' THEN excluded.summary"
                 "                 ELSE scripts.summary END,"
+                "  category = CASE WHEN excluded.category != ''"
+                "                  THEN excluded.category ELSE scripts.category END,"
                 # §147. Where it came from is the first writer's, except that
                 # a search re-writing it makes it a searched episode. Its
                 # voice is the first one it was given, so every later play
@@ -1417,7 +1443,7 @@ class SqliteScriptCache:
                  thread[:200], int(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
                  int(ttl) if slide else 0, sourced, fresh_until,
-                 (origin or "")[:16], (voice or "")[:80]),
+                 (origin or "")[:16], (voice or "")[:80], (category or "")[:60]),
             )
             # New words under this key, so audio kept for the old ones would
             # replay an episode that no longer matches its own captions.
@@ -1691,6 +1717,19 @@ class SqliteScriptCache:
             return content_filter.scrub(row[0] or "")
         except Exception:
             log.exception("script cache title read failed")
+            return ""
+
+    def category(self, key: str) -> str:
+        """The writer's `<<CATEGORY:>>` words (§189), or "" when it has none."""
+        try:
+            row = self._conn().execute(
+                "SELECT category, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return ""
+            return row[0] or ""
+        except Exception:
+            log.exception("script cache category read failed")
             return ""
 
     def summary(self, key: str) -> str:

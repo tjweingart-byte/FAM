@@ -96,7 +96,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
 - **Titled by what it turned out to be about**: a `<<TITLE: ...>>` line, stripped,
   no extra call; the player opens on a derived title and swaps; a listener's or
-  bank tile's title (`titleOverridden`) is never replaced; cached in its own column. [title-from-content]
+  bank tile's title (`titleOverridden`) is never replaced; cached in its own column.
+  A *written* live-story tile takes the writer's title, summary and
+  `<<CATEGORY:>>` for every later listener (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
@@ -334,6 +336,9 @@ Browse surfaces
   world. Trending feeds the bank, live facts feed the evidence; one fetch serves
   everyone; `why_now` is never evidence; ids hash the subject; an empty row is
   a fact about the deployment, never "nothing is trending". [two-crowd-rows]
+- A composed story names its **category** (resolved against the tree in code;
+  it decides picture and facet word, and corrects a news story's tags) and its query names the cluster's
+  **anchors** (`pin_query`, names never headlines) (§188). [trending-category-pin]
 
 Accounts, tiers, sharing
 - **An account gates what is kept, never what is heard**; a guest's events are
