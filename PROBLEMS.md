@@ -14136,3 +14136,93 @@ it is words, not a model, and "Giants" or "Kings" name more than one team.
 * *Leftovers of the old Messages sheet*: `.screen.sheet`, `.msg-dot` and the
   header button's `myfam-msg-btn` name (it searches now: `myfam-head-btn`,
   `#myfamSearchBtn`). The `sheet-in` animation stays for voice search.
+## 182. The 10.1 packet, second set: Go Deeper, friends, trending searches, autocorrect
+
+The second set of the 10.1 implementations, in its order.
+
+**1. Go Deeper is yellow and in capitals.** The pill on the player, Play All
+and Explore (`.go-deeper-pill`) is drawn on `--deeper` (#FFD23F) with dark
+text, and reads GO DEEPER. The modal it opens is unchanged.
+
+**2. Find new friends on myFAM.** The friends rail ("What your friends are
+listening to") ends in the same pill as YourFAM's "Find new friends", opening
+the same page (`openFriends`, which sends a guest to sign-up). When the
+listener follows nobody it replaces the sentence; when they follow people
+whose episodes are not cached yet the sentence stays and the pill is under
+it; when there are episodes, it is under the rail. The feed now says
+`has_circle` on the followers section so the page can tell those apart.
+
+**3a. The mic is on the attach line.** The voice-search mic was a 64px ring
+under the controls. It is now a 36px button beside attach, the same size and
+style, still hidden where speech recognition is not available.
+
+**3b. Trending searches.** Focusing the empty search box draws up to eight
+(`TRENDING_SEARCHES_MAX`) chips under "Trending searches", from
+`/api/searches/trending`: searched episodes in the shared cache (the same
+`origin = "search"` rule as Explore) that a new request would still be
+served (`current`), most played first, one per question (`normalize_query`),
+no explicit episode. A tap is a search for that question at the length its
+episode was written for, so it lands on the episode already written - which
+is the point: more searches served from the cache inside its timeline. The
+endpoint reads the cache only; it never generates, and an empty list draws
+nothing rather than anything else.
+
+*No cached scores or game updates.* Before this, a sports question asking
+for a result with no live provider answer was current for the volatile
+window (two hours), so a score heard at 1pm was served to a search at 2pm.
+`ttl_for` now takes `live_domain` and `intent` (EI's, carried on
+`ScriptNotes` like `outcome_dependent`): in sports, a `recap` or `update` -
+a score or a game update - that is not `final` is never current.
+`in_progress` already was. A `final` keeps its window (that result does not
+move), and a preview keeps its two hours. Never-current episodes are still kept and
+replayable (§143) - they just cannot be served to a new search, and so never
+appear as a trending search.
+
+**4. Autocorrect that works, and titles that are spelled.** The speller
+itself was fine - measured here it fixes "elecion", "happend", "yesturday",
+"pirce" and leaves "bitcoin" and "Messi" alone. The page was the fault: the
+word-by-word pass (§142) asks about a word only when something is typed after
+it, and a search is sent with the return key or the arrow, so **the last word
+of every search was never corrected** - and search questions are short, so
+that was usually the misspelled one. Now `runSearch` corrects the whole
+question as it is sent (`acCorrectQuestion`): words already answered come
+from memory, the rest go in one `/api/spell` request, and the send waits at
+most `AC_SEND_WAIT_MS` (700ms) before going with what it has. A pause in
+typing pre-asks the word being typed, so the usual send waits for nothing -
+a spell lookup only; the typing-pause prefetch stays removed.
+
+The title never shows a misspelling, whatever happened to the question: the
+question keeps a word the listener put back with a backspace, but the
+provisional title takes every correction; EI's brief title and the writer's
+`<<TITLE:>>` are told to be spelled correctly even when the request was not;
+and wherever a title is made from a stored question (Explore's untitled
+cards, a trending chip) it goes through `autocorrect.correct_text`.
+**Unverified here:** no API key, so the EI and writer instruction is
+untested against a model; the rest is pinned in `tests/test_packet_1001.py`.
+
+**Review, before merging into Main.** An independent pass over the diff
+found these, all fixed with a test each except the last:
+
+* *The sports rule caught every sports episode.* It first keyed on
+  `outcome_dependent`, but EI's `gate` sets that for every live-domain brief,
+  so a preview ("upcoming dodgers game") was never current either - §173's
+  two-searches-two-episodes bug back. It keys on the intent now, and the
+  tests build the brief through `gate` rather than passing combinations EI
+  never produces.
+* *A trending chip could be a follow-up.* A Go Deeper follow-up is a search
+  stored under its parent's context; its words asked cold are another key,
+  so the tap missed and wrote a new episode. Only a row whose key is the one
+  a bare search for its words computes is offered (with `CACHE_SEMANTIC_KEY`
+  on, off by default, that cannot be checked without a model call, and rows
+  are offered on trust).
+* *The speller ran on the event loop* in `/api/explore` and
+  `/api/searches/trending`; it runs in a thread now, like `/api/spell`, and
+  only for untitled entries.
+* *A send that waited could fire stale.* Text typed during the wait was
+  sent as it was before and then wiped, and leaving the screen still
+  started the search; either now drops that send.
+* **Unverified, on an iPhone:** when the send waits on the speller, audio
+  starts up to 700ms after the tap rather than inside it. Voice search's
+  auto-send and What's next's countdown already start audio off a timer, so
+  this is believed fine; if a typed search ever sits on the loading screen
+  on iOS, this is where to look.

@@ -262,3 +262,24 @@ def _contains(longer: str, shorter: str) -> bool:
     """True when `shorter` is `longer` with exactly one letter removed."""
     it = iter(longer)
     return all(ch in it for ch in shorter)
+
+
+_TEXT_WORD = re.compile(r"(?<![\w@#/.\-])[A-Za-z]+(?:'[A-Za-z]+)?(?![\w@#/\-])")
+
+
+def correct_text(text: str) -> str:
+    """`text` with every word `correct_word` is sure about corrected.
+
+    For a title made from a question when nothing better exists (10.1 #4):
+    a title never shows a misspelling the speller knows how to fix. The same
+    caution as a typed word - names, capitals and anything unclear are left
+    exactly as they were.
+    """
+    text = str(text or "")
+
+    def fix(match: re.Match) -> str:
+        head = text[:match.start()]
+        first = not head.strip() or head.rstrip()[-1:] in ".!?"
+        return correct_word(match.group(0), first=first) or match.group(0)
+
+    return _TEXT_WORD.sub(fix, text)

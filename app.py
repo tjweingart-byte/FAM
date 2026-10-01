@@ -35,7 +35,8 @@ from pydantic import BaseModel, Field, field_validator
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
-                   is_shareable, parse_episode_id, research_words)
+                   is_shareable, normalize_query, parse_episode_id, research_words)
+import content_filter
 import embeddings
 import learned_rank
 import taste_vectors
@@ -5478,6 +5479,82 @@ async def episode_stats(request: Request,
     return _episode_stats(_listener(request), q, minutes, key)
 
 
+def _capitalised(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+#: How many trending searches the search box offers when it is focused
+#: (10.1 #3): five to ten, the owner's range.
+TRENDING_SEARCHES_MAX = 8
+#: How far back the cache is read to find them.
+TRENDING_SEARCHES_SCAN = 200
+
+
+@app.get("/api/searches/trending")
+async def trending_searches(request: Request) -> dict:
+    """What other people searched that would play instantly now (10.1 #3).
+
+    Drawn under the search box when it is focused, so a tap is a search that
+    lands on an episode already written. **Only what is current** (`ttl_for`):
+    a search whose episode a new request would not be served is never
+    offered, which is what keeps a score or a game update off this list - an
+    episode built on a sports game that is not over is never current
+    (`cache.ttl_for`'s sports rule). Searched episodes only, like Explore; no
+    attachment is ever cached, a swearing episode is left off, and an empty
+    list is a fact about the deployment, never filled with anything else.
+
+    Reads the cache and nothing else: it costs nothing and generates nothing.
+    """
+    _read_limit(request)
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if store is None:
+        return {"searches": []}
+    entries = store.recent(TRENDING_SEARCHES_SCAN, origin="search")
+    seen: set[str] = set()
+    picks = []
+    # Most played first, newest breaking ties: "trending" is what people
+    # are actually listening to, and `recent` is newest first already.
+    for entry in sorted(entries, key=lambda e: -int(e.get("plays") or 0)):
+        query = (entry.get("query") or "").strip()
+        if not query or not entry.get("current") or entry.get("explicit"):
+            continue
+        if content_filter.scrub(query) != query:
+            continue
+        # Only what a bare search for these words would land on: a Go
+        # Deeper follow-up is stored under its parent's context, so its words
+        # asked cold are a different key - a miss that writes a new episode,
+        # the opposite of what a trending search is for. With the semantic
+        # key on (`CACHE_SEMANTIC_KEY`, off by default) the key needs a model
+        # call to compute, and the row is offered on trust.
+        minutes = int(entry.get("minutes") or 0)
+        if not settings.cache_semantic_key and entry.get("key") not in (
+                cache_key(query, minutes, None, "", True),
+                cache_key(query, minutes, None, "", False)):
+            continue
+        norm = normalize_query(query)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        picks.append({
+            "query": query,
+            # The episode's own title, spelled by the writer - never the
+            # question, which may be misspelled (10.1 #4).
+            "title": entry.get("title") or "",
+            "minutes": minutes,
+        })
+        if len(picks) >= TRENDING_SEARCHES_MAX:
+            break
+    # The question as the speller would have sent it, for a chip with no
+    # title to show (10.1 #4); `query` is still what is asked. Off the event
+    # loop, like `/api/spell`, and only for the untitled.
+    spelled = await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(p["query"]) if not p["title"]
+                 else p["query"] for p in picks])
+    for pick, text in zip(picks, spelled):
+        pick["spelled"] = text
+    return {"searches": picks}
+
+
 @app.get("/api/explore")
 async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     """Episodes other listeners have already generated, newest first.
@@ -5532,6 +5609,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
     # and none of them is on Explore.
     entries = store.recent(limit, exclude_author=listener, origin="search")
+    # An untitled card is titled from its question, through the speller so a
+    # misspelling never becomes a title (10.1 #4) - in a thread, like
+    # `/api/spell`, and only for the cards that need it.
+    untitled = [e["query"] for e in entries if not e.get("title")]
+    spelled = dict(zip(untitled, await asyncio.to_thread(
+        lambda: [autocorrect_mod.correct_text(q) for q in untitled])))
     all_counts = SOCIAL.episode_counts_many(
         [(e["query"], e["minutes"]) for e in entries], listener)
     for entry in entries:
@@ -5544,8 +5627,10 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
             # question with a capital letter - which is what every card
             # showed before titles existed, and is still right for an entry
             # written before this column did.
+            # Through the speller, so a misspelled question is never a
+            # card's title (10.1 #4).
             "title": entry.get("title")
-                     or (entry["query"][:1].upper() + entry["query"][1:]),
+                     or _capitalised(spelled.get(entry["query"], entry["query"])),
             "minutes": entry["minutes"],
             # How many times it has actually been played - `scripts.plays`,
             # counted where an episode starts and nowhere that only looks

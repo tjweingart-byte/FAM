@@ -10,6 +10,7 @@
     --ink:#18151F; --paper:#F4EFE4;
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
+    --deeper:#FFD23F;
     --text:#F4EFE4; --text-muted:#ABA3C4; --text-faint:#8A83A0;
     --border:rgba(244,239,228,0.10); --border-strong:rgba(244,239,228,0.20);
     --muted:rgba(244,239,228,0.56); --ink-muted:#ABA3C4;
@@ -141,15 +142,28 @@
     color:var(--text-muted); border:1px solid var(--border-strong); display:flex;
     align-items:center; justify-content:center; flex:none; cursor:pointer; }
   .attach-btn:active{ transform:scale(0.94); }
-  /* Voice search (§151). The mic sits under the search box's own controls,
-     and opens a screen of its own over the app: the words heard so far at the
-     top, the FAM mark in a ring in the middle, and lines around it that only
-     appear - and only move - while somebody is actually talking. Nothing is
-     searched until they press send: speech ending is not a request. */
-  .voice-mic{ align-self:center; margin:26px 0 0; width:64px; height:64px; border-radius:50%;
-    background:none; border:1.5px solid var(--border-strong); color:var(--text);
+  /* Voice search (§151). The mic sits on the search box's own line, beside
+     the attach button and its size (10.1 #3), and opens a screen of its own
+     over the app: the words heard so far at the top, the FAM mark in a ring
+     in the middle, and lines around it that only appear - and only move -
+     while somebody is actually talking. Nothing is searched until they press
+     send: speech ending is not a request. */
+  .voice-mic{ width:36px; height:36px; border-radius:50%; flex:none;
+    background:var(--surface); border:1px solid var(--border-strong); color:var(--text-muted);
     display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .voice-mic:active{ transform:scale(0.95); background:rgba(244,239,228,0.06); }
+  .voice-mic:active{ transform:scale(0.94); }
+  /* Trending searches under the search box (10.1 #3). */
+  .trend-searches{ margin:16px 2px 0; }
+  .trend-searches[hidden]{ display:none; }
+  .trend-label{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
+    letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted);
+    margin:0 0 8px; }
+  .trend-list{ display:flex; flex-wrap:wrap; gap:7px; }
+  .trend-chip{ max-width:100%; padding:7px 12px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .trend-chip:active{ transform:scale(0.97); }
   .voice-mic[hidden]{ display:none; }
   .voice-search{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0; z-index:450;
     background:var(--bg); display:flex; flex-direction:column; padding:14px 20px 22px; }
@@ -1002,10 +1016,13 @@
     line-height:1; color:currentColor; pointer-events:none;
   }
 
+  /* Yellow and in capitals (10.1 #1): the one invitation on the player to
+     keep going, so it is the brightest thing on it. */
   .go-deeper-pill{
     display:block; margin:10px auto 0; padding:8px 22px; border-radius:999px;
-    background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
+    background:var(--deeper); border:1px solid var(--deeper); color:var(--ink);
     font-family:'Space Grotesk',sans-serif; font-size:11.5px; font-weight:700; cursor:pointer; flex:none;
+    letter-spacing:0.06em;
   }
   .go-deeper-pill:active{ transform:scale(0.96); }
   /* The thread the episode left open, offered as one tap. Wanting to go
@@ -2222,6 +2239,8 @@
     font-weight:700; color:var(--ink); background:var(--copper);
     border:1px solid var(--copper); cursor:pointer; white-space:nowrap; }
   .yf-find:active{ transform:scale(0.97); }
+  /* The same pill under myFAM's friends rail (10.1 #2). */
+  .feed-find{ display:flex; margin:10px 0 0; }
   .yf-friends{ display:flex; gap:12px; margin-top:10px; overflow-x:auto;
     scrollbar-width:none; padding:2px 2px 4px; }
   .yf-friends::-webkit-scrollbar{ display:none; }
@@ -3032,14 +3051,21 @@
                  the bank per episode. -->
             <div class="length-chip voice-chip">Voice <span class="val" id="homeVoiceVal" onclick="openVoiceMenu()" role="button" aria-label="Voice for your searches"><span id="homeVoiceName">Ian</span><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></span></div>
             <div style="display:flex; align-items:center; gap:9px;">
+              <!-- Voice search (§151), beside attach (10.1 #3). Hidden until
+                   `paintVoiceMic` finds speech recognition in this browser: a
+                   mic that cannot hear is a control with nothing behind it. -->
+              <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
               <button class="go-btn" onclick="runSearch()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
           </div>
-          <!-- Voice search (§151). Hidden until `paintVoiceMic` finds speech
-               recognition in this browser: a mic that cannot hear is a
-               control with nothing behind it. -->
-          <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
+          <!-- Trending searches (10.1 #3): what other people searched that
+               would play instantly now, drawn while the box is focused and
+               empty. `/api/searches/trending` offers only what is current. -->
+          <div class="trend-searches" id="trendSearches" hidden>
+            <div class="trend-label">Trending searches</div>
+            <div class="trend-list" id="trendList"></div>
+          </div>
           <input type="file" id="attachFile" hidden accept=".pdf,.docx,.txt,.md,.csv,.json,image/*" onchange="attachChosenFile(this)">
           <!-- The profile picture. `capture` is deliberately absent: on a
                phone that would go straight to the camera, and most people are
@@ -3259,7 +3285,7 @@
                this screen back exactly where it is. -->
           <span class="x" onclick="minimizePlayer()" aria-label="Minimise the player">✕</span>
         </div>
-        <button class="go-deeper-pill" onclick="openGoDeeper('player')">Go Deeper</button>
+        <button class="go-deeper-pill" onclick="openGoDeeper('player')">GO DEEPER</button>
         <div class="mini-stage" id="playerStage">
           <!-- Where this episode's facts came from: the first three
                publishers' marks, overlapped, in the corner. Tapping opens the
@@ -3321,7 +3347,7 @@
       <!-- ============ PLAY ALL (segmented continuous player) ============ -->
       <section class="screen" id="screen-playall">
         <div class="player-top"><span class="kicker" id="pa-kicker">Playing all</span><span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span><span class="x" onclick="goBack()">✕</span></div>
-        <button class="go-deeper-pill" onclick="openGoDeeper('playall')">Go Deeper</button>
+        <button class="go-deeper-pill" onclick="openGoDeeper('playall')">GO DEEPER</button>
         <div class="segbar" id="paSegbar"></div>
         <div class="player-body">
           <div class="player-main">
@@ -3376,7 +3402,7 @@
             <div class="reel-kicker" id="reelKicker">Someone asked</div>
             <div class="reel-title" id="reelTitle">Loading…</div>
             <div class="reel-sub" id="reelSub"></div>
-            <button class="go-deeper-pill" id="reelDeeper" onclick="openGoDeeperOnReel()">Go Deeper</button>
+            <button class="go-deeper-pill" id="reelDeeper" onclick="openGoDeeperOnReel()">GO DEEPER</button>
           </div>
 
           <!-- Two groups, not one row of five.
@@ -4378,8 +4404,40 @@
     renderAttachments();
   }
 
+  // The words are corrected as a whole at the moment they are sent (10.1
+  // #4): the word-by-word pass only ever saw a word once something came
+  // after it, so the last word of every search - sent with the return key or
+  // the arrow - was never corrected at all. `acCorrectQuestion` gives back the
+  // question to ask (a word the listener put back stays theirs) and the
+  // title to show (always the corrected spelling). Words already asked about
+  // are answered from memory, so the usual send waits for nothing.
+  var searchSending = false;
   function runSearch(){
+    if(searchSending) return;
     var typed = document.getElementById("searchInput").value.trim();
+    if(!typed){ sendSearch("", ""); return; }
+    var fixed = acCorrectQuestion(typed);
+    if(!fixed.then){ sendSearch(fixed.query, fixed.title); return; }
+    searchSending = true;
+    var box = document.getElementById("searchInput");
+    var raw = box.value;
+    // Where the send started: voice search ("hey FAM") sends from any tab.
+    var screenNow = function(){
+      var on = document.querySelector(".screen.active");
+      return on ? on.id : "";
+    };
+    var startedOn = screenNow();
+    fixed.then(function(r){
+      searchSending = false;
+      // Not if, during the wait, they kept typing (that text would be sent
+      // stale and then wiped) or went somewhere else: the send they pressed
+      // is no longer the one on screen.
+      if(box.value !== raw || screenNow() !== startedOn) return;
+      sendSearch(r.query, r.title);
+    });
+  }
+
+  function sendSearch(typed, titleText){
     var val = typed;
     var attach = attachedIds();
     if(ATTACHED.some(function(a){ return a.pending; })){
@@ -4404,7 +4462,7 @@
         // happened with the fed yesterday" got an episode called exactly
         // that - their own words handed back with capital letters.
         title: (!typed && attach && ATTACHED[0]) ? ATTACHED[0].name
-                                                 : deriveTitleFromPrompt(val),
+                                                 : deriveTitleFromPrompt(titleText || val),
         // The title may be the file's name, which is a label and not a
         // question. `prompt` is what actually gets asked.
         prompt: val,
@@ -4429,6 +4487,81 @@
       generate("spacex");
     }
   }
+
+  // ---------------- Trending searches (10.1 #3) ----------------
+  //
+  // Tapping the search box shows what other people searched that would play
+  // instantly now - the server offers only episodes still current, so a tap
+  // is a cache hit, and never a score or a game update. Shown while the box
+  // is focused and empty; typing hides it. Fetched on focus, at most once a
+  // minute, and nothing is drawn when nothing qualifies.
+  var TREND_SEARCHES = [];
+  var trendFetchedAt = 0;
+  var TREND_REFETCH_MS = 60000;
+
+  function paintTrendSearches(){
+    var box = document.getElementById("trendSearches");
+    var input = document.getElementById("searchInput");
+    if(!box || !input) return;
+    // Not with something attached: that search is about the attachment.
+    var show = document.activeElement === input && !input.value.trim()
+               && !ATTACHED.length && TREND_SEARCHES.length > 0;
+    box.hidden = !show;
+    if(!show) return;
+    document.getElementById("trendList").innerHTML = TREND_SEARCHES.map(function(t, i){
+      // The episode's own title, spelled by its writer; the question it
+      // answered only when it has none.
+      var label = t.title || deriveTitleFromPrompt(t.spelled || t.query);
+      return '<button class="trend-chip" type="button" data-trend="' + i + '"'
+        + ' onpointerdown="event.preventDefault()"'
+        + ' onclick="runTrendSearch(' + i + ')">' + escapeHtml(label) + '</button>';
+    }).join("");
+  }
+
+  function loadTrendSearches(){
+    paintTrendSearches();
+    if(Date.now() - trendFetchedAt < TREND_REFETCH_MS) return;
+    trendFetchedAt = Date.now();
+    fetch("/api/searches/trending")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        TREND_SEARCHES = (d && d.searches) || [];
+        paintTrendSearches();
+      })
+      .catch(function(){});
+  }
+
+  // A trending search is a search: the same question, at the length its
+  // episode was written for, so it lands on the episode already written.
+  function runTrendSearch(i){
+    var t = TREND_SEARCHES[i];
+    if(!t) return;
+    var input = document.getElementById("searchInput");
+    TOPICS["_custom"] = {
+      title: t.title || deriveTitleFromPrompt(t.spelled || t.query),
+      prompt: t.query,
+      exploreMinutes: t.minutes || 0,
+      source: "Trending search",
+      surface: "search",
+      caption: "Generating your live transcript as this plays—",
+      titleOverridden: !!t.title
+    };
+    recordFamEvent("search", "", t.query);
+    pendingFromSearch = true;
+    if(input){ input.value = ""; input.blur(); }
+    document.getElementById("trendSearches").hidden = true;
+    generate("_custom");
+  }
+
+  (function(){
+    var input = document.getElementById("searchInput");
+    if(!input) return;
+    input.addEventListener("focus", loadTrendSearches);
+    input.addEventListener("input", paintTrendSearches);
+    input.addEventListener("blur", function(){
+      document.getElementById("trendSearches").hidden = true;
+    });
+  })();
 
   // The "FAMiliarizing you…" overlay used to run for a fixed 900ms and then
   // reveal the player regardless. Generation is now real, so the overlay stays
@@ -9592,12 +9725,21 @@
         + (opens ? ' <span class="feed-see">See all</span>' : '')
         + '</div>';
 
+      // The friends rail always ends in the way to find some: the same pill
+      // as YourFAM's "Find new friends", under the episodes when there are
+      // any, and in place of the sentence when they follow nobody (10.1 #2).
+      var findFriends = sec.key === "followers"
+        ? '<div class="feed-find"><button class="yf-find" onclick="openFriends()">'
+          + yfIcon("plus", 12) + 'Find new friends</button></div>'
+        : '';
+
       if(!sec.topics.length){
         // Honest rather than padded. A new listener has no history and no
         // co-listeners, and inventing picks to fill the space is the kind of
         // silent fake this project has been bitten by before.
-        return '<div class="feed-section">' + heading
-          + '<div class="feed-empty">' + escapeHtml(sec.empty_reason) + '</div></div>';
+        var empty = (sec.key === "followers" && !sec.has_circle) ? ""
+          : '<div class="feed-empty">' + escapeHtml(sec.empty_reason) + '</div>';
+        return '<div class="feed-section">' + heading + empty + findFriends + '</div>';
       }
 
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
@@ -9633,7 +9775,7 @@
         + '<span class="fm-more">View<br>more</span>'
         + '</div></div>';
 
-      return '<div class="feed-section">' + heading + rail + '</div>'
+      return '<div class="feed-section">' + heading + rail + findFriends + '</div>'
         + (sec.key === "from_history" ? searchingRailHTML() : "");
     }).join("");
     // A guest's page is the evergreen bank on every rail, and says so once
@@ -13166,6 +13308,90 @@
       .catch(function(){ return null; });
   }
 
+  // ---- the whole question, at send (10.1 #4) ----
+  //
+  // Every whole word in `text` that the word-by-word pass would have asked
+  // about, with where it starts and whether it starts a sentence.
+  function acWordsIn(text){
+    var out = [], re = /[A-Za-z]+(?:'[A-Za-z]+)?/g, m;
+    while((m = re.exec(text))){
+      var start = m.index, end = start + m[0].length;
+      if(start > 0 && /[\p{L}\p{N}@#\/._-]/u.test(text.charAt(start - 1))) continue;
+      if(end < text.length && /[\p{L}\p{N}@#\/_-]/u.test(text.charAt(end))) continue;
+      var head = text.slice(0, start);
+      out.push({ word: m[0], start: start,
+                 first: /^\s*$/.test(head) || /[.!?\n]\s*$/.test(head) });
+    }
+    return out.slice(0, 40);
+  }
+
+  function acKey(w){ return (w.first ? "^" : "") + w.word; }
+
+  // The question and its title, from what is known: `query` keeps any word
+  // the listener put back with a backspace; `title` never shows a misspelling
+  // (the owner's rule), so it takes every correction.
+  function acApply(text, words){
+    var query = text, title = text;
+    for(var i = words.length - 1; i >= 0; i--){
+      var w = words[i], fix = AC_CACHE[acKey(w)];
+      if(!fix || fix === w.word) continue;
+      var end = w.start + w.word.length;
+      title = title.slice(0, w.start) + fix + title.slice(end);
+      if(!AC_REVERTED[w.word.toLowerCase()]){
+        query = query.slice(0, w.start) + fix + query.slice(end);
+      }
+    }
+    return { query: query, title: title };
+  }
+
+  //: The longest a send waits on the speller for words it has not seen.
+  var AC_SEND_WAIT_MS = 700;
+
+  // `{query, title}` at once when every word has been asked about already,
+  // else a promise of it - after one request for the rest, or after
+  // AC_SEND_WAIT_MS with whatever was known, whichever comes first. Offline,
+  // or a server without the speller, sends the words as they were typed.
+  function acCorrectQuestion(text){
+    var words = acWordsIn(text);
+    var ask = words.filter(function(w){
+      return !Object.prototype.hasOwnProperty.call(AC_CACHE, acKey(w));
+    });
+    if(!ask.length) return acApply(text, words);
+    var asked = fetch("/api/spell", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ words: ask.map(function(w){ return w.word; }),
+                             first: ask.map(function(w){ return w.first; }) })
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var fixes = (d && d.corrections) || [];
+        ask.forEach(function(w, i){ AC_CACHE[acKey(w)] = fixes[i] || null; });
+      })
+      .catch(function(){});
+    var waited = new Promise(function(done){ setTimeout(done, AC_SEND_WAIT_MS); });
+    return Promise.race([asked, waited]).then(function(){
+      return acApply(text, words);
+    });
+  }
+
+  // The word being typed into the search box is asked about once typing
+  // pauses, so the send that follows finds its answer already known. A spell
+  // lookup and nothing else: no episode, brief or search is started by a
+  // pause (the typing-pause prefetch stays removed).
+  var acPauseTimer = null;
+  var AC_PAUSE_MS = 400;
+  (function(){
+    var input = document.getElementById("searchInput");
+    if(!input) return;
+    input.addEventListener("input", function(){
+      if(acPauseTimer) clearTimeout(acPauseTimer);
+      acPauseTimer = setTimeout(function(){
+        var words = acWordsIn(input.value);
+        var last = words[words.length - 1];
+        if(last && last.word.length > 2) acAsk(last.word, last.first);
+      }, AC_PAUSE_MS);
+    });
+  })();
+
   // The message box grows with what is typed, up to its CSS ceiling.
   function sizeComposer(el){
     if(!el) return;
@@ -13218,7 +13444,7 @@
           + '<div class="yf-ep-acts">'
           + '<button class="yf-btn gold" onclick="playSharedEpisode(' + i + ')">'
           + yfPlaySVG(11) + 'Listen</button>'
-          + '<button class="yf-btn" onclick="goDeeperOnShared(' + i + ')">Go Deeper</button>'
+          + '<button class="yf-btn" onclick="goDeeperOnShared(' + i + ')">GO DEEPER</button>'
           + '<button class="yf-round' + (saved ? " saved" : "") + '" onclick="saveSharedEpisode(' + i
           + ')" aria-label="Save for later">' + yfIcon("bookmark", 14) + '</button>'
           + '</div></div></div></div>';
