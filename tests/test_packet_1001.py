@@ -297,3 +297,30 @@ def test_the_player_names_a_searcher_only_when_they_chose_to(client, monkeypatch
     out = ask()
     assert out["searcher"] == "@rocketfan"
     assert "author-1" not in str(out)
+
+
+def test_the_queue_keeps_what_makes_the_episode():
+    """§190 review: a queued episode plays as itself - its surface fixed when
+    it was queued, its length, its Go Deeper parent - and an attached one is
+    refused, since it cannot be replayed from its words."""
+    tile = _fn("queueEntryFromTile")
+    assert 'surface: "myfam"' in tile
+    topic = _fn("queueEntryFromTopic")
+    assert "currentPlaySurface" in topic and "parentTopic: t.parentTopic" in topic
+    assert "currentPlayMinutes" in topic
+    assert "if(entry.attach)" in _fn("addToQueue")
+    # A playlist plays through, then the queue.
+    assert "if(QUEUE.length){ playQueueNext(); return; }" in _fn("finishMix")
+
+
+def test_a_playlist_entry_is_removed_once_and_by_id():
+    rm = _fn("removeFromPlayingMix")
+    assert "mixPlay.removedKey === mixPlay.key" in rm
+    assert "mixPlay.order[i].id === item.id" in rm
+    assert "mixPlay.removedKey !== mixPlay.key" in _fn("openPlayerMenu")
+
+
+def test_coming_back_keeps_the_playing_episodes_length():
+    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 2;", 1)[1].split("});", 1)[0]
+    assert "playing.exploreMinutes = currentPlayMinutes" in block
+    assert "TOPICS[key].exploreMinutes = selectedLengthMinutes;" in _fn("regenerateAtNewLength")

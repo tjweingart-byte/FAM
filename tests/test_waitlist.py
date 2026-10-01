@@ -476,6 +476,8 @@ def test_the_landing_page_plays_the_sign_up_samples_and_nothing_else(world, monk
     the gate lets their replays through - exactly those, as replays."""
     sample = {"query": "Why the Eagles lost", "minutes": appmod.BROWSE_MINUTES}
     monkeypatch.setattr(appmod, "_welcome_episodes", lambda: [sample])
+    kept = {"yes": True}
+    monkeypatch.setattr(appmod, "_audio_is_kept", lambda q, m: kept["yes"])
     guest = TestClient(appmod.app)
     assert guest.get("/api/welcome").status_code == 200
     base = {"q": sample["query"], "minutes": str(appmod.BROWSE_MINUTES),
@@ -491,4 +493,7 @@ def test_the_landing_page_plays_the_sign_up_samples_and_nothing_else(world, monk
     assert gated(minutes="5")
     assert gated(context="go deeper")
     assert gated(voice="ian")
+    # Audio evicted since the samples were ranked: refused, never synthesised.
+    kept["yes"] = False
+    assert gated()
     assert "fam-audio.js" in guest.get("/waitlist").text

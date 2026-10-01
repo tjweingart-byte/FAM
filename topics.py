@@ -2209,6 +2209,8 @@ class EventStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS events_user ON events(user_id, at)")
             conn.execute("CREATE INDEX IF NOT EXISTS events_topic ON events(topic_id, at)")
+            # `searches_since` (§190), read whenever the search page opens.
+            conn.execute("CREATE INDEX IF NOT EXISTS events_kind ON events(kind, at)")
             # Added after the table shipped, so an existing log is widened
             # rather than recreated - the same trade cache.py makes, except
             # that here the data is not regenerable and must not be dropped.

@@ -14792,3 +14792,38 @@ refused one logs nobody out, the landing page's samples and nothing else),
 the bubbles, the length reset), `tests/test_accounts.py`,
 `tests/test_interface_181.py`; smoke: the search bar, the player's menu and
 the queue.
+
+**Review before merging into Main.** An independent pass over the whole diff
+found no way past the waitlist gate, no account takeover and no unescaped
+text; it found these, each fixed with a test:
+
+* *Remove from this playlist, pressed twice, removed the entry before the one
+  playing* - the position stepped back while the menu still offered the row.
+  Once per playing entry now (`mixPlay.removedKey`), and spliced by id.
+* *Coming back into the app rewrote the playing episode's length*: the pill
+  read the search length, and a voice switch rebuilt a 5-minute search at 2
+  (a new key, a new model call). The playing topic's length is pinned on the
+  reset; a length chosen on the player still wins.
+* *A queued episode played as whatever tab was open when it started* - a
+  DailyFAM tile queued and played from search took the search voice, filed
+  itself under searchFAM and, for a guest, slipped past the bank-tile gate.
+  The surface is fixed when it is queued (a tile is `myfam`), with the
+  episode's real length and its Go Deeper parent; an attached episode is
+  refused (it cannot be replayed from its words).
+* *The queue waited behind a finished playlist* instead of following it:
+  `finishMix` plays the queue when there is one.
+* *Scrolling the transcript back up shut the captions sheet*: a drag that
+  starts inside a transcript that can still scroll is reading, not closing.
+* *A sample's audio evicted inside the minute-long memo* would have had the
+  landing page's replay wake the voice for somebody with no account: the gate
+  reads `_audio_is_kept` again on each sample's audio.
+* `searches_since` scanned the whole log: `events(kind, at)` is indexed.
+* The Settings note says what is true: *anyone* who opens an episode you
+  searched sees the handle, not only people who played it.
+
+Known and left: search events are client-reported, so the two-hour count can
+be inflated (only reordering episodes that already exist); Sign in with Apple
+or Google from a signed-in browser still *links* the new identity to that
+account (`accounts.sign_in_with`, deliberate linking that predates this);
+the in-app sign-up screen's samples share the eviction window the landing
+page now closes.

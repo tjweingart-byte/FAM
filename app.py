@@ -3552,7 +3552,11 @@ def _welcome_sample_request(request: Request) -> bool:
     if params.get("minutes", "") != str(BROWSE_MINUTES):
         return False
     q = params.get("q", "")
-    return bool(q) and any(ep.get("query") == q for ep in _welcome_episodes())
+    if not q or not any(ep.get("query") == q for ep in _welcome_episodes()):
+        return False
+    # Read again, not from the minute-old memo: audio evicted since then
+    # would have this replay wake the voice for somebody with no account.
+    return _audio_is_kept(q, BROWSE_MINUTES)
 
 
 def _waitlist_page_for(listener) -> str:

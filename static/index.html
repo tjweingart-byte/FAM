@@ -4205,6 +4205,13 @@
   document.addEventListener("visibilitychange", function(){
     if(document.visibilityState !== "visible") return;
     if(selectedLengthMinutes === DEFAULT_LENGTH_MINUTES) return;
+    // The episode on the player keeps the length it was asked at: pinned on
+    // its topic, so a voice switch or a rebuild is still the same episode.
+    var playing = typeof currentPlayingTopicKey !== "undefined" && currentPlayingTopicKey
+                  && TOPICS[currentPlayingTopicKey];
+    if(playing && !playing.exploreMinutes && currentPlayMinutes){
+      playing.exploreMinutes = currentPlayMinutes;
+    }
     selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;
     if(typeof paintLengthControls === "function") paintLengthControls();
   });
@@ -5423,6 +5430,8 @@
     var key = currentPlayingTopicKey;
     if(!key || !TOPICS[key]){ return; }
     toast("Rebuilding at " + selectedLengthMinutes + " min");
+    // The length just chosen wins over any pinned on the topic (§190).
+    TOPICS[key].exploreMinutes = selectedLengthMinutes;
     generate(key);
   }
 
@@ -6084,7 +6093,8 @@
     ];
     // Only inside a myFAM playlist (§190): there is a playlist to take it
     // out of.
-    if(mixPlay && mixPlay.id && mixPlay.key === currentPlayingTopicKey){
+    if(mixPlay && mixPlay.id && mixPlay.key === currentPlayingTopicKey
+       && mixPlay.removedKey !== mixPlay.key){
       items.push({ label: menuLabel("remove", "Remove from this playlist"),
                    action: removeFromPlayingMix });
     }
@@ -6097,16 +6107,24 @@
   // The playing playlist entry, out of its mix - the mix keeps its other
   // topics, and the playlist carries on from the next one when this ends.
   function removeFromPlayingMix(){
-    if(!mixPlay || !mixPlay.id) return;
+    if(!mixPlay || !mixPlay.id || mixPlay.removedKey === mixPlay.key) return;
     var m = mixById(mixPlay.id);
     var item = mixPlay.order[mixPlay.pos];
     if(!m || !item){ toast("That playlist has changed"); return; }
+    // Once per playing entry: a second press must not take the one before it.
+    mixPlay.removedKey = mixPlay.key;
     var payload = (m.items || []).filter(function(i){ return i.id !== item.id; })
       .map(function(i){ return i.custom ? { query: i.query, title: i.title } : i.id; });
     saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      // By id, not by position: the playlist may have moved on meanwhile.
       if(mixPlay && mixPlay.id === saved.id){
-        mixPlay.order.splice(mixPlay.pos, 1);
-        mixPlay.pos -= 1;
+        for(var i = 0; i < mixPlay.order.length; i++){
+          if(mixPlay.order[i].id === item.id){
+            mixPlay.order.splice(i, 1);
+            if(i <= mixPlay.pos) mixPlay.pos -= 1;
+            break;
+          }
+        }
       }
       toast("Removed from " + (saved.name || "this playlist"));
     });
@@ -6118,8 +6136,13 @@
     var panel = document.getElementById("ccPanel");
     if(!panel) return;
     var y0 = null;
-    panel.addEventListener("touchstart", function(e){ y0 = e.touches[0].clientY; },
-                           { passive: true });
+    // Not from inside the transcript while it can still scroll up: that
+    // drag is reading back, not shutting the sheet.
+    panel.addEventListener("touchstart", function(e){
+      var text = document.getElementById("cc-text");
+      var inText = text && text.contains(e.target);
+      y0 = (inText && text.scrollTop > 0) ? null : e.touches[0].clientY;
+    }, { passive: true });
     panel.addEventListener("touchend", function(e){
       if(y0 === null) return;
       // The sheet's own slide, never the player's swipe to the album's next.
@@ -6139,21 +6162,29 @@
   var QUEUE = [];
   var queueSeq = 0;
 
+  // Everything that makes it the same episode later: its length, its
+  // surface (decided now, not by whichever tab is open when it plays), and
+  // a Go Deeper's parent. An attached episode is never cached and cannot be
+  // replayed from its words, so it is not queued (`addToQueue`).
   function queueEntryFromTopic(t, title){
     return { title: title || t.title || t.prompt || "", prompt: t.prompt || t.title || "",
-             minutes: t.exploreMinutes || 0, source: t.source || "Your queue",
-             surface: t.surface || "", bankTopicId: t.bankTopicId || "",
+             minutes: t.exploreMinutes || currentPlayMinutes || 0,
+             source: t.source || "Your queue",
+             surface: t.cachedOnly ? "" : (currentPlaySurface || playSurface(t) || ""),
+             parentTopic: t.parentTopic || "", attach: t.attach || "",
+             bankTopicId: t.bankTopicId || "",
              cachedOnly: !!t.cachedOnly, thumb: t.thumb || PLAYER_CARD.thumb || "",
              titleOverridden: true };
   }
   function queueEntryFromTile(tile){
     return { title: tile.title || tile.query, prompt: tile.query,
-             minutes: BROWSE_MINUTES, source: "DailyFAM", surface: "",
+             minutes: BROWSE_MINUTES, source: "DailyFAM", surface: "myfam",
              bankTopicId: tile.id || "", cachedOnly: false, thumb: tile.thumb || "",
              playable: tile.playable, titleOverridden: true };
   }
   function addToQueue(entry){
     if(!entry || !entry.prompt){ toast("Nothing to queue"); return; }
+    if(entry.attach){ toast("An episode about an attachment can\u2019t be queued"); return; }
     if(entry.playable === false && !AUTH.authenticated){ showGuestGate(); return; }
     QUEUE.push(entry);
     drawMixSkip(!!mixPlay);
@@ -6169,9 +6200,11 @@
       caption: "Live captions will appear here as this plays—",
       exploreMinutes: entry.minutes || 0, surface: entry.surface || undefined,
       bankTopicId: entry.bankTopicId, cachedOnly: entry.cachedOnly,
+      parentTopic: entry.parentTopic || undefined,
       thumb: entry.thumb, titleOverridden: entry.titleOverridden
     };
     if(!TOPICS[key].surface) delete TOPICS[key].surface;
+    if(!TOPICS[key].parentTopic) delete TOPICS[key].parentTopic;
     generate(key);
     return true;
   }
@@ -7070,8 +7103,9 @@
     // is also the only place it can be changed.
     // The episode playing's own length when it is not a search (§147) -
     // a myFAM episode is two minutes whatever the search length says.
-    var shown = minutes || (currentPlaySurface && currentPlaySurface !== "search"
-                            ? currentPlayMinutes : 0) || selectedLengthMinutes;
+    // And a search's own length too since §190: the search length goes back
+    // to two minutes on every return to the app, the playing episode does not.
+    var shown = minutes || currentPlayMinutes || selectedLengthMinutes;
     return selectedSpeed + " · " + shown + " min";
   }
   // Every place the chosen length is printed, written from the one variable
@@ -8714,6 +8748,8 @@
     mixPlay = null;
     drawMixSkip(false);
     stopSpeech();
+    // The playlist played through; what was queued comes next (§190).
+    if(QUEUE.length){ playQueueNext(); return; }
     // A skip on the last episode can land while it is still loading; the
     // loading screen and its 45-second give-up timer must not outlive it.
     clearGenOverlay();
@@ -12276,7 +12312,7 @@
       html += settingsRow("Show my name on episodes I searched",
           searchesPublic ? "On" : "Off",
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
-        + '<div class="set-note">When it\u2019s on, people who play an episode you searched see your @handle in the player\u2019s menu.</div>';
+        + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
