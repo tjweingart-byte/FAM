@@ -14030,3 +14030,30 @@ counts a request against the provider and, for API-Sports, against
 and under it each enabled sport has its own row: today (and failures),
 yesterday, the seven-day average, its plan and allowance, the next plan and
 its price, and what API-Sports last reported left.
+
+**Review, before merging into Main.** An independent pass found five faults,
+each fixed with a test:
+
+* *A practice session was "the race".* The sweep asked for every session on
+  the day, so a Friday practice marked completed made the Grand Prix "finished".
+  It asks for the race only, and a row that is not the race says nothing.
+* *"Rugby World Cup" went to soccer.* Several sports share event names, and
+  the first in the table won. The sport whose own name is said now wins.
+* *The new sports ranked as minor leagues on myFAM.* The NHL, AFL and the big
+  rugby competitions are major; every Formula 1 race is; a fight is when it is
+  on a UFC card (`is_major_event`).
+* *One failing sport was silent* while any other answered - an unsubscribed
+  product would fail every sweep unseen. Each failure is logged, kept in
+  `story_sources.SPORT_FAILURES` until that sport succeeds, and named in the
+  source's report.
+* *The old guidance silently stopped working.* `API_SPORTS_DAILY_REQUESTS=7500`
+  for a Pro plan is a ceiling now; with no tier set it would cap at 100. It is
+  logged as an error naming `API_SPORTS_TIERS`.
+* Also: tier settings are parsed once, not on every count; fighters and races
+  are matched by whole name ("will" is not "Williams"); a fight is looked for
+  on yesterday's card too, because a US card ends after midnight UTC; a
+  finished race's podium is read once; team records are only fetched for the
+  league they are counted in (a EuroLeague game no longer spends two requests
+  on an empty NBA schedule); the sweep keeps 24 signals across ten sports;
+  and `/admin` also lists any sport spending today that `API_SPORTS_SPORTS`
+  leaves out.

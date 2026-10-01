@@ -281,3 +281,93 @@ def test_a_hockey_game_in_the_second_period_is_under_way():
     facts = LS.ApiSportsSource().to_facts(row, ENTITY, LS.SPORTS["hockey"])
     assert facts.status == live_facts.IN_PROGRESS
     assert "lead" in facts.facts[0] and "beat" not in facts.facts[0]
+
+
+# --- review fixes --------------------------------------------------------------
+
+@pytest.mark.parametrize("subject,sport", [
+    ("rugby world cup final", "rugby"),
+    ("fiba basketball world cup", "basketball"),
+    ("volleyball champions league", "volleyball"),
+    ("world cup qualifier", "football"),
+])
+def test_a_shared_event_name_goes_to_the_sport_that_is_named(subject, sport):
+    assert LS.sport_for(subject).key == sport
+
+
+def test_a_practice_session_is_never_the_race():
+    row = {"id": 3, "type": "1st Practice", "status": "Completed",
+           "competition": {"name": "Monaco Grand Prix"}}
+    assert LS.ApiSportsSource.live_line(row, LS.SPORTS["formula-1"]) == \
+        (live_facts.UNKNOWN, "")
+    race = dict(row, type="Race")
+    assert LS.ApiSportsSource.live_line(race, LS.SPORTS["formula-1"])[0] == \
+        live_facts.FINAL
+
+
+def test_the_new_sports_lead_like_major_leagues():
+    assert LS.is_major("NHL", "USA") and LS.is_major("AFL", "Australia")
+    assert LS.is_major_event(LS.SPORTS["formula-1"], {})
+    assert LS.is_major_event(LS.SPORTS["mma"], {"slug": "UFC 320: A vs B"})
+    assert not LS.is_major_event(LS.SPORTS["mma"], {"slug": "Regional Cage 4"})
+
+
+def test_a_fighter_is_matched_by_whole_name_and_yesterday_is_tried(monkeypatch):
+    calls = []
+    yesterday = [{"id": 7, "status": {"short": "FT"},
+                  "fighters": {"first": {"name": "Jon Jones"},
+                               "second": {"name": "Max Williams"}}}]
+
+    async def fake(url, params, timeout):
+        calls.append(params.get("date"))
+        return {"response": [] if len(calls) == 1 else yesterday}
+    monkeypatch.setattr(LS, "api_sports_json", fake)
+    source = LS.ApiSportsSource()
+    found = asyncio.run(source._resolve_fight(LS.SPORTS["mma"], "who won the jones fight"))
+    assert found.id == "mma:7" and len(calls) == 2
+    calls.clear()
+    # "will" is not "Williams".
+    assert asyncio.run(source._resolve_fight(LS.SPORTS["mma"], "who will win tonight")) is None
+
+
+def test_one_failing_sport_is_said_while_others_answer(monkeypatch):
+    import story_sources
+
+    settings(monkeypatch, api_sports_key="k",
+             stories_sports="american-football,hockey")
+    monkeypatch.setattr(story_sources, "settings", config.settings)
+
+    async def fake(url, headers, params, timeout):
+        if "hockey" in url:
+            raise RuntimeError("not subscribed")
+        return {"response": []}
+    monkeypatch.setattr(LS, "_json", fake)
+    try:
+        asyncio.run(story_sources.ApiSportsSignals().collect(8))
+    except RuntimeError:
+        pass  # nothing answered with a game at all: an outage, raised
+    assert "hockey" in story_sources.SPORT_FAILURES
+    assert "american-football" not in story_sources.SPORT_FAILURES
+    ok, why = story_sources.ApiSportsSignals().diagnose()
+    assert "hockey FAILING" in why
+
+
+def test_a_finished_races_podium_is_read_once(monkeypatch):
+    calls = []
+
+    async def fake(url, params, timeout):
+        calls.append(url)
+        return {"response": [{"position": 1, "driver": {"name": "D1"},
+                              "team": {"name": "T1"}}]}
+    monkeypatch.setattr(LS, "api_sports_json", fake)
+    source = LS.ApiSportsSource()
+    asyncio.run(source._podium(LS.SPORTS["formula-1"], "9"))
+    asyncio.run(source._podium(LS.SPORTS["formula-1"], "9"))
+    assert len(calls) == 1
+
+
+def test_an_old_daily_setting_above_the_plan_is_explained(monkeypatch, caplog):
+    settings(monkeypatch, api_sports_daily_requests=7500)
+    with caplog.at_level("ERROR"):
+        assert LS.daily_allowance("american-football") == 100
+    assert "API_SPORTS_TIERS" in caplog.text

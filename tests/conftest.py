@@ -442,6 +442,8 @@ def isolated_api_sports(monkeypatch):
     import story_sources
 
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
+    monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
     yield
 
 

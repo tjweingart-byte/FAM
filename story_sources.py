@@ -605,7 +605,8 @@ class ApiSportsSignals(stories.StorySource):
     domain = stories.SPORTS
     #: Flat-rate plan; the bill is not per call.
     cost_per_refresh = 0.0
-    max_signals = 12
+    #: Up to ten sports share one sweep (§180).
+    max_signals = 24
 
     #: When each sport was last swept (§180): each is its own plan and its
     #: own day, so each is paced on its own budget and a sweep takes only
@@ -643,8 +644,9 @@ class ApiSportsSignals(stories.StorySource):
             f"({live_sources.budget_for(k).remaining()} of "
             f"{live_sources.budget_for(k).daily} left, {live_sources.tier_of(k)})"
             for k in self.sports())
+        failing = "; ".join(f"{k} FAILING ({why})" for k, why in SPORT_FAILURES.items())
         return True, (f"API_SPORTS_KEY present, sweeping {paced}; not verified "
-                      "from this machine")
+                      "from this machine" + (f"; {failing}" if failing else ""))
 
     async def verify(self) -> tuple[bool, str]:
         import live_sources
@@ -669,8 +671,12 @@ class ApiSportsSignals(stories.StorySource):
 
         async def card(key: str):
             sport = live_sources.SPORTS[key]
+            params = {"date": today}
+            if sport.kind == "race":
+                # The race only, not the weekend's practice and qualifying.
+                params["type"] = "Race"
             data = await live_sources.api_sports_json(
-                f"{sport.host}/{sport.path}", {"date": today}, timeout)
+                f"{sport.host}/{sport.path}", params, timeout)
             rows = (data or {}).get("response", []) or []
             live_sources.remember_card(key, rows)
             await self._warm_catalogue(sport)
@@ -683,10 +689,10 @@ class ApiSportsSignals(stories.StorySource):
             self._last_swept[key] = clock
         out = []
         failures: list = []
-        for result in await asyncio.gather(*(card(k) for k in due),
-                                           return_exceptions=True):
+        for key, result in zip(due, await asyncio.gather(
+                *(card(k) for k in due), return_exceptions=True)):
             if isinstance(result, BaseException):
-                failures.append(result)
+                failures.append((key, result))
                 continue
             sport, rows = result
             now = datetime.now(timezone.utc)
@@ -694,6 +700,16 @@ class ApiSportsSignals(stories.StorySource):
                 signal = self._signal(sport, row, now)
                 if signal is not None:
                     out.append(signal)
+        for failed_key, exc in failures:
+            # One sport failing is never silent while the others answer
+            # (§180): an unsubscribed product or a wrong host says so here
+            # and in the report, every sweep it happens.
+            log.warning("stories: API-Sports %s failed: %s", failed_key, exc)
+            SPORT_FAILURES[failed_key] = f"{type(exc).__name__}: {exc}"
+        for key in due:
+            if key not in {k for k, _ in failures}:
+                SPORT_FAILURES.pop(key, None)
+        failures = [exc for _, exc in failures]
         if failures and not out:
             # Every sport failed - the allowance, the key or the host. An
             # outage, raised so the report names it, never a day with no games.
@@ -751,7 +767,8 @@ class ApiSportsSignals(stories.StorySource):
             # does not offer.
             return None
         league, country = live_sources.league_of(row)
-        major = live_sources.is_major(league, country)
+        major = (live_sources.is_major(league, country)
+                 or live_sources.is_major_event(sport, row))
         where = stories.normalise_country(country)
         hint = ""
         if where in ("world", "international", ""):
@@ -790,6 +807,8 @@ class ApiSportsSignals(stories.StorySource):
 #: When each API-Sports sport was last swept (§180), for the process - not
 #: per source object, so a rebuilt registry does not sweep everything again.
 SPORT_SWEPT_AT: dict = {}
+#: Each sport whose last sweep failed, and why, until one succeeds.
+SPORT_FAILURES: dict = {}
 
 
 def _status_code(row: dict) -> str:
