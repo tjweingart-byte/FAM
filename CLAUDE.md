@@ -170,6 +170,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   **public by default**, copies start private; `tools/check_js.py` fails on
   duplicate top-level names; `loadMixes` takes the bank before the 401 branch;
   the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
+- A mix's **listen time** is when its "ready" push is sent (own zone, only once
+  the edition is written), never when it is written; kept even where push is
+  off; never shown to others. No suggested mix names. [mix-listen-time]
+- YourFAM's row puts friends with vibes up first; a swipe in the viewer goes
+  to the next friend's vibes, the picture opens the profile; the Friends page
+  has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real

@@ -107,6 +107,7 @@ FAM_ENVIRONMENT = (
     # The DailyFAM edition (§143): a suite must never start writing every
     # mix's episodes because a developer's shell turned it on.
     "DAILY_EDITION", "DAILY_EDITION_TIMEZONE", "DAILY_EDITION_HOURS",
+    "MIX_REMINDERS", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
@@ -370,6 +371,9 @@ def isolated_stores(tmp_path, monkeypatch):
                         topics_mod.EventStore(str(here / "myfam.db")))
     monkeypatch.setattr(appmod, "MIXES",
                         mixes_mod.MixStore(str(here / "mixes.db")))
+    import push as push_mod
+    monkeypatch.setattr(appmod, "PUSH",
+                        push_mod.PushStore(str(here / "mixes.db")))
     monkeypatch.setattr(appmod, "SOCIAL",
                         social_mod.SocialStore(str(here / "social.db")))
     monkeypatch.setattr(appmod, "ATTACHMENTS",

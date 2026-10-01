@@ -723,3 +723,29 @@
    than a second factor, and a forgotten password is still a lost account. Say
    so before anyone relies on it; the provider sign-ins have no such gap, which
    is a real argument for making them the prominent buttons in the app.
+
+<!-- rule:mix-listen-time -->
+- **A mix's listen time is when the phone is told, never when episodes are
+  written** *(§184, the 10.1 packet's third set, at the owner's direction)*.
+  The 05:00 edition writes every mix as before; `push.py` sends "your mix is
+  ready" at the listener's own `listen_at` in their own zone, **only once that
+  edition is written** (an edition that failed sends nothing), once a day per
+  mix, up to `GRACE_SECONDS` late, and while the waitlist runs only to `active`
+  accounts. Delivery is Web Push (VAPID keys and a `VAPID_SUBJECT` contact,
+  never invented; `requirements-push.txt`); without it every listen time is still kept and the
+  mix page shows the server's own reason (`/api/push`). The listen time is the
+  owner's alone - `Mix.public_dict` drops it - and an erased account takes its
+  subscriptions. The native app adds an APNs `kind` to the same table; it is
+  not built. DailyFAM no longer suggests mix names (Morning, At the gym, Wind
+  down); the server still sends `starters` for installed clients.
+
+<!-- rule:friends-vibes-first -->
+- **Friends with a vibe up come first, and their vibes play as stories**
+  *(§184)*: the YourFAM row sorts friends whose vibes are up to the front,
+  newest first, before it is cut to `CIRCLE_MAX`. In the viewer a tap steps
+  through one friend's vibes and a **swipe goes to the next or previous
+  friend's**; the picture and name open the profile (no "View profile"
+  button). The Friends page carries **Invite new users +** (the share sheet,
+  `inviteFriends`; while the waitlist runs it shares the member's referral
+  link, fetched before the tap), and YourFAM's header has no (+) - Messages already
+  starts a chat.

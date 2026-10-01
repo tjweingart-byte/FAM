@@ -306,6 +306,10 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
+  .new-mix-plus{ width:34px; height:34px; padding:0; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; color:var(--text); border:2px solid currentColor; }
+  .new-mix-plus:active{ transform:scale(0.94); }
+  .new-mix-plus[hidden]{ display:none; }
   /* Offline (27/09 packet): a card whose episode is not on this device is
      faded; one that is keeps full brightness and plays from here. */
   .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
@@ -717,12 +721,6 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Space Grotesk',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
-  .starter-row{ display:flex; gap:9px; overflow-x:auto; padding-bottom:4px;
-    margin:-2px 0 14px; scrollbar-width:none; }
-  .starter-row::-webkit-scrollbar{ display:none; }
-  .starter-chip{ flex:0 0 auto; padding:8px 13px; border-radius:999px; background:var(--surface);
-    border:1px solid var(--border-strong); color:var(--text); font-size:11px; font-weight:600;
-    cursor:pointer; }
   /* Inside a mix, and in the picker. */
   .mix-topic{ display:flex; align-items:center; gap:11px; padding:11px 12px; margin-bottom:9px;
     background:var(--surface); border:1px solid var(--border); border-radius:12px; }
@@ -1305,6 +1303,20 @@
     border:1px solid var(--border); cursor:pointer; }
   .mix-vis-t{ font-size:12.5px; color:var(--text); }
   .mix-vis-s{ font-size:10px; color:var(--text-muted); margin-top:3px; }
+  /* A mix's listen time (10.1 packet): when the phone is told it is ready. */
+  .mix-when{ display:flex; align-items:center; gap:12px; padding:13px 14px; margin:14px 0 0;
+    border-radius:12px; background:var(--surface); border:1px solid var(--border); }
+  .mix-when[hidden]{ display:none; }
+  .mix-when + .mix-vis{ margin-top:10px; }
+  .mix-when-i{ flex:none; color:var(--copper); display:flex; }
+  .mix-when-b{ flex:1; min-width:0; }
+  .mix-when-t{ font-size:12.5px; color:var(--text); }
+  .mix-when-s{ font-size:10px; color:var(--text-muted); margin-top:3px; line-height:1.4; }
+  .mix-when-in{ flex:none; background:var(--paper); color:var(--ink); border:none; border-radius:9px;
+    padding:6px 8px; font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700;
+    color-scheme:light; }
+  .mix-when-x{ flex:none; background:none; border:none; color:var(--text-muted); font-size:11px;
+    cursor:pointer; padding:4px; }
   /* The switch means *private*, and carries the lock. `on` is the closed one.
      It used to mean public, which made the lit position the state where other
      people could see your mix - read the wrong way round by everybody who has
@@ -2239,6 +2251,7 @@
     align-items:center; gap:5px; font-family:inherit; font-size:12px;
     font-weight:700; color:var(--ink); background:var(--copper);
     border:1px solid var(--copper); cursor:pointer; white-space:nowrap; }
+  .yf-find.invite-users{ margin-top:10px; padding:0 12px 0 13px; }
   .yf-find:active{ transform:scale(0.97); }
   /* The same pill under myFAM's friends rail (10.1 #2). */
   .feed-find{ display:flex; margin:10px 0 0; }
@@ -2257,7 +2270,7 @@
   /* A friend's vibes as stories (27/09 packet). */
   .story{ position:absolute; inset:0; z-index:80; background:linear-gradient(180deg,#2A2233 0%,#16121C 100%);
     display:flex; flex-direction:column; padding:44px 16px 28px; color:#F4EFE4;
-    border-radius:inherit; overflow:hidden; }
+    border-radius:inherit; overflow:hidden; touch-action:pan-y; user-select:none; }
   .story-main{ margin:auto 0; position:relative; z-index:0; display:flex; flex-direction:column;
     gap:10px; text-align:center; padding:0 8px; pointer-events:none; }
   .story[hidden]{ display:none; }
@@ -2284,8 +2297,11 @@
   .story-play{ margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px;
     height:46px; border:none; border-radius:999px; background:var(--copper); color:var(--ink);
     font:600 14px inherit; font-family:inherit; cursor:pointer; }
-  .story-profile{ height:40px; border:1px solid rgba(244,239,228,0.25); border-radius:999px;
-    background:none; color:inherit; font-family:inherit; font-size:13px; cursor:pointer; }
+  /* The picture and name are the way to the profile (10.1 packet, third
+     set): the "View profile" button under Play is gone. */
+  .story-who-btn{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; padding:0;
+    border:none; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+  .story-who-btn .story-av{ border-radius:50%; box-shadow:0 0 0 2px var(--copper); }
   .yf-ring.seen{ border-color:var(--text-faint); }
   .yf-vibe{ position:absolute; right:-5px; bottom:-3px; height:16px; padding:0 5px;
     border-radius:8px; background:var(--copper); color:var(--ink);
@@ -2931,6 +2947,12 @@
           <input class="modal-input" id="friendSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Find someone by handle" style="margin-bottom:0;"
                  oninput="searchPeople()">
+          <!-- For somebody not on FAM yet (10.1 packet, third set): the
+               phone's share sheet with the app's address and this listener's
+               handle. Both "Find new friends" pills, YourFAM's and myFAM's,
+               open this page, so this one button serves both. -->
+          <button class="yf-find invite-users" onclick="inviteFriends()">Invite new users
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         </div>
         <div class="scroll" id="friendsBody"></div>
       </section>
@@ -3166,8 +3188,9 @@
                  and hidden to start rather than shown and taken away, because a
                  control that appears and then vanishes reads as a fault. The
                  sign-up buttons `renderMixesLocked` draws are the way in. -->
-            <button class="myfam-dots-btn" id="newMixBtn" onclick="openNewMix()"
-                    aria-label="New mix" hidden>+</button>
+            <!-- Circled, so it reads as the way in (10.1 packet, third set). -->
+            <button class="myfam-dots-btn new-mix-plus" id="newMixBtn" onclick="openNewMix()"
+                    aria-label="New mix" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
           </div>
           <!-- Other listeners' public mixes. Tapping the bar lists every
                public mix; typing narrows it by mix name, by a topic in the
@@ -3805,16 +3828,20 @@
       <!-- A friend's vibes, played as stories (27/09 packet). Opened from a
            face on YourFAM that carries the VIBE badge; each vibe is one
            story, up for 24 hours. Left half back, right half forward, and it
-           moves on by itself - to the next friend's when one runs out. -->
+           moves on by itself - to the next friend's when one runs out. A
+           swipe left or right goes straight to the next or previous friend's
+           vibes, like a story app; the picture opens their profile. -->
       <div class="story" id="storyOverlay" hidden role="dialog" aria-label="Vibes">
         <div class="story-bars" id="storyBars"></div>
         <div class="story-head">
-          <span class="story-av" id="storyAv"></span>
-          <div class="story-who"><b id="storyName"></b><span id="storyAgo"></span></div>
+          <button class="story-who-btn" onclick="storyProfile()" aria-label="View profile">
+            <span class="story-av" id="storyAv"></span>
+            <span class="story-who"><b id="storyName"></b><span id="storyAgo"></span></span>
+          </button>
           <button class="story-x" onclick="closeStory()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
-        <div class="story-tap left" onclick="storyStep(-1)" aria-hidden="true"></div>
-        <div class="story-tap right" onclick="storyStep(1)" aria-hidden="true"></div>
+        <div class="story-tap left" onclick="storyTap(-1)" aria-hidden="true"></div>
+        <div class="story-tap right" onclick="storyTap(1)" aria-hidden="true"></div>
         <div class="story-main">
           <div class="story-kicker">VIBE</div>
           <div class="story-title" id="storyTitle"></div>
@@ -3824,7 +3851,6 @@
           <button class="story-play" onclick="playStory()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>
             Play episode</button>
-          <button class="story-profile" onclick="storyProfile()">View profile</button>
         </div>
       </div>
       <!-- A guest tapped a sample episode that has not been made yet. Making
@@ -6046,6 +6072,19 @@
     shelfFolders = { saved: [], vibe: [] };
     shelfPick = { saved: "", vibe: "" };
     myVibes = [];
+    // Their referral link and push state are theirs (10.1 third set). The
+    // browser's push subscription goes too, so the next person on this
+    // device is not told about the last one's mixes: the server drops the
+    // endpoint on the push service's 410 the next time it sends.
+    inviteLink = "";
+    pushState = null;
+    try {
+      if("serviceWorker" in navigator && navigator.serviceWorker.getRegistration){
+        navigator.serviceWorker.getRegistration().then(function(reg){
+          return reg && reg.pushManager && reg.pushManager.getSubscription();
+        }).then(function(sub){ if(sub) sub.unsubscribe(); }).catch(function(){});
+      }
+    } catch(e){}
   }
 
   // The app shell, so FAM opens with no connection at all. Only where a
@@ -7668,7 +7707,6 @@
   // myFAM, so two people whose mixes both contain the Fed episode share one
   // script.
   var mixes = [];
-  var mixStarters = [];
   var topicBank = [];
   //: Whether `topicBank` came back in this listener's taste order or the
   //: bank's own. The picker's heading reads this rather than asserting.
@@ -7745,7 +7783,6 @@
       }
       sampleMix = null;
       mixes = res[0].mixes;
-      mixStarters = res[0].starters || [];
       renderMixList();
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
@@ -7840,13 +7877,10 @@
     showNewMixButton(true);
     var html = "";
     if(!mixes.length){
+      // No suggested mixes under this (10.1 packet, third set): "Morning",
+      // "At the gym" and "Wind down" were removed at the owner's direction.
+      // The circled (+) in the header is the way to make one.
       html += '<div class="mix-empty">No mixes yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
-      if(mixStarters.length){
-        html += '<div class="starter-row">' + mixStarters.map(function(st, i){
-          return '<div class="starter-chip" onclick="useStarterMix(' + i + ')">'
-            + escapeHtml(st.name) + '</div>';
-        }).join("") + '</div>';
-      }
     }
     // No inline "New mix" button here. Creating a mix is the "+" in the
     // header, top right, and one control in one place is the whole of item 6:
@@ -7897,6 +7931,7 @@
     }
     renderMixBody(m);
     navigate("mixdetail");
+    if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
     // arrived yet, draw them when it does rather than leaving the space empty.
     ensureFollowCatalogue(function(){
@@ -7946,6 +7981,7 @@
     } else {
       html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want every day.</div>';
     }
+    html += mixWhenHTML(m);
     // Public mixes appear on the profile and in DailyFAM search, and a new
     // mix is public by default (at the owner's direction).
     //
@@ -8415,6 +8451,131 @@
     ]);
   }
 
+  // ---- A mix's listen time (10.1 packet, third set) ----
+  // When the listener means to hear this mix. It never moves when the
+  // episodes are written (the 05:00 edition writes every mix); it is when the
+  // server tells their phone the mix is ready (`push.py`). Where this server
+  // cannot deliver, the row says so in the server's words, and the time is
+  // kept for when it can.
+  //: `/api/push`, asked once: {available, public_key, reason, subscribed}.
+  var pushState = null;
+  function loadPushState(done){
+    fetch("/api/push").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ pushState = d; if(done) done(); })
+      .catch(function(){ pushState = null; if(done) done(); });
+  }
+  function listenTimeLabel(hhmm){
+    var p = String(hhmm || "").split(":");
+    var h = parseInt(p[0], 10), mm = p[1] || "00";
+    if(isNaN(h)) return "";
+    return ((h % 12) || 12) + ":" + mm + (h < 12 ? " AM" : " PM");
+  }
+  function notificationsBlocked(){
+    try { return typeof Notification !== "undefined" && Notification.permission === "denied"; }
+    catch(e){ return false; }
+  }
+  function mixWhenNote(m){
+    if(!m.listen_at) return "Pick when you listen and we\u2019ll tell you it\u2019s ready. Episodes are still written each morning.";
+    var when = listenTimeLabel(m.listen_at);
+    if(!pushState) return "Listening at " + when + ".";
+    if(!pushState.available) return pushState.reason;
+    if(notificationsBlocked()) return "Notifications are blocked for FAM in this browser\u2019s settings.";
+    if(!pushState.subscribed) return "Listening at " + when + ". Allow notifications to hear when it\u2019s ready.";
+    return "We\u2019ll tell you it\u2019s ready at " + when + ".";
+  }
+  // Clearing is the Clear button only: a desktop time field fires an empty
+  // change while one half of it is being retyped.
+  function mixWhenHTML(m){
+    return '<div class="mix-when" id="mixWhen">'
+      + '<span class="mix-when-i" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" '
+      + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 003.4 0"/></svg></span>'
+      + '<div class="mix-when-b"><div class="mix-when-t">Listen time</div>'
+      + '<div class="mix-when-s" id="mixWhenNote">' + escapeHtml(mixWhenNote(m)) + '</div></div>'
+      + '<input class="mix-when-in" id="mixWhenIn" type="time" aria-label="Listen time" value="'
+      + escapeHtml(m.listen_at || "") + '" onchange="if(this.value) setMixListenTime(this.value)">'
+      + (m.listen_at ? '<button class="mix-when-x" onclick="setMixListenTime(\'\')" aria-label="Remove listen time">Clear</button>' : '')
+      + '</div>';
+  }
+  function repaintMixWhen(){
+    var m = mixById(currentMixId), el = document.getElementById("mixWhen");
+    if(!m || !el) return;
+    el.outerHTML = mixWhenHTML(m);
+  }
+  function listenerZone(){
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch(e){ return ""; }
+  }
+  function setMixListenTime(value){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    // Asked here, inside the tap, before anything waits on the network:
+    // Safari only shows the permission prompt from the gesture itself.
+    var asking = (value && pushState && pushState.available && !pushState.subscribed)
+      ? askNotificationPermission() : null;
+    saveMix("PATCH", "/api/mixes/" + m.id, { listen_at: value || "", listen_tz: listenerZone() }, function(saved){
+      repaintMixWhen();
+      if(!saved.listen_at){ toast("Listen time removed"); return; }
+      var go = function(){
+        if(pushState && pushState.available && !pushState.subscribed){
+          subscribeToPush(asking, function(ok){
+            repaintMixWhen();
+            toast(ok ? "We\u2019ll tell you at " + listenTimeLabel(saved.listen_at)
+                     : "Listen time saved \u2014 notifications are off");
+          });
+        } else {
+          repaintMixWhen();
+          toast("Listen time set for " + listenTimeLabel(saved.listen_at));
+        }
+      };
+      if(pushState) go(); else loadPushState(go);
+    });
+  }
+  function pushKeyBytes(b64){
+    var pad = "=".repeat((4 - b64.length % 4) % 4);
+    var raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    var out = new Uint8Array(raw.length);
+    for(var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function pushSupported(){
+    try {
+      return "serviceWorker" in navigator && "PushManager" in window
+        && typeof Notification !== "undefined";
+    } catch(e){ return false; }
+  }
+  // The permission prompt, as a promise of the answer. Called from the tap.
+  function askNotificationPermission(){
+    if(!pushSupported()) return Promise.resolve("unsupported");
+    try { return Promise.resolve(Notification.requestPermission()); }
+    catch(e){ return Promise.resolve("denied"); }
+  }
+  // Waits for the browser's answer, then hands the server where to deliver.
+  // `done(true)` only when the server has it; every other ending, including
+  // a service worker that never becomes ready, is `done(false)`.
+  function subscribeToPush(asking, done){
+    if(!pushSupported()){ done(false); return; }
+    var finished = false;
+    var finish = function(ok){ if(!finished){ finished = true; done(ok); } };
+    setTimeout(function(){ finish(false); }, 15000);
+    Promise.resolve(asking || askNotificationPermission()).then(function(p){
+      if(p !== "granted") throw new Error("not allowed");
+      return navigator.serviceWorker.ready;
+    }).then(function(reg){
+      return reg.pushManager.getSubscription().then(function(sub){
+        return sub || reg.pushManager.subscribe({ userVisibleOnly: true,
+          applicationServerKey: pushKeyBytes(pushState.public_key) });
+      });
+    }).then(function(sub){
+      return fetch("/api/push/subscribe", { method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ subscription: sub.toJSON() }) });
+    }).then(function(r){
+      if(!r.ok) throw new Error("refused");
+      pushState.subscribed = true;
+      finish(true);
+    }).catch(function(){ finish(false); });
+  }
+
   // Public mixes appear on the profile. A new mix is public by default.
   function toggleMixVisibility(){
     var m = mixById(currentMixId);
@@ -8753,9 +8914,37 @@
           return d;
         });
       })
-      .then(function(m){ openPublicMix(m); publicMixFromLink = true; })
+      .then(function(m){
+        // "Your mix is ready" opens `/?mix=<id>` on the listener's own mix:
+        // that is their mix to play and edit, not somebody's public page.
+        if(m.mine){ openOwnMix(id); return; }
+        openPublicMix(m); publicMixFromLink = true;
+      })
       .catch(function(e){ toast(e.message); });
   }
+  function openOwnMix(id){
+    setTab("playfam");
+    fetch("/api/mixes").then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if(!d) return;
+      mixes = d.mixes || [];
+      renderMixList();
+      if(mixById(id)) openMix(id);
+    }).catch(function(){});
+  }
+  // A notification tapped while FAM is already open: the service worker hands
+  // the page its address instead of opening a second window.
+  try {
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker.addEventListener("message", function(ev){
+        var d = ev.data || {};
+        if(d.type !== "open-url" || !d.url) return;
+        try {
+          var id = new URL(d.url, location.href).searchParams.get("mix");
+          if(id) openOwnMix(id);
+        } catch(e){}
+      });
+    }
+  } catch(e){}
 
   // ---------------- Sharing a mix ----------------
   // "Share mix" in the mix's menu: the same sheet as sharing an episode - the
@@ -8927,22 +9116,6 @@
     pickerAll = {};
     pickerOpenFocus = null;
     openMixPicker(value);
-  }
-
-  function useStarterMix(i){
-    var st = mixStarters[i];
-    if(!st) return;
-    pickerMixId = null;
-    pickerNewName = st.name;
-    pickerSelection = st.topic_ids.slice();
-    // A fresh mix: nothing carried over from a naming screen or a picker
-    // somebody walked away from - not a cover, and not a team they had
-    // narrowed a topic to.
-    newMixCover = "";
-    pickerFocus = {};
-    pickerAll = {};
-    pickerOpenFocus = null;
-    openMixPicker(st.name);
   }
 
   function editMixTopics(){
@@ -11228,6 +11401,7 @@
 
   function renderProfile(p){
     profileNow = p;
+    loadInviteLink();
     var follows = p.follows || {};
     var friends = follows.friends || 0;
     var vibes = p.echo_count || 0;
@@ -11236,8 +11410,8 @@
     document.getElementById("pfTop").innerHTML =
       '<div class="yf-head">' + yfWordmark()
       + '<div class="yf-head-acts">'
-      + '<button class="yf-round gold" onclick="openNewChatModal()" aria-label="New message">'
-      + yfIcon("plus", 17) + '</button>'
+      // No (+) here (10.1 packet, third set): it started a new message, which
+      // the Messages tab and card already do, so it was the same door twice.
       // A gear. The spokes-around-a-circle it replaced was the sun, which is
       // brightness on every phone this will run on.
       + '<button class="yf-round" onclick="openSettings()" aria-label="Settings">'
@@ -11490,6 +11664,50 @@
     showStory();
   }
 
+  // A swipe moves between friends, a tap between one friend's vibes - the
+  // way every story app works (10.1 packet, third set). Friends with vibes up
+  // are first on the row, so the next one is the next face along.
+  var storySwipe = null, storySwipedAt = 0;
+  function storyFriend(dir){
+    for(var p = storyAt.person + dir; p >= 0 && p < yfCircle.length; p += dir){
+      if(hasStories(yfCircle[p])){
+        var person = yfCircle[p], seenAt = storySeenMap()[person.user_id] || 0, start = 0;
+        for(var k = 0; k < person.stories.length; k++){
+          if(person.stories[k].at > seenAt){ start = k; break; }
+        }
+        storyAt = { person: p, item: start };
+        showStory();
+        return;
+      }
+    }
+    // Nobody further that way: past the last friend closes, before the first
+    // starts this friend's vibes again.
+    if(dir > 0){ closeStory(); return; }
+    storyAt.item = 0; showStory();
+  }
+  // A swipe ends with a click on whichever half it ended over; that click
+  // must not also step.
+  function storyTap(dir){
+    if(Date.now() - storySwipedAt < 400) return;
+    storyStep(dir);
+  }
+  (function(){
+    var el = document.getElementById("storyOverlay");
+    if(!el) return;
+    el.addEventListener("pointerdown", function(e){
+      storySwipe = { x: e.clientX, y: e.clientY };
+    });
+    el.addEventListener("pointerup", function(e){
+      if(!storySwipe) return;
+      var dx = e.clientX - storySwipe.x, dy = e.clientY - storySwipe.y;
+      storySwipe = null;
+      if(Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      storySwipedAt = Date.now();
+      storyFriend(dx < 0 ? 1 : -1);
+    });
+    el.addEventListener("pointercancel", function(){ storySwipe = null; });
+  })();
+
   // A story does not run on while the app is out of sight: hidden, it
   // stops where it was, and it starts that story again when it is back.
   document.addEventListener("visibilitychange", function(){
@@ -11548,10 +11766,22 @@
   // A way to bring somebody in: the phone's share sheet with the app's
   // address and this listener's handle, which is what somebody arriving
   // needs in order to find them. Nothing is posted anywhere by FAM.
+  //: While the waitlist runs (WAITLIST.md) an invite is this member's own
+  //: referral link: the person invited joins the line through it and is
+  //: made their friend. Fetched ahead (`loadInviteLink`, when the Friends
+  //: page or the profile opens) because a share sheet must open inside the
+  //: tap - Safari refuses one started after a network wait.
+  var inviteLink = "";
+  function loadInviteLink(){
+    if(inviteLink || !(AUTH && AUTH.authenticated && AUTH.waitlist)) return;
+    fetch("/api/waitlist/me").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d && d.referral_link) inviteLink = d.referral_link; })
+      .catch(function(){});
+  }
   function inviteFriends(){
     var handle = profileNow && profileNow.handle;
-    var url = location.origin && location.origin.indexOf("http") === 0
-      ? location.origin + "/" : "";
+    var url = inviteLink || (location.origin && location.origin.indexOf("http") === 0
+      ? location.origin + "/" : "");
     var text = "Come listen with me on FAM" + (handle ? " — I'm @" + handle : "") + ".";
     if(navigator.share){
       navigator.share({ title: "FAM", text: text, url: url || undefined }).catch(function(){});
@@ -11888,6 +12118,7 @@
     document.getElementById("friendsBody").innerHTML =
       '<div class="pf-empty">Loading…</div>';
     navigate("friends");
+    loadInviteLink();
     loadFriends();
     // They are looking at who follows them, so nobody is new any more. Done
     // **here** and never when the popup is drawn: a badge that cleared itself

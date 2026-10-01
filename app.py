@@ -80,6 +80,7 @@ import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
+import push as push_mod
 import preferences as prefs_mod
 import social as social_mod
 import voice_store
@@ -562,6 +563,15 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(daily_edition.run_forever(
             MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
             initial_delay=2 * settings.boot_stagger_seconds)))
+    # "Your mix is ready" at each mix's listen time, once its edition is
+    # written (`push.py`). Started only where it can deliver; a server
+    # without keys logs why once and keeps every listen time for later.
+    push_ready = push_mod.status()
+    if push_ready["available"]:
+        _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
+            MIXES, PUSH, allowed=_may_be_notified)))
+    else:
+        log.info("mix notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.
@@ -1228,7 +1238,7 @@ def erase_listener(user_id: str) -> dict:
                         ("preferences", PREFS), ("attachments", ATTACHMENTS),
                         ("quotas", QUOTAS), ("messages", MESSAGES),
                         ("saved", SAVED), ("shares", SHARES),
-                        ("voice_choice", _VoiceChoices())):
+                        ("voice_choice", _VoiceChoices()), ("push", PUSH)):
         try:
             removed[name] = store.forget(user_id)
         except Exception:
@@ -1654,6 +1664,10 @@ async def health(request: Request) -> dict:
             "landing_doors": sharing.landing_doors(settings.app_store_url),
             "targets": list(sharing.TARGET_KEYS),
         },
+        # "Your mix is ready" (push.py): whether this server can deliver, and
+        # if not, the sentence the mix page shows.
+        "mix_notifications": {k: v for k, v in push_mod.status().items()
+                              if k != "public_key"},
     }
 
 
@@ -3342,6 +3356,8 @@ if _ALLOWED_ORIGINS:
 
 EVENTS = topics_mod.EventStore()
 MIXES = mixes_mod.MixStore()
+#: Where each listener's phone can be reached for "your mix is ready".
+PUSH = push_mod.PushStore()
 SOCIAL = social_mod.SocialStore()
 ACCOUNTS = accounts_mod.AccountStore()
 #: The pre-launch waitlist (WAITLIST.md): columns on the accounts row, read and
@@ -3869,6 +3885,13 @@ class MixRequest(BaseModel):
     #: photo with a 422 the interface cannot read, where mixes.clean_cover
     #: refuses it with a sentence the listener can act on.
     cover: Optional[str] = None
+    #: When the listener means to hear the mix, "HH:MM"; "" removes it. It is
+    #: when their phone is told the mix is ready (`push.py`), never when its
+    #: episodes are written.
+    listen_at: Optional[str] = Field(None, max_length=8)
+    #: Their IANA zone for `listen_at` (the browser's own); unreadable reads
+    #: as the edition's zone.
+    listen_tz: Optional[str] = Field(None, max_length=64)
 
 
 def _attachments_for(user: str, ids: str) -> tuple:
@@ -4044,7 +4067,7 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     before = MIXES.get(account, mix_id) if req.topic_ids is not None else None
     try:
         mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
-                           req.cover)
+                           req.cover, req.listen_at, req.listen_tz)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if req.topic_ids is not None:
@@ -4058,6 +4081,60 @@ async def delete_mix(mix_id: str, request: Request):
     if not MIXES.delete(_require_account(request), mix_id):
         raise HTTPException(status_code=404, detail="That mix no longer exists.")
     return {"ok": True}
+
+
+def _may_be_notified(user_id: str) -> bool:
+    """Whether "your mix is ready" may reach this account: always, unless the
+    waitlist is running and they are not let in yet (WAITLIST.md)."""
+    if not settings.waitlist:
+        return True
+    try:
+        return WAITLIST.status_of(user_id) == waitlist_mod.ACTIVE
+    except Exception:  # noqa: BLE001 - unsure is no
+        log.exception("push: could not read the waitlist status of %r", user_id)
+        return False
+
+
+# ---------------- "Your mix is ready" (the 10.1 packet, third set) ----------------
+#
+# A mix's listen time is when this server tells the listener's phone the mix
+# is ready; it never moves when the episodes are written. `push.py` has the
+# rules. These three let a page (or, later, the native app) say whether this
+# server can deliver at all, and hand over or take back where to deliver.
+
+class PushSubscription(BaseModel):
+    #: The browser's PushSubscription.toJSON(): {endpoint, keys: {p256dh, auth}}.
+    subscription: dict = Field(default_factory=dict)
+
+
+@app.get("/api/push")
+async def push_status(request: Request):
+    """Whether this server sends notifications, its public key if so, and
+    whether this listener has anywhere to receive one."""
+    _read_limit(request)
+    body = push_mod.status()
+    user = _listener(request)
+    body["subscribed"] = bool(user) and _has_account(request) and bool(PUSH.subscriptions(user))
+    return body
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(req: PushSubscription, request: Request):
+    _read_limit(request)
+    account = _require_account(request)
+    if not push_mod.status()["available"]:
+        raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
+    try:
+        PUSH.subscribe(account, req.subscription)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@app.delete("/api/push/subscribe")
+async def push_unsubscribe(request: Request, endpoint: str = Query("", max_length=2048)):
+    _read_limit(request)
+    return {"ok": True, "removed": PUSH.unsubscribe(_require_account(request), endpoint)}
 
 
 # ---------------- Other listeners' public mixes (DailyFAM search) ----------------
@@ -4077,7 +4154,7 @@ def _public_mix(mix: "mixes_mod.Mix", viewer: str, added: set,
     if mix.user_id not in people:
         people[mix.user_id] = SOCIAL.person(mix.user_id)
     owner = people[mix.user_id] or {}
-    body = mix.as_dict()
+    body = mix.public_dict()
     who = mixes_mod.owner_label(owner.get("name") or "", owner.get("handle") or "")
     for item in body["items"]:
         # "Added by you" is the owner's own view of a typed topic.
@@ -5273,7 +5350,7 @@ async def profile(request: Request):
     # which the page could not tell apart while a row meant "chose a name".
     body["last_seen"] = person["last_seen"]
     body["known"] = person["known"]
-    body["mixes"] = [m.as_dict() for m in MIXES.public_for_user(user)]
+    body["mixes"] = [m.public_dict() for m in MIXES.public_for_user(user)]
     body["echoes"] = [e.as_dict(person["name"], person["handle"])
                       for e in SOCIAL.echoes_by(user, limit=12)]
     body["echo_count"] = len(SOCIAL.echoes_by(user, limit=200))
@@ -5325,6 +5402,9 @@ CIRCLE_VIBE_WINDOW = 24 * 3600
 #: still up as a story, or a message you have not read yet.
 CIRCLE_FRESH_WINDOW = CIRCLE_VIBE_WINDOW
 CIRCLE_MAX = 12
+#: How many friends and follows are looked at for vibes before the row is cut
+#: to `CIRCLE_MAX`, so a vibe sorts to the front from anywhere in the list.
+CIRCLE_CANDIDATES = 200
 
 
 def _circle_row(user: str) -> list[dict]:
@@ -5345,13 +5425,24 @@ def _circle_row(user: str) -> list[dict]:
         if uid and uid not in seen:
             seen.add(uid)
             people.append(person)
-    people = people[:CIRCLE_MAX]
+    people = people[:CIRCLE_CANDIDATES]
     if not people:
         return []
     now = time.time()
-    latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
     stories = SOCIAL.stories_among([p["user_id"] for p in people],
                                    now - CIRCLE_VIBE_WINDOW)
+    # Friends with a vibe up come first, left to right, newest vibe first
+    # (the 10.1 packet, third set), so who has vibed is seen at a glance and
+    # the stories run on from one to the next in the order drawn. Everybody
+    # else keeps friends-then-follows. Sorted before the cap, so a vibe from
+    # the thirteenth person followed is not cut off the row.
+    def _newest(uid: str) -> float:
+        row = stories.get(uid) or []
+        return max((float(v.get("at") or 0) for v in row), default=0.0)
+    people.sort(key=lambda p: (0, -_newest(p["user_id"])) if stories.get(p["user_id"])
+                else (1, 0.0))
+    people = people[:CIRCLE_MAX]
+    latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
     unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
     friends = {p["user_id"] for p in SOCIAL.friends(user)}
     out = []

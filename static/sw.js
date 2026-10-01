@@ -49,3 +49,36 @@ self.addEventListener("fetch", function (event) {
     })
   );
 });
+
+/* "Your mix is ready" (push.py, the 10.1 packet). The server sends one at a
+   mix's listen time, once that day's edition is written. A tap opens the app
+   on the mix, focusing a FAM window that is already open rather than a second. */
+self.addEventListener("push", function (event) {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  var title = data.title || "FAM";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || "",
+    tag: data.tag || "fam",
+    data: { url: data.url || "/" }
+  }));
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      // Only the app itself (served at "/") understands "open-url"; an open
+      // share page, waitlist page or /admin is left alone and a window opens.
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i], at = new URL(c.url);
+        if (at.origin === self.location.origin && at.pathname === "/" && "focus" in c) {
+          c.postMessage({ type: "open-url", url: url });
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});

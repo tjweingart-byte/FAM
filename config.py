@@ -782,6 +782,21 @@ class Settings:
     daily_edition_hours: str = field(
         default_factory=lambda: os.environ.get(
             "DAILY_EDITION_HOURS", "5").strip())
+    # "Your mix is ready" (`push.py`, the 10.1 packet): a mix's listen time
+    # is when the listener's phone is told, never when episodes are written.
+    # Web Push needs a VAPID key pair (`python tools/vapid_keys.py` makes
+    # one) and `requirements-push.txt`; without them every listen time is
+    # kept and the interface says notifications are not set up yet.
+    mix_reminders: bool = field(
+        default_factory=lambda: os.environ.get("MIX_REMINDERS", "1")
+        not in ("0", "false", "False", ""))
+    vapid_public_key: str = field(
+        default_factory=lambda: os.environ.get("VAPID_PUBLIC_KEY", "").strip())
+    vapid_private_key: str = field(
+        default_factory=lambda: os.environ.get("VAPID_PRIVATE_KEY", "").strip())
+    # Who a push service contacts about this server's notifications.
+    vapid_subject: str = field(
+        default_factory=lambda: os.environ.get("VAPID_SUBJECT", "").strip())
     # The length DailyFAM episodes are written and played at is
     # `BROWSE_MINUTES` (§147) - no longer a setting, because only searchFAM
     # offers a length.

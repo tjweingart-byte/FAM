@@ -26,8 +26,10 @@ WORKDIR /app
 # always installed both; this image was the one left behind.
 #
 # It costs nothing to carry: exa-py is pure Python, no torch, no CUDA.
-COPY requirements.txt requirements-exa.txt requirements-embed.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt
+# requirements-push.txt: "your mix is ready" by Web Push (push.py). Pure
+# Python plus `cryptography`; inert until VAPID keys are set.
+COPY requirements.txt requirements-exa.txt requirements-embed.txt requirements-push.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt -r requirements-push.txt
 
 # The local sentence embedder that orders "Made for you" by meaning as well as
 # by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.

@@ -113,7 +113,7 @@ def test_the_bank_is_taken_before_the_locked_branch_returns():
 def test_the_new_mix_button_starts_hidden_and_is_shown_by_the_mix_list():
     """Hidden in the markup rather than shown and taken away: a control that
     appears and then vanishes reads as a fault."""
-    m = re.search(r'<button class="myfam-dots-btn" id="newMixBtn"[^>]*>', INDEX)
+    m = re.search(r'<button class="myfam-dots-btn[^"]*" id="newMixBtn"[^>]*>', INDEX)
     assert m, "the new-mix button no longer carries #newMixBtn"
     assert " hidden" in m.group(0), "the new-mix button is no longer hidden by default"
     assert ".myfam-dots-btn[hidden]{ display:none; }" in INDEX, (
