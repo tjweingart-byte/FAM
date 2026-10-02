@@ -93,7 +93,8 @@ FAM_ENVIRONMENT = (
     # tests offline as well as deterministic.
     "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
     "STORIES_BACKGROUND_SECONDS", "STORIES_NEWS_INTERVAL_SECONDS",
-    "STORIES_MARKETS_INTERVAL_SECONDS", "API_SPORTS_DAILY_REQUESTS",
+    "STORIES_MARKETS_INTERVAL_SECONDS", "STORIES_SPORTS_INTERVAL_SECONDS",
+    "STORIES_DEMAND_SECONDS", "API_SPORTS_DAILY_REQUESTS",
     "API_SPORTS_TIER", "API_SPORTS_TIERS", "API_SPORTS_SPORTS", "API_SPORTS_LOOKUP_RESERVE",
     "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
@@ -451,10 +452,12 @@ def isolated_api_sports(monkeypatch):
 
     monkeypatch.setattr(live_sources, "BUDGETS", {})
     monkeypatch.setattr(live_sources, "TEAMS", {})
+    monkeypatch.setattr(live_sources, "TEAMS_REFUSED", {})
     monkeypatch.setattr(live_sources, "SCHEDULES", {})
     import story_sources
 
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
     monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
     monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
     yield

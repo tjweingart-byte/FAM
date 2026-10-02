@@ -255,15 +255,16 @@ already configured keeps working and produces the same row it always did.
 **Since §135** the GDELT source finds stories rather than themes: it reads a
 few hundred recent headlines worldwide and from each region's press, groups
 them (`news_clusters`), and counts the outlets running each. API-Sports sweeps
-on its whole daily allowance (about every fourteen minutes for one sport) and
-carries each game's score as a `live_line` drawn beside the tile. A signal from
+only the followed leagues, only while one of their games is on and somebody
+has drawn myFAM recently (§191, which replaced §135's "whole daily allowance"),
+and carries each game's score as a `live_line` drawn beside the tile. A signal from
 any source that matches a news story takes that story's coverage
 (`stories.corroborate`). Every story knows where it is trending
 (`geography.py`), the Trending rail keeps two of its four places for the
 listener's own part of the world, and "View more" on Trending is grouped by
 place. The pool refreshes itself every `STORIES_BACKGROUND_SECONDS` (fifteen
-minutes), and each source keeps its own floor (§156): API-Sports on its daily
-budget (~14 min on the free tier) and Finnhub every 15 minutes, while GDELT,
+minutes), and each source keeps its own floor (§156): API-Sports on demand while a
+followed game is on (§191) and Finnhub every two hours (§191), while GDELT,
 the trending registry and Polymarket are asked every two hours
 (`STORIES_NEWS_INTERVAL_SECONDS`). Stories a source found are carried until it
 next runs, and a game keeps its news corroboration in between.

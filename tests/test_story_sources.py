@@ -183,17 +183,23 @@ def test_polymarket_ships_off(monkeypatch):
 # --------------------------------------------------------------------------
 # API-Sports: the score rides beside the tile, never inside it (§135)
 # --------------------------------------------------------------------------
+NFL = {"name": "NFL", "country": {"name": "USA"}}
 CARD = {"response": [
     {"teams": {"home": {"name": "Chiefs"}, "away": {"name": "Broncos"}},
-     "status": {"short": "Q3"},
+     "league": NFL, "status": {"short": "Q3"},
      "scores": {"home": {"total": 21}, "away": {"total": 7}}},
     {"teams": {"home": {"name": "Eagles"}, "away": {"name": "Giants"}},
-     "game": {"status": {"short": "NS"}}},
+     "league": NFL, "game": {"status": {"short": "NS"}}},
     {"teams": {"home": {"name": "Jets"}, "away": {"name": "Bills"}},
-     "status": {"short": "FT"},
+     "league": NFL, "status": {"short": "FT"},
      "scores": {"home": {"total": 3}, "away": {"total": 30}}},
     {"teams": {"home": {"name": "Rams"}, "away": {"name": "Niners"}},
-     "status": {"short": "WHO-KNOWS"}},
+     "league": NFL, "status": {"short": "WHO-KNOWS"}},
+    # A league the sweep does not follow (§191): looked up on demand only.
+    {"teams": {"home": {"name": "Stallions"}, "away": {"name": "Renegades"}},
+     "league": {"name": "UFL", "country": {"name": "USA"}},
+     "status": {"short": "Q2"},
+     "scores": {"home": {"total": 10}, "away": {"total": 3}}},
 ]}
 
 
@@ -210,6 +216,7 @@ def api_sports(monkeypatch, card=None, **settings_kw):
     monkeypatch.setattr(live_sources, "CARD", {})
     # A fresh day: every sport due, each with its own allowance (§180).
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
+    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
     monkeypatch.setattr(live_sources, "BUDGETS", {})
     settings_kw.setdefault("stories_sports", "american-football")
     patched = with_settings(monkeypatch, api_sports_key="k", **settings_kw)
@@ -556,9 +563,10 @@ def test_the_sports_card_is_ordered_deterministically(monkeypatch):
     assert [s.subject for s in first] == [s.subject for s in second]
 
 
-def test_a_major_league_game_leads_the_card(monkeypatch):
-    """A date request returns every fixture in the world, and without this a
-    third-division match outranked the game half the listeners are watching.
+def test_only_a_followed_league_becomes_a_tile(monkeypatch):
+    """A date request returns every fixture in the world. Since §191 only the
+    leagues the owner named (`SWEPT_LEAGUES`) become tiles; a regional game is
+    looked up on demand by the episode that asks about it, never swept.
     Its league's country is its geography."""
     card = {"response": [
         {"teams": {"home": {"name": "Lowtown"}, "away": {"name": "Smallville"}},
@@ -569,6 +577,5 @@ def test_a_major_league_game_leads_the_card(monkeypatch):
          "country": {"name": "USA"}},
     ]}
     rows = sports(monkeypatch, card=card)
-    assert [r.subject for r in rows] == ["Chiefs vs Broncos", "Lowtown vs Smallville"]
-    assert rows[0].strength > rows[1].strength
+    assert [r.subject for r in rows] == ["Chiefs vs Broncos"]
     assert rows[0].countries == (("united states", 1.0),)

@@ -14827,3 +14827,79 @@ or Google from a signed-in browser still *links* the new identity to that
 account (`accounts.sign_in_with`, deliberate linking that predates this);
 the in-app sign-up screen's samples share the eviction window the landing
 page now closes.
+
+## 191. The outside services were asked on a timer all day, with nobody looking
+
+The admin page's first day of counts (§179), with a handful of listeners:
+API-Sports 513 (hockey 172, soccer and volleyball 86 each), Finnhub 1,392,
+GDELT 384 - every one of the GDELT requests failed. No volleyball tile had
+appeared all day. Read back to code:
+
+**Neither sweep wrote an episode.** A sweep fetches today's card (one request
+per sport) or a dozen quotes, turns what it finds into signals, and composes a
+title for anything new in one model call. Episodes are written on a tap. What
+the sweeps bought was tiles and the live score line beside them - fresh for
+listeners who were, mostly, not there.
+
+**API-Sports was spending by design.** §135 told the sweep to use each
+sport's whole free allowance, paced to every ~15 minutes, around the clock,
+and §180 extended that to ten products. Volleyball's 86 was the sweep
+checking a card whose games - all minor leagues - Made for you then dropped
+(§187).
+
+**Hockey's 172 was a bug.** `_warm_catalogue` reads a league's team list
+"once a day", but `league_teams` cached only a success. A refused request
+(most likely the free plan's season limit) was asked again on every sweep and
+every lookup. API-Sports' own header said 86 used for hockey - the card
+reads only - so the refusals were not billed, but each one spent our count.
+Baseball (44) and basketball (22) doubled the same way.
+
+**Finnhub was 12 quotes every 15 minutes**: 1,152 a day plus a sweep per
+deploy and the episodes' own lookups. Safe against 60 a minute, but most of it
+overnight, when nothing moves.
+
+**What changed, at the owner's direction:**
+
+* **Followed leagues only** (`story_sources.SWEPT_LEAGUES`): American
+  football NFL and NCAA; basketball NBA, NCAA, WNBA; baseball MLB and NCAA;
+  hockey NHL; soccer Champions League, Premier League (England), La Liga
+  (Spain), Bundesliga (Germany), World Cup; every Formula 1 race; numbered
+  UFC cards, not Fight Nights. Volleyball, rugby, AFL and every other league
+  are never swept: the live lookup an episode makes is their only path.
+* **Only when there is something to watch** (`watching`, `dates_due`): a
+  sport's card is read once a UTC day - which is how the sweep learns when
+  its followed games start - then again only while one is under way or
+  within 15 minutes of starting, at most every
+  `STORIES_SPORTS_INTERVAL_SECONDS` (900). Yesterday's card is read while a
+  game that started before UTC midnight is unfinished (a 7pm Eastern game).
+  All final, or nothing followed: nothing more that day.
+* **Only on demand** (`ApiSportsSignals.idle`, `stories.note_demand`): the
+  source is skipped, and says why in the report, unless an account drew myFAM
+  in the last `STORIES_DEMAND_SECONDS` (1800). The first look after a quiet
+  spell schedules a sweep - never awaited - and the next load has the fresh
+  tiles. This is the trade the owner accepted: the first listener after a
+  quiet spell sees scores up to one sweep old.
+* **Finnhub every two hours, round the clock**
+  (`STORIES_MARKETS_INTERVAL_SECONDS` 900 -> 7200): large moves are what
+  matter, and US markets are moving to 24-hour trading, so it is not tied to
+  the session. ~144 quotes a day.
+* **A refused catalogue is not asked again that UTC day**
+  (`live_sources.TEAMS_REFUSED`). Only the provider saying no counts - a
+  refusal in `errors` or a 4xx; a timeout or a 5xx is asked again, and a spent
+  allowance is still `BudgetSpent`. A sport's first card read that fails is
+  retried on the sweep's interval, never every tick.
+
+`StorySource.idle(now)` is new and optional: a source that returns a reason
+is reported `skipped` with it, and its held stories stay in the pool.
+
+**GDELT is not changed here.** 384 of 384 failed: §144's own test - "if GDELT
+still times out one request at a time, the address itself is being refused" -
+has come back positive. The options were put to the owner; nothing is decided.
+
+Expected after deploy, with today's traffic: Finnhub ~150 a day; API-Sports
+a schedule read per followed sport on the first visit of the UTC day, plus a
+request every 15 minutes per sport only while its followed games are on and
+somebody is looking.
+
+Tests: `tests/test_sweep_on_demand_191.py`; the §135 card fixtures now carry
+their league.

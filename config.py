@@ -565,11 +565,22 @@ class Settings:
     # The category tree is unaffected: it reads every story the pool holds.
     stories_news_interval_seconds: float = _env_float(
         "STORIES_NEWS_INTERVAL_SECONDS", 7200.0)
-    # Finnhub's floor. Fifteen minutes so a market move reaches its card on
-    # the same clock as a score (§156; it was thirty). The free tier's quotes
-    # are delayed twenty minutes regardless, and the card says delayed.
+    # Finnhub's floor. Two hours since §191, at the owner's direction: what
+    # matters is a large move, which is still a large move two hours later,
+    # and markets are heading for 24-hour trading, so it is not limited to
+    # the US session. Was fifteen minutes (§156), which was ~1,400 quotes a
+    # day, most of them overnight. Twelve symbols a sweep: ~144 a day.
     stories_markets_interval_seconds: float = _env_float(
-        "STORIES_MARKETS_INTERVAL_SECONDS", 900.0)
+        "STORIES_MARKETS_INTERVAL_SECONDS", 7200.0)
+    # How often a followed sport is swept while one of its games is on
+    # (§191). Only then, and only on demand - see the next setting.
+    stories_sports_interval_seconds: float = _env_float(
+        "STORIES_SPORTS_INTERVAL_SECONDS", 900.0)
+    # How recently somebody must have drawn myFAM for the sports sweep to
+    # spend anything (§191): with nobody looking, no scores are fetched. Two
+    # ticks, so a listener who opens the page keeps scores current while
+    # they come and go.
+    stories_demand_seconds: float = _env_float("STORIES_DEMAND_SECONDS", 1800.0)
     # Generous, because this never sits in front of the first word: the pool
     # refreshes in the background and myFAM renders from whatever it holds.
     stories_timeout_seconds: float = _env_float("STORIES_TIMEOUT_SECONDS", 12.0)

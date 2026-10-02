@@ -281,6 +281,11 @@ Research and truth
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
+- **Ask outside services when somebody is looking and there is something to
+  see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
+  their games is on, only if myFAM was drawn recently; other leagues and
+  sports are looked up on demand; Finnhub every 2h, round the clock; a
+  refused catalogue is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
@@ -324,7 +329,7 @@ Browse surfaces
   is topped up (`RAIL_MINIMUM`) - most-played, missed, Trending and friends
   never invent a tile. Trending is the GNews edition (§139) ranked by
   `rank_world` (outlet count and place: `trending_score`, `WORLD_LOCAL_SLOTS`);
-  the live pool's sports/markets refresh every 15 min, news every 2h; a
+  the live pool's sports sweep on demand while a followed game is on, markets and news every 2h (§191); a
   guest's page is the bank and a guest tap plays only kept audio (403 → sign-up,
   before the GPU); picker and Explore New keep the whole bank; the gate governs
   what is *offered*, not what is *reported*; `_has_account` defaults False. [bank-for-guests]
