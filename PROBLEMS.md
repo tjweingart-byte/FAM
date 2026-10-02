@@ -15011,16 +15011,27 @@ nothing per question):
 * `weather.py`: NWS (points → forecast, alerts and the latest observation at
   once) and Open-Meteo, a `WeatherSource` registered in `live_facts`, and a
   `WEATHER` kind whose prompt wording replaces the result rule with "a forecast
-  is not an outcome". An observation older than two hours is dropped. An
-  episode built on weather is current for an hour and never prefetched; a
-  weather question searches no index.
+  is not an outcome". An episode built on weather is current for an hour and
+  never prefetched; a weather question searches no index.
+* **Fetched on demand, then twice a day** (the owner's second ruling, the
+  same day, replacing a half-hour cache by place): a place's forecast is
+  fetched when first asked about and kept, then swept at 05:00 and 17:00 in
+  that place's own time while it was asked about in the last 30 days. People
+  ask for the day's high, low, sky and chance of rain, and for severe weather;
+  so a US question also asks NWS for the warnings in force at that moment
+  (`WEATHER_LIVE_ALERTS`), the one thing a twelve-hour sweep must not be
+  trusted for. The forecast is kept structured and the sentences are written
+  at question time, so a period already over, an expired warning and an
+  observation older than two hours are never said as current.
 * `/api/health` reports `local_news` and `weather`; `/api/admin/local-news`
   lists every feed and its state, and takes new outlets and exclusions;
   provider counts gain `nws`, `open_meteo` and `local_feeds`. Staging forces
   `LOCAL_NEWS=0` and `WEATHER=0` and scrubs `OPEN_METEO_API_KEY`.
 * `tools/local_outlets.py` files a county's outlets from Wikidata;
   `tools/measure_local_news.py` measures, per town, what the feeds actually
-  give. Both need a machine that can reach the sites.
+  give; `tools/verify_weather.py` makes the real weather calls. All three need
+  a machine that can reach the sites. `LOCAL_NEWS_AND_WEATHER.md` is the
+  step-by-step to switch all of it on.
 
 **Not verified.** The build container's proxy blocks NWS, Open-Meteo,
 Wikidata and every news site, so every provider is tested on recorded

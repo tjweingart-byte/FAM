@@ -505,21 +505,33 @@
   question names, so the episode is shared with everybody who asks it.
 
 <!-- rule:weather -->
-- **Weather is the National Weather Service first, Open-Meteo second, and a
-  forecast is never an outcome.** *(PROBLEMS.md §193, at the owner's
-  direction; `weather.py`.)* NWS for a US place - free, keyless, the
-  forecaster's own forecast, with the official warnings; Open-Meteo for
-  everywhere else and whenever NWS fails (logged, never silent), on
-  `OPEN_METEO_API_KEY` ($29/month to 1M calls), keyless only under
-  `OPEN_METEO_KEYLESS=1` because its free endpoint is non-commercial. Place
-  names resolve through the outlet registry and then Open-Meteo's lookup,
-  never a model. **Cached by place and time window, never by listener**
-  (`WEATHER_CACHE_SECONDS`), so calls scale with places. Facts are worded as
-  what the forecast calls for; a warning is stated as official with its end
-  on the listener's clock; an observation older than two hours is dropped;
-  `live_facts.WEATHER` replaces the result rule with the forecast rule. An
-  episode built on weather is current for an hour (`cache.WEATHER_TTL_SECONDS`)
-  and never prefetched. Weather is not outcome-dependent.
+- **Weather is the National Weather Service first, Open-Meteo second; fetched
+  on demand, then swept twice a day per place; and a forecast is never an
+  outcome.** *(PROBLEMS.md §193, at the owner's direction; `weather.py`.)*
+  NWS for a US place - free, keyless, the forecaster's own forecast, with the
+  official warnings; Open-Meteo for everywhere else and whenever NWS fails
+  (logged, never silent), on `OPEN_METEO_API_KEY` ($29/month to 1M calls),
+  keyless only under `OPEN_METEO_KEYLESS=1` because its free endpoint is
+  non-commercial. Place names resolve through the outlet registry and then
+  Open-Meteo's lookup, never a model.
+  **When it is fetched, at the owner's direction:** a place's forecast is
+  fetched the first time anybody asks about it, kept (`WeatherStore`), and
+  refreshed at 05:00 and 17:00 *in that place's own time*
+  (`WEATHER_SWEEP_HOURS`) while somebody asked about it in the last 30 days.
+  What people ask for is the day - high, low, sky, chance of rain - and severe
+  weather. **The one exception is warnings**: a US question asks NWS for the
+  warnings in force at that moment (`WEATHER_LIVE_ALERTS`, one free call, not
+  repeated within ten minutes), because a twelve-hour-old warning list is the
+  stale fact that could hurt somebody; if that call fails, the swept warnings
+  are used and the writer is told when they were checked.
+  **Kept structured, said at question time** (`weather.render`): periods
+  already over are left out, an expired warning is gone, an observation older
+  than two hours is never "now". Facts are worded as what the forecast calls
+  for; a warning is stated as official with its end on the listener's clock;
+  `live_facts.WEATHER` replaces the result rule with the forecast rule and
+  allows a forecast eighteen hours. An episode built on weather is current for
+  an hour (`cache.WEATHER_TTL_SECONDS`) and never prefetched. Weather is not
+  outcome-dependent. `tools/verify_weather.py` makes the real calls.
 
 <!-- rule:bank-for-guests -->
 > **Current (PROBLEMS.md §191):** sports are no longer asked every fifteen minutes with nobody looking: only followed leagues, only while one of their games is on, and only when somebody drew myFAM recently; Finnhub is every two hours (rule:sweep-on-demand). "Only sports and markets are asked that often" below is history.

@@ -70,7 +70,8 @@ FAM_ENVIRONMENT = (
     # Local news and weather (§193). A developer with WEATHER=1 and a key in
     # their shell must not run a suite that asks the Weather Service anything.
     "LOCAL_NEWS", "LOCAL_NEWS_POLL_MINUTES", "LOCAL_NEWS_WINDOW_DAYS",
-    "WEATHER", "WEATHER_CACHE_SECONDS", "OPEN_METEO_KEYLESS",
+    "WEATHER", "WEATHER_SWEEP_HOURS", "WEATHER_LIVE_ALERTS",
+    "OPEN_METEO_KEYLESS",
     "OPEN_METEO_API_KEY", "FAM_CONTACT_EMAIL",
     # The grown vocabulary. A developer with CATEGORIES=0 set must not run a
     # suite that quietly skips every tree behaviour and still reports green -

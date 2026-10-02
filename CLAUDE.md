@@ -293,8 +293,9 @@ Research and truth
   ahead) → county → Exa on known outlets, never GDELT; only what names the
   place is evidence; an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
-- **Weather** (§193): NWS first, Open-Meteo second; cached by place; worded as
-  a forecast, never an outcome; current an hour, never prefetched. [weather]
+- **Weather** (§193): NWS first, Open-Meteo second; fetched on demand, then
+  swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
+  worded as a forecast, never an outcome; never prefetched. [weather]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured

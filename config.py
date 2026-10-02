@@ -514,8 +514,17 @@ class Settings:
     weather: bool = field(
         default_factory=lambda: os.environ.get("WEATHER", "1")
         not in ("0", "false", "False", ""))
-    # One forecast per place serves everybody asking about it for this long.
-    weather_cache_seconds: float = _env_float("WEATHER_CACHE_SECONDS", 1800.0)
+    # A place's forecast is fetched the first time it is asked about, then
+    # refreshed at these hours *in the place's own time*, for as long as it was
+    # asked about in the last 30 days - twice a day, at the owner's direction.
+    weather_sweep_hours: str = field(
+        default_factory=lambda: os.environ.get("WEATHER_SWEEP_HOURS", "5,17").strip())
+    # Whether a US question also asks NWS for the warnings in force at that
+    # moment (one free call): severe weather is the one thing a twelve-hour
+    # old sweep must not be trusted for.
+    weather_live_alerts: bool = field(
+        default_factory=lambda: os.environ.get("WEATHER_LIVE_ALERTS", "1")
+        not in ("0", "false", "False", ""))
     # Open-Meteo's free endpoint is for non-commercial use only, so it is
     # never used unless this says so explicitly - for a developer's machine,
     # never production. Production uses `OPEN_METEO_API_KEY` (the $29 plan).

@@ -515,6 +515,10 @@ async def lifespan(_: FastAPI):
     # until the first local question. Never awaited.
     if settings.local_news:
         _BACKGROUND.add(asyncio.create_task(local_news_mod.run_forever()))
+    # Weather's twice-daily sweep (§193): only places somebody asked about,
+    # each at 05:00 and 17:00 in its own time. Nothing until the first ask.
+    if settings.weather:
+        _BACKGROUND.add(asyncio.create_task(weather_mod.run_forever()))
     # The world-trending row's source. Same shape as the others: whatever
     # configuration asked for, with problems reported rather than raised, so a
     # typo empties one row instead of stopping the server.

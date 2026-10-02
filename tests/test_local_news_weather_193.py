@@ -346,7 +346,7 @@ def test_the_gap_sentence_promises_only_what_follows():
 def gap_plan(weather_facts=True, scope="county", evidence="SOURCE 1\nTitle: x"):
     local = local_news.LocalResult(place=SAN_ANSELMO, scope=scope, gap=True)
     if weather_facts:
-        local.weather = weather.open_meteo_facts(SAN_ANSELMO, OPEN_METEO)
+        local.weather = om_facts()
     return dataclasses.replace(plan_episode("San Anselmo news", 2, search=True),
                                local=local, evidence=evidence)
 
@@ -397,7 +397,7 @@ def test_a_local_question_takes_the_local_ladder_and_never_gdelt(monkeypatch):
     monkeypatch.setattr(places, "resolve", resolve)
 
     async def forecast(place):
-        return weather.open_meteo_facts(place, OPEN_METEO), [("Open-Meteo", "facts", "")]
+        return om_facts(place), [("Open-Meteo", "facts", "")]
     monkeypatch.setattr(weather, "forecast_for", forecast)
 
     store = marin_store()
@@ -456,36 +456,61 @@ def test_an_episode_built_on_weather_is_current_for_an_hour():
 NWS_FORECAST = {"properties": {
     "updateTime": "2026-10-01T15:00:00+00:00",
     "periods": [
+        {"name": "This Morning", "isDaytime": True, "temperature": 60,
+         "temperatureUnit": "F", "windSpeed": "5 mph",
+         "startTime": "2026-10-01T06:00:00-07:00",
+         "endTime": "2026-10-01T08:00:00-07:00",
+         "shortForecast": "Patchy Fog",
+         "probabilityOfPrecipitation": {"value": None}},
         {"name": "Tonight", "isDaytime": False, "temperature": 52,
          "temperatureUnit": "F", "windSpeed": "5 mph",
+         "startTime": "2026-10-01T18:00:00-07:00",
+         "endTime": "2026-10-02T06:00:00-07:00",
          "shortForecast": "Patchy Fog",
          "probabilityOfPrecipitation": {"value": None}},
         {"name": "Thursday", "isDaytime": True, "temperature": 74,
          "temperatureUnit": "F", "windSpeed": "5 to 10 mph",
+         "startTime": "2026-10-02T06:00:00-07:00",
+         "endTime": "2026-10-02T18:00:00-07:00",
          "shortForecast": "Sunny",
          "probabilityOfPrecipitation": {"value": 10}},
     ]}}
-NWS_ALERTS = {"features": [{"properties": {
-    "event": "Wind Advisory", "ends": "2026-10-02T01:00:00+00:00"}}]}
+NWS_ALERTS = {"features": [
+    {"properties": {"event": "Wind Advisory", "ends": "2026-10-02T01:00:00+00:00"}},
+    {"properties": {"event": "Heat Advisory", "ends": "2026-10-01T12:00:00+00:00"}}]}
 OPEN_METEO = {
-    "current": {"temperature_2m": 61.2, "weather_code": 2, "wind_speed_10m": 7.6},
+    "timezone": "America/Los_Angeles",
+    "current": {"time": "2026-10-01T09:00", "temperature_2m": 61.2,
+                "weather_code": 2, "wind_speed_10m": 7.6},
     "daily": {"time": ["2026-10-01", "2026-10-02", "2026-10-03"],
               "weather_code": [2, 61, 0],
               "temperature_2m_max": [74.1, 66.0, 70.0],
               "temperature_2m_min": [51.0, 50.2, 49.0],
               "precipitation_probability_max": [0, 70, 5]}}
+#: 09:30 in San Anselmo on 1 October.
+ASKED = datetime(2026, 10, 1, 16, 30, tzinfo=timezone.utc)
+
+
+def om_facts(place=SAN_ANSELMO, now=ASKED):
+    snap = weather.open_meteo_snapshot(place, OPEN_METEO, now=now.timestamp())
+    return weather.render(snap, place, now=now)
 
 
 def test_nws_is_worded_as_a_forecast_with_its_official_warning_first():
-    now = datetime(2026, 10, 1, 16, tzinfo=timezone.utc)
     fresh = {"properties": {"timestamp": "2026-10-01T15:30:00+00:00",
                             "temperature": {"value": 15.0},
                             "textDescription": "Cloudy"}}
-    facts = weather.nws_facts(SAN_ANSELMO, NWS_FORECAST, NWS_ALERTS, fresh, now=now)
+    snap = weather.nws_snapshot(NWS_FORECAST, NWS_ALERTS, fresh,
+                                tz="America/Los_Angeles", now=ASKED.timestamp())
+    facts = weather.render(snap, SAN_ANSELMO, now=ASKED)
     assert facts.source == weather.NWS and facts.kind == live_facts.WEATHER
     assert facts.facts[0].startswith("The National Weather Service has issued "
                                      "an official Wind Advisory until")
+    # A warning that has already ended is gone, not read out.
+    assert not any("Heat Advisory" in f for f in facts.facts)
     assert any("59 degrees Fahrenheit and cloudy" in f for f in facts.facts)
+    # A period that is already over is never said.
+    assert not any(f.startswith("This Morning") for f in facts.facts)
     assert any(f.startswith("Thursday: the forecast calls for sunny, high near "
                             "74 degrees Fahrenheit, 10 percent chance of rain")
                for f in facts.facts)
@@ -493,51 +518,103 @@ def test_nws_is_worded_as_a_forecast_with_its_official_warning_first():
 
 
 def test_an_old_observation_is_dropped_not_called_now():
-    now = datetime(2026, 10, 1, 16, tzinfo=timezone.utc)
     old = {"properties": {"timestamp": "2026-10-01T09:00:00+00:00",
                           "temperature": {"value": 15.0}}}
-    facts = weather.nws_facts(SAN_ANSELMO, NWS_FORECAST, {}, old, now=now)
+    snap = weather.nws_snapshot(NWS_FORECAST, {}, old, now=ASKED.timestamp())
+    facts = weather.render(snap, SAN_ANSELMO, now=ASKED)
     assert not any("Observed" in f for f in facts.facts)
 
 
-def test_open_meteo_uses_the_places_own_units():
-    us = weather.open_meteo_facts(SAN_ANSELMO, OPEN_METEO)
-    assert us.facts[0] == ("Now: 61 degrees Fahrenheit and partly cloudy, "
-                           "wind 8 miles an hour.")
-    assert "Tomorrow: the forecast calls for light rain" in us.facts[2]
+def test_open_meteo_is_the_days_high_low_sky_and_rain_in_local_units():
+    us = om_facts()
+    assert us.facts[0].startswith("Observed at ")
+    assert "61 degrees Fahrenheit and partly cloudy, wind 8 miles an hour" in us.facts[0]
+    assert us.facts[1] == ("Today: the forecast calls for partly cloudy, high "
+                           "74 degrees Fahrenheit, low 51 degrees Fahrenheit.")
+    assert us.facts[2].startswith("Tomorrow: the forecast calls for light rain")
+    assert "70 percent chance of rain" in us.facts[2]
     paris = places.Place("Paris", "", "Ile-de-France", "FR", 48.85, 2.35)
-    assert "Celsius" in weather.open_meteo_facts(paris, OPEN_METEO).facts[0]
+    assert "Celsius" in om_facts(paris).facts[1]
+
+
+def test_a_kept_forecast_said_twelve_hours_later_drops_what_is_over():
+    later = om_facts(now=ASKED + timedelta(hours=16))   # 01:30 on the 2nd
+    assert not any("Observed" in f for f in later.facts), \
+        "a sixteen-hour-old reading was called now"
+    assert later.facts[0].startswith("Today: the forecast calls for light rain")
 
 
 def test_the_weather_block_forbids_turning_a_forecast_into_a_certainty():
-    facts = weather.open_meteo_facts(SAN_ANSELMO, OPEN_METEO)
-    block = facts.as_prompt_block()
+    block = om_facts().as_prompt_block()
     assert "A forecast is not an outcome" in block
     assert "has FINISHED" not in block and "NOT STARTED" not in block
 
 
-def test_nws_failing_falls_to_open_meteo_and_says_so(monkeypatch):
+def test_sweep_slots_are_in_the_places_own_time():
+    # 09:30 in San Anselmo: the last slot was 05:00 there, 12:00 UTC.
+    assert weather.last_slot("America/Los_Angeles", ASKED.timestamp()) == \
+        datetime(2026, 10, 1, 12, tzinfo=timezone.utc).timestamp()
+    # 02:00 there: the last slot was 17:00 the day before.
+    early = datetime(2026, 10, 1, 9, tzinfo=timezone.utc).timestamp()
+    assert weather.last_slot("America/Los_Angeles", early) == \
+        datetime(2026, 10, 1, 0, tzinfo=timezone.utc).timestamp()
+    snap = weather.Snapshot(source="x", fetched_at=ASKED.timestamp() - 3600,
+                            tz="America/Los_Angeles")
+    assert weather.is_current(snap, ASKED.timestamp())
+    snap.fetched_at = ASKED.timestamp() - 6 * 3600   # before 05:00 there
+    assert not weather.is_current(snap, ASKED.timestamp())
+
+
+def fake_providers(monkeypatch, nws=None, om=None):
+    calls = {"nws": 0, "om": 0, "alerts": 0}
+
+    async def from_nws(place):
+        calls["nws"] += 1
+        if isinstance(nws, Exception):
+            raise nws
+        return nws
+
+    async def from_om(place):
+        calls["om"] += 1
+        return weather.open_meteo_snapshot(place, OPEN_METEO)
+
+    async def alerts(place):
+        calls["alerts"] += 1
+        return [{"event": "Flood Warning", "ends": ""}]
+    monkeypatch.setattr(weather, "from_nws", from_nws)
+    monkeypatch.setattr(weather, "from_open_meteo", from_om)
+    monkeypatch.setattr(weather, "live_alerts", alerts)
     monkeypatch.setattr(weather, "settings", dataclasses.replace(
         weather.settings, open_meteo_keyless=True))
+    return calls
 
-    async def broken(place):
-        raise httpx.ConnectError("NWS is down")
 
-    async def fine(place):
-        return weather.open_meteo_facts(place, OPEN_METEO)
-    monkeypatch.setattr(weather, "from_nws", broken)
-    monkeypatch.setattr(weather, "from_open_meteo", fine)
+def test_nws_failing_falls_to_open_meteo_and_the_answer_is_kept(monkeypatch):
+    calls = fake_providers(monkeypatch, nws=httpx.ConnectError("NWS is down"))
     facts, attempts = asyncio.run(weather.forecast_for(SAN_ANSELMO))
     assert facts.source == weather.OPEN_METEO
-    assert [a[0] for a in attempts] == [weather.NWS, weather.OPEN_METEO]
+    assert [a[0] for a in attempts][:2] == [weather.NWS, weather.OPEN_METEO]
     assert attempts[0][1] == live_facts.PROVIDER_FAILED
 
-    # Everybody else asking in the same window shares that answer.
-    async def never(place):
-        raise AssertionError("asked again inside the cache window")
-    monkeypatch.setattr(weather, "from_open_meteo", never)
+    # Asked again before the next sweep slot: the kept forecast, no new
+    # forecast call - but the warnings in force are asked for (severe weather).
     again, how = asyncio.run(weather.forecast_for(SAN_ANSELMO))
-    assert again is facts and how[0][0] == "cache"
+    assert how[0][0] == "kept"
+    assert calls["nws"] == 1 and calls["om"] == 1
+    assert calls["alerts"] >= 1
+    assert again.facts[0].startswith("The National Weather Service has issued "
+                                     "an official Flood Warning")
+
+
+def test_the_sweep_refreshes_asked_places_whose_slot_came(monkeypatch):
+    calls = fake_providers(monkeypatch, nws=httpx.ConnectError("down"))
+    asyncio.run(weather.forecast_for(SAN_ANSELMO))
+    assert asyncio.run(weather.sweep_due()) == 0, "swept a place already current"
+    tomorrow = time.time() + 86400
+    assert asyncio.run(weather.sweep_due(tomorrow)) == 1
+    assert calls["om"] == 2
+    # A place nobody asked about in thirty days is not swept.
+    assert asyncio.run(weather.sweep_due(time.time() + 40 * 86400)) == 0
 
 
 def test_outside_the_us_without_an_open_meteo_key_there_is_no_weather():

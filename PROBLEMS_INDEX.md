@@ -196,4 +196,4 @@ and `limit` = Lines.
 | 14690 | 141 | 190. The 10.1 packet, fifth set: search like Google, the player like Spotify, a queue, and a waitlist that tied an account to a device |
 | 14831 | 76 | 191. The outside services were asked on a timer all day, with nobody looking |
 | 14907 | 50 | 192. The 10.2 packet: a waitlist join that skipped the waitlist, and the player rearranged |
-| 14957 | 78 | 193. A small town's news was invented, and FAM had no weather at all |
+| 14957 | 89 | 193. A small town's news was invented, and FAM had no weather at all |

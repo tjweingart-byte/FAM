@@ -111,9 +111,10 @@ MAX_AGE_SECONDS = {
     "sports": 120.0,
     "markets": 300.0,
     "elections": 1800.0,
-    # A forecast is issued every few hours and stays the forecast until the
-    # next one; an observation inside it is checked separately in `weather`.
-    "weather": 6 * 3600.0,
+    # A place's forecast is swept twice a day (§193), and NWS may have issued
+    # it a few hours before that; an observation inside it is checked
+    # separately, at two hours, in `weather.render`.
+    "weather": 18 * 3600.0,
 }
 
 

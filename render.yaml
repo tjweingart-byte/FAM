@@ -241,6 +241,11 @@ services:
         sync: false
       - key: FINNHUB_KEY
         sync: false
+      # Weather and place names outside what NWS covers (§193): Open-Meteo's
+      # API Standard plan, $29/month to 1M calls. NWS needs no key. Never on
+      # staging, which scrubs it.
+      - key: OPEN_METEO_API_KEY
+        sync: false
       # Trending's source (§139). Trending is an edition now, built at 05:00
       # and 17:00 Eastern for every listener with its ten episodes written
       # ahead of the tap, and GNews is the only thing it is built from - no

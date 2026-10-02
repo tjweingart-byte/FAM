@@ -5,34 +5,48 @@ for a US place: it is free, keyless, it is the forecaster's own forecast, and
 its official warnings come with it - a warning copied by a commercial API is a
 copy, and this is the authority. Open-Meteo for everywhere else, and for a US
 place whenever NWS fails (it has outages); that switch is logged and named in
-what the writer is told, never silent. Open-Meteo is called with
+the episode's record, never silent. Open-Meteo is called with
 `OPEN_METEO_API_KEY` (the $29 plan), or keyless only under
 `OPEN_METEO_KEYLESS=1`, because its free endpoint is non-commercial.
 
-**A forecast is not an outcome.** `live_facts` already tells the writer that a
-prediction market is a forecast; a weather forecast is the same kind of claim
-from a better source. The facts are worded as what the forecast *says* -
-"the forecast calls for rain" - and the prompt block (`live_facts`, kind
-`WEATHER`) forbids turning one into a certainty. A warning is stated as an
-official warning with its expiry on the listener's clock.
+**On demand, then twice a day per place** (the owner's ruling). What people
+ask for is the day's weather - the high, the low, the sky, the chance of
+rain - and severe weather. So a place's forecast is fetched the first time
+anybody asks about it, kept (`WeatherStore`), and refreshed by a sweep at
+05:00 and 17:00 *in that place's own time* (`WEATHER_SWEEP_HOURS`) for as
+long as somebody asked about it in the last 30 days. No timer per listener
+and no half-hourly cache: calls scale with places and with two a day.
 
-**Cached by place and time window, never by listener**
-(`WEATHER_CACHE_SECONDS`). Everybody asking about San Anselmo inside the same
-half hour shares one set of calls, so calls scale with places, not people -
-which is what keeps Open-Meteo on its $29 plan into the millions of questions.
+**Severe weather is the exception, and only for warnings.** A US question
+asks NWS for the warnings in force at that moment (`WEATHER_LIVE_ALERTS`,
+one free call), because a twelve-hour-old warning list is the one stale
+fact here that could hurt somebody. If that call fails, the swept warnings
+are used and the writer is told when they were checked.
 
-**Freshness is enforced here, not requested.** An observation older than
-`OBSERVATION_MAX_AGE` is dropped rather than called "now"; a forecast carries
-the time it was issued (`LiveFacts.as_of`), and `live_facts` withholds one
-older than its domain limit.
+**Rendered when asked, never stored as sentences.** The kept forecast is
+structured (periods with start and end times, warnings with expiry, an
+observation with its timestamp), and the facts are written at question time:
+periods already over are left out, an observation older than two hours is
+never called "now", and a warning that has expired is gone.
+
+**A forecast is not an outcome.** The facts say what the forecast *calls
+for*; the prompt block (`live_facts`, kind `WEATHER`) forbids turning one into
+a certainty. A warning is stated as an official warning with its end on the
+listener's clock.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import sqlite3
+import threading
 import time
-from datetime import datetime, timezone
+from contextlib import closing
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
@@ -40,6 +54,7 @@ import credentials
 import live_facts
 import places
 from config import settings
+from paths import data_path
 
 log = logging.getLogger("fam.weather")
 
@@ -52,12 +67,17 @@ OPEN_METEO = "Open-Meteo"
 
 #: How old an observed temperature may be and still be said as "right now".
 OBSERVATION_MAX_AGE = 2 * 3600.0
-#: How many forecast periods are given (NWS periods are half days).
-NWS_PERIODS = 4
+#: How many forecast periods are said (NWS periods are half days).
+PERIODS_SAID = 4
 #: Each provider's whole budget: NWS needs a lookup of the grid point and
 #: then three calls at once; Open-Meteo is one call.
 NWS_TIMEOUT = 2.5
 OPEN_METEO_TIMEOUT = 2.0
+ALERTS_TIMEOUT = 1.5
+#: How long a place stays in the sweep after its last question.
+DEMAND_SECONDS = 30 * 86400
+#: How often the sweeper wakes to see whose slot has come.
+SWEEP_EVERY = 15 * 60
 
 #: WMO weather codes, as Open-Meteo reports them, in words.
 WMO = {
@@ -101,27 +121,171 @@ def _degrees(value: float, unit: str) -> str:
     return f"{int(round(value))} degrees {unit}"
 
 
-# --------------------------------------------------------------------------
-# The cache: by place and time window
-# --------------------------------------------------------------------------
-_CACHE: dict = {}
-_POINTS: dict = {}
+def _parse_time(text) -> Optional[datetime]:
+    if not text:
+        return None
+    try:
+        when = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
 
 
-def _cache_key(place: places.Place, now: float) -> str:
-    window = max(60.0, float(settings.weather_cache_seconds))
-    return (f"{place.latitude:.2f},{place.longitude:.2f}"
-            f"@{int(now // window)}")
+# --------------------------------------------------------------------------
+# What is kept: a structured forecast, never sentences
+# --------------------------------------------------------------------------
+@dataclass
+class Snapshot:
+    """One provider's forecast for one place, as fetched."""
+
+    source: str
+    fetched_at: float
+    #: When the provider issued it (ISO), which is what `as_of` reports.
+    issued: str = ""
+    #: The place's IANA time zone, which decides its sweep slots.
+    tz: str = ""
+    #: Each {"name", "start", "end", "daytime", "temp" | "high"/"low",
+    #: "unit", "sky", "rain", "wind"} with ISO start and end.
+    periods: list = field(default_factory=list)
+    #: Each {"event", "ends"}.
+    alerts: list = field(default_factory=list)
+    #: {"at", "temp", "unit", "sky", "wind"} or {}.
+    observation: dict = field(default_factory=dict)
+    #: When the warnings were last checked (epoch seconds).
+    alerts_checked: float = 0.0
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+    @classmethod
+    def from_json(cls, raw: str) -> "Snapshot":
+        return cls(**json.loads(raw))
+
+
+def place_key(place: places.Place) -> str:
+    return f"{place.latitude:.2f},{place.longitude:.2f}"
+
+
+class WeatherStore:
+    """Each asked-about place's latest forecast, and when it was asked about."""
+
+    def __init__(self, path: str | None = None) -> None:
+        self.path = data_path("LOCAL_NEWS_DB", "local_news.db", path)
+        self._lock = threading.Lock()
+        with closing(self._connect()) as db, db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS weather ("
+                " key TEXT PRIMARY KEY, place TEXT, asked_at REAL,"
+                " fetched_at REAL DEFAULT 0, snapshot TEXT DEFAULT '')")
+
+    def _connect(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.path, timeout=10)
+
+    def asked(self, place: places.Place) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT INTO weather (key, place, asked_at) VALUES (?,?,?)"
+                " ON CONFLICT(key) DO UPDATE SET asked_at = excluded.asked_at,"
+                " place = excluded.place",
+                (place_key(place), json.dumps(place.as_dict()), time.time()))
+
+    def get(self, place: places.Place) -> Optional[Snapshot]:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT snapshot FROM weather WHERE key = ?",
+                             (place_key(place),)).fetchone()
+        if not row or not row[0]:
+            return None
+        try:
+            return Snapshot.from_json(row[0])
+        except (ValueError, TypeError):
+            return None
+
+    def put(self, place: places.Place, snap: Snapshot) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT INTO weather (key, place, asked_at, fetched_at, snapshot)"
+                " VALUES (?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET"
+                " fetched_at = excluded.fetched_at, snapshot = excluded.snapshot",
+                (place_key(place), json.dumps(place.as_dict()), time.time(),
+                 snap.fetched_at, snap.to_json()))
+
+    def demanded(self, since: float) -> list:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT place, snapshot FROM weather WHERE asked_at >= ?",
+                (since,)).fetchall()
+        out = []
+        for raw_place, raw_snap in rows:
+            try:
+                place = places.Place(**json.loads(raw_place))
+                snap = Snapshot.from_json(raw_snap) if raw_snap else None
+            except (ValueError, TypeError):
+                continue
+            out.append((place, snap))
+        return out
+
+
+_STORE: list = [None]
+
+
+def store() -> WeatherStore:
+    if _STORE[0] is None:
+        _STORE[0] = WeatherStore()
+    return _STORE[0]
 
 
 def clear_cache() -> None:
-    _CACHE.clear()
+    """Forget the open store and the grid points (tests, and a wipe)."""
+    _STORE[0] = None
     _POINTS.clear()
+
+
+# --------------------------------------------------------------------------
+# The sweep slots, in the place's own time
+# --------------------------------------------------------------------------
+def sweep_hours() -> list:
+    out = []
+    for part in str(settings.weather_sweep_hours or "").split(","):
+        part = part.strip()
+        if part.isdigit() and 0 <= int(part) <= 23:
+            out.append(int(part))
+    return sorted(set(out)) or [5, 17]
+
+
+def _zone(tz: str):
+    try:
+        return ZoneInfo(tz) if tz else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def last_slot(tz: str, now: Optional[float] = None) -> float:
+    """The most recent sweep slot at or before `now`, in the place's time."""
+    zone = _zone(tz)
+    local = datetime.fromtimestamp(now or time.time(), zone)
+    candidates = []
+    for days_back in (0, 1):
+        day = (local - timedelta(days=days_back)).date()
+        for hour in sweep_hours():
+            slot = datetime(day.year, day.month, day.day, hour, tzinfo=zone)
+            if slot <= local:
+                candidates.append(slot.timestamp())
+    return max(candidates) if candidates else 0.0
+
+
+def is_current(snap: Optional[Snapshot], now: Optional[float] = None) -> bool:
+    """Whether a kept forecast is from this slot - fetched since the last one."""
+    if snap is None:
+        return False
+    return snap.fetched_at >= last_slot(snap.tz, now)
 
 
 # --------------------------------------------------------------------------
 # NWS
 # --------------------------------------------------------------------------
+_POINTS: dict = {}
+
+
 async def _nws_json(client: httpx.AsyncClient, url: str) -> dict:
     import provider_usage
 
@@ -135,83 +299,54 @@ async def _nws_json(client: httpx.AsyncClient, url: str) -> dict:
     return reply.json() or {}
 
 
-def _parse_time(text: str) -> Optional[datetime]:
-    if not text:
-        return None
-    try:
-        when = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
-
-
-def nws_facts(place: places.Place, forecast: dict, alerts: dict,
-              observation: dict, now: Optional[datetime] = None
-              ) -> Optional[live_facts.LiveFacts]:
-    """NWS replies -> facts. Pure, so it is tested on recorded replies."""
-    import listener_clock
-
-    now = now or datetime.now(timezone.utc)
-    props = (forecast or {}).get("properties") or {}
-    periods = list(props.get("periods") or [])
-    facts: list = []
-
-    # Warnings first: they are the most important thing here, and they are
-    # official. Stated as what they are, with when they end.
+def nws_alerts(alerts: dict) -> list:
+    out = []
     for feature in list((alerts or {}).get("features") or [])[:3]:
         a = feature.get("properties") or {}
         event = str(a.get("event") or "").strip()
-        if not event:
+        if event:
+            out.append({"event": event,
+                        "ends": a.get("ends") or a.get("expires") or ""})
+    return out
+
+
+def nws_snapshot(forecast: dict, alerts: dict, observation: dict,
+                 tz: str = "", now: Optional[float] = None) -> Optional[Snapshot]:
+    """NWS replies -> a snapshot. Pure, so it is tested on recorded replies."""
+    props = (forecast or {}).get("properties") or {}
+    periods = []
+    for p in list(props.get("periods") or []):
+        if p.get("temperature") is None or not p.get("name"):
             continue
-        ends = _parse_time(a.get("ends") or a.get("expires") or "")
-        until = (f" until {listener_clock.say(ends, '%A at %H:%M %Z')}"
-                 if ends else "")
-        facts.append(f"The National Weather Service has issued an official "
-                     f"{event}{until} for this area.")
-
-    obs = (observation or {}).get("properties") or {}
-    seen = _parse_time(obs.get("timestamp") or "")
-    temp_c = (obs.get("temperature") or {}).get("value")
-    if seen and temp_c is not None and \
-            (now - seen).total_seconds() <= OBSERVATION_MAX_AGE:
-        desc = str(obs.get("textDescription") or "").strip().lower()
-        temp_f = float(temp_c) * 9 / 5 + 32
-        facts.append(
-            f"Observed at {listener_clock.say(seen, '%H:%M %Z')}: "
-            f"{_degrees(temp_f, 'Fahrenheit')}"
-            + (f" and {desc}" if desc else "") + ".")
-
-    for period in periods[:NWS_PERIODS]:
-        name = str(period.get("name") or "").strip()
-        short = str(period.get("shortForecast") or "").strip().lower()
-        temp = period.get("temperature")
-        if not name or temp is None:
-            continue
-        unit = "Fahrenheit" if str(period.get("temperatureUnit", "F")) == "F" \
-            else "Celsius"
-        level = "high" if period.get("isDaytime") else "low"
-        rain = (period.get("probabilityOfPrecipitation") or {}).get("value")
-        wind = str(period.get("windSpeed") or "").strip()
-        line = (f"{name}: the forecast calls for {short or 'no change'}, "
-                f"{level} near {_degrees(float(temp), unit)}")
-        if rain:
-            line += f", {int(rain)} percent chance of rain"
-        if wind:
-            line += f", wind {wind}"
-        facts.append(line + ".")
-
-    if not facts:
+        periods.append({
+            "name": str(p.get("name")), "start": p.get("startTime", ""),
+            "end": p.get("endTime", ""), "daytime": bool(p.get("isDaytime")),
+            "temp": float(p["temperature"]),
+            "unit": "Fahrenheit" if str(p.get("temperatureUnit", "F")) == "F"
+                    else "Celsius",
+            "sky": str(p.get("shortForecast") or "").strip().lower(),
+            "rain": (p.get("probabilityOfPrecipitation") or {}).get("value"),
+            "wind": str(p.get("windSpeed") or "").strip()})
+    if not periods:
         return None
-    issued = _parse_time(props.get("updateTime") or props.get("generatedAt")
-                         or "") or now
-    return live_facts.LiveFacts(
-        domain="weather", source=NWS, as_of=issued, facts=facts,
-        kind=live_facts.WEATHER,
-        url=f"https://forecast.weather.gov/MapClick.php?lat="
-            f"{place.latitude:.4f}&lon={place.longitude:.4f}")
+    obs = (observation or {}).get("properties") or {}
+    seen = obs.get("timestamp") or ""
+    temp_c = (obs.get("temperature") or {}).get("value")
+    observed = {}
+    if seen and temp_c is not None:
+        observed = {"at": seen, "temp": float(temp_c) * 9 / 5 + 32,
+                    "unit": "Fahrenheit",
+                    "sky": str(obs.get("textDescription") or "").strip().lower(),
+                    "wind": ""}
+    fetched = now or time.time()
+    return Snapshot(
+        source=NWS, fetched_at=fetched,
+        issued=props.get("updateTime") or props.get("generatedAt") or "",
+        tz=tz, periods=periods, alerts=nws_alerts(alerts),
+        observation=observed, alerts_checked=fetched)
 
 
-async def from_nws(place: places.Place) -> Optional[live_facts.LiveFacts]:
+async def from_nws(place: places.Place) -> Optional[Snapshot]:
     """Ask NWS. Raises when it is broken; `None` when it has nothing."""
     lat, lon = f"{place.latitude:.4f}", f"{place.longitude:.4f}"
     async with httpx.AsyncClient(timeout=NWS_TIMEOUT,
@@ -251,65 +386,76 @@ async def from_nws(place: places.Place) -> Optional[live_facts.LiveFacts]:
             optional(_nws_json(client, f"{NWS_BASE}/alerts/active"
                                        f"?point={lat},{lon}")),
             optional(observation()))
-    return nws_facts(place, forecast, alerts, obs)
+    return nws_snapshot(forecast, alerts, obs, tz=str(point.get("timeZone") or ""))
+
+
+async def live_alerts(place: places.Place) -> Optional[list]:
+    """The NWS warnings in force right now. `None` when they could not be read."""
+    lat, lon = f"{place.latitude:.4f}", f"{place.longitude:.4f}"
+    try:
+        async with httpx.AsyncClient(timeout=ALERTS_TIMEOUT) as client:
+            reply = await _nws_json(
+                client, f"{NWS_BASE}/alerts/active?point={lat},{lon}")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("weather: NWS warnings could not be read for %s: %s",
+                    place.label, exc)
+        return None
+    return nws_alerts(reply)
 
 
 # --------------------------------------------------------------------------
 # Open-Meteo
 # --------------------------------------------------------------------------
-def open_meteo_facts(place: places.Place, data: dict,
-                     now: Optional[datetime] = None
-                     ) -> Optional[live_facts.LiveFacts]:
-    """An Open-Meteo reply -> facts. Pure, so it is tested on a recorded one."""
-    now = now or datetime.now(timezone.utc)
+def open_meteo_snapshot(place: places.Place, data: dict,
+                        now: Optional[float] = None) -> Optional[Snapshot]:
+    """An Open-Meteo reply -> a snapshot. Pure, so it is tested on one."""
     us = place.in_us
     unit = "Fahrenheit" if us else "Celsius"
-    speed = "miles an hour" if us else "kilometres an hour"
-    facts: list = []
-
-    current = (data or {}).get("current") or {}
-    if current.get("temperature_2m") is not None:
-        words = WMO.get(int(current.get("weather_code") or 0), "")
-        line = f"Now: {_degrees(float(current['temperature_2m']), unit)}"
-        if words:
-            line += f" and {words}"
-        if current.get("wind_speed_10m") is not None:
-            line += f", wind {int(round(float(current['wind_speed_10m'])))} {speed}"
-        facts.append(line + ".")
-
+    tz = str((data or {}).get("timezone") or "")
+    zone = _zone(tz)
     daily = (data or {}).get("daily") or {}
-    days = list(daily.get("time") or [])
-    names = ["Today", "Tomorrow"]
-    for i, day in enumerate(days[:3]):
+    periods = []
+    for i, day in enumerate(list(daily.get("time") or [])):
         try:
             high = daily["temperature_2m_max"][i]
             low = daily["temperature_2m_min"][i]
-        except (KeyError, IndexError, TypeError):
+            start = datetime.fromisoformat(day).replace(tzinfo=zone)
+        except (KeyError, IndexError, TypeError, ValueError):
             continue
         if high is None or low is None:
             continue
-        code = (daily.get("weather_code") or [None] * 3)[i]
-        rain = (daily.get("precipitation_probability_max") or [None] * 3)[i]
-        try:
-            label = names[i] if i < 2 else datetime.fromisoformat(day).strftime("%A")
-        except ValueError:
-            label = day
-        line = (f"{label}: the forecast calls for "
-                f"{WMO.get(int(code), 'mixed conditions') if code is not None else 'mixed conditions'}"
-                f", high {_degrees(float(high), unit)}, low "
-                f"{_degrees(float(low), unit)}")
-        if rain:
-            line += f", {int(rain)} percent chance of rain"
-        facts.append(line + ".")
-
-    if not facts:
+        code = (daily.get("weather_code") or [None] * (i + 1))[i]
+        rain = (daily.get("precipitation_probability_max") or [None] * (i + 1))[i]
+        periods.append({
+            "name": "", "start": start.isoformat(),
+            "end": (start + timedelta(days=1)).isoformat(), "daytime": True,
+            "high": float(high), "low": float(low), "unit": unit,
+            "sky": WMO.get(int(code), "mixed conditions") if code is not None
+                   else "mixed conditions",
+            "rain": rain, "wind": ""})
+    if not periods:
         return None
-    return live_facts.LiveFacts(
-        domain="weather", source=OPEN_METEO, as_of=now, facts=facts,
-        kind=live_facts.WEATHER)
+    current = (data or {}).get("current") or {}
+    observed = {}
+    if current.get("temperature_2m") is not None and current.get("time"):
+        try:
+            at = datetime.fromisoformat(current["time"]).replace(tzinfo=zone)
+            observed = {
+                "at": at.isoformat(), "temp": float(current["temperature_2m"]),
+                "unit": unit,
+                "sky": WMO.get(int(current.get("weather_code") or 0), ""),
+                "wind": (f"{int(round(float(current['wind_speed_10m'])))} "
+                         f"{'miles an hour' if us else 'kilometres an hour'}"
+                         if current.get("wind_speed_10m") is not None else "")}
+        except (TypeError, ValueError):
+            observed = {}
+    fetched = now or time.time()
+    return Snapshot(source=OPEN_METEO, fetched_at=fetched,
+                    issued=datetime.fromtimestamp(fetched, timezone.utc).isoformat(),
+                    tz=tz, periods=periods, observation=observed)
 
 
-async def from_open_meteo(place: places.Place) -> Optional[live_facts.LiveFacts]:
+async def from_open_meteo(place: places.Place) -> Optional[Snapshot]:
     """Ask Open-Meteo. Raises when it is broken; `None` when it has nothing."""
     import provider_usage
 
@@ -338,33 +484,100 @@ async def from_open_meteo(place: places.Place) -> Optional[live_facts.LiveFacts]
         raise
     provider_usage.record("open_meteo", ok=reply.is_success)
     reply.raise_for_status()
-    return open_meteo_facts(place, reply.json() or {})
+    return open_meteo_snapshot(place, reply.json() or {})
 
 
 # --------------------------------------------------------------------------
-# The one entry point
+# Facts, written when the question is asked
 # --------------------------------------------------------------------------
-async def forecast_for(place: Optional[places.Place]
-                       ) -> tuple[Optional[live_facts.LiveFacts], list]:
-    """The weather at `place`, and what each provider did. Never raises.
+def render(snap: Snapshot, place: places.Place,
+           now: Optional[datetime] = None) -> Optional[live_facts.LiveFacts]:
+    """A kept forecast -> what the writer is told, as of `now`."""
+    import listener_clock
 
-    Returns `(facts or None, attempts)`, `attempts` being `(provider,
-    outcome, detail)` in the order tried - the same shape `live_facts`
-    reports, so a fallback is visible on the episode's own record.
-    """
+    now = now or datetime.now(timezone.utc)
+    zone = _zone(snap.tz)
+    facts: list = []
+
+    # Warnings first: the most important thing here, and official.
+    for alert in snap.alerts:
+        ends = _parse_time(alert.get("ends"))
+        if ends is not None and ends <= now:
+            continue  # it has expired
+        until = (f" until {listener_clock.say(ends, '%A at %H:%M %Z')}"
+                 if ends else "")
+        facts.append(f"The National Weather Service has issued an official "
+                     f"{alert['event']}{until} for this area.")
+    if snap.source == NWS and snap.alerts_checked:
+        checked = datetime.fromtimestamp(snap.alerts_checked, timezone.utc)
+        if (now - checked).total_seconds() > 3600:
+            facts.append(
+                "Official warnings were last checked at "
+                f"{listener_clock.say(checked, '%H:%M %Z')}; any issued since "
+                "are not known here.")
+
+    obs = snap.observation or {}
+    seen = _parse_time(obs.get("at"))
+    if seen and obs.get("temp") is not None and \
+            (now - seen).total_seconds() <= OBSERVATION_MAX_AGE:
+        line = (f"Observed at {listener_clock.say(seen, '%H:%M %Z')}: "
+                f"{_degrees(float(obs['temp']), obs.get('unit', 'Fahrenheit'))}")
+        if obs.get("sky"):
+            line += f" and {obs['sky']}"
+        if obs.get("wind"):
+            line += f", wind {obs['wind']}"
+        facts.append(line + ".")
+
+    today = now.astimezone(zone).date()
+    said = 0
+    for p in snap.periods:
+        end = _parse_time(p.get("end"))
+        if end is not None and end <= now:
+            continue  # already over
+        if said >= PERIODS_SAID:
+            break
+        name = p.get("name") or ""
+        start = _parse_time(p.get("start"))
+        if not name and start is not None:
+            day = start.astimezone(zone).date()
+            name = ("Today" if day == today else
+                    "Tomorrow" if day == today + timedelta(days=1)
+                    else start.astimezone(zone).strftime("%A"))
+        sky = p.get("sky") or "mixed conditions"
+        unit = p.get("unit", "Fahrenheit")
+        if "high" in p:
+            line = (f"{name}: the forecast calls for {sky}, high "
+                    f"{_degrees(p['high'], unit)}, low {_degrees(p['low'], unit)}")
+        else:
+            level = "high" if p.get("daytime") else "low"
+            line = (f"{name}: the forecast calls for {sky}, {level} near "
+                    f"{_degrees(p['temp'], unit)}")
+        if p.get("rain"):
+            line += f", {int(p['rain'])} percent chance of rain"
+        if p.get("wind"):
+            line += f", wind {p['wind']}"
+        facts.append(line + ".")
+        said += 1
+
+    if not facts:
+        return None
+    issued = _parse_time(snap.issued) or datetime.fromtimestamp(
+        snap.fetched_at, timezone.utc)
+    url = ""
+    if snap.source == NWS and place.located:
+        url = (f"https://forecast.weather.gov/MapClick.php?lat="
+               f"{place.latitude:.4f}&lon={place.longitude:.4f}")
+    return live_facts.LiveFacts(domain="weather", source=snap.source,
+                                as_of=issued, facts=facts,
+                                kind=live_facts.WEATHER, url=url)
+
+
+# --------------------------------------------------------------------------
+# Fetching, on demand and by the sweep
+# --------------------------------------------------------------------------
+async def fetch(place: places.Place) -> tuple[Optional[Snapshot], list]:
+    """Ask the providers in order and keep what answers. Never raises."""
     attempts: list = []
-    if place is None or not place.located:
-        return None, [("weather", live_facts.NO_ENTITY,
-                       "the place has no coordinates")]
-    if not settings.weather:
-        return None, [("weather", live_facts.NOT_CONFIGURED, "WEATHER=0")]
-
-    now = time.time()
-    key = _cache_key(place, now)
-    held = _CACHE.get(key)
-    if held is not None:
-        return held, [("cache", live_facts.FACTS, key)]
-
     providers = []
     if place.in_us:
         providers.append((NWS, from_nws, NWS_TIMEOUT))
@@ -376,7 +589,7 @@ async def forecast_for(place: Optional[places.Place]
 
     for name, ask, budget in providers:
         try:
-            facts = await asyncio.wait_for(ask(place), timeout=budget + 0.5)
+            snap = await asyncio.wait_for(ask(place), timeout=budget + 0.5)
         except asyncio.TimeoutError:
             attempts.append((name, live_facts.TIMEOUT, f"{name} timed out"))
             log.warning("weather: %s timed out for %s", name, place.label)
@@ -386,16 +599,103 @@ async def forecast_for(place: Optional[places.Place]
                              f"{type(exc).__name__}: {exc}"))
             log.warning("weather: %s failed for %s: %s", name, place.label, exc)
             continue
-        if facts is None:
+        if snap is None:
             attempts.append((name, live_facts.NO_FACTS, "nothing returned"))
             continue
-        if attempts and any(a[0] == NWS for a in attempts):
+        if any(a[0] == NWS for a in attempts):
             log.warning("weather: NWS could not serve %s; %s answered instead",
                         place.label, name)
         attempts.append((name, live_facts.FACTS, place.label))
-        _CACHE[key] = facts
-        return facts, attempts
+        try:
+            store().put(place, snap)
+        except sqlite3.Error:
+            log.warning("weather: could not keep the forecast for %s",
+                        place.label, exc_info=True)
+        return snap, attempts
     return None, attempts
+
+
+async def forecast_for(place: Optional[places.Place]
+                       ) -> tuple[Optional[live_facts.LiveFacts], list]:
+    """The weather at `place`, and what was done to get it. Never raises.
+
+    The kept forecast when it is from the current sweep slot; otherwise it
+    is fetched now (the first question about a place, or a missed sweep).
+    For a US place the warnings in force are asked for at the moment of the
+    question (`WEATHER_LIVE_ALERTS`). Returns `(facts or None, attempts)`,
+    `attempts` being `(provider, outcome, detail)` in the order tried.
+    """
+    if place is None or not place.located:
+        return None, [("weather", live_facts.NO_ENTITY,
+                       "the place has no coordinates")]
+    if not settings.weather:
+        return None, [("weather", live_facts.NOT_CONFIGURED, "WEATHER=0")]
+
+    try:
+        store().asked(place)
+        snap = store().get(place)
+    except sqlite3.Error:
+        log.warning("weather: the store could not be read", exc_info=True)
+        snap = None
+    attempts: list = []
+    if is_current(snap):
+        attempts.append(("kept", live_facts.FACTS, snap.source))
+    else:
+        fresh, attempts = await fetch(place)
+        if fresh is not None:
+            snap = fresh
+        elif snap is not None:
+            # Every provider failed: the last kept forecast, with its issue
+            # time, is still a forecast - and is withheld by `live_facts`
+            # once it is past the domain's limit.
+            attempts.append(("kept", live_facts.FACTS,
+                             "the last kept forecast; the providers failed"))
+    if snap is None:
+        return None, attempts
+
+    if place.in_us and settings.weather_live_alerts and \
+            time.time() - snap.alerts_checked > 600:
+        alerts = await live_alerts(place)
+        if alerts is not None:
+            snap.alerts, snap.alerts_checked = alerts, time.time()
+            attempts.append((NWS + " warnings", live_facts.FACTS,
+                             f"{len(alerts)} in force"))
+            try:
+                store().put(place, snap)
+            except sqlite3.Error:
+                pass
+        else:
+            attempts.append((NWS + " warnings", live_facts.PROVIDER_FAILED,
+                             "the swept warnings are used"))
+    return render(snap, place), attempts
+
+
+async def sweep_due(now: Optional[float] = None) -> int:
+    """Refresh every asked-about place whose sweep slot has come."""
+    if not settings.weather:
+        return 0
+    now = now or time.time()
+    try:
+        due = [place for place, snap in store().demanded(now - DEMAND_SECONDS)
+               if place.located and not is_current(snap, now)]
+    except sqlite3.Error:
+        log.warning("weather: the sweep could not read the store", exc_info=True)
+        return 0
+    for place in due:
+        await fetch(place)
+    return len(due)
+
+
+async def run_forever(every: float = SWEEP_EVERY) -> None:
+    """The twice-daily sweep: wakes often, fetches only places whose slot came."""
+    while True:
+        try:
+            swept = await sweep_due()
+            if swept:
+                log.info("weather: swept %d place(s)", swept)
+        except Exception:  # noqa: BLE001
+            log.warning("weather: a sweep failed", exc_info=True)
+        await asyncio.sleep(every)
 
 
 class WeatherSource(live_facts.LiveSource):
@@ -407,7 +707,7 @@ class WeatherSource(live_facts.LiveSource):
 
     name = "weather"
     domain = "weather"
-    timeout_seconds = NWS_TIMEOUT + OPEN_METEO_TIMEOUT + 1.0
+    timeout_seconds = NWS_TIMEOUT + OPEN_METEO_TIMEOUT + ALERTS_TIMEOUT + 1.0
 
     def diagnose(self) -> tuple[bool, str]:
         return available()
@@ -415,9 +715,9 @@ class WeatherSource(live_facts.LiveSource):
     async def verify(self) -> tuple[bool, str]:
         place = places.Place("Washington", "District of Columbia",
                              "District of Columbia", "US", 38.8951, -77.0364)
-        facts, attempts = await forecast_for(place)
-        if facts:
-            return True, f"{facts.source} answered for Washington, DC"
+        snap, attempts = await fetch(place)
+        if snap:
+            return True, f"{snap.source} answered for Washington, DC"
         return False, "; ".join(f"{a[0]}: {a[2]}" for a in attempts)
 
     async def resolve(self, brief) -> Optional[live_facts.Entity]:
@@ -460,4 +760,5 @@ def report() -> dict:
             "order": [NWS + " (US)", OPEN_METEO],
             "open_meteo": {"ready": om_ok, "detail": om_why},
             "place_lookup": {"ready": geo_ok, "detail": geo_why},
-            "cache_seconds": float(settings.weather_cache_seconds)}
+            "sweep_hours_local": sweep_hours(),
+            "live_alerts": bool(settings.weather_live_alerts)}
