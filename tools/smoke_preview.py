@@ -94,8 +94,10 @@ def main() -> int:
             file could miss, because it is the only screen everybody sees."""
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-welcome", \
                 "a first open did not start on the welcome screen"
-            assert page.query_selector("#screen-welcome .entry-skip"), \
-                "there was no way past the account step"
+            # "Continue as guest" is withdrawn until FAM is public (rule
+            # account-gates-kept); Sign Up and Log In are the way past.
+            assert not page.query_selector("#screen-welcome .entry-skip"), \
+                "the welcome screen offers a guest path before FAM is public"
             # Signed up rather than skipped, because the gated surfaces below
             # (mixes, the recap) are the ones with something to check, and
             # skipping is asserted above as reachable.
@@ -1314,10 +1316,9 @@ def main() -> int:
             page.wait_for_timeout(500)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
                 == "screen-welcome", "a signed-out listener did not land on sign-up"
-            # The door through it is still there: listening needs no account,
-            # and this screen is the one place that could quietly become a wall.
-            assert page.query_selector(".entry-skip"), \
-                "the front door has no way past it"
+            # No guest door until FAM is public (rule account-gates-kept).
+            assert not page.query_selector("#screen-welcome .entry-skip"), \
+                "the front door offers a guest path before FAM is public"
             page.evaluate("AUTH = { authenticated: true }; bootToFirstScreen();")
             page.wait_for_timeout(600)
             assert page.eval_on_selector(".screen.active", "e => e.id") \

@@ -15169,3 +15169,23 @@ Signing in from a gated screen (`authReturn`) still returns to that screen
 with no hand-off: it does not go into DailyFAM.
 
 Tests: `tests/test_entry_handoff.py`.
+
+
+## 197. The sign-in screen's samples play in place, and the guest door is withdrawn
+
+At the owner's direction:
+
+1. **Most played today on the sign-in screen now behaves like the waitlist
+   page's card** (§190): a tap plays or pauses it where it is. It used to
+   open the full player and leave the screen. `playWelcomeSample` plays the
+   kept episode with `FamAudio.play(..., { cachedOnly: true })` under
+   `audioOwner = "welcome"`, draws a pause icon while it plays, and the
+   rotation never turns away from the one being heard. Going to the sign-in
+   form keeps it playing; entering the app ends it (`stopWelcomeSampleLeaving`
+   in `showScreen`), since the sample is not one of the app's players.
+2. **"Continue as guest" is removed until FAM is public.** The markup is
+   gone; `skipAccount` and every guest rule stay (`account-gates-kept` has a
+   Current note), so it comes back as one line.
+
+Tests: `tests/test_packet_1001_fourth.py`, `tests/test_guest_wipe_and_storage.py`,
+`tools/smoke_preview.py`.

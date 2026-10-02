@@ -199,4 +199,5 @@ and `limit` = Lines.
 | 14957 | 53 | 193. 10.2 feedback: a searched episode played over an empty screen, and Search DailyFAM opened on nothing |
 | 15010 | 89 | 194. A small town's news was invented, and FAM had no weather at all |
 | 15099 | 48 | 195. The 10.2 packet: friends on DailyFAM, the chevron icon, Explore as pages, "Interested?", and Explore from search |
-| 15147 | 26 | 196. Signing in cut straight to DailyFAM, with nothing to say you had arrived |
+| 15147 | 27 | 196. Signing in cut straight to DailyFAM, with nothing to say you had arrived |
+| 15174 | 19 | 197. The sign-in screen's samples play in place, and the guest door is withdrawn |
