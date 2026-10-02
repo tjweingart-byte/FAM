@@ -14995,5 +14995,14 @@ The owner's four notes, with screenshots and a sketch:
    fixture build from the Explore fixture; the live build from its `scripts`
    rows, with a word-overlap stand-in for `/api/myfam/search`).
 
+Review fixes, before merge:
+* The stable choice (step 3) hashed the question *and* the title, so the
+  second ask - made because the writer's title landed - could swap one
+  borrowed picture for a different one mid-episode. It hashes the question
+  alone now (`pick_for_player(..., key=normalize_query(q))`).
+* A catalogue that failed to load said "Nobody else has made an episode
+  yet", which is a claim about the deployment, not the request. It now says
+  it could not load, with Try again (`failures-visible`).
+
 Tests: `tests/test_feedback_1002.py`; `test_packet_1002`'s picture-shape test
 follows the selector into the stage.

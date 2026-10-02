@@ -65,8 +65,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import io
 import hashlib
+import io
 import json
 import logging
 import os
@@ -729,8 +729,7 @@ def pick(text: str, tags: Iterable[str] = (),
         return None
 
 
-
-def pick_for_player(text: str) -> Optional[dict]:
+def pick_for_player(text: str, key: str = "") -> Optional[dict]:
     """The picture behind the player's title, which is never blank while
     the deployment holds any approved picture (10.2 feedback: a searched
     episode played over an empty screen).
@@ -746,8 +745,10 @@ def pick_for_player(text: str) -> Optional[dict]:
        same episode always wears the same one; any approved node when no
        facet is painted.
 
-    `fallback` is True for anything borrowed, so the client may ask again
-    once the writer's title lands with better words. Never raises.
+    `key` is what step 3 hashes - the question as asked - so the words
+    growing a title later (the client asks again when the writer's title
+    lands) never swaps one borrowed picture for another; it defaults to
+    `text`. `fallback` is True for anything borrowed. Never raises.
     """
     try:
         import topics
@@ -778,7 +779,8 @@ def pick_for_player(text: str) -> Optional[dict]:
             chosen = next((f for f in declared if f in approved), "")
         if not chosen:
             pool = sorted(n for n in approved if n in facets) or sorted(approved)
-            digest = hashlib.sha1(words.lower().encode("utf-8")).digest()
+            stable = (key or words).strip().lower()
+            digest = hashlib.sha1(stable.encode("utf-8")).digest()
             chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
         facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
         return {"node": chosen, "facet": facet,
@@ -786,6 +788,7 @@ def pick_for_player(text: str) -> Optional[dict]:
     except Exception:  # noqa: BLE001 - a picture is never worth a player
         log.exception("thumbnails: could not pick the player's picture")
         return None
+
 
 #: Nodes a tile asked for that have no live picture yet, most recent last.
 #: In-process and bounded: it only orders the sweep in this server, and a

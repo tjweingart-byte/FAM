@@ -10084,8 +10084,13 @@
         drawMyFamSearch("");
       })
       .catch(function(){
-        mfsCatalog = [];
-        if(req === mfsReq) drawMyFamSearch("");
+        // A failure says so (`failures-visible`): an empty catalogue would
+        // claim nobody has made anything. Left null, so clearing the box
+        // asks again.
+        if(req !== mfsReq) return;
+        document.getElementById("mfsBody").innerHTML =
+          '<div class="sv-empty">Could not load the episodes right now. '
+          + '<button class="sample-note-btn" onclick="drawMyFamSearch(\'\'); loadMyFamCatalog()">Try again</button></div>';
       });
   }
   function onMyFamSearchInput(){

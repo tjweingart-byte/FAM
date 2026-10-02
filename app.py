@@ -5111,7 +5111,8 @@ async def episode_card(request: Request,
     borrowed = False
     try:
         import thumbnails
-        found = thumbnails.pick_for_player(f"{asked} {words}".strip()) or {}
+        found = thumbnails.pick_for_player(
+            f"{asked} {words}".strip(), key=normalize_query(asked)) or {}
         thumb = found.get("url", "") or ""
         borrowed = bool(found.get("fallback"))
     except Exception:  # noqa: BLE001 - a picture is never worth a 500

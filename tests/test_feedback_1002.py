@@ -141,3 +141,21 @@ def test_the_screen_opens_on_the_catalogue_with_letters():
     draw = _fn("drawMyFamSearch")
     assert "mfsResults = mfsCatalog || [];" in draw
     assert 'class="mfs-letter"' in draw
+
+
+def test_the_writers_title_never_swaps_one_borrowed_picture_for_another(tree):
+    """Review: the stable choice hashes the question only, so asking again
+    with the writer's title cannot land on a different borrowed picture."""
+    for facet in ("tech", "health", "culture", "money"):
+        _put(facet, facet=facet)
+    q = "why gen z took up grandma hobbies"
+    first = th.pick_for_player(q, key=q)
+    for title in ("The Knitting Comeback", "Crochet, Quietly", "Slow Hands"):
+        later = th.pick_for_player(f"{q} {title}", key=q)
+        assert later == first
+
+
+def test_a_catalogue_that_failed_says_so():
+    load = _fn("loadMyFamCatalog")
+    assert "Could not load the episodes right now." in load
+    assert "mfsCatalog = []" not in load
