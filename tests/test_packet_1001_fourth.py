@@ -72,6 +72,19 @@ def test_the_welcome_card_is_drawn_by_the_rails_own_helpers():
     assert re.search(r"\.ws-card \.seed-card-title\{[^}]*-webkit-line-clamp:unset", INDEX)
 
 
+def test_the_welcome_sample_plays_and_pauses_in_place():
+    """Like the waitlist page's card (§190): a tap plays or pauses, and never
+    opens the player or leaves the sign-in screen."""
+    play = _fn("playWelcomeSample")
+    assert "navigate(" not in play and "generate(" not in play
+    assert "FamAudio.pause()" in play and "FamAudio.resume()" in play
+    assert "cachedOnly: true" in play
+    assert 'audioOwner = "welcome"' in play
+    # Entering the app ends it; the sign-in form does not.
+    leaving = _fn("stopWelcomeSampleLeaving")
+    assert 'id === "auth"' in leaving and "stopSpeech()" in leaving
+
+
 # --- 2. Invites name familiarize.net ---------------------------------------
 
 

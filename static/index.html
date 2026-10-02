@@ -1995,6 +1995,8 @@
   .ws-play{ position:absolute; right:10px; bottom:9px; z-index:1; width:34px; height:34px;
     border-radius:50%; background:var(--copper); color:var(--ink); display:flex;
     align-items:center; justify-content:center; }
+  .ws-note{ font-size:12px; color:var(--text-muted); margin-top:6px; text-align:center; }
+  .ws-note:empty{ display:none; }
   .ws-dots{ display:flex; gap:6px; justify-content:center; margin-top:9px; }
   .ws-dot{ width:6px; height:6px; border-radius:50%; background:var(--border-strong);
     border:0; padding:0; cursor:pointer; }
@@ -2738,11 +2740,14 @@
                    onclick="playWelcomeSample()"
                    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();playWelcomeSample();}"></div>
               <div class="ws-dots" id="wsDots"></div>
+              <div class="ws-note" id="wsNote" role="status" aria-live="polite"></div>
             </div>
             <div class="entry-acts">
               <button class="entry-btn primary" onclick="openAuth('signup')">Sign Up</button>
               <button class="entry-btn" onclick="openAuth('login')">Log In</button>
-              <div class="entry-skip" onclick="skipAccount()">Continue as guest</div>
+              <!-- "Continue as guest" is withdrawn until FAM is public, at the
+                   owner's direction (rule account-gates-kept); `skipAccount`
+                   stays for when it comes back. -->
             </div>
           </div>
         </div>
@@ -4323,6 +4328,7 @@
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
     placeNowBar(next);
+    stopWelcomeSampleLeaving(id);
     if(id === "welcome") loadWelcomeSamples();
     if(id === "home") loadTrendSearches();
   }
@@ -16241,12 +16247,16 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         welcomeSamples = d.episodes || [];
-        welcomeAt = 0;
+        // Back from the sign-in form with a sample still playing: stay on it.
+        welcomeAt = Math.max(0, welcomeSamples.map(function(e){ return e.query; })
+                                              .indexOf(welcomePlaying));
         drawWelcomeSample();
         clearInterval(welcomeTimer);
         if(welcomeSamples.length > 1){
           welcomeTimer = setInterval(function(){
             if(!document.getElementById("screen-welcome").classList.contains("active")) return;
+            // Never turn away from the one being listened to.
+            if(welcomeState) return;
             turnWelcomeSample(welcomeAt + 1);
           }, WELCOME_TURN_MS);
         }
@@ -16272,15 +16282,18 @@
     var title = ep.title || ep.query;
     var tag = seedTagText("most_played", ep);
     var card = document.getElementById("wsCard");
+    var playing = welcomeState === "playing" && welcomePlaying === ep.query;
     card.innerHTML = seedThumbOpen(ep)
       + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
-      + '<span class="ws-play" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>'
+      + '<span class="ws-play" aria-hidden="true">' + (playing
+          ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>'
+          : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>') + '</span>'
       + '</div>'
       + '<div class="seed-card-body">'
       + '<div class="seed-card-title" id="wsTitle">' + escapeHtml(title) + '</div>'
       + '<div class="seed-why">' + seedHook("most_played", ep) + '</div>'
       + '</div>';
-    card.setAttribute("aria-label", "Play " + title);
+    card.setAttribute("aria-label", (playing ? "Pause " : "Play ") + title);
     document.getElementById("wsDots").innerHTML = welcomeSamples.length > 1
       ? welcomeSamples.map(function(_, j){
           return '<button type="button" class="ws-dot' + (j === welcomeAt ? ' on' : '')
@@ -16288,21 +16301,48 @@
         }).join("")
       : "";
   }
+  // A tap plays or pauses in place, as the waitlist page's card does
+  // (§190): the sample is something to hear before deciding, so it never
+  // takes the listener off this screen - no player, no navigation.
+  var welcomePlaying = "";   // the query of the sample started here
+  var welcomeState = "";     // "" | "playing" | "paused"
   function playWelcomeSample(){
     var ep = welcomeSamples[welcomeAt];
     if(!ep) return;
-    // Leaving the player never stops it (§142), and this screen has no mini
-    // player, so a tap on the sample already playing brings its player back
-    // rather than starting it over.
-    if(nowBarState && nowBarState.query === ep.query){ navigate("player"); return; }
-    // The welcome screen is not on the navigation stack; closing the
-    // player has to come back here, by name.
-    stack = ["welcome"];
-    TOPICS["_welcome"] = { title: ep.title || ep.query, prompt: ep.query,
-                           source: "Most played today", caption: "",
-                           cachedOnly: true, exploreMinutes: ep.minutes || BROWSE_MINUTES,
-                           titleOverridden: true };
-    generate("_welcome");
+    var note = document.getElementById("wsNote");
+    if(welcomeState && welcomePlaying === ep.query && audioOwner === "welcome"){
+      if(welcomeState === "playing"){ FamAudio.pause(); welcomeState = "paused"; }
+      else { FamAudio.resume(); welcomeState = "playing"; }
+      drawWelcomeSample();
+      return;
+    }
+    stopSpeech();
+    audioOwner = "welcome";
+    welcomePlaying = ep.query; welcomeState = "playing";
+    if(note) note.textContent = "Starting the episode…";
+    drawWelcomeSample();
+    FamAudio.play(ep.query, ep.minutes || BROWSE_MINUTES, {
+      onFirstAudio: function(){ if(note) note.textContent = ""; },
+      onEnd: function(){ endWelcomeSample(); },
+      onError: function(err){
+        endWelcomeSample();
+        if(note) note.textContent = (err && err.message) || "That episode could not be played just now.";
+      }
+    }, "", null, { cachedOnly: true });
+  }
+  function endWelcomeSample(){
+    welcomePlaying = ""; welcomeState = "";
+    if(audioOwner === "welcome") audioOwner = "";
+    drawWelcomeSample();
+  }
+  // Signing in or up keeps the sample going; anywhere past those two
+  // screens is the app, and the sample is not one of its players.
+  function stopWelcomeSampleLeaving(id){
+    if(audioOwner !== "welcome" || id === "welcome" || id === "auth") return;
+    stopSpeech();
+    endWelcomeSample();
+    var note = document.getElementById("wsNote");
+    if(note) note.textContent = "";
   }
 
   function startEntry(){

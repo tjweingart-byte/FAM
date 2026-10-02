@@ -161,12 +161,14 @@ def test_every_account_gate_opens_the_real_sign_up_screen():
     assert "askEmailAndPassword" not in page
 
 
-def test_the_welcome_screen_offers_to_continue_as_a_guest():
-    """It said "Skip for now", which is what the two setup steps behind it
-    still say. This one is not a postponement - it is a way of using the
-    app."""
+def test_the_welcome_screen_offers_no_guest_path_before_launch():
+    """"Continue as guest" is withdrawn until FAM is public, at the owner's
+    direction (rule account-gates-kept). `skipAccount` stays, so bringing the
+    door back is one line of markup."""
     page = _interface()
-    assert "Continue as guest</div>" in page
+    assert "Continue as guest</div>" not in page
+    assert 'onclick="skipAccount()"' not in page
+    assert "function skipAccount()" in page
 
 
 def test_edit_profile_no_longer_asks_which_interests_are_shared():
