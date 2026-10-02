@@ -15143,3 +15143,29 @@ feed's ✕ / "Your algorithm" / ✓ row):
    search's (`exploreFrom`).
 
 Tests: `tests/test_packet_1002_second.py`.
+
+## 196. Signing in cut straight to DailyFAM, with nothing to say you had arrived
+
+Finishing the entry flow - signing in, or the last step of creating an
+account (credentials, who you are, interests) - swapped the screen for
+DailyFAM in one frame. The owner asked for a hand-off instead: the FAM
+wordmark at the top of the page, its letters folding into the double
+chevron, the chevron turning to point right, and the page sliding off to
+the left onto DailyFAM.
+
+`finishEntry` now plays it for an account (`AUTH.authenticated`), never for
+a guest, who finished nothing. `beginEntryHandoff` copies the screen being
+left (ids stripped, so no lookup ever finds the picture) into `#famHandoff`
+before `openMyFamTab` switches screens; `playEntryHandoff` then runs four
+beats with the Web Animations API, about 1.6s: the page fades to the
+wordmark, the F and M fold into the A (the A *is* the double chevron, so
+"F and A merge into the chevron" can only mean the letters either side of
+it), the chevron grows and turns 90° clockwise, and the panel slides
+`translateX(-100%)`. The screen underneath is switched before the first
+frame and the overlay has `pointer-events:none`, so nothing waits on the
+animation and every test that calls `finishIntro()` sees DailyFAM at once.
+Reduced motion, or a browser without `Element.animate`, goes straight in.
+Signing in from a gated screen (`authReturn`) still returns to that screen
+with no hand-off: it does not go into DailyFAM.
+
+Tests: `tests/test_entry_handoff.py`.

@@ -119,6 +119,20 @@
     transition:opacity .35s ease;
   }
   .splash.hide{ opacity:0; pointer-events:none; }
+  /* The hand-off from signing in (or finishing sign-up) to DailyFAM: the
+     F and M fold into the A, the double chevron left behind turns to point
+     forward, and the entry page slides away to the left over the feed,
+     which is already open underneath. Purely a picture - `pointer-events`
+     stays off, so the app under it is live from the first frame. */
+  .fam-handoff{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
+    z-index:480; pointer-events:none; }
+  .fam-handoff[hidden]{ display:none; }
+  .fam-handoff-panel{ position:absolute; inset:0; background:var(--bg);
+    overflow:hidden; box-shadow:12px 0 32px rgba(0,0,0,0.35); }
+  .fam-handoff-panel > .screen{ display:flex; position:absolute; inset:0; }
+  .fam-handoff .fam-logo{ position:absolute; top:34px; left:0; right:0;
+    padding:0; }
+  .fam-handoff .wm-glyph, .fam-handoff .wm-a{ will-change:transform, opacity; }
 
   .screen{ display:none; flex-direction:column; flex:1; min-height:0; }
   .screen.active{ display:flex; }
@@ -2652,6 +2666,15 @@
 
       <div class="splash" id="splashScreen">
         <div class="fam-logo" style="padding:0;" aria-label="FAM">
+          <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
+        </div>
+      </div>
+
+      <!-- The sign-in hand-off (see `playEntryHandoff`). The panel holds a
+           copy of the page being left, so the slide takes *that* page away. -->
+      <div class="fam-handoff" id="famHandoff" aria-hidden="true" hidden>
+        <div class="fam-handoff-panel" id="famHandoffPanel"></div>
+        <div class="fam-logo" id="famHandoffLogo">
           <span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>
         </div>
       </div>
@@ -17020,13 +17043,90 @@
 
   function finishEntry(){
     saveLocalPrefs({ entry: "done" });
+    // Signed in, or an account just finished (credentials, who they are,
+    // interests): the wordmark hands them into DailyFAM. Captured before the
+    // screen changes, because the picture is of the page being left. A guest
+    // goes straight in - they finished nothing.
+    var handoff = AUTH.authenticated ? beginEntryHandoff() : null;
     openMyFamTab();   // which loads the feed and Go Deeper
+    if(handoff) handoff();
     // Somebody who just signed up or skipped in gets the same notifications a
     // returning listener does. Started here as well as in `bootToFirstScreen`
     // because those are the two ways into the app and neither passes through
     // the other; `startNotificationPolling` clears its own timer, so arriving
     // by both cannot leave two running.
     startNotificationPolling();
+  }
+
+  // The sign-in hand-off. Four beats, about 1.6s in all: the page fades to
+  // its wordmark, the F and M fold into the A, the double chevron left
+  // behind turns a quarter to the right - forward - and the page slides off
+  // to the left, uncovering DailyFAM. The screen underneath is switched
+  // before the first frame, so nothing waits on the animation: it is a
+  // picture over an app that is already there. Returns the function that
+  // plays it, or null when there is nothing to play (reduced motion, no
+  // Web Animations, nothing on screen to hand off from).
+  function beginEntryHandoff(){
+    var wrap = document.getElementById("famHandoff");
+    var panel = document.getElementById("famHandoffPanel");
+    var logo = document.getElementById("famHandoffLogo");
+    var from = document.querySelector(".screen.active");
+    if(!wrap || !panel || !logo || !from || !wrap.animate) return null;
+    if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+    // A copy of the page being left, with its ids taken off so nothing
+    // that looks an element up by id ever finds the picture of it.
+    var copy = from.cloneNode(true);
+    copy.removeAttribute("id");
+    copy.querySelectorAll("[id]").forEach(function(e){ e.removeAttribute("id"); });
+    copy.querySelectorAll(".fam-logo").forEach(function(e){ e.style.visibility = "hidden"; });
+    var scroller = from.querySelector(".scroll");
+    panel.innerHTML = "";
+    panel.appendChild(copy);
+    wrap.hidden = false;
+    var copyScroller = copy.querySelector(".scroll");
+    if(scroller && copyScroller) copyScroller.scrollTop = scroller.scrollTop;
+    return function(){ playEntryHandoff(wrap, panel, logo, copy); };
+  }
+
+  function playEntryHandoff(wrap, panel, logo, copy){
+    var f = logo.querySelector(".wm-glyph.f");
+    var a = logo.querySelector(".wm-a");
+    var m = logo.querySelector(".wm-glyph.m");
+    var all = [];
+    function run(el, frames, opts){
+      var anim = el.animate(frames, Object.assign({ fill: "forwards" }, opts));
+      all.push(anim);
+      return anim;
+    }
+    function centre(el){
+      var r = el.getBoundingClientRect();
+      return r.left + r.width / 2;
+    }
+    function done(){
+      all.forEach(function(x){ try{ x.cancel(); }catch(e){} });
+      panel.innerHTML = "";
+      wrap.hidden = true;
+    }
+    // 1. The page fades to its wordmark.
+    run(copy, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "ease-out" });
+    run(logo, [{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    // 2. F and M fold into the A, which grows into the mark on its own.
+    var toA = centre(a);
+    var fold = { delay: 260, duration: 420, easing: "cubic-bezier(.6,0,.3,1)" };
+    run(f, [{ transform: "none", opacity: 1 },
+            { transform: "translateX(" + (toA - centre(f)) + "px) scale(0.4)", opacity: 0 }], fold);
+    run(m, [{ transform: "none", opacity: 1 },
+            { transform: "translateX(" + (toA - centre(m)) + "px) scale(0.4)", opacity: 0 }], fold);
+    // 3. The chevron turns to point right. 4. The page slides off to the left.
+    run(a, [{ transform: "none", offset: 0 },
+            { transform: "scale(1.35)", offset: 0.5 },
+            { transform: "scale(1.35) rotate(90deg)", offset: 1 }],
+        { delay: 260, duration: 820, easing: "ease-in-out" });
+    var slide = { delay: 1100, duration: 480, easing: "cubic-bezier(.55,0,.35,1)" };
+    run(panel, [{ transform: "none" }, { transform: "translateX(-100%)" }], slide);
+    run(logo, [{ transform: "none", opacity: 1 },
+               { transform: "translateX(-40%)", opacity: 0 }], slide)
+      .finished.then(done, done);
   }
 
   // --- Explore New ---------------------------------------------------------
