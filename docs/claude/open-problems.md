@@ -322,6 +322,12 @@
   Deeper's X, which closes a suggested follow-up, is a different thing and
   stays.)
 
+  > **Current (PROBLEMS.md §194, the 10.2 packet):** Explore's
+  > "Interested?" row is not this. Its ✕ records a `skip` - the signal
+  > leaving an episode early already sends - and deals the next card; its ✓
+  > records a `pick`. Neither hides anything or excludes a tile, and no
+  > event kind was added.
+
 <!-- rule:mfy-field-variety -->
 - **Made for you: subjects are filed by field, variety never gives way, no
   far minor league, markets on a money taste** *(PROBLEMS.md §187, at the

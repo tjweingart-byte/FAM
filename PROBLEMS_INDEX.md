@@ -197,3 +197,4 @@ and `limit` = Lines.
 | 14831 | 76 | 191. The outside services were asked on a timer all day, with nobody looking |
 | 14907 | 50 | 192. The 10.2 packet: a waitlist join that skipped the waitlist, and the player rearranged |
 | 14957 | 53 | 193. 10.2 feedback: a searched episode played over an empty screen, and Search DailyFAM opened on nothing |
+| 15010 | 48 | 194. The 10.2 packet: friends on DailyFAM, the chevron icon, Explore as pages, "Interested?", and Explore from search |

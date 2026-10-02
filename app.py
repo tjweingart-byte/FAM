@@ -5780,6 +5780,22 @@ def _circle_row(user: str) -> list[dict]:
     return out
 
 
+@app.get("/api/circle")
+async def circle(request: Request) -> dict:
+    """The YourFAM avatar row on its own, for the top of the rails screen.
+
+    The 10.2 packet #1: the faces on YourFAM sit at the top of the screen
+    that shows "DailyFAM" (code: myFAM, §185), so what friends have vibed is
+    seen first thing and scrolled sideways. The same rows as `/api/profile`'s
+    `circle` (`_circle_row`), asked separately so the rails never wait on it.
+    A guest has no follow graph and gets an empty row - never strangers.
+    """
+    _read_limit(request)
+    if not _has_account(request):
+        return {"circle": []}
+    return {"circle": _circle_row(_listener(request))}
+
+
 class ProgressRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
     minutes: int = Field(..., ge=1, le=10)
