@@ -15995,10 +15995,10 @@
     showScreen("auth");
     showAuthForm();
   }
-  // Between the two without losing what was typed or where they came from.
   function signupGoesToWaitlist(){
     return !window.FAM_PREVIEW && /^https?:$/.test(location.protocol);
   }
+  // Between the two without losing what was typed or where they came from.
   function switchAuthMode(mode){
     var back = authReturn;
     openAuth(mode);

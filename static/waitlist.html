@@ -684,12 +684,17 @@
     var body = { name: $("pName").value.trim(), handle: $("pHandle").value.trim().replace(/^@/, "") };
     if(avatarChanged) body.avatar = avatar;
     var interests = Object.keys(chosen).filter(function(k){ return chosen[k]; });
-    var digits = $("pPhone").value.replace(/[^\d]/g, "");
-    var account = { birth_date: $("pBirth").value || "",
-                    phone: digits ? $("pPhoneCC").value + digits : "" };
+    // A number typed in full ("+44 ...", "0044 ...") is taken as typed;
+    // anything else is the chosen country code plus the digits.
+    var typed = $("pPhone").value.trim(), digits = typed.replace(/[^\d]/g, "");
+    var phone = !digits ? "" : /^(\+|00)/.test(typed)
+      ? "+" + digits.replace(/^00/, "") : $("pPhoneCC").value + digits;
+    var account = { birth_date: $("pBirth").value || "", phone: phone };
     $("saveProfile").disabled = true;
-    api("/api/me", body)
-      .then(function(){ return api("/api/account", account); })
+    // The account's fields first: a refused number or date stops the save
+    // before anything else is written.
+    api("/api/account", account)
+      .then(function(){ return api("/api/me", body); })
       .then(function(){ return api("/api/preferences", {
         interests: interests, country: $("pCountry").value.trim(),
         region: $("pRegion").value.trim(), city: $("pCity").value.trim() }); })

@@ -548,6 +548,9 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
         assert f'id="{field}"' in page
     # The profile's details reach the account and the preferences.
     assert 'api("/api/account", account)' in page
+    # A refused number or date stops the save before anything is written.
+    save = page.split("window.saveProfile = function", 1)[1]
+    assert save.index('api("/api/account"') < save.index('api("/api/me"')
 
 
 def test_the_apps_sign_up_goes_to_the_waitlist():
