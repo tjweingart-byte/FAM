@@ -294,6 +294,13 @@ Research and truth
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
+- **Local news** (§194): a town's question goes town outlets (RSS, collected
+  ahead) → county → Exa on known outlets, never GDELT; only what names the
+  place is evidence; an empty town opens with `local_news.gap_line`, composed
+  in code, then weather, then county news. [local-news-ladder]
+- **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
+  swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
+  worded as a forecast, never an outcome; never prefetched. [weather]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured

@@ -323,6 +323,25 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
     return sorted(results, key=key)
 
 
+def names_place(results, place: str) -> list:
+    """Only the results that name `place` (§194, the fix that stops invention).
+
+    A local question's evidence must be about that place. A Marin County or
+    San Francisco story that never says "San Anselmo" is not evidence about
+    San Anselmo, however high a national index ranked it - and handed to the
+    writer it was the gap the writer filled from memory.
+    """
+    import local_news
+
+    kept = []
+    for result in results or []:
+        text = " ".join([str(getattr(result, "title", "") or "")]
+                        + [str(h) for h in (getattr(result, "highlights", None) or [])])
+        if local_news.names(text, place):
+            kept.append(result)
+    return kept
+
+
 class ResearchUnavailable(RuntimeError):
     """The configured backend cannot run, and says which part is missing."""
 
@@ -582,7 +601,9 @@ def domains(results) -> list:
 
 def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int, search_type: str,
-                       recency_days: int = 0, live_domain: str = "") -> Packet:
+                       recency_days: int = 0, live_domain: str = "",
+                       include_domains: tuple = (), must_name: str = ""
+                       ) -> Packet:
     """One Exa call, ranked, packed and costed.
 
     `recency_days` becomes `start_published_date`, which is the *filter* half
@@ -599,6 +620,10 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    # The local ladder's third rung (§194): only the town's and county's
+    # known outlets.
+    if include_domains:
+        kwargs["include_domains"] = list(include_domains)
 
     started = time.perf_counter()
     import provider_usage
@@ -614,6 +639,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
     returned = list(getattr(reply, "results", []) or [])
     results = screen_results(rank_results(returned), query=query,
                              live_domain=live_domain)
+    if must_name:
+        results = names_place(results, must_name)
     cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
     import provenance as provenance_mod
 
@@ -636,7 +663,9 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
 async def _second_look(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int,
-                       search_type: str, live_domain: str = "") -> Optional[Packet]:
+                       search_type: str, live_domain: str = "",
+                       include_domains: tuple = (), must_name: str = ""
+                       ) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
     The distinction is the whole reason this is a separate function, and it is
@@ -658,7 +687,8 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
     try:
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, search_type, 0, live_domain)
+            highlights_per_source, search_type, 0, live_domain,
+            include_domains, must_name)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
                     "packet", query, exc)
@@ -740,9 +770,12 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # Off the event loop: other episodes are being served while this runs,
     # and a synchronous HTTP call on the loop would stop all of them.
     live_domain = str(getattr(brief, "live_domain", "") or "")
+    include_domains = tuple(overrides.get("include_domains", ()) or ())
+    must_name = str(overrides.get("must_name", "") or "")
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
-        highlights_per_source, search_type, recency_days, live_domain)
+        highlights_per_source, search_type, recency_days, live_domain,
+        include_domains, must_name)
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -767,7 +800,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
                  "window", missing, query, broader)
         second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source, search_type,
-                                    live_domain)
+                                    live_domain, include_domains, must_name)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
@@ -800,7 +833,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
     #
     # Additive only: it never replaces the primary packet and never fails an
     # episode. `gdelt.retrieve` returns [] on any error by contract.
-    if settings.gdelt_cross_check:
+    if settings.gdelt_cross_check and not must_name:
+        # Never on a local question (§194): GDELT is off that path entirely.
         import gdelt
         import provenance as provenance_mod
 
