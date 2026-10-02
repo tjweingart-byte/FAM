@@ -31,6 +31,27 @@ OUT = ROOT / "preview" / "fam-preview.html"
 OUT_ARTIFACT = ROOT / "preview" / "fam-artifact.html"
 
 
+def _catalog(episodes: list) -> list:
+    """`app.myfam_catalog`'s order, without importing the server."""
+    import re as _re
+
+    def key(title):
+        folded = _re.sub(r"^[^0-9a-z]+", "", (title or "").casefold())
+        first = folded[:1]
+        letter = first.upper() if "a" <= first <= "z" else "#"
+        return ("~" if letter == "#" else letter, folded)
+
+    out = []
+    for e in sorted(episodes, key=lambda e: key(e.get("title") or e["query"])):
+        title = e.get("title") or e["query"]
+        letter = key(title)[0]
+        out.append({"query": e["query"], "title": title,
+                    "minutes": e["minutes"], "plays": e.get("plays", 0),
+                    "sourced_age_seconds": 0, "explicit": False,
+                    "letter": "#" if letter == "~" else letter})
+    return out
+
+
 def load_fixtures() -> dict:
     """Canned API responses, built from the real bank so the preview shows the
     same topics the app would. Imported rather than duplicated - a fixture that
@@ -351,6 +372,10 @@ def load_fixtures() -> dict:
                         "name": "Attached file", "chars": 4200, "url": "",
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
+        # Search DailyFAM's A to Z catalogue (10.2 feedback), in
+        # `/api/myfam/catalog`'s shape: the Explore fixture's episodes by
+        # title, each with the letter it is filed under.
+        "/api/myfam/catalog": {"episodes": _catalog(explore["episodes"])},
         # The search box's trending searches (10.1 #3): the Explore
         # fixture's questions, most played first, as the server orders them.
         "/api/searches/trending": {"searches": [

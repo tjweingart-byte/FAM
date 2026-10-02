@@ -1221,18 +1221,22 @@
   /* -------- the player, in Spotify's layout (§190) -------- */
   #screen-player{ position:relative; overflow:hidden; }
   #screen-player > *{ position:relative; z-index:1; }
-  /* The episode's picture, behind the title, fading into the page so the
-     controls under it stay readable. Empty, it is the page's own colour.
+  /* The episode's picture, fading into the page at its edges so the
+     controls over it stay readable. Empty, it is the page's own colour.
      Its own shape, the full width of the screen (10.2 packet): covering the
      whole screen blew a 4:3 picture up to the screen's height, which cut
-     away most of it. */
-  #screen-player > .player-bg{ position:absolute; top:0; left:0; right:0; bottom:auto;
-    aspect-ratio:4 / 3; z-index:0;
+     away most of it. Centred in the space between GO DEEPER and the title
+     (10.2 feedback) rather than pinned to the top, under the arrow. */
+  #screen-player .player-bg{ position:absolute; top:50%; left:-20px; right:-20px; bottom:auto;
+    transform:translateY(-50%); aspect-ratio:4 / 3; z-index:0;
     background:var(--bg) center / cover no-repeat; pointer-events:none; }
   .player-bg::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(20,18,28,0.35) 0%, rgba(20,18,28,0) 22%,
-      rgba(20,18,28,0) 55%, var(--bg) 100%); }
+    background:linear-gradient(180deg, var(--bg) 0%, rgba(20,18,28,0) 12%,
+      rgba(20,18,28,0) 60%, var(--bg) 100%); }
   .player-bg:not(.has-img)::after{ display:none; }
+  /* Above the stage, so a picture taller than the stage never covers the
+     arrow, GO DEEPER or the dots. */
+  #screen-player > .player-top{ z-index:2; }
   #screen-player .player-top{ display:grid; grid-template-columns:44px 1fr 44px;
     align-items:center; padding:10px 12px 0; }
   /* GO DEEPER where "Now playing" was (10.2 packet), a fifth shorter than
@@ -1572,6 +1576,9 @@
     background:var(--surface); border:1px solid var(--border-strong); cursor:pointer; }
   .nowbar-thumb{ flex:0 0 38px; height:38px; border-radius:9px; background:var(--paper);
     color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  /* The episode's picture (10.2 feedback): its whole height, the sides
+     cropped - a 4:3 picture in a square, never cut top or bottom. */
+  .nowbar-thumb.has-img{ background:var(--paper) center / auto 100% no-repeat; }
   .nowbar-body{ flex:1; min-width:0; }
   /* The explicit mark (§171): an episode that swears carries an E before its
      title, wherever that title is drawn - the player, the bar, Explore.
@@ -2220,6 +2227,12 @@
   .sv-x{ color:var(--text-faint); padding:6px; }
   .sv-empty{ padding:30px 18px; text-align:center; color:var(--text-faint);
     font-family:'Space Grotesk', sans-serif; font-size:11px; line-height:1.6; }
+  /* Search DailyFAM's A to Z catalogue (10.2 feedback): a letter over each
+     run of titles, the way the owner's sketch draws it, held at the top
+     while its run scrolls under it. */
+  .mfs-letter{ position:sticky; top:0; z-index:1; padding:14px 18px 6px;
+    background:var(--bg); color:var(--copper);
+    font-family:'Fraunces', serif; font-weight:600; font-size:18px; line-height:1; }
   /* Listening history (§142): the shelf's rows, under four filter tabs. */
   .hist-tabs{ flex:none; display:flex; gap:7px; padding:4px 18px 10px;
     overflow-x:auto; }
@@ -3408,7 +3421,6 @@
              queue bottom right, and the captions in a sheet at the bottom
              that is only open when it is slid up. The three dots open the
              menu. -->
-        <div class="player-bg" id="playerBg" aria-hidden="true"></div>
         <div class="player-top">
           <!-- Minimises, never stops (§142): the episode carries on in the
                mini player, whose button still pauses it and whose tap brings
@@ -3421,6 +3433,10 @@
           <button type="button" class="p-more" id="playerMore" onclick="openPlayerMenu()" aria-label="More options"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
         </div>
         <div class="mini-stage" id="playerStage">
+          <!-- The episode's picture, centred between GO DEEPER and the title
+               (10.2 feedback). In the stage so the stage's own height
+               centres it. -->
+          <div class="player-bg" id="playerBg" aria-hidden="true"></div>
           <span class="demo-badge p-demo" title="No API key: a built-in sample script is standing in for Claude">not your episode</span>
           <div class="next-hint" id="nextHint"></div>
           <!-- Share, vibe and save, stacked on the right above the transport
@@ -5581,6 +5597,7 @@
     episodeTitle = title;
     var key = currentPlayingTopicKey;
     var topic = key ? TOPICS[key] : null;
+    refreshPlayerCard(title);
     // A title somebody typed themselves, or a bank tile's own hand-written
     // one, is not up for replacement. `titleOverridden` is what marks both.
     if(topic && !topic.titleOverridden){
@@ -5900,12 +5917,24 @@
     var bar = document.getElementById("nowBar");
     if(!bar) return;
     placeNowBar(document.querySelector(".screen.active"));
-    document.getElementById("nowThumb").innerHTML =
-      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 12a8 8 0 0116 0v5a2 2 0 01-2 2h-2v-6h4"/><path d="M4 12v5a2 2 0 002 2h2v-6H4"/></svg>';
+    paintNowThumb();
     document.getElementById("nowTitle").textContent = title;
     paintExplicit();
     setNowBarPlaying(true);
     startNowBarTicker();
+  }
+
+  // The bar's picture is the player's (10.2 feedback): the bar only ever
+  // shows the player's episode, so `PLAYER_CARD` is its picture too. The
+  // headphones stand in only while there is none.
+  function paintNowThumb(){
+    var box = document.getElementById("nowThumb");
+    if(!box) return;
+    var url = PLAYER_CARD.thumb;
+    box.classList.toggle("has-img", !!url);
+    box.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
+    box.innerHTML = url ? "" :
+      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 12a8 8 0 0116 0v5a2 2 0 01-2 2h-2v-6h4"/><path d="M4 12v5a2 2 0 002 2h2v-6H4"/></svg>';
   }
 
   // Drawing only - `setPlayState` owns the audio and calls this.
@@ -6057,32 +6086,54 @@
   // Queue and Go to Queue. Its header is the episode's title over the
   // listener who searched it - only when they chose to show it
   // (`searches_public`), never otherwise.
-  var PLAYER_CARD = { key: "", thumb: "", searcher: "" };
+  //
+  // **Every episode has a picture** (10.2 feedback): a tile's own first,
+  // else the server's (`/api/episode/card`), which borrows one rather than
+  // leave a searched episode over an empty screen. A borrowed one
+  // (`fallback`) is asked for again once the writer's title lands, since
+  // the title names the subject better than the question did.
+  var PLAYER_CARD = { key: "", thumb: "", searcher: "", borrowed: false };
 
   function drawPlayerPicture(url){
     var bg = document.getElementById("playerBg");
-    if(!bg) return;
-    bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
-    bg.classList.toggle("has-img", !!url);
+    if(bg){
+      bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
+      bg.classList.toggle("has-img", !!url);
+    }
+    if(nowBarState) paintNowThumb();
   }
-  function loadPlayerCard(key, t){
-    PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "" };
-    drawPlayerPicture(PLAYER_CARD.thumb);
-    var q = t.prompt || t.title || "";
-    if(!q) return;
+  function askPlayerCard(key, q, title){
     fetch("/api/episode/card?q=" + encodeURIComponent(q)
-          + "&title=" + encodeURIComponent(t.title || ""))
+          + "&title=" + encodeURIComponent(title || ""))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         // The episode may have changed while this was asked.
         if(!d || PLAYER_CARD.key !== key) return;
-        PLAYER_CARD.searcher = d.searcher || "";
-        if(!PLAYER_CARD.thumb && d.thumb){
-          PLAYER_CARD.thumb = d.thumb;
-          drawPlayerPicture(d.thumb);
+        PLAYER_CARD.searcher = d.searcher || PLAYER_CARD.searcher;
+        if(d.thumb && (!PLAYER_CARD.thumb || PLAYER_CARD.borrowed)){
+          PLAYER_CARD.borrowed = !!d.fallback;
+          if(d.thumb !== PLAYER_CARD.thumb){
+            PLAYER_CARD.thumb = d.thumb;
+            drawPlayerPicture(d.thumb);
+          }
         }
       })
       .catch(function(){});
+  }
+  function loadPlayerCard(key, t){
+    PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "", borrowed: false };
+    drawPlayerPicture(PLAYER_CARD.thumb);
+    var q = t.prompt || t.title || "";
+    if(!q) return;
+    askPlayerCard(key, q, t.title || "");
+  }
+  // The writer's title has landed: a borrowed picture may now have its own.
+  function refreshPlayerCard(title){
+    var key = currentPlayingTopicKey;
+    var t = key ? TOPICS[key] : null;
+    if(!t || PLAYER_CARD.key !== key) return;
+    if(PLAYER_CARD.thumb && !PLAYER_CARD.borrowed) return;
+    askPlayerCard(key, t.prompt || t.title || title, title);
   }
 
   var MENU_ICONS = {
@@ -10003,7 +10054,13 @@
     setTab("myfam");
   }
   // ---- Search within myFAM (§181) ----
+  //
+  // **Before anything is typed, the A to Z catalogue** (10.2 feedback, the
+  // owner's sketch): every cached episode other people made, by title, under
+  // a letter per run (`/api/myfam/catalog`). Typing swaps it for the closest
+  // matches; clearing the box brings it back.
   var mfsResults = [];
+  var mfsCatalog = null;
   var mfsTimer = null;
   var mfsReq = 0;
   function openMyFamSearch(){
@@ -10011,8 +10068,30 @@
     var box = document.getElementById("mfsInput");
     box.value = "";
     mfsResults = [];
+    mfsCatalog = null;
     drawMyFamSearch("");
-    setTimeout(function(){ try { box.focus(); } catch(e){} }, 80);
+    loadMyFamCatalog();
+    // Focused only once the catalogue is drawn would hide it behind the
+    // keyboard on a phone; the catalogue is what this screen opens on.
+  }
+  function loadMyFamCatalog(){
+    var req = ++mfsReq;
+    fetch("/api/myfam/catalog")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        mfsCatalog = d.episodes || [];
+        if(req !== mfsReq) return;
+        drawMyFamSearch("");
+      })
+      .catch(function(){
+        // A failure says so (`failures-visible`): an empty catalogue would
+        // claim nobody has made anything. Left null, so clearing the box
+        // asks again.
+        if(req !== mfsReq) return;
+        document.getElementById("mfsBody").innerHTML =
+          '<div class="sv-empty">Could not load the episodes right now. '
+          + '<button class="sample-note-btn" onclick="drawMyFamSearch(\'\'); loadMyFamCatalog()">Try again</button></div>';
+      });
   }
   function onMyFamSearchInput(){
     clearTimeout(mfsTimer);
@@ -10021,7 +10100,7 @@
   function runMyFamSearch(){
     var q = document.getElementById("mfsInput").value.trim();
     var req = ++mfsReq;
-    if(!q){ mfsResults = []; drawMyFamSearch(""); return; }
+    if(!q){ mfsResults = []; drawMyFamSearch(""); if(mfsCatalog === null) loadMyFamCatalog(); return; }
     document.getElementById("mfsBody").innerHTML = '<div class="sv-empty">Searching\u2026</div>';
     fetch("/api/myfam/search?q=" + encodeURIComponent(q))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
@@ -10039,8 +10118,26 @@
   function drawMyFamSearch(q){
     var el = document.getElementById("mfsBody");
     if(!q){
-      el.innerHTML = '<div class="sv-empty">Type anything. The episodes other people made '
-        + 'that are closest to it come up here, ready to play.</div>';
+      // The catalogue is what plays from here now, so a tap reads it.
+      mfsResults = mfsCatalog || [];
+      if(mfsCatalog === null){
+        el.innerHTML = '<div class="sv-empty">Loading the episodes people made\u2026</div>';
+        return;
+      }
+      if(!mfsResults.length){
+        el.innerHTML = '<div class="sv-empty">Nobody else has made an episode yet. '
+          + 'The ones they make come up here, A to Z, ready to play.</div>';
+        return;
+      }
+      var letter = "";
+      el.innerHTML = mfsResults.map(function(ep, i){
+        var head = "";
+        if(ep.letter && ep.letter !== letter){
+          letter = ep.letter;
+          head = '<div class="mfs-letter">' + escapeHtml(letter) + '</div>';
+        }
+        return head + myFamSearchRow(ep, i);
+      }).join("");
       return;
     }
     if(!mfsResults.length){
@@ -10048,15 +10145,16 @@
         + '<button class="sample-note-btn" onclick="searchFromMyFam()">Search FAM for it</button></div>';
       return;
     }
-    el.innerHTML = mfsResults.map(function(ep, i){
-      return '<div class="sv-row" onclick="playMyFamSearch(' + i + ')">'
-        + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
-        + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
-        + escapeHtml(ep.title || ep.query) + '</div>'
-        + '<div class="sv-meta">' + (ep.minutes || BROWSE_MINUTES) + ' MIN'
-        + (ep.plays ? ' \u00b7 ' + ep.plays + (ep.plays === 1 ? ' PLAY' : ' PLAYS') : '')
-        + '</div></div></div>';
-    }).join("");
+    el.innerHTML = mfsResults.map(myFamSearchRow).join("");
+  }
+  function myFamSearchRow(ep, i){
+    return '<div class="sv-row" onclick="playMyFamSearch(' + i + ')">'
+      + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
+      + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
+      + escapeHtml(ep.title || ep.query) + '</div>'
+      + '<div class="sv-meta">' + (ep.minutes || BROWSE_MINUTES) + ' MIN'
+      + (ep.plays ? ' \u00b7 ' + ep.plays + (ep.plays === 1 ? ' PLAY' : ' PLAYS') : '')
+      + '</div></div></div>';
   }
   function playMyFamSearch(i){
     var ep = mfsResults[i];
