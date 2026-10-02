@@ -495,6 +495,44 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "LIVE_FAKE_SPORTS_STATUS", "in_progress").strip())
 
+    # --- local news and weather (§193) ------------------------------------
+    # A question about one town is answered from that town's own outlets,
+    # collected ahead of time from their RSS feeds, then from its county's,
+    # then from Exa limited to the town's known outlets - and never from
+    # GDELT, at the owner's direction. See `local_news.py`.
+    local_news: bool = field(
+        default_factory=lambda: os.environ.get("LOCAL_NEWS", "1")
+        not in ("0", "false", "False", ""))
+    # How often a healthy feed is asked for new items, in minutes. A feed that
+    # publishes weekly is asked less often than this (`local_news.next_poll`);
+    # this is the floor, never a promise.
+    local_news_poll_minutes: int = _env_int("LOCAL_NEWS_POLL_MINUTES", 30)
+    # How far back a stored item still counts as news about a place, in days.
+    local_news_window_days: int = _env_int("LOCAL_NEWS_WINDOW_DAYS", 14)
+    # Weather for the place a question names: the US National Weather Service
+    # first, Open-Meteo everywhere else and whenever NWS fails. See `weather.py`.
+    weather: bool = field(
+        default_factory=lambda: os.environ.get("WEATHER", "1")
+        not in ("0", "false", "False", ""))
+    # One forecast per place serves everybody asking about it for this long.
+    weather_cache_seconds: float = _env_float("WEATHER_CACHE_SECONDS", 1800.0)
+    # Open-Meteo's free endpoint is for non-commercial use only, so it is
+    # never used unless this says so explicitly - for a developer's machine,
+    # never production. Production uses `OPEN_METEO_API_KEY` (the $29 plan).
+    open_meteo_keyless: bool = field(
+        default_factory=lambda: os.environ.get("OPEN_METEO_KEYLESS", "0")
+        not in ("0", "false", "False", ""))
+    # Open-Meteo's paid key (the $29 plan), for weather outside the US, when
+    # NWS fails, and for place names. Calls read it through
+    # `credentials.active`; it is here so the settings list is complete.
+    open_meteo_api_key: str = field(
+        default_factory=lambda: os.environ.get("OPEN_METEO_API_KEY", "").strip())
+    # Who FAM's feed collector and weather requests say they are. NWS asks
+    # every caller for a contact; a polite feed reader gives one too.
+    fetch_contact: str = field(
+        default_factory=lambda: os.environ.get(
+            "FAM_CONTACT_EMAIL", "isolly10@gmail.com").strip())
+
     # --- world trending --------------------------------------------------
     # The myFAM row that says what the *world* is paying attention to, as
     # opposed to "Most played episodes today", which is this app's own play

@@ -1,0 +1,14 @@
+{
+  "_about": "The local news outlets shipped with FAM (§193). Small on purpose: tools/local_outlets.py adds outlets from Wikidata, and the Exa rung adds any site it finds writing about a town. scope is 'town' (every story counts for that town) or 'county' (every story counts for that county). feed_url may be left empty: the collector finds the feed from the homepage.",
+  "outlets": [
+    {
+      "name": "Marin Independent Journal",
+      "homepage": "https://www.marinij.com/",
+      "town": "San Rafael",
+      "county": "Marin",
+      "region": "California",
+      "country": "US",
+      "scope": "county"
+    }
+  ]
+}

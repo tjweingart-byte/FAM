@@ -222,6 +222,17 @@ def install() -> dict:
         live_facts.register(source)
         installed.append(source.name)
 
+    # Weather (§193) is not chosen by name: NWS is keyless and Open-Meteo is
+    # decided by its key inside `weather`, so `WEATHER=1` is the whole choice.
+    live_facts.unregister("weather")
+    if settings.weather:
+        import weather
+
+        source = weather.WeatherSource()
+        source._fam_installed = True  # noqa: SLF001 - our own marker
+        live_facts.register(source)
+        installed.append(source.name)
+
     for problem in problems:
         log.error("live facts: %s", problem)
     if installed:

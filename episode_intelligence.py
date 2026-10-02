@@ -255,6 +255,13 @@ class Brief:
     #: answered the second question while pretending to answer the first, and
     #: every stage downstream then took a finished event as given.
     outcome_dependent: bool = False
+    #: The town or city the request is about, as "Town, Region, Country",
+    #: when what they want is what is happening *there* - its news, its
+    #: events, its weather (§193). Empty for everything else, including a
+    #: question that merely mentions a place ("the history of Paris"). Named
+    #: as typed; where it is comes from a catalogue (`places`), never from
+    #: here, and never from the listener's saved location.
+    place: str = ""
     #: What the episode is called until the writer names it. Empty on a
     #: degraded brief, and the player then keeps the title derived from the
     #: question - which is what it showed before this existed (§127).
@@ -550,9 +557,14 @@ def gate(brief: Brief, query: str) -> Brief:
     # the model said so. Both of these are asking for something that does not
     # exist until the thing concludes, and a live domain is the case where the
     # gap between concluding and being reported is longest.
+    #
+    # **Except weather** (§193): a forecast is never a result and has no
+    # "finished", so the result caution and the in-progress shape it brings
+    # would only make a weather episode hedge about nothing.
     brief.outcome_dependent = (bool(brief.outcome_dependent)
                                or brief.intent in ("recap", "update")
-                               or bool(brief.live_domain))
+                               or bool(brief.live_domain
+                                       and brief.live_domain != "weather"))
 
     # Nothing has been retrieved, so the result of anything recent is unknown
     # here by construction. Saying so is what stops the writer inventing one.
@@ -623,6 +635,10 @@ BRIEF_SCHEMA = {
         "live_domain": {"type": "string",
                         "enum": [""] + list(live_facts.LIVE_DOMAINS)},
         "outcome_dependent": {"type": "boolean"},
+        # **The town a local question is about** (§193). It routes the
+        # question to that town's own outlets and its weather, instead of a
+        # national index that has never heard of it.
+        "place": {"type": "string"},
         # **What the episode is called, decided before a word of it exists**
         # (§127). The model's own `<<TITLE:>>` line is better - it knows what
         # the episode turned out to cover - but it arrives with the last token,
@@ -652,7 +668,7 @@ BRIEF_SCHEMA = {
     "required": ["intent", "subject", "why_now", "why_now_confidence",
                  "search_query", "search_fallback", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
-                 "outcome_dependent", "title", "pronounce"],
+                 "outcome_dependent", "place", "title", "pronounce"],
     "additionalProperties": False,
 }
 
@@ -782,13 +798,21 @@ Work out:
   a vote, a race, a referendum or the odds on one; empty otherwise. Pick the
   thing the answer *turns on*, not the subject area: "how does the electoral
   college work" is an explainer and empty, "who is ahead in the Senate race"
-  is `elections`.
+  is `elections`. `weather` if what they want is the weather or a forecast
+  somewhere - and then **place** names where.
 - **outcome_dependent** - true if what they want is a result that only exists
   once something concludes: a final score, a winner, a verdict, a closing
   price, a vote count. This is about their question, not about the world - you
   have no idea whether the thing has finished, and "who won" is
   outcome-dependent whether it finished an hour ago or is still going. False
   for how something works, what someone is like, or what is at stake.
+- **place** - when the request is about what is going on in one particular
+  town, city or county - its local news, its events, its council, its
+  weather - that place as "Town, State or Region, Country", spelled correctly
+  ("San Anselmo, California, US"). Empty when the request only mentions a
+  place on the way to something else ("the history of Paris", "why is
+  Detroit's car industry shrinking"), and empty for a whole country. Never a
+  place they did not name: if they say "my town" without naming it, empty.
 - **title** - what this episode is called in a list: three to seven words
   naming the resolved subject and the angle, in title case. **Clear first,
   curious second**: the actual person, team, company or event by name, so a
@@ -903,6 +927,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         cautions=list(data.get("cautions") or []),
         live_domain=str(data.get("live_domain", "")),
         outcome_dependent=bool(data.get("outcome_dependent", False)),
+        place=" ".join(str(data.get("place", "") or "").split())[:120],
         title=clean_title(str(data.get("title", "")), query),
         pronounce=_pronounce_pairs(data.get("pronounce")),
     )

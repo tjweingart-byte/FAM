@@ -14953,3 +14953,81 @@ The interface half:
 
 Tests: `tests/test_packet_1002.py`, the new cases at the end of
 `tests/test_waitlist.py`, and the smoke check for the player's icons.
+
+## 193. A small town's news was invented, and FAM had no weather at all
+
+**What happened.** A question about local news - "what's going on in San
+Anselmo" - went to Exa and GDELT. Both are national indexes that weight a
+town's two or three outlets at nothing, so they came back with Marin County
+or San Francisco stories. Nothing checked that those named the town, and the
+writer bridged the gap from memory: the §88 invention, reached by a side door.
+FAM also had no weather source of any kind.
+
+**The owner's decisions (2026-10-02)**, after pricing the options (paid news
+APIs run $90-$550/month and go enterprise-only by 150k calls; RSS costs
+nothing per question):
+* Local news comes from the towns' own outlets' RSS feeds, then the county's,
+  then Exa limited to their known outlets, and never GDELT. A short episode
+  is fine.
+* When the town has nothing, the episode says so plainly, then gives the
+  weather there, then the closest news - in words along the lines of "there
+  are no news updates about ___, but this is the weather for today, and this
+  is the closest news we have".
+* Weather: NWS first for the US, Open-Meteo for everywhere else and when NWS
+  fails ($29/month Standard, $99 past 1M calls), Open-Meteo's lookup for place
+  names, cached by place and hour.
+* Contact for the feed collector's and NWS's User-Agent: the owner's address,
+  `FAM_CONTACT_EMAIL`.
+
+**What was built.**
+* `places.py`: a typed place ("San Anselmo, CA") resolves to its county,
+  state, country and coordinates - from a permanent store, the outlet
+  registry (county only, no network), then Open-Meteo's lookup. Never from a
+  model, and never from the listener's saved location, which must not reach
+  an episode (`preferences.Location`).
+* EI's brief gains `place`, set only when the request is about what is going
+  on in one town; `live_domain` gains `weather`, which is never
+  outcome-dependent.
+* `local_news.py`: the outlet registry, the collector, and the local ladder.
+  Feeds are read with the standard library (entity declarations refused, size
+  capped), conditional requests, robots.txt obeyed, a do-not-use list, and a
+  state machine per feed (new, healthy, stale, broken → found again from the
+  homepage, no_feed, blocked, disallowed, excluded, retired after a month).
+  Polling is paced by each outlet's own rhythm and only for places asked about
+  in 30 days; the first question about a town reads its never-read feeds
+  inline, bounded at 2.5s. Teaser-only feeds have their newest articles
+  fetched and their paragraphs extracted; a paywall is noticed and noted.
+  The Exa rung files any site it finds naming the town as a `mention` outlet,
+  so the registry grows itself.
+* **Only what names the place is evidence about it**: town items are the
+  town's own outlets' or name it; county items are the county's or name it;
+  Exa results must name the town (`research.names_place`).
+* The gap sentence is composed in code (`local_news.gap_line`) and spoken by
+  `_ScriptReader.opening` before the writer's first word, outside
+  `OpeningGuard`. It promises only what follows - the weather when there is a
+  forecast, the county's news when there is some. The writer is told it was
+  already said. With no news and no weather, `NoEvidence` refuses in the same
+  words.
+* `weather.py`: NWS (points → forecast, alerts and the latest observation at
+  once) and Open-Meteo, a `WeatherSource` registered in `live_facts`, and a
+  `WEATHER` kind whose prompt wording replaces the result rule with "a forecast
+  is not an outcome". An observation older than two hours is dropped. An
+  episode built on weather is current for an hour and never prefetched; a
+  weather question searches no index.
+* `/api/health` reports `local_news` and `weather`; `/api/admin/local-news`
+  lists every feed and its state, and takes new outlets and exclusions;
+  provider counts gain `nws`, `open_meteo` and `local_feeds`. Staging forces
+  `LOCAL_NEWS=0` and `WEATHER=0` and scrubs `OPEN_METEO_API_KEY`.
+* `tools/local_outlets.py` files a county's outlets from Wikidata;
+  `tools/measure_local_news.py` measures, per town, what the feeds actually
+  give. Both need a machine that can reach the sites.
+
+**Not verified.** The build container's proxy blocks NWS, Open-Meteo,
+Wikidata and every news site, so every provider is tested on recorded
+replies only. Until `OPEN_METEO_API_KEY` is set, a town the registry does not
+hold has no county and no coordinates, so it gets neither the county rung nor
+weather - only its own outlets and the Exa rung. The seed holds one outlet
+(the Marin Independent Journal); run `tools/local_outlets.py` per county and
+`tools/measure_local_news.py` before relying on coverage.
+
+Tests: `tests/test_local_news_weather_193.py`.

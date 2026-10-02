@@ -39,7 +39,8 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("api_sports", "exa", "gdelt", "polymarket", "gnews", "finnhub")
+PROVIDERS = ("api_sports", "exa", "gdelt", "polymarket", "gnews", "finnhub",
+             "nws", "open_meteo", "local_feeds")
 
 LABELS = {
     "api_sports": "API-Sports",
@@ -48,6 +49,11 @@ LABELS = {
     "polymarket": "Polymarket",
     "gnews": "GNews",
     "finnhub": "Finnhub",
+    # §193: weather and the local news collector. NWS and the feeds cost
+    # nothing, and are counted all the same - an outage is a count too.
+    "nws": "National Weather Service",
+    "open_meteo": "Open-Meteo",
+    "local_feeds": "Local news feeds",
 }
 
 
@@ -85,6 +91,15 @@ def _plans() -> dict:
         "finnhub": (
             "60/min = 86,400/day, personal use only",
             "commercial plan, quote-based (~$11.99/mo quoted)"),
+        "nws": (
+            "free, keyless; rate limit unpublished and generous",
+            "no paid plan"),
+        "open_meteo": (
+            "API Standard $29/mo: 1,000,000 calls/month",
+            "API Professional $99/mo: 5,000,000 calls/month"),
+        "local_feeds": (
+            "free; one conditional request per feed per poll",
+            "no paid plan"),
     }
 
 

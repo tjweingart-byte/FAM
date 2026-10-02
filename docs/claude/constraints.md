@@ -131,6 +131,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
+> **Current (PROBLEMS.md §193, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
 - **Every episode is researched. (Reversed — this used to say the opposite.)**
   *(PROBLEMS.md §76.)* `SEARCH_MODE=always` is the production default and the
   question no longer gets a vote. The old rule was "search is opt-in, and the
@@ -283,6 +284,7 @@
   never invent a reconciliation, which is what "that's just a rounding
   artifact" was.
 <!-- rule:missed-not-absent -->
+> **Current (PROBLEMS.md §193, at the owner's direction):** one exception, and only one. When a local question's town has no news, the episode **opens with a sentence composed in code** (`local_news.gap_line`): "We couldn't find any recent news reports out of San Anselmo. Here's the weather there, and the closest news we have, from across Marin County." It is about our search, never the world; it promises only what follows it; the writer never writes, repeats or rephrases it. Everywhere else the gap is still never announced.
 - **A search that missed something has established nothing about the world.**
   *(§88.)* `thin_on` used to instruct the writer to "say plainly that that part
   is not yet reported" - converting a fact about one retrieval into a claim
@@ -301,6 +303,7 @@
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
 <!-- rule:opening-last -->
+> **Current (PROBLEMS.md §193):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
 - **The opening is written last in the order that matters: nothing is spoken
   until the writer holds the whole picture.** *(PROBLEMS.md §94, and §108,
   which fixed its cause rather than its symptom.)* A researched episode's
@@ -468,6 +471,56 @@
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+<!-- rule:local-news-ladder -->
+- **A town's news comes from the town's own outlets, and its gap is said in
+  words composed in code.** *(PROBLEMS.md §193, at the owner's direction;
+  `local_news.py`, `places.py`.)* A national index weights a town's two or
+  three outlets at nothing, so a question about San Anselmo came back with
+  Marin County and San Francisco stories that never named it, and the writer
+  filled the gap from memory - the §88 invention by a side door.
+  **The order is fixed and the owner chose it**: (1) town items already
+  collected from the town's outlets' RSS feeds, or from any outlet in its
+  state that names it - a local database read, collected before anybody
+  taps; (2) county items, from the county's outlets or naming the county,
+  told to the writer as county news and never the town's; (3) Exa limited to
+  the town's and county's known outlets (`include_domains`), avoided whenever
+  1 or 2 answered; (4) nothing - the gap sentence and the weather. **No
+  GDELT on this path.** A short episode is the right one (`duration-ceiling`).
+  **Only what names the place is evidence about it** (`research.names_place`,
+  `local_news.names`) - the fix that stops invention, on every rung. When
+  the town had nothing, the episode opens with `local_news.gap_line`, which
+  says what our search did not find, never what is not happening, and
+  promises only the weather and county news that actually follow. With no
+  news and no weather either, `NoEvidence` refuses in the same words.
+  **The collector maintains itself**: conditional requests, a feed state
+  machine (new, healthy, stale, broken - found again from the homepage -
+  no_feed, blocked, disallowed by robots.txt, excluded on a publisher's
+  request, retired after a month), polling paced by each outlet's own
+  rhythm, and only for places asked about in the last 30 days. Outlets come
+  from `local_outlets.json`, `tools/local_outlets.py` (Wikidata) and the Exa
+  rung, which files any site it finds naming the town as a `mention` outlet
+  (its stories count only when they name the place). `/api/admin/local-news`
+  lists every feed and why it is in its state. **A listener's saved location
+  never reaches this** (`preferences.Location`): the place is the one the
+  question names, so the episode is shared with everybody who asks it.
+
+<!-- rule:weather -->
+- **Weather is the National Weather Service first, Open-Meteo second, and a
+  forecast is never an outcome.** *(PROBLEMS.md §193, at the owner's
+  direction; `weather.py`.)* NWS for a US place - free, keyless, the
+  forecaster's own forecast, with the official warnings; Open-Meteo for
+  everywhere else and whenever NWS fails (logged, never silent), on
+  `OPEN_METEO_API_KEY` ($29/month to 1M calls), keyless only under
+  `OPEN_METEO_KEYLESS=1` because its free endpoint is non-commercial. Place
+  names resolve through the outlet registry and then Open-Meteo's lookup,
+  never a model. **Cached by place and time window, never by listener**
+  (`WEATHER_CACHE_SECONDS`), so calls scale with places. Facts are worded as
+  what the forecast calls for; a warning is stated as official with its end
+  on the listener's clock; an observation older than two hours is dropped;
+  `live_facts.WEATHER` replaces the result rule with the forecast rule. An
+  episode built on weather is current for an hour (`cache.WEATHER_TTL_SECONDS`)
+  and never prefetched. Weather is not outcome-dependent.
+
 <!-- rule:bank-for-guests -->
 > **Current (PROBLEMS.md §191):** sports are no longer asked every fifteen minutes with nobody looking: only followed leagues, only while one of their games is on, and only when somebody drew myFAM recently; Finnhub is every two hours (rule:sweep-on-demand). "Only sports and markets are asked that often" below is history.
 > **Current (PROBLEMS.md §174):** Trending cards no longer say the place (the card shows its subject like every rail), and View more is grouped by **continent** - Worldwide, the listener's own, then the rest busiest first; no Antarctica (`geography.continent_for`). "Each card says the place" below is history.
