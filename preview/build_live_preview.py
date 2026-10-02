@@ -1018,6 +1018,51 @@ __MIX_ITEMS__
     return { episodes: eps };
   }
 
+  // Search DailyFAM (§181, 10.2 feedback): other people's cached episodes,
+  // any surface, A to Z by title with the letter each is filed under -
+  // `/api/myfam/catalog`'s shape and order (`_catalog_sort_key`).
+  function catalogKey(title) {
+    var folded = String(title || "").toLowerCase().replace(/^[^0-9a-z]+/, "");
+    var first = folded.charAt(0);
+    var letter = first >= "a" && first <= "z" ? first.toUpperCase() : "#";
+    return [letter === "#" ? "~" : letter, folded];
+  }
+  function catalogBody() {
+    var best = {};
+    rows("scripts").forEach(function (s) {
+      if (!(s.expires > now()) || s.author === UID || !s.query) return;
+      var title = String(s.query).charAt(0).toUpperCase() + String(s.query).slice(1);
+      var held = best[title.toLowerCase()];
+      if (held && held.plays >= (s.hits || 0)) return;
+      best[title.toLowerCase()] = {
+        query: s.query, title: title, minutes: s.minutes, plays: s.hits || 0,
+        sourced_age_seconds: Math.max(0, now() - s.created), explicit: false
+      };
+    });
+    var eps = Object.keys(best).map(function (k) { return best[k]; });
+    eps.sort(function (a, b) {
+      var ka = catalogKey(a.title), kb = catalogKey(b.title);
+      return ka[0] < kb[0] ? -1 : ka[0] > kb[0] ? 1 : ka[1] < kb[1] ? -1 : ka[1] > kb[1] ? 1 : 0;
+    });
+    eps.forEach(function (e) {
+      var l = catalogKey(e.title)[0];
+      e.letter = l === "~" ? "#" : l;
+    });
+    return { episodes: eps };
+  }
+  // The closest by shared words - the server ranks by `cache.rank_similar`,
+  // which a page without the embedder stands in for this way.
+  function myfamSearchBody(q) {
+    var words = normalize(q).split(" ").filter(Boolean);
+    var scored = catalogBody().episodes.map(function (e) {
+      var have = normalize(e.query).split(" ");
+      var n = words.filter(function (w) { return have.indexOf(w) !== -1; }).length;
+      return { e: e, n: n };
+    }).filter(function (x) { return x.n > 0; });
+    scored.sort(function (a, b) { return b.n - a.n; });
+    return { episodes: scored.slice(0, 12).map(function (x) { return x.e; }) };
+  }
+
   // `mixes.items` is the comma-joined id list: `f:nfl~Eagles` for a
   // followed subject (built by the same rules as `mixes.followed_item`, see
   // MIX_ITEMS_JS), a bank id for an older mix, `q:<words>` for a typed one.
@@ -1262,6 +1307,8 @@ __WRITING_SIM__
     }
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
+    if (path === "/api/myfam/catalog") return json(catalogBody());
+    if (path === "/api/myfam/search") return json(myfamSearchBody(qs.get("q") || ""));
     // The search box's trending searches (10.1 #3): searched episodes still
     // current, most played first, one per question - as the server reads them.
     if (path === "/api/searches/trending") {

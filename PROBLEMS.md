@@ -14953,3 +14953,47 @@ The interface half:
 
 Tests: `tests/test_packet_1002.py`, the new cases at the end of
 `tests/test_waitlist.py`, and the smoke check for the player's icons.
+
+## 193. 10.2 feedback: a searched episode played over an empty screen, and Search DailyFAM opened on nothing
+
+The owner's four notes, with screenshots and a sketch:
+
+1. **A searched episode showed a blank screen above the player.** The
+   player's picture comes from `/api/episode/card`, which asked
+   `thumbnails.pick` - the *tile* rule, which since 9.30 #7 shows a node's own
+   picture or nothing. A searched question either names no node the tree
+   knows ("why Gen Z took up grandma hobbies") or names one nobody has painted
+   yet, so it got nothing. A rail has a drawing to fall back on; the player
+   had an empty box. `thumbnails.pick_for_player` keeps the tile's own picture
+   first and otherwise **borrows**: the nearest approved ancestor of the
+   deepest node the words name, the approved facet the words fall under
+   (`tags_for_text`), else one approved facet picture chosen by a hash of the
+   words, so an episode always wears the same one. 9.30 #7's reason - one
+   picture on every tile under a branch - does not arise on a screen that
+   shows one episode. The card says `fallback: true` when it borrowed, and
+   the client asks again once the writer's `<<TITLE>>` lands
+   (`refreshPlayerCard`), since the title names the subject better than the
+   question. Nothing approved at all is still "" - a picture is never made up.
+2. **The picture sat too high**, under the arrow and the pill. It moved into
+   the stage (`#playerStage`), absolutely positioned at `top:50%` with
+   `translateY(-50%)`, so it centres in whatever height lies between GO
+   DEEPER and the title; its gradient now fades both edges into the page.
+   The top row is raised (`z-index:2`) so a picture taller than the stage on
+   a short phone slides under GO DEEPER rather than over it.
+3. **The mini player showed headphones.** It now shows the player's picture
+   (`paintNowThumb`, from `PLAYER_CARD` - the bar only ever shows the
+   player's episode), `background-size: auto 100%`: the picture's full
+   height, cropped only at the sides. The headphones stay for an episode
+   with no picture.
+4. **Search DailyFAM opened on a sentence.** It now opens on an **A to Z
+   catalogue** (`/api/myfam/catalog`) of every cached episode other people
+   made - the search's own rows and rules, ordered by title, a sticky letter
+   over each run (`.mfs-letter`), "#" last, one row per title. Typing still
+   shows the closest matches; clearing the box brings the catalogue back. The
+   box is no longer focused on open: on a phone the keyboard would cover the
+   catalogue the screen now opens on. Both previews answer the route (the
+   fixture build from the Explore fixture; the live build from its `scripts`
+   rows, with a word-overlap stand-in for `/api/myfam/search`).
+
+Tests: `tests/test_feedback_1002.py`; `test_packet_1002`'s picture-shape test
+follows the selector into the stage.

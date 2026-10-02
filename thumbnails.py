@@ -66,6 +66,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import hashlib
 import json
 import logging
 import os
@@ -727,6 +728,64 @@ def pick(text: str, tags: Iterable[str] = (),
         log.exception("thumbnails: could not pick a picture")
         return None
 
+
+
+def pick_for_player(text: str) -> Optional[dict]:
+    """The picture behind the player's title, which is never blank while
+    the deployment holds any approved picture (10.2 feedback: a searched
+    episode played over an empty screen).
+
+    The tile's own picture first (`pick`, its facet from the words as the
+    declared fallback). The player, unlike a rail, shows one episode at a
+    time, so 9.30 #7's reason for never borrowing - one picture on every tile
+    under a branch - does not arise here, and it borrows in this order:
+
+    1. the nearest approved ancestor of the deepest node the words name;
+    2. the approved facet the words fall under (`topics.tags_for_text`);
+    3. one approved facet picture, chosen by a hash of the words, so the
+       same episode always wears the same one; any approved node when no
+       facet is painted.
+
+    `fallback` is True for anything borrowed, so the client may ask again
+    once the writer's title lands with better words. Never raises.
+    """
+    try:
+        import topics
+
+        words = (text or "").strip()
+        facets = topics.FACETS
+        declared = tuple(t for t in topics.tags_for_text(words) if t in facets)
+        found = pick(words, declared)
+        if found:
+            return dict(found, fallback=False)
+        if not _exists():
+            return None
+        approved = store().approved()
+        if not approved:
+            return None
+        tree = topics.category_tree()
+        chosen = ""
+        candidates = sorted(tree.match(words) if words else (),
+                            key=lambda n: (-_depth(tree, n, facets), n))
+        for node in candidates:
+            for up in [node] + list(tree.ancestors(node)):
+                if up in approved:
+                    chosen = up
+                    break
+            if chosen:
+                break
+        if not chosen:
+            chosen = next((f for f in declared if f in approved), "")
+        if not chosen:
+            pool = sorted(n for n in approved if n in facets) or sorted(approved)
+            digest = hashlib.sha1(words.lower().encode("utf-8")).digest()
+            chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
+        facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
+        return {"node": chosen, "facet": facet,
+                "url": url_for(chosen, approved[chosen][0]), "fallback": True}
+    except Exception:  # noqa: BLE001 - a picture is never worth a player
+        log.exception("thumbnails: could not pick the player's picture")
+        return None
 
 #: Nodes a tile asked for that have no live picture yet, most recent last.
 #: In-process and bounded: it only orders the sweep in this server, and a
