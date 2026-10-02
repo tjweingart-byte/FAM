@@ -14954,7 +14954,6 @@ The interface half:
 Tests: `tests/test_packet_1002.py`, the new cases at the end of
 `tests/test_waitlist.py`, and the smoke check for the player's icons.
 
-<<<<<<< HEAD
 ## 193. 10.2 feedback: a searched episode played over an empty screen, and Search DailyFAM opened on nothing
 
 The owner's four notes, with screenshots and a sketch:
@@ -15007,7 +15006,6 @@ Review fixes, before merge:
 
 Tests: `tests/test_feedback_1002.py`; `test_packet_1002`'s picture-shape test
 follows the selector into the stage.
->>>>>>> origin/Main
 
 ## 194. A small town's news was invented, and FAM had no weather at all
 
@@ -15097,4 +15095,51 @@ weather - only its own outlets and the Exa rung. The seed holds one outlet
 `tools/measure_local_news.py` before relying on coverage.
 
 Tests: `tests/test_local_news_weather_193.py`.
-=======
+
+## 195. The 10.2 packet: friends on DailyFAM, the chevron icon, Explore as pages, "Interested?", and Explore from search
+
+The owner's five changes, with two screenshots (YourFAM's face row, and a
+feed's ✕ / "Your algorithm" / ✓ row):
+
+1. **The faces from YourFAM sit at the top of the rails screen** (the one
+   shown as "DailyFAM", code `myfam`, §185), scrolling sideways, so what
+   friends have vibed is the first thing seen. One renderer
+   (`circleRowHTML`) draws both rows from one list (`yfCircle`), and the
+   rails screen asks for it on its own route, `/api/circle`
+   (`_circle_row`, the same rows as `/api/profile`'s `circle`), fired beside
+   `/api/myfam` so the rails never wait on it. A guest gets `[]`; an
+   account that follows nobody gets no row (the friends rail already ends
+   in "Find new friends"). The story viewer used to map the k-th
+   `.yf-friend` button on the page to the k-th person; with two rows on
+   the page that is wrong, so each face carries `data-i`.
+2. **The icon is the double chevron** - the A in the wordmark (`.wm-a`),
+   the same two strokes, copper on the app's background. `static/icon.svg`
+   is the source; `tools/make_icons.py` renders `apple-touch-icon.png` (the
+   home-screen picture), `icon-192/512.png` (`manifest.webmanifest`) and
+   `favicon.ico`. The app, the waitlist page (familiarize.net's front door)
+   and the share landing page all link them. There was no icon at all
+   before: the tab showed the browser's blank page.
+3. **Explore turns the whole page.** A turn faded the title and the line
+   under it in place while the header, buttons and bar sat still. Now the
+   stage (everything above the tab bar) follows the finger and slides off
+   the way it was sent, and the next comes in from the other edge
+   (`turnReel(dir)`, `setReelShift`). A drag towards a card that is not
+   there (down on the first) gives a quarter and springs back.
+4. **"Interested?"** - ✕ on the left, ✓ on the right, at the bottom of
+   Explore where "swipe up for another" was. §171 ("not interested" is not
+   a feature) stands: the ✕ records a **skip** - the signal walking away
+   from an episode already sends, -0.5 - and deals the next card; it hides
+   nothing and excludes no tile. The ✓ records a **pick** (1.6, the weight
+   of choosing a subject), lit once per card. Both are existing event
+   kinds; nothing was added to `EVENT_WEIGHT`.
+5. **Explore from search**: an arrow in search's top right with
+   "Explore?" over it opens Explore, and a drag from right to left pulls
+   the search page away with the finger, with Explore drawn underneath it
+   (`.peek`). Past a third of the width, or a flick, it carries on and
+   Explore opens; short of that it springs back. The first card is fetched
+   and drawn while peeking (`primeExplore`) but never played until Explore
+   is really opened (`reelUnplayed`) - a half swipe is not a choice to
+   listen. Opened from search, Explore's back arrow and lit tab are
+   search's (`exploreFrom`).
+
+Tests: `tests/test_packet_1002_second.py`.

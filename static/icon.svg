@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- FAM's mark: the double chevron that is the A in the wordmark (.wm-a),
+       the same two strokes, copper on the app's own background. -->
+  <rect width="24" height="24" rx="5.4" fill="#1E1B27"/>
+  <g transform="translate(12 12) scale(0.8) translate(-12 -13)" fill="none" stroke="#E0B563" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 13l7-7 7 7"/>
+    <path d="M5 20l7-7 7 7"/>
+  </g>
+</svg>

@@ -46,7 +46,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (a myFAM rail since §181, not a tab; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (a myFAM rail since §181, not a tab; also search's arrow and swipe, §195; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -203,7 +203,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   any money taste; ranks every held story. Weights: search 2, play 1, finish 2,
   skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
-  skips and fatigue; `hide` is not an event kind; old rows are ignored. [no-not-interested]
+  skips and fatigue; `hide` is not an event kind; old rows are ignored.
+  Explore's "Interested?" ✕ is a skip, ✓ a pick (§195). [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
