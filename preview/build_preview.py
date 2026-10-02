@@ -1179,7 +1179,7 @@ __WRITING_SIM__
       if (who.avatar !== undefined && who.avatar !== null) mine.avatar = who.avatar;
       return json(mine);
     }
-    // The same faces on their own, for the top of the rails screen (§194).
+    // The same faces on their own, for the top of the rails screen (§195).
     if (path === "/api/circle") return json({ circle: PEOPLE.circle() });
     if (path === "/api/profile") {
       var prof = FIXTURES["/api/profile"];

@@ -57,7 +57,7 @@ log = logging.getLogger(__name__)
 #: The question shapes an article index is structurally too slow for. Matches
 #: `Brief.live_domain`, and is the whole routing vocabulary - a source declares
 #: one of these and the brief names one of these.
-LIVE_DOMAINS = ("sports", "markets", "elections")
+LIVE_DOMAINS = ("sports", "markets", "elections", "weather")
 
 #: What an event's state may be. **A closed vocabulary, because downstream
 #: behaviour switches on it** - the cache TTL, the story shape and whether a
@@ -83,6 +83,12 @@ STATUSES = (SCHEDULED, IN_PROGRESS, FINAL, UNKNOWN)
 #: combination every other live fact does not have.
 PREDICTION_MARKET = "prediction-market"
 
+#: A `LiveFacts.kind` for a weather forecast (§194). Like a prediction
+#: market it is a forecast, never an outcome - but an authoritative one, from
+#: the forecaster itself - so it gets its own wording rather than either the
+#: market's or a scoreboard's.
+WEATHER = "weather-forecast"
+
 
 def normalise_status(value: object) -> str:
     """Map whatever a provider said onto the closed vocabulary.
@@ -105,6 +111,10 @@ MAX_AGE_SECONDS = {
     "sports": 120.0,
     "markets": 300.0,
     "elections": 1800.0,
+    # A place's forecast is swept twice a day (§194), and NWS may have issued
+    # it a few hours before that; an observation inside it is checked
+    # separately, at two hours, in `weather.render`.
+    "weather": 18 * 3600.0,
 }
 
 
@@ -273,7 +283,8 @@ class LiveFacts:
                 f"It was observed at {listener_clock.say(self.as_of)}, "
                 f"{self.age_phrase(now)}.")
 
-        kind = f"\nThese are {self.kind} figures." if self.kind else ""
+        kind = (f"\nThese are {self.kind} figures."
+                if self.kind and self.kind != WEATHER else "")
 
         # **Freshness is not authority, and a forecast is the one live fact
         # where they come apart.** Every other source here reports a state
@@ -285,7 +296,23 @@ class LiveFacts:
         # standing open: an article reporting the actual result would be
         # overruled by a price, and "trading at 94 percent" would be written
         # up as the outcome. So this one kind is told the opposite.
-        if self.kind == PREDICTION_MARKET:
+        if self.kind == WEATHER:
+            # Not a result, not a betting line: the forecaster's own forecast
+            # and any official warning. The status rule above does not apply
+            # - a forecast has no "finished" - so it is replaced outright.
+            rule = (
+                "This is WEATHER for the place the listener asked about: what "
+                "the forecast says, and any official warning in force. A "
+                "forecast is not an outcome. Say what it calls for - \"the "
+                "forecast calls for rain tomorrow\" - never that it will "
+                "happen. State a warning as an official warning, with when it "
+                "ends. Give temperatures as they are written here; never "
+                "convert, round or invent one, and never add conditions that "
+                "are not listed.")
+            standing = (
+                "This outranks anything you remember about the weather there. "
+                "It is the only source of weather you have.")
+        elif self.kind == PREDICTION_MARKET:
             standing = (
                 "This is a FORECAST and it is not evidence of an outcome. It "
                 "is the newest thing you have been given and the least "
@@ -554,6 +581,10 @@ _SOURCES: list = [
         "a results or prediction-market API and its credential, plus a "
         "`resolve` that maps the brief's subject to a race - and a `kind` on "
         "every fact, because a market price is not a result"),
+    _UnconfiguredSource(
+        "weather",
+        "WEATHER=1 (the National Weather Service needs no key) and, outside "
+        "the US, OPEN_METEO_API_KEY"),
 ]
 
 
@@ -678,7 +709,10 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     """One source, resolved then fetched, on the clock. Never raises."""
     domain = source.domain
     subject = (getattr(brief, "subject", "") or getattr(brief, "query", "") or "")
-    per_call = float(settings.live_timeout_seconds)
+    # A source may need longer than the default - weather asks one provider
+    # and falls back to a second inside its own call (§194).
+    per_call = max(float(settings.live_timeout_seconds),
+                   float(getattr(source, "timeout_seconds", 0.0) or 0.0))
 
     def left() -> float:
         return min(per_call, max(0.0, deadline - time.monotonic()))
@@ -776,11 +810,14 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
         return LiveLookup(domain, NOT_CONFIGURED,
                           detail="LIVE_FACTS=0: live lookups are switched off")
 
-    deadline = time.monotonic() + float(settings.live_total_timeout_seconds)
+    sources = sources_for(domain)
+    deadline = time.monotonic() + max(
+        [float(settings.live_total_timeout_seconds)]
+        + [float(getattr(s, "timeout_seconds", 0.0) or 0.0) for s in sources])
     attempts: list = []
     fallback: Optional[LiveLookup] = None
 
-    for source in sources_for(domain):
+    for source in sources:
         ok, why = source.diagnose()
         if not ok:
             log.info("live facts: %s cannot serve - %s", source.name, why)

@@ -67,6 +67,12 @@ FAM_ENVIRONMENT = (
     "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
+    # Local news and weather (§194). A developer with WEATHER=1 and a key in
+    # their shell must not run a suite that asks the Weather Service anything.
+    "LOCAL_NEWS", "LOCAL_NEWS_POLL_MINUTES", "LOCAL_NEWS_WINDOW_DAYS",
+    "WEATHER", "WEATHER_SWEEP_HOURS", "WEATHER_LIVE_ALERTS",
+    "OPEN_METEO_KEYLESS",
+    "OPEN_METEO_API_KEY", "FAM_CONTACT_EMAIL",
     # The grown vocabulary. A developer with CATEGORIES=0 set must not run a
     # suite that quietly skips every tree behaviour and still reports green -
     # and one with a tree on their machine must not have it rank a test's
@@ -185,6 +191,7 @@ DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
+    "LOCAL_NEWS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -442,6 +449,27 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     provider_usage.reset()
     yield
     provider_usage.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_local_news(tmp_path, monkeypatch):
+    """The local news store, the resolved places and the weather cache
+    (§194), per test - one test's outlets and forecasts must not be the
+    next one's, and the suite must never write `local_news.db` into the
+    project root."""
+    import local_news
+    import places
+    import weather
+
+    monkeypatch.setenv("LOCAL_NEWS_DB",
+                       str(tmp_path / "stores" / "local_news.db"))
+    local_news.reset_store()
+    places.reset_store()
+    weather.clear_cache()
+    yield
+    local_news.reset_store()
+    places.reset_store()
+    weather.clear_cache()
 
 
 @pytest.fixture(autouse=True)

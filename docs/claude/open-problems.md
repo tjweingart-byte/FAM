@@ -322,7 +322,7 @@
   Deeper's X, which closes a suggested follow-up, is a different thing and
   stays.)
 
-  > **Current (PROBLEMS.md §194, the 10.2 packet):** Explore's
+  > **Current (PROBLEMS.md §195, the 10.2 packet):** Explore's
   > "Interested?" row is not this. Its ✕ records a `skip` - the signal
   > leaving an episode early already sends - and deals the next card; its ✓
   > records a `pick`. Neither hides anything or excludes a tile, and no

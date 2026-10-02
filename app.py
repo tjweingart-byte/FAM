@@ -68,6 +68,8 @@ import trending_bank
 import daily_edition
 from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
+import local_news as local_news_mod
+import weather as weather_mod
 from pipeline import GenerationStats, NotCached, PodcastPipeline
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
 import attachments as attachments_mod
@@ -508,6 +510,15 @@ async def lifespan(_: FastAPI):
     # LIVE_SPORTS_PROVIDER must not stop the server, because every episode is
     # still answerable and the writer is told there is no live feed.
     live_sources.install()
+    # The local news collector (§194): polls only the outlets of places
+    # somebody has asked about, so on a fresh deployment it does nothing
+    # until the first local question. Never awaited.
+    if settings.local_news:
+        _BACKGROUND.add(asyncio.create_task(local_news_mod.run_forever()))
+    # Weather's twice-daily sweep (§194): only places somebody asked about,
+    # each at 05:00 and 17:00 in its own time. Nothing until the first ask.
+    if settings.weather:
+        _BACKGROUND.add(asyncio.create_task(weather_mod.run_forever()))
     # The world-trending row's source. Same shape as the others: whatever
     # configuration asked for, with problems reported rather than raised, so a
     # typo empties one row instead of stopping the server.
@@ -874,6 +885,15 @@ def _database_report() -> list[dict]:
         if provider_usage.exists():
             stores.append(("provider usage", "PROVIDER_USAGE_DB",
                            provider_usage.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # Local news outlets, their stories and resolved places (§194). Created
+    # by the collector's first sweep, and reported once it exists, like the
+    # provider counts above.
+    try:
+        if local_news_mod.exists():
+            stores.append(("local news", "LOCAL_NEWS_DB",
+                           local_news_mod.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:
@@ -1511,6 +1531,9 @@ async def health(request: Request) -> dict:
         # provider name this build does not know is configured and absent, and
         # that difference does not show in a source list.
         "live_sources": live_sources.report(),
+        # §194: the local news collector and the weather providers.
+        "local_news": local_news_mod.report(),
+        "weather": weather_mod.report(),
         # The other half of "live": what the world is paying attention to, as
         # opposed to what one entity's state is. Reported separately because
         # they fail separately and are fixed separately.
@@ -3163,6 +3186,58 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
 class PronunciationRequest(BaseModel):
     name: str = Field(..., max_length=60)
     say: str = Field(..., max_length=120)
+
+
+class LocalOutletRequest(BaseModel):
+    name: str = Field("", max_length=120)
+    homepage: str = Field(..., max_length=500)
+    town: str = Field("", max_length=120)
+    county: str = Field("", max_length=120)
+    region: str = Field("", max_length=120)
+    country: str = Field("US", max_length=2)
+    scope: str = Field("town", max_length=10)
+    feed_url: str = Field("", max_length=500)
+
+
+class LocalExcludeRequest(BaseModel):
+    host: str = Field(..., max_length=255)
+    reason: str = Field("the publisher asked", max_length=200)
+
+
+@app.get("/api/admin/local-news")
+async def admin_local_news(request: Request) -> dict:
+    """The local news collector (§194): every outlet, its state and why,
+    troubled ones first, and the totals. Admin only."""
+    _require_admin(request)
+    return {"report": local_news_mod.report(),
+            "outlets": local_news_mod.admin_rows()}
+
+
+@app.post("/api/admin/local-news/outlets")
+async def admin_add_local_outlet(req: LocalOutletRequest,
+                                 request: Request) -> dict:
+    """File an outlet for a town or county. Its feed is found on the next
+    poll; nothing else needs saying. Admin only."""
+    _require_admin(request)
+    outlet_id = local_news_mod.store().add_outlet(
+        req.name, req.homepage, town=req.town, county=req.county,
+        region=req.region, country=req.country, scope=req.scope,
+        source="admin", feed_url=req.feed_url)
+    if outlet_id is None:
+        raise HTTPException(status_code=400, detail=(
+            "That homepage was refused: it must start with http:// or "
+            "https://, and the publisher must not be on the do-not-use list."))
+    return {"ok": True, "id": outlet_id}
+
+
+@app.post("/api/admin/local-news/exclude")
+async def admin_exclude_local_outlet(req: LocalExcludeRequest,
+                                     request: Request) -> dict:
+    """Never read this publisher again - for a publisher who objects.
+    Admin only."""
+    _require_admin(request)
+    local_news_mod.store().exclude(req.host, req.reason)
+    return {"ok": True}
 
 
 @app.get("/api/admin/pronunciations")

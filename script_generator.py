@@ -680,6 +680,11 @@ class EpisodePlan:
     #: in the cache key**: it names a stored episode, it does not change what
     #: an episode is.
     episode: str = ""
+    #: What the local ladder found, when the brief names a town (§194): a
+    #: `local_news.LocalResult` - which rung answered, whether the town
+    #: itself had nothing, and the weather there. **Never in the cache
+    #: key**: it is derived from the request, not part of it.
+    local: object = None
 
     @property
     def images(self) -> list:
@@ -783,6 +788,62 @@ def plan_episode(
         cached_only=cached_only,
         attachments=tuple(attachments or ()),
     )
+
+
+def build_local_block(plan: EpisodePlan) -> str:
+    """What the writer is told about a local question's evidence (§194).
+
+    Empty for every other episode. The three cases differ in what the
+    evidence is *about*, which is the thing the writer must not blur: town
+    news is the town's, county news is the county's and never the town's,
+    and when there is neither the episode is the weather and nothing else.
+    """
+    local = getattr(plan, "local", None)
+    if local is None or getattr(local, "place", None) is None:
+        return ""
+    import local_news
+
+    place = local.place
+    town = place.name
+    county = place.county_label or "the surrounding area"
+    if not local.gap:
+        return f"""
+This is a question about {town}. The evidence below comes from outlets that
+cover {town}, or from stories that name it, and is about {town} itself. Stay
+on {town}. It is fine for the episode to be shorter than the time allows:
+end when the material ends rather than padding it.
+"""
+    has_weather = getattr(local, "weather", None) is not None
+    county_news = local.scope == "county" and bool(plan.evidence)
+    said = local_news.gap_line(place, weather=has_weather,
+                               county_news=county_news)
+    weather_step = (f"first the weather in {town} from the weather block "
+                    "below, then " if has_weather else "")
+    if county_news:
+        return f"""
+This is a question about {town}, and our search found no recent news reports
+out of {town} itself. The listener has ALREADY HEARD this sentence, spoken
+before your first word:
+
+"{said}"
+
+Do not repeat it, rephrase it or apologise for it. Continue straight on from
+it: {weather_step}the nearest news, which is about {county}, not about {town}.
+Say which town or area each story is about, and **never present any of it as
+news from {town}**. It is fine for the episode to be short: end when the
+material ends.
+"""
+    return f"""
+This is a question about {town}, and our search found no recent news reports
+out of {town} or {county}. The listener has ALREADY HEARD this sentence,
+spoken before your first word:
+
+"{said}"
+
+Do not repeat it, rephrase it or apologise for it. Give the weather in {town}
+from the weather block below, and then stop. You have no news about {town}
+and none may be supplied from memory. A short episode is the right one here.
+"""
 
 
 def build_prompt(plan: EpisodePlan) -> str:
@@ -994,12 +1055,14 @@ never spoken.
                       "out: " + ", ".join(on_file) + ".\n")
     pronounce += "\n"
 
+    local = build_local_block(plan)
+
     return f"""Someone just asked FAM this:
 
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{live}{evidence}{temporal}{brief_block}{follow_up}
+{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 
@@ -1134,6 +1197,26 @@ class _ScriptReader:
     @property
     def over_budget(self) -> bool:
         return self.emitted_words > self.plan.max_words * 1.35
+
+    def opening(self) -> list[str]:
+        """What is said before the writer's first word, if anything.
+
+        Only the local gap sentence (§194): when the town had nothing, the
+        episode opens with `local_news.gap_line`, composed in code at the
+        owner's direction so its words are fixed. It does not pass through
+        `OpeningGuard`, which would rightly drop a writer's disclaimer - this
+        is the one stated on purpose.
+        """
+        local = getattr(self.plan, "local", None)
+        if local is None or not getattr(local, "gap", False):
+            return []
+        import local_news
+
+        line = local_news.gap_line(
+            local.place, weather=getattr(local, "weather", None) is not None,
+            county_news=getattr(local, "scope", "") == "county")
+        self.emitted_words += count_words(line)
+        return [line]
 
     def feed(self, text: str) -> list[str]:
         out: list[str] = []
@@ -1281,6 +1364,23 @@ class ScriptGenerator:
         if not plan.search or plan.evidence:
             return plan
 
+        # **A weather question is answered by the weather providers**
+        # (§194), which `live_lookup` asks alongside this. An article index
+        # has nothing on tomorrow's forecast that the forecaster does not.
+        live_domain = str(getattr(plan.brief, "live_domain", "") or "")
+        if live_domain == "weather":
+            if notes is not None:
+                notes.research = {"backend": "", "skipped":
+                                  "a weather question: the forecast is the evidence"}
+            return plan
+
+        # **A question about one town takes the local ladder** (§194):
+        # its own outlets, its county's, then Exa on its known outlets - and
+        # never GDELT, at the owner's direction.
+        place_text = str(getattr(plan.brief, "place", "") or "").strip()
+        if place_text and settings.local_news:
+            return await self._research_local(plan, notes, place_text)
+
         query = (getattr(plan.brief, "retrieval", "") or plan.query)
         configured = settings.research_backend
 
@@ -1360,6 +1460,72 @@ class ScriptGenerator:
             notes.provenance = packet.provenance
         return dataclasses.replace(plan, evidence=packet.context,
                                    thin_on=tuple(packet.missing))
+
+    async def _research_local(self, plan: EpisodePlan,
+                              notes: ScriptNotes | None,
+                              place_text: str) -> EpisodePlan:
+        """The local ladder (§194): town, county, Exa on known outlets.
+
+        The weather is asked for at the same time, because when the town
+        has nothing the episode opens with that and then the weather, and
+        waiting to find out before asking would put the weather call in
+        front of the first word for nothing. It is used only then.
+        """
+        import local_news
+        import places
+        import weather
+
+        place = await places.resolve(place_text)
+        if place is None:
+            town, region, country = places.split_name(place_text)
+            place = places.Place(name=town, region=region, country=country,
+                                 source="as typed")
+
+        spent: list = []
+
+        async def exa(query: str, domains: tuple, must_name: str):
+            if research_mod.ladder(settings.research_backend)[:1] != ["exa"] \
+                    or not research_mod.available():
+                return None
+            try:
+                packet = await research_mod.retrieve(
+                    query, backend="exa", brief=plan.brief,
+                    include_domains=domains, must_name=must_name)
+            except Exception:  # noqa: BLE001 - see `_retrieve`
+                log.warning("the local Exa rung failed for %r", query,
+                            exc_info=True)
+                return None
+            spent.append(packet)
+            return packet
+
+        forecast = None
+        if place.located and settings.weather:
+            forecast = asyncio.create_task(weather.forecast_for(place))
+        local = await local_news.research_local(place, plan.brief, exa=exa)
+        if forecast is not None:
+            if local.gap:
+                local.weather, weather_attempts = await forecast
+                local.attempts.append(("weather", weather_attempts))
+            else:
+                forecast.cancel()
+        _mark(notes, "retrieval_ready")
+
+        packet = local.packet
+        if notes is not None:
+            for rung in spent:
+                notes.usage.add_research(rung.searches, rung.cost)
+            notes.research = (packet.as_dict() if packet is not None
+                              else research_mod.Packet(backend="local").as_dict())
+            notes.research["local"] = local.as_dict()
+            if packet is not None and packet.provenance is not None:
+                notes.provenance = packet.provenance
+        log.info("local ladder for %r (%s): %s", plan.query, place.label,
+                 ", ".join(f"{a[0]}={a[1]}" for a in local.attempts
+                           if a[0] != "weather"))
+        return dataclasses.replace(
+            plan, local=local,
+            evidence=packet.context if packet is not None else "",
+            thin_on=tuple(getattr(packet, "missing", ()) or ()))
 
     async def _retrieve(self, query: str, brief, backend: str):
         """One rung of the retrieval ladder. Never raises.
@@ -1489,7 +1655,17 @@ class ScriptGenerator:
             notes.sourced_at = time.time()
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
-            thin_on=research_plan.thin_on)
+            thin_on=research_plan.thin_on, local=research_plan.local)
+
+        # The weather the local ladder fetched when the town had nothing
+        # (§194) reaches the writer the way any live state does - one block,
+        # the forecast wording, credited on the sources panel.
+        local = plan.local
+        if local is not None and getattr(local, "weather", None) is not None \
+                and plan.live is None:
+            plan = dataclasses.replace(plan, live=live_facts.LiveLookup(
+                "weather", live_facts.FACTS, facts=local.weather,
+                detail=local.weather.source))
 
         self._refuse_without_evidence(plan)
 
@@ -1502,6 +1678,9 @@ class ScriptGenerator:
                 getattr(plan.brief, "outcome_dependent", False))
             notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
             notes.live_domain = str(getattr(plan.brief, "live_domain", "") or "")
+            if plan.live is not None and plan.live.domain == "weather":
+                # Weather decides how long the episode stays current (§194).
+                notes.live_domain = "weather"
             notes.intent = str(getattr(plan.brief, "intent", "") or "")
             if plan.live is not None:
                 notes.live_status = plan.live.status
@@ -1564,6 +1743,21 @@ class ScriptGenerator:
         if live is not None and getattr(live, "facts", None) is not None:
             return  # a live state is current evidence, whatever the index did
 
+        # **A local question with nothing at all** (§194): no town news, no
+        # county news, nothing on the known outlets, and no weather either.
+        # Refused in the same transparent words the episode would have
+        # opened with - what our search did not find, never what is not
+        # happening there.
+        local = getattr(plan, "local", None)
+        if local is not None:
+            town = getattr(local.place, "name", "") or "there"
+            log.warning("refusing %r: the local ladder and the weather both "
+                        "came back empty for %s", plan.query, town)
+            raise research_mod.NoEvidence(
+                f"We couldn't find any recent news reports out of {town}, and "
+                "the weather there could not be reached either - so FAM is "
+                "not going to guess. Try again in a moment.")
+
         brief = plan.brief
         why = ""
         if getattr(brief, "outcome_dependent", False):
@@ -1613,6 +1807,8 @@ class ScriptGenerator:
         rather than asking for them again.
         """
         reader = _ScriptReader(plan, notes)
+        for sentence in reader.opening():
+            yield sentence
 
         _mark(notes, "writer_request")
         async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
@@ -1673,7 +1869,7 @@ class ScriptGenerator:
                        for block in (getattr(message, "content", None) or [])
                        if getattr(block, "type", "") == "text")
         reader = _ScriptReader(plan, notes)
-        out: list[str] = []
+        out: list[str] = list(reader.opening())
         for start in range(0, len(text), _BATCH_SLICE):
             out.extend(reader.feed(text[start:start + _BATCH_SLICE]))
             if reader.over_budget:

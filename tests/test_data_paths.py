@@ -39,6 +39,7 @@ import voice_registry as VR  # noqa: E402
 import trending_bank as TB  # noqa: E402
 import thumbnails as TH  # noqa: E402
 import provider_usage as PU  # noqa: E402
+import local_news as LN  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -64,6 +65,7 @@ STORES = [
     ("TRENDING_BANK_DB", "trending_bank.db", TB.BankStore),
     ("THUMBNAILS_DB", "thumbnails.db", TH.ThumbnailStore),
     ("PROVIDER_USAGE_DB", "provider_usage.db", PU.UsageStore),
+    ("LOCAL_NEWS_DB", "local_news.db", LN.LocalNewsStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -112,8 +114,11 @@ ALL_VARS = sorted(DECLARED)
 #: `PROVIDER_USAGE_DB` (§179) is created by the first request to an outside
 #: service, and the admin page reads it without opening it - the trending
 #: bank's case again.
+#: `LOCAL_NEWS_DB` (§194) is created by the local news collector's first
+#: sweep or the first local question, and reported once it exists - the
+#: same case again.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
-               "THUMBNAILS_DB", "PROVIDER_USAGE_DB"}
+               "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB"}
 
 
 @pytest.fixture(autouse=True)

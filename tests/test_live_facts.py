@@ -131,7 +131,7 @@ def test_registering_a_source_for_a_domain_that_does_not_exist_is_refused():
     """It would never be consulted, so it would look registered and do
     nothing - the shape of absence this module exists to prevent."""
     class Wrong(live_facts.LiveSource):
-        name, domain = "wrong", "weather"
+        name, domain = "wrong", "astrology"
 
     with pytest.raises(ValueError):
         live_facts.register(Wrong())
@@ -333,15 +333,19 @@ def test_health_names_every_domain_with_no_provider_and_what_it_needs():
     index is wrong in a way nobody sees until a listener hears it."""
     report = live_facts.report()
     assert set(report["domains"]) == set(live_facts.LIVE_DOMAINS)
-    assert report["ready"] == [], "a source claims to be ready that is not"
+    # Weather is the one domain that can be ready with nothing configured:
+    # the National Weather Service needs no key (§194), so once startup has
+    # registered it, it is honestly ready.
+    assert set(report["ready"]) <= {"weather"}, (
+        "a source claims to be ready that is not")
     assert "elections" in report["domains"], (
         "elections is a live domain with its own kinds of claim, and must be "
         "named as missing rather than quietly absent")
     for domain in live_facts.LIVE_DOMAINS:
-        entries = report["sources"][domain]
+        entries = [e for e in report["sources"][domain] if not e["ready"]]
         assert entries, f"{domain} is not even named as missing"
-        assert all(not e["ready"] for e in entries)
-        assert all("Needs:" in e["detail"] for e in entries), (
+        assert all("Needs:" in e["detail"] for e in entries
+                   if e["name"].endswith("(not configured)")), (
             "an unconfigured source says it cannot serve without saying what "
             "it would take to make it serve")
 

@@ -1,4 +1,4 @@
-"""The 10.2 implementations packet (PROBLEMS.md §194): friends at the top of
+"""The 10.2 implementations packet (PROBLEMS.md §195): friends at the top of
 the rails screen, the chevron as the icon, Explore turning the whole page,
 "Interested?", and Explore from search."""
 

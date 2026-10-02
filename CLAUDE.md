@@ -46,7 +46,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (a myFAM rail since §181, not a tab; also search's arrow and swipe, §194; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (a myFAM rail since §181, not a tab; also search's arrow and swipe, §195; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -204,7 +204,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored.
-  Explore's "Interested?" ✕ is a skip, ✓ a pick (§194). [no-not-interested]
+  Explore's "Interested?" ✕ is a skip, ✓ a pick (§195). [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
@@ -295,6 +295,13 @@ Research and truth
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
+- **Local news** (§194): a town's question goes town outlets (RSS, collected
+  ahead) → county → Exa on known outlets, never GDELT; only what names the
+  place is evidence; an empty town opens with `local_news.gap_line`, composed
+  in code, then weather, then county news. [local-news-ladder]
+- **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
+  swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
+  worded as a forecast, never an outcome; never prefetched. [weather]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured
