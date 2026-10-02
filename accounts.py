@@ -46,6 +46,7 @@ Storage notes, because they are the parts worth getting right:
 from __future__ import annotations
 
 import base64
+import datetime
 import hashlib
 import hmac
 import logging
@@ -197,6 +198,28 @@ def clean_display_name(name: str) -> str:
     return " ".join(str(name or "").split())[:MAX_DISPLAY_NAME]
 
 
+def clean_birth_date(value: str, today: Optional[datetime.date] = None) -> str:
+    """A date of birth as `YYYY-MM-DD`, or "" to remove it.
+
+    Asked for on the waitlist's profile (10.2 packet) to personalise the
+    app. Only checked for being a real day in the past within a human
+    lifetime: nothing is gated on age, so nothing here infers one.
+    """
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    try:
+        born = datetime.date.fromisoformat(value[:10])
+    except ValueError as exc:
+        raise AuthError("That does not look like a date.") from exc
+    today = today or datetime.date.today()
+    if born > today:
+        raise AuthError("A date of birth cannot be in the future.")
+    if born.year < today.year - 120:
+        raise AuthError("That date of birth is too long ago.")
+    return born.isoformat()
+
+
 def check_password(password: str) -> str:
     password = str(password)
     if len(password) < MIN_PASSWORD:
@@ -328,6 +351,9 @@ class AccountStore:
                 "ALTER TABLE accounts ADD COLUMN vl_participant_id TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE accounts ADD COLUMN waitlist_joined_at REAL NOT NULL DEFAULT 0",
                 "ALTER TABLE accounts ADD COLUMN access_granted_at REAL NOT NULL DEFAULT 0",
+                # The waitlist's "personalize your experience" (10.2 packet):
+                # YYYY-MM-DD, or "" when not given.
+                "ALTER TABLE accounts ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''",
             ):
                 try:
                     conn.execute(ddl)
@@ -467,7 +493,7 @@ class AccountStore:
         try:
             row = self._conn().execute(
                 "SELECT email, created, last_login, plan, display_name, phone,"
-                " status FROM accounts WHERE user_id = ?",
+                " status, birth_date FROM accounts WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -478,7 +504,8 @@ class AccountStore:
         return {"user_id": user_id, "email": row[0],
                 "created": row[1], "last_login": row[2],
                 "plan": entitlements.normalise(row[3]),
-                "display_name": row[4], "phone": row[5], "status": row[6]}
+                "display_name": row[4], "phone": row[5], "status": row[6],
+                "birth_date": row[7] or ""}
 
     def plan_for(self, user_id: str) -> str:
         """Which plan to stamp on this listener's usage rows.
@@ -508,7 +535,8 @@ class AccountStore:
         return plan
 
     def sign_up(self, user_id: str, email: str, password: str,
-                phone: str = "", at: float = 0.0) -> Listener:
+                phone: str = "", at: float = 0.0,
+                waitlisted: bool = False) -> Listener:
         """Attach credentials to the identity this listener already has.
 
         Deliberately *not* "create a user". The listener exists already - they
@@ -527,6 +555,10 @@ class AccountStore:
         The number is still *not verified*; nothing here sends an SMS. Storing
         it buys a second way in and a way to reach somebody the day delivery
         exists, and it is not a second factor until then.
+
+        `waitlisted` starts the account on the waitlist whatever
+        `new_account_status` says: joining the waitlist is a waitlist join
+        even on a server whose gate is off (10.2 packet).
         """
         if not user_id:
             raise AuthError("No listener to attach an account to.")
@@ -543,7 +575,7 @@ class AccountStore:
                 " last_login, phone, status, waitlist_joined_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, email, hash_password(password), now, now, phone,
-                 *self._new_status(now)),
+                 *self._new_status(now, waitlisted)),
             )
         except sqlite3.IntegrityError as exc:
             # Only tells them an identifier is taken, which they can already
@@ -558,9 +590,9 @@ class AccountStore:
             self._link(user_id, "phone", phone, email, now)
         return self.listener_of(user_id)
 
-    def _new_status(self, now: float) -> tuple[str, float]:
+    def _new_status(self, now: float, waitlisted: bool = False) -> tuple[str, float]:
         """(status, waitlist_joined_at) for an account being created now."""
-        if self.new_account_status == "waitlisted":
+        if waitlisted or self.new_account_status == "waitlisted":
             return "waitlisted", now
         return "active", 0.0
 
@@ -814,7 +846,8 @@ class AccountStore:
 
     def update_profile(self, user_id: str, *, display_name: Optional[str] = None,
                        email: Optional[str] = None,
-                       phone: Optional[str] = None) -> dict:
+                       phone: Optional[str] = None,
+                       birth_date: Optional[str] = None) -> dict:
         """Change what the account says about itself.
 
         Only the fields that were passed. `None` means "leave it alone" and an
@@ -835,6 +868,9 @@ class AccountStore:
         if phone is not None:
             sets.append("phone = ?")
             values.append(clean_phone(phone) if phone else "")
+        if birth_date is not None:
+            sets.append("birth_date = ?")
+            values.append(clean_birth_date(birth_date))
         if not sets:
             return account
 

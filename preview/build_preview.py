@@ -757,6 +757,8 @@ SHIM = """
    the reel timing all behave exactly as they do against the real server.
    Nothing here touches the network. -------------------------------------- */
 (function () {
+  // No server behind this page, so no /waitlist: sign-up stays in the app.
+  window.FAM_PREVIEW = true;
   var FIXTURES = __FIXTURES__;
   var SAMPLE_RATE = 22050;
   var realFetch = window.fetch.bind(window);

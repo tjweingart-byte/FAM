@@ -1114,12 +1114,27 @@ def main() -> int:
             page.evaluate("showScreen('player')")
             page.wait_for_timeout(300)
             words = page.eval_on_selector_all(
+                "#screen-player .p-side .pt-cap",
+                "e => e.map(x => x.textContent.trim().toLowerCase())")
+            # 10.2 packet: share, vibe and save stacked on the right above
+            # the transport; the queue stays bottom right.
+            assert words == ["share", "vibe", "save"], \
+                f"the player's side icons are labelled {words}"
+            row = page.eval_on_selector_all(
                 "#screen-player .pc-row2 .pt-cap",
                 "e => e.map(x => x.textContent.trim().toLowerCase())")
-            # §190: captions moved to the sheet at the bottom; the queue is
-            # bottom right, beside share, as on Spotify.
-            assert words == ["vibe", "save", "share", "queue"], \
-                f"the player's icons are labelled {words}"
+            assert row == ["queue"], f"the player's bottom row is labelled {row}"
+            # GO DEEPER sits at the top where "Now playing" was.
+            assert page.query_selector("#screen-player .player-top .go-deeper-pill"), \
+                "GO DEEPER is not at the top of the player"
+            assert "Now playing" not in page.inner_text("#screen-player .player-top"), \
+                "the player still says Now playing"
+            # The side column is above the play button, on the right.
+            side = page.eval_on_selector("#playerSide", "e => e.getBoundingClientRect().toJSON()")
+            play = page.eval_on_selector("#screen-player .mini-play-btn",
+                                         "e => e.getBoundingClientRect().toJSON()")
+            assert side["bottom"] <= play["top"] and side["left"] > play["right"], \
+                f"the side icons are not above and right of play: {side} {play}"
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 

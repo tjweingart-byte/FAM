@@ -164,16 +164,17 @@
   .voice-mic:active{ transform:scale(0.94); }
   /* Trending searches under the search box (10.1 #3). */
   /* Under the bubbles, one bubble a search, most searched first (§190). */
-  .trend-searches{ margin:20px 0 0; }
+  /* Five, small enough that all five fit on the screen (10.2 packet). */
+  .trend-searches{ margin:16px 0 0; }
   .trend-searches[hidden]{ display:none; }
-  .trend-label{ font-family:'JetBrains Mono', monospace; font-size:9.5px;
+  .trend-label{ font-family:'JetBrains Mono', monospace; font-size:9px;
     letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted);
-    margin:0 4px 9px; }
-  .trend-list{ display:flex; flex-direction:column; gap:8px; }
-  .trend-chip{ display:flex; align-items:center; gap:10px; width:100%; text-align:left;
-    min-height:42px; padding:9px 16px; border-radius:21px;
+    margin:0 4px 7px; }
+  .trend-list{ display:flex; flex-direction:column; gap:6px; }
+  .trend-chip{ display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    min-height:32px; padding:6px 14px; border-radius:16px;
     background:var(--surface); border:1px solid var(--border); color:var(--text);
-    font-family:'Space Grotesk',sans-serif; font-size:13.5px; font-weight:500; cursor:pointer; }
+    font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:500; cursor:pointer; }
   .trend-chip .tc-text{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .trend-chip svg{ flex:none; color:var(--text-muted); }
   .trend-chip:active{ transform:scale(0.97); }
@@ -788,6 +789,8 @@
     text-transform:uppercase; color:var(--copper); margin:6px 0 16px; cursor:pointer; }
   /* DailyFAM's search: other listeners' public mixes. */
   .dm-search{ position:relative; display:flex; align-items:center; gap:8px; margin:0 0 12px; }
+  /* Room between the new-mix (+) and the search (10.2 packet). */
+  #screen-playfam .dm-search{ margin-top:18px; }
   .dm-search input{ flex:1; min-width:0; height:38px; padding:0 12px 0 34px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
     font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none; -webkit-appearance:none; appearance:none; }
@@ -1219,16 +1222,33 @@
   #screen-player{ position:relative; overflow:hidden; }
   #screen-player > *{ position:relative; z-index:1; }
   /* The episode's picture, behind the title, fading into the page so the
-     controls under it stay readable. Empty, it is the page's own colour. */
-  #screen-player > .player-bg{ position:absolute; inset:0; z-index:0;
-    background:var(--bg) center 22% / cover no-repeat; pointer-events:none; }
+     controls under it stay readable. Empty, it is the page's own colour.
+     Its own shape, the full width of the screen (10.2 packet): covering the
+     whole screen blew a 4:3 picture up to the screen's height, which cut
+     away most of it. */
+  #screen-player > .player-bg{ position:absolute; top:0; left:0; right:0; bottom:auto;
+    aspect-ratio:4 / 3; z-index:0;
+    background:var(--bg) center / cover no-repeat; pointer-events:none; }
   .player-bg::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(20,18,28,0.25) 0%, rgba(20,18,28,0.05) 30%,
-      var(--bg) 66%); }
+    background:linear-gradient(180deg, rgba(20,18,28,0.35) 0%, rgba(20,18,28,0) 22%,
+      rgba(20,18,28,0) 55%, var(--bg) 100%); }
   .player-bg:not(.has-img)::after{ display:none; }
   #screen-player .player-top{ display:grid; grid-template-columns:44px 1fr 44px;
     align-items:center; padding:10px 12px 0; }
-  #screen-player .player-top .kicker{ text-align:center; }
+  /* GO DEEPER where "Now playing" was (10.2 packet), a fifth shorter than
+     it was under the transport. */
+  #screen-player .player-top .go-deeper-pill{ margin:0 auto; padding:8px 34px; font-size:13px;
+    line-height:1.2; }
+  #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
+  /* Share, vibe and save, one above another on the right, above the
+     transport (10.2 packet). The captions hang under each circle. */
+  .p-side{ position:absolute; right:16px; bottom:10px; display:flex; flex-direction:column;
+    align-items:center; gap:24px; padding-bottom:12px; }
+  .p-side .pt-icon{ width:40px; height:40px; background:rgba(20,18,28,0.55);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .p-side .pt-icon .pt-cap{ top:42px; }
+  .p-side .pt-icon.echoed{ background:var(--copper); }
+  .p-side .pt-icon.saved-on{ background:var(--sage); }
   .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
     border-radius:50%; }
@@ -1242,8 +1262,6 @@
   #screen-player .player-controls-2row{ padding:14px 20px 60px; gap:14px; }
   #screen-player .pc-row1{ gap:22px; }
   #screen-player .mini-play-btn{ width:60px; height:60px; }
-  /* GO DEEPER where Spotify keeps its mood chip, and bigger (§190). */
-  #screen-player .go-deeper-pill{ margin:0 auto; padding:12px 38px; font-size:14px; }
   #screen-player .pc-row2{ width:100%; gap:12px; }
   .pc-gap{ flex:1; }
   /* The captions sheet: shut is a strip at the bottom; slid up is open, and
@@ -3385,20 +3403,33 @@
         <!-- Spotify's layout (§190, the owner's): a down arrow top left that
              minimises (never stops, §142), the episode's picture behind its
              title, the title and the sources on one line, the transport,
-             GO DEEPER where Spotify keeps its mood chip, share and the queue
-             bottom right, and the captions in a sheet at the bottom that is
-             only open when it is slid up. The three dots open the menu. -->
+             GO DEEPER at the top where "Now playing" was, share, vibe and
+             save stacked on the right above the transport (10.2 packet), the
+             queue bottom right, and the captions in a sheet at the bottom
+             that is only open when it is slid up. The three dots open the
+             menu. -->
         <div class="player-bg" id="playerBg" aria-hidden="true"></div>
         <div class="player-top">
           <!-- Minimises, never stops (§142): the episode carries on in the
                mini player, whose button still pauses it and whose tap brings
                this screen back exactly where it is. -->
           <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Minimise the player"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-          <span class="kicker">Now playing <span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span></span>
+          <!-- GO DEEPER at the top, where "Now playing" was (10.2 packet):
+               the one invitation on the player to keep going, and nothing
+               says "now playing" - the player is what is playing. -->
+          <button class="go-deeper-pill" onclick="openGoDeeper('player')">GO DEEPER</button>
           <button type="button" class="p-more" id="playerMore" onclick="openPlayerMenu()" aria-label="More options"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
         </div>
         <div class="mini-stage" id="playerStage">
+          <span class="demo-badge p-demo" title="No API key: a built-in sample script is standing in for Claude">not your episode</span>
           <div class="next-hint" id="nextHint"></div>
+          <!-- Share, vibe and save, stacked on the right above the transport
+               (10.2 packet). The three dots' menu offers vibe and save too. -->
+          <div class="p-side" id="playerSide">
+            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
+            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
+            <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
+          </div>
         </div>
         <div class="p-titlerow">
           <div class="p-titles">
@@ -3434,13 +3465,9 @@
                  when there is no "next" anybody chose. -->
             <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l10 8-10 8V4z" fill="currentColor"/><path d="M19 5v14"/></svg></div>
           </div>
-          <button class="go-deeper-pill" onclick="openGoDeeper('player')">GO DEEPER</button>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 2 min</div>
             <span class="pc-gap"></span>
-            <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
-            <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
-            <span class="pt-icon" onclick="openShareModal()" title="Share this episode" aria-label="Share this episode"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span class="pt-cap">share</span></span>
             <span class="pt-icon" id="queueBtn" onclick="openQueue()" title="The queue" aria-label="The queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg><span class="pt-cap">queue</span></span>
           </div>
         </div>
@@ -4646,7 +4673,8 @@
   var TREND_SEARCHES = [];
   var trendFetchedAt = 0;
   var TREND_REFETCH_MS = 60000;
-  var TREND_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+  var TREND_SHOWN = 5;
+  var TREND_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/>'
     + '<path d="M15 7h6v6"/></svg>';
 
@@ -4659,7 +4687,8 @@
     var show = !input.value.trim() && !ATTACHED.length && TREND_SEARCHES.length > 0;
     box.hidden = !show;
     if(!show) return;
-    document.getElementById("trendList").innerHTML = TREND_SEARCHES.map(function(t, i){
+    // Five at most (10.2 packet): exactly as many as fit on the screen.
+    document.getElementById("trendList").innerHTML = TREND_SEARCHES.slice(0, TREND_SHOWN).map(function(t, i){
       // The episode's own title, spelled by its writer; the question it
       // answered only when it has none.
       var label = t.title || deriveTitleFromPrompt(t.spelled || t.query);
@@ -6058,6 +6087,8 @@
 
   var MENU_ICONS = {
     share: '<path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/>',
+    vibe: '<path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/>',
+    save: '<path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/>',
     cc: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 10.2a2.3 2.3 0 1 0 0 3.6M16.6 10.2a2.3 2.3 0 1 0 0 3.6"/>',
     add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
@@ -6087,6 +6118,12 @@
     var items = [
       { head: menuHead(title, PLAYER_CARD.searcher, PLAYER_CARD.thumb) },
       { label: menuLabel("share", "Share"), action: function(){ openShareModal(); } },
+      // Vibe and save are here as well as on the player's right (10.2
+      // packet), saying which way a tap goes.
+      { label: menuLabel("vibe", echoedNow ? "Take back your VIBE!" : "VIBE! to your friends"),
+        action: toggleEcho },
+      { label: menuLabel("save", savedNow ? "Remove from Save for Later" : "Save for later"),
+        action: saveForLater },
       { label: menuLabel("cc", "Closed captions · " + (ccOn ? "On" : "Off")),
         action: toggleCC },
       { label: menuLabel("add", "Add to playlist"), action: function(){ openAddToMix(); } }
@@ -15920,6 +15957,13 @@
   var authReturn = "";
 
   function openAuth(mode){
+    // Every sign-up goes through the waitlist (10.2 packet): its page makes
+    // the account, puts it on the list and says the place. Only a preview,
+    // which has no server and so no /waitlist, keeps the form below.
+    if(mode === "signup" && signupGoesToWaitlist()){
+      location.href = "/waitlist";
+      return;
+    }
     authMode = mode;
     // Opened from a gated screen (DailyFAM, say) rather than from the welcome
     // screen, this is a detour: it has to come back to where it started.
@@ -15952,6 +15996,9 @@
     showAuthForm();
   }
   // Between the two without losing what was typed or where they came from.
+  function signupGoesToWaitlist(){
+    return !window.FAM_PREVIEW && /^https?:$/.test(location.protocol);
+  }
   function switchAuthMode(mode){
     var back = authReturn;
     openAuth(mode);

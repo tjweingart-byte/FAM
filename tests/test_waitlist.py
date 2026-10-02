@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import json
 import os
+import pathlib
 import sqlite3
 import sys
 
@@ -29,6 +30,7 @@ import viral_loops as vl_mod
 import waitlist as waitlist_mod
 
 PASSWORD = "correct horse battery"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 # --- the store --------------------------------------------------------------
@@ -497,3 +499,59 @@ def test_the_landing_page_plays_the_sign_up_samples_and_nothing_else(world, monk
     kept["yes"] = False
     assert gated()
     assert "fam-audio.js" in guest.get("/waitlist").text
+
+
+# --- 10.2 packet: joining always waitlists; the profile's details ------------
+
+def test_joining_waitlists_even_with_the_gate_off(world, monkeypatch):
+    """The owner joined on a server whose switch was not set: the join made
+    an active account, skipped the line and dropped them in the app. A join
+    is a join, gate or no gate."""
+    monkeypatch.setattr(appmod, "settings",
+                        dataclasses.replace(appmod.settings, waitlist=False))
+    appmod.ACCOUNTS.new_account_status = "active"
+    member, body = _join("off@fam.test")
+    assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
+    me = member.get("/api/waitlist/me").json()
+    assert me["place"] == 1 and me["total"] == 1
+    # The app's own sign-up is unchanged: the gate decides that one.
+    other = TestClient(appmod.app)
+    r = other.post("/api/auth/signup", json={"email": "o@fam.test", "password": PASSWORD})
+    assert r.json()["status"] == "active"
+
+
+def test_the_profile_keeps_birth_date_phone_and_location(world):
+    member, _ = _join("p@fam.test")
+    assert member.post("/api/account", json={"birth_date": "1994-05-17",
+                                             "phone": "+14155550142"}).status_code == 200
+    member.post("/api/preferences", json={"country": "United States", "region": "Ohio",
+                                          "city": "Cincinnati", "interests": ["sports"]})
+    details = member.get("/api/waitlist/me").json()["details"]
+    assert details["birth_date"] == "1994-05-17"
+    assert details["phone"] == "+14155550142"
+    assert details["location"]["city"] == "Cincinnati"
+    assert details["location"]["region"] == "Ohio"
+    assert details["location"]["country"] == "United States"
+    # A day that has not happened yet is refused; "" clears it.
+    assert member.post("/api/account", json={"birth_date": "2999-01-01"}).status_code == 400
+    assert member.post("/api/account", json={"birth_date": "not a date"}).status_code == 400
+    member.post("/api/account", json={"birth_date": ""})
+    assert member.get("/api/waitlist/me").json()["details"]["birth_date"] == ""
+
+
+def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert 'id="password2"' in page and "don’t match" in page
+    assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
+    assert 'id="shareLink"' in page and "to personalize your experience" in page
+    for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
+        assert f'id="{field}"' in page
+    # The profile's details reach the account and the preferences.
+    assert 'api("/api/account", account)' in page
+
+
+def test_the_apps_sign_up_goes_to_the_waitlist():
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    body = page.split("function openAuth(mode){", 1)[1].split("authMode = mode;", 1)[0]
+    assert 'mode === "signup" && signupGoesToWaitlist()' in body
+    assert 'location.href = "/waitlist"' in body

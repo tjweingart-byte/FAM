@@ -11,12 +11,17 @@
 <!--
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
-  * /waitlist     - the landing page: email, then a password. Signing up here
-                    is the app's own email-and-password sign-up, so the
-                    account made here is the one the app opens with later.
-  * /waitlist/me  - the status page: place in line, Your FAM, the next unlock,
-                    and profile setup, which writes the same profile the app
-                    reads (/api/me and /api/preferences).
+  * /waitlist     - the landing page: email and a password typed twice
+                    (10.2 packet). Signing up here is the app's own
+                    email-and-password sign-up, so the account made here is
+                    the one the app opens with later, and it always starts
+                    on the waitlist.
+  * /waitlist/me  - the status page: their exact place in line, the link
+                    that moves them up, Your FAM, the next unlock, and the
+                    profile behind "Edit your profile": name, handle, photo,
+                    date of birth, location, phone and interests. It writes
+                    the same profile the app reads (/api/me, /api/preferences
+                    and /api/account).
 
   Nothing here decides anything: place, cutoff, friends and status all come
   from /api/waitlist/me, and every rule is enforced by the server.
@@ -31,7 +36,7 @@
   html,body{ margin:0; background:var(--page-bg); color:var(--text);
     font-family:'Space Grotesk', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
   body{ min-height:100vh; min-height:100dvh; }
-  button,input{ font:inherit; color:inherit; }
+  button,input,select{ font:inherit; color:inherit; }
   .hidden{ display:none !important; }
   .label{ font-family:'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight:600;
     letter-spacing:0.16em; text-transform:uppercase; }
@@ -185,6 +190,18 @@
     background:var(--text); color:var(--gold-ink); padding:12px 18px; border-radius:12px; font-size:15px;
     transition:opacity .2s, transform .2s; pointer-events:none; z-index:10; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .link-row{ display:flex; gap:8px; align-items:center; margin-top:18px; }
+  .link-row .link-box{ flex:1; min-width:0; height:44px; font-size:14px; color:var(--muted); }
+  .link-row .ghost{ height:44px; flex:none; }
+  .edit-btn{ width:100%; display:flex; align-items:center; gap:12px; text-align:left; cursor:pointer;
+    background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px 20px; margin:0 0 14px; }
+  .edit-btn .eb-text{ flex:1; min-width:0; }
+  .edit-btn .eb-1{ display:block; font-size:19px; color:var(--text); }
+  .edit-btn .eb-2{ display:block; font-size:14px; color:var(--muted); margin-top:3px; }
+  .edit-btn svg{ width:22px; height:22px; flex:none; color:var(--gold); }
+  .phone-row{ display:flex; gap:8px; }
+  .phone-row .phone-cc{ flex:none; width:100px; padding:0 10px; }
+  .pinput[type=date]{ color-scheme:dark; }
   .granted{ text-align:center; }
   .granted .big{ font-size:44px; margin-bottom:10px; }
   @media (prefers-reduced-motion: reduce){ .toast{ transition:none; } }
@@ -223,10 +240,12 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
-      <input class="field hidden" id="password" type="password" autocomplete="new-password"
+      <input class="field" id="password" type="password" autocomplete="new-password"
              placeholder="Choose a password" aria-label="Password" minlength="8">
+      <input class="field" id="password2" type="password" autocomplete="new-password"
+             placeholder="Type the password again" aria-label="Confirm password" minlength="8">
       <button class="cta label" id="joinBtn" type="submit">
-        <span id="joinLabel">Get early access</span>
+        <span id="joinLabel">Join the waitlist</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
@@ -250,7 +269,7 @@
     <button class="me-btn label" id="meBtn" aria-haspopup="true" aria-label="Account">·</button>
   </div>
   <div class="menu hidden" id="menu" role="menu">
-    <button type="button" role="menuitem" onclick="scrollToProfile()">Edit profile</button>
+    <button type="button" role="menuitem" onclick="openProfile()">Edit profile</button>
     <button type="button" role="menuitem" onclick="signOut()">Sign out</button>
     <button type="button" role="menuitem" onclick="deleteAccount()" style="color:#FFB4A2">Delete account</button>
   </div>
@@ -261,10 +280,11 @@
   </div>
 
   <section class="card" id="placeCard">
+    <!-- Their exact place in line (10.2 packet), counted by the server. -->
     <div class="count-row">
-      <div class="big" id="placesUntil">—</div>
+      <div class="big" id="placeBig">—</div>
       <div>
-        <div class="label" id="placesLabel">Places until full access</div>
+        <div class="label" id="placesLabel">Your place on the waitlist</div>
         <div class="sub" id="placesSub">You’re moving up the list.</div>
       </div>
     </div>
@@ -281,13 +301,24 @@
     <button class="cta label" type="button" onclick="location.href='/'">Open FAM</button>
   </section>
 
-  <section class="card">
-    <h2>Get closer to FAM</h2>
-    <p>Every person you bring with you moves you up the list.</p>
-    <button class="cta label" type="button" onclick="invite()">Invite someone
+  <section class="card" id="shareCard">
+    <h2>Move up the list</h2>
+    <p>Share your link. Every person who joins with it moves you up.</p>
+    <div class="link-row">
+      <input class="pinput link-box" id="shareLink" readonly aria-label="Your invite link" onclick="this.select()">
+      <button class="ghost" type="button" onclick="copyLink()">Copy</button>
+    </div>
+    <button class="cta label" type="button" onclick="invite()">Share your link
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
     </button>
   </section>
+
+  <!-- "To personalize your experience" (10.2 packet): opens the profile. -->
+  <button class="edit-btn" type="button" id="editProfileBtn" onclick="openProfile()">
+    <span class="eb-text"><span class="eb-1">Edit your profile</span>
+      <span class="eb-2">to personalize your experience</span></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
 
   <div class="section-head">
     <div class="label">Your FAM</div>
@@ -306,9 +337,9 @@
     </div>
   </div>
 
-  <section class="card profile" id="profile" style="margin-top:26px">
+  <section class="card profile hidden" id="profile" style="margin-top:26px">
     <h3>Your profile <span class="done-pill hidden" id="profileDone">Complete</span></h3>
-    <p class="lede">Claim your @handle now. This is the profile your friends see when FAM opens.</p>
+    <p class="lede">Claim your @handle and tell us about you, so FAM is yours from the first episode.</p>
     <div class="photo-row">
       <div class="av" id="photoPreview">?</div>
       <div>
@@ -322,7 +353,18 @@
     <label class="pfield"><span>Handle</span>
       <div class="handle-wrap"><span class="at">@</span>
         <input class="pinput" id="pHandle" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false"></div></label>
-    <div class="pfield"><span>What you’re into</span>
+    <label class="pfield"><span>Date of birth</span>
+      <input class="pinput" id="pBirth" type="date" autocomplete="bday"></label>
+    <div class="pfield"><span>Location</span>
+      <input class="pinput" id="pCountry" maxlength="60" autocomplete="country-name" placeholder="Country" aria-label="Country">
+      <input class="pinput" id="pRegion" maxlength="60" autocomplete="address-level1" placeholder="State" aria-label="State" style="margin-top:8px">
+      <input class="pinput" id="pCity" maxlength="60" autocomplete="address-level2" placeholder="City" aria-label="City" style="margin-top:8px"></div>
+    <div class="pfield"><span>Phone number</span>
+      <div class="phone-row">
+        <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
+        <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number">
+      </div></div>
+    <div class="pfield"><span>Your interests</span>
       <div class="chips" id="chips"></div></div>
     <button class="cta label" type="button" id="saveProfile" onclick="saveProfile()">Save profile</button>
     <div class="form-note" id="profileNote" role="status" aria-live="polite"></div>
@@ -454,7 +496,8 @@
     $("landing").classList.remove("hidden");
     loadSamples();
     if(referral) $("invited").classList.remove("hidden");
-    var stage = "email";
+    // Email and a password typed twice, on one form (10.2 packet): the
+    // account the app opens with later, made here and put on the list.
     $("joinForm").addEventListener("submit", function(ev){
       ev.preventDefault();
       var note = $("joinNote"); note.className = "form-note"; note.textContent = "";
@@ -462,16 +505,11 @@
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
         note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
       }
-      if(stage === "email"){
-        stage = "password";
-        $("password").classList.remove("hidden");
-        $("joinLabel").textContent = "Join the waitlist";
-        note.textContent = "Choose a password. It’s the one you’ll open FAM with.";
-        $("password").focus();
-        return;
-      }
       var pw = $("password").value;
       if(pw.length < 8){ note.className = "form-note err"; note.textContent = "Use at least 8 characters."; return; }
+      if(pw !== $("password2").value){
+        note.className = "form-note err"; note.textContent = "The two passwords don’t match."; return;
+      }
       $("joinBtn").disabled = true;
       api("/api/waitlist/join", { email: email, password: pw, referral_code: referral })
         .then(function(d){
@@ -514,18 +552,20 @@
       return;
     }
     $("placeTag").textContent = d.place ? "· #" + fmt(d.place) : "";
+    // Their exact place, the biggest thing on the page (10.2 packet).
+    $("placeBig").textContent = d.place ? "#" + fmt(d.place) : "—";
     var rail = $("rail");
     Array.prototype.slice.call(rail.querySelectorAll(".tick,.you")).forEach(function(n){ n.remove(); });
     // How much of the line in front of them is already inside the cutoff.
     var frac = d.in_next_batch ? 1 : (d.place && d.cutoff ? Math.min(1, d.cutoff / d.place) : 0);
+    $("placesLabel").textContent = "Your place on the waitlist";
     if(d.in_next_batch){
-      $("placesUntil").textContent = "✓";
-      $("placesLabel").textContent = "You’re in the next batch";
-      $("placesSub").textContent = "Keep an eye on your inbox.";
+      $("placesSub").textContent = "You’re in the next batch. Keep an eye on your inbox.";
+    } else if(d.cutoff && d.places_until != null){
+      $("placesSub").textContent = fmt(d.places_until)
+        + (d.places_until === 1 ? " place" : " places") + " until full access.";
     } else {
-      $("placesUntil").textContent = d.places_until == null ? "—" : fmt(d.places_until);
-      $("placesLabel").textContent = d.places_until === 1 ? "Place until full access" : "Places until full access";
-      $("placesSub").textContent = "You’re moving up the list.";
+      $("placesSub").textContent = d.total ? "Out of " + fmt(d.total) + " on the list." : "You’re moving up the list.";
     }
     for(var i = 1; i <= 5; i++){
       var tk = document.createElement("div");
@@ -569,10 +609,38 @@
     }
   }
 
+  // The country codes the phone field offers; the server stores E.164 and
+  // never guesses a country, so the code is chosen rather than typed.
+  var PHONE_CODES = ["+1", "+44", "+61", "+64", "+353", "+27", "+91", "+49", "+33", "+34",
+                     "+39", "+31", "+46", "+47", "+45", "+41", "+52", "+55", "+54", "+81",
+                     "+82", "+86", "+65", "+971", "+972", "+234", "+254", "+63", "+62", "+48"];
+  function splitPhone(e164){
+    var codes = PHONE_CODES.slice().sort(function(a, b){ return b.length - a.length; });
+    for(var i = 0; i < codes.length; i++){
+      if(e164.indexOf(codes[i]) === 0) return [codes[i], e164.slice(codes[i].length)];
+    }
+    return ["+1", e164.replace(/^\+/, "")];
+  }
+  function drawDetails(d){
+    var x = d.details || {}, loc = x.location || {};
+    $("pBirth").value = x.birth_date || "";
+    $("pBirth").max = new Date().toISOString().slice(0, 10);
+    $("pCountry").value = loc.country || "";
+    $("pRegion").value = loc.region || "";
+    $("pCity").value = loc.city || "";
+    var cc = $("pPhoneCC");
+    if(!cc.options.length){
+      cc.innerHTML = PHONE_CODES.map(function(c){ return '<option>' + c + '</option>'; }).join("");
+    }
+    var parts = x.phone ? splitPhone(x.phone) : ["+1", ""];
+    cc.value = parts[0]; $("pPhone").value = parts[1];
+  }
+
   function drawProfile(d, topics){
     var p = d.profile;
     $("pName").value = p.name || d.name || "";
     $("pHandle").value = p.handle || "";
+    drawDetails(d);
     avatar = p.avatar || ""; avatarChanged = false;
     drawPhoto();
     chosen = {}; (p.topics || []).forEach(function(t){ chosen[t] = true; });
@@ -616,9 +684,15 @@
     var body = { name: $("pName").value.trim(), handle: $("pHandle").value.trim().replace(/^@/, "") };
     if(avatarChanged) body.avatar = avatar;
     var interests = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+    var digits = $("pPhone").value.replace(/[^\d]/g, "");
+    var account = { birth_date: $("pBirth").value || "",
+                    phone: digits ? $("pPhoneCC").value + digits : "" };
     $("saveProfile").disabled = true;
     api("/api/me", body)
-      .then(function(){ return api("/api/preferences", { interests: interests }); })
+      .then(function(){ return api("/api/account", account); })
+      .then(function(){ return api("/api/preferences", {
+        interests: interests, country: $("pCountry").value.trim(),
+        region: $("pRegion").value.trim(), city: $("pCity").value.trim() }); })
       .then(function(){ note.textContent = "Saved."; return load(); })
       .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
       .then(function(){ $("saveProfile").disabled = false; });
@@ -641,7 +715,11 @@
         .catch(function(){});
     } else { window.copyLink(); }
   };
-  window.scrollToProfile = function(){ $("menu").classList.add("hidden"); $("profile").scrollIntoView({ behavior: "smooth" }); };
+  window.openProfile = function(){
+    $("menu").classList.add("hidden");
+    $("profile").classList.remove("hidden");
+    $("profile").scrollIntoView({ behavior: "smooth" });
+  };
   // Deleting an account is reachable by everybody who has one, the
   // waitlisted included: it erases the account, its place and its profile.
   window.deleteAccount = function(){
@@ -665,6 +743,7 @@
     ]).then(function(r){
       STATE = r[0];
       drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);
+      $("shareLink").value = link();
     });
   }
   function showStatus(){
