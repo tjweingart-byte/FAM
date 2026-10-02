@@ -1010,7 +1010,7 @@
   > (§183, rule `waitlist-gate` below). Everything in this rule holds again
   > the moment the waitlist is switched off at launch.
   > **Current:** "Continue as guest" is withdrawn from the sign-in screen
-  > until FAM is public, at the owner's direction (§196). `skipAccount` and
+  > until FAM is public, at the owner's direction (§197). `skipAccount` and
   > every guest rule stay; bringing the door back is one line of markup.
   Saved mixes, chosen interests and language, and Save for Later need an
   account; search, myFAM, DailyFAM's episodes, Explore, Go Deeper and the whole

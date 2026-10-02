@@ -371,7 +371,7 @@ Browse surfaces
 Accounts, tiers, sharing
 - **An account gates what is kept, never what is heard**; a guest's events are
   never logged (`app._remembers`); the app opens on sign-up; "Continue as
-  guest" withdrawn until public (§196); the Profile tab is a door for guests; every gate uses
+  guest" withdrawn until public (§197); the Profile tab is a door for guests; every gate uses
   `gateActions()` - one sign-up screen. [account-gates-kept]
 - **Waitlist** (§183, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
