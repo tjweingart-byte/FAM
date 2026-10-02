@@ -16008,6 +16008,8 @@
     // drag the other way than there is somewhere to go only gives a little.
     stage.addEventListener("touchstart", function(e){
       if(reelBusy || !reelCurrent) { startY = null; return; }
+      // The progress bar is a scrubber; a drag on it is never a turn.
+      if(e.target.closest && e.target.closest(".reel-progress")){ startY = null; return; }
       startY = e.touches[0].clientY; startX = e.touches[0].clientX; dragging = false;
     }, { passive: true });
     stage.addEventListener("touchmove", function(e){
