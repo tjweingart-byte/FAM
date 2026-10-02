@@ -39,6 +39,9 @@ def test_the_copy_of_the_page_carries_no_ids():
     body = _fn("beginEntryHandoff")
     assert 'copy.removeAttribute("id")' in body
     assert 'querySelectorAll("[id]")' in body
+    # Not a screen: `.screen.active` and showScreen's sweep never find it.
+    assert 'copy.className = "fam-handoff-copy"' in body
+    assert "if(!wrap.hidden) return null" in body
     assert "prefers-reduced-motion: reduce" in body
 
 

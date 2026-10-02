@@ -129,7 +129,7 @@
   .fam-handoff[hidden]{ display:none; }
   .fam-handoff-panel{ position:absolute; inset:0; background:var(--bg);
     overflow:hidden; box-shadow:12px 0 32px rgba(0,0,0,0.35); }
-  .fam-handoff-panel > .screen{ display:flex; position:absolute; inset:0; }
+  .fam-handoff-copy{ display:flex; flex-direction:column; position:absolute; inset:0; }
   .fam-handoff .fam-logo{ position:absolute; top:34px; left:0; right:0;
     padding:0; }
   .fam-handoff .wm-glyph, .fam-handoff .wm-a{ will-change:transform, opacity; }
@@ -17072,11 +17072,15 @@
     var logo = document.getElementById("famHandoffLogo");
     var from = document.querySelector(".screen.active");
     if(!wrap || !panel || !logo || !from || !wrap.animate) return null;
+    if(!wrap.hidden) return null;   // already playing: a double tap goes straight in
     if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
     // A copy of the page being left, with its ids taken off so nothing
     // that looks an element up by id ever finds the picture of it.
     var copy = from.cloneNode(true);
+    // Not a `.screen` either, so nothing that walks the screens or asks
+    // which one is active can ever land on the copy.
     copy.removeAttribute("id");
+    copy.className = "fam-handoff-copy";
     copy.querySelectorAll("[id]").forEach(function(e){ e.removeAttribute("id"); });
     copy.querySelectorAll(".fam-logo").forEach(function(e){ e.style.visibility = "hidden"; });
     var scroller = from.querySelector(".scroll");
