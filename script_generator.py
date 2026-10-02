@@ -680,7 +680,7 @@ class EpisodePlan:
     #: in the cache key**: it names a stored episode, it does not change what
     #: an episode is.
     episode: str = ""
-    #: What the local ladder found, when the brief names a town (§193): a
+    #: What the local ladder found, when the brief names a town (§194): a
     #: `local_news.LocalResult` - which rung answered, whether the town
     #: itself had nothing, and the weather there. **Never in the cache
     #: key**: it is derived from the request, not part of it.
@@ -791,7 +791,7 @@ def plan_episode(
 
 
 def build_local_block(plan: EpisodePlan) -> str:
-    """What the writer is told about a local question's evidence (§193).
+    """What the writer is told about a local question's evidence (§194).
 
     Empty for every other episode. The three cases differ in what the
     evidence is *about*, which is the thing the writer must not blur: town
@@ -1201,7 +1201,7 @@ class _ScriptReader:
     def opening(self) -> list[str]:
         """What is said before the writer's first word, if anything.
 
-        Only the local gap sentence (§193): when the town had nothing, the
+        Only the local gap sentence (§194): when the town had nothing, the
         episode opens with `local_news.gap_line`, composed in code at the
         owner's direction so its words are fixed. It does not pass through
         `OpeningGuard`, which would rightly drop a writer's disclaimer - this
@@ -1365,7 +1365,7 @@ class ScriptGenerator:
             return plan
 
         # **A weather question is answered by the weather providers**
-        # (§193), which `live_lookup` asks alongside this. An article index
+        # (§194), which `live_lookup` asks alongside this. An article index
         # has nothing on tomorrow's forecast that the forecaster does not.
         live_domain = str(getattr(plan.brief, "live_domain", "") or "")
         if live_domain == "weather":
@@ -1374,7 +1374,7 @@ class ScriptGenerator:
                                   "a weather question: the forecast is the evidence"}
             return plan
 
-        # **A question about one town takes the local ladder** (§193):
+        # **A question about one town takes the local ladder** (§194):
         # its own outlets, its county's, then Exa on its known outlets - and
         # never GDELT, at the owner's direction.
         place_text = str(getattr(plan.brief, "place", "") or "").strip()
@@ -1464,7 +1464,7 @@ class ScriptGenerator:
     async def _research_local(self, plan: EpisodePlan,
                               notes: ScriptNotes | None,
                               place_text: str) -> EpisodePlan:
-        """The local ladder (§193): town, county, Exa on known outlets.
+        """The local ladder (§194): town, county, Exa on known outlets.
 
         The weather is asked for at the same time, because when the town
         has nothing the episode opens with that and then the weather, and
@@ -1658,7 +1658,7 @@ class ScriptGenerator:
             thin_on=research_plan.thin_on, local=research_plan.local)
 
         # The weather the local ladder fetched when the town had nothing
-        # (§193) reaches the writer the way any live state does - one block,
+        # (§194) reaches the writer the way any live state does - one block,
         # the forecast wording, credited on the sources panel.
         local = plan.local
         if local is not None and getattr(local, "weather", None) is not None \
@@ -1679,7 +1679,7 @@ class ScriptGenerator:
             notes.recency_days = int(getattr(plan.brief, "recency_days", 0) or 0)
             notes.live_domain = str(getattr(plan.brief, "live_domain", "") or "")
             if plan.live is not None and plan.live.domain == "weather":
-                # Weather decides how long the episode stays current (§193).
+                # Weather decides how long the episode stays current (§194).
                 notes.live_domain = "weather"
             notes.intent = str(getattr(plan.brief, "intent", "") or "")
             if plan.live is not None:
@@ -1743,7 +1743,7 @@ class ScriptGenerator:
         if live is not None and getattr(live, "facts", None) is not None:
             return  # a live state is current evidence, whatever the index did
 
-        # **A local question with nothing at all** (§193): no town news, no
+        # **A local question with nothing at all** (§194): no town news, no
         # county news, nothing on the known outlets, and no weather either.
         # Refused in the same transparent words the episode would have
         # opened with - what our search did not find, never what is not

@@ -1,4 +1,4 @@
-"""Local news from a town's own outlets, and weather for the place asked (§193).
+"""Local news from a town's own outlets, and weather for the place asked (§194).
 
 At the owner's direction: a local question goes town, then county, then Exa
 on the town's known outlets - never GDELT - and when the town has nothing the

@@ -1,4 +1,4 @@
-"""Weather for the place a question names (§193, at the owner's direction).
+"""Weather for the place a question names (§194, at the owner's direction).
 
 **Two providers, in a fixed order.** The US National Weather Service first
 for a US place: it is free, keyless, it is the forecaster's own forecast, and

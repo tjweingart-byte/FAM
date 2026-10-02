@@ -465,6 +465,7 @@ the rest of this list it needs taste rather than a key.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §193):** the picture is centred in the space between GO DEEPER and the title, not pinned to the top under the arrow. **Every episode has one**: `/api/episode/card` answers from `thumbnails.pick_for_player`, which borrows - the nearest painted ancestor, the words' facet, else one approved facet picture chosen by a hash of the words - where a rail would show the drawing (9.30 #7 is about many tiles wearing one picture; the player shows one episode). A borrowed picture (`fallback`) is asked for again when the writer's title lands. The mini player shows the same picture, its whole height with the sides cropped.
 > **Current (PROBLEMS.md §192):** GO DEEPER is at the top where "Now playing" was (nothing says now playing), a fifth shorter; the picture is its own 4:3 shape at the top, never stretched over the whole screen; share, vibe and save stand one above another on the right above the transport, and the ⋯ menu offers vibe and save too; the queue stays bottom right.
 - **The player is Spotify's layout** *(PROBLEMS.md §190, the owner's, with
   Spotify screenshots)*: a down arrow top left (the old X, top right) that
@@ -485,6 +486,17 @@ the rest of this list it needs taste rather than a key.
   on the owner. **The searcher** is a handle only when that listener turned on
   `searches_public` (Settings, off by default) and is not the one listening;
   the response carries no id.
+
+<!-- rule:dailyfam-catalogue -->
+- **Search DailyFAM opens on an A to Z catalogue** *(PROBLEMS.md §193, the
+  owner's sketch)*: before anything is typed, the screen behind myFAM's
+  header button lists every cached episode other listeners made
+  (`/api/myfam/catalog`: the same rows and rules as `/api/myfam/search` -
+  your own left out, archived never, replay only), alphabetically by title
+  under a sticky letter per run; case and leading punctuation ignored,
+  anything not starting with a letter under "#" at the end; one row per
+  title, the most played. Typing swaps it for the closest matches
+  (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:queue -->
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a

@@ -83,7 +83,7 @@ STATUSES = (SCHEDULED, IN_PROGRESS, FINAL, UNKNOWN)
 #: combination every other live fact does not have.
 PREDICTION_MARKET = "prediction-market"
 
-#: A `LiveFacts.kind` for a weather forecast (§193). Like a prediction
+#: A `LiveFacts.kind` for a weather forecast (§194). Like a prediction
 #: market it is a forecast, never an outcome - but an authoritative one, from
 #: the forecaster itself - so it gets its own wording rather than either the
 #: market's or a scoreboard's.
@@ -111,7 +111,7 @@ MAX_AGE_SECONDS = {
     "sports": 120.0,
     "markets": 300.0,
     "elections": 1800.0,
-    # A place's forecast is swept twice a day (§193), and NWS may have issued
+    # A place's forecast is swept twice a day (§194), and NWS may have issued
     # it a few hours before that; an observation inside it is checked
     # separately, at two hours, in `weather.render`.
     "weather": 18 * 3600.0,
@@ -710,7 +710,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     domain = source.domain
     subject = (getattr(brief, "subject", "") or getattr(brief, "query", "") or "")
     # A source may need longer than the default - weather asks one provider
-    # and falls back to a second inside its own call (§193).
+    # and falls back to a second inside its own call (§194).
     per_call = max(float(settings.live_timeout_seconds),
                    float(getattr(source, "timeout_seconds", 0.0) or 0.0))
 

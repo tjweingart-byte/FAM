@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import io
 import json
 import logging
@@ -725,6 +726,67 @@ def pick(text: str, tags: Iterable[str] = (),
         return {"node": hit[0], "facet": hit[1], "url": hit[2]}
     except Exception:  # noqa: BLE001 - a picture is never worth a tile
         log.exception("thumbnails: could not pick a picture")
+        return None
+
+
+def pick_for_player(text: str, key: str = "") -> Optional[dict]:
+    """The picture behind the player's title, which is never blank while
+    the deployment holds any approved picture (10.2 feedback: a searched
+    episode played over an empty screen).
+
+    The tile's own picture first (`pick`, its facet from the words as the
+    declared fallback). The player, unlike a rail, shows one episode at a
+    time, so 9.30 #7's reason for never borrowing - one picture on every tile
+    under a branch - does not arise here, and it borrows in this order:
+
+    1. the nearest approved ancestor of the deepest node the words name;
+    2. the approved facet the words fall under (`topics.tags_for_text`);
+    3. one approved facet picture, chosen by a hash of the words, so the
+       same episode always wears the same one; any approved node when no
+       facet is painted.
+
+    `key` is what step 3 hashes - the question as asked - so the words
+    growing a title later (the client asks again when the writer's title
+    lands) never swaps one borrowed picture for another; it defaults to
+    `text`. `fallback` is True for anything borrowed. Never raises.
+    """
+    try:
+        import topics
+
+        words = (text or "").strip()
+        facets = topics.FACETS
+        declared = tuple(t for t in topics.tags_for_text(words) if t in facets)
+        found = pick(words, declared)
+        if found:
+            return dict(found, fallback=False)
+        if not _exists():
+            return None
+        approved = store().approved()
+        if not approved:
+            return None
+        tree = topics.category_tree()
+        chosen = ""
+        candidates = sorted(tree.match(words) if words else (),
+                            key=lambda n: (-_depth(tree, n, facets), n))
+        for node in candidates:
+            for up in [node] + list(tree.ancestors(node)):
+                if up in approved:
+                    chosen = up
+                    break
+            if chosen:
+                break
+        if not chosen:
+            chosen = next((f for f in declared if f in approved), "")
+        if not chosen:
+            pool = sorted(n for n in approved if n in facets) or sorted(approved)
+            stable = (key or words).strip().lower()
+            digest = hashlib.sha1(stable.encode("utf-8")).digest()
+            chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
+        facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
+        return {"node": chosen, "facet": facet,
+                "url": url_for(chosen, approved[chosen][0]), "fallback": True}
+    except Exception:  # noqa: BLE001 - a picture is never worth a player
+        log.exception("thumbnails: could not pick the player's picture")
         return None
 
 

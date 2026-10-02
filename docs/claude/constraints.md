@@ -131,7 +131,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
-> **Current (PROBLEMS.md §193, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
+> **Current (PROBLEMS.md §194, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
 - **Every episode is researched. (Reversed — this used to say the opposite.)**
   *(PROBLEMS.md §76.)* `SEARCH_MODE=always` is the production default and the
   question no longer gets a vote. The old rule was "search is opt-in, and the
@@ -284,7 +284,7 @@
   never invent a reconciliation, which is what "that's just a rounding
   artifact" was.
 <!-- rule:missed-not-absent -->
-> **Current (PROBLEMS.md §193, at the owner's direction):** one exception, and only one. When a local question's town has no news, the episode **opens with a sentence composed in code** (`local_news.gap_line`): "We couldn't find any recent news reports out of San Anselmo. Here's the weather there, and the closest news we have, from across Marin County." It is about our search, never the world; it promises only what follows it; the writer never writes, repeats or rephrases it. Everywhere else the gap is still never announced.
+> **Current (PROBLEMS.md §194, at the owner's direction):** one exception, and only one. When a local question's town has no news, the episode **opens with a sentence composed in code** (`local_news.gap_line`): "We couldn't find any recent news reports out of San Anselmo. Here's the weather there, and the closest news we have, from across Marin County." It is about our search, never the world; it promises only what follows it; the writer never writes, repeats or rephrases it. Everywhere else the gap is still never announced.
 - **A search that missed something has established nothing about the world.**
   *(§88.)* `thin_on` used to instruct the writer to "say plainly that that part
   is not yet reported" - converting a fact about one retrieval into a claim
@@ -303,7 +303,7 @@
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
 <!-- rule:opening-last -->
-> **Current (PROBLEMS.md §193):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
+> **Current (PROBLEMS.md §194):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
 - **The opening is written last in the order that matters: nothing is spoken
   until the writer holds the whole picture.** *(PROBLEMS.md §94, and §108,
   which fixed its cause rather than its symptom.)* A researched episode's
@@ -473,7 +473,7 @@
   supports live scores until a real provider is returning them.
 <!-- rule:local-news-ladder -->
 - **A town's news comes from the town's own outlets, and its gap is said in
-  words composed in code.** *(PROBLEMS.md §193, at the owner's direction;
+  words composed in code.** *(PROBLEMS.md §194, at the owner's direction;
   `local_news.py`, `places.py`.)* A national index weights a town's two or
   three outlets at nothing, so a question about San Anselmo came back with
   Marin County and San Francisco stories that never named it, and the writer
@@ -507,7 +507,7 @@
 <!-- rule:weather -->
 - **Weather is the National Weather Service first, Open-Meteo second; fetched
   on demand, then swept twice a day per place; and a forecast is never an
-  outcome.** *(PROBLEMS.md §193, at the owner's direction; `weather.py`.)*
+  outcome.** *(PROBLEMS.md §194, at the owner's direction; `weather.py`.)*
   NWS for a US place - free, keyless, the forecaster's own forecast, with the
   official warnings; Open-Meteo for everywhere else and whenever NWS fails
   (logged, never silent), on `OPEN_METEO_API_KEY` ($29/month to 1M calls),

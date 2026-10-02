@@ -1,4 +1,4 @@
-"""Add a US county's local news outlets to the registry, from Wikidata (§193).
+"""Add a US county's local news outlets to the registry, from Wikidata (§194).
 
     python tools/local_outlets.py "Marin County" California
     python tools/local_outlets.py "Marin County" California --dry-run

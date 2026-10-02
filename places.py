@@ -1,4 +1,4 @@
-"""Which town a question is about, where it is, and which county it is in (§193).
+"""Which town a question is about, where it is, and which county it is in (§194).
 
 A local question - "what's going on in San Anselmo" - needs three things this
 codebase never had: the town's county (so the county rung knows what to ask

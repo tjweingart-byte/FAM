@@ -222,7 +222,7 @@ def install() -> dict:
         live_facts.register(source)
         installed.append(source.name)
 
-    # Weather (§193) is not chosen by name: NWS is keyless and Open-Meteo is
+    # Weather (§194) is not chosen by name: NWS is keyless and Open-Meteo is
     # decided by its key inside `weather`, so `WEATHER=1` is the whole choice.
     live_facts.unregister("weather")
     if settings.weather:

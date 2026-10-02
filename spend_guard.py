@@ -53,7 +53,7 @@ PAID_CREDENTIALS = (
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
     "EXA_API_KEY",
     "GNEWS_KEY",
-    # Open-Meteo's paid plan (§193), for weather and place names.
+    # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
     "API_SPORTS_KEY", "SPORTSDATAIO_KEY",
     "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
@@ -91,7 +91,7 @@ FORCED = {
     "LIVE_MARKETS_PROVIDER": "",
     "LIVE_ELECTIONS_PROVIDER": "",
     "TRENDING_SOURCE": "",
-    # Local news feeds and weather (§193): keyless, and outbound all the same.
+    # Local news feeds and weather (§194): keyless, and outbound all the same.
     "LOCAL_NEWS": "0",
     "WEATHER": "0",
     "OPEN_METEO_KEYLESS": "0",

@@ -257,7 +257,7 @@ class Brief:
     outcome_dependent: bool = False
     #: The town or city the request is about, as "Town, Region, Country",
     #: when what they want is what is happening *there* - its news, its
-    #: events, its weather (§193). Empty for everything else, including a
+    #: events, its weather (§194). Empty for everything else, including a
     #: question that merely mentions a place ("the history of Paris"). Named
     #: as typed; where it is comes from a catalogue (`places`), never from
     #: here, and never from the listener's saved location.
@@ -558,7 +558,7 @@ def gate(brief: Brief, query: str) -> Brief:
     # exist until the thing concludes, and a live domain is the case where the
     # gap between concluding and being reported is longest.
     #
-    # **Except weather** (§193): a forecast is never a result and has no
+    # **Except weather** (§194): a forecast is never a result and has no
     # "finished", so the result caution and the in-progress shape it brings
     # would only make a weather episode hedge about nothing.
     brief.outcome_dependent = (bool(brief.outcome_dependent)
@@ -635,7 +635,7 @@ BRIEF_SCHEMA = {
         "live_domain": {"type": "string",
                         "enum": [""] + list(live_facts.LIVE_DOMAINS)},
         "outcome_dependent": {"type": "boolean"},
-        # **The town a local question is about** (§193). It routes the
+        # **The town a local question is about** (§194). It routes the
         # question to that town's own outlets and its weather, instead of a
         # national index that has never heard of it.
         "place": {"type": "string"},

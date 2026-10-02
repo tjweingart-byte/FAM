@@ -510,12 +510,12 @@ async def lifespan(_: FastAPI):
     # LIVE_SPORTS_PROVIDER must not stop the server, because every episode is
     # still answerable and the writer is told there is no live feed.
     live_sources.install()
-    # The local news collector (§193): polls only the outlets of places
+    # The local news collector (§194): polls only the outlets of places
     # somebody has asked about, so on a fresh deployment it does nothing
     # until the first local question. Never awaited.
     if settings.local_news:
         _BACKGROUND.add(asyncio.create_task(local_news_mod.run_forever()))
-    # Weather's twice-daily sweep (§193): only places somebody asked about,
+    # Weather's twice-daily sweep (§194): only places somebody asked about,
     # each at 05:00 and 17:00 in its own time. Nothing until the first ask.
     if settings.weather:
         _BACKGROUND.add(asyncio.create_task(weather_mod.run_forever()))
@@ -887,7 +887,7 @@ def _database_report() -> list[dict]:
                            provider_usage.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # Local news outlets, their stories and resolved places (§193). Created
+    # Local news outlets, their stories and resolved places (§194). Created
     # by the collector's first sweep, and reported once it exists, like the
     # provider counts above.
     try:
@@ -1531,7 +1531,7 @@ async def health(request: Request) -> dict:
         # provider name this build does not know is configured and absent, and
         # that difference does not show in a source list.
         "live_sources": live_sources.report(),
-        # §193: the local news collector and the weather providers.
+        # §194: the local news collector and the weather providers.
         "local_news": local_news_mod.report(),
         "weather": weather_mod.report(),
         # The other half of "live": what the world is paying attention to, as
@@ -3206,7 +3206,7 @@ class LocalExcludeRequest(BaseModel):
 
 @app.get("/api/admin/local-news")
 async def admin_local_news(request: Request) -> dict:
-    """The local news collector (§193): every outlet, its state and why,
+    """The local news collector (§194): every outlet, its state and why,
     troubled ones first, and the totals. Admin only."""
     _require_admin(request)
     return {"report": local_news_mod.report(),
@@ -5164,8 +5164,12 @@ async def episode_card(request: Request,
     """What the player draws around an episode (§190): its picture, and who
     searched it.
 
-    * `thumb` - the tile picture for the episode's words
-      (`thumbnails.pick`), drawn behind the title; "" keeps the drawing.
+    * `thumb` - the picture for the episode's words, drawn behind the title
+      (`thumbnails.pick_for_player`): the tile's own, else one borrowed from
+      its branch, its facet or a stable choice, so a searched episode never
+      plays over an empty screen. "" only when nothing is approved.
+    * `fallback` - True when `thumb` was borrowed; the client asks again
+      once the writer's title lands.
     * `searcher` - the handle of the listener whose search wrote it, **only
       when they have turned on `searches_public`** and it is not the asker:
       what somebody searched is theirs unless they say otherwise
@@ -5179,10 +5183,13 @@ async def episode_card(request: Request,
     asked = (q or "").strip()
     words = (title or "").strip()
     thumb = ""
+    borrowed = False
     try:
         import thumbnails
-        found = thumbnails.pick(f"{asked} {words}".strip())
-        thumb = (found or {}).get("url", "") or ""
+        found = thumbnails.pick_for_player(
+            f"{asked} {words}".strip(), key=normalize_query(asked)) or {}
+        thumb = found.get("url", "") or ""
+        borrowed = bool(found.get("fallback"))
     except Exception:  # noqa: BLE001 - a picture is never worth a 500
         log.exception("could not pick a picture for the player")
     searcher = ""
@@ -5198,7 +5205,7 @@ async def episode_card(request: Request,
                 handle = SOCIAL.person(author).get("handle") or ""
                 searcher = "@" + handle if handle else ""
             break
-    return {"thumb": thumb, "searcher": searcher}
+    return {"thumb": thumb, "fallback": borrowed, "searcher": searcher}
 
 
 @app.get("/api/episode/topic")
@@ -5278,6 +5285,70 @@ async def myfam_search(request: Request,
             "explicit": bool(entry.get("explicit")),
         })
     return {"episodes": episodes}
+
+
+#: How far back the A to Z catalogue reads (10.2 feedback): every row kept
+#: a week fits on a deployment this size; past it the newest win.
+MYFAM_CATALOG_SCAN = 1000
+
+
+def _catalog_sort_key(title: str) -> tuple[str, str]:
+    """A to Z the way a person reads a list: case and leading punctuation
+    ignored, and anything not starting with a letter filed under "#" at the
+    end, the way a phone's contacts are."""
+    folded = re.sub(r"^[^0-9a-z]+", "", (title or "").casefold())
+    first = folded[:1]
+    letter = first.upper() if "a" <= first <= "z" else "#"
+    return ("~" if letter == "#" else letter, folded)
+
+
+@app.get("/api/myfam/catalog")
+async def myfam_catalog(request: Request) -> dict:
+    """Search DailyFAM before anything is typed (10.2 feedback): every cached
+    episode other listeners made, A to Z by title, each with the `letter` it
+    is filed under, so the screen is a catalogue to scroll rather than an
+    empty box.
+
+    The same rows and the same rules as `/api/myfam/search` - a read of the
+    shared cache, the listener's own left out, archived rows never, played
+    replay-only - in a different order. One row per title: two keys that
+    turned out to be the same episode (`title-from-content`) are one entry,
+    the most played.
+    """
+    _read_limit(request)
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if store is None:
+        return {"episodes": []}
+    listener = _listener(request)
+    now = time.time()
+    try:
+        entries = store.recent(MYFAM_CATALOG_SCAN, exclude_author=listener)
+    except Exception:  # noqa: BLE001 - a catalogue is never worth a 500
+        log.exception("could not read the cache for the myFAM catalogue")
+        return {"episodes": []}
+    best: dict[str, dict] = {}
+    for entry in entries:
+        query = entry.get("query") or ""
+        title = (entry.get("title") or (query[:1].upper() + query[1:])).strip()
+        if not title:
+            continue
+        held = best.get(title.casefold())
+        if held is not None and held["plays"] >= entry.get("plays", 0):
+            continue
+        best[title.casefold()] = {
+            "query": query,
+            "title": title,
+            "minutes": entry["minutes"],
+            "plays": entry.get("plays", 0),
+            "sourced_age_seconds": max(
+                0.0, now - (entry.get("sourced_at") or entry.get("created") or now)),
+            "explicit": bool(entry.get("explicit")),
+        }
+    ordered = sorted(best.values(), key=lambda e: _catalog_sort_key(e["title"]))
+    for episode in ordered:
+        letter = _catalog_sort_key(episode["title"])[0]
+        episode["letter"] = "#" if letter == "~" else letter
+    return {"episodes": ordered}
 
 
 #: How many of today's most-played episodes the sign-up screen rotates

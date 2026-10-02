@@ -34,7 +34,8 @@ def test_go_deeper_is_at_the_top_and_nothing_says_now_playing():
 
 
 def test_the_picture_is_its_own_shape_not_the_whole_screen():
-    css = HTML.split("  #screen-player > .player-bg{", 1)[1].split("}", 1)[0]
+    # Moved into the stage to centre it (10.2 feedback, test_feedback_1002).
+    css = HTML.split("  #screen-player .player-bg{", 1)[1].split("}", 1)[0]
     assert "aspect-ratio:4 / 3" in css and "inset:0" not in css
 
 

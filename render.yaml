@@ -241,7 +241,7 @@ services:
         sync: false
       - key: FINNHUB_KEY
         sync: false
-      # Weather and place names outside what NWS covers (§193): Open-Meteo's
+      # Weather and place names outside what NWS covers (§194): Open-Meteo's
       # API Standard plan, $29/month to 1M calls. NWS needs no key. Never on
       # staging, which scrubs it.
       - key: OPEN_METEO_API_KEY

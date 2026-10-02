@@ -82,9 +82,14 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Messages is a tab where Explore was; Explore is the "What users are
   searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
 
-- **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192) behind the
-  title, sources by it, GO DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet slid up, a ⋯ menu; no
-  "exclude from taste" (§171); the searcher shown only if `searches_public`. [player-layout]
+- **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
+  centred between GO DEEPER and the title, never missing - `pick_for_player`
+  borrows - and on the mini player, sides cropped, §193), sources by it, GO
+  DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
+  slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
+  if `searches_public`. [player-layout]
+- **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
+  lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
@@ -289,11 +294,11 @@ Research and truth
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
-- **Local news** (§193): a town's question goes town outlets (RSS, collected
+- **Local news** (§194): a town's question goes town outlets (RSS, collected
   ahead) → county → Exa on known outlets, never GDELT; only what names the
   place is evidence; an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
-- **Weather** (§193): NWS first, Open-Meteo second; fetched on demand, then
+- **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
   worded as a forecast, never an outcome; never prefetched. [weather]
 - Every research path records who it read (provenance). [provenance-all-paths]

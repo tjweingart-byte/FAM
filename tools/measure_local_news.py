@@ -1,4 +1,4 @@
-"""How much local news RSS actually gives us, town by town (§193).
+"""How much local news RSS actually gives us, town by town (§194).
 
     python tools/measure_local_news.py "San Anselmo, California, US" "Fairfax, California, US"
     python tools/measure_local_news.py --file towns.txt --json

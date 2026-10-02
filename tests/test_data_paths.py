@@ -114,7 +114,7 @@ ALL_VARS = sorted(DECLARED)
 #: `PROVIDER_USAGE_DB` (§179) is created by the first request to an outside
 #: service, and the admin page reads it without opening it - the trending
 #: bank's case again.
-#: `LOCAL_NEWS_DB` (§193) is created by the local news collector's first
+#: `LOCAL_NEWS_DB` (§194) is created by the local news collector's first
 #: sweep or the first local question, and reported once it exists - the
 #: same case again.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",

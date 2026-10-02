@@ -727,7 +727,7 @@ class Prefetcher:
         # current, which is §88's failure with a cache in front of it. The
         # brief is still kept, so the tap keeps the latency saving.
         #
-        # **Nor for weather or one town's news** (§193): both are built on a
+        # **Nor for weather or one town's news** (§194): both are built on a
         # forecast or a feed fetched at that moment, so a warmed script would
         # carry a stale forecast, and a town's gap sentence would outlive the
         # first story its outlets publish.

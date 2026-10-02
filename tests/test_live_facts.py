@@ -334,7 +334,7 @@ def test_health_names_every_domain_with_no_provider_and_what_it_needs():
     report = live_facts.report()
     assert set(report["domains"]) == set(live_facts.LIVE_DOMAINS)
     # Weather is the one domain that can be ready with nothing configured:
-    # the National Weather Service needs no key (§193), so once startup has
+    # the National Weather Service needs no key (§194), so once startup has
     # registered it, it is honestly ready.
     assert set(report["ready"]) <= {"weather"}, (
         "a source claims to be ready that is not")

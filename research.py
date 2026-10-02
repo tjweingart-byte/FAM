@@ -324,7 +324,7 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
 
 
 def names_place(results, place: str) -> list:
-    """Only the results that name `place` (§193, the fix that stops invention).
+    """Only the results that name `place` (§194, the fix that stops invention).
 
     A local question's evidence must be about that place. A Marin County or
     San Francisco story that never says "San Anselmo" is not evidence about
@@ -620,7 +620,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    # The local ladder's third rung (§193): only the town's and county's
+    # The local ladder's third rung (§194): only the town's and county's
     # known outlets.
     if include_domains:
         kwargs["include_domains"] = list(include_domains)
@@ -834,7 +834,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # Additive only: it never replaces the primary packet and never fails an
     # episode. `gdelt.retrieve` returns [] on any error by contract.
     if settings.gdelt_cross_check and not must_name:
-        # Never on a local question (§193): GDELT is off that path entirely.
+        # Never on a local question (§194): GDELT is off that path entirely.
         import gdelt
         import provenance as provenance_mod
 

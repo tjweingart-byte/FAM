@@ -67,7 +67,7 @@ FAM_ENVIRONMENT = (
     "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
-    # Local news and weather (§193). A developer with WEATHER=1 and a key in
+    # Local news and weather (§194). A developer with WEATHER=1 and a key in
     # their shell must not run a suite that asks the Weather Service anything.
     "LOCAL_NEWS", "LOCAL_NEWS_POLL_MINUTES", "LOCAL_NEWS_WINDOW_DAYS",
     "WEATHER", "WEATHER_SWEEP_HOURS", "WEATHER_LIVE_ALERTS",
@@ -454,7 +454,7 @@ def isolated_provider_usage(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def isolated_local_news(tmp_path, monkeypatch):
     """The local news store, the resolved places and the weather cache
-    (§193), per test - one test's outlets and forecasts must not be the
+    (§194), per test - one test's outlets and forecasts must not be the
     next one's, and the suite must never write `local_news.db` into the
     project root."""
     import local_news

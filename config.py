@@ -495,7 +495,7 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "LIVE_FAKE_SPORTS_STATUS", "in_progress").strip())
 
-    # --- local news and weather (§193) ------------------------------------
+    # --- local news and weather (§194) ------------------------------------
     # A question about one town is answered from that town's own outlets,
     # collected ahead of time from their RSS feeds, then from its county's,
     # then from Exa limited to the town's known outlets - and never from

@@ -1,6 +1,6 @@
 # Local news and weather: switching them on
 
-PROBLEMS.md §193 has the history; `docs/claude/constraints.md`
+PROBLEMS.md §194 has the history; `docs/claude/constraints.md`
 (`rule:local-news-ladder`, `rule:weather`) has the rules. This file is the
 checklist for turning on the three sources fully: **RSS** (local news),
 **NWS** (US weather and warnings) and **Open-Meteo** (weather everywhere

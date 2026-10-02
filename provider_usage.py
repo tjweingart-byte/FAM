@@ -49,7 +49,7 @@ LABELS = {
     "polymarket": "Polymarket",
     "gnews": "GNews",
     "finnhub": "Finnhub",
-    # §193: weather and the local news collector. NWS and the feeds cost
+    # §194: weather and the local news collector. NWS and the feeds cost
     # nothing, and are counted all the same - an outage is a count too.
     "nws": "National Weather Service",
     "open_meteo": "Open-Meteo",

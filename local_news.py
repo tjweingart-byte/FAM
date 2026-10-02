@@ -1,4 +1,4 @@
-"""Local news from the outlets that actually cover a town (§193).
+"""Local news from the outlets that actually cover a town (§194).
 
 **The hole this fills.** A question about a small town - "what's going on in
 San Anselmo" - went to Exa and GDELT, national indexes that weight a town's
@@ -1071,7 +1071,7 @@ class LocalResult:
 
 
 def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
-    """The sentence an episode opens with when the town had nothing (§193).
+    """The sentence an episode opens with when the town had nothing (§194).
 
     **Composed here, never by the writer**, at the owner's direction: it is
     the one place FAM tells a listener what its search did not find, so its

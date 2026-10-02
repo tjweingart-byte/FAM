@@ -1,4 +1,4 @@
-"""Make real weather calls and say exactly what came back (§193).
+"""Make real weather calls and say exactly what came back (§194).
 
     python tools/verify_weather.py "San Anselmo, California, US"
     python tools/verify_weather.py "Paris, Ile-de-France, FR"

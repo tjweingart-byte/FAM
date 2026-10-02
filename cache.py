@@ -218,7 +218,7 @@ def needs_fresh_information(query: str) -> bool:
 SPORTS_UPDATE_INTENTS = ("recap", "update")
 
 
-#: How long an episode built on a forecast stays current (§193).
+#: How long an episode built on a forecast stays current (§194).
 WEATHER_TTL_SECONDS = 3600
 
 
@@ -292,7 +292,7 @@ def ttl_for(query: str, *, live_status: str = "", outcome_dependent: bool = Fals
     status = (live_status or "").strip().lower()
     if status == "in_progress":
         return 0
-    # **Weather is current for an hour** (§193): a forecast is reissued
+    # **Weather is current for an hour** (§194): a forecast is reissued
     # through the day and an observation is "now" for less than that. Decided
     # by what the episode was built on - a weather block reached the writer -
     # never by the word "weather" in the question.
