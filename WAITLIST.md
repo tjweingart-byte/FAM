@@ -117,7 +117,14 @@ section when a decision changes, including why.
     drain runs at a time, so no call is sent twice; a 4xx other than 408/429
     is a refusal retrying cannot change, finished with its error kept and
     shown on the admin page.
-17. **Still open (ask the owner):** what each unlock gives (the tiers are
+17. **A join at `/waitlist` is always a waitlist join** (the owner, 02/10,
+    PROBLEMS.md §192). It used to follow `WAITLIST`, so with the switch unset
+    a join made an active account and dropped the person on the app's
+    sign-up screen. The gate now decides only whether the app is closed. The
+    app's Sign Up sends everybody here; the form takes the password twice;
+    the status page shows the exact place, the invite link and "Edit your
+    profile" (date of birth, location, phone and interests added).
+18. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

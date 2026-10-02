@@ -1720,6 +1720,8 @@ class ProfileRequest(BaseModel):
     display_name: Optional[str] = Field(None, max_length=accounts_mod.MAX_DISPLAY_NAME)
     email: Optional[str] = Field(None, max_length=accounts_mod.MAX_EMAIL)
     phone: Optional[str] = Field(None, max_length=accounts_mod.MAX_PHONE * 2)
+    #: `YYYY-MM-DD`, from the waitlist's profile (10.2 packet).
+    birth_date: Optional[str] = Field(None, max_length=10)
 
 
 class NewPasswordRequest(BaseModel):
@@ -2016,7 +2018,7 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
     try:
         account = ACCOUNTS.update_profile(
             _require_account(request), display_name=req.display_name,
-            email=req.email, phone=req.phone)
+            email=req.email, phone=req.phone, birth_date=req.birth_date)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return account
@@ -7492,14 +7494,17 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column
-    and moves nothing. With the gate on, the account is created waitlisted;
-    with it off (a development server), it is created active and the waitlist
-    half is skipped, which is exactly what the app does after launch.
+    and moves nothing. **Joining the waitlist always puts the account on it**
+    (10.2 packet), gate on or off: it used to follow `WAITLIST`, so on a
+    server where the switch was not set a join made an active account,
+    skipped the line and dropped the person into the app's own sign-up -
+    which is what the owner hit. The gate still decides only whether the app
+    is closed to them.
     """
     _rate_limit(request)
     user, fresh = _signup_listener(request)
     try:
-        listener = ACCOUNTS.sign_up(user, req.email, req.password)
+        listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _waitlist_after_signup(listener.user_id, req.referral_code)
@@ -7553,6 +7558,14 @@ async def waitlist_me(request: Request) -> dict:
                  "invited": p["user_id"] in order,
                  "waitlisted": p["user_id"] in waiting} for p in friends],
         "profile": profile,
+        # "Personalize your experience" (10.2 packet): what the status page's
+        # profile editor fills its fields from. Their own, to them only.
+        "details": {
+            "email": account.get("email") or "",
+            "phone": account.get("phone") or "",
+            "birth_date": account.get("birth_date") or "",
+            "location": PREFS.get(user).location.as_dict(),
+        },
     }
 
 

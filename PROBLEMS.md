@@ -14903,3 +14903,53 @@ somebody is looking.
 
 Tests: `tests/test_sweep_on_demand_191.py`; the §135 card fixtures now carry
 their league.
+
+## 192. The 10.2 packet: a waitlist join that skipped the waitlist, and the player rearranged
+
+**Joining the waitlist made an ordinary account.** The owner signed up on the
+waitlist page, was dropped onto the app's own sign-up screen, and was not on
+the list. `POST /api/waitlist/join` created the account with whatever status
+`WAITLIST` gave new accounts: the switch is set in the dashboard and never in
+`render.yaml`, so on a server where it was not set the join made an `active`
+account, `_waitlist_after_signup` skipped the waitlist half (it only runs for
+a waitlisted account), and the page followed `redirect: "/"` into the app,
+which opens on its sign-up screen. The fix is in the shape of the request, not
+the switch: **a join at `/waitlist` always starts the account waitlisted**
+(`AccountStore.sign_up(..., waitlisted=True)`), gate on or off. The gate still
+decides only whether the app is closed to them; the app's own
+`/api/auth/signup` still follows it.
+
+The rest of the owner's waitlist asks:
+* The app's **Sign Up goes to `/waitlist`** for everybody (`openAuth`,
+  `signupGoesToWaitlist`). A preview has no server and no `/waitlist`, so the
+  shims set `window.FAM_PREVIEW` and the in-app form stays there - which is
+  also what the smoke test drives.
+* One form: email, a password and the password again; a mismatch is said under
+  the button and nothing is sent.
+* The status page leads with the **exact place** (`#N`, "Out of N on the list",
+  or places until full access once a cutoff is set), then **Move up the list**:
+  the invite link in a box with Copy, and Share.
+* **Edit your profile - to personalize your experience** opens the profile:
+  name, handle and photo as before, plus date of birth, location (country,
+  state, city) and phone. Date of birth is a new `accounts.birth_date` column
+  (`YYYY-MM-DD`, a past day within 120 years, "" clears it; nothing is gated on
+  it), written through `POST /api/account`, which was already open past the
+  gate. Location is the preferences' three free-text fields; phone is the
+  account's, in E.164 from a country-code select. `/api/waitlist/me` returns
+  them under `details` for the form to fill from.
+
+The interface half:
+* **Trending searches**: five (`TREND_SHOWN`), in a smaller bubble (12px,
+  32px tall), so all five fit on a phone's search page.
+* **The player**: GO DEEPER replaces "Now playing" at the top, a fifth shorter
+  (8px padding, 13px); the demo badge moved into the stage. The picture is a
+  4:3 box the width of the screen instead of `cover` over the whole screen,
+  which had blown a 480x360 thumbnail up to the screen's height. Share, vibe
+  and save stand one above another on the right above the transport
+  (`.p-side`); the queue keeps the bottom right. The ⋯ menu adds "VIBE! to
+  your friends" / "Take back your VIBE!" and "Save for later" / "Remove from
+  Save for Later".
+* **myFAM's mix search** sits 18px further from the new-mix (+).
+
+Tests: `tests/test_packet_1002.py`, the new cases at the end of
+`tests/test_waitlist.py`, and the smoke check for the player's icons.

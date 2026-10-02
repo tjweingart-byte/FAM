@@ -55,8 +55,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
-- **Trending searches**: under the search bubbles, the 5-10 questions most
-  searched in the last 2h whose episodes are still current; cache only (§190). [trending-searches]
+- **Trending searches**: under the search bubbles, the five questions most
+  searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length and Voice bubbles never print the choice; length back to 2 min on
   every return to the app. [search-bar]
@@ -82,8 +82,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Messages is a tab where Explore was; Explore is the "What users are
   searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
 
-- **The player is Spotify's layout** (§190): down arrow, picture behind the
-  title, sources by it, GO DEEPER pill, captions sheet slid up, a ⋯ menu; no
+- **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192) behind the
+  title, sources by it, GO DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet slid up, a ⋯ menu; no
   "exclude from taste" (§171); the searcher shown only if `searches_public`. [player-layout]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
@@ -365,7 +365,8 @@ Accounts, tiers, sharing
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
   friends; a shared episode plays for anyone (only what was shared); the landing
-  page plays the three sign-up samples as replays (§190). [waitlist-gate]
+  page plays the three sign-up samples as replays (§190); a `/waitlist` join is
+  always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
 - **Tiers are built and switched off** (`ENFORCE_QUOTAS=0`) - no checkout means no wall. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]

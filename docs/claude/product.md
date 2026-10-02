@@ -431,6 +431,7 @@ strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
 <!-- rule:trending-searches -->
+> **Current (PROBLEMS.md §192):** five are shown (`TREND_SHOWN`), in a smaller bubble, so all five fit on the screen.
 > **Current (PROBLEMS.md §190):** shown under the search page's two bubbles whenever the box is empty and nothing is attached (not only on focus), as one full-width bubble per search, and ranked by how many listeners searched the question in the last two hours (`TRENDING_SEARCHES_WINDOW`, distinct listeners, plays break ties) - a question nobody searched in that window is not offered. Still current episodes only, still cache-only.
 - **Trending searches** *(§182, at the owner's direction)*: focusing the empty
   search box draws five to ten other listeners' searches whose episodes are
@@ -464,6 +465,7 @@ the rest of this list it needs taste rather than a key.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §192):** GO DEEPER is at the top where "Now playing" was (nothing says now playing), a fifth shorter; the picture is its own 4:3 shape at the top, never stretched over the whole screen; share, vibe and save stand one above another on the right above the transport, and the ⋯ menu offers vibe and save too; the queue stays bottom right.
 - **The player is Spotify's layout** *(PROBLEMS.md §190, the owner's, with
   Spotify screenshots)*: a down arrow top left (the old X, top right) that
   minimises and never stops (§142); the three dots top right open the menu;
