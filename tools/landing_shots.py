@@ -51,6 +51,8 @@ FAKE_NAMES = {
     "Beth": "Maya", "Rachel": "Jordan", "Mike": "Sam", "Nadia": "Ava",
     "@beth": "@maya", "@rachels": "@jordan", "@rachel": "@jordan",
     "@mike": "@sam", "@nadia": "@ava",
+    # Some labels are written in capitals ("BETH'S SHELF").
+    "BETH": "MAYA", "RACHEL": "JORDAN", "MIKE": "SAM", "NADIA": "AVA",
 }
 FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
 
@@ -65,6 +67,8 @@ SHOTS = [
     ("myfam-mixes", "openPlayFAM()"),
     ("myfam-mix", "document.querySelectorAll('.mix-card')[0].click()"),
     ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
+    # A friend's own page: their interests, public mixes and vibes.
+    ("friend-profile", "openPersonProfile('beth')"),
     # A friend's vibe, as the story it plays when their face is tapped.
     ("friend-vibe", "setTab('myfam'); setTimeout(function(){"
                     " for(var i = 0; i < yfCircle.length; i++){"

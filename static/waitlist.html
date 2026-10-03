@@ -183,10 +183,13 @@
     box-shadow:0 10px 24px rgba(0,0,0,0.35); }
   /* Centred under the front phone, which is moved 16% of its own width. */
   .shots.two .shot-tag{ left:calc(50% - min(40px, 9.6vw)); }
-  /* The back phone on the left, so its top-left corner (a story's face) shows. */
-  .shots.two.from-left .shot-front{ transform:translateX(16%); }
-  .shots.two.from-left .shot-back{ left:auto; right:50%; transform:translateX(6%) translateY(28px) rotate(-5deg); }
-  .shots.two.from-left .shot-tag{ left:calc(50% + min(40px, 9.6vw)); }
+  /* Three: the front phone centred, one popping out on each side (the left
+     one shows its top-left corner, where a story's face is). */
+  .shots.three .shot-front{ transform:none; }
+  .shots.three .shot-back{ width:min(220px, 44vw); }
+  .shots.three .shot-left{ left:auto; right:50%; transform:translateX(-52%) translateY(28px) rotate(-6deg); }
+  .shots.three .shot-right{ left:50%; transform:translateX(52%) translateY(28px) rotate(6deg); }
+  .shots.three .shot-tag{ left:50%; }
   .ab-fan{ position:relative; display:flex; justify-content:center; align-items:flex-end; margin:52px auto 0; height:min(116vw, 560px); }
   .ab-fan .shot{ position:absolute; bottom:0; width:min(250px, 46vw); }
   .ab-fan .fan-c{ z-index:2; width:min(270px, 50vw); }
@@ -513,9 +516,10 @@
         <p class="ab-sub">Add your friends on FAM to share episodes with them, see what
           they’re vibing with, and find out what they love to learn about.</p>
       </div>
-      <div class="shots two from-left fr-shots">
-        <figure class="shot shot-back"><img src="/landing/friend-vibe.jpg" alt="A friend's vibe, played as a story: the episode they vibed, ready to play" width="780" height="1688" loading="lazy"></figure>
+      <div class="shots two three fr-shots">
+        <figure class="shot shot-back shot-left"><img src="/landing/friend-vibe.jpg" alt="A friend's vibe, played as a story: the episode they vibed, ready to play" width="780" height="1688" loading="lazy"></figure>
         <figure class="shot shot-front"><img src="/landing/friends.jpg" alt="Your friends on FAM" width="780" height="1688" loading="lazy"></figure>
+        <figure class="shot shot-back shot-right"><img src="/landing/friend-profile.jpg" alt="A friend's profile: their interests, public mixes and vibes" width="780" height="1688" loading="lazy"></figure>
         <span class="shot-tag">See who’s vibing</span>
       </div>
       <div class="fr-cards">
