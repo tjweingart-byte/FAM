@@ -15218,7 +15218,7 @@ there is now a "What is FAM" section:
    since the preview has no episode with a painted picture. Each gold pill
    sits under its phone, never over the bottom of it. Nothing in the section
    plays. The listener-facing names are used (§185).
-3. Friends: share, vibe, topics, with the Friends page and DailyFAM's friends row.
+3. Friends: share, vibe, topics, with the Friends page and a friend's vibe played as a story.
 4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
    photo is `static/founders.jpg`; until the file exists the frame draws
    their initials (`onerror` adds `.empty`), so there is no broken image.

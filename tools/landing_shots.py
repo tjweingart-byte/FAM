@@ -65,6 +65,10 @@ SHOTS = [
     ("myfam-mixes", "openPlayFAM()"),
     ("myfam-mix", "document.querySelectorAll('.mix-card')[0].click()"),
     ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
+    # A friend's vibe, as the story it plays when their face is tapped.
+    ("friend-vibe", "setTab('myfam'); setTimeout(function(){"
+                    " for(var i = 0; i < yfCircle.length; i++){"
+                    "   if(hasStories(yfCircle[i])){ openStory(i); break; } } }, 600)"),
 ]
 
 #: name -> cut from a screenshot of the app, not photographed.
