@@ -587,5 +587,11 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     # Retaken by one script, which writes exactly the files the page names.
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
     assert {n[:-4] for n in pictures} <= set(re.findall(r'\("([\w-]+)", ', tool))
+    # Only painted tiles, made-up friends, a cover on the Morning mix.
+    assert "if(!c.querySelector('.seed-img')) c.remove();" in tool
+    assert '"Beth Solomon": "Maya Brooks"' in tool
+    assert "await page.evaluate(DESIGNED_TILES_ONLY)" in tool
+    assert "await page.evaluate(RENAME, names)" in tool
+    assert (ROOT / "tools" / "landing" / "morning-cover.jpg").stat().st_size > 10_000
     # Every picture says what it shows.
     assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))

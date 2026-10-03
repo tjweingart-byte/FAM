@@ -15204,9 +15204,14 @@ there is now a "What is FAM" section:
    than drawings). They are photographs of the preview build - the shipped
    `static/index.html` on its fixtures, a sample account signed in, the
    preview banner removed - kept as `static/landing/*.jpg` and retaken with
-   `python tools/landing_shots.py` when a screen changes. The friends in them
-   are the fixtures' sample people. Nothing in the section plays. The
-   listener-facing names are used (§185).
+   `python tools/landing_shots.py` when a screen changes. Three things are
+   changed for the camera, at the owner's direction: only tiles with a
+   painted picture are shown (the fixtures have none, so every placeholder
+   tile and any rail left empty comes off the screen); the fixtures' sample
+   friends, named after real people, get made-up names (`FAKE_NAMES`); and
+   the Morning mix has a cover (`tools/landing/morning-cover.jpg`, a drawn
+   sunrise, set through the app's own cover PATCH). Nothing in the section
+   plays. The listener-facing names are used (§185).
 3. Friends: share, vibe, topics, with the Friends page and DailyFAM's friends row.
 4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
    photo is `static/founders.jpg`; until the file exists the frame draws
