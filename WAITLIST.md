@@ -127,9 +127,11 @@ section when a decision changes, including why.
     profile" (date of birth, location, phone and interests added).
 18. **Under the sign-up, the landing page says what FAM is** (the owner,
     03/10, PROBLEMS.md §198): what an episode is, the old way against FAM,
-    Search / DailyFAM / myFAM each with a drawn phone, friends, the founders,
-    and a last Join button that scrolls back to the form. Every visual is
-    HTML and CSS; nothing in it plays or names a real listener. The founders'
+    Search / DailyFAM / myFAM each with real screens of the app, friends, the
+    founders, and a last Join button that scrolls back to the form. The
+    screens are `static/landing/*.jpg`, photographed from the preview build by
+    `python tools/landing_shots.py` (run it after `build_preview.py` whenever a
+    pictured screen changes); nothing in the section plays. The founders'
     photo is `static/founders.jpg` - drop it in and it shows; until then the
     frame holds their initials. The status page does not draw the section.
 19. **Still open (ask the owner):** what each unlock gives (the tiers are

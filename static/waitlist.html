@@ -169,66 +169,25 @@
   .feat-art::before{ content:""; position:absolute; inset:8% 6%; border-radius:50%;
     background:radial-gradient(closest-side, rgba(226,105,79,0.28), rgba(226,105,79,0)); filter:blur(10px); }
 
-  /* The drawn phone each feature sits in. */
-  .phone{ position:relative; width:min(300px, 86vw); border-radius:34px; padding:22px 16px 20px;
-    background:linear-gradient(180deg, #2C2838, #221F2C); border:1px solid #433D55;
-    box-shadow:0 30px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05); }
-  .phone::before{ content:""; display:block; width:84px; height:6px; border-radius:6px; background:#3A3548; margin:-8px auto 16px; }
-  .ph-title{ font-family:'Barlow Condensed', sans-serif; font-weight:600; letter-spacing:0.14em; text-transform:uppercase;
-    color:var(--gold); font-size:15px; margin:0 4px 14px; }
-  .mk-search{ display:flex; align-items:center; gap:10px; background:#F4EFE4; color:#1E1B27; border-radius:999px;
-    padding:12px 14px 12px 16px; font-size:13.5px; }
-  .mk-search svg{ width:18px; height:18px; flex:none; color:#6F6882; }
-  .mk-q{ flex:1; min-width:0; line-height:1.3; }
-  .mk-caret{ display:inline-block; width:1.5px; height:14px; background:#1E1B27; margin-left:2px; vertical-align:-2px;
-    animation:blink 1.1s steps(1) infinite; }
-  @keyframes blink{ 50%{ opacity:0; } }
-  .mk-lens{ display:flex; gap:6px; margin:12px 0 18px; }
-  .mk-lens span{ flex:1; text-align:center; font-size:11.5px; padding:7px 0; border-radius:999px; border:1px solid #4A4360; color:var(--muted); }
-  .mk-lens span.on{ background:var(--gold); border-color:var(--gold); color:var(--gold-ink); }
-  .mk-now{ display:flex; gap:12px; align-items:center; }
-  .mk-art{ display:block; flex:none; width:56px; height:56px; border-radius:10px; }
-  .mk-art-a{ background:linear-gradient(135deg, #F0C35E, #E2694F); }
-  .mk-art-b{ background:linear-gradient(135deg, #8FAE9A, #3E6B5A); }
-  .mk-art-c{ background:linear-gradient(135deg, #8C7BD8, #3E3470); }
-  .mk-now-t b{ display:block; font-weight:500; font-size:14px; line-height:1.3; }
-  .mk-now-t span{ display:block; font-size:12px; color:var(--muted); margin-top:3px; }
-  .mk-wave{ display:flex; align-items:center; gap:3px; height:40px; margin:16px 2px 14px; }
-  .mk-wave i{ flex:1; border-radius:3px; background:var(--gold); height:30%; animation:wave 1.3s ease-in-out infinite; }
-  .mk-wave i:nth-child(n+11){ background:#4A4360; animation:none; }
-  .mk-wave i:nth-child(3n){ animation-delay:-0.4s; } .mk-wave i:nth-child(3n+1){ animation-delay:-0.8s; }
-  .mk-wave i:nth-child(4n){ height:70%; } .mk-wave i:nth-child(5n+2){ height:50%; } .mk-wave i:nth-child(7n+1){ height:85%; }
-  @keyframes wave{ 0%,100%{ transform:scaleY(1); } 50%{ transform:scaleY(0.45); } }
-  .mk-deeper{ text-align:center; border:1px solid var(--gold); color:var(--gold); border-radius:999px; padding:9px 0; font-size:13px; }
-
-  .mk-rail + .mk-rail{ margin-top:14px; }
-  .mk-rail-h{ font-size:12.5px; color:var(--text); margin:0 2px 7px; }
-  .mk-tiles{ display:flex; gap:8px; }
-  .mk-tiles i{ flex:1; aspect-ratio:4/3; border-radius:9px; }
-  .t1{ background:linear-gradient(135deg, #F0C35E, #E2694F); }
-  .t2{ background:linear-gradient(135deg, #8FAE9A, #2F5A4B); }
-  .t3{ background:linear-gradient(135deg, #8C7BD8, #3E3470); }
-  .t4{ background:linear-gradient(135deg, #5FA8D3, #23466B); }
-  .t5{ background:linear-gradient(135deg, #E29A86, #7A3A4E); }
-  .t6{ background:linear-gradient(135deg, #D8C9A8, #6D5A3A); }
-
-  .mk-mix{ border-radius:18px; padding:16px; background:linear-gradient(150deg, #E2694F, #8A3E5C 70%, #4A2E58); }
-  .mk-mix-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  .mk-mix-top b{ display:block; font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:22px; }
-  .mk-mix-top div span{ display:block; font-size:12px; color:rgba(244,239,228,0.8); margin-top:2px; }
-  .mk-play{ flex:none; width:46px; height:46px; border-radius:50%; background:var(--gold); color:var(--gold-ink);
-    display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.3); }
-  .mk-play svg{ width:18px; height:18px; margin-left:2px; }
-  .mk-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
-  .mk-chips span{ font-size:11.5px; padding:5px 10px; border-radius:999px; background:rgba(20,18,28,0.32); }
-  .mk-q-list{ margin-top:14px; }
-  .mk-row{ display:flex; align-items:center; gap:11px; padding:8px 2px; border-top:1px solid var(--line); }
-  .mk-row:first-child{ border-top:0; }
-  .mk-row .mk-art{ width:40px; height:40px; border-radius:8px; }
-  .mk-row span{ flex:1; min-width:0; }
-  .mk-row b{ display:block; font-weight:500; font-size:12.5px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .mk-row em{ display:block; font-style:normal; font-size:11px; color:var(--muted); margin-top:2px; }
-  .mk-row small{ font-size:11px; color:var(--faint); }
+  /* The real screens, framed as phones. */
+  .shot{ margin:0; width:min(250px, 60vw); max-width:100%; aspect-ratio:780/1688; border-radius:34px; overflow:hidden;
+    border:7px solid #0E0C14; background:#2A2733;
+    box-shadow:0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); }
+  .shot img{ display:block; width:100%; height:100%; object-fit:cover; }
+  .shots{ position:relative; display:flex; justify-content:center; padding:10px 0 26px; }
+  .shots.two .shot-front{ position:relative; z-index:1; transform:translateX(-16%); }
+  .shots.two .shot-back{ position:absolute; top:10px; left:50%; z-index:0; width:min(220px, 52vw);
+    transform:translateX(-6%) translateY(28px) rotate(5deg); opacity:0.8; }
+  .shot-tag{ position:absolute; z-index:2; left:50%; bottom:6px; transform:translateX(-50%); white-space:nowrap;
+    background:var(--gold); color:var(--gold-ink); border-radius:999px; padding:9px 16px; font-size:14px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.35); }
+  .shots.two .shot-tag{ left:42%; }
+  .ab-fan{ position:relative; display:flex; justify-content:center; align-items:flex-end; margin:52px auto 0; height:min(116vw, 560px); }
+  .ab-fan .shot{ position:absolute; bottom:0; width:min(250px, 46vw); }
+  .ab-fan .fan-c{ z-index:2; width:min(270px, 50vw); }
+  .ab-fan .fan-l{ transform:translateX(-62%) translateY(-6%) rotate(-7deg); opacity:0.85; }
+  .ab-fan .fan-r{ transform:translateX(62%) translateY(-6%) rotate(7deg); opacity:0.85; }
+  .fr-shots{ margin-top:40px; }
 
   .ab-friends{ margin-top:90px; }
   .ab-friends .fr-copy{ text-align:center; }
@@ -276,7 +235,7 @@
   }
   @media (prefers-reduced-motion: reduce){
     .can-reveal .reveal{ transform:none; transition:none; }
-    .hero-more svg, .mk-caret, .mk-wave i{ animation:none; }
+    .hero-more svg{ animation:none; }
   }
 
   /* ---------- status ---------- */
@@ -439,8 +398,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></a>
  </div>
   <!-- What is FAM: the explainer under the sign-up, for somebody who has
-       never opened the app. Every visual is drawn here in HTML and CSS -
-       nothing in it plays, and nothing in it is a real listener or episode. -->
+       never opened the app. The pictures are the real interface, captured
+       from the preview build at phone size (static/landing/, retaken with
+       tools/landing_shots.py); nothing in the section plays. -->
   <div class="about" id="about">
 
     <section class="ab-wrap ab-intro reveal">
@@ -449,6 +409,11 @@
       <p class="ab-lede">FAM turns whatever you’re curious about into a researched,
         story-driven audio episode, made for you. Ask a question, follow the topics you
         love, and press play.</p>
+      <div class="ab-fan">
+        <figure class="shot fan-l"><img src="/landing/dailyfam.jpg" alt="The DailyFAM page" width="780" height="1688"></figure>
+        <figure class="shot fan-c"><img src="/landing/search.jpg" alt="Searching on FAM" width="780" height="1688"></figure>
+        <figure class="shot fan-r"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix" width="780" height="1688"></figure>
+      </div>
     </section>
 
     <section class="ab-wrap ab-compare reveal" aria-label="Why FAM">
@@ -491,24 +456,8 @@
             <li>Go deeper with a follow-up when it ends</li>
           </ul>
         </div>
-        <div class="feat-art" aria-hidden="true">
-          <div class="phone">
-            <div class="ph-title">Search</div>
-            <div class="mk-search">
-              <span class="mk-q">How did the Roman Empire actually fall?<i class="mk-caret"></i></span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-            </div>
-            <div class="mk-lens"><span>1 min</span><span class="on">3 min</span><span>5 min</span><span>10 min</span></div>
-            <div class="mk-now">
-              <div class="mk-art mk-art-a"></div>
-              <div class="mk-now-t">
-                <b>Why Rome fell slowly, then all at once</b>
-                <span>Your episode · 3 min</span>
-              </div>
-            </div>
-            <div class="mk-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <div class="mk-deeper label">Go deeper</div>
-          </div>
+        <div class="feat-art">
+          <div class="shots two"><figure class="shot shot-back"><img src="/landing/explore.jpg" alt="Explore: an episode another listener searched, one swipe from search" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">See what everyone’s asking</span></div>
         </div>
       </article>
 
@@ -526,18 +475,8 @@
             <li>What’s hot on <b>FAM</b> and with <b>your friends</b></li>
           </ul>
         </div>
-        <div class="feat-art" aria-hidden="true">
-          <div class="phone">
-            <div class="ph-title">DailyFAM</div>
-            <div class="mk-rail"><div class="mk-rail-h">Made for you</div>
-              <div class="mk-tiles"><i class="t1"></i><i class="t2"></i><i class="t3"></i></div></div>
-            <div class="mk-rail"><div class="mk-rail-h">Trending worldwide</div>
-              <div class="mk-tiles"><i class="t4"></i><i class="t5"></i><i class="t6"></i></div></div>
-            <div class="mk-rail"><div class="mk-rail-h">What you missed</div>
-              <div class="mk-tiles"><i class="t3"></i><i class="t1"></i><i class="t5"></i></div></div>
-            <div class="mk-rail"><div class="mk-rail-h">Your friends</div>
-              <div class="mk-tiles"><i class="t6"></i><i class="t2"></i><i class="t4"></i></div></div>
-          </div>
+        <div class="feat-art">
+          <div class="shots two"><figure class="shot shot-back"><img src="/landing/dailyfam-rails.jpg" alt="DailyFAM rails: trending and what you missed" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/dailyfam.jpg" alt="DailyFAM: pick up where you left off and Made for you" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Made for you, every visit</span></div>
         </div>
       </article>
 
@@ -554,22 +493,8 @@
             <li>Share your mixes, or copy one somebody else made</li>
           </ul>
         </div>
-        <div class="feat-art" aria-hidden="true">
-          <div class="phone">
-            <div class="ph-title">myFAM</div>
-            <div class="mk-mix">
-              <div class="mk-mix-top">
-                <div><b>Morning mix</b><span>Ready at 7:00</span></div>
-                <span class="mk-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>
-              </div>
-              <div class="mk-chips"><span>My team</span><span>Markets</span><span>Tech</span><span>World news</span></div>
-            </div>
-            <div class="mk-q-list">
-              <div class="mk-row"><i class="mk-art mk-art-b"></i><span><b>Last night’s game, in two minutes</b><em>My team</em></span><small>2 min</small></div>
-              <div class="mk-row"><i class="mk-art mk-art-c"></i><span><b>What moved the markets</b><em>Markets</em></span><small>2 min</small></div>
-              <div class="mk-row"><i class="mk-art mk-art-a"></i><span><b>The launch everyone’s watching</b><em>Tech</em></span><small>2 min</small></div>
-            </div>
-          </div>
+        <div class="feat-art">
+          <div class="shots two"><figure class="shot shot-back"><img src="/landing/myfam-mixes.jpg" alt="myFAM: your mixes" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix with today’s edition ready to play" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Today’s edition, one tap</span></div>
         </div>
       </article>
     </section>
@@ -580,6 +505,11 @@
         <h2 class="ab-h">Technology shouldn’t pull us apart. It should bring us closer.</h2>
         <p class="ab-sub">Add your friends on FAM to share episodes with them, see what
           they’re vibing with, and find out what they love to learn about.</p>
+      </div>
+      <div class="shots two fr-shots">
+        <figure class="shot shot-back"><img src="/landing/dailyfam.jpg" alt="Friends at the top of DailyFAM, with the episodes they vibed" width="780" height="1688" loading="lazy"></figure>
+        <figure class="shot shot-front"><img src="/landing/friends.jpg" alt="Your friends on FAM" width="780" height="1688" loading="lazy"></figure>
+        <span class="shot-tag">See who’s vibing</span>
       </div>
       <div class="fr-cards">
         <div class="fr-card">

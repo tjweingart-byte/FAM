@@ -15199,10 +15199,15 @@ there is now a "What is FAM" section:
 
 1. What an episode is, then **No more / Say hello to** (Google tabs and
    chatbot paragraphs against researched storytelling audio).
-2. **Search. Scroll. Mix.** - Search, DailyFAM and myFAM, each with a phone
-   drawn in HTML and CSS (no images ship, nothing plays, no listener or
-   episode in it is real). The listener-facing names are used (§185).
-3. Friends: share, vibe, topics.
+2. **Search. Scroll. Mix.** - Search, DailyFAM and myFAM, each shown with
+   real screens of the app (the owner asked for the real interface rather
+   than drawings). They are photographs of the preview build - the shipped
+   `static/index.html` on its fixtures, a sample account signed in, the
+   preview banner removed - kept as `static/landing/*.jpg` and retaken with
+   `python tools/landing_shots.py` when a screen changes. The friends in them
+   are the fixtures' sample people. Nothing in the section plays. The
+   listener-facing names are used (§185).
+3. Friends: share, vibe, topics, with the Friends page and DailyFAM's friends row.
 4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
    photo is `static/founders.jpg`; until the file exists the frame draws
    their initials (`onerror` adds `.empty`), so there is no broken image.

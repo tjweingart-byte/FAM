@@ -12,6 +12,7 @@ import dataclasses
 import json
 import os
 import pathlib
+import re
 import sqlite3
 import sys
 
@@ -574,3 +575,17 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     reveal = page.split(".can-reveal .reveal{", 1)[1].split("}", 1)[0]
     assert "opacity" not in reveal
     assert 'classList.add("can-reveal")' in page
+
+
+def test_the_what_is_fam_pictures_are_real_screens_that_ship():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
+    pictures = set(re.findall(r'src="/landing/([\w-]+\.jpg)"', about))
+    assert len(pictures) >= 6
+    for name in pictures:
+        assert (ROOT / "static" / "landing" / name).stat().st_size > 10_000, name
+    # Retaken by one script, which writes exactly the files the page names.
+    tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
+    assert {n[:-4] for n in pictures} <= set(re.findall(r'\("([\w-]+)", ', tool))
+    # Every picture says what it shows.
+    assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
