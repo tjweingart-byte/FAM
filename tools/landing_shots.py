@@ -23,7 +23,10 @@ Retake them whenever a screen they show changes:
     python preview/build_preview.py
     python tools/landing_shots.py
 
-Writes `static/landing/*.jpg`, the files `static/waitlist.html` names.
+Writes `static/landing/*.jpg`, the files `static/waitlist.html` names. The
+STILLS are not photographed: they are cut from the owner's screenshots of the
+app (`tools/landing/stills/`) and only resized here, because the preview
+cannot show them (the player needs an episode with a painted picture).
 """
 from __future__ import annotations
 
@@ -62,7 +65,11 @@ SHOTS = [
     ("myfam-mixes", "openPlayFAM()"),
     ("myfam-mix", "document.querySelectorAll('.mix-card')[0].click()"),
     ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
-    ("explore", "openExplore()"),
+]
+
+#: name -> cut from a screenshot of the app, not photographed.
+STILLS = [
+    ("player", "the player on a real episode, from the owner's phone"),
 ]
 
 #: Whatever the last screen left open, and anything that is the preview
@@ -187,6 +194,11 @@ async def capture() -> int:
                 OUT / f"{name}.jpg", quality=80, optimize=True, progressive=True)
             print(f"  {name:15} captured")
         await browser.close()
+    for name, _why in STILLS:
+        still = Image.open(ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").convert("RGB")
+        still = still.resize((780, round(780 * still.height / still.width)))
+        still.save(OUT / f"{name}.jpg", quality=82, optimize=True, progressive=True)
+        print(f"  {name:15} from its still")
     if errors:
         print("errors:", errors)
     return 1 if errors else 0

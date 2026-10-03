@@ -587,6 +587,11 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     # Retaken by one script, which writes exactly the files the page names.
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
     assert {n[:-4] for n in pictures} <= set(re.findall(r'\("([\w-]+)", ', tool))
+    for name in re.findall(r'\("([\w-]+)", "the', tool):  # a still is cut, not shot
+        assert (ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").exists(), name
+    # A pill sits under its phone: the row leaves room below the phone for it.
+    pad = re.search(r"\.shots\{[^}]*padding:10px 0 (\d+)px", page)
+    assert pad and int(pad.group(1)) >= 60
     # Only painted tiles, made-up friends, a cover on the Morning mix.
     assert "if(!c.querySelector('.seed-img')) c.remove();" in tool
     assert '"Beth Solomon": "Maya Brooks"' in tool

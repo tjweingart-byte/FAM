@@ -174,11 +174,11 @@
     border:7px solid #0E0C14; background:#2A2733;
     box-shadow:0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); }
   .shot img{ display:block; width:100%; height:100%; object-fit:cover; }
-  .shots{ position:relative; display:flex; justify-content:center; padding:10px 0 26px; }
+  .shots{ position:relative; display:flex; justify-content:center; padding:10px 0 68px; }
   .shots.two .shot-front{ position:relative; z-index:1; transform:translateX(-16%); }
   .shots.two .shot-back{ position:absolute; top:10px; left:50%; z-index:0; width:min(220px, 52vw);
     transform:translateX(-6%) translateY(28px) rotate(5deg); opacity:0.8; }
-  .shot-tag{ position:absolute; z-index:2; left:50%; bottom:6px; transform:translateX(-50%); white-space:nowrap;
+  .shot-tag{ position:absolute; z-index:2; left:50%; bottom:8px; transform:translateX(-50%); white-space:nowrap;
     background:var(--gold); color:var(--gold-ink); border-radius:999px; padding:9px 16px; font-size:14px;
     box-shadow:0 10px 24px rgba(0,0,0,0.35); }
   .shots.two .shot-tag{ left:42%; }
@@ -399,8 +399,10 @@
  </div>
   <!-- What is FAM: the explainer under the sign-up, for somebody who has
        never opened the app. The pictures are the real interface, captured
-       from the preview build at phone size (static/landing/, retaken with
-       tools/landing_shots.py); nothing in the section plays. -->
+       from the preview build at phone size, or cut from the owner's own
+       screenshots (static/landing/, rebuilt with tools/landing_shots.py);
+       nothing in the section plays. Each pill sits under its phone, never
+       over it. -->
   <div class="about" id="about">
 
     <section class="ab-wrap ab-intro reveal">
@@ -457,7 +459,7 @@
           </ul>
         </div>
         <div class="feat-art">
-          <div class="shots two"><figure class="shot shot-back"><img src="/landing/explore.jpg" alt="Explore: an episode another listener searched, one swipe from search" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">See what everyone’s asking</span></div>
+          <div class="shots two"><figure class="shot shot-back"><img src="/landing/player.jpg" alt="The player: your episode's picture, title, and Go Deeper" width="780" height="1627" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your episode, made for you</span></div>
         </div>
       </article>
 

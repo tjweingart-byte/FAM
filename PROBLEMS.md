@@ -15213,7 +15213,10 @@ there is now a "What is FAM" section:
    placeholder drawing, with any rail left empty, comes off; the fixtures' sample
    friends, named after real people, get made-up names (`FAKE_NAMES`); and
    the Morning mix has a cover (`tools/landing/morning-cover.jpg`, a drawn
-   sunrise, set through the app's own cover PATCH). Nothing in the section
+   sunrise, set through the app's own cover PATCH). Behind Search is the
+   player, cut from the owner's own screenshot (`tools/landing/stills/`),
+   since the preview has no episode with a painted picture. Each gold pill
+   sits under its phone, never over the bottom of it. Nothing in the section
    plays. The listener-facing names are used (§185).
 3. Friends: share, vibe, topics, with the Friends page and DailyFAM's friends row.
 4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
