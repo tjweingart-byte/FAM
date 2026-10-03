@@ -15206,8 +15206,11 @@ there is now a "What is FAM" section:
    preview banner removed - kept as `static/landing/*.jpg` and retaken with
    `python tools/landing_shots.py` when a screen changes. Three things are
    changed for the camera, at the owner's direction: only tiles with a
-   painted picture are shown (the fixtures have none, so every placeholder
-   tile and any rail left empty comes off the screen); the fixtures' sample
+   painted picture are shown - the fixtures have none, so DailyFAM's tiles
+   wear thirteen real cards the owner screenshotted from the app
+   (`tools/landing/tiles/`, Made for you's on Made for you, Trending's on
+   Trending, the friends rail's on the rest), and any tile still on its
+   placeholder drawing, with any rail left empty, comes off; the fixtures' sample
    friends, named after real people, get made-up names (`FAKE_NAMES`); and
    the Morning mix has a cover (`tools/landing/morning-cover.jpg`, a drawn
    sunrise, set through the app's own cover PATCH). Nothing in the section

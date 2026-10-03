@@ -7,10 +7,12 @@ preview's own banner removed and a sample account signed in so the mixes
 screen has something on it. Three things are changed for the camera, at the
 owner's direction:
 
-* **Only tiles with a painted picture are shown.** A tile still on its
-  placeholder drawing is taken off the screen (and a rail left with none
-  goes with it). The fixtures carry no paintings, so today that is every
-  tile; once tiles have pictures, they appear.
+* **Only tiles with a painted picture are shown.** The fixtures carry no
+  paintings, so DailyFAM's tiles are dressed in real cards cut from screens
+  of the app (`tools/landing/tiles/`, one file per card, named for the rail
+  it came from: `foryou-`, `trending-`, `friends-`). A tile left on its
+  placeholder drawing is taken off the screen, and a rail left with none
+  goes with it.
 * **Friends have made-up names** (`FAKE_NAMES`): the fixtures' sample
   people are named after real people.
 * **The Morning mix has a cover**, `tools/landing/morning-cover.jpg`, set
@@ -36,6 +38,7 @@ PAGE = ROOT / "preview" / "fam-artifact.html"
 OUT = ROOT / "static" / "landing"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 COVER = ROOT / "tools" / "landing" / "morning-cover.jpg"
+TILES = ROOT / "tools" / "landing" / "tiles"
 
 #: The fixtures' sample people -> names nobody has. Whole words only; the
 #: initials are whole text nodes (the avatar letters).
@@ -53,6 +56,9 @@ FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
 SHOTS = [
     ("search", "setTab('home')"),
     ("dailyfam", "setTab('myfam')"),
+    ("dailyfam-rails", "setTab('myfam');"
+                       " var sc = document.querySelector('#screen-myfam .scroll');"
+                       " if(sc) sc.scrollTop = 520;"),
     ("myfam-mixes", "openPlayFAM()"),
     ("myfam-mix", "document.querySelectorAll('.mix-card')[0].click()"),
     ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
@@ -71,6 +77,29 @@ document.querySelectorAll('body > div').forEach(function(d){
 var f = document.getElementById('followerOverlay');
 if(f){ f.classList.remove('active'); f.hidden = true; }
 """
+
+#: Each rail's tiles become real painted cards from the rail they came from:
+#: Made for you's from Made for you, Trending's from Trending, and the rest
+#: from the friends rail. A rail with no cards of its own is left alone (and
+#: so loses its tiles below).
+PAINT_TILES = """(cards) => {
+  var used = {};
+  document.querySelectorAll('.feed-section').forEach(function(sec){
+    var head = (sec.querySelector('.feed-title') || sec).textContent;
+    var kind = /made for you/i.test(head) ? 'foryou'
+             : /trending/i.test(head) ? 'trending'
+             : /friend|missed|most played/i.test(head) ? 'friends' : '';
+    if(!kind) return;
+    sec.querySelectorAll('.seed-card').forEach(function(card){
+      var list = cards[kind] || [], at = used[kind] || 0;
+      if(at >= list.length) return;
+      used[kind] = at + 1;
+      card.innerHTML = '<img class="seed-img" alt="" src="' + list[at] + '"'
+        + ' style="position:static;display:block;width:100%;height:auto">';
+      card.style.cssText += ';padding:0;border:0;background:none;border-radius:13px;overflow:hidden';
+    });
+  });
+}"""
 
 #: Tiles still on the placeholder drawing come off the screen, and so does a
 #: rail that is left with nothing on it.
@@ -134,6 +163,11 @@ async def capture() -> int:
               body: JSON.stringify({ cover: cover }) });
           })""", cover)
         names = {"whole": FAKE_NAMES, "initials": FAKE_INITIALS}
+        cards: dict[str, list[str]] = {}
+        for path in sorted(TILES.glob("*.jpg"), key=lambda p: (p.stem.split("-")[0],
+                                                                int(p.stem.split("-")[1]))):
+            cards.setdefault(path.stem.split("-")[0], []).append(
+                "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode())
         for name, script in SHOTS:
             await page.evaluate(TIDY)
             try:
@@ -143,6 +177,7 @@ async def capture() -> int:
                 continue
             await page.wait_for_timeout(2500)
             await page.evaluate(TIDY)
+            await page.evaluate(PAINT_TILES, cards)
             await page.evaluate(DESIGNED_TILES_ONLY)
             await page.evaluate(RENAME, names)
             await page.wait_for_timeout(200)

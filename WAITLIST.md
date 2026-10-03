@@ -132,7 +132,8 @@ section when a decision changes, including why.
     screens are `static/landing/*.jpg`, photographed from the preview build by
     `python tools/landing_shots.py` (run it after `build_preview.py` whenever a
     pictured screen changes); nothing in the section plays. The pictures
-    show only tiles with a painted picture, made-up friends' names and a
+    show only tiles with a painted picture (real cards cut from the app's
+    screens, in `tools/landing/tiles/`), made-up friends' names and a
     cover on the Morning mix (the script's docstring says how). The founders'
     photo is `static/founders.jpg` - drop it in and it shows; until then the
     frame holds their initials. The status page does not draw the section.

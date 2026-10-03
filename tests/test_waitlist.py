@@ -593,5 +593,9 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     assert "await page.evaluate(DESIGNED_TILES_ONLY)" in tool
     assert "await page.evaluate(RENAME, names)" in tool
     assert (ROOT / "tools" / "landing" / "morning-cover.jpg").stat().st_size > 10_000
+    # The painted cards, one set per rail they were cut from.
+    tiles = {p.stem.split("-")[0] for p in (ROOT / "tools" / "landing" / "tiles").glob("*.jpg")}
+    assert tiles == {"foryou", "trending", "friends"}
+    assert "await page.evaluate(PAINT_TILES, cards)" in tool
     # Every picture says what it shows.
     assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
