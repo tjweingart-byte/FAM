@@ -15189,3 +15189,30 @@ At the owner's direction:
 
 Tests: `tests/test_packet_1001_fourth.py`, `tests/test_guest_wipe_and_storage.py`,
 `tools/smoke_preview.py`.
+
+
+## 198. The waitlist page asked for an email without saying what FAM is
+
+At the owner's direction: somebody landing on `/waitlist` saw a headline, a
+sample and a form, and nothing that explained the product. Under the sign-up
+there is now a "What is FAM" section:
+
+1. What an episode is, then **No more / Say hello to** (Google tabs and
+   chatbot paragraphs against researched storytelling audio).
+2. **Search. Scroll. Mix.** - Search, DailyFAM and myFAM, each with a phone
+   drawn in HTML and CSS (no images ship, nothing plays, no listener or
+   episode in it is real). The listener-facing names are used (§185).
+3. Friends: share, vibe, topics.
+4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
+   photo is `static/founders.jpg`; until the file exists the frame draws
+   their initials (`onerror` adds `.empty`), so there is no broken image.
+5. A last Join button that scrolls back to the form and focuses it.
+
+The dusk backdrop moved from `.landing` to a `.hero` wrapper so it covers the
+sign-up screen and not the section under it; `--hero` set on `.landing` still
+reaches it. Sections ease up as they scroll in (`html.can-reveal`, set only
+when an `IntersectionObserver` exists); they are moved, never hidden while they
+wait, so a link preview sees the whole page. Reduced motion turns the easing
+and the drawn animations off.
+
+Tests: `tests/test_waitlist.py`.

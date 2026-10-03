@@ -558,3 +558,19 @@ def test_the_apps_sign_up_goes_to_the_waitlist():
     body = page.split("function openAuth(mode){", 1)[1].split("authMode = mode;", 1)[0]
     assert 'mode === "signup" && signupGoesToWaitlist()' in body
     assert 'location.href = "/waitlist"' in body
+
+
+def test_the_landing_page_says_what_fam_is_under_the_sign_up():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    # Under the form, on the landing view only - never on the status page.
+    assert landing.index('id="joinForm"') < landing.index('id="about"')
+    for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
+                    "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):
+        assert heading in landing
+    # The founders' photo is optional: a missing file draws their initials.
+    assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
+    # The reveal moves sections; it never hides them while they wait.
+    reveal = page.split(".can-reveal .reveal{", 1)[1].split("}", 1)[0]
+    assert "opacity" not in reveal
+    assert 'classList.add("can-reveal")' in page

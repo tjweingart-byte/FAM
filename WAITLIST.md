@@ -97,7 +97,8 @@ section when a decision changes, including why.
     them.
 12. **"Watch the video" is not drawn** - there is no video yet, and a control
     with nothing behind it is worse than none. The hero photo is a drawn dusk
-    gradient until there is a licensed image (set `--hero` on `.landing`).
+    gradient until there is a licensed image (set `--hero` on `.landing`;
+    the dusk is drawn on `.hero`, the sign-up screen, and inherits it).
 13. **The waitlist rules end at launch, not when each row changes.** Hidden
     from discovery and no messaging apply only while `WAITLIST=1`; setting it
     to 0 lifts them for everybody, including anyone never granted, so launch
@@ -124,7 +125,14 @@ section when a decision changes, including why.
     app's Sign Up sends everybody here; the form takes the password twice;
     the status page shows the exact place, the invite link and "Edit your
     profile" (date of birth, location, phone and interests added).
-18. **Still open (ask the owner):** what each unlock gives (the tiers are
+18. **Under the sign-up, the landing page says what FAM is** (the owner,
+    03/10, PROBLEMS.md §198): what an episode is, the old way against FAM,
+    Search / DailyFAM / myFAM each with a drawn phone, friends, the founders,
+    and a last Join button that scrolls back to the form. Every visual is
+    HTML and CSS; nothing in it plays or names a real listener. The founders'
+    photo is `static/founders.jpg` - drop it in and it shows; until then the
+    frame holds their initials. The status page does not draw the section.
+19. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

@@ -33,7 +33,7 @@
   from /api/waitlist/me, and every rule is enforced by the server.
 -->
 <style>
-  :root{
+  :root{ color-scheme:dark;
     --page-bg:#1E1B27; --card:#26222F; --card-2:#2E2A3A; --line:#3A3548;
     --text:#F4EFE4; --muted:#A9A2B8; --faint:#6F6882;
     --gold:#F0C35E; --gold-ink:#1E1B27; --coral:#E2694F; --sage:#8FAE9A;
@@ -52,18 +52,19 @@
   .wordmark svg{ display:block; height:1em; width:auto; overflow:visible; }
 
   /* ---------- landing ---------- */
-  .landing{ position:relative; min-height:100vh; min-height:100dvh; overflow:hidden;
+  .landing{ position:relative; }
+  .hero{ position:relative; min-height:100vh; min-height:100dvh; overflow:hidden;
     display:flex; flex-direction:column; align-items:center; }
   /* Dusk, drawn: no photograph ships with the repo yet. `--hero` takes one
      (WAITLIST.md) the day there is a licensed image to put here. */
-  .landing::before{ content:""; position:absolute; inset:0; z-index:0;
+  .hero::before{ content:""; position:absolute; inset:0; z-index:0;
     background-color:#1B1F2E;
     background-image: var(--hero, none),
       radial-gradient(120% 60% at 50% 105%, rgba(240,155,70,0.55), rgba(240,155,70,0) 60%),
       radial-gradient(80% 40% at 80% 70%, rgba(226,105,79,0.30), rgba(226,105,79,0) 70%),
       linear-gradient(180deg, #1B1F2E 0%, #2A2A3A 38%, #4A3A3C 64%, #7A5238 84%, #3A2A22 100%);
     background-size:cover; background-position:center; }
-  .landing::after{ content:""; position:absolute; inset:0; z-index:0;
+  .hero::after{ content:""; position:absolute; inset:0; z-index:0;
     background:linear-gradient(180deg, rgba(20,18,28,0.35) 0%, rgba(20,18,28,0) 40%, rgba(20,18,28,0.25) 100%); }
   .landing-in{ position:relative; z-index:1; width:100%; max-width:440px;
     padding:max(64px, env(safe-area-inset-top)) 24px 48px; }
@@ -110,6 +111,173 @@
     background:rgba(244,239,228,0.35); }
   .sample-dot.on{ background:var(--gold); }
   .sample-note{ min-height:0; font-size:12.5px; color:#F6D9A0; margin:6px 2px 0; }
+
+  .hero-more{ position:relative; z-index:1; margin:auto 0 22px; padding-top:8px; display:flex; flex-direction:column;
+    align-items:center; gap:4px; color:rgba(244,239,228,0.85); text-decoration:none; font-size:14px; }
+  .hero-more svg{ width:22px; height:22px; animation:nudge 2.4s ease-in-out infinite; }
+  @keyframes nudge{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(5px); } }
+
+  /* ---------- what is FAM (under the sign-up) ---------- */
+  .about{ position:relative; background:var(--page-bg); padding:24px 0 0; overflow:hidden; }
+  .about::before{ content:""; position:absolute; left:50%; top:-160px; width:900px; height:420px; transform:translateX(-50%);
+    background:radial-gradient(closest-side, rgba(240,195,94,0.10), rgba(240,195,94,0)); pointer-events:none; }
+  .ab-wrap{ position:relative; max-width:1080px; margin:0 auto; padding:0 20px; }
+  .ab-kicker{ color:var(--gold); font-size:15px; margin-bottom:14px; }
+  .ab-h{ font-family:'Fraunces', Georgia, serif; font-weight:400; margin:0;
+    font-size:clamp(30px, 6.4vw, 52px); line-height:1.06; letter-spacing:-0.01em; color:#F6F0E4; text-wrap:balance; }
+  .ab-lede{ font-size:clamp(18px, 2.6vw, 22px); line-height:1.5; color:#D9D2E4; margin:22px 0 0; max-width:640px; }
+  .ab-sub{ font-size:17px; line-height:1.55; color:var(--muted); margin:16px 0 0; max-width:560px; }
+  .ab-intro{ padding-top:72px; text-align:center; }
+  .ab-intro .ab-h{ max-width:820px; margin:0 auto; }
+  .ab-intro .ab-lede{ margin-left:auto; margin-right:auto; }
+
+  .ab-compare{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:52px; }
+  .cmp{ border-radius:20px; padding:26px 24px; }
+  .cmp ul{ list-style:none; margin:0; padding:0; }
+  .cmp li{ position:relative; padding:11px 0 11px 34px; font-size:16.5px; line-height:1.4; border-top:1px solid var(--line); }
+  .cmp li:first-child{ border-top:0; }
+  .cmp li::before{ content:""; position:absolute; left:2px; top:13px; width:20px; height:20px; border-radius:50%;
+    background:center/12px no-repeat; }
+  .cmp-head{ font-size:15px; margin-bottom:10px; }
+  .cmp-old{ background:transparent; border:1px solid var(--line); }
+  .cmp-old .cmp-head{ color:var(--faint); }
+  .cmp-old li{ color:var(--muted); text-decoration:line-through; text-decoration-color:rgba(226,105,79,0.6); }
+  .cmp-old li::before{ background-color:rgba(226,105,79,0.14);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23E2694F' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E"); }
+  .cmp-new{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border:1px solid rgba(240,195,94,0.35); }
+  .cmp-new .cmp-head{ color:var(--gold); }
+  .cmp-new li{ color:var(--text); border-top-color:rgba(240,195,94,0.15); }
+  .cmp-new li::before{ background-color:var(--gold);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1B27' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E"); }
+
+  .ab-how{ margin-top:110px; }
+  .ab-sec-head{ text-align:center; margin-bottom:24px; }
+  .ab-sec-head .ab-sub{ margin-left:auto; margin-right:auto; }
+  .feat{ display:grid; grid-template-columns:1fr; gap:34px; align-items:center; padding:46px 0;
+    border-top:1px solid var(--line); }
+  .feat:first-of-type{ border-top:0; }
+  .feat-num{ color:var(--gold); font-size:15px; margin-bottom:12px; }
+  .feat-h{ font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:clamp(26px, 4.4vw, 36px); line-height:1.12;
+    margin:0 0 14px; color:#F6F0E4; text-wrap:balance; }
+  .feat-copy p{ margin:0; font-size:17px; line-height:1.55; color:#D9D2E4; }
+  .ticks{ list-style:none; margin:20px 0 0; padding:0; }
+  .ticks li{ position:relative; padding:7px 0 7px 26px; font-size:15.5px; line-height:1.45; color:var(--muted); }
+  .ticks li::before{ content:""; position:absolute; left:2px; top:15px; width:9px; height:9px; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 0 4px rgba(240,195,94,0.15); }
+  .ticks b{ color:var(--text); font-weight:500; }
+  .feat-art{ position:relative; display:flex; justify-content:center; }
+  .feat-art::before{ content:""; position:absolute; inset:8% 6%; border-radius:50%;
+    background:radial-gradient(closest-side, rgba(226,105,79,0.28), rgba(226,105,79,0)); filter:blur(10px); }
+
+  /* The drawn phone each feature sits in. */
+  .phone{ position:relative; width:min(300px, 86vw); border-radius:34px; padding:22px 16px 20px;
+    background:linear-gradient(180deg, #2C2838, #221F2C); border:1px solid #433D55;
+    box-shadow:0 30px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .phone::before{ content:""; display:block; width:84px; height:6px; border-radius:6px; background:#3A3548; margin:-8px auto 16px; }
+  .ph-title{ font-family:'Barlow Condensed', sans-serif; font-weight:600; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--gold); font-size:15px; margin:0 4px 14px; }
+  .mk-search{ display:flex; align-items:center; gap:10px; background:#F4EFE4; color:#1E1B27; border-radius:999px;
+    padding:12px 14px 12px 16px; font-size:13.5px; }
+  .mk-search svg{ width:18px; height:18px; flex:none; color:#6F6882; }
+  .mk-q{ flex:1; min-width:0; line-height:1.3; }
+  .mk-caret{ display:inline-block; width:1.5px; height:14px; background:#1E1B27; margin-left:2px; vertical-align:-2px;
+    animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+  .mk-lens{ display:flex; gap:6px; margin:12px 0 18px; }
+  .mk-lens span{ flex:1; text-align:center; font-size:11.5px; padding:7px 0; border-radius:999px; border:1px solid #4A4360; color:var(--muted); }
+  .mk-lens span.on{ background:var(--gold); border-color:var(--gold); color:var(--gold-ink); }
+  .mk-now{ display:flex; gap:12px; align-items:center; }
+  .mk-art{ display:block; flex:none; width:56px; height:56px; border-radius:10px; }
+  .mk-art-a{ background:linear-gradient(135deg, #F0C35E, #E2694F); }
+  .mk-art-b{ background:linear-gradient(135deg, #8FAE9A, #3E6B5A); }
+  .mk-art-c{ background:linear-gradient(135deg, #8C7BD8, #3E3470); }
+  .mk-now-t b{ display:block; font-weight:500; font-size:14px; line-height:1.3; }
+  .mk-now-t span{ display:block; font-size:12px; color:var(--muted); margin-top:3px; }
+  .mk-wave{ display:flex; align-items:center; gap:3px; height:40px; margin:16px 2px 14px; }
+  .mk-wave i{ flex:1; border-radius:3px; background:var(--gold); height:30%; animation:wave 1.3s ease-in-out infinite; }
+  .mk-wave i:nth-child(n+11){ background:#4A4360; animation:none; }
+  .mk-wave i:nth-child(3n){ animation-delay:-0.4s; } .mk-wave i:nth-child(3n+1){ animation-delay:-0.8s; }
+  .mk-wave i:nth-child(4n){ height:70%; } .mk-wave i:nth-child(5n+2){ height:50%; } .mk-wave i:nth-child(7n+1){ height:85%; }
+  @keyframes wave{ 0%,100%{ transform:scaleY(1); } 50%{ transform:scaleY(0.45); } }
+  .mk-deeper{ text-align:center; border:1px solid var(--gold); color:var(--gold); border-radius:999px; padding:9px 0; font-size:13px; }
+
+  .mk-rail + .mk-rail{ margin-top:14px; }
+  .mk-rail-h{ font-size:12.5px; color:var(--text); margin:0 2px 7px; }
+  .mk-tiles{ display:flex; gap:8px; }
+  .mk-tiles i{ flex:1; aspect-ratio:4/3; border-radius:9px; }
+  .t1{ background:linear-gradient(135deg, #F0C35E, #E2694F); }
+  .t2{ background:linear-gradient(135deg, #8FAE9A, #2F5A4B); }
+  .t3{ background:linear-gradient(135deg, #8C7BD8, #3E3470); }
+  .t4{ background:linear-gradient(135deg, #5FA8D3, #23466B); }
+  .t5{ background:linear-gradient(135deg, #E29A86, #7A3A4E); }
+  .t6{ background:linear-gradient(135deg, #D8C9A8, #6D5A3A); }
+
+  .mk-mix{ border-radius:18px; padding:16px; background:linear-gradient(150deg, #E2694F, #8A3E5C 70%, #4A2E58); }
+  .mk-mix-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .mk-mix-top b{ display:block; font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:22px; }
+  .mk-mix-top div span{ display:block; font-size:12px; color:rgba(244,239,228,0.8); margin-top:2px; }
+  .mk-play{ flex:none; width:46px; height:46px; border-radius:50%; background:var(--gold); color:var(--gold-ink);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.3); }
+  .mk-play svg{ width:18px; height:18px; margin-left:2px; }
+  .mk-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+  .mk-chips span{ font-size:11.5px; padding:5px 10px; border-radius:999px; background:rgba(20,18,28,0.32); }
+  .mk-q-list{ margin-top:14px; }
+  .mk-row{ display:flex; align-items:center; gap:11px; padding:8px 2px; border-top:1px solid var(--line); }
+  .mk-row:first-child{ border-top:0; }
+  .mk-row .mk-art{ width:40px; height:40px; border-radius:8px; }
+  .mk-row span{ flex:1; min-width:0; }
+  .mk-row b{ display:block; font-weight:500; font-size:12.5px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mk-row em{ display:block; font-style:normal; font-size:11px; color:var(--muted); margin-top:2px; }
+  .mk-row small{ font-size:11px; color:var(--faint); }
+
+  .ab-friends{ margin-top:90px; }
+  .ab-friends .fr-copy{ text-align:center; }
+  .ab-friends .ab-h, .ab-friends .ab-sub{ max-width:760px; margin-left:auto; margin-right:auto; }
+  .fr-cards{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:38px; }
+  .fr-card{ background:var(--card); border:1px solid var(--line); border-radius:20px; padding:24px 22px; }
+  .fr-card b{ display:block; font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:24px; margin:16px 0 6px; }
+  .fr-card span:last-child{ display:block; font-size:15.5px; line-height:1.5; color:var(--muted); }
+  .fr-ic{ width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+    background:rgba(240,195,94,0.12); color:var(--gold); }
+  .fr-ic svg{ width:24px; height:24px; }
+
+  .ab-founders{ margin-top:110px; display:grid; grid-template-columns:1fr; gap:34px; align-items:center; }
+  .fd-photo{ position:relative; margin:0; border-radius:24px; overflow:hidden; aspect-ratio:4/3;
+    background:linear-gradient(150deg, #3A3150, #26222F); border:1px solid var(--line); }
+  .fd-photo img{ display:block; width:100%; height:100%; object-fit:cover; }
+  .fd-photo.empty img{ display:none; }
+  .fd-mono{ display:none; position:absolute; inset:0; align-items:center; justify-content:center; }
+  .fd-photo.empty .fd-mono{ display:flex; }
+  .fd-mono span{ width:112px; height:112px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', Georgia, serif; font-size:40px; background:#F2D2B6; color:#3A2A22; border:4px solid #2E2A3A; }
+  .fd-mono span + span{ margin-left:-22px; background:var(--sage); color:#1E1B27; }
+  .fd-copy p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:18px 0 0; }
+  .fd-sign{ margin-top:24px; padding-top:18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
+  .fd-names{ font-family:'Fraunces', Georgia, serif; font-size:22px; font-style:italic; }
+  .fd-sign .label{ color:var(--gold); font-size:13px; }
+
+  .ab-cta{ margin:110px auto 0; text-align:center; padding-top:64px; padding-bottom:64px; border-radius:28px;
+    max-width:1040px; background:radial-gradient(120% 120% at 50% 120%, rgba(240,155,70,0.38), rgba(240,155,70,0) 60%), var(--card);
+    border:1px solid var(--line); width:calc(100% - 40px); }
+  .ab-cta .ab-sub{ margin-left:auto; margin-right:auto; }
+  .ab-cta-btn{ max-width:320px; margin:28px auto 0; text-decoration:none; }
+  .ab-foot{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 20px 48px; color:var(--faint); font-size:14px; }
+  .ab-foot .wordmark{ font-size:28px; margin:0; }
+
+  .can-reveal .reveal{ transform:translateY(24px); transition:transform .8s cubic-bezier(.2,.7,.3,1); }
+  .can-reveal .reveal.seen{ transform:none; }
+
+  @media (min-width:820px){
+    .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
+    .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:64px 0; }
+    .feat-flip .feat-copy{ order:2; }
+    .fr-cards{ grid-template-columns:repeat(3, 1fr); gap:18px; }
+    .ab-founders{ grid-template-columns:1fr 1.1fr; gap:64px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .can-reveal .reveal{ transform:none; transition:none; }
+    .hero-more svg, .mk-caret, .mk-wave i{ animation:none; }
+  }
 
   /* ---------- status ---------- */
   .status{ max-width:440px; margin:0 auto; padding:max(28px, env(safe-area-inset-top)) 20px 56px; }
@@ -229,6 +397,7 @@
 
 <!-- ============ LANDING ============ -->
 <main class="landing hidden" id="landing">
+ <div class="hero">
   <div class="landing-in">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
     <h1 class="headline">Listen to everything you want to know about.</h1>
@@ -265,6 +434,203 @@
     </form>
 
     <button class="quiet-link label" id="toggleLogin" type="button">Already on the list? Sign in</button>
+  </div>
+  <a class="hero-more label" href="#about">What is FAM?
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></a>
+ </div>
+  <!-- What is FAM: the explainer under the sign-up, for somebody who has
+       never opened the app. Every visual is drawn here in HTML and CSS -
+       nothing in it plays, and nothing in it is a real listener or episode. -->
+  <div class="about" id="about">
+
+    <section class="ab-wrap ab-intro reveal">
+      <div class="ab-kicker label">What is FAM</div>
+      <h2 class="ab-h">Audio episodes about anything you want to know.</h2>
+      <p class="ab-lede">FAM turns whatever you’re curious about into a researched,
+        story-driven audio episode, made for you. Ask a question, follow the topics you
+        love, and press play.</p>
+    </section>
+
+    <section class="ab-wrap ab-compare reveal" aria-label="Why FAM">
+      <div class="cmp cmp-old">
+        <div class="cmp-head label">No more</div>
+        <ul>
+          <li>Scrolling Google to find the right article</li>
+          <li>Stale chatbot paragraphs to read through</li>
+          <li>Ten open tabs to answer one question</li>
+        </ul>
+      </div>
+      <div class="cmp cmp-new">
+        <div class="cmp-head label">Say hello to</div>
+        <ul>
+          <li>Captivating, informative storytelling</li>
+          <li>Episodes researched from today’s sources</li>
+          <li>Everything you want to know, in your ears</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="ab-wrap ab-how">
+      <header class="ab-sec-head reveal">
+        <div class="ab-kicker label">How to get the most out of FAM</div>
+        <h2 class="ab-h">Search. Scroll. Mix.</h2>
+        <p class="ab-sub">You choose how you listen. Three ways in, one thing in common:
+          every episode is yours.</p>
+      </header>
+
+      <!-- 01 Search -->
+      <article class="feat reveal">
+        <div class="feat-copy">
+          <div class="feat-num label">01 · Search</div>
+          <h3 class="feat-h">Ask for exactly the episode you want.</h3>
+          <p>Type or say your question, pick how long you want to listen, and FAM
+            creates a custom episode just for you.</p>
+          <ul class="ticks">
+            <li>Prompt it like you’d ask a friend who knows everything</li>
+            <li>Choose your length, from a quick minute to a deep dive</li>
+            <li>Go deeper with a follow-up when it ends</li>
+          </ul>
+        </div>
+        <div class="feat-art" aria-hidden="true">
+          <div class="phone">
+            <div class="ph-title">Search</div>
+            <div class="mk-search">
+              <span class="mk-q">How did the Roman Empire actually fall?<i class="mk-caret"></i></span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            </div>
+            <div class="mk-lens"><span>1 min</span><span class="on">3 min</span><span>5 min</span><span>10 min</span></div>
+            <div class="mk-now">
+              <div class="mk-art mk-art-a"></div>
+              <div class="mk-now-t">
+                <b>Why Rome fell slowly, then all at once</b>
+                <span>Your episode · 3 min</span>
+              </div>
+            </div>
+            <div class="mk-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="mk-deeper label">Go deeper</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 02 DailyFAM -->
+      <article class="feat feat-flip reveal">
+        <div class="feat-copy">
+          <div class="feat-num label">02 · DailyFAM</div>
+          <h3 class="feat-h">A page that refreshes all day long.</h3>
+          <p>DailyFAM is always full of relevant, up-to-date episodes, so there’s
+            something worth hearing every time you open it.</p>
+          <ul class="ticks">
+            <li><b>Made for you</b> from what you love to hear about</li>
+            <li><b>Trending</b> stories from around the world</li>
+            <li><b>What you missed</b> while you were busy</li>
+            <li>What’s hot on <b>FAM</b> and with <b>your friends</b></li>
+          </ul>
+        </div>
+        <div class="feat-art" aria-hidden="true">
+          <div class="phone">
+            <div class="ph-title">DailyFAM</div>
+            <div class="mk-rail"><div class="mk-rail-h">Made for you</div>
+              <div class="mk-tiles"><i class="t1"></i><i class="t2"></i><i class="t3"></i></div></div>
+            <div class="mk-rail"><div class="mk-rail-h">Trending worldwide</div>
+              <div class="mk-tiles"><i class="t4"></i><i class="t5"></i><i class="t6"></i></div></div>
+            <div class="mk-rail"><div class="mk-rail-h">What you missed</div>
+              <div class="mk-tiles"><i class="t3"></i><i class="t1"></i><i class="t5"></i></div></div>
+            <div class="mk-rail"><div class="mk-rail-h">Your friends</div>
+              <div class="mk-tiles"><i class="t6"></i><i class="t2"></i><i class="t4"></i></div></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 03 myFAM -->
+      <article class="feat reveal">
+        <div class="feat-copy">
+          <div class="feat-num label">03 · myFAM</div>
+          <h3 class="feat-h">Your topics, mixed and played in one tap.</h3>
+          <p>myFAM is the easiest way to stay up to date. Build custom playlists,
+            called mixes, from the topics you follow, and get the latest on them every day.</p>
+          <ul class="ticks">
+            <li>Want a daily recap of your team or the markets? Add them to a mix</li>
+            <li>One tap plays through all the latest, back to back</li>
+            <li>Share your mixes, or copy one somebody else made</li>
+          </ul>
+        </div>
+        <div class="feat-art" aria-hidden="true">
+          <div class="phone">
+            <div class="ph-title">myFAM</div>
+            <div class="mk-mix">
+              <div class="mk-mix-top">
+                <div><b>Morning mix</b><span>Ready at 7:00</span></div>
+                <span class="mk-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></span>
+              </div>
+              <div class="mk-chips"><span>My team</span><span>Markets</span><span>Tech</span><span>World news</span></div>
+            </div>
+            <div class="mk-q-list">
+              <div class="mk-row"><i class="mk-art mk-art-b"></i><span><b>Last night’s game, in two minutes</b><em>My team</em></span><small>2 min</small></div>
+              <div class="mk-row"><i class="mk-art mk-art-c"></i><span><b>What moved the markets</b><em>Markets</em></span><small>2 min</small></div>
+              <div class="mk-row"><i class="mk-art mk-art-a"></i><span><b>The launch everyone’s watching</b><em>Tech</em></span><small>2 min</small></div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="ab-wrap ab-friends reveal">
+      <div class="fr-copy">
+        <div class="ab-kicker label">Better together</div>
+        <h2 class="ab-h">Technology shouldn’t pull us apart. It should bring us closer.</h2>
+        <p class="ab-sub">Add your friends on FAM to share episodes with them, see what
+          they’re vibing with, and find out what they love to learn about.</p>
+      </div>
+      <div class="fr-cards">
+        <div class="fr-card">
+          <span class="fr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M7 8l5-5 5 5"/></svg></span>
+          <b>Share</b><span>Send an episode to a friend in a tap. Anyone can listen to what you share.</span>
+        </div>
+        <div class="fr-card">
+          <span class="fr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2l2-6 4 13 3-9 2 4h5"/></svg></span>
+          <b>Vibe</b><span>See the episodes your friends are vibing with right now.</span>
+        </div>
+        <div class="fr-card">
+          <span class="fr-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16"/></svg></span>
+          <b>Topics</b><span>Discover the subjects your friends love to learn about.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="ab-wrap ab-founders reveal">
+      <figure class="fd-photo" id="founderPhoto">
+        <!-- Drop the picture in as static/founders.jpg and it appears here;
+             until then the frame shows the founders' initials. -->
+        <img src="/founders.jpg" alt="Ian Solomon and TJ Weingart brainstorming FAM"
+             onerror="this.parentNode.classList.add('empty')">
+        <div class="fd-mono" aria-hidden="true"><span>IS</span><span>TJ</span></div>
+      </figure>
+      <div class="fd-copy">
+        <div class="ab-kicker label">Our story</div>
+        <h2 class="ab-h">Anyone should be able to know anything, the easy way.</h2>
+        <p>There’s more information in the world than ever, and more of us are choosing to
+          take it in by ear. We built FAM at the intersection of the two: a place where you
+          get the information you want, in the way you want it.</p>
+        <p>We started FAM with one mission: everybody should have the access and the
+          ability to learn whatever they want, as easily as pressing play.</p>
+        <div class="fd-sign">
+          <span class="fd-names">Ian Solomon &amp; TJ Weingart</span>
+          <span class="label">Founders</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="ab-wrap ab-cta reveal">
+      <h2 class="ab-h">Be one of the first in the FAM.</h2>
+      <p class="ab-sub">Join the waitlist and invite your friends to move up the line.</p>
+      <a class="cta label ab-cta-btn" href="#landing" id="aboutJoin">Join the waitlist
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    </section>
+
+    <footer class="ab-foot">
+      <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
+      <span>Listen to everything you want to know about.</span>
+    </footer>
   </div>
 </main>
 
@@ -497,10 +863,40 @@
     if(i !== null && i !== undefined && i !== "") turnSample(Number(i));
   });
 
+  /* ---------------- what is FAM ---------------- */
+  // Sections ease up as they scroll into view. They are never hidden while
+  // they wait, so a link preview or a browser without an observer sees all.
+  function showAbout(){
+    var items = document.querySelectorAll(".reveal");
+    if("IntersectionObserver" in window){
+      document.documentElement.classList.add("can-reveal");
+      var seen = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){
+          if(e.isIntersecting){ e.target.classList.add("seen"); seen.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -10% 0px" });
+      Array.prototype.forEach.call(items, function(el){ seen.observe(el); });
+    }
+    function toForm(ev){
+      ev.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(function(){
+        var field = $("joinForm").classList.contains("hidden") ? $("loginEmail") : $("email");
+        field.focus({ preventScroll: true });
+      }, 500);
+    }
+    $("aboutJoin").addEventListener("click", toForm);
+    document.querySelector(".hero-more").addEventListener("click", function(ev){
+      ev.preventDefault();
+      $("about").scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
   /* ---------------- landing ---------------- */
   function showLanding(){
     $("landing").classList.remove("hidden");
     loadSamples();
+    showAbout();
     if(referral) $("invited").classList.remove("hidden");
     // Email and a password typed twice, on one form (10.2 packet): the
     // account the app opens with later, made here and put on the list.
