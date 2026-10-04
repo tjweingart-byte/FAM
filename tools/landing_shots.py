@@ -77,6 +77,9 @@ SHOTS = [
 
 #: name -> cut from a screenshot of the app, not photographed.
 STILLS = [
+    # Its title is set over the original in the app's own face (Fraunces
+    # 500, 47px, the title's colour), at the owner's direction: a SpaceX
+    # story in place of the one the screenshot happened to be playing.
     ("player", "the player on a real episode, from the owner's phone"),
 ]
 

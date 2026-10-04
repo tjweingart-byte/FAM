@@ -15215,7 +15215,8 @@ there is now a "What is FAM" section:
    the Morning mix has a cover (`tools/landing/morning-cover.jpg`, a drawn
    sunrise, set through the app's own cover PATCH). Behind Search is the
    player, cut from the owner's own screenshot (`tools/landing/stills/`),
-   since the preview has no episode with a painted picture. Each gold pill
+   since the preview has no episode with a painted picture; its title was
+   reset, in the app's own face, to a SpaceX story at the owner's direction. Each gold pill
    sits under its phone, never over the bottom of it. Nothing in the section
    plays. The listener-facing names are used (§185).
 3. Friends: share, vibe, topics, with the Friends page between a friend's vibe played as a story (left) and a friend's profile with their interests, public mixes and vibes (right).
