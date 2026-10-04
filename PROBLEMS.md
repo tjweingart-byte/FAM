@@ -15197,7 +15197,7 @@ At the owner's direction: somebody landing on `/waitlist` saw a headline, a
 sample and a form, and nothing that explained the product. Under the sign-up
 there is now a "What is FAM" section:
 
-1. What an episode is, then **No more / Say hello to** (Google tabs and
+1. What an episode is, then **No more / FAM gives you** (Google tabs and
    chatbot paragraphs against researched storytelling audio).
 2. **Search. Scroll. Mix.** - Search, DailyFAM and myFAM, each shown with
    real screens of the app (the owner asked for the real interface rather
