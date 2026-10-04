@@ -602,5 +602,10 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     tiles = {p.stem.split("-")[0] for p in (ROOT / "tools" / "landing" / "tiles").glob("*.jpg")}
     assert tiles == {"foryou", "trending", "friends"}
     assert "await page.evaluate(PAINT_TILES, cards)" in tool
+    # The Vibe card wears the player's own VIBE icon.
+    app = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    vibe = re.search(r'id="playerEcho"[^>]*><svg[^>]*>(.*?)</svg>', app).group(1)
+    card = about.split("<b>Vibe</b>", 1)[0].rsplit('class="fr-card"', 1)[1]
+    assert vibe in card
     # Every picture says what it shows.
     assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
