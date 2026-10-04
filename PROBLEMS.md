@@ -15216,10 +15216,12 @@ there is now a "What is FAM" section:
    sunrise, set through the app's own cover PATCH). Behind Search is the
    player, cut from the owner's own screenshot (`tools/landing/stills/`),
    since the preview has no episode with a painted picture; its title was
-   reset, in the app's own face, to a SpaceX story at the owner's direction. Each gold pill
-   sits under its phone, never over the bottom of it. Nothing in the section
-   plays. The listener-facing names are used (§185).
-3. Friends: share, vibe, interests, with the Friends page between a friend's vibe played as a story (left) and a friend's profile with their interests, public mixes and vibes (right).
+   reset, in the app's own face, to a SpaceX story at the owner's direction.
+   Each gold pill sits under its phone, never over the bottom of it. Nothing
+   in the section plays. The listener-facing names are used (§185).
+3. Friends: share, vibe, interests, with the Friends page between a friend's
+   vibe played as a story (left) and a friend's profile with their interests,
+   public mixes and vibes (right).
 4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
    photo is `static/founders.jpg`; until the file exists the frame draws
    their initials (`onerror` adds `.empty`), so there is no broken image.
@@ -15230,6 +15232,6 @@ sign-up screen and not the section under it; `--hero` set on `.landing` still
 reaches it. Sections ease up as they scroll in (`html.can-reveal`, set only
 when an `IntersectionObserver` exists); they are moved, never hidden while they
 wait, so a link preview sees the whole page. Reduced motion turns the easing
-and the drawn animations off.
+and the "What is FAM?" arrow's nudge off.
 
 Tests: `tests/test_waitlist.py`.
