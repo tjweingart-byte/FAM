@@ -1,5 +1,5 @@
 """The FAM intro (PROBLEMS.md §196, §198): the wordmark's F and M fold into
-the double chevron, the chevron glows as if charged, and the page slides off
+the double chevron, the chevron flashes yellow as if charged, and the page slides off
 to the left - every time the app opens, and when finishing sign-in or
 sign-up hands over to DailyFAM."""
 
@@ -51,7 +51,8 @@ def test_the_four_beats():
     body = _fn("playEntryHandoff")
     assert "scale(0.4)" in body              # F and M fold into the chevron
     assert "rotate(" not in body             # it no longer turns (§198)
-    assert "drop-shadow" in body and "--deeper" in body   # it glows, charged
+    assert "--deeper" in body                # it flashes yellow, charged
+    assert "drop-shadow" not in body         # with no glow around it
     assert "FAM_INTRO_CHARGE_MS" in body     # where a sound effect would start
     assert "translateX(-100%)" in body       # the page slides off to the left
     assert 'wrap.hidden = true' in body      # and the overlay is gone after

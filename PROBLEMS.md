@@ -15191,18 +15191,19 @@ Tests: `tests/test_packet_1001_fourth.py`, `tests/test_guest_wipe_and_storage.py
 `tools/smoke_preview.py`.
 
 
-## 198. The FAM intro glows instead of turning, and plays every time the app opens
+## 198. The FAM intro charges instead of turning, and plays every time the app opens
 
 From the owner's sketch: the FAM logo appears, the F and M morph into the
 double chevron, the chevron glows like it's "charged", then the page slides
 away to reveal DailyFAM. The §196 hand-off had the same opening and closing
 beats; what changed:
 
-1. **The chevron glows instead of turning right.** `rotate(90deg)` is gone.
+1. **The chevron charges instead of turning right.** `rotate(90deg)` is gone.
    After the fold the A grows to `scale(1.8)` and, from
-   `FAM_INTRO_CHARGE_MS` (700ms), goes copper → `--deeper` yellow with a
-   `drop-shadow` glow that builds in two pulses and holds at full; the slide
-   (1320ms) carries it off. About 1.8s in all.
+   `FAM_INTRO_CHARGE_MS` (700ms), flashes copper → `--deeper` yellow in two
+   pulses and holds at yellow; the slide (1320ms) carries it off. About 1.8s
+   in all. It first had a `drop-shadow` glow around it as well; the owner
+   asked for the glow removed, so the colour is all that changes.
 2. **The wordmark is in the middle of the screen**, where the boot splash
    draws it (`top:50%`, `margin-top:-0.55em` at the splash's 30px and
    line-height 1.1), not at the page's own wordmark position.

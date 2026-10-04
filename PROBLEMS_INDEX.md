@@ -201,4 +201,4 @@ and `limit` = Lines.
 | 15099 | 48 | 195. The 10.2 packet: friends on DailyFAM, the chevron icon, Explore as pages, "Interested?", and Explore from search |
 | 15147 | 27 | 196. Signing in cut straight to DailyFAM, with nothing to say you had arrived |
 | 15174 | 20 | 197. The sign-in screen's samples play in place, and the guest door is withdrawn |
-| 15194 | 33 | 198. The FAM intro glows instead of turning, and plays every time the app opens |
+| 15194 | 34 | 198. The FAM intro charges instead of turning, and plays every time the app opens |
