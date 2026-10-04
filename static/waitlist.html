@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="description" content="Listen to everything you want to know about. Join the FAM waitlist.">
+<meta name="description" content="FAM is social information, not social media: the things you care about, as personalized audio stories, so you can be part of the conversation. Join the waitlist.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Barlow+Condensed:wght@500;600&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
 <!--
@@ -150,6 +150,115 @@
   .cmp-new li::before{ background-color:var(--gold);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1B27' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E"); }
 
+  /* ---------- the story: what passes by, the work, the morning after ---------- */
+  .tagline{ color:var(--gold); font-size:15px; margin:-14px 0 28px; }
+  .ab-problem, .ab-origin{ margin-top:110px; }
+  .ab-morning{ margin-top:90px; }
+  .ab-payoff{ margin-top:90px; }
+  .ab-two{ display:grid; grid-template-columns:1fr; gap:38px; align-items:center; margin-top:44px; }
+  .ab-two > *{ min-width:0; }
+  .ab-h-sm{ font-size:clamp(28px, 4.6vw, 40px); }
+  .ab-big{ font-family:'Fraunces', Georgia, serif; font-size:clamp(22px, 3.2vw, 28px); line-height:1.25;
+    color:#F6F0E4; margin:0 0 12px; text-wrap:balance; }
+  .ab-big.center{ text-align:center; margin:56px auto 0; }
+  .gold{ color:var(--gold); }
+  .ab-p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:16px 0 0; max-width:560px; }
+  .ab-p.center{ text-align:center; margin:22px auto 0; }
+
+  /* What passes by: four things, drifting past and never stopping. */
+  .pass{ margin:40px -20px 0; overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+    mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+  .pass-track{ display:flex; gap:14px; width:max-content; list-style:none; margin:0; padding:6px 0;
+    animation:drift 46s linear infinite; }
+  @keyframes drift{ to{ transform:translateX(calc(-50% - 7px)); } }
+  .pass-card{ display:flex; align-items:center; gap:12px; flex:none; max-width:300px; padding:14px 18px;
+    border-radius:16px; background:var(--card); border:1px solid var(--line); color:#D9D2E4;
+    font-size:15px; line-height:1.35; }
+  .pass-ic{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center;
+    justify-content:center; background:rgba(240,195,94,0.12); color:var(--gold); }
+  .pass-ic svg{ width:20px; height:20px; }
+
+  .chores{ list-style:none; padding:0; margin:22px 0 0; display:flex; flex-wrap:wrap; gap:8px; }
+  .chores li{ border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:14px; color:var(--muted); }
+
+  /* The time it takes, to scale: one hour is the whole track. */
+  .timebars{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:24px 22px 20px; }
+  .timebars figcaption{ color:var(--faint); font-size:13px; margin-bottom:18px; }
+  .tb-row + .tb-row{ margin-top:18px; }
+  .tb-label{ font-size:14px; color:var(--text); margin-bottom:7px; }
+  .tb-track{ position:relative; height:14px; min-width:12px; border-radius:7px; background:#4A4360; }
+  .tb-hit{ position:absolute; top:0; bottom:0; border-radius:7px; background:var(--coral); }
+  .tb-row.fam .tb-track{ background:var(--gold); }
+  .tb-note{ font-size:13px; color:var(--muted); margin-top:6px; }
+  .tb-note b{ color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
+  .tb-axis{ display:flex; justify-content:space-between; margin-top:16px; padding-top:8px; border-top:1px solid var(--line);
+    font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .tb-key{ display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted); }
+  .k-hit{ width:14px; height:8px; border-radius:4px; background:var(--coral); }
+
+  /* A conversation at work, drawn twice: on the outside, then in it. */
+  .convo{ position:relative; background:var(--card); border:1px solid var(--line); border-radius:24px; padding:20px 18px 18px;
+    max-width:420px; margin:0 auto; box-shadow:0 30px 60px rgba(0,0,0,0.35); }
+  .convo-head{ display:flex; justify-content:space-between; font-size:12px; color:var(--faint); margin-bottom:14px; }
+  .convo-head .label{ color:var(--muted); }
+  .msg{ display:flex; align-items:flex-end; gap:10px; margin-top:10px; }
+  .msg p{ margin:0; background:var(--card-2); border-radius:16px 16px 16px 4px; padding:9px 13px; font-size:14.5px;
+    line-height:1.4; color:var(--text); max-width:78%; }
+  .msg p b{ display:block; font-size:11.5px; font-weight:500; color:var(--muted); margin-bottom:2px; }
+  .who{ flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Barlow Condensed', sans-serif; font-weight:600; font-size:12px; letter-spacing:0.04em; color:#1E1B27; }
+  .msg.me{ justify-content:flex-end; }
+  .msg.me .who{ background:var(--line); color:var(--muted); font-size:10px; }
+  .msg.me p{ border-radius:16px 16px 4px 16px; }
+  .msg.quiet p{ background:transparent; border:1px dashed #5A5470; }
+  .msg.in p{ background:var(--gold); color:var(--gold-ink); }
+  .msg.in .who{ background:var(--gold); color:var(--gold-ink); }
+  .dots{ display:inline-flex; gap:4px; padding:4px 2px; }
+  .dots i{ width:6px; height:6px; border-radius:50%; background:#5A5470; }
+  .convo-note{ margin-top:14px; text-align:right; font-size:12.5px; color:var(--faint); font-style:italic; }
+  .convo-note.on{ display:flex; align-items:center; justify-content:flex-end; gap:8px; color:var(--gold); font-style:normal; }
+  .fam-dot{ width:8px; height:8px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(240,195,94,0.18); }
+
+  .pull{ margin:64px auto 0; max-width:820px; text-align:center; padding:0; }
+  .pull p{ font-family:'Fraunces', Georgia, serif; font-size:clamp(24px, 3.8vw, 36px); line-height:1.22; margin:0;
+    color:#F6F0E4; text-wrap:balance; }
+  .pull p + p{ margin-top:14px; }
+  .pull p.gold{ color:var(--gold); }
+
+  /* The asks, and what they come back as. */
+  .ab-origin{ text-align:center; }
+  .ab-origin .ab-h, .ab-origin .ab-lede{ margin-left:auto; margin-right:auto; }
+  .ab-origin .ab-h{ max-width:860px; }
+  .asks{ display:grid; grid-template-columns:1fr; gap:10px; max-width:640px; margin:30px auto 0; text-align:left; }
+  .ask{ display:flex; align-items:center; gap:12px; background:#F4EFE4; color:#1E1B27; border-radius:999px;
+    padding:13px 20px; font-size:15.5px; line-height:1.35; }
+  .ask svg{ flex:none; width:18px; height:18px; color:#6F6882; }
+  .not-this{ list-style:none; padding:0; margin:22px auto 0; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+  .not-this li{ border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:14px; color:var(--faint);
+    text-decoration:line-through; text-decoration-color:rgba(226,105,79,0.6); }
+  .not-this li.yes{ text-decoration:none; color:var(--gold-ink); background:var(--gold); border-color:var(--gold); }
+
+  /* The pipeline a story used to need, against one step. */
+  .pipeline{ display:grid; grid-template-columns:1fr; gap:14px; align-items:center; margin:52px auto 0; max-width:960px; text-align:left; }
+  .pipe-old, .pipe-new{ border-radius:20px; padding:22px; }
+  .pipe-old{ border:1px solid var(--line); }
+  .pipe-old .label, .pipe-new .label{ font-size:13px; margin-bottom:14px; }
+  .pipe-old .label{ color:var(--faint); }
+  .pipe-old ol{ list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:8px; counter-reset:step; }
+  .pipe-old li{ counter-increment:step; border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:14px; color:var(--muted); }
+  .pipe-old li::before{ content:counter(step); color:var(--faint); margin-right:8px; font-variant-numeric:tabular-nums; }
+  .pipe-arrow{ justify-self:center; color:var(--gold); transform:rotate(90deg); }
+  .pipe-arrow svg{ width:28px; height:28px; }
+  .pipe-new{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border:1px solid rgba(240,195,94,0.35); }
+  .pipe-new .label{ color:var(--gold); }
+  .pipe-new p{ margin:0; font-family:'Fraunces', Georgia, serif; font-size:clamp(22px, 3vw, 28px); line-height:1.2; color:#F6F0E4; }
+
+  .ins{ list-style:none; padding:0; margin:22px 0 0; }
+  .ins li{ position:relative; padding:8px 0 8px 28px; font-family:'Fraunces', Georgia, serif; font-size:21px; color:#F6F0E4; }
+  .ins li::before{ content:""; position:absolute; left:2px; top:17px; width:10px; height:10px; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 0 4px rgba(240,195,94,0.15); }
+
   .ab-how{ margin-top:110px; }
   .ab-sec-head{ text-align:center; margin-bottom:24px; }
   .ab-sec-head .ab-sub{ margin-left:auto; margin-right:auto; }
@@ -235,6 +344,10 @@
   .can-reveal .reveal.seen{ transform:none; }
 
   @media (min-width:820px){
+    .ab-two{ grid-template-columns:1fr 1fr; gap:64px; }
+    .ab-morning .ab-two .ab-art{ order:0; }
+    .pipeline{ grid-template-columns:1.4fr auto 1fr; }
+    .pipe-arrow{ transform:none; }
     .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
     .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:64px 0; }
     .feat-flip .feat-copy{ order:2; }
@@ -244,6 +357,8 @@
   @media (prefers-reduced-motion: reduce){
     .can-reveal .reveal{ transform:none; transition:none; }
     .hero-more svg{ animation:none; }
+    .pass-track{ animation:none; flex-wrap:wrap; justify-content:center; width:auto; }
+    .pass-card[aria-hidden="true"]{ display:none; }
   }
 
   /* ---------- status ---------- */
@@ -368,6 +483,7 @@
   <div class="landing-in">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
     <h1 class="headline">Listen to everything you want to know about.</h1>
+    <p class="tagline label">Social information, not social media</p>
     <div class="invited hidden" id="invited">A friend saved you a spot.</div>
 
     <!-- The app's sign-up samples (§181), here too (§190): played as
@@ -415,10 +531,10 @@
 
     <section class="ab-wrap ab-intro reveal">
       <div class="ab-kicker label">What is FAM</div>
-      <h2 class="ab-h">Audio episodes about anything you want to know.</h2>
-      <p class="ab-lede">FAM turns whatever you’re curious about into a researched,
-        story-driven audio episode, made for you. Ask a question, follow the topics you
-        love, and press play.</p>
+      <h2 class="ab-h">Social information, not social media.</h2>
+      <p class="ab-lede">FAM turns the things you care about into personalized audio
+        stories, when you want them and for however long you have. Less time trying to
+        keep up. More time being part of the conversation.</p>
       <div class="ab-fan">
         <figure class="shot fan-l"><img src="/landing/dailyfam.jpg" alt="The DailyFAM page" width="780" height="1688"></figure>
         <figure class="shot fan-c"><img src="/landing/search.jpg" alt="Searching on FAM" width="780" height="1688"></figure>
@@ -426,21 +542,105 @@
       </div>
     </section>
 
+
+    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199):
+         what passes by, the work keeping up takes, and the morning after. -->
+    <section class="ab-wrap ab-problem reveal">
+      <div class="ab-kicker label">The problem</div>
+      <h2 class="ab-h">Think about how much information passes by you every single day.</h2>
+      <div class="pass" aria-label="What passes you by">
+        <ul class="pass-track"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
+      </div>
+      <div class="ab-two">
+        <div class="ab-copy">
+          <p class="ab-big">The information is all out there. That isn’t the problem.</p>
+          <p class="ab-big gold">The problem is that actually keeping up with it takes work.</p>
+          <ul class="chores">
+            <li>Search for it</li><li>Read through articles</li><li>Scroll through feeds</li>
+          </ul>
+          <p class="ab-p">And because nobody has time to do that for everything they care
+            about, most of us just accept that we’re going to miss things.</p>
+        </div>
+        <figure class="timebars" aria-label="Time spent for the part you want, to scale">
+          <figcaption class="label">The time it takes, to scale</figcaption>
+          <div class="tb-row"><div class="tb-label">An hour-long podcast</div><div class="tb-track" style="width:100.00%"><span class="tb-hit" style="left:40.00%;width:16.67%"></span></div><div class="tb-note"><b>60 min</b> for the 10 you actually care about</div></div><div class="tb-row"><div class="tb-label">A twenty-minute video</div><div class="tb-track" style="width:33.33%"><span class="tb-hit" style="left:45.00%;width:15.00%"></span></div><div class="tb-note"><b>20 min</b> for something that could take 3</div></div><div class="tb-row fam"><div class="tb-label">FAM</div><div class="tb-track" style="width:3.33%"></div><div class="tb-note"><b>2 min</b>, and all of it is what you asked for</div></div>
+          <div class="tb-axis" aria-hidden="true"><span>0</span><span>15</span><span>30</span><span>45</span><span>60 min</span></div>
+          <div class="tb-key" aria-hidden="true"><span class="k-hit"></span>The part you wanted</div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="ab-wrap ab-morning reveal">
+      <div class="ab-two">
+        <div class="ab-art">
+          <div class="convo" aria-label="A conversation at work">
+            <div class="convo-head"><span class="label">9:04 AM</span><span>Monday, at work</span></div>
+            <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>Did anyone see the end of that game last night?</p></div>
+            <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>That ninth inning was unreal.</p></div>
+            <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>Still can’t believe how it ended.</p></div>
+            <div class="msg me quiet"><p><span class="dots" aria-label="Nothing to add"><i></i><i></i><i></i></span></p><span class="who">You</span></div>
+            <div class="convo-note">You, on the outside looking in</div>
+          </div>
+        </div>
+        <div class="ab-copy">
+          <div class="ab-kicker label">The next morning</div>
+          <h2 class="ab-h ab-h-sm">Everyone is talking about the game you didn’t see.</h2>
+          <p class="ab-p">Or someone brings up a story you vaguely remember seeing a headline
+            about, but you don’t actually know enough to join the conversation.</p>
+          <p class="ab-p">And there’s this tiny feeling of being on the outside looking in.</p>
+        </div>
+      </div>
+      <blockquote class="pull">
+        <p>We’ve never had access to more information than we have today.</p>
+        <p class="gold">But having access to information and actually knowing something
+          are two completely different things.</p>
+      </blockquote>
+    </section>
+
+    <!-- Why FAM exists: the origin, the asks, and the pipeline it collapses. -->
+    <section class="ab-wrap ab-origin reveal">
+      <div class="ab-kicker label">Why we built FAM</div>
+      <h2 class="ab-h">Why should someone else decide which stories are worth making?</h2>
+      <p class="ab-lede">It started inside a podcast company: deciding which stories became
+        episodes, how long they ran, what went into them, and ultimately what the listener
+        got to hear. Why does it have to work that way? Why wait for someone to make an
+        episode about something you care about? Why can’t you just say…</p>
+      <div class="asks"><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Tell me what happened in the Dodgers game last night”</span></div><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Catch me up on what’s happening with AI”</span></div><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Explain this thing everyone keeps talking about”</span></div></div>
+      <p class="ab-p center">…and two minutes later actually feel like you understand what
+        happened, from something worth listening to.</p>
+      <ul class="not-this">
+        <li>Not a search result</li><li>Not a wall of text</li><li>Not a chatbot answer</li>
+        <li class="yes">An actual story</li>
+      </ul>
+      <div class="pipeline">
+        <div class="pipe-old">
+          <div class="label">For most of the history of media, someone had to</div>
+          <ol><li>Research it</li><li>Write it</li><li>Record it</li><li>Edit it</li><li>Publish it</li></ol>
+        </div>
+        <div class="pipe-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="pipe-new">
+          <div class="label">Now the technology exists to collapse all of that</div>
+          <p>You ask. FAM tells you the story.</p>
+        </div>
+      </div>
+      <p class="ab-big center">That’s why we built FAM.</p>
+    </section>
+
     <section class="ab-wrap ab-compare reveal" aria-label="Why FAM">
       <div class="cmp cmp-old">
         <div class="cmp-head label">No more</div>
         <ul>
-          <li>Scrolling Google to find the right article</li>
-          <li>Stale chatbot paragraphs to read through</li>
-          <li>Ten open tabs to answer one question</li>
+          <li>Searching, then reading through articles</li>
+          <li>An hour-long podcast for the ten minutes you care about</li>
+          <li>Accepting that you’re going to miss things</li>
         </ul>
       </div>
       <div class="cmp cmp-new">
         <div class="cmp-head label">FAM gives you</div>
         <ul>
-          <li>Captivating, informative storytelling</li>
-          <li>Episodes researched from today’s sources</li>
-          <li>Everything you want to know, in your ears</li>
+          <li>The things you care about, told as a story</li>
+          <li>As long as you have, from one minute to ten</li>
+          <li>Enough to join the conversation</li>
         </ul>
       </div>
     </section>
@@ -509,12 +709,41 @@
       </article>
     </section>
 
+
+    <section class="ab-wrap ab-payoff reveal">
+      <div class="ab-two">
+        <div class="ab-copy">
+          <div class="ab-kicker label">Later that day</div>
+          <h2 class="ab-h">You’re in it.</h2>
+          <p class="ab-p">Instead of realizing three hours later that you missed something,
+            you spend two minutes in the morning getting caught up.</p>
+          <p class="ab-p">So when that conversation happens, you’re not standing there
+            thinking, “I have no idea what they’re talking about.”</p>
+          <ul class="ins">
+            <li>You know the story.</li><li>You can contribute.</li>
+            <li>You have one more thing to connect with someone over.</li>
+          </ul>
+        </div>
+        <div class="ab-art">
+          <div class="convo" aria-label="A conversation at work">
+            <div class="convo-head"><span class="label">12:30 PM</span><span>Monday, lunch</span></div>
+            <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>Did anyone see the end of that game last night?</p></div>
+            <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>That ninth inning was unreal.</p></div>
+            <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>Still can’t believe how it ended.</p></div>
+            <div class="msg me in"><p>I caught the story this morning. That ending was something else.</p><span class="who">You</span></div>
+            <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="ab-wrap ab-friends reveal">
       <div class="fr-copy">
         <div class="ab-kicker label">Better together</div>
         <h2 class="ab-h">Technology shouldn’t pull us apart. It should bring us closer.</h2>
-        <p class="ab-sub">Add your friends on FAM to share episodes with them, see what
-          they’re vibing with, and find out what they love to learn about.</p>
+        <p class="ab-sub">Information is better when it’s shared. Add your friends on FAM
+          to share episodes with them, see what they’re vibing with, and find out what they
+          love to learn about, so you always have something to talk about.</p>
       </div>
       <div class="shots two three fr-shots">
         <figure class="shot shot-back shot-left"><img src="/landing/friend-vibe.jpg" alt="A friend's vibe, played as a story: the episode they vibed, ready to play" width="780" height="1688" loading="lazy"></figure>
@@ -548,12 +777,11 @@
       </figure>
       <div class="fd-copy">
         <div class="ab-kicker label">Our story</div>
-        <h2 class="ab-h">Anyone should be able to know anything, the easy way.</h2>
-        <p>There’s more information in the world than ever, and more of us are choosing to
-          take it in by ear. We built FAM at the intersection of the two: a place where you
-          get the information you want, in the way you want it.</p>
+        <h2 class="ab-h">FAM isn’t really about consuming more information.</h2>
+        <p>It’s about making the information already surrounding us easier to understand,
+          easier to remember, and easier to bring back into the real world.</p>
         <p>We started FAM with one mission: everybody should have the access and the
-          ability to learn whatever they want, as easily as pressing play.</p>
+          ability to know whatever they want, in the easiest way possible.</p>
         <div class="fd-sign">
           <span class="fd-names">Ian Solomon &amp; TJ Weingart</span>
           <span class="label">Founders</span>
@@ -562,15 +790,16 @@
     </section>
 
     <section class="ab-wrap ab-cta reveal">
-      <h2 class="ab-h">Be one of the first in the FAM.</h2>
-      <p class="ab-sub">Join the waitlist and invite your friends to move up the line.</p>
+      <h2 class="ab-h">Spend less time trying to keep up, and more time actually being part of the conversation.</h2>
+      <p class="ab-sub">Be one of the first in the FAM. Join the waitlist and invite your
+        friends to move up the line.</p>
       <a class="cta label ab-cta-btn" href="#landing" id="aboutJoin">Join the waitlist
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
     </section>
 
     <footer class="ab-foot">
       <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
-      <span>Listen to everything you want to know about.</span>
+      <span>Social information, not social media.</span>
     </footer>
   </div>
 </main>

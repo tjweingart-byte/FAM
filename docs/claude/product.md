@@ -7,6 +7,27 @@
 > `grep -n 'rule:ID' docs/claude/*.md` jumps to it.
 > `tests/test_claude_md.py` fails if the two sets of IDs ever disagree.
 
+<!-- rule:social-information -->
+## What FAM is, above all else
+
+**FAM is social information, not social media.** *(The owner, 04/10,
+PROBLEMS.md §199, "above all else".)* The problem it answers is not access -
+the information is all out there - but that keeping up with it takes work
+(searching, reading articles, scrolling feeds, an hour-long podcast for the
+ten minutes you care about), so people accept they will miss things and then
+stand on the outside of the next morning's conversation. Having access to
+information and actually knowing something are two different things. FAM
+turns the things a listener cares about into personalized audio stories, when
+they want them and for however long they have, so they spend less time trying
+to keep up and more time being part of the conversation - and have one more
+thing to connect with someone over. It is not about consuming more
+information: it makes the information already around us easier to
+understand, remember and bring back into the real world. The origin: a
+podcast company deciding which stories became episodes, and the question of
+why a listener should wait for someone else to decide. Copy, onboarding and
+features should be judged against this frame; the waitlist page's "What is
+FAM" section tells it in full (`static/waitlist.html`).
+
 <!-- rule:three-surfaces -->
 ## Where this is going
 

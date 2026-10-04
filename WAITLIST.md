@@ -137,7 +137,13 @@ section when a decision changes, including why.
     cover on the Morning mix (the script's docstring says how). The founders'
     photo is `static/founders.jpg` - drop it in and it shows; until then the
     frame holds their initials. The status page does not draw the section.
-19. **Still open (ask the owner):** what each unlock gives (the tiers are
+19. **The section tells why FAM exists** (the owner, 04/10, PROBLEMS.md §199):
+    FAM is social information, not social media. The hero's line and the
+    intro say so; then the problem (what passes you by, the time keeping up
+    takes, to scale), the next morning's conversation you can't join, why it
+    was built (the asks, and the pipeline it collapses), and, after the
+    product, the same conversation with you in it.
+20. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

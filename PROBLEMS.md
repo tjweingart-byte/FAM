@@ -15235,3 +15235,42 @@ wait, so a link preview sees the whole page. Reduced motion turns the easing
 and the "What is FAM?" arrow's nudge off.
 
 Tests: `tests/test_waitlist.py`.
+
+
+## 199. "What is FAM" said what FAM does, not what it is for
+
+At the owner's direction (04/10), "above all else": **FAM is social
+information, not social media.** The owner's own account of the problem - so
+much information passes by every day, keeping up with it takes work, so you
+miss things and are on the outside of the next morning's conversation; having
+access to information is not knowing something - now carries the waitlist
+page's "What is FAM" section, mostly in the owner's words:
+
+1. **The hero** keeps its headline and gains the line "Social information, not
+   social media"; the meta description says the same. The intro's headline is
+   that line too.
+2. **The problem**: four things that pass you by drift across the page (a
+   marquee that stops, wrapped, under reduced motion), then "keeping up takes
+   work", with the time it costs drawn to scale - an hour-long podcast for the
+   ten minutes you care about, a twenty-minute video for three, FAM's two.
+3. **The next morning**: a conversation at work drawn with you silent ("on the
+   outside looking in"), then the pull quote about access against knowing.
+4. **Why we built FAM**: the podcast-company origin, written without "I"
+   because the page is signed by both founders; the three asks from the
+   owner's text as search bars; not a search result, not a wall of text, not a
+   chatbot answer, an actual story; the research-write-record-edit-publish
+   pipeline against "You ask. FAM tells you the story."
+5. **No more / FAM gives you** now sums that up; Search. Scroll. Mix. is
+   unchanged.
+6. **You're in it**: the same conversation later that day, with you in it,
+   marked "Caught up on FAM this morning · 2 min".
+7. Friends opens on "Information is better when it's shared"; the founders
+   close with "FAM isn't really about consuming more information"; the last
+   call is "Spend less time trying to keep up, and more time actually being
+   part of the conversation."
+
+The frame is a rule now (`social-information`, `docs/claude/product.md`), so
+later copy and features are judged against it. The people in the drawn
+conversations are the made-up friends from §198 (Maya, Jordan, Sam).
+
+Tests: `tests/test_waitlist.py`.

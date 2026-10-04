@@ -609,3 +609,24 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     assert vibe in card
     # Every picture says what it shows.
     assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
+
+
+def test_the_landing_page_tells_why_fam_exists():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    # Social information, not social media - in the hero and the intro.
+    assert landing.count("Social information, not social media") >= 3
+    order = ["passes by you every single day", "keeping up with it takes work",
+             "the game you didn’t see", "two completely different things",
+             "worth making?", "Search. Scroll. Mix.", "You’re in it.",
+             "actually being part of the conversation"]
+    at = [landing.index(text) for text in order]
+    assert at == sorted(at), "the story is told out of order"
+    # The time it takes is drawn to scale: an hour is the whole track.
+    widths = [float(w) for w in re.findall(r'class="tb-track" style="width:([\d.]+)%"', landing)]
+    assert widths == [100.0, 33.33, 3.33]
+    # The drifting cards stop, and lose their copies, under reduced motion.
+    motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
+                  if ".pass-track" in block.split("}\n  }", 1)[0])
+    assert ".pass-track{ animation:none" in motion
+    assert '.pass-card[aria-hidden="true"]{ display:none; }' in motion
