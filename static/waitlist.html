@@ -152,7 +152,8 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1B27' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E"); }
 
   /* ---------- the story: what passes by, the work, the morning after ---------- */
-  .tagline{ color:var(--gold); font-size:15px; margin:-14px 0 28px; }
+  .tagline{ color:var(--gold); font-size:clamp(12px, 3.4vw, 15px); letter-spacing:0.14em; white-space:nowrap;
+    text-align:center; margin:-30px 0 40px; }
   .ab-problem, .ab-origin{ margin-top:110px; }
   .ab-morning{ margin-top:90px; }
   .ab-two{ display:grid; grid-template-columns:1fr; gap:38px; align-items:center; margin-top:44px; }
@@ -502,8 +503,8 @@
  <div class="hero">
   <div class="landing-in">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
-    <h1 class="headline">Listen to everything you want to know about.</h1>
     <p class="tagline label">Your social information network</p>
+    <h1 class="headline">Listen to everything you want to know about.</h1>
     <div class="invited hidden" id="invited">A friend saved you a spot.</div>
 
     <!-- The app's sign-up samples (§181), here too (§190): played as

@@ -15247,7 +15247,7 @@ access to information is not knowing something - now carries the waitlist
 page's "What is FAM" section, mostly in the owner's words:
 
 1. **The hero** keeps its headline and gains the line "Your social
-   information network"; the intro's headline is "SOCIAL INFORMATION"; the
+   information network", right under the FAM wordmark; the intro's headline is "SOCIAL INFORMATION"; the
    meta description says "social information, not social media" (the footer
    went back to "Listen to everything you want to know about.").
 2. **The problem**: four things that pass you by drift across the page (a
