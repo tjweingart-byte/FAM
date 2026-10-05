@@ -186,28 +186,35 @@
   .chores{ list-style:none; padding:0; margin:26px 0 0; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
   .chores li{ border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:14px; color:var(--muted); }
 
-  /* What it costs, drawn as the media: a podcast's hour, a video's twenty
-     minutes, FAM's two - the part you wanted lit in each. */
-  .costs{ display:grid; grid-template-columns:1fr; gap:16px; margin-top:44px; }
-  .cost{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:22px 20px; min-width:0; }
-  .cost figcaption{ margin-top:16px; font-size:15.5px; line-height:1.45; color:var(--muted); }
-  .cost figcaption b{ color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
-  .hl{ color:var(--coral); font-weight:500; }
-  .cost-media{ height:96px; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; }
-  .wave{ flex:1; display:flex; align-items:center; gap:2px; }
-  .wave i{ flex:1; min-width:1px; border-radius:2px; background:#4A4360; }
-  .wave i.on{ background:var(--coral); }
-  .cost-scale{ display:flex; justify-content:space-between; font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; }
-  .vid-frame{ flex:1; border-radius:10px; background:linear-gradient(135deg, #2E2A3A, #3A3548); display:flex; align-items:center; justify-content:center; }
-  .vid-play{ width:30px; height:30px; border-radius:50%; background:rgba(244,239,228,0.14); color:var(--text);
-    display:flex; align-items:center; justify-content:center; }
-  .vid-play svg{ width:14px; height:14px; margin-left:2px; }
-  .vid-bar{ position:relative; height:5px; border-radius:3px; background:#4A4360; }
-  .vid-lit{ position:absolute; top:0; bottom:0; border-radius:3px; background:var(--coral); }
-  .vid-head{ position:absolute; top:50%; width:11px; height:11px; margin:-5.5px 0 0 -5.5px; border-radius:50%; background:var(--text); }
-  .cost.fam{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border-color:rgba(240,195,94,0.35); }
-  .cost.fam figcaption{ color:#D9D2E4; }
-  .fam-wave i{ background:var(--gold) !important; }
+  /* The time it takes to catch up on one thing: three rows on one scale (an
+     hour is the whole track), big minute counts, the part you wanted marked. */
+  .tt{ margin:44px auto 0; max-width:980px; background:var(--card); border:1px solid var(--line); border-radius:22px;
+    padding:24px 22px 18px; }
+  .tt figcaption{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; margin-bottom:8px; }
+  .tt figcaption .label{ color:var(--muted); font-size:14px; }
+  .tt-key{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+  .tt-key i{ width:16px; height:10px; border-radius:5px; background:var(--coral); }
+  .tt-row{ display:grid; grid-template-columns:1fr auto; gap:6px 14px; align-items:center; padding:16px 0;
+    border-top:1px solid var(--line); }
+  .tt figcaption + .tt-row{ border-top:0; }
+  .tt-name{ display:flex; align-items:center; gap:10px; font-size:15.5px; color:var(--text); min-width:0; }
+  .tt-ic{ flex:none; width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    background:var(--card-2); color:var(--muted); }
+  .tt-ic svg{ width:18px; height:18px; }
+  .tt-num{ font-family:'Fraunces', Georgia, serif; font-size:clamp(30px, 4.4vw, 40px); line-height:1; color:#F6F0E4;
+    font-variant-numeric:tabular-nums; text-align:right; }
+  .tt-num small{ font-family:'Space Grotesk', sans-serif; font-size:13px; color:var(--muted); margin-left:5px; }
+  .tt-bar{ grid-column:1 / -1; min-width:0; }
+  .tt-track{ position:relative; height:16px; min-width:14px; border-radius:8px; background:#4A4360; }
+  .tt-want{ position:absolute; top:0; bottom:0; border-radius:8px; background:var(--coral); }
+  .tt-note{ font-size:13.5px; color:var(--muted); margin-top:8px; }
+  .tt-note b{ color:var(--text); font-weight:500; }
+  .tt-row.fam .tt-ic{ background:rgba(240,195,94,0.14); color:var(--gold); }
+  .tt-row.fam .tt-num{ color:var(--gold); }
+  .tt-row.fam .tt-track{ background:var(--gold); }
+  .tt-row.fam .tt-note{ color:#D9D2E4; }
+  .tt-axis{ display:flex; justify-content:space-between; padding-top:10px; border-top:1px solid var(--line);
+    font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
 
   .resign{ margin:56px auto 0; max-width:720px; text-align:center; font-size:clamp(18px, 2.4vw, 21px); line-height:1.55; color:var(--muted); }
   .resign span{ color:var(--text); }
@@ -359,7 +366,9 @@
 
   @media (min-width:820px){
     .ab-two{ grid-template-columns:1fr 1fr; gap:64px; }
-    .costs{ grid-template-columns:1fr 1fr 1fr; }
+    .tt-row{ grid-template-columns:230px 120px 1fr; gap:0 18px; }
+    .tt-bar{ grid-column:auto; }
+    .tt-axis{ margin-left:386px; }
       .pipeline{ grid-template-columns:1.4fr auto 1fr; }
     .pipe-arrow{ transform:none; }
     .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
@@ -569,36 +578,18 @@
 
       <div class="turn">
         <p class="turn-a">The information is all out there.</p>
-        <p class="turn-b">The problem is that actually keeping up with it takes work.</p>
+        <p class="turn-b">The problem is that actually keeping up with it takes time.</p>
         <ul class="chores" aria-label="What keeping up takes">
           <li>Search for it</li><li>Read through articles</li><li>Scroll through feeds</li>
         </ul>
       </div>
 
-      <div class="costs">
-        <figure class="cost">
-          <div class="cost-media pod">
-            <div class="wave" aria-hidden="true"><i style="height:58%"></i><i style="height:69%"></i><i style="height:59%"></i><i style="height:57%"></i><i style="height:49%"></i><i style="height:59%"></i><i style="height:77%"></i><i style="height:67%"></i><i style="height:76%"></i><i style="height:65%"></i><i style="height:67%"></i><i style="height:64%"></i><i style="height:39%"></i><i style="height:73%"></i><i style="height:69%"></i><i style="height:68%"></i><i style="height:39%"></i><i style="height:38%"></i><i style="height:49%"></i><i style="height:55%"></i><i style="height:66%"></i><i style="height:61%"></i><i style="height:69%"></i><i style="height:53%"></i><i class="on" style="height:66%"></i><i class="on" style="height:67%"></i><i class="on" style="height:53%"></i><i class="on" style="height:85%"></i><i class="on" style="height:69%"></i><i class="on" style="height:78%"></i><i class="on" style="height:53%"></i><i class="on" style="height:52%"></i><i class="on" style="height:57%"></i><i class="on" style="height:60%"></i><i style="height:70%"></i><i style="height:65%"></i><i style="height:55%"></i><i style="height:49%"></i><i style="height:54%"></i><i style="height:78%"></i><i style="height:51%"></i><i style="height:65%"></i><i style="height:67%"></i><i style="height:41%"></i><i style="height:62%"></i><i style="height:79%"></i><i style="height:34%"></i><i style="height:57%"></i><i style="height:60%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:61%"></i><i style="height:42%"></i><i style="height:73%"></i><i style="height:71%"></i><i style="height:75%"></i><i style="height:81%"></i><i style="height:67%"></i><i style="height:63%"></i><i style="height:44%"></i></div>
-            <div class="cost-scale" aria-hidden="true"><span>0:00</span><span>1:00:00</span></div>
-          </div>
-          <figcaption><b>60 minutes</b> of podcast to find the <span class="hl">ten</span> you actually care about.</figcaption>
-        </figure>
-        <figure class="cost">
-          <div class="cost-media vid" aria-hidden="true">
-            <div class="vid-frame"><span class="vid-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
-            <div class="vid-bar"><span class="vid-lit" style="left:45%;width:15%"></span><span class="vid-head" style="left:45%"></span></div>
-            <div class="cost-scale"><span>0:00</span><span>20:00</span></div>
-          </div>
-          <figcaption><b>20 minutes</b> of video for something that could be explained in <span class="hl">three</span>.</figcaption>
-        </figure>
-        <figure class="cost fam">
-          <div class="cost-media famm">
-            <div class="wave fam-wave" aria-hidden="true"><i style="height:45%"></i><i style="height:67%"></i><i style="height:75%"></i><i style="height:55%"></i><i style="height:43%"></i><i style="height:61%"></i><i style="height:68%"></i><i style="height:77%"></i><i style="height:45%"></i><i style="height:44%"></i><i style="height:71%"></i><i style="height:68%"></i><i style="height:83%"></i><i style="height:75%"></i><i style="height:60%"></i><i style="height:58%"></i><i style="height:97%"></i><i style="height:58%"></i><i style="height:51%"></i><i style="height:46%"></i><i style="height:63%"></i><i style="height:64%"></i><i style="height:57%"></i><i style="height:61%"></i></div>
-            <div class="cost-scale" aria-hidden="true"><span>0:00</span><span>2:00</span></div>
-          </div>
-          <figcaption><b>2 minutes</b> on FAM, and every one of them is the story you asked for.</figcaption>
-        </figure>
-      </div>
+<figure class="tt" aria-label="Time to catch up on one thing, drawn to one scale">
+        <figcaption><span class="label">Time to catch up on one thing</span>
+          <span class="tt-key" aria-hidden="true"><i></i>The part you wanted</span></figcaption>
+        <div class="tt-row"><div class="tt-name"><span class="tt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h3v6H5a1 1 0 0 1-1-1zM20 14h-3v6h2a1 1 0 0 0 1-1z"/></svg></span>An hour-long podcast</div><div class="tt-num">60<small>min</small></div><div class="tt-bar"><div class="tt-track" style="width:100%"><span class="tt-want" style="left:40%;width:16.67%"></span></div><div class="tt-note">for the <b>10 minutes</b> you actually care about</div></div></div><div class="tt-row"><div class="tt-name"><span class="tt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span>A twenty-minute video</div><div class="tt-num">20<small>min</small></div><div class="tt-bar"><div class="tt-track" style="width:33.33%"><span class="tt-want" style="left:45%;width:15%"></span></div><div class="tt-note">for something that could be explained in <b>3</b></div></div></div><div class="tt-row fam"><div class="tt-name"><span class="tt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span>FAM</div><div class="tt-num">2<small>min</small></div><div class="tt-bar"><div class="tt-track" style="width:3.33%"></div><div class="tt-note">and every minute is the story you asked for</div></div></div>
+        <div class="tt-axis" aria-hidden="true"><span>0</span><span>15</span><span>30</span><span>45</span><span>60 min</span></div>
+      </figure>
 
       <p class="resign">And because nobody has time to do that for everything they care about,
         most of us just accept that <span>we’re going to miss things.</span></p>

@@ -15293,13 +15293,15 @@ problem" (§199):
 2. **The rail stays** - the four things that pass you by, drifting past on
    their own (a day-timeline version was tried and rejected for it).
 3. **The turn**, set large: "The information is all out there." then "The
-   problem is that actually keeping up with it takes work.", with what that
-   work is (search, articles, feeds).
-4. **What it costs, drawn as the media**, in place of the bar chart: an hour
-   of podcast as a waveform of sixty one-minute bars with the ten you wanted
-   lit; a twenty-minute video's scrubber with three minutes lit; FAM's two
-   minutes, all of it lit gold. The numbers are the owner's own, and FAM's is
-   the browse length.
+   problem is that actually keeping up with it takes time." (the owner's
+   word, over "work"), with what that time goes on (search, articles, feeds).
+4. **Time to catch up on one thing**: one chart, three rows on one scale (an
+   hour is the whole track) - an hour-long podcast, 60 min, with the ten you
+   care about marked; a twenty-minute video, 20, with three marked; FAM, 2,
+   all of it. Big minute counts carry it. (Cards drawing each as its own
+   media - a waveform, a video scrubber - were tried first and replaced at
+   the owner's direction once the line said "time".) The numbers are the
+   owner's own, and FAM's is the browse length.
 5. "Most of us just accept that we're going to miss things" closes it.
 
 Tests: `tests/test_waitlist.py`.

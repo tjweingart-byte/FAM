@@ -618,7 +618,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<p class="tagline label">Your social information network</p>' in landing
     assert '<h2 class="ab-h">Social information.</h2>' in landing
     assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
-    order = ["Being in the know shouldn’t be a full-time job.", "keeping up with it takes work",
+    order = ["Being in the know shouldn’t be a full-time job.", "keeping up with it takes time",
              "left out of the conversation", "two completely different things",
              "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
              "actually being part of the conversation"]
@@ -633,13 +633,15 @@ def test_the_landing_page_tells_why_fam_exists():
     motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
                   if ".pass-track" in block.split("}\n  }", 1)[0])
     assert ".pass-track{ animation:none" in motion
-    # What keeping up costs, as the owner put it: an hour of podcast for ten
-    # minutes, twenty of video for three, against FAM's two.
-    pod = problem.split('class="cost-media pod"', 1)[1].split("</figure>", 1)[0]
-    assert pod.count("<i") == 60 and pod.count('class="on"') == 10
-    assert 'style="left:45%;width:15%"' in problem   # 3 of 20 minutes lit
-    assert "<b>60 minutes</b>" in problem and "<b>20 minutes</b>" in problem
-    assert "<b>2 minutes</b> on FAM" in problem
+    # What keeping up costs, as the owner put it, on one scale (an hour is the
+    # whole track): an hour of podcast for ten minutes, twenty of video for
+    # three, against FAM's two.
+    assert "keeping up with it takes time." in problem
+    widths = re.findall(r'class="tt-track" style="width:([\d.]+)%"', problem)
+    assert widths == ["100", "33.33", "3.33"]
+    assert re.findall(r'class="tt-num">(\d+)<small>', problem) == ["60", "20", "2"]
+    assert 'style="left:40%;width:16.67%"' in problem   # 10 of 60 minutes
+    assert 'style="left:45%;width:15%"' in problem      # 3 of 20 minutes
 
 
 def test_the_morning_after_says_it_before_it_shows_it():
