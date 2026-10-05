@@ -15346,3 +15346,7 @@ re-encoded with no metadata so nothing from the phone - its location above all -
 ships with it; a test pins the size and the empty EXIF. The initials fallback
 stays for a deployment without the file. `/founders.jpg` was already open past
 the waitlist gate, which closes only the app's pages.
+
+**The copyright line.** The page ends with "© 2026 APALI. All rights reserved."
+under the footer's tagline, small and faint, at the owner's direction; a test
+keeps it the last line of the footer.

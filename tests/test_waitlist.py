@@ -630,6 +630,8 @@ def test_the_landing_page_tells_why_fam_exists():
     assert "social information, not social media" in page.split("</head>", 1)[0]
     foot = landing.split('class="ab-foot"', 1)[1]
     assert foot.index('class="wordmark"') < foot.index("The social information network")
+    # The copyright is the last line on the page.
+    assert foot.index("The social information network") < foot.index("&copy; 2026 APALI. All rights reserved.") < foot.index("</footer>")
     order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
              "left out of the conversation",
              "stories you hear?", "Search. Scroll. Mix.",
