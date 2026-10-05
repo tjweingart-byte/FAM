@@ -208,3 +208,5 @@ and `limit` = Lines.
 | 15400 | 81 | 202. Taste is a subject tree, chosen interests never fade, and the algorithm documents itself |
 | 15481 | 85 | 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe |
 | 15566 | 51 | 204. The type read as generated: Bricolage Grotesque, Geist and Geist Mono |
+| 15617 | 27 | 205. Viral Loops refused every grant's flag: "'participants' is required" |
+| 15644 | 37 | 206. The admin page lets in the ticked people, or any number from the front |

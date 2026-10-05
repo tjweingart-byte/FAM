@@ -105,10 +105,14 @@ class ViralLoops:
                 "participant_id": str(data.get("id") or data.get("participantId")
                                       or "")}
 
-    async def flag(self, email: str, reason: str = "Granted early access") -> None:
-        """Take somebody off the waiting list without deleting them."""
+    async def flag(self, email: str) -> None:
+        """Take somebody off the waiting list without deleting them.
+
+        The endpoint takes a list: `{"participants": [{"email": ...}]}`. A bare
+        `email` was refused in production with "'participants' is required"
+        (PROBLEMS.md §205), which is the only shape evidence this has."""
         await self._post("/campaign/participant/flag",
-                         {"email": email, "reason": reason})
+                         {"participants": [{"email": email}]})
 
 
 async def drain(waitlist, client: Optional[ViralLoops], limit: int = 50) -> dict:

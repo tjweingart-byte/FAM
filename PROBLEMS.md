@@ -15613,3 +15613,67 @@ owner's phone screenshots and still show the old type until new ones are
 taken on a build with this change.
 
 Rule: `typefaces` in `docs/claude/constraints.md`.
+
+## 205. Viral Loops refused every grant's flag: "'participants' is required"
+
+The admin waitlist page showed `1 call(s) refused by Viral Loops and not
+retried. Latest: refused: /campaign/participant/flag answered 400 ...
+"(participants) 'participants' is required"`. `ViralLoops.flag` sent
+`{"email", "reason"}`, a shape guessed when the docs hosts were blocked
+(WAITLIST.md). The vendor wants a list. So every grant flipped `status` in
+FAM, which is the source of truth (the person was let in), but Viral Loops was
+never told, so they stayed on its leaderboard. Nothing in FAM was lost.
+
+Fix: `flag` sends `{"participants": [{"email": ...}]}` and drops `reason`. The
+docs were still unreachable from this session, so the shape comes from the
+error alone. If the vendor refuses the next field, the admin line shows it the
+same way. Refusals are final (`mark_given_up`), so the calls already refused
+would never be sent again. `Waitlist.reopen_refused(action, containing)`
+reopens refused calls whose kept error matches, and
+`_drain_viral_loops_forever` runs it once at boot for each entry in
+`VIRAL_LOOPS_FIXED_REFUSALS`. Only refusals for this one cause move.
+
+Not a bug, and visible on the same screenshot: one person is waitlisted
+while `WAITLIST` is off. A `/waitlist` join is always waitlisted (§192), so
+somebody who signed up through the waitlist page waits for a grant even when
+the app is open.
+
+Tests: `tests/test_waitlist.py` (`test_flag_sends_a_participants_list`,
+`test_a_refusal_since_fixed_is_sent_again`).
+
+## 206. The admin page lets in the ticked people, or any number from the front
+
+The owner, 05/10: the waitlist should be fully on, and `/admin/waitlist`
+should let in individual people by ticking a box next to their name, and
+any number of people from the front of the line, in order.
+
+The server already took both (`POST /api/admin/waitlist/grant` with
+`user_ids` or `top`; `grant_top` walks `ordered()`, so it is place order).
+What was missing was the page:
+
+- A checkbox on every row, and one in the header that ticks everyone
+  shown (after a search, only the matches). Ticks survive sorting,
+  searching and refreshes, and a refresh drops anyone no longer waiting.
+  **Let in selected (N)** sends exactly those ids after one confirm.
+- "Grant the top" is now **Let in the first [N] in line**, which says that
+  it goes by place. Asking for more than are waiting lets in whoever is
+  left.
+- Each row's own **Grant** button stays.
+- When `WAITLIST` is off, the line at the top turns red and says where to
+  turn it on, because a screenshot of the page with the gate off was the
+  first sign the owner had.
+
+Turning the waitlist on stays a dashboard switch (`WAITLIST=1` on the `fam`
+service, rule `waitlist-gate`). `render.yaml` keeps `sync: false`, so a
+merge can never open or close the app by itself. The code was already
+complete: the middleware refuses non-active accounts, and new accounts
+start waitlisted.
+
+A quote out of place in the new row markup broke the page's whole script
+while it was being written, and no test noticed, because nothing parses
+`admin_ui/`. `tools/check_js.py` now checks every page there, as it already
+did `static/index.html` and `listen.html`.
+
+Tests: `tests/test_waitlist.py`
+(`test_admin_lets_in_the_ticked_people_and_the_first_n_in_line`,
+`test_admin_page_has_the_checkboxes_and_the_first_n_control`).

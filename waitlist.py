@@ -410,6 +410,18 @@ class Waitlist:
             " last_error = ? WHERE id = ?",
             (at or time.time(), "refused: " + str(error)[:490], item_id))
 
+    def reopen_refused(self, action: str, containing: str,
+                       at: float = 0.0) -> int:
+        """Send again the calls the vendor refused for a reason since fixed on
+        our side (a request shape). Matched on the kept error, so only those
+        calls move; returns how many."""
+        cur = self._conn().execute(
+            "UPDATE waitlist_outbox SET done_at = 0, next_at = ?, last_error = ''"
+            " WHERE done_at > 0 AND action = ? AND last_error LIKE 'refused: %'"
+            " AND instr(last_error, ?) > 0",
+            (at or time.time(), action, containing))
+        return int(cur.rowcount or 0)
+
     def outbox_summary(self) -> dict:
         row = self._conn().execute(
             "SELECT COUNT(*), COALESCE(MAX(attempts), 0) FROM waitlist_outbox"

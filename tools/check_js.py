@@ -33,7 +33,11 @@ TARGETS = [ROOT / "static" / "index.html",
            # The share landing page. Its script is the only thing
            # standing between a stranger and silence, and nothing else
            # here opens it - the preview builds render the app.
-           ROOT / "static" / "listen.html"]
+           ROOT / "static" / "listen.html",
+           # The admin pages. Nothing else opens them either, and a quote
+           # out of place in waitlist.html's script once blanked the page
+           # that lets people in (PROBLEMS.md §206).
+           *sorted((ROOT / "admin_ui").glob("*.html"))]
 PLAIN_JS = [ROOT / "static" / "fam-audio.js"]
 
 INLINE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)

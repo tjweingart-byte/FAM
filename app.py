@@ -7682,7 +7682,19 @@ def _kick_viral_loops() -> None:
         pass  # no running loop (a synchronous caller); the timer delivers it
 
 
+#: Refusals caused by a request shape FAM has since corrected; their calls are
+#: sent again once at boot (PROBLEMS.md §205).
+VIRAL_LOOPS_FIXED_REFUSALS = (("flag", "'participants' is required"),)
+
+
 async def _drain_viral_loops_forever(every: float = 300.0) -> None:
+    for action, error in VIRAL_LOOPS_FIXED_REFUSALS:
+        try:
+            if n := WAITLIST.reopen_refused(action, error):
+                log.info("viral loops: re-sending %d %s call(s) refused for %r",
+                         n, action, error)
+        except Exception:  # noqa: BLE001 - never stop the drain over this
+            log.exception("could not reopen refused viral loops calls")
     while True:
         try:
             result = await viral_loops_mod.drain(WAITLIST, VIRAL_LOOPS)
