@@ -633,15 +633,14 @@ def test_the_landing_page_tells_why_fam_exists():
     motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
                   if ".pass-track" in block.split("}\n  }", 1)[0])
     assert ".pass-track{ animation:none" in motion
-    # What keeping up costs, as the owner put it, on one scale (an hour is the
-    # whole track): an hour of podcast for ten minutes, twenty of video for
-    # three, against FAM's two.
+    # Everything you would have to get through goes into FAM and comes out
+    # as one short episode - the owner's numbers on the way in, FAM's two out.
     assert "keeping up with it takes time." in problem
-    widths = re.findall(r'class="tt-track" style="width:([\d.]+)%"', problem)
-    assert widths == ["100", "33.33", "3.33"]
-    assert re.findall(r'class="tt-num">(\d+)<small>', problem) == ["60", "20", "2"]
-    assert 'style="left:40%;width:16.67%"' in problem   # 10 of 60 minutes
-    assert 'style="left:45%;width:15%"' in problem      # 3 of 20 minutes
+    condense = problem.split('class="condense"', 1)[1].split("</figure>", 1)[0]
+    assert condense.count("<li>") == 5
+    assert ">60 min<" in condense and ">20 min<" in condense
+    assert "One episode · 2 min" in condense
+    assert condense.index('class="cd-in"') < condense.index('class="cd-fam"') < condense.index('class="cd-out"')
 
 
 def test_the_morning_after_says_it_before_it_shows_it():

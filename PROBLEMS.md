@@ -15294,14 +15294,17 @@ problem" (§199):
    their own (a day-timeline version was tried and rejected for it).
 3. **The turn**, set large: "The information is all out there." then "The
    problem is that actually keeping up with it takes time." (the owner's
-   word, over "work"), with what that time goes on (search, articles, feeds).
-4. **Time to catch up on one thing**: one chart, three rows on one scale (an
-   hour is the whole track) - an hour-long podcast, 60 min, with the ten you
-   care about marked; a twenty-minute video, 20, with three marked; FAM, 2,
-   all of it. Big minute counts carry it. (Cards drawing each as its own
-   media - a waveform, a video scrubber - were tried first and replaced at
-   the owner's direction once the line said "time".) The numbers are the
-   owner's own, and FAM's is the browse length.
-5. "Most of us just accept that we're going to miss things" closes it.
+   word, over "work"), then "most of us just accept that we're going to miss
+   things."
+4. **One picture of what FAM does about it** (the owner: "simple - it takes
+   all the information and condenses it into a short FAM episode"): search
+   results, articles, feeds, an hour-long podcast (60 min) and a
+   twenty-minute video (20 min) on the left, into the FAM mark, out as one
+   episode card, "The story you asked for · One episode · 2 min". Left to
+   right on a desktop, top to bottom on a phone. It replaced, in turn, cards
+   drawing each medium (a waveform, a video scrubber) and a chart of minutes
+   on one scale - both said "it takes long" rather than "FAM condenses it".
+   The pills naming search, articles and feeds went with them, since the
+   picture names them.
 
 Tests: `tests/test_waitlist.py`.
