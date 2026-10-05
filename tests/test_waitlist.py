@@ -614,8 +614,9 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
 def test_the_landing_page_tells_why_fam_exists():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # Social information, not social media - in the hero and the intro.
-    assert landing.count("Social information, not social media") >= 3
+    # The sign-up screen names it; the intro and the footer say what it is.
+    assert '<p class="tagline label">Your social information network</p>' in landing
+    assert landing.count("Social information, not social media") >= 2
     order = ["passes by you every single day", "keeping up with it takes work",
              "the game you didn’t see", "two completely different things",
              "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
