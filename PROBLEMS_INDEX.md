@@ -202,5 +202,5 @@ and `limit` = Lines.
 | 15147 | 27 | 196. Signing in cut straight to DailyFAM, with nothing to say you had arrived |
 | 15174 | 20 | 197. The sign-in screen's samples play in place, and the guest door is withdrawn |
 | 15194 | 46 | 198. The waitlist page asked for an email without saying what FAM is |
-| 15240 | 46 | 199. "What is FAM" said what FAM does, not what it is for |
-| 15286 | 37 | 200. The Problem, second attempt: the real problem, and what keeping up costs |
+| 15240 | 52 | 199. "What is FAM" said what FAM does, not what it is for |
+| 15292 | 37 | 200. The Problem, second attempt: the real problem, and what keeping up costs |

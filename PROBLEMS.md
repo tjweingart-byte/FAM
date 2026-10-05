@@ -15269,8 +15269,14 @@ page's "What is FAM" section, mostly in the owner's words:
    pipeline against "You ask. FAM tells you the story."
 5. **No more / FAM gives you** now sums that up; Search. Scroll. Mix. is
    unchanged.
-6. **You're in it**: the same conversation later that day, with you in it,
-   marked "Caught up on FAM this morning · 2 min".
+6. **You're in it** - now beside the "left out" chat, not a section of its
+   own: the owner wanted the after next to the before. The same work chat
+   twice, side by side (stacked on a phone), labelled "Without FAM" (your
+   line: "Wait… what happened?") and "With FAM" (your line: "I caught the
+   story this morning…", marked "Caught up on FAM this morning · 2 min"),
+   then "Two minutes in the morning and you're in it". Two-column sections
+   now sit side by side from 640px, so a narrow window does not push the
+   picture under its words.
 7. Friends opens on "Information is better when it's shared"; the founders
    close with "FAM isn't really about consuming more information"; the last
    call is "Spend less time trying to keep up, and more time actually being

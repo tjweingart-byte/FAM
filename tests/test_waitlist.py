@@ -620,7 +620,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
     order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
              "left out of the conversation", "two completely different things",
-             "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
+             "stories you hear?", "Search. Scroll. Mix.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
@@ -649,3 +649,7 @@ def test_the_morning_after_says_it_before_it_shows_it():
     # The point first, then the chat; and in the chat you plainly can't join in.
     assert morning.index("You’re left out of the conversation.") < morning.index('class="convo"')
     assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
+    # Beside it, the same chat with FAM: you're in it.
+    assert morning.index("Without FAM") < morning.index("With FAM")
+    assert '<div class="msg me in"><p><b>You</b>I caught the story this morning.' in morning
+    assert 'class="ab-wrap ab-payoff' not in page
