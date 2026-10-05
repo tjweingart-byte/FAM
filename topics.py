@@ -1038,13 +1038,45 @@ SUBTAG_WORDS: dict[str, tuple[str, ...]] = {
 # of them a listener could have chosen in the intro.
 TAG_WORDS = {**TAG_WORDS, **SUBTAG_WORDS}
 
-#: What one declared interest is worth next to real behaviour, in `taste`.
-#: Equal to a play and well under a completion (EVENT_WEIGHT), and it does not
-#: decay - so it carries a new listener's first feed and is quietly outvoted
-#: once they have actually listened to anything. Higher and the intro would
-#: pin the feed for weeks; lower and choosing six things would change nothing,
-#: which is worse than not asking.
-INTEREST_WEIGHT = 1.0
+#: What one declared interest is worth in `taste`, **added after the
+#: behaviour has been normalised, and never decayed or outvoted** (§202, at
+#: the owner's direction: "A person's selected interests SHOULD NOT fade in
+#: weight at any point in time ... and is the only part that they have
+#: intentional influence over").
+#:
+#: It used to be 1.0 *before* normalisation - a starting position that a
+#: few weeks of listening shrank to a tenth of the peak. Now behaviour is
+#: scaled to a peak of 1.0 first and each chosen interest then sits at this
+#: on top of whatever behaviour says - **twice** the single thing this
+#: listener plays most ("make interests chosen at sign-up much more
+#: weighted"), on the first day and in the second year alike. Skips cannot
+#: take it below this: behaviour only ever adds to a chosen interest.
+#:
+#: Both kinds of choice count: the eight facets (`preferences.interests`)
+#: and the named subjects from the interests page (`preferences.topics`),
+#: each resolved into the tree by `interest_shares`, so choosing "NFL" also
+#: lifts American football and sport by `ANCESTOR_SHARE` per level.
+INTEREST_WEIGHT = 2.0
+
+#: How much of a signal on a subject reaches each heading above it (§202).
+#:
+#: "If I consistently listen to content about the Cincinnati Bengals, that
+#: should be under [sports, american football, bengals]. The algorithm should
+#: know that I am interested in the Bengals, but also relate that to the
+#: sport of football as a whole." The most specific tag an event carries
+#: takes its whole weight; its parent takes this share, its grandparent this
+#: share squared, and so on up to the facet. So the Bengals are the strongest
+#: thing in that listener's profile, the NFL and American football are real
+#: and smaller, and sport as a whole is smaller still - where before every
+#: level got the full weight and the facet, summed over everything, was
+#: always the peak.
+#:
+#: Specific stories still win when they exist: `_affinity` multiplies a
+#: tag's profile weight by how specific the tag is (`tag_weight`), so a
+#: Bengals story outranks a general NFL one, which outranks a general sports
+#: one - and when there is no Bengals story, the NFL and football tiles are
+#: what the shares above put next.
+ANCESTOR_SHARE = 0.6
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -1999,8 +2031,17 @@ UNSHELVED = ("might_like",)
 #: > is the plainest statement of interest there is), a skip barely moves
 #: > anything, and a vibe outweighs a share. The reasoning above is the
 #: > history of the old ordering; `share` and `pick` keep their old values.
-EVENT_WEIGHT = {"search": 2.0, "play": 1.0, "complete": 2.0, "skip": -0.5,
-                "pick": 1.6, "share": 2.0, "vibe": 2.5, "save": 2.0}
+#:
+#: > **Current (§202, at the owner's direction):** search 1.5, finishing
+#: > 1.5, pick 2.2, and a new kind, `mix_add` at 2.0 - a subject or episode
+#: > added to one of the listener's mixes (`app._record_mix_adds`). Adding
+#: > something to a mix is a standing request to hear it every day, which is
+#: > a stronger statement than one search. Play 1, skip -0.5, share 2,
+#: > vibe 2.5 and save 2 are unchanged.
+MIX_ADD = "mix_add"
+EVENT_WEIGHT = {"search": 1.5, "play": 1.0, "complete": 1.5, "skip": -0.5,
+                "pick": 2.2, "share": 2.0, "vibe": 2.5, "save": 2.0,
+                MIX_ADD: 2.0}
 
 #: **Not interested is gone** (§171, at the owner's direction: "This button
 #: and function should not be a feature. The algorithm should work naturally
@@ -2039,7 +2080,7 @@ EVENT_KINDS = frozenset(EVENT_WEIGHT) | {IMPRESSION}
 #: rather than an archaeology project. Date-and-counter rather than a plain
 #: integer, because the useful question is nearly always "what were we running
 #: in September" and not "what was the sixth version".
-ALGO_VERSION = "2026-09-23.3"
+ALGO_VERSION = "2026-10-05.1"
 
 #: **Fatigue**: how a tile that keeps being shown and never played stops being
 #: offered quite so hard. This is the one thing impressions are allowed to do
@@ -2812,24 +2853,31 @@ class EventStore:
 
 def taste(events: Iterable[Event], now: Optional[float] = None,
           interests: Iterable[str] = ()) -> dict[str, float]:
-    """Tag affinity for one listener: recency-weighted, signed, normalised.
+    """Tag affinity for one listener: a tree of subjects, recency-weighted,
+    signed, normalised - with their chosen interests held constant on top.
 
     Computed on read rather than stored. A stored profile is a cache that can
     disagree with the log it came from; this cannot.
 
-    `interests` are the facets they picked in the intro. They enter as a flat
-    INTEREST_WEIGHT before normalisation - a starting position, not a rule -
-    so a listener who has never played anything still gets a ranked feed, and
-    one who has gets ranked mostly on what they did. A skip against a chosen
-    interest can take it negative, which is correct: choosing "Sport" in an
-    intro is a weaker statement than abandoning three sports episodes.
+    **A tree, not a bag of tags** (§202). Each event's weight goes in full to
+    the most specific subjects it carries and `ANCESTOR_SHARE` per level to
+    every heading above them (`tag_shares`), so a Bengals listener's profile
+    reads Bengals > NFL > American football > sport. `taste_tree` draws it.
+
+    `interests` are what they chose: facets, catalogue ids or typed subjects
+    (`interest_shares`). They are added **after** normalisation at
+    `INTEREST_WEIGHT` and never decay, so no amount of listening shrinks
+    them and no skip takes them below it (§202, reversing the old "starting
+    position that real listening outvotes").
     """
     now = time.time() if now is None else now
-    scores: dict[str, float] = {tag: INTEREST_WEIGHT for tag in interests
-                                if tag in TAG_LABELS}
+    scores: dict[str, float] = {}
     tree = category_tree()
+    shares_for: dict[frozenset, dict[str, float]] = {}
     for event in events:
         weight = EVENT_WEIGHT.get(event.kind, 0.0) * _decay(max(0.0, now - event.at))
+        if not weight:
+            continue
         tags = set(event.tags)
         if event.text:
             # **The stored tags are kept and the text is re-read.** A node
@@ -2844,10 +2892,154 @@ def taste(events: Iterable[Event], now: Optional[float] = None,
             # re-read is the listener's own words, which have not changed.
             tags |= set(tree.match(event.text) if tags
                         else tags_for_text(event.text))
-        for tag in tags:
-            scores[tag] = scores.get(tag, 0.0) + weight
+        key = frozenset(tags)
+        shares = shares_for.get(key)
+        if shares is None:
+            shares = shares_for[key] = tag_shares(tags)
+        for tag, share in shares.items():
+            scores[tag] = scores.get(tag, 0.0) + weight * share
     peak = max((abs(v) for v in scores.values()), default=0.0)
-    return {k: v / peak for k, v in scores.items()} if peak else {}
+    profile = {k: v / peak for k, v in scores.items()} if peak else {}
+    for tag, share in interest_shares(interests).items():
+        profile[tag] = INTEREST_WEIGHT * share + max(0.0, profile.get(tag, 0.0))
+    return profile
+
+
+def _parent_tag(tag: str) -> str:
+    """One level up: a subtag's facet, a category's parent, "" for a facet
+    or a tag no vocabulary knows."""
+    if tag in TAG_LABELS:
+        return ""
+    if tag in TAG_PARENT:
+        return TAG_PARENT[tag]
+    try:
+        chain = category_tree().ancestors(tag)
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        return ""
+    return chain[0] if chain else ""
+
+
+def lineage(tag: str) -> list[str]:
+    """Every heading above `tag`, nearest first, ending at its facet when
+    one is known: `cincinnati bengals` -> nfl, american football, sports."""
+    out: list[str] = []
+    seen = {tag}
+    current = tag
+    while True:
+        parent = _parent_tag(current)
+        if not parent or parent in seen:
+            return out
+        out.append(parent)
+        seen.add(parent)
+        current = parent
+
+
+def tag_shares(tags: Iterable[str]) -> dict[str, float]:
+    """How one signal on these tags is spread over the subject tree (§202).
+
+    The most specific tags - those no other tag in the set sits under - get
+    a share of 1.0; each heading above one gets `ANCESTOR_SHARE ** levels`,
+    the largest where two lineages meet. Headings missing from the set are
+    added, so a tag stored without its ancestry still reaches them.
+    """
+    tags = {t for t in tags if t}
+    if not tags:
+        return {}
+    lines = {t: lineage(t) for t in tags}
+    above = {a for line in lines.values() for a in line}
+    leaves = [t for t in tags if t not in above] or list(tags)
+    shares: dict[str, float] = {}
+    for leaf in leaves:
+        shares[leaf] = 1.0
+        for level, heading in enumerate(lines[leaf], 1):
+            share = ANCESTOR_SHARE ** level
+            if share > shares.get(heading, 0.0):
+                shares[heading] = share
+    return shares
+
+
+def _tags_for_interest(value: str) -> tuple[str, ...]:
+    """What one chosen interest is about: a tag as itself, a catalogue
+    subject as its tags plus what the tree finds in its name, anything typed
+    as its words."""
+    if value in TAG_LABELS or value in TAG_PARENT:
+        return (value,)
+    tree = category_tree()
+    try:
+        if tree.get(value) is not None:
+            return (value,)
+    except Exception:  # noqa: BLE001
+        pass
+    entry = CATALOGUE_BY_ID.get(value)
+    if entry is not None:
+        try:
+            found = tuple(tree.match(entry.label))
+        except Exception:  # noqa: BLE001
+            found = ()
+        return tuple(entry.tags) + found
+    return tags_for_text(value)
+
+
+def interest_shares(interests: Iterable[str]) -> dict[str, float]:
+    """Every tag the listener's chosen interests reach, with its tree share.
+
+    The largest share wins where two interests meet, so choosing Sport and
+    NFL leaves sport at 1.0 rather than 1.6: an interest is a constant, and
+    two of them on one heading are not a louder one.
+    """
+    out: dict[str, float] = {}
+    for raw in interests or ():
+        value = " ".join(str(raw or "").split())
+        if not value:
+            continue
+        key = value.lower() if value.lower() in TAG_LABELS else value
+        for tag, share in tag_shares(_tags_for_interest(key)).items():
+            if share > out.get(tag, 0.0):
+                out[tag] = share
+    return out
+
+
+def taste_tree(profile: dict[str, float], limit: int = 0) -> list[dict]:
+    """A taste profile drawn as the subject tree it is (§202).
+
+    `[{"id", "label", "weight", "children": [...]}, ...]`, strongest first
+    at every level, positive weights only. A tag whose parent is not in the
+    profile is drawn under the nearest heading that is, or at the top.
+    `limit` caps each level; 0 keeps everything.
+    """
+    positive = {t: w for t, w in profile.items() if w > 0}
+    tree = category_tree()
+
+    def label(tag: str) -> str:
+        if tag in TAG_LABELS:
+            return TAG_LABELS[tag]
+        try:
+            node = tree.get(tag)
+        except Exception:  # noqa: BLE001
+            node = None
+        if node is not None and getattr(node, "label", ""):
+            return node.label
+        return tag.replace("-", " ").title()
+
+    def home(tag: str) -> str:
+        for heading in lineage(tag):
+            if heading in positive:
+                return heading
+        return ""
+
+    children: dict[str, list[str]] = {}
+    for tag in positive:
+        children.setdefault(home(tag), []).append(tag)
+
+    def build(parent: str, seen: frozenset) -> list[dict]:
+        kids = sorted((t for t in children.get(parent, ()) if t not in seen),
+                      key=lambda t: (-positive[t], t))
+        if limit:
+            kids = kids[:limit]
+        return [{"id": t, "label": label(t), "weight": round(positive[t], 3),
+                 "children": build(t, seen | {t})} for t in kids]
+
+    return build("", frozenset())
 
 
 def fatigue(occasions: dict[str, int], played: Iterable[str] = ()) -> dict[str, float]:
@@ -5245,15 +5437,20 @@ def _icon_for_tags(tags) -> str:
     return "world"
 
 
-def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dict:
+def summary(store: EventStore, user_id: str, now: Optional[float] = None,
+            interests: Iterable[str] = ()) -> dict:
     """What this app actually knows about a listener.
 
     Deliberately only what the event log really holds. A profile page is the
     easiest place in an app to invent numbers - followers, streaks, hours
     saved - and every invented one is a promise the product has to keep later.
+
+    `taste_tree` is the same profile Made for you ranks on, drawn as the
+    subject tree it is (§202), with the interests they chose folded in.
     """
     events = store.for_user(user_id, limit=1000)
     profile = taste(events, now)
+    tree_profile = taste(events, now, interests) if interests else profile
     top = sorted(profile.items(), key=lambda kv: -kv[1])
     return {
         "listener": user_id,
@@ -5265,6 +5462,7 @@ def summary(store: EventStore, user_id: str, now: Optional[float] = None) -> dic
         # negative and it has no business on a list of what someone likes.
         "subjects": facets_only(tag for tag, weight in top if weight > 0)[:5],
         "since": min((e.at for e in events), default=0.0),
+        "taste_tree": taste_tree(tree_profile, limit=6),
     }
 
 
@@ -5301,11 +5499,9 @@ def ranked_interests(
     profile every rail on myFAM is built from, so it moves as they listen and
     the top of it is the most current thing this app knows about them.
 
-    Declared interests are not thrown away by that: `taste` already folds them
-    in at `INTEREST_WEIGHT` before it normalises, which is exactly a starting
-    position that real behaviour then outvotes. So a new listener's profile
-    shows what they chose, and the same listener's profile a month later shows
-    what they listen to, with no switch between the two.
+    Declared interests are not thrown away by that: since §202 `taste` holds
+    them at `INTEREST_WEIGHT` on top of normalised behaviour, forever, so what
+    somebody chose stays near the top and what they listen to ranks around it.
 
     Two vocabularies come back in one list, because they are one list on the
     screen: the eight facets, and the named subjects from the catalogue or
@@ -5320,13 +5516,18 @@ def ranked_interests(
     now = time.time() if now is None else now
     events = store.for_user(user_id) if user_id else []
     chosen = [t for t in (chosen or ()) if t in TAG_LABELS]
-    profile = taste(events, now, chosen)
+    chosen_topics = list(chosen_topics or ())
+    profile = taste(events, now, chosen + chosen_topics)
     rows: list[tuple[float, int, str, dict]] = []
     seen: set[str] = set()
 
     declared = set(chosen)
     for tag, label in TAG_LABELS.items():
         score = _interest_score(_facet_and_children(tag), profile)
+        if tag in declared:
+            # Never diluted by its family (§202): a chosen interest is worth
+            # its constant at least, however many subtags sit under it.
+            score = max(score, profile.get(tag, 0.0))
         if score <= 0 and tag not in declared:
             continue
         seen.add(tag)

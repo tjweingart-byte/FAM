@@ -204,5 +204,6 @@ and `limit` = Lines.
 | 15194 | 46 | 198. The waitlist page asked for an email without saying what FAM is |
 | 15240 | 55 | 199. "What is FAM" said what FAM does, not what it is for |
 | 15295 | 67 | 200. The Problem, second attempt: the real problem, and what keeping up costs |
-| 15362 | 37 | 201. The FAM intro charges instead of turning, and plays every time the app opens |
-| 15399 | 85 | 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe |
+| 15362 | 38 | 201. The FAM intro charges instead of turning, and plays every time the app opens |
+| 15400 | 81 | 202. Taste is a subject tree, chosen interests never fade, and the algorithm documents itself |
+| 15481 | 85 | 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe |

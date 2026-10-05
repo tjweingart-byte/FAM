@@ -56,10 +56,11 @@ def test_every_endorsement_is_a_kind_the_log_accepts(store):
 
 
 def test_the_weights_are_the_owners():
-    """§187: the owner set these numbers. A change to any of them is a
-    change to the owner's rule, not a tuning pass."""
-    for kind, weight in {"search": 2.0, "play": 1.0, "complete": 2.0,
-                         "skip": -0.5, "save": 2.0, "vibe": 2.5}.items():
+    """§187, moved by §202: the owner set these numbers. A change to any of
+    them is a change to the owner's rule, not a tuning pass."""
+    for kind, weight in {"search": 1.5, "play": 1.0, "complete": 1.5,
+                         "skip": -0.5, "save": 2.0, "vibe": 2.5, "pick": 2.2,
+                         "mix_add": 2.0}.items():
         assert T.EVENT_WEIGHT[kind] == weight, kind
 
 

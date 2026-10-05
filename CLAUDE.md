@@ -210,8 +210,15 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Made for you** (§187): subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
-  any money taste; ranks every held story. Weights: search 2, play 1, finish 2,
-  skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
+  any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
+  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2. [mfy-field-variety]
+- **Taste is a subject tree** (§202): the most specific subject takes the
+  whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
+  teams seeded under their leagues, never one whose name is also an everyday
+  phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
+- **Chosen interests never fade** (§202): added after normalisation at
+  `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
+  named subjects both count. [interests-constant]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored.
   Explore's "Interested?" ✕ is a skip, ✓ a pick (§195). [no-not-interested]
@@ -481,6 +488,9 @@ Every change ends the same way, without being asked [ship-loop]:
 - Previews - the fixture build `dev.sh check` smoke-tests (`fam-artifact.html`)
   and the live-DB build at the bookmarked URL - are good for layout and flow,
   useless for writing quality or latency. [preview-fixtures]
+- **The algorithm documents itself**: `tools/algorithm_docs.py` writes the
+  PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
+  when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
 - `./demo.sh` to show or judge the product; `tools/seed_demo.py` fills browse history. [demo-sh]
 - Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
   `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]
