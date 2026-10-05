@@ -135,14 +135,16 @@ section when a decision changes, including why.
     show only tiles with a painted picture (real cards cut from the app's
     screens, in `tools/landing/tiles/`), made-up friends' names and a
     cover on the Morning mix (the script's docstring says how). The founders'
-    photo is `static/founders.jpg` - drop it in and it shows; until then the
-    frame holds their initials. The status page does not draw the section.
+    photo is `static/founders.jpg` (no metadata); without the file the frame
+    holds their initials. The page ends with the copyright line. The status
+    page does not draw the section.
 19. **The section tells why FAM exists** (the owner, 04/10, PROBLEMS.md §199):
-    FAM is social information, not social media. The hero's line and the
-    intro say so; then the problem (what passes you by, the time keeping up
-    takes, to scale), the next morning's conversation you can't join, why it
-    was built (the asks, and the pipeline it collapses), and, after the
-    product, the same conversation with you in it.
+    FAM is social information, not social media. The tagline under both
+    wordmarks and the intro say so; then the problem (what passes you by on a
+    moving rail, the time keeping up takes, all of it condensed into one
+    short episode), the same group chat without FAM and with it, side by
+    side, and why it was built (who decides which stories you hear, and the
+    pipeline it collapses), before the product.
 20. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.

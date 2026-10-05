@@ -156,15 +156,10 @@
     text-align:center; margin:-30px 0 40px; }
   .ab-problem, .ab-origin{ margin-top:110px; }
   .ab-morning{ margin-top:90px; }
-  .ab-two{ display:grid; grid-template-columns:1fr; gap:38px; align-items:center; margin-top:44px; }
-  .ab-two > *{ min-width:0; }
   .ab-h-sm{ font-size:clamp(28px, 4.6vw, 40px); }
   .ab-big{ font-family:'Fraunces', Georgia, serif; font-size:clamp(22px, 3.2vw, 28px); line-height:1.25;
     color:#F6F0E4; margin:0 0 12px; text-wrap:balance; }
   .ab-big.center{ text-align:center; margin:56px auto 0; }
-  .gold{ color:var(--gold); }
-  .ab-p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:16px 0 0; max-width:560px; }
-  .ab-p.center{ text-align:center; margin:22px auto 0; }
 
   /* What passes by: four things, drifting past and never stopping. */
   .pass{ margin:40px -20px 0; overflow:hidden;
@@ -241,7 +236,6 @@
 
   /* Before and after: the same chat side by side, your line the only change. */
   .ab-center{ text-align:center; max-width:760px; margin:0 auto; }
-  .ab-center .ab-p{ margin-left:auto; margin-right:auto; }
   .ba{ display:grid; grid-template-columns:1fr; gap:22px; margin:40px auto 0; max-width:900px; }
   .ba-col{ margin:0; min-width:0; }
   .ba-col .convo{ max-width:100%; height:calc(100% - 34px); }
@@ -377,15 +371,11 @@
     .shots.three .shot-right{ transform:translateX(40%) translateY(24px) rotate(5deg); }
     .shots.three .shot-tag{ left:50%; }
   }
-  /* Words and their picture side by side from a narrow window up, so the chat
-     sits beside what it shows rather than under it. */
+  /* The two chats side by side from a narrow window up. */
   @media (min-width:640px){
-    .ab-two{ grid-template-columns:1fr 1fr; gap:40px; }
-    .ab-two .convo{ max-width:100%; }
     .ba{ grid-template-columns:1fr 1fr; }
   }
   @media (min-width:820px){
-    .ab-two{ gap:64px; }
     .condense{ grid-template-columns:minmax(0, 1.1fr) auto auto auto minmax(0, 1.1fr); align-items:center; gap:22px; }
     .cd-arrow{ transform:none; }
       .pipeline{ grid-template-columns:1.4fr auto 1fr; }
@@ -584,12 +574,9 @@
     </section>
 
 
-    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199):
-         what passes by, the work keeping up takes, and the morning after. -->
     <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200):
-         what passes you by on a rail that never stops, then what keeping up
-         would cost, drawn as the media it would cost it in. Every time on it is the
-         owner's own (60 for 10, 20 for 3) or FAM's two-minute episode. -->
+         what passes you by on a rail that never stops, then everything keeping
+         up would take, condensed into one two-minute FAM episode. -->
     <section class="ab-wrap ab-problem reveal">
       <div class="ab-kicker label">The problem</div>
       <h2 class="ab-h">Being in the know shouldn’t be a full-time job.</h2>
@@ -653,7 +640,7 @@
         you can contribute, and you have one more thing to connect with someone over.</p>
     </section>
 
-    <!-- Why FAM exists: the origin, the asks, and the pipeline it collapses. -->
+    <!-- Why FAM exists: the origin, and the pipeline it collapses. -->
     <section class="ab-wrap ab-origin reveal">
       <div class="ab-kicker label">Why we built FAM</div>
       <h2 class="ab-h">Why should someone else decide which stories you hear?</h2>
