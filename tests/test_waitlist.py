@@ -618,16 +618,21 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<p class="tagline label">Your social information network</p>' in landing
     assert '<h2 class="ab-h">Social information.</h2>' in landing
     assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
-    order = ["passes by you every single day", "keeping up with it takes work",
+    order = ["Being in the know shouldn’t be a full-time job.", "keeping up with it takes work",
              "the game you didn’t see", "two completely different things",
              "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # One day of things passing by: four moments, each stamped as missed.
+    # What passes you by, on a rail that keeps moving: four things, twice over
+    # so the loop is seamless, the copies hidden from screen readers.
     problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert problem.count('class="moment ') == 4
-    assert problem.count('<span class="stamp">Passed you by</span>') == 4
+    assert problem.count('class="pass-card"') == 8
+    assert problem.count('class="pass-card" aria-hidden="true"') == 4
+    assert "animation:drift" in page
+    motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
+                  if ".pass-track" in block.split("}\n  }", 1)[0])
+    assert ".pass-track{ animation:none" in motion
     # What keeping up costs, as the owner put it: an hour of podcast for ten
     # minutes, twenty of video for three, against FAM's two.
     pod = problem.split('class="cost-media pod"', 1)[1].split("</figure>", 1)[0]

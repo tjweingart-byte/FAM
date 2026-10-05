@@ -166,31 +166,19 @@
   .ab-p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:16px 0 0; max-width:560px; }
   .ab-p.center{ text-align:center; margin:22px auto 0; }
 
-  /* One day: four moments, each the thing itself, each stamped as missed. */
-  .day{ list-style:none; padding:0; margin:44px 0 0; display:grid; grid-template-columns:1fr; gap:18px;
-    position:relative; }
-  .moment{ position:relative; padding-left:26px; min-width:0; }
-  .moment::before{ content:""; position:absolute; left:4px; top:6px; width:9px; height:9px; border-radius:50%;
-    background:var(--page-bg); border:2px solid var(--faint); }
-  .moment::after{ content:""; position:absolute; left:9px; top:20px; bottom:-18px; width:1px; background:var(--line); }
-  .moment:last-child::after{ display:none; }
-  .m-time{ position:relative; z-index:1; display:inline-block; padding-right:10px; background:var(--page-bg);
-    font-family:'Barlow Condensed', sans-serif; font-weight:600; letter-spacing:0.12em; font-size:14px;
-    color:var(--muted); margin-bottom:10px; font-variant-numeric:tabular-nums; }
-  .m-card{ position:relative; overflow:hidden; background:var(--card); border:1px solid var(--line); border-radius:18px;
-    padding:16px 16px 18px; min-height:132px; }
-  .m-src{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--faint); margin-bottom:10px; }
-  .m-ic{ width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center;
-    background:rgba(240,195,94,0.10); color:var(--gold); }
-  .m-ic svg{ width:14px; height:14px; }
-  .m-title{ font-size:16px; line-height:1.35; color:var(--text); }
-  .m-dinner .m-title{ font-family:'Fraunces', Georgia, serif; font-size:19px; }
-  .m-work .m-title{ background:var(--card-2); border-radius:14px 14px 14px 4px; padding:9px 12px; display:inline-block; }
-  .m-meta{ font-size:12.5px; color:var(--faint); margin-top:8px; }
-  .stamp{ position:absolute; right:12px; top:12px; transform:rotate(6deg); border:1.5px solid var(--coral);
-    color:var(--coral); border-radius:6px; padding:3px 7px; font-family:'Barlow Condensed', sans-serif; font-weight:600;
-    font-size:11.5px; letter-spacing:0.12em; text-transform:uppercase; background:rgba(30,27,39,0.85); }
-  .m-cap{ margin:12px 2px 0; font-size:14.5px; line-height:1.45; color:#D9D2E4; }
+  /* What passes by: four things, drifting past and never stopping. */
+  .pass{ margin:40px -20px 0; overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+    mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+  .pass-track{ display:flex; gap:14px; width:max-content; list-style:none; margin:0; padding:6px 0;
+    animation:drift 46s linear infinite; }
+  @keyframes drift{ to{ transform:translateX(calc(-50% - 7px)); } }
+  .pass-card{ display:flex; align-items:center; gap:12px; flex:none; max-width:300px; padding:14px 18px;
+    border-radius:16px; background:var(--card); border:1px solid var(--line); color:#D9D2E4;
+    font-size:15px; line-height:1.35; }
+  .pass-ic{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center;
+    justify-content:center; background:rgba(240,195,94,0.12); color:var(--gold); }
+  .pass-ic svg{ width:20px; height:20px; }
 
   .turn{ margin:84px auto 0; max-width:860px; text-align:center; }
   .turn-a{ font-family:'Fraunces', Georgia, serif; font-size:clamp(24px, 3.6vw, 34px); line-height:1.2; color:var(--muted); margin:0; text-wrap:balance; }
@@ -372,11 +360,6 @@
 
   @media (min-width:820px){
     .ab-two{ grid-template-columns:1fr 1fr; gap:64px; }
-    .day{ grid-template-columns:repeat(4, 1fr); gap:18px; }
-    .moment{ padding-left:0; padding-top:30px; }
-    .moment::before{ left:0; top:0; }
-    .moment::after{ left:18px; right:-18px; top:5px; bottom:auto; width:auto; height:1px; }
-    .m-time{ position:absolute; top:-3px; left:22px; margin:0; }
     .costs{ grid-template-columns:1fr 1fr 1fr; }
     .ab-morning .ab-two .ab-art{ order:0; }
     .pipeline{ grid-template-columns:1.4fr auto 1fr; }
@@ -390,6 +373,8 @@
   @media (prefers-reduced-motion: reduce){
     .can-reveal .reveal{ transform:none; transition:none; }
     .hero-more svg{ animation:none; }
+    .pass-track{ animation:none; flex-wrap:wrap; justify-content:center; width:auto; }
+    .pass-card[aria-hidden="true"]{ display:none; }
   }
 
   /* ---------- status ---------- */
@@ -576,13 +561,13 @@
     <!-- The problem, told the way the owner tells it (PROBLEMS.md §199):
          what passes by, the work keeping up takes, and the morning after. -->
     <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200):
-         one day of things passing you by, then what keeping up would cost,
-         drawn as the media it would cost it in. Every time on it is the
+         what passes you by on a rail that never stops, then what keeping up
+         would cost, drawn as the media it would cost it in. Every time on it is the
          owner's own (60 for 10, 20 for 3) or FAM's two-minute episode. -->
     <section class="ab-wrap ab-problem reveal">
       <div class="ab-kicker label">The problem</div>
-      <h2 class="ab-h">Think about how much information passes by you every single day.</h2>
-      <ol class="day" aria-label="One day"><li class="moment m-game"><div class="m-time">7:41 AM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>Sports</div><div class="m-title">Final: walk-off win in the ninth</div><div class="m-meta">Tap for highlights</div><span class="stamp">Passed you by</span></div><p class="m-cap">A game you didn’t watch</p></li><li class="moment m-work"><div class="m-time">10:12 AM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>#team</div><div class="m-title">is anyone else following this story?</div><div class="m-meta">14 replies</div><span class="stamp">Passed you by</span></div><p class="m-cap">A story everyone at work is suddenly talking about</p></li><li class="moment m-news"><div class="m-time">2:30 PM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l9 6 9-6"/><path d="M3 6h18v12H3z"/></svg></span>Inbox</div><div class="m-title">This week in your industry</div><div class="m-meta">Unread · 14 min read</div><span class="stamp">Passed you by</span></div><p class="m-cap">Something happening in an industry you care about</p></li><li class="moment m-dinner"><div class="m-time">8:05 PM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>Dinner</div><div class="m-title">“Wait, have you heard about…?”</div><div class="m-meta">You nod along</div><span class="stamp">Passed you by</span></div><p class="m-cap">A topic your friend brings up at dinner that you wish you knew more about</p></li></ol>
+      <h2 class="ab-h">Being in the know shouldn’t be a full-time job.</h2>
+      <div class="pass" aria-label="What passes you by"><ul class="pass-track"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul></div>
 
       <div class="turn">
         <p class="turn-a">The information is all out there. That isn’t the problem.</p>

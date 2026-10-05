@@ -15276,26 +15276,26 @@ conversations are the made-up friends from §198 (Maya, Jordan, Sam).
 Tests: `tests/test_waitlist.py`.
 
 
-## 200. The Problem, second attempt: one day, and what keeping up costs
+## 200. The Problem, second attempt: the real problem, and what keeping up costs
 
 At the owner's direction, a second attempt at the waitlist page's "The
-problem" (§199). The drifting cards and the bar chart are gone:
+problem" (§199):
 
-1. **One day.** The four things that pass you by are a timeline - 7:41 AM, a
-   final-score alert; 10:12 AM, a work thread; 2:30 PM, an unread industry
-   newsletter; 8:05 PM, "Wait, have you heard about…?" at dinner - each drawn
-   as the thing itself and stamped "Passed you by", with the owner's own
-   sentence under it. The times and the small print (14 replies, a 14-minute
-   read) are illustration; nothing in them claims a real event.
-2. **The turn**, set large: "The information is all out there. That isn't
+1. **The headline names the real problem**: "Being in the know shouldn't be a
+   full-time job." "Think about how much information passes by you every
+   single day" was dropped - how much information there is is a problem
+   plenty of other products already answer; FAM's is that keeping up takes
+   so much work that people end up outside the conversation.
+2. **The rail stays** - the four things that pass you by, drifting past on
+   their own (a day-timeline version was tried and rejected for it).
+3. **The turn**, set large: "The information is all out there. That isn't
    the problem." then "The problem is that actually keeping up with it takes
    work.", with what that work is (search, articles, feeds).
-3. **What it costs, drawn as the media**: an hour of podcast as a waveform of
-   sixty one-minute bars with the ten you wanted lit; a twenty-minute video's
-   scrubber with three minutes lit; FAM's two minutes, all of it lit gold.
-   The numbers are the owner's own, and FAM's is the browse length.
-4. "Most of us just accept that we're going to miss things" closes it, with
-   the last words brought forward.
+4. **What it costs, drawn as the media**, in place of the bar chart: an hour
+   of podcast as a waveform of sixty one-minute bars with the ten you wanted
+   lit; a twenty-minute video's scrubber with three minutes lit; FAM's two
+   minutes, all of it lit gold. The numbers are the owner's own, and FAM's is
+   the browse length.
+5. "Most of us just accept that we're going to miss things" closes it.
 
-Nothing moves on its own any more, so reduced motion has nothing to stop
-here. Tests: `tests/test_waitlist.py`.
+Tests: `tests/test_waitlist.py`.
