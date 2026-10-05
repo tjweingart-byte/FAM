@@ -1,7 +1,7 @@
-"""The FAM intro (PROBLEMS.md §196, §198): the wordmark's F and M fold into
-the double chevron, the chevron flashes yellow as if charged, and the page slides off
-to the left - every time the app opens, and when finishing sign-in or
-sign-up hands over to DailyFAM."""
+"""The FAM intro (PROBLEMS.md §196, §201): the wordmark's F and M fold into
+the double chevron, the chevron flashes yellow as if charged, and the page
+slides off to the left - every time the app opens, and when finishing
+sign-in or sign-up hands over to DailyFAM."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def test_the_copy_of_the_page_carries_no_ids():
 def test_the_four_beats():
     body = _fn("playEntryHandoff")
     assert "scale(0.4)" in body              # F and M fold into the chevron
-    assert "rotate(" not in body             # it no longer turns (§198)
+    assert "rotate(" not in body             # it no longer turns (§201)
     assert "--deeper" in body                # it flashes yellow, charged
     assert "drop-shadow" not in body         # with no glow around it
     assert "FAM_INTRO_CHARGE_MS" in body     # where a sound effect would start

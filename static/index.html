@@ -122,10 +122,10 @@
   /* The FAM intro, played every time the app opens and when signing in
      (or finishing sign-up) hands over to DailyFAM: the wordmark in the
      middle of the screen, the F and M fold into the A, the double chevron
-     left behind flashes yellow as if charged, and the page slides away to the left
-     over the screen that is already open underneath. Purely a picture -
-     `pointer-events` stays off, so the app under it is live from the first
-     frame. */
+     left behind flashes yellow as if charged, and the page slides away to
+     the left over the screen that is already open underneath. Purely a
+     picture - `pointer-events` stays off, so the app under it is live from
+     the first frame. */
   .fam-handoff{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
     z-index:480; pointer-events:none; }
   .fam-handoff[hidden]{ display:none; }
@@ -17103,10 +17103,10 @@
     startNotificationPolling();
   }
 
-  // The FAM intro (§198, from the owner's sketch). Four beats, about 1.8s:
+  // The FAM intro (§201, from the owner's sketch). Four beats, about 1.8s:
   // the FAM wordmark in the middle of the screen, the F and M fold into the
-  // A - the double chevron - the chevron flashes yellow as if charged, and the
-  // page slides off to the left onto the screen underneath. It plays every
+  // A - the double chevron - the chevron flashes yellow as if charged, and
+  // the page slides off to the left onto the screen underneath. It plays every
   // time the app opens (`bootToFirstScreen`, the page being left is the
   // splash, so the panel is blank) and when signing in or finishing sign-up
   // hands over to DailyFAM (`finishEntry`, the panel is a copy of the page
@@ -17182,7 +17182,7 @@
             { transform: "translateX(" + (toA - centre(m)) + "px) scale(0.4)", opacity: 0 }], fold);
     run(a, [{ transform: "none" }, { transform: "scale(1.8)" }], fold);
     // 3. The chevron charges: copper to the bright yellow in two pulses,
-    //    holding at yellow. No glow around it (§198, at the owner's word).
+    //    holding at yellow. No glow around it (§201, at the owner's word).
     // Colours read from the page, not `var()` in a keyframe, which not every
     // browser resolves inside Web Animations.
     var css = getComputedStyle(document.documentElement);
@@ -17510,7 +17510,7 @@
   // read. Guessing it from anything the page *can* read is what produced the
   // flash - a guess drawn confidently and corrected a moment later.
   function bootToFirstScreen(){
-    // The FAM intro plays every time the app opens (§198): set up over the
+    // The FAM intro plays every time the app opens (§201): set up over the
     // splash, which shows the same wordmark in the same place, then played
     // once the first screen is chosen and drawn underneath it.
     var intro = beginEntryHandoff();

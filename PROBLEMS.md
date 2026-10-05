@@ -15191,7 +15191,10 @@ Tests: `tests/test_packet_1001_fourth.py`, `tests/test_guest_wipe_and_storage.py
 `tools/smoke_preview.py`.
 
 
-## 198. The FAM intro charges instead of turning, and plays every time the app opens
+## 201. The FAM intro charges instead of turning, and plays every time the app opens
+
+*(Numbered 201, not 198: the landing-page branch, in flight at the same
+time, already uses §198-§200. Merged in either order, the two only append.)*
 
 From the owner's sketch: the FAM logo appears, the F and M morph into the
 double chevron, the chevron glows like it's "charged", then the page slides
