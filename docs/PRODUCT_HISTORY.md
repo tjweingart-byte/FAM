@@ -246,7 +246,7 @@ owner.
 | A working Go Deeper | Follow-up carries the parent topic as context (part of the cache key) | 16, 17 | Current. |
 | A follow-up the listener does not have to compose | `<<NEXT: …>>` line written by the model, never spoken, offered as a chip | 30 | Meaning changed by §48. |
 | Remove the tease (asked twice) | `<<NEXT:>>` is a **prediction** of the likeliest follow-up; the script never gestures at it | 48 | Current `[next-is-prediction]`. |
-| What plays next (interface packet, 2026) | Four tiles in a grid, first auto-starts (5 s); feed's own ranking (`rank_next_up`); album next, then NEXT; not on Explore / Explore New | 70 | Countdown is now **15 s** (recorded in rule `[post-episode-grid]`, no separate section). Changed by §178. |
+| What plays next (interface packet) | Four tiles in a grid, first auto-starts (5 s); feed's own ranking (`rank_next_up`); album next, then NEXT; not on Explore / Explore New | 70 | Countdown is now **15 s** (recorded in rule `[post-episode-grid]`, no separate section). Changed by §178. |
 | What algorithm picks the four tiles, and could it be better | Subtags and impression fatigue (see 2.12) | 80 | Current. |
 | Popup was bank-only | Draws on the live pool too | 104 | Current. |
 | Go Deeper everywhere, with a length | Every Go Deeper shows a suggestion (NEXT, else one built from the title), a box, and **1–5 min** | 170 | Current `[next-is-prediction]`. |
@@ -516,7 +516,7 @@ the cold open twice).
 - VAPID keys for push notifications (§184); `OPEN_METEO_API_KEY` and outlet
   registry runs for local news coverage (§194); `THUMBNAILS=1` for background
   painting (§164).
-- The founders' photo shipped in §200; a sound effect for the intro is planned (§201).
+- A sound effect for the intro is planned, not built (§201).
 - RunPod: delete the v1 and GraphQL pod-lookup paths in January 2027 (§179).
 
 **Built but waiting on the iOS app**
