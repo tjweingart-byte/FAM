@@ -140,7 +140,7 @@ sequenceDiagram
   P->>P: bootToFirstScreen: beginEntryHandoff(), hideSplash()
   P->>P: routeFirstScreen()
   alt offline and this device was signed in
-    P->>P: setOffline(true); openMyFamTab() (last feed from localStorage)
+    P->>P: setOffline(true), then openMyFamTab() (last feed from localStorage)
   else not signed in
     P->>P: showScreen("welcome")  (sign-up / log-in + "Most played today")
   else signed in, entry unfinished
@@ -463,7 +463,7 @@ sequenceDiagram
   participant API as app.py
   participant PL as pipeline (EI → research → writer → voice)
   K->>UI: Enter / go arrow
-  UI->>API: POST /api/spell (unseen words only; ≤700 ms wait)
+  UI->>API: POST /api/spell (unseen words only, waits ≤700 ms)
   API-->>UI: corrections → {query, title}
   UI->>API: POST /api/event {kind:"search"} (fire and forget)
   UI->>UI: generate("_custom"): loading screen, five steps, 45 s give-up
@@ -479,9 +479,9 @@ sequenceDiagram
   API-->>FA: 200, X-Sample-Rate, X-FAM-Cache, X-FAM-Episode, X-FAM-Keepable, PCM chunks
   FA->>UI: startGate(begin, {cache})
   alt cache = "hit" (a replay)
-    UI->>FA: begin() now; all five steps drawn done
+    UI->>FA: begin() at once, all five steps drawn done
   else written now
-    UI->>UI: each step ≥ 2 s on screen; audio held
+    UI->>UI: each step ≥ 2 s on screen, audio held
     UI->>FA: begin() 400 ms after the fifth check
   end
   FA->>UI: onFirstAudio

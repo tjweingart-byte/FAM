@@ -5286,9 +5286,9 @@
   }
 
   // ---------------- Reaching a limit ----------------
-  // Raised only by a refusal the server actually made. While the tier system
-  // is switched off nothing refuses, so none of this is ever seen; the day it
-  // is switched on it works without another change. The words are the
+  // Raised only by a refusal the server actually made: quotas are enforced in
+  // production since §204 (off by default, so local runs and staging never
+  // refuse). The words are the
   // server's - `quotas.Verdict.title` and `.message` - so this screen and the
   // iOS one cannot describe the same limit differently.
   function showLimitReached(q){

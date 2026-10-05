@@ -78,9 +78,9 @@ td:first-child{font-weight:500}
 
 <header class="masthead">
   <div class="brand">
-    <span class="mark">FAM · docs v1 · 2026-09-25</span>
+    <span class="mark">FAM · docs v2 · 2026-10-05</span>
     <p class="name">FAM Operating Manual</p>
-    <p class="sub">Costs and scaling, how the backend produces every screen, and what data is kept where.</p>
+    <p class="sub">How FAM works, in the order to learn it: the backend and frontend wiring, what is stored, everything the owner has asked for, and what it all costs.</p>
   </div>
 </header>
 <nav class="tabs" role="tablist" aria-label="Documents">{{TABS}}</nav>
@@ -90,7 +90,7 @@ td:first-child{font-weight:500}
 (function(){
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
   function mark(slug){ tabs.forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === slug ? "true" : "false"); }); }
-  mark("financial");
+  mark("onboarding");
   if("IntersectionObserver" in window){
     var io = new IntersectionObserver(function(es){
       es.forEach(function(e){ if(e.isIntersecting) mark(e.target.dataset.doc); });
