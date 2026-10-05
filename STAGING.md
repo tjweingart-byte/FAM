@@ -49,7 +49,24 @@ feature branch --PR--> staging --(batched PR)--> Main
    can do this: on `Main`, require a pull request and a passing `CI` check. Make
    `staging` the base of every feature PR.
 
-6. **Point TestFlight builds at staging** when the iOS app exists. The API base
+6. **Deploys wait for CI** (§202). Both services use
+   `autoDeployTrigger: checksPass`, so Render deploys a commit only once its
+   GitHub checks have passed. If a blueprint sync ever reports the field as
+   unknown, set it by hand: each service → Settings → Auto-Deploy → "After CI
+   checks pass".
+
+7. **Errors and uptime, production only** (§202):
+   - Create a Sentry project (platform: Python / FastAPI) and paste its DSN
+     into `fam`'s `SENTRY_DSN` when Render asks. Staging never gets one; zero
+     spend removes it. `curl -s https://<prod-host>/api/health | grep -A3
+     error_tracking` must say `"enabled": true`. In Sentry, add an alert rule
+     ("a new issue is created" → Slack) so a failure reaches a person.
+   - Point an uptime monitor (Better Stack, UptimeRobot, or Sentry's own
+     Uptime) at `https://<prod-host>/api/health` every minute, alerting to
+     the same Slack channel. Render's `healthCheckPath` restarts a dead
+     instance; it does not tell anybody.
+
+8. **Point TestFlight builds at staging** when the iOS app exists. The API base
    URL is a build setting: staging for TestFlight, production for the App
    Store (IOS_APP.md).
 

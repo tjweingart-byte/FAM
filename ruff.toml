@@ -1,0 +1,8 @@
+# The lint gate (§202): CI and `./dev.sh check` both run `ruff check .`.
+#
+# Narrow on purpose - syntax errors and undefined names, the failures that
+# pass every test that does not reach the line. It passed on the day it was
+# added, so anything it reports is new. Widen it one rule at a time, fixing
+# the existing hits in the same change.
+[lint]
+select = ["E9", "F63", "F7", "F82"]

@@ -64,3 +64,9 @@ pyspellchecker>=0.8
 # as it came (larger, still correct) and a warning says so. Only the machine
 # that paints pictures needs it; serving them needs nothing.
 Pillow>=10.0
+
+# Error tracking (§202, `error_tracking.py`): unhandled request errors and
+# every `log.exception` - the background loops included - reach Sentry when
+# SENTRY_DSN is set. Pure Python and small. Without the DSN nothing starts,
+# and /api/health says so.
+sentry-sdk[fastapi]>=2.0

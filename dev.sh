@@ -31,6 +31,18 @@ if [ "$MODE" != "preview" ]; then
   step "Tests"
   $PY -m pytest tests/ -q
 
+  # The same line CI runs (§202). Announces itself when ruff is missing
+  # rather than passing in silence.
+  step "Lint"
+  if $PY -m ruff --version >/dev/null 2>&1; then
+    $PY -m ruff check .
+  elif command -v ruff >/dev/null 2>&1; then
+    ruff check .
+  else
+    printf '  \033[1mSKIPPED: ruff is missing, so nothing was linted.\033[0m\n'
+    printf '  To fix:  %s -m pip install ruff\n' "$PY"
+  fi
+
   step "Interface parses"
   $PY tools/check_js.py
 

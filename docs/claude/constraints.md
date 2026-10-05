@@ -1334,6 +1334,14 @@
   mode did announce itself, in an 8.5px chip, and still cost a whole session -
   and it was writing its canned script into the shared cache, so the failure
   outlived the run. Announcing is not enough if the thing keeps a record.)*
+<!-- rule:errors-reach-a-person -->
+- **Failures reach a person, not just a log** (§202): `error_tracking.py`
+  sends unhandled request errors and every `log.exception` to Sentry when
+  `SENTRY_DSN` is set; off with its reason on `/api/health`; never on staging
+  (the DSN is a scrubbed credential); events carry no listener id, cookie,
+  header but the client version, local variable or credential. Deploys wait
+  for CI (`autoDeployTrigger: checksPass`); `ruff check .` is in CI and
+  `dev.sh`.
 <!-- rule:server-says-build -->
 - **A running server says which code it is running.** *(PROBLEMS.md §77.)*
   `/api/health` reports `build` (the commit, from `RENDER_GIT_COMMIT`,

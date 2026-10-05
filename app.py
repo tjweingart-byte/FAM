@@ -103,6 +103,12 @@ import voice_bank
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("podcast")
 
+# Before the app is built, so its request errors are seen too (§202). Off,
+# with the reason on /api/health, unless SENTRY_DSN is set and this is not a
+# zero-spend deployment.
+import error_tracking  # noqa: E402
+error_tracking.init()
+
 # Prepare the shared voice store before anything asks it what it holds. On the
 # first run of a new version this adopts voices an older project folder already
 # downloaded; every run after, it is a no-op.
@@ -1494,6 +1500,8 @@ async def health(request: Request) -> dict:
         # Which deployment this is and whether it can spend (§172). The web
         # client draws the STAGING banner from this.
         "environment": spend_guard.report(),
+        # Whether failures reach a person or only a log (§202).
+        "error_tracking": error_tracking.report(),
         # The client releases this server still serves, and which versions
         # have called it since boot (`client_versions.py`).
         "clients": client_versions.report(),

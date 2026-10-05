@@ -26,7 +26,9 @@ services:
     dockerfilePath: ./Dockerfile
     branch: staging
     plan: starter
-    autoDeploy: true       # every merge into `staging` is on it within minutes
+    # Every merge into `staging` is on it within minutes - once CI has passed
+    # on that commit (§202). `commit` would deploy a red build.
+    autoDeployTrigger: checksPass
     healthCheckPath: /api/health
     envVars:
       # The whole of zero spend is this line. It cannot be switched off by
@@ -62,9 +64,10 @@ services:
     dockerfilePath: ./Dockerfile
     branch: Main
     plan: starter          # free tier sleeps; starter stays warm
-    # Every merge into `Main` redeploys. Turn this off once the app is in the
-    # App Store and deploy production deliberately (STAGING.md).
-    autoDeploy: true
+    # Every merge into `Main` redeploys, after CI passes on it (§202): a red
+    # merge stays off the app people use. Set this to `off` once the app is in
+    # the App Store and deploy production deliberately (STAGING.md).
+    autoDeployTrigger: checksPass
     healthCheckPath: /api/health
     envVars:
       - key: FAM_ENV
@@ -82,6 +85,10 @@ services:
         sync: false        # set once in the dashboard; never in the repo
       - key: DEMO_MODE
         value: "0"
+      # Error tracking (§202, error_tracking.py): the Sentry project's DSN.
+      # Production only - staging is zero spend and removes it.
+      - key: SENTRY_DSN
+        sync: false
       # The pre-launch waitlist (WAITLIST.md). WAITLIST=1 closes the app to
       # anybody whose account is not active, so it is asked for in the
       # dashboard rather than set here: turning it on is a decision made when

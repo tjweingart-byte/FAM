@@ -64,6 +64,9 @@ PAID_CREDENTIALS = (
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
+    # Not paid per call, but outbound to a third party (error_tracking.py,
+    # §202): staging's failures are read in its own logs.
+    "SENTRY_DSN",
 )
 
 #: Credential-shaped names that buy nothing, so the derived test does not ask

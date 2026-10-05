@@ -415,6 +415,8 @@ Operations and honesty
   `topics.category_tree`, not just rows); it re-applies the seed; accounts,
   credentials and metering are never wiped. [wipe-derived]
 - **Failures must be visible**; announcing is not enough if the thing keeps a record. [failures-visible]
+- **Failures reach a person**: Sentry when `SENTRY_DSN` is set, never on
+  staging, no listener data; deploys wait for CI; ruff in CI and `dev.sh`. [errors-reach-a-person]
 - `/api/health` reports `build` and `search_mode_source`; anything settable in
   two places belongs there. [server-says-build]
 - **Verify, do not inspect** - readiness checks perform the real action. [verify-not-inspect]

@@ -29,6 +29,14 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      # Syntax errors and undefined names (§202). A narrow rule set on
+      # purpose: it passed on the day it was added, so a failure here is
+      # always new. `ruff.toml` holds the rules; `dev.sh` runs the same line.
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check .
+
       # No API key and no speech engine: the suite is designed to run without
       # either, and a test that needs them is a test that cannot run here.
       - name: Tests

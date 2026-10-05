@@ -15395,3 +15395,37 @@ goes straight in. A sound effect is planned; `FAM_INTRO_CHARGE_MS` is where
 it would start.
 
 Tests: `tests/test_entry_handoff.py`.
+
+## 202. Launch readiness: deploys waited for nothing, and failures reached nobody
+
+Three gaps between "CI exists" and "a change is safe to ship", found when the
+owner ranked CI/CD, preview environments, feature flags and error tracking
+before launch:
+
+1. **Production deployed red builds.** `render.yaml` had `autoDeploy: true`
+   on both services, which deploys every push whether or not CI passed. Both
+   now use `autoDeployTrigger: checksPass`. The `staging` branch the blueprint
+   follows did not exist on the remote yet; creating it, applying the
+   blueprint and protecting `Main` are dashboard steps (STAGING.md 1-7).
+2. **No lint.** `ruff check .` now runs in CI and in `./dev.sh check`, with
+   `ruff.toml` selecting only syntax errors and undefined names
+   (E9, F63, F7, F82). It passed on the day it was added, so a hit is always
+   new. Widening it (F401 has 32 hits, F841 8) is one rule at a time with its
+   fixes.
+3. **Failures were logs.** Every background loop - editions, prefetch, story
+   sweeps, the voice supervisor - fails with `log.exception`, which nobody
+   read until something was already wrong. `error_tracking.py` sends those
+   (through Sentry's logging integration, so no loop was edited) and every
+   unhandled request error to Sentry when `SENTRY_DSN` is set. Off with its
+   reason on `/api/health` otherwise. Never on staging: the DSN is in
+   `spend_guard.PAID_CREDENTIALS`, and `init()` checks zero spend itself.
+   Nothing about a listener leaves: no PII, no local variables, no cookies,
+   no headers but the client version, credentials redacted by
+   `log_redaction` in every message, exception and breadcrumb. Errors only,
+   no tracing.
+
+Preview environments and feature flags were judged not needed before launch;
+flags come before the waitlist opens (a table, an `/admin` toggle, targeting
+by server-side listener id).
+
+Tests: `tests/test_error_tracking.py`.
