@@ -15288,9 +15288,9 @@ problem" (§199):
    so much work that people end up outside the conversation.
 2. **The rail stays** - the four things that pass you by, drifting past on
    their own (a day-timeline version was tried and rejected for it).
-3. **The turn**, set large: "The information is all out there. That isn't
-   the problem." then "The problem is that actually keeping up with it takes
-   work.", with what that work is (search, articles, feeds).
+3. **The turn**, set large: "The information is all out there." then "The
+   problem is that actually keeping up with it takes work.", with what that
+   work is (search, articles, feeds).
 4. **What it costs, drawn as the media**, in place of the bar chart: an hour
    of podcast as a waveform of sixty one-minute bars with the ten you wanted
    lit; a twenty-minute video's scrubber with three minutes lit; FAM's two
