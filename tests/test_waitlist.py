@@ -618,7 +618,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert landing.count("Social information, not social media") >= 3
     order = ["passes by you every single day", "keeping up with it takes work",
              "the game you didn’t see", "two completely different things",
-             "worth making?", "Search. Scroll. Mix.", "You’re in it.",
+             "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
