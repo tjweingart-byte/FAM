@@ -15395,3 +15395,30 @@ goes straight in. A sound effect is planned; `FAM_INTRO_CHARGE_MS` is where
 it would start.
 
 Tests: `tests/test_entry_handoff.py`.
+
+## 202. Viral Loops refused every grant's flag: "'participants' is required"
+
+The admin waitlist page showed `1 call(s) refused by Viral Loops and not
+retried. Latest: refused: /campaign/participant/flag answered 400 ...
+"(participants) 'participants' is required"`. `ViralLoops.flag` sent
+`{"email", "reason"}`, a shape guessed when the docs hosts were blocked
+(WAITLIST.md). The vendor wants a list. So every grant flipped `status` in
+FAM, which is the source of truth (the person was let in), but Viral Loops was
+never told, so they stayed on its leaderboard. Nothing in FAM was lost.
+
+Fix: `flag` sends `{"participants": [{"email": ...}]}` and drops `reason`. The
+docs were still unreachable from this session, so the shape comes from the
+error alone. If the vendor refuses the next field, the admin line shows it the
+same way. Refusals are final (`mark_given_up`), so the calls already refused
+would never be sent again. `Waitlist.reopen_refused(action, containing)`
+reopens refused calls whose kept error matches, and
+`_drain_viral_loops_forever` runs it once at boot for each entry in
+`VIRAL_LOOPS_FIXED_REFUSALS`. Only refusals for this one cause move.
+
+Not a bug, and visible on the same screenshot: one person is waitlisted
+while `WAITLIST` is off. A `/waitlist` join is always waitlisted (§192), so
+somebody who signed up through the waitlist page waits for a grant even when
+the app is open.
+
+Tests: `tests/test_waitlist.py` (`test_flag_sends_a_participants_list`,
+`test_a_refusal_since_fixed_is_sent_again`).

@@ -167,6 +167,36 @@ def test_a_vendor_outage_loses_nothing(acc, wl):
     assert wl.due(now=10**12)[0]["attempts"] == 1
 
 
+def test_flag_sends_a_participants_list(acc, wl):
+    """Viral Loops refused a bare `email` with "'participants' is required"."""
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={})
+
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    wl.enqueue("a", "flag")
+    assert asyncio.run(vl_mod.drain(wl, _vendor(handler)))["sent"] == 1
+    assert seen[0]["participants"] == [{"email": "a@fam.test"}]
+    assert "email" not in seen[0]
+
+
+def test_a_refusal_since_fixed_is_sent_again(acc, wl):
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    acc.sign_up("b", "b@fam.test", PASSWORD)
+    old = wl.enqueue("a", "flag")
+    other = wl.enqueue("b", "register")
+    wl.mark_given_up(old, "/campaign/participant/flag answered 400: "
+                          "(participants) 'participants' is required")
+    wl.mark_given_up(other, "answered 400: something else")
+    assert wl.outbox_summary()["refused"] == 2
+    assert wl.reopen_refused("flag", "'participants' is required") == 1
+    assert [i["id"] for i in wl.due()] == [old]
+    assert wl.outbox_summary()["refused"] == 1
+    assert wl.reopen_refused("flag", "'participants' is required") == 0
+
+
 def test_unconfigured_sends_nothing(acc, wl):
     acc.sign_up("a", "a@fam.test", PASSWORD)
     wl.enqueue("a", "register")
