@@ -15311,3 +15311,11 @@ problem" (§199):
    picture names them.
 
 Tests: `tests/test_waitlist.py`.
+
+The owner then asked for three passages to read less colloquially, and they
+were rewritten to the same meaning: "No one has time to follow everything
+they care about, so most people accept that they will miss things."; "The
+office is discussing last night's game. You missed it, and a headline you
+half remember is not enough to take part in the conversation."; and the
+origin, "FAM began inside a podcast company, where a handful of people
+decided which stories became episodes… Why not simply ask…".
