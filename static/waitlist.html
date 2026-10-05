@@ -357,6 +357,25 @@
   .can-reveal .reveal{ transform:translateY(24px); transition:transform .8s cubic-bezier(.2,.7,.3,1); }
   .can-reveal .reveal.seen{ transform:none; }
 
+  /* On a phone every group of phones fits inside the screen: smaller frames
+     and shorter offsets, so a side phone peeks out without being cut off. */
+  @media (max-width:639px){
+    .shot{ border-width:5px; border-radius:24px; }
+    .ab-fan{ height:min(118vw, 460px); }
+    .ab-fan .shot{ width:36vw; }
+    .ab-fan .fan-c{ width:44vw; }
+    .ab-fan .fan-l{ transform:translateX(-58%) translateY(-6%) rotate(-7deg); }
+    .ab-fan .fan-r{ transform:translateX(58%) translateY(-6%) rotate(7deg); }
+    .shots.two .shot-front{ width:44vw; transform:translateX(-28%); }
+    .shots.two .shot-back{ width:37vw; transform:translateX(14%) translateY(24px) rotate(5deg); }
+    .shots.two .shot-tag{ left:50%; }
+    .shot-tag{ font-size:13px; padding:8px 14px; }
+    .shots.three .shot-front{ width:38vw; transform:none; }
+    .shots.three .shot-back{ width:31vw; }
+    .shots.three .shot-left{ transform:translateX(-40%) translateY(24px) rotate(-5deg); }
+    .shots.three .shot-right{ transform:translateX(40%) translateY(24px) rotate(5deg); }
+    .shots.three .shot-tag{ left:50%; }
+  }
   /* Words and their picture side by side from a narrow window up, so the chat
      sits beside what it shows rather than under it. */
   @media (min-width:640px){

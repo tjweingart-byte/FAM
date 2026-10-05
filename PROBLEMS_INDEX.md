@@ -203,4 +203,4 @@ and `limit` = Lines.
 | 15174 | 20 | 197. The sign-in screen's samples play in place, and the guest door is withdrawn |
 | 15194 | 46 | 198. The waitlist page asked for an email without saying what FAM is |
 | 15240 | 55 | 199. "What is FAM" said what FAM does, not what it is for |
-| 15295 | 42 | 200. The Problem, second attempt: the real problem, and what keeping up costs |
+| 15295 | 47 | 200. The Problem, second attempt: the real problem, and what keeping up costs |

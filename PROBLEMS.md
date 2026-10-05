@@ -15333,3 +15333,8 @@ a question: why should you wait for someone else to make an episode about the
 things you care about?" The three example asks, the line after them and the
 four "not a search result… an actual story" pills were cut at the owner's
 direction; the origin goes straight from that question to the pipeline.
+
+On a phone the side phones ran off the screen (the owner saw them cut off).
+Below 640px every group is resized to fit: smaller frames and shorter
+offsets, the pills centred and a size smaller. Measured at 320, 375, 390,
+430 and 600px: no frame or pill crosses the screen edge.
