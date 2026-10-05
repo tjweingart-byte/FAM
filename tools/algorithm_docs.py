@@ -32,9 +32,9 @@ import hashlib
 import inspect
 import json
 import os
+import shutil
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,9 +62,10 @@ CHANGES: list[tuple[str, str, list[str]]] = [
         "page count as well as the eight facets.",
         "Weights: search 2 -> 1.5, finish 2 -> 1.5, pick 1.6 -> 2.2.",
         "New signal: adding something to a mix (mix_add) is worth 2.0.",
-        "The NFL, NBA, MLB and NHL teams are seeded into the category tree "
+        "Most NFL, NBA, MLB and NHL teams are seeded into the category tree "
         "under their leagues, so one fan's team is a subject from their "
-        "first search.",
+        "first search. A team whose name is also weather or the news "
+        "('Carolina Hurricanes') is left to grow from real sports questions.",
     ]),
     ("2026-09-23.3", "§187", [
         "Owner's weights: search 2, play 1, finish 2, skip -0.5, save 2, "
@@ -221,6 +222,7 @@ def worked_example() -> dict:
     finally:
         T._CATEGORIES = saved
         T.reset_topic_tags()
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def facts() -> dict:
@@ -270,7 +272,7 @@ def outline(f: dict) -> list[tuple[str, str, list[str]]]:
           f"{c['ANCESTOR_SHARE'] ** 3:.3f} ...).",
           "So a Bengals fan's profile knows the Bengals best, and the NFL "
           "and football as a whole too.",
-          "The tree grows from what listeners search; the major leagues' "
+          "The tree grows from what listeners search; most major-league "
           "teams are seeded so one fan's team counts from day one."]),
         ("3. Scoring a tile",
          "affinity = sum over the tile's tags of (taste x specificity), "
@@ -686,7 +688,7 @@ def build_deck(f: dict, path: Path) -> None:
         "A specific story beats a general one: a category counts "
         f"{c['CATEGORY_DEPTH_WEIGHT']:g}^depth when scored",
         "No Bengals story today? The NFL and football tiles come next",
-        "Every NFL, NBA, MLB and NHL team is seeded under its league"], 16)
+        "Most NFL, NBA, MLB and NHL teams are seeded under their league"], 16)
 
     # 6. Scoring
     s = slide()

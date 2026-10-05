@@ -214,7 +214,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2. [mfy-field-variety]
 - **Taste is a subject tree** (§202): the most specific subject takes the
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
-  teams seeded under their leagues; `taste_tree` draws it. [taste-tree]
+  teams seeded under their leagues, never one whose name is also an everyday
+  phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
 - **Chosen interests never fade** (§202): added after normalisation at
   `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
   named subjects both count. [interests-constant]

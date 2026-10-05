@@ -38,7 +38,7 @@ Subjects live in a category tree with no depth limit: sport > American football 
 - The most specific subject an episode is about takes the whole signal.
 - Each heading above it takes 0.6x per level (0.6, 0.36, 0.216 ...).
 - So a Bengals fan's profile knows the Bengals best, and the NFL and football as a whole too.
-- The tree grows from what listeners search; the major leagues' teams are seeded so one fan's team counts from day one.
+- The tree grows from what listeners search; most major-league teams are seeded so one fan's team counts from day one.
 
 ## 3. Scoring a tile
 
@@ -125,7 +125,7 @@ How six tiles score (affinity, before the multipliers):
 - Chosen interests are constant: added after normalisation at 2, never decayed, never outvoted, never taken below that by a skip. Named subjects from the interests page count as well as the eight facets.
 - Weights: search 2 -> 1.5, finish 2 -> 1.5, pick 1.6 -> 2.2.
 - New signal: adding something to a mix (mix_add) is worth 2.0.
-- The NFL, NBA, MLB and NHL teams are seeded into the category tree under their leagues, so one fan's team is a subject from their first search.
+- Most NFL, NBA, MLB and NHL teams are seeded into the category tree under their leagues, so one fan's team is a subject from their first search. A team whose name is also weather or the news ('Carolina Hurricanes') is left to grow from real sports questions.
 
 **2026-09-23.3** (§187)
 
@@ -159,4 +159,4 @@ How six tiles score (affinity, before the multipliers):
 | `READY_REACH` | 24 | How deep the rail looks for already-written episodes |
 | `STARTUP_PRIOR_STEP` | 0.08 | Cold start: drop per rank of a heading's popularity |
 
-Fingerprint `b2961ad9b5524ee7`.
+Fingerprint `8ff02e6b227dbdaa`.

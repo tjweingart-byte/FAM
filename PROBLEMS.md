@@ -15433,10 +15433,15 @@ never reached `taste` at all except as decaying `pick` rows.
   Specificity in scoring is unchanged (`tag_weight`), so a Bengals story
   beats an NFL one beats a sports one, and with no Bengals story the NFL and
   football tiles are next.
-- `category_seed`: the NFL, NBA, MLB and NHL teams under their leagues.
-  Nickname alone only where it means nothing but the team ("bengals"); the
-  full name where the nickname is a common word ("miami heat", "philadelphia
-  eagles"), because a node matches any text holding all its words.
+- `category_seed`: 90 of the NFL, NBA, MLB and NHL teams under their
+  leagues. A node matches any text holding all its words, in any order, and
+  `stories.resolve_category` prefers the deepest - so a nickname stands alone
+  only where it means nothing but the team ("bengals"), and a team whose full
+  name is also weather, nature, a place or the news is not seeded at all
+  (`LEFT_TO_GROW`: "hurricanes hitting the Carolina coast" is not hockey,
+  "lightning in Tampa Bay tonight" is a weather question). Those grow from
+  real sports questions like any other subject. Found in review before
+  merge; `test_a_seeded_team_never_catches_an_everyday_question` holds it.
 - `INTEREST_WEIGHT` is 2.0, added **after** normalisation, never decayed:
   a chosen interest is worth twice the listener's strongest listening, for
   ever, and a skip cannot take it below that. `interest_shares` resolves

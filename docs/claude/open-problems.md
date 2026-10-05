@@ -362,8 +362,10 @@
   draws it and `/api/profile` serves it. Scoring keeps `tag_weight`'s
   specificity, so the specific story wins when one exists. The four major
   North American leagues' teams are seeded under their leagues so one fan's
-  team is a subject from the first search; a nickname alone only where it
-  means nothing else.
+  team is a subject from the first search - a nickname alone only where it
+  means nothing else, and no seed for a team whose name is also weather,
+  nature, a place or the news (`category_seed.LEFT_TO_GROW`), because a node
+  matches any text holding all its words and the deepest match wins.
 
 <!-- rule:interests-constant -->
 - **Chosen interests never fade** *(PROBLEMS.md §202, at the owner's

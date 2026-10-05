@@ -62,6 +62,33 @@ def test_a_team_is_filed_under_its_league_sport_and_facet(tree):
         T.tags_for_text("cincinnati bengals injury report"))
 
 
+#: Questions FAM is asked that share every word with a team's name.
+NOT_SPORT = (
+    "hurricanes hitting the carolina coast this week",
+    "will there be lightning in tampa bay tonight",
+    "avalanche warning in colorado this weekend",
+    "how hot is the miami heat wave going to get",
+    "thunderstorms and thunder in oklahoma city",
+    "why tech giants are leaving san francisco",
+    "meat packers and beef prices",
+    "what canadian senators in ottawa voted on",
+    "private jets flying out of new york",
+    "how police chiefs in kansas city are chosen",
+    "ev chargers in los angeles",
+    "is the bull market in chicago futures over",
+    "ravens and crows are smarter than you think",
+    "wildfire flames near calgary",
+)
+
+
+def test_a_seeded_team_never_catches_an_everyday_question(tree):
+    import category_seed as S
+    teams = {p for p, parent in S.rows() if parent in ("nfl", "nba", "mlb", "nhl")}
+    for question in NOT_SPORT:
+        caught = teams & set(tree.match(question))
+        assert not caught, f"{question!r} was filed under {caught}"
+
+
 def test_the_specific_subject_takes_the_whole_signal_and_headings_a_share(tree):
     shares = T.tag_shares(["sports", "american football", "nfl", "bengals"])
     s = T.ANCESTOR_SHARE
