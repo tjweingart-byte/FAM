@@ -15246,10 +15246,10 @@ miss things and are on the outside of the next morning's conversation; having
 access to information is not knowing something - now carries the waitlist
 page's "What is FAM" section, mostly in the owner's words:
 
-1. **The hero** keeps its headline and gains the line "Your social
+1. **The hero** keeps its headline and gains the line "The social
    information network", right under the FAM wordmark; the intro's headline is "SOCIAL INFORMATION"; the
    meta description says "social information, not social media"; the footer
-   is the wordmark over "Your social information network" and nothing else.
+   is the wordmark over "The social information network" and nothing else.
 2. **The problem**: four things that pass you by drift across the page (a
    marquee that stops, wrapped, under reduced motion), then "keeping up takes
    work", with the time it costs drawn to scale - an hour-long podcast for the

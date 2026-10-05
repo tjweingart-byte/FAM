@@ -616,13 +616,13 @@ def test_the_landing_page_tells_why_fam_exists():
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
     # The sign-up screen names it and the intro says it; the meta description
     # spells it out.
-    assert '<p class="tagline label">Your social information network</p>' in landing
+    assert '<p class="tagline label">The social information network</p>' in landing
     # Right under the wordmark, above the headline.
     assert landing.index('class="wordmark"') < landing.index('class="tagline') < landing.index('class="headline"')
     assert '<h2 class="ab-h">SOCIAL INFORMATION</h2>' in landing
     assert "social information, not social media" in page.split("</head>", 1)[0]
     foot = landing.split('class="ab-foot"', 1)[1]
-    assert foot.index('class="wordmark"') < foot.index("Your social information network")
+    assert foot.index('class="wordmark"') < foot.index("The social information network")
     order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
              "left out of the conversation",
              "stories you hear?", "Search. Scroll. Mix.",
