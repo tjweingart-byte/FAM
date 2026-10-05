@@ -49,7 +49,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (a myFAM rail since §181, not a tab; also search's arrow and swipe, §195; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (not a tab; the exploreFAM pill on search and beside Made for you, and search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -81,9 +81,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
-  episodes; myFAM's header button searches other people's cached episodes;
-  Messages is a tab where Explore was; Explore is the "What users are
-  searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
+  episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
+  cached episodes; Messages is a tab where Explore was; the player's (+) adds
+  the episode's topic to a mix. [interface-181]
 
 - **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
@@ -95,6 +95,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
+
+- **Explore is a reel** (§203): picture behind, title bottom left, like /
+  comment / vibe / share / save down the right, the player's ⋯; no dislike
+  anywhere, captions slide up; **comments** keyed `(query, minutes)`,
+  read by anyone, written with an account, one level of replies; the
+  exploreFAM pill opens it from search and beside Made for you. [explore-reel]
+- A vibe may carry a caption, drawn on its story (§203). [vibe-caption]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
