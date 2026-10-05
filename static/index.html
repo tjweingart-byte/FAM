@@ -119,19 +119,23 @@
     transition:opacity .35s ease;
   }
   .splash.hide{ opacity:0; pointer-events:none; }
-  /* The hand-off from signing in (or finishing sign-up) to DailyFAM: the
-     F and M fold into the A, the double chevron left behind turns to point
-     forward, and the entry page slides away to the left over the feed,
-     which is already open underneath. Purely a picture - `pointer-events`
-     stays off, so the app under it is live from the first frame. */
+  /* The FAM intro, played every time the app opens and when signing in
+     (or finishing sign-up) hands over to DailyFAM: the wordmark in the
+     middle of the screen, the F and M fold into the A, the double chevron
+     left behind flashes yellow as if charged, and the page slides away to
+     the left over the screen that is already open underneath. Purely a
+     picture - `pointer-events` stays off, so the app under it is live from
+     the first frame. */
   .fam-handoff{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
     z-index:480; pointer-events:none; }
   .fam-handoff[hidden]{ display:none; }
   .fam-handoff-panel{ position:absolute; inset:0; background:var(--bg);
     overflow:hidden; box-shadow:12px 0 32px rgba(0,0,0,0.35); }
   .fam-handoff-copy{ display:flex; flex-direction:column; position:absolute; inset:0; }
-  .fam-handoff .fam-logo{ position:absolute; top:34px; left:0; right:0;
-    padding:0; }
+  /* Centred exactly where the boot splash draws it (30px, line-height 1.1),
+     so on opening the splash hands over to this without a jump. */
+  .fam-handoff .fam-logo{ position:absolute; top:50%; left:0; right:0;
+    margin-top:-0.55em; padding:0; }
   .fam-handoff .wm-glyph, .fam-handoff .wm-a{ will-change:transform, opacity; }
 
   .screen{ display:none; flex-direction:column; flex:1; min-height:0; }
@@ -17087,7 +17091,8 @@
     // interests): the wordmark hands them into DailyFAM. Captured before the
     // screen changes, because the picture is of the page being left. A guest
     // goes straight in - they finished nothing.
-    var handoff = AUTH.authenticated ? beginEntryHandoff() : null;
+    var handoff = AUTH.authenticated
+      ? beginEntryHandoff(document.querySelector(".screen.active")) : null;
     openMyFamTab();   // which loads the feed and Go Deeper
     if(handoff) handoff();
     // Somebody who just signed up or skipped in gets the same notifications a
@@ -17098,39 +17103,51 @@
     startNotificationPolling();
   }
 
-  // The sign-in hand-off. Four beats, about 1.6s in all: the page fades to
-  // its wordmark, the F and M fold into the A, the double chevron left
-  // behind turns a quarter to the right - forward - and the page slides off
-  // to the left, uncovering DailyFAM. The screen underneath is switched
-  // before the first frame, so nothing waits on the animation: it is a
-  // picture over an app that is already there. Returns the function that
-  // plays it, or null when there is nothing to play (reduced motion, no
-  // Web Animations, nothing on screen to hand off from).
-  function beginEntryHandoff(){
+  // The FAM intro (§201, from the owner's sketch). Four beats, about 1.8s:
+  // the FAM wordmark in the middle of the screen, the F and M fold into the
+  // A - the double chevron - the chevron flashes yellow as if charged, and
+  // the page slides off to the left onto the screen underneath. It plays every
+  // time the app opens (`bootToFirstScreen`, the page being left is the
+  // splash, so the panel is blank) and when signing in or finishing sign-up
+  // hands over to DailyFAM (`finishEntry`, the panel is a copy of the page
+  // being left). The screen underneath is switched before the first frame,
+  // so nothing waits on the animation: it is a picture over an app that is
+  // already there. Returns the function that plays it, or null when there is
+  // nothing to play (reduced motion, no Web Animations, already playing).
+  // `from` is the screen to copy; leave it out for the blank opening panel.
+  function beginEntryHandoff(from){
     var wrap = document.getElementById("famHandoff");
     var panel = document.getElementById("famHandoffPanel");
     var logo = document.getElementById("famHandoffLogo");
-    var from = document.querySelector(".screen.active");
-    if(!wrap || !panel || !logo || !from || !wrap.animate) return null;
+    if(!wrap || !panel || !logo || !wrap.animate) return null;
     if(!wrap.hidden) return null;   // already playing: a double tap goes straight in
     if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
-    // A copy of the page being left, with its ids taken off so nothing
-    // that looks an element up by id ever finds the picture of it.
-    var copy = from.cloneNode(true);
-    // Not a `.screen` either, so nothing that walks the screens or asks
-    // which one is active can ever land on the copy.
-    copy.removeAttribute("id");
-    copy.className = "fam-handoff-copy";
-    copy.querySelectorAll("[id]").forEach(function(e){ e.removeAttribute("id"); });
-    copy.querySelectorAll(".fam-logo").forEach(function(e){ e.style.visibility = "hidden"; });
-    var scroller = from.querySelector(".scroll");
     panel.innerHTML = "";
-    panel.appendChild(copy);
+    var copy = null;
+    if(from){
+      // A copy of the page being left, with its ids taken off so nothing
+      // that looks an element up by id ever finds the picture of it.
+      copy = from.cloneNode(true);
+      // Not a `.screen` either, so nothing that walks the screens or asks
+      // which one is active can ever land on the copy.
+      copy.removeAttribute("id");
+      copy.className = "fam-handoff-copy";
+      copy.querySelectorAll("[id]").forEach(function(e){ e.removeAttribute("id"); });
+      copy.querySelectorAll(".fam-logo").forEach(function(e){ e.style.visibility = "hidden"; });
+      panel.appendChild(copy);
+    }
     wrap.hidden = false;
-    var copyScroller = copy.querySelector(".scroll");
-    if(scroller && copyScroller) copyScroller.scrollTop = scroller.scrollTop;
+    if(copy){
+      var scroller = from.querySelector(".scroll");
+      var copyScroller = copy.querySelector(".scroll");
+      if(scroller && copyScroller) copyScroller.scrollTop = scroller.scrollTop;
+    }
     return function(){ playEntryHandoff(wrap, panel, logo, copy); };
   }
+
+  // When the chevron starts to charge, in ms from the start of the intro.
+  // The moment a sound effect would start, once there is one.
+  var FAM_INTRO_CHARGE_MS = 700;
 
   function playEntryHandoff(wrap, panel, logo, copy){
     var f = logo.querySelector(".wm-glyph.f");
@@ -17151,22 +17168,35 @@
       panel.innerHTML = "";
       wrap.hidden = true;
     }
-    // 1. The page fades to its wordmark.
-    run(copy, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "ease-out" });
-    run(logo, [{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
-    // 2. F and M fold into the A, which grows into the mark on its own.
+    // 1. The FAM logo appears: the page being left fades to it. Opening the
+    //    app, the splash already shows it in the same place.
+    if(copy) run(copy, [{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "ease-out" });
+    run(logo, [{ opacity: copy ? 0 : 1 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    // 2. F and M morph into the double chevron: they fold into the A, which
+    //    grows into the mark on its own.
     var toA = centre(a);
     var fold = { delay: 260, duration: 420, easing: "cubic-bezier(.6,0,.3,1)" };
     run(f, [{ transform: "none", opacity: 1 },
             { transform: "translateX(" + (toA - centre(f)) + "px) scale(0.4)", opacity: 0 }], fold);
     run(m, [{ transform: "none", opacity: 1 },
             { transform: "translateX(" + (toA - centre(m)) + "px) scale(0.4)", opacity: 0 }], fold);
-    // 3. The chevron turns to point right. 4. The page slides off to the left.
-    run(a, [{ transform: "none", offset: 0 },
-            { transform: "scale(1.35)", offset: 0.5 },
-            { transform: "scale(1.35) rotate(90deg)", offset: 1 }],
-        { delay: 260, duration: 820, easing: "ease-in-out" });
-    var slide = { delay: 1100, duration: 480, easing: "cubic-bezier(.55,0,.35,1)" };
+    run(a, [{ transform: "none" }, { transform: "scale(1.8)" }], fold);
+    // 3. The chevron charges: copper to the bright yellow in two pulses,
+    //    holding at yellow. No glow around it (§201, at the owner's word).
+    // Colours read from the page, not `var()` in a keyframe, which not every
+    // browser resolves inside Web Animations.
+    var css = getComputedStyle(document.documentElement);
+    var copper = css.getPropertyValue("--copper").trim() || "#E0B563";
+    var bright = css.getPropertyValue("--deeper").trim() || "#FFD23F";
+    run(a, [{ color: copper, offset: 0 },
+            { color: bright, offset: 0.3 },
+            { color: copper, offset: 0.45 },
+            { color: bright, offset: 0.75 },
+            { color: bright, offset: 1 }],
+        { delay: FAM_INTRO_CHARGE_MS, duration: 560, easing: "ease-in-out" });
+    // 4. The page slides off to the left, revealing DailyFAM (or whichever
+    //    screen the app opened on), and the chevron goes with it.
+    var slide = { delay: 1320, duration: 480, easing: "cubic-bezier(.55,0,.35,1)" };
     run(panel, [{ transform: "none" }, { transform: "translateX(-100%)" }], slide);
     run(logo, [{ transform: "none", opacity: 1 },
                { transform: "translateX(-40%)", opacity: 0 }], slide)
@@ -17454,11 +17484,15 @@
     }, ms || 1400);
   }
 
-  function hideSplash(){
+  // `instant` skips the fade: used when the intro takes over from the splash
+  // with the same wordmark in the same place, so a fade would show two.
+  function hideSplash(instant){
     var splash = document.getElementById("splashScreen");
     if(!splash) return;
     clearTimeout(splash._timer);
+    if(instant) splash.style.transition = "none";
     splash.classList.add("hide");
+    if(instant){ void splash.offsetWidth; splash.style.transition = ""; }
   }
 
   // Which screen the app opens on, decided once and only when it can be.
@@ -17476,7 +17510,16 @@
   // read. Guessing it from anything the page *can* read is what produced the
   // flash - a guess drawn confidently and corrected a moment later.
   function bootToFirstScreen(){
-    hideSplash();
+    // The FAM intro plays every time the app opens (§201): set up over the
+    // splash, which shows the same wordmark in the same place, then played
+    // once the first screen is chosen and drawn underneath it.
+    var intro = beginEntryHandoff();
+    hideSplash(!!intro);
+    routeFirstScreen();
+    if(intro) intro();
+  }
+
+  function routeFirstScreen(){
     // No connection, on a device that was signed in: straight to myFAM,
     // offline, where the last page and the episodes kept here are - not to
     // a sign-up screen that cannot reach the server either.

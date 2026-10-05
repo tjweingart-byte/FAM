@@ -15357,3 +15357,41 @@ the With FAM chat was "That ending was something else" - nobody talks like
 that. It now answers the chat the way a friend would, with the detail that
 shows they know: "I heard all about it this morning. Can’t believe they came
 back in the ninth!"
+
+
+## 201. The FAM intro charges instead of turning, and plays every time the app opens
+
+*(Numbered 201, not 198: the landing-page branch, written at the same
+time and merged first, uses §198-§200.)*
+
+From the owner's sketch: the FAM logo appears, the F and M morph into the
+double chevron, the chevron glows like it's "charged", then the page slides
+away to reveal DailyFAM. The §196 hand-off had the same opening and closing
+beats; what changed:
+
+1. **The chevron charges instead of turning right.** `rotate(90deg)` is gone.
+   After the fold the A grows to `scale(1.8)` and, from
+   `FAM_INTRO_CHARGE_MS` (700ms), flashes copper → `--deeper` yellow in two
+   pulses and holds at yellow; the slide (1320ms) carries it off. About 1.8s
+   in all. It first had a `drop-shadow` glow around it as well; the owner
+   asked for the glow removed, so the colour is all that changes.
+2. **The wordmark is in the middle of the screen**, where the boot splash
+   draws it (`top:50%`, `margin-top:-0.55em` at the splash's 30px and
+   line-height 1.1), not at the page's own wordmark position.
+3. **It plays every time the app opens**, not only after signing in.
+   `bootToFirstScreen` calls `beginEntryHandoff()` with no screen - a blank
+   panel, since the page being left is the splash, which shows the same
+   wordmark in the same place - hides the splash without its fade
+   (`hideSplash(true)`; a fade would show two wordmarks for a moment),
+   routes to the first screen (`routeFirstScreen`, the old body), then
+   plays. It reveals whatever the app opened on: DailyFAM when signed in,
+   the sign-up page otherwise. "Opens" is a page load; coming back to an
+   already-open app from the background does not replay it, since that
+   would land on top of whatever was playing.
+
+Unchanged from §196: the screen underneath is switched before the first
+frame, the overlay never takes a tap, reduced motion or no Web Animations
+goes straight in. A sound effect is planned; `FAM_INTRO_CHARGE_MS` is where
+it would start.
+
+Tests: `tests/test_entry_handoff.py`.
