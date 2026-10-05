@@ -652,9 +652,10 @@ def test_the_morning_after_says_it_before_it_shows_it():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
     # The point first, then the chat; and in the chat you plainly can't join in.
-    assert morning.index("You’re left out of the conversation.") < morning.index('class="convo"')
+    assert morning.index("You’re never left out of the conversation") < morning.index('class="convo"')
     assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
     # Beside it, the same chat with FAM: you're in it.
-    assert morning.index("Without FAM") < morning.index("With FAM")
+    assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
+            < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
     assert '<div class="msg me in"><p><b>You</b>I caught the story this morning.' in morning
     assert 'class="ab-wrap ab-payoff' not in page
