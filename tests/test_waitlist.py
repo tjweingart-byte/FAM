@@ -646,6 +646,8 @@ def test_the_landing_page_tells_why_fam_exists():
     assert ">60 min<" in condense and ">20 min<" in condense
     assert "One episode · 2 min" in condense
     assert condense.index('class="cd-in"') < condense.index('class="cd-fam"') < condense.index('class="cd-out"')
+    # The sentence that says what the picture shows comes before it.
+    assert condense.index("<figcaption>FAM takes all of it") < condense.index('class="cd-in"')
 
 
 def test_the_morning_after_says_it_before_it_shows_it():
