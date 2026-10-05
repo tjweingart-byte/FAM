@@ -15259,7 +15259,9 @@ page's "What is FAM" section, mostly in the owner's words:
    pull quote about access against knowing. (The first version led with the
    chat and drew you as three dots in a dashed bubble with a small caption;
    the owner found it hard to read at a glance, so the point now comes before
-   the picture and the picture needs no caption.)
+   the picture and the picture needs no caption.) The quote is one line now:
+   "Having access to information and actually knowing something are two
+   completely different things."
 4. **Why we built FAM**: the podcast-company origin, written without "I"
    because the page is signed by both founders; the three asks from the
    owner's text as search bars; not a search result, not a wall of text, not a
