@@ -571,6 +571,13 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
         assert heading in landing
     # The founders' photo is optional: a missing file draws their initials.
     assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
+    # The photo ships, small enough to load fast and with nothing in it but
+    # the picture (no location from the phone that took it).
+    from PIL import Image
+    photo = ROOT / "static" / "founders.jpg"
+    assert photo.stat().st_size < 400_000
+    with Image.open(photo) as im:
+        assert im.width <= 1600 and not im.getexif()
     # The reveal moves sections; it never hides them while they wait.
     reveal = page.split(".can-reveal .reveal{", 1)[1].split("}", 1)[0]
     assert "opacity" not in reveal

@@ -15338,3 +15338,11 @@ On a phone the side phones ran off the screen (the owner saw them cut off).
 Below 640px every group is resized to fit: smaller frames and shorter
 offsets, the pills centred and a size smaller. Measured at 320, 375, 390,
 430 and 600px: no frame or pill crosses the screen edge.
+
+**The founders' photo.** The owners sent the picture for the bottom of the page
+(the two of them at the table in the office, the planning sheets on the walls).
+It is `static/founders.jpg`, 1600x1200 to fill the 4:3 frame without a crop,
+re-encoded with no metadata so nothing from the phone - its location above all -
+ships with it; a test pins the size and the empty EXIF. The initials fallback
+stays for a deployment without the file. `/founders.jpg` was already open past
+the waitlist gate, which closes only the app's pages.
