@@ -15396,7 +15396,7 @@ it would start.
 
 Tests: `tests/test_entry_handoff.py`.
 
-## 202. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe
+## 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe
 
 The owner's nine changes, with screenshots (search's bar with a long
 question, DailyFAM's Trending tiles cut off, a mix's topics, Edit topics

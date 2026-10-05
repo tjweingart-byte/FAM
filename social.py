@@ -746,11 +746,14 @@ class SocialStore:
                 "SELECT c.id, c.user_id, c.parent_id, c.text, c.at,"
                 " (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id)"
                 " FROM comments c WHERE c.query = ? AND c.minutes = ?"
-                " ORDER BY c.at ASC LIMIT ?",
+                " ORDER BY c.at DESC LIMIT ?",
                 (query, int(minutes), int(limit) * 4)).fetchall()
         except Exception:
             log.exception("could not read an episode's comments")
             return []
+        # The newest are kept when a thread is past the cap, then read oldest
+        # first so every reply comes after the comment it hangs from.
+        rows.reverse()
         ids = [r[0] for r in rows]
         liked: set = set()
         if viewer and ids:
@@ -1112,11 +1115,16 @@ class SocialStore:
                 "SELECT id FROM comments WHERE user_id = ?", (user_id,))]
             if own:
                 marks = ",".join("?" for _ in own)
-                cur = conn.execute(
-                    f"DELETE FROM comments WHERE parent_id IN ({marks})", own)
-                removed += cur.rowcount or 0
+                # Other people's replies under them, and the likes on those.
+                own += [r[0] for r in conn.execute(
+                    f"SELECT id FROM comments WHERE parent_id IN ({marks})", own)]
+                marks = ",".join("?" for _ in own)
                 conn.execute(
                     f"DELETE FROM comment_likes WHERE comment_id IN ({marks})", own)
+                cur = conn.execute(
+                    f"DELETE FROM comments WHERE id IN ({marks}) AND user_id != ?",
+                    (*own, user_id))
+                removed += cur.rowcount or 0
             cur = conn.execute("DELETE FROM comment_likes WHERE user_id = ?",
                                (user_id,))
             removed += cur.rowcount or 0

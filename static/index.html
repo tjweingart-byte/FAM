@@ -15966,6 +15966,7 @@
   // not played, because a swipe let go of half way is not a choice to listen.
   var reelUnplayed = false;
   function openExplore(from){
+    closeReelComments();
     exploreFrom = from === "home" ? "home" : "myfam";
     setTab("explore");
     updateTabs(exploreFrom);
@@ -15980,6 +15981,10 @@
     loadExplore();
   }
   function exploreBack(){
+    // The comments sheet and the captions' timer belong to the card on
+    // screen; coming back draws the card again and restarts them.
+    closeReelComments();
+    if(reelCc.timer){ clearInterval(reelCc.timer); reelCc.timer = null; }
     if(exploreFrom === "home") setTab("home"); else openMyFamTab();
   }
 

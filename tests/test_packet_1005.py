@@ -1,4 +1,4 @@
-"""The 10.5 implementations packet (PROBLEMS.md §202): the search bar's full
+"""The 10.5 implementations packet (PROBLEMS.md §203): the search bar's full
 width, whole titles on DailyFAM tiles, reordering a mix, the chosen topics
 stacked, the bookshelf, no Explore rail, the exploreFAM pill, Explore as a
 reel with comments, and a caption on a vibe."""
@@ -269,3 +269,20 @@ def test_vibing_asks_for_a_caption_first_and_the_story_draws_it():
     assert "caption: caption" in _fn("sendVibe")
     assert 'getElementById("storyCaption")' in _fn("showStory")
     assert 'id="vibeCaptionOverlay"' in INDEX
+
+
+def test_a_long_thread_keeps_its_newest_comments(store):
+    for i in range(5):
+        store.add_comment("a", "why tides turn", 3, f"comment {i}")
+    rows = store.comments("why tides turn", 3, limit=1)   # reads 4 rows
+    assert rows[0]["text"] == "comment 4"
+
+
+def test_deleting_an_account_leaves_no_likes_on_replies_it_hosted(store):
+    top = store.add_comment("a", "why tides turn", 3, "first")
+    reply = store.add_comment("b", "why tides turn", 3, "reply", parent_id=top["id"])
+    store.like_comment("b", reply["id"])
+    store.forget("a")
+    left = store._conn().execute("SELECT COUNT(*) FROM comment_likes").fetchone()[0]
+    assert left == 0
+    assert store.comment_counts_many([("why tides turn", 3)]) == {("why tides turn", 3): 0}
