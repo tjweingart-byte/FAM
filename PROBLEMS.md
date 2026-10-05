@@ -15254,7 +15254,7 @@ page's "What is FAM" section, mostly in the owner's words:
    marquee that stops, wrapped, under reduced motion), then "keeping up takes
    work", with the time it costs drawn to scale - an hour-long podcast for the
    ten minutes you care about, a twenty-minute video for three, FAM's two.
-3. **What happens when we miss stories?** (the label hands on from the line
+3. **What happens when you miss stories?** (the label hands on from the line
    before it): "You're left out of the conversation." said first,
    then a work chat where your only line is "Wait… what happened?", then the
    pull quote about access against knowing. (The first version led with the
