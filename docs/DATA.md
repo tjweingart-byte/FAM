@@ -177,7 +177,7 @@ more than one worker (see `FINANCIAL.md` §5.1).
 | GNews | 90 requests per day | `render.yaml` |
 | API-Sports | 100 requests per day, shared, per process | `config.py:769` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1185-1195` |
-| Tier quotas | free 5/day, plus 150/week. **Built, off** (`ENFORCE_QUOTAS=0`). | `entitlements.py:219` |
+| Tier quotas | free 5/day, plus 150/week. **Built; off by default, on in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §204). | `entitlements.py` |
 | Admin SQL | Read-only SELECT, 500 rows, 4 s | `admin_tracker.py:62` |
 | Account visibility | A listener id is only ever taken from the server-minted session, never from a parameter | `app._listener` |
 

@@ -812,6 +812,17 @@ class Settings:
     # request already booked, never behind a whole sweep.
     gdelt_episode_wait_seconds: float = _env_float(
         "GDELT_EPISODE_WAIT_SECONDS", 6.0)
+    # Stop asking after this many failures in a row, for this long (§204):
+    # on 1/10 every one of 384 requests failed from Render's shared address,
+    # and each cost a slot and, for an episode, up to a six-second wait. One
+    # request is let through when the pause ends. 0 never pauses.
+    gdelt_breaker_failures: int = _env_int("GDELT_BREAKER_FAILURES", 5)
+    gdelt_breaker_seconds: float = _env_float("GDELT_BREAKER_SECONDS", 1800.0)
+    # A static-IP proxy for GDELT's requests only (§204), e.g. QuotaGuard
+    # Static's URL: GDELT counts per address, and Render's is shared. Holds a
+    # credential, so it is set in the dashboard and scrubbed on staging.
+    gdelt_proxy_url: str = field(
+        default_factory=lambda: os.environ.get("GDELT_PROXY_URL", "").strip())
     # Whether a researched episode asks GDELT as well as Exa. Separate from
     # `gdelt` so the Trending row can run without adding a second call to
     # every episode - they are different clocks and different budgets.
@@ -1000,6 +1011,16 @@ class Settings:
         default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
+    # Which plan each licensed provider is on, as bought on its dashboard
+    # (§204). Nothing in the provider's answer says so, and the free plans of
+    # both are licensed for development / personal use only - so the deploy
+    # says it, and `/admin` and `/api/health` flag a free plan in use.
+    # GNews: free | essential | business | enterprise. Finnhub: free |
+    # commercial (any other word is read as a paid plan).
+    gnews_plan: str = field(
+        default_factory=lambda: os.environ.get("GNEWS_PLAN", "free").strip().lower())
+    finnhub_plan: str = field(
+        default_factory=lambda: os.environ.get("FINNHUB_PLAN", "free").strip().lower())
     alpha_vantage_key: str = field(
         default_factory=lambda: os.environ.get("ALPHA_VANTAGE_KEY", "").strip())
     ap_elections_key: str = field(
@@ -1444,8 +1465,9 @@ class Settings:
     # a burst throttles correct use. 0 switches it off.
     read_limit_per_window: int = _env_int("READ_LIMIT_PER_WINDOW", 60)
     # --- Public API -------------------------------------------------------
-    # Tier quotas. **Off by default: the tier system is built, and not yet
-    # switched on.** The whole mechanism stays - tiers, limits, counters,
+    # Tier quotas. **Off by default, on in production** (§204: `render.yaml`
+    # sets `ENFORCE_QUOTAS=1` on `fam`; admin accounts are unlimited in
+    # `app._tier`, and `/api/admin/plan` moves anyone else). The whole mechanism stays - tiers, limits, counters,
     # reservations, refunds, the refusal and the screen it raises - and
     # `ENFORCE_QUOTAS=1` turns it on in one place on the day the product
     # decides to. What is deliberately not happening yet is *refusing a

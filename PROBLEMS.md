@@ -15480,3 +15480,63 @@ and a like replaces one; nothing in this client offers it.
 
 Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
 run follow the rail's removal and the pill.
+
+## 204. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked
+
+**What was asked.** A complete financial breakdown of every outside service
+(published as an artifact, built from `docs/FINANCIAL.md` plus §191 and §194),
+then, at the owner's direction (05/10), the five things it said to fix first.
+
+**1. Quotas enforced in production.** With `ENFORCE_QUOTAS=0` one listener
+searching nonstop could spend ~$2 a minute. `render.yaml` now sets
+`ENFORCE_QUOTAS=1` on `fam` only; the code default stays 0 (local runs, tests,
+staging). `tiers-off` carries a Current note. There is still no checkout, so:
+* admin accounts (`FAM_ADMIN_ACCOUNTS`) are `unlimited`, derived in
+  `app._tier` from the account - a bare session whose id is listed gets
+  nothing;
+* `POST /api/admin/plan {"who": email | phone | id, "plan": ...}` moves any
+  other account (`AccountStore.user_id_for`, then `set_plan`);
+* `/api/plans` says `enforced` and `checkout`, and the plans sheet stops
+  saying "Everything is free for now" when limits are on. The limit card keeps
+  "See plans" (`refusal-wording`).
+The free tier counts every episode heard, cached replays included
+(`tier-spend`), so five a day may be tight; `FREE_EPISODES_PER_DAY` tunes it
+in the dashboard.
+
+**2. The GPU line.** `metering.SYNTHESIS_REALTIME_FACTOR` defaulted to 330 -
+espeak and Piper's speed - against Chatterbox's measured 4.6 (§75), so every
+GPU allocation in `usage_report.py` was ~70x low. Defaults are now 4.6 and
+`GPU_USD_PER_HOUR=0.69` (RunPod serverless flex, 24 GB).
+
+**3. Exa's fallback price.** `research.COST_PER_SEARCH` 0.005 → 0.015 (list:
+$7/1,000 searches plus contents). Used only when Exa omits `cost_dollars`.
+
+**4. GDELT.** 384 of 384 failed on 1/10 from Render's shared address (§191),
+each costing a paced slot and, for an episode with an empty Exa packet, up to
+six seconds. Two changes in `gdelt._get`:
+* a breaker: after `GDELT_BREAKER_FAILURES` (5) failures in a row nothing is
+  sent for `GDELT_BREAKER_SECONDS` (1800), then one request is let through;
+  `GdeltPaused` is a `GdeltBusy`, so `retrieve` returns `[]` at once and
+  background callers fail as before. `/api/health` → `gdelt` reports
+  `failures_in_a_row`, `paused_until`, `last_error`;
+* `GDELT_PROXY_URL`: GDELT's requests, and only GDELT's, through a static-IP
+  proxy (QuotaGuard Static, which Render documents; Starter $19/mo, 20k
+  requests). Health says `via_proxy`, never the URL - it holds a credential,
+  which is also why `spend_guard` scrubs it on staging.
+A proxy fixes this only if the refusal is the shared address; QuotaGuard's
+own pair is shared among its customers, so verify with
+`python tools/gdelt_probe.py` once it is set.
+
+**5. Licences.** GNews' free plan is for development, Finnhub's for personal
+use, Open-Meteo's keyless endpoint non-commercial - and no provider's answer
+says which plan a key is on. `GNEWS_PLAN` and `FINNHUB_PLAN` (default `free`)
+say it; `provider_usage.licences()` reports each, flags a free plan *in use*,
+and `commercial_ready` answers "may we charge money?" on `/api/health`. The
+admin page draws the flag in red on the service's row, and warns when GNews is
+paid but `GNEWS_DAILY_REQUESTS` is still the free guard.
+
+Not done here, because it is buying: the plans themselves, and the proxy.
+
+Tests: `tests/test_quotas_on_in_production_204.py`,
+`tests/test_gdelt_breaker_204.py`, `tests/test_licences_204.py`;
+`test_metering` prices synthesis at the measured speed.

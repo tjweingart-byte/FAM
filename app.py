@@ -1139,6 +1139,12 @@ def _tier(request: Request) -> str:
     client-supplied one is a client-supplied upgrade.
     """
     listener = getattr(request.state, "listener", None)
+    # An admin account is never refused by its own allowance (§204): the
+    # people who test every surface every day would otherwise hit the free
+    # ceiling by lunchtime the day quotas are switched on. Named by
+    # `FAM_ADMIN_ACCOUNTS`, on the server - never by anything the client says.
+    if _allowed_admin(listener):
+        return "unlimited"
     return entitlements.normalise(listener.tier if listener else "free")
 
 
@@ -1575,6 +1581,10 @@ async def health(request: Request) -> dict:
         # separately from `research` because they fail separately: Exa can be
         # healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
+        # Whether every licensed provider in use may be used commercially
+        # (§204): GNews' and Finnhub's free plans and Open-Meteo's keyless
+        # endpoint may not. The question to ask before charging anybody.
+        "licences": _licences_report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how
@@ -3085,6 +3095,18 @@ async def entitlements_read(request: Request) -> dict:
     }
 
 
+def _licences_report() -> dict:
+    """`provider_usage.licences`, never raising: health reports, it does not
+    fail on a report."""
+    try:
+        import provider_usage
+
+        return provider_usage.licences()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read licences: %s", exc)
+        return {"error": str(exc)}
+
+
 @app.get("/api/plans")
 async def plans_read(request: Request) -> dict:
     """Every tier and every feature, for a pricing screen.
@@ -3095,7 +3117,14 @@ async def plans_read(request: Request) -> dict:
     product metadata, which is also the only place it can be right per country.
     """
     _read_limit(request)
-    return {**entitlements.catalogue(), "current": _tier(request)}
+    return {**entitlements.catalogue(), "current": _tier(request),
+            # Whether a limit can refuse anybody on this deploy, and whether
+            # anything sells a way past one (§204). The plans screen and the
+            # limit card word themselves from these rather than guessing:
+            # "everything is free" is false the day quotas are on, and a
+            # "See plans" button with no checkout behind it is a dead end.
+            "enforced": bool(settings.enforce_quotas),
+            "checkout": False}
 
 
 @app.get("/api/voices")
@@ -7873,6 +7902,33 @@ async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _kick_viral_loops()
     return {"granted": len(granted), "user_ids": granted}
+
+
+class AdminPlanRequest(BaseModel):
+    who: str = Field(..., min_length=1, max_length=200)
+    plan: str = Field(..., min_length=1, max_length=40)
+
+
+@app.post("/api/admin/plan")
+async def admin_set_plan(req: AdminPlanRequest, request: Request) -> dict:
+    """Move one account between plans (§204).
+
+    There is no checkout, so this is the only way an account leaves `free`:
+    a tester, a friend of the product, anybody the owner wants past the daily
+    ceiling while quotas are enforced. `who` is the listener id, email or
+    phone number on the account. Takes effect on their next request - the
+    plan is read with the session.
+    """
+    _require_admin(request)
+    user_id = ACCOUNTS.user_id_for(req.who)
+    if not user_id:
+        raise HTTPException(status_code=404, detail=f"No account matches {req.who!r}.")
+    try:
+        plan = ACCOUNTS.set_plan(user_id, req.plan.strip().lower())
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log.info("admin set plan %s for %s", plan, user_id)
+    return {"user_id": user_id, "plan": plan}
 
 
 class AdminCutoffRequest(BaseModel):

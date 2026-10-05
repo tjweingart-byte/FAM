@@ -5422,7 +5422,13 @@
     // The seam where checkout goes, named as one. Nothing sets a paid plan
     // yet, so a row that looked buyable would be a promise the app cannot
     // keep - and the listener would find that out after tapping.
-    html += '<div class="plan-note">Upgrades aren\u2019t available yet. Everything is free for now.</div>';
+    // Worded from the server (§204): "everything is free" stops being true
+    // the day quotas are switched on, while there is still nothing to buy.
+    if(!(data && data.checkout === true)){
+      html += '<div class="plan-note">' + (data && data.enforced === true
+        ? 'Upgrades aren\u2019t available yet. Your daily allowance comes back every day.'
+        : 'Upgrades aren\u2019t available yet. Everything is free for now.') + '</div>';
+    }
     document.getElementById("plansList").innerHTML = html;
   }
 

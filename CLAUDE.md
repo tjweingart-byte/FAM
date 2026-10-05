@@ -390,7 +390,8 @@ Accounts, tiers, sharing
   friends; a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190); a `/waitlist` join is
   always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
-- **Tiers are built and switched off** (`ENFORCE_QUOTAS=0`) - no checkout means no wall. [tiers-off]
+- **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §204);
+  admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every

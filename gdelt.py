@@ -240,21 +240,99 @@ class _Pacer:
 PACER = _Pacer()
 
 
+class GdeltPaused(GdeltBusy):
+    """GDELT has failed every request lately; it is not being asked (§204)."""
+
+
+class _Breaker:
+    """Stop asking an address that refuses every request (§204).
+
+    On 1/10 GDELT failed 384 of 384 requests from Render's shared outbound
+    address (§191). Each failure still cost a paced slot, and an episode whose
+    Exa search came back empty waited up to `GDELT_EPISODE_WAIT_SECONDS` for
+    an answer that was never coming. After `GDELT_BREAKER_FAILURES` failures
+    in a row nothing is sent for `GDELT_BREAKER_SECONDS`; then one request is
+    let through, and a success closes it. A pause is reported on `/api/health`
+    (`gdelt.paused_until`), because a fallback that is quietly off is the
+    failure this code base keeps a rule about.
+    """
+
+    def __init__(self) -> None:
+        self.failures = 0
+        self.paused_until = 0.0
+        self.last_error = ""
+
+    def check(self) -> None:
+        limit = int(settings.gdelt_breaker_failures)
+        if limit <= 0:
+            return
+        now = time.time()
+        if self.paused_until > now:
+            raise GdeltPaused(
+                f"GDELT refused the last {self.failures} requests; not asking "
+                f"again for {self.paused_until - now:.0f}s")
+
+    def success(self) -> None:
+        self.failures = 0
+        self.paused_until = 0.0
+        self.last_error = ""
+
+    def failure(self, why: str) -> None:
+        self.failures += 1
+        self.last_error = why[:200]
+        limit = int(settings.gdelt_breaker_failures)
+        if limit > 0 and self.failures >= limit:
+            self.paused_until = time.time() + float(settings.gdelt_breaker_seconds)
+            log.warning("gdelt: %d failures in a row (last: %s); pausing %ss",
+                        self.failures, self.last_error,
+                        settings.gdelt_breaker_seconds)
+
+    def report(self) -> dict:
+        return {"failures_in_a_row": self.failures,
+                "paused_until": self.paused_until if self.paused_until > time.time() else None,
+                "last_error": self.last_error or None}
+
+    def reset(self) -> None:
+        self.__init__()
+
+
+BREAKER = _Breaker()
+
+
+def _proxy() -> Optional[str]:
+    """The outbound proxy GDELT's requests go through, if one is set.
+
+    GDELT limits by address, and Render's address is shared with every other
+    tenant on it (§144, §191). `GDELT_PROXY_URL` sends these requests - and
+    only these - through a static-IP proxy (QuotaGuard Static is the one
+    Render documents), so FAM is counted on an address of its own. A
+    credential lives in the URL, so it is a secret and staging never has it.
+    """
+    url = str(getattr(settings, "gdelt_proxy_url", "") or "").strip()
+    return url or None
+
+
 async def _get(params: dict, timeout: float,
                max_wait: Optional[float] = None) -> dict:
     """One DOC request, in its turn. `max_wait=None` is background work."""
+    BREAKER.check()
     await PACER.slot(max_wait)
     import provider_usage
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, proxy=_proxy()) as client:
         try:
             response = await client.get(DOC_API, params=params)
-        except Exception:
+        except Exception as exc:
             provider_usage.record("gdelt", ok=False)
+            BREAKER.failure(_describe(exc))
             raise
         # Counted for the admin page (§179), refused or not: a 429 spent
         # the slot as surely as a 200 did.
         provider_usage.record("gdelt", ok=response.is_success)
+        if response.is_success:
+            BREAKER.success()
+        else:
+            BREAKER.failure(f"HTTP {response.status_code}")
         response.raise_for_status()
         try:
             return response.json()
@@ -548,4 +626,9 @@ def report() -> dict:
     ok, why = available()
     return {"enabled": bool(settings.gdelt), "ready": ok, "detail": why,
             "endpoint": DOC_API, "themes_swept": len(THEMES),
-            "verified_from_this_machine": False}
+            "verified_from_this_machine": False,
+            # §204: whether requests leave through a proxy of FAM's own (never
+            # the URL - it carries a credential), and whether the breaker has
+            # stopped asking.
+            "via_proxy": _proxy() is not None,
+            **BREAKER.report()}

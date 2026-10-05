@@ -82,6 +82,13 @@ services:
         sync: false        # set once in the dashboard; never in the repo
       - key: DEMO_MODE
         value: "0"
+      # Tier quotas, enforced here and nowhere else (§204): the free tier's
+      # daily ceiling bounds what one listener can spend (~$0.50 a day rather
+      # than ~$2 a minute). Admin accounts (FAM_ADMIN_ACCOUNTS) are unlimited;
+      # POST /api/admin/plan moves anyone else. FREE_EPISODES_PER_DAY and
+      # FREE_EXPLORE_PER_DAY tune the ceiling in the dashboard.
+      - key: ENFORCE_QUOTAS
+        value: "1"
       # The pre-launch waitlist (WAITLIST.md). WAITLIST=1 closes the app to
       # anybody whose account is not active, so it is asked for in the
       # dashboard rather than set here: turning it on is a decision made when
@@ -256,6 +263,15 @@ services:
         sync: false
       - key: GNEWS_DAILY_REQUESTS
         value: "90"
+      # Which plan was bought on each provider's own dashboard (§204). The
+      # free plans of GNews and Finnhub are not licensed for commercial use,
+      # and /admin and /api/health flag them in red until these say a paid
+      # one: GNEWS_PLAN=essential (then GNEWS_DAILY_REQUESTS=950 and
+      # GNEWS_MAX_ARTICLES=25), FINNHUB_PLAN=commercial. Unset means free.
+      - key: GNEWS_PLAN
+        sync: false
+      - key: FINNHUB_PLAN
+        sync: false
       # The live story pool's news source - what Made for you and What you
       # missed draw on (Trending is GNews since §139, above). GDELT is keyless
       # and measures what worldwide news is covering, including which
@@ -263,6 +279,13 @@ services:
       # against the running service is what says it is actually answering.
       - key: GDELT
         value: "1"
+      # GDELT counts requests per address, and Render's outbound address is
+      # shared: on 1/10 every request failed (§191). A static-IP proxy's URL
+      # here (QuotaGuard Static, ~$19/mo) sends GDELT's requests - and only
+      # GDELT's - from an address of FAM's own (§204). Unset, the breaker
+      # stops asking after 5 failures in a row and says so on /api/health.
+      - key: GDELT_PROXY_URL
+        sync: false
       #
       # Deliberately NOT pinned here: ANSWER_FIRST. `Dockerfile.gpu` sets it to
       # 1 because the configuration that was listened to and judged good ran

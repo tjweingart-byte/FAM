@@ -163,8 +163,8 @@ number that excluded most of them.
 | `METERING_DB` | `metering.db` | where the ledger lives. **Not regenerable** — pin it to the mounted disk, as both Dockerfiles do |
 | `FAM_ADMIN_TOKEN` | unset | gates `/api/usage`; unset means the endpoint 404s |
 | `FAM_ADMIN_ACCOUNTS` | unset | the accounts (email, phone or listener id) that are admins while signed in - `/admin`, the live tracker, and every admin endpoint (PROBLEMS.md §150) |
-| `GPU_USD_PER_HOUR` | `0.60` | mid L4 on-demand. A reserved card or a neocloud is cheaper |
-| `SYNTHESIS_REALTIME_FACTOR` | `330` | how much faster than realtime Chatterbox synthesises |
+| `GPU_USD_PER_HOUR` | `0.69` | RunPod serverless flex, 24 GB class. An active worker (~0.47) or a pod is cheaper |
+| `SYNTHESIS_REALTIME_FACTOR` | `4.6` | how much faster than realtime Chatterbox synthesises, measured on an RTX 4090 (§75; was 330, the old CPU voices', §204) |
 | `GPU_HOURS_PER_DAY` | `24` | hours the card is actually paid for |
 
 Rates live in `metering.PRICES`, checked against the published card on
