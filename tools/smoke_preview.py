@@ -2532,7 +2532,9 @@ def main() -> int:
             # uppercased in CSS and innerText reports what is rendered.
             body = page.inner_text("#pickerBody").lower()
             assert typed in body, "the typed topic is not shown in the picker"
-            assert "also in this mix" in body, "the typed topic has no heading"
+            # "In this mix" since the 10.5 packet (#4): everything chosen is
+            # one stack.
+            assert "in this mix" in body, "the typed topic has no heading"
             assert page.eval_on_selector("#pickerSearch", "e => e.value") == "", \
                 "adding a typed topic left the search box full"
             # Counted in briefings, which is what a narrowed subject makes
@@ -2620,7 +2622,7 @@ def main() -> int:
             page.wait_for_selector("#screen-mixdetail.active", timeout=8000)
             page.wait_for_timeout(400)
             rows = page.eval_on_selector_all(
-                "#mixBody > .mix-topic .mix-topic-title",
+                "#mixBody .mix-list > .mix-topic .mix-topic-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL \u00b7 Eagles", "NFL", "Basketball \u00b7 Lakers"], rows
             assert "edition \u00b7" in page.inner_text("#mixBody").lower(), \
