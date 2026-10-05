@@ -82,7 +82,7 @@ SHIM = """
 })();
 </script>
 <div style="position:fixed;left:0;right:0;bottom:0;z-index:99;padding:7px 12px;
-            background:#18151F;color:#ABA3C4;font:10px/1.4 'JetBrains Mono',monospace;
+            background:#18151F;color:#ABA3C4;font:10px/1.4 'Geist Mono',monospace;
             text-align:center;border-top:1px solid rgba(244,239,228,0.14)">
   PREVIEW - the page is real, the voice is silence. A server speaks it.
 </div>

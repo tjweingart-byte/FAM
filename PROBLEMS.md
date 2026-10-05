@@ -15480,3 +15480,49 @@ and a like replaces one; nothing in this client offers it.
 
 Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
 run follow the rail's removal and the pill.
+
+## 204. The type read as generated: Bricolage Grotesque, Geist and Geist Mono
+
+**The problem.** Fraunces for headings, Space Grotesk for body text and
+JetBrains Mono for uppercase labels is the trio a coding assistant reaches
+for, and anyone who has seen a few such interfaces recognises it at once.
+The owner did not want FAM to look built that way.
+
+**How it was chosen.** Six type systems - the current one and five
+replacements (Plus Jakarta Sans; DM Serif Display + DM Sans + DM Mono;
+Bricolage Grotesque + Geist + Geist Mono; Instrument Serif + Instrument Sans
++ IBM Plex Mono; Outfit) - were photographed on Search, DailyFAM, myFAM,
+exploreFAM, Messages and YourFAM from the same preview build, with Explore's
+rotation pinned and each font verified loaded before the shutter, and laid
+out as a deck by screen and by font. The owner chose Bricolage Grotesque +
+Geist + Geist Mono.
+
+**The change.** A straight role-for-role swap, so every size, weight and
+letter-spacing decision stays where it was:
+
+* Headings (`'Fraunces', Georgia, serif` and its variants) ->
+  `'Bricolage Grotesque', sans-serif`. The serif fallbacks went with the
+  serif: a sans heading falling back to Georgia would be a different design.
+* Body (`'Space Grotesk'`) -> `'Geist'`; labels (`'JetBrains Mono'`) ->
+  `'Geist Mono'`, monospace fallback kept.
+* One Google Fonts link per page, variable weights 400..700 and Bricolage's
+  optical-size axis (12..96), so small card titles get the text cut and
+  hero titles the display cut without any CSS saying so:
+  `static/index.html`, `static/listen.html` (the share landing),
+  `static/waitlist.html` (Barlow Condensed kept beside them),
+  `docs/_page_template.html`.
+* The share story card (`sharing.story_card`) names the new faces, its
+  headline included (it was Georgia).
+* The live preview's database panel, the loading demo and the share-preview
+  banner follow.
+
+`releases/web/2026.09.29/` is not touched: it is the archived client that
+shipped, served at `/v/<version>/`, and keeps the type it shipped with.
+
+**Still to do by hand.** The waitlist page's "What is FAM" pictures
+(`static/landing/*.jpg`) were retaken (`tools/landing_shots.py`), but the
+player still and the DailyFAM tile cards in `tools/landing/` are cut from the
+owner's phone screenshots and still show the old type until new ones are
+taken on a build with this change.
+
+Rule: `typefaces` in `docs/claude/constraints.md`.
