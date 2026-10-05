@@ -617,7 +617,7 @@ def test_the_landing_page_tells_why_fam_exists():
     # The sign-up screen names it and the intro says it; the meta description
     # spells it out.
     assert '<p class="tagline label">Your social information network</p>' in landing
-    assert '<h2 class="ab-h">Social information.</h2>' in landing
+    assert '<h2 class="ab-h">SOCIAL INFORMATION</h2>' in landing
     assert "social information, not social media" in page.split("</head>", 1)[0]
     assert "Listen to everything you want to know about." in landing.split('class="ab-foot"', 1)[1]
     order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",

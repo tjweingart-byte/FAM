@@ -15247,14 +15247,14 @@ access to information is not knowing something - now carries the waitlist
 page's "What is FAM" section, mostly in the owner's words:
 
 1. **The hero** keeps its headline and gains the line "Your social
-   information network"; the intro's headline is "Social information."; the
+   information network"; the intro's headline is "SOCIAL INFORMATION"; the
    meta description says "social information, not social media" (the footer
    went back to "Listen to everything you want to know about.").
 2. **The problem**: four things that pass you by drift across the page (a
    marquee that stops, wrapped, under reduced motion), then "keeping up takes
    work", with the time it costs drawn to scale - an hour-long podcast for the
    ten minutes you care about, a twenty-minute video for three, FAM's two.
-3. **What happens when we miss things?** (the label hands on from the line
+3. **What happens when we miss stories?** (the label hands on from the line
    before it): "You're left out of the conversation." said first,
    then a work chat where your only line is "Wait… what happened?", then the
    pull quote about access against knowing. (The first version led with the
