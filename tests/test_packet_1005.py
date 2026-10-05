@@ -149,8 +149,10 @@ def test_the_reel_shows_the_title_over_the_picture_with_the_players_menu():
     assert "/api/episode/card" in _fn("drawReelPicture")
     menu = _fn("openReelMenu")
     for action in ("openShareModal", "toggleEcho", "saveForLater", "toggleReelCC",
-                   "openReelComments", "rateReel(-1)", "openQueue"):
+                   "openReelComments", "openQueue"):
         assert action in menu, action
+    # No dislike anywhere (the owner, after the packet).
+    assert "dislike" not in menu.lower()
 
 
 def test_the_reel_keeps_both_transport_gestures():

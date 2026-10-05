@@ -576,8 +576,9 @@ def test_explore_shows_the_episodes_plays_and_not_the_sessions_swipes():
     assert "ep.plays" in body
     for element in ('id="reelLike"', 'id="reelVibeN"', 'id="reelLikeN"'):
         assert element in INDEX
-    # Dislike moved from the reel's rail to its ⋯ menu (10.5 packet #8).
-    assert "rateReel(-1)" in INDEX
+    # No dislike anywhere in the app (the 10.5 packet, at the owner's
+    # direction).
+    assert "rateReel(-1)" not in INDEX and 'id="reelDislike"' not in INDEX
 
 
 def test_explore_still_plays_cached_only():

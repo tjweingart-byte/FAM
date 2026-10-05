@@ -15473,5 +15473,10 @@ with its comments sheet):
    when the same episode is vibed again, and `stories_among` returns it: the
    story viewer draws it under the title. Taking a vibe back is unchanged.
 
+**Follow-up, at the owner's direction: no dislike anywhere.** It had moved
+to the reel's ⋯; it is gone from there too, and it was nowhere else.
+`/api/rate` still accepts -1 from apps already installed (`old-clients`),
+and a like replaces one; nothing in this client offers it.
+
 Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
 run follow the rail's removal and the pill.

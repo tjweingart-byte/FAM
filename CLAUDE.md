@@ -97,8 +97,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   tile's ⋯; client state only; plays before the grid. [queue]
 
 - **Explore is a reel** (§202): picture behind, title bottom left, like /
-  comment / vibe / share / save down the right, the player's ⋯ (dislike
-  lives there), captions slide up; **comments** keyed `(query, minutes)`,
+  comment / vibe / share / save down the right, the player's ⋯; no dislike
+  anywhere, captions slide up; **comments** keyed `(query, minutes)`,
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - A vibe may carry a caption, drawn on its story (§202). [vibe-caption]

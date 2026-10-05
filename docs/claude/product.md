@@ -110,7 +110,8 @@ as they interact with the app.
 direction.** The episode's picture fills the page (`/api/episode/card`,
 the player's); its title sits bottom left where a reel puts the account;
 like, comment, vibe (FAM's repost), share and save run down the right;
-the player's ⋯ is top right and carries dislike, which left the rail;
+the player's ⋯ is top right; **there is no dislike anywhere in the app**
+(the owner, after §202 - `/api/rate` still takes -1 from installed clients);
 captions slide up from the bottom. The ±15 and the draggable bar stay
 (`transport`), small. **Comments** are keyed `(query, minutes)` like vibes
 and thumbs, so everyone who hears an episode reads one thread: read by

@@ -3770,9 +3770,9 @@
 
             <!-- Down the right, as on a reel: like, comment, vibe (FAM's
                  repost), share, save - FAM's own icons, each with its count
-                 where it has one. Dislike moved to the ⋯ menu: a reel's rail
-                 is these five. The numbers are everybody's; the lit state is
-                 this listener's own. -->
+                 where it has one. No dislike anywhere, at the owner's
+                 direction (10.5 packet). The numbers are everybody's; the lit
+                 state is this listener's own. -->
             <div class="reel-actions">
               <div class="reel-act" id="reelLike" onclick="rateReel(1)" title="Like this episode" aria-label="Like this episode" aria-pressed="false">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4V10h3z"/><path d="M7 10l4-7a2 2 0 0 1 3 2l-1 4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"/></svg>
@@ -6436,8 +6436,7 @@
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
     addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
     queue: '<path d="M4 6h16M4 11h16M4 16h10"/>',
-    comment: '<path d="M20.5 11.6a8.4 8.4 0 0 1-12.3 7.4L3.5 20.5l1.5-4.6a8.4 8.4 0 1 1 15.5-4.3z"/>',
-    dislike: '<path d="M17 14V4h3v10h-3z"/><path d="M17 14l-4 7a2 2 0 0 1-3-2l1-4H5.5a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 6.7 4H17"/>'
+    comment: '<path d="M20.5 11.6a8.4 8.4 0 0 1-12.3 7.4L3.5 20.5l1.5-4.6a8.4 8.4 0 1 1 15.5-4.3z"/>'
   };
   function menuLabel(icon, text){
     return '<span class="menu-row"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"'
@@ -16105,7 +16104,7 @@
     put("reelVibeN", ep.vibes);
     put("reelLikeN", ep.likes);
     put("reelCommentN", ep.comments);
-    [["reelLike", 1], ["reelDislike", -1]].forEach(function(pair){
+    [["reelLike", 1]].forEach(function(pair){
       var el = document.getElementById(pair[0]);
       if(!el) return;
       var on = (ep.rating || 0) === pair[1];
@@ -16139,7 +16138,9 @@
       .catch(function(){});
   }
 
-  // Like or dislike the card on screen; the same thumb again takes it back.
+  // Like the card on screen; the same thumb again takes it back. There is no
+  // dislike in the app (10.5 packet, at the owner's direction); `/api/rate`
+  // still takes -1 from clients already installed, and a like replaces one.
   // Drawn at once and then corrected from the server's own counts, so the
   // button answers the tap and the numbers are never a guess for long.
   function rateReel(value){
@@ -16344,13 +16345,11 @@
   }
 
   // **The ⋯ in the top right does what the player's does** (d): the same
-  // sheet, headed by the episode, offering what this card can take - and
-  // dislike, which left the right-hand rail for it.
+  // sheet, headed by the episode, offering what this card can take.
   function openReelMenu(){
     var ep = reelCurrent;
     if(!ep){ toast("Nothing is playing"); return; }
     var ccOn = document.getElementById("reelCc").classList.contains("on");
-    var disliked = (ep.rating || 0) === -1;
     showActionSheet([
       { head: menuHead(ep.title, "", ep.thumb || "") },
       { label: menuLabel("share", "Share"), action: function(){ openShareModal(); } },
@@ -16359,8 +16358,6 @@
       { label: menuLabel("save", savedNow ? "Remove from Save for Later" : "Save for later"),
         action: saveForLater },
       { label: menuLabel("comment", "Comments"), action: openReelComments },
-      { label: menuLabel("dislike", disliked ? "Take back your dislike" : "Dislike"),
-        action: function(){ rateReel(-1); } },
       { label: menuLabel("cc", "Closed captions · " + (ccOn ? "On" : "Off")),
         action: toggleReelCC },
       { label: menuLabel("add", "Add to playlist"),
