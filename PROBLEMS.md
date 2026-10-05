@@ -15189,3 +15189,171 @@ At the owner's direction:
 
 Tests: `tests/test_packet_1001_fourth.py`, `tests/test_guest_wipe_and_storage.py`,
 `tools/smoke_preview.py`.
+
+
+## 198. The waitlist page asked for an email without saying what FAM is
+
+At the owner's direction: somebody landing on `/waitlist` saw a headline, a
+sample and a form, and nothing that explained the product. Under the sign-up
+there is now a "What is FAM" section:
+
+1. What an episode is, then **No more / FAM gives you** (Google tabs and
+   chatbot paragraphs against researched storytelling audio).
+2. **Search. Scroll. Mix.** - Search, DailyFAM and myFAM, each shown with
+   real screens of the app (the owner asked for the real interface rather
+   than drawings). They are photographs of the preview build - the shipped
+   `static/index.html` on its fixtures, a sample account signed in, the
+   preview banner removed - kept as `static/landing/*.jpg` and retaken with
+   `python tools/landing_shots.py` when a screen changes. Three things are
+   changed for the camera, at the owner's direction: only tiles with a
+   painted picture are shown - the fixtures have none, so DailyFAM's tiles
+   wear thirteen real cards the owner screenshotted from the app
+   (`tools/landing/tiles/`, Made for you's on Made for you, Trending's on
+   Trending, the friends rail's on the rest), and any tile still on its
+   placeholder drawing, with any rail left empty, comes off; the fixtures' sample
+   friends, named after real people, get made-up names (`FAKE_NAMES`); and
+   the Morning mix has a cover (`tools/landing/morning-cover.jpg`, a drawn
+   sunrise, set through the app's own cover PATCH). Behind Search is the
+   player, cut from the owner's own screenshot (`tools/landing/stills/`),
+   since the preview has no episode with a painted picture; its title was
+   reset, in the app's own face, to a SpaceX story at the owner's direction.
+   Each gold pill sits under its phone, never over the bottom of it. Nothing
+   in the section plays. The listener-facing names are used (§185).
+3. Friends: share, vibe, interests, with the Friends page between a friend's
+   vibe played as a story (left) and a friend's profile with their interests,
+   public mixes and vibes (right).
+4. The founders, Ian Solomon and TJ Weingart, and why they built it. Their
+   photo is `static/founders.jpg`; until the file exists the frame draws
+   their initials (`onerror` adds `.empty`), so there is no broken image.
+5. A last Join button that scrolls back to the form and focuses it.
+
+The dusk backdrop moved from `.landing` to a `.hero` wrapper so it covers the
+sign-up screen and not the section under it; `--hero` set on `.landing` still
+reaches it. Sections ease up as they scroll in (`html.can-reveal`, set only
+when an `IntersectionObserver` exists); they are moved, never hidden while they
+wait, so a link preview sees the whole page. Reduced motion turns the easing
+and the "What is FAM?" arrow's nudge off.
+
+Tests: `tests/test_waitlist.py`.
+
+
+## 199. "What is FAM" said what FAM does, not what it is for
+
+At the owner's direction (04/10), "above all else": **FAM is social
+information, not social media.** The owner's own account of the problem - so
+much information passes by every day, keeping up with it takes work, so you
+miss things and are on the outside of the next morning's conversation; having
+access to information is not knowing something - now carries the waitlist
+page's "What is FAM" section, mostly in the owner's words:
+
+1. **The hero** keeps its headline and gains the line "The social
+   information network", right under the FAM wordmark; the intro's headline is "SOCIAL INFORMATION"; the
+   meta description says "social information, not social media"; the footer
+   is the wordmark over "The social information network" and nothing else.
+2. **The problem**: four things that pass you by drift across the page (a
+   marquee that stops, wrapped, under reduced motion), then "keeping up takes
+   work", with the time it costs drawn to scale - an hour-long podcast for the
+   ten minutes you care about, a twenty-minute video for three, FAM's two.
+3. **"Stay in the loop" / "Don't be left out of the conversation"** (first "What
+   happens when you miss stories?" / "You're left out of the conversation."
+   over a line about the office discussing last night's game, then "With
+   FAM… You're never left out of the conversation"; the owner settled on
+   this and cut the line). Said first,
+   then a work chat where your only line is "Wait… what happened?", then the
+   pull quote about access against knowing. (The first version led with the
+   chat and drew you as three dots in a dashed bubble with a small caption;
+   the owner found it hard to read at a glance, so the point now comes before
+   the picture and the picture needs no caption.) The pull quote about access
+   against knowing was cut once the before-and-after chats said it.
+4. **Why we built FAM**: the podcast-company origin, written without "I"
+   because the page is signed by both founders; the three asks from the
+   owner's text as search bars; not a search result, not a wall of text, not a
+   chatbot answer, an actual story; the research-write-record-edit-publish
+   pipeline against "You ask. FAM tells you the story."
+5. **No more / FAM gives you** now sums that up; Search. Scroll. Mix. is
+   unchanged.
+6. **You're in it** - now beside the "left out" chat, not a section of its
+   own: the owner wanted the after next to the before. The same work chat
+   twice, side by side (stacked on a phone), labelled "Without FAM" (your
+   line: "Wait… what happened?") and "With FAM" (your line: "I caught the
+   story this morning…", marked "Caught up on FAM this morning · 2 min"),
+   then "Two minutes in the morning and you're in it". Two-column sections
+   now sit side by side from 640px, so a narrow window does not push the
+   picture under its words.
+7. Friends opens on "Information is better when it's shared"; the founders
+   close with "FAM isn't really about consuming more information"; the last
+   call is "Spend less time trying to keep up, and more time actually being
+   part of the conversation."
+
+The frame is a rule now (`social-information`, `docs/claude/product.md`), so
+later copy and features are judged against it. The people in the drawn
+conversations are the made-up friends from §198 (Maya, Jordan, Sam).
+
+Tests: `tests/test_waitlist.py`.
+
+
+## 200. The Problem, second attempt: the real problem, and what keeping up costs
+
+At the owner's direction, a second attempt at the waitlist page's "The
+problem" (§199):
+
+1. **The headline names the real problem**: "Being in the know shouldn't be a
+   full-time job." "Think about how much information passes by you every
+   single day" was dropped - how much information there is is a problem
+   plenty of other products already answer; FAM's is that keeping up takes
+   so much work that people end up outside the conversation.
+2. **The rail stays** - the four things that pass you by, drifting past on
+   their own (a day-timeline version was tried and rejected for it).
+3. **The turn**, set large and condensed to one line at the owner's
+   direction: "Keeping up with all the information out there takes time."
+   ("time", the owner's word, over "work"), then "most of us just accept that
+   we're going to miss things."
+4. **One picture of what FAM does about it** (the owner: "simple - it takes
+   all the information and condenses it into a short FAM episode"): search
+   results, articles, feeds, an hour-long podcast (60 min) and a
+   twenty-minute video (20 min) on the left, into the FAM mark, out as one
+   episode card, "The story you asked for · One episode · 2 min". Left to
+   right on a desktop, top to bottom on a phone. It replaced, in turn, cards
+   drawing each medium (a waveform, a video scrubber) and a chart of minutes
+   on one scale - both said "it takes long" rather than "FAM condenses it".
+   The pills naming search, articles and feeds went with them, since the
+   picture names them.
+
+Tests: `tests/test_waitlist.py`.
+
+The owner then asked for three passages to read less colloquially, and they
+were rewritten to the same meaning: "No one has time to follow everything
+they care about, so most people accept that they will miss things."; "The
+office is discussing last night's game. You missed it. That headline you
+half remember is not enough to take part in the conversation."; and the
+origin, "FAM began inside a podcast company, where a handful of people
+decided which stories became episodes and ultimately controlled what
+listeners heard." (that phrase in bold), then, on its own line, "That raised
+a question: why should you wait for someone else to make an episode about the
+things you care about?" The three example asks, the line after them and the
+four "not a search result… an actual story" pills were cut at the owner's
+direction; the origin goes straight from that question to the pipeline.
+
+On a phone the side phones ran off the screen (the owner saw them cut off).
+Below 640px every group is resized to fit: smaller frames and shorter
+offsets, the pills centred and a size smaller. Measured at 320, 375, 390,
+430 and 600px: no frame or pill crosses the screen edge.
+
+**The founders' photo.** The owners sent the picture for the bottom of the page
+(the two of them at the table in the office, the planning sheets on the walls).
+It is `static/founders.jpg`, 1600x1200 to fill the 4:3 frame without a crop,
+re-encoded with no metadata so nothing from the phone - its location above all -
+ships with it; a test pins the size and the empty EXIF. The initials fallback
+stays for a deployment without the file. `/founders.jpg` was already open past
+the waitlist gate, which closes only the app's pages.
+
+**The copyright line.** The page ends with "© 2026 APALI. All rights reserved."
+under the footer's tagline, small and faint, at the owner's direction; a test
+keeps it the last line of the footer.
+
+**Two lines reworded.** The condense caption now reads "FAM takes all that
+information and condenses it into one short episode." The caught-up reply in
+the With FAM chat was "That ending was something else" - nobody talks like
+that. It now answers the chat the way a friend would, with the detail that
+shows they know: "I heard all about it this morning. Can’t believe they came
+back in the ninth!"
