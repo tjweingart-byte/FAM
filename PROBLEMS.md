@@ -15326,4 +15326,7 @@ half remember is not enough to take part in the conversation."; and the
 origin, "FAM began inside a podcast company, where a handful of people
 decided which stories became episodes and ultimately controlled what
 listeners heard." (that phrase in bold), then, on its own line, "That raised
-a question: … Why not simply ask…".
+a question: why should you wait for someone else to make an episode about the
+things you care about?" The three example asks, the line after them and the
+four "not a search result… an actual story" pills were cut at the owner's
+direction; the origin goes straight from that question to the pipeline.

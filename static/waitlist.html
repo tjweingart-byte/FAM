@@ -251,18 +251,9 @@
   .ba-out{ margin:30px auto 0; max-width:720px; text-align:center; font-size:clamp(18px, 2.4vw, 21px); line-height:1.55; color:var(--muted); }
   .ba-out b{ color:var(--gold); font-weight:500; }
 
-  /* The asks, and what they come back as. */
   .ab-origin{ text-align:center; }
   .ab-origin .ab-h, .ab-origin .ab-lede{ margin-left:auto; margin-right:auto; }
   .ab-origin .ab-h{ max-width:860px; }
-  .asks{ display:grid; grid-template-columns:1fr; gap:10px; max-width:640px; margin:30px auto 0; text-align:left; }
-  .ask{ display:flex; align-items:center; gap:12px; background:#F4EFE4; color:#1E1B27; border-radius:999px;
-    padding:13px 20px; font-size:15.5px; line-height:1.35; }
-  .ask svg{ flex:none; width:18px; height:18px; color:#6F6882; }
-  .not-this{ list-style:none; padding:0; margin:22px auto 0; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
-  .not-this li{ border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:14px; color:var(--faint);
-    text-decoration:line-through; text-decoration-color:rgba(226,105,79,0.6); }
-  .not-this li.yes{ text-decoration:none; color:var(--gold-ink); background:var(--gold); border-color:var(--gold); }
 
   /* The pipeline a story used to need, against one step. */
   .pipeline{ display:grid; grid-template-columns:1fr; gap:14px; align-items:center; margin:52px auto 0; max-width:960px; text-align:left; }
@@ -649,14 +640,7 @@
       <p class="ab-lede">FAM began inside a podcast company, where a handful of people decided
         which stories became episodes and ultimately <b>controlled what listeners heard</b>.<br>
         That raised a question: why should you wait for someone else
-        to make an episode about the things you care about? Why not simply ask…</p>
-      <div class="asks"><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Tell me what happened in the Dodgers game last night”</span></div><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Catch me up on what’s happening with AI”</span></div><div class="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>“Explain this thing everyone keeps talking about”</span></div></div>
-      <p class="ab-p center">…and, two minutes later, understand what happened, from
-        something worth listening to.</p>
-      <ul class="not-this">
-        <li>Not a search result</li><li>Not a wall of text</li><li>Not a chatbot answer</li>
-        <li class="yes">An actual story</li>
-      </ul>
+        to make an episode about the things you care about?</p>
       <div class="pipeline">
         <div class="pipe-old">
           <div class="label">For most of the history of media, someone had to</div>
