@@ -12,11 +12,13 @@ the one path from a row in it to a tile on a screen.
 
 ## Part 1 — What "the database" is
 
-There is no database server. There are **fourteen SQLite files**, one per
-subject, each owned by exactly one module, each opened in WAL mode with a
+There is no database server. There is **one SQLite file per subject** - every
+store opened through `paths.data_path` (see `docs/DATA.md`, which lists them
+all; `tests/test_data_paths.py` derives the list from the code), each owned by
+one module (a few files are shared by two), each opened in WAL mode with a
 thread-local connection. `paths.py` resolves every one of them from the
 project root or from an absolute environment variable, never from the current
-working directory, and the `Dockerfile` pins all fourteen to the mounted
+working directory, and the `Dockerfile` pins every one of them to the mounted
 `/data` disk so a redeploy does not erase them.
 
 | File | Module | What it holds |
@@ -46,7 +48,9 @@ seven files rather than a query.
 
 ### The one division that matters
 
-**Twelve of the fourteen are per-listener. Two are not**, and they are shared
+**The stores that hold listeners are per-listener, except two** (the rest -
+the trending edition, thumbnails, local news, provider counts, the voice
+registry and bank - hold no listener at all). The two are shared
 for the same reason: `scripts.db` is one script serving every listener who
 asks the same question, and `categories.db` is one *vocabulary* serving every
 listener the feed ranks. A per-listener vocabulary would break the shared

@@ -47,6 +47,9 @@ The front door's second option says **"Continue as guest"** rather than "Skip
 for now". The two setup steps behind it still say "Skip for now" and that is
 right there - a step you skip comes back. This one does not: it is a way of
 using the app, and somebody who takes it is a guest for as long as they like.
+Since §197 the button is withdrawn until FAM is public (the guest rules stay,
+so it comes back as one line), and while `WAITLIST=1` the whole app is closed
+to anyone whose account is not `active` (§183, `WAITLIST.md`).
 
 ### And every gate opens the same screen
 

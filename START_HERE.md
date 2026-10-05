@@ -83,7 +83,7 @@ and spends nothing.
 | **search** | type a question, pick a length | the writing. This is the one to judge |
 | **myFAM** | tap a tile | same pipeline, question from the shared bank; a tile someone already played starts instantly |
 | **DailyFAM** | open a starter mix, play it through | a mix holds topics, never audio — different episodes each day |
-| **explore** | swipe the feed | replay only; a card no longer cached says so instead of quietly writing a new one |
+| **explore** (the exploreFAM pill on search and beside Made for you; not a tab since §181/§203) | swipe the reel | replay only; a card no longer cached says so instead of quietly writing a new one |
 | **profile** | what the event log holds | nothing invented. Thin until you have played a few |
 
 **Listen to the last two sentences of any episode.** They should land on the

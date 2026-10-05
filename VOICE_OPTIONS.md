@@ -1,5 +1,9 @@
 # Replacing Piper: what the WellSaid run actually taught us
 
+> History. Piper has since been deleted outright; Chatterbox is the only
+> voice, and without it FAM plays a placeholder tone and says so (`README.md`,
+> `RUNPOD_PRODUCTION.md`).
+
 Piper's problem is that it sounds flat. That is still true and still worth
 fixing. But the first attempt at fixing it failed on something else entirely,
 and the reason matters more than the shortlist.

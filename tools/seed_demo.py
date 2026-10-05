@@ -18,9 +18,10 @@ So a demo of the product needs a product that has been used. This writes that
 history: it generates a handful of real episodes, puts them in the shared cache
 where Explore reads from, and records other listeners having played them.
 
-It costs one model call per episode and no speech synthesis at all - the script
-is the expensive half, and seeding audio would be pointless when it is
-regenerated from the script in milliseconds anyway.
+It costs one model call per episode and no speech synthesis at all: each
+episode is voiced on its first play (Chatterbox, ~4.6x realtime) and its audio
+is kept beside the script from then on (§132), so seeding audio would only
+spend GPU time on episodes nobody may play.
 
     python tools/seed_demo.py --dry-run     what it would do, spends nothing
     python tools/seed_demo.py               eight episodes, three minutes each

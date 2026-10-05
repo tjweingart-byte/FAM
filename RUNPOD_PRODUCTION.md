@@ -19,7 +19,8 @@ minute.
 
 Tested here:
 
-* Does production select Chatterbox, or does it quietly fall back to Piper?
+* Does production select Chatterbox, or is it on the placeholder tone
+  (`interim: true`)? Piper is deleted, so those are the only two states.
 * Does the credential work, from this process, on this machine?
 * How long until the first byte reaches a client — the one-sentence spec?
 * Does synthesis really begin before Claude finishes, on real hardware?
@@ -89,7 +90,8 @@ rather than after ten minutes of installing and a 4 GB download:
 
 Gate 6 is the one that matters most, and it is the reason this is a script and
 not a list of commands. *"Chatterbox is installed"* is not *"this server will
-speak with Chatterbox"*. A pod that fell back to Piper would produce a
+speak with Chatterbox"*. A pod that fell back to another engine (Piper, when
+it existed; the placeholder tone now) would produce a
 complete, plausible, entirely worthless set of numbers about the wrong engine —
 the exact failure shape PROBLEMS.md §52 is about.
 
