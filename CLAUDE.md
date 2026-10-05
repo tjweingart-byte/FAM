@@ -37,6 +37,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 ## Where this is going  (`product.md`)
 
+- **FAM is social information, not social media** (§199, above all else):
+  keeping up takes work, so people miss the conversation; FAM turns what they
+  care about into audio stories so they can be part of it. [social-information]
 - Three surfaces over generated audio: **searchFAM** (ask; voice search via
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent

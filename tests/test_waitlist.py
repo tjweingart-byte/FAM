@@ -12,6 +12,7 @@ import dataclasses
 import json
 import os
 import pathlib
+import re
 import sqlite3
 import sys
 
@@ -558,3 +559,114 @@ def test_the_apps_sign_up_goes_to_the_waitlist():
     body = page.split("function openAuth(mode){", 1)[1].split("authMode = mode;", 1)[0]
     assert 'mode === "signup" && signupGoesToWaitlist()' in body
     assert 'location.href = "/waitlist"' in body
+
+
+def test_the_landing_page_says_what_fam_is_under_the_sign_up():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    # Under the form, on the landing view only - never on the status page.
+    assert landing.index('id="joinForm"') < landing.index('id="about"')
+    for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
+                    "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):
+        assert heading in landing
+    # The founders' photo is optional: a missing file draws their initials.
+    assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
+    # The photo ships, small enough to load fast and with nothing in it but
+    # the picture (no location from the phone that took it).
+    from PIL import Image
+    photo = ROOT / "static" / "founders.jpg"
+    assert photo.stat().st_size < 400_000
+    with Image.open(photo) as im:
+        assert im.width <= 1600 and not im.getexif()
+    # The reveal moves sections; it never hides them while they wait.
+    reveal = page.split(".can-reveal .reveal{", 1)[1].split("}", 1)[0]
+    assert "opacity" not in reveal
+    assert 'classList.add("can-reveal")' in page
+
+
+def test_the_what_is_fam_pictures_are_real_screens_that_ship():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
+    pictures = set(re.findall(r'src="/landing/([\w-]+\.jpg)"', about))
+    assert len(pictures) >= 6
+    for name in pictures:
+        assert (ROOT / "static" / "landing" / name).stat().st_size > 10_000, name
+    # Retaken by one script, which writes exactly the files the page names.
+    tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
+    assert {n[:-4] for n in pictures} <= set(re.findall(r'\("([\w-]+)", ', tool))
+    for name in re.findall(r'\("([\w-]+)", "the', tool):  # a still is cut, not shot
+        assert (ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").exists(), name
+    # A pill sits under its phone: the row leaves room below the phone for it.
+    pad = re.search(r"\.shots\{[^}]*padding:10px 0 (\d+)px", page)
+    assert pad and int(pad.group(1)) >= 60
+    # Only painted tiles, made-up friends, a cover on the Morning mix.
+    assert "if(!c.querySelector('.seed-img')) c.remove();" in tool
+    assert '"Beth Solomon": "Maya Brooks"' in tool
+    assert "await page.evaluate(DESIGNED_TILES_ONLY)" in tool
+    assert "await page.evaluate(RENAME, names)" in tool
+    assert (ROOT / "tools" / "landing" / "morning-cover.jpg").stat().st_size > 10_000
+    # The painted cards, one set per rail they were cut from.
+    tiles = {p.stem.split("-")[0] for p in (ROOT / "tools" / "landing" / "tiles").glob("*.jpg")}
+    assert tiles == {"foryou", "trending", "friends"}
+    assert "await page.evaluate(PAINT_TILES, cards)" in tool
+    # The Vibe card wears the player's own VIBE icon.
+    app = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    vibe = re.search(r'id="playerEcho"[^>]*><svg[^>]*>(.*?)</svg>', app).group(1)
+    card = about.split("<b>Vibe</b>", 1)[0].rsplit('class="fr-card"', 1)[1]
+    assert vibe in card
+    # Every picture says what it shows.
+    assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
+
+
+def test_the_landing_page_tells_why_fam_exists():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    # The sign-up screen names it and the intro says it; the meta description
+    # spells it out.
+    assert '<p class="tagline label">The social information network</p>' in landing
+    # Right under the wordmark, above the headline.
+    assert landing.index('class="wordmark"') < landing.index('class="tagline') < landing.index('class="headline"')
+    assert '<h2 class="ab-h">SOCIAL INFORMATION</h2>' in landing
+    assert "social information, not social media" in page.split("</head>", 1)[0]
+    foot = landing.split('class="ab-foot"', 1)[1]
+    assert foot.index('class="wordmark"') < foot.index("The social information network")
+    # The copyright is the last line on the page.
+    assert foot.index("The social information network") < foot.index("&copy; 2026 APALI. All rights reserved.") < foot.index("</footer>")
+    order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
+             "left out of the conversation",
+             "stories you hear?", "Search. Scroll. Mix.",
+             "actually being part of the conversation"]
+    at = [landing.index(text) for text in order]
+    assert at == sorted(at), "the story is told out of order"
+    # What passes you by, on a rail that keeps moving: four things, twice over
+    # so the loop is seamless, the copies hidden from screen readers.
+    problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
+    assert problem.count('class="pass-card"') == 8
+    assert problem.count('class="pass-card" aria-hidden="true"') == 4
+    assert "animation:drift" in page
+    motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
+                  if ".pass-track" in block.split("}\n  }", 1)[0])
+    assert ".pass-track{ animation:none" in motion
+    # Everything you would have to get through goes into FAM and comes out
+    # as one short episode - the owner's numbers on the way in, FAM's two out.
+    assert "Keeping up with all the information out there takes time." in problem
+    condense = problem.split('class="condense"', 1)[1].split("</figure>", 1)[0]
+    assert condense.count("<li>") == 5
+    assert ">60 min<" in condense and ">20 min<" in condense
+    assert "One episode · 2 min" in condense
+    assert condense.index('class="cd-in"') < condense.index('class="cd-fam"') < condense.index('class="cd-out"')
+    # The sentence that says what the picture shows comes before it.
+    assert condense.index("<figcaption>FAM takes all that information") < condense.index('class="cd-in"')
+
+
+def test_the_morning_after_says_it_before_it_shows_it():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
+    # The point first, then the chat; and in the chat you plainly can't join in.
+    assert morning.index("Don’t be left out of the conversation") < morning.index('class="convo"')
+    assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
+    # Beside it, the same chat with FAM: you're in it.
+    assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
+            < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
+    assert '<div class="msg me in"><p><b>You</b>I heard all about it this morning.' in morning
+    assert 'class="ab-wrap ab-payoff' not in page
