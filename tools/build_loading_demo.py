@@ -81,11 +81,11 @@ def build() -> str:
   *{{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
   body{{
     margin:0; min-height:100vh; background:var(--page-bg); color:var(--paper);
-    font-family:'Space Grotesk', sans-serif;
+    font-family:'Geist', sans-serif;
     padding:34px 18px 60px; display:flex; flex-direction:column; align-items:center; gap:22px;
   }}
   .lead{{ max-width:430px; text-align:center; }}
-  .lead h1{{ font-family:'Fraunces', serif; font-weight:500; font-size:25px;
+  .lead h1{{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:25px;
     color:var(--copper); margin:0 0 8px; }}
   .lead p{{ font-size:12.5px; line-height:1.6; color:var(--text-muted); margin:0; }}
   /* The same 300x620 frame the preview uses, so proportions are honest. */
@@ -98,12 +98,12 @@ def build() -> str:
   .controls{{ display:flex; flex-wrap:wrap; gap:7px; justify-content:center; max-width:430px; }}
   .controls button{{
     background:var(--surface); color:var(--text); border:1px solid var(--border-strong);
-    border-radius:20px; padding:8px 13px; font-family:'JetBrains Mono', monospace;
+    border-radius:20px; padding:8px 13px; font-family:'Geist Mono', monospace;
     font-size:10.5px; cursor:pointer;
   }}
   .controls button:active{{ transform:scale(0.96); }}
   .controls button.on{{ background:var(--copper); color:var(--ink); border-color:var(--copper); }}
-  .note{{ max-width:430px; text-align:center; font-family:'JetBrains Mono', monospace;
+  .note{{ max-width:430px; text-align:center; font-family:'Geist Mono', monospace;
     font-size:10px; line-height:1.7; color:var(--muted); }}
   .note b{{ color:var(--copper); font-weight:500; }}
 

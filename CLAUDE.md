@@ -414,6 +414,8 @@ Accounts, tiers, sharing
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
+- **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
+  (§204), one font link; Fraunces/Space Grotesk/JetBrains Mono are gone. [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it
